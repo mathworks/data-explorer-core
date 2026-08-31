@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import type BaseNode from '../node/BaseNode.js';
+import { formatText } from './formatText.js';
 
 export default class PropLabels {
     static key = 'Labels';
@@ -13,7 +14,5 @@ export default class PropLabels {
         return labels && labels.length > 0 ? labels.join(', ') : '';
     }
 
-    static format(value: unknown): string {
-        return (value as string) || '';
-    }
+    static format = formatText;
 }

@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import type BaseNode from '../node/BaseNode.js';
+import { formatText } from './formatText.js';
 
 // The raw class identity (e.g. 'Simulink.Parameter', 'Simulink.Bus') — the
 // object's Class, distinct from PropKind (the human-readable Kind label, e.g.
@@ -17,7 +18,5 @@ export default class PropClass {
         return node.className;
     }
 
-    static format(value: unknown): string {
-        return (value as string) || '';
-    }
+    static format = formatText;
 }

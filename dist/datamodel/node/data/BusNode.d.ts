@@ -3,7 +3,6 @@ import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { SetPropertyResult } from '../DataNode.js';
 import PropUnit from '../../prop/PropUnit.js';
-import PropComplexity from '../../prop/PropComplexity.js';
 export declare class BusElementNode extends BaseBusElementNode {
     _rawMin: unknown;
     _rawMax: unknown;
@@ -25,7 +24,7 @@ export declare class BusElementNode extends BaseBusElementNode {
         items: (PropClass | typeof PropKind)[];
     } | {
         group: string;
-        items: (PropClass | typeof PropUnit | typeof PropDescription | typeof PropComplexity)[];
+        items: (PropClass | typeof PropUnit | typeof PropDescription)[];
     })[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _applyElementOverrides(props: Record<string, unknown>): void;

@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { formatText } from './formatText.js';
 export default class PropPath {
     static { this.key = 'Path'; }
     static { this.displayName = 'Path'; }
@@ -7,8 +8,6 @@ export default class PropPath {
     static readValue(node) {
         return node.fullPath || node.name;
     }
-    static format(value) {
-        return value || '';
-    }
+    static { this.format = formatText; }
 }
 //# sourceMappingURL=PropPath.js.map

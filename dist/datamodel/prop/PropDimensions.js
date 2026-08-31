@@ -9,7 +9,6 @@ export default class PropDimensions {
     static { this.displayName = 'Dimensions'; }
     static { this.editor = 'label'; }
     static { this.column = 'dimensions'; }
-    static { this.defaultValue = ''; }
     // Raw _properties key (differs from the lowercase display key) so the PI
     // "Other" catch-all treats it as already shown.
     static { this.sourceKeys = ['Dimensions']; }

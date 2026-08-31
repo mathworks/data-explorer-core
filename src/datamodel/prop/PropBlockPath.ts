@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import type BaseNode from '../node/BaseNode.js';
+import { formatText } from './formatText.js';
 
 export default class PropBlockPath {
     static key = 'BlockPath';
@@ -12,7 +13,5 @@ export default class PropBlockPath {
         return (node as unknown as { blockPath?: string }).blockPath || '';
     }
 
-    static format(value: unknown): string {
-        return (value as string) || '';
-    }
+    static format = formatText;
 }

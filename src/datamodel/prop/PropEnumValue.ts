@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import type BaseNode from '../node/BaseNode.js';
+import { formatText } from './formatText.js';
 
 // The EnumType "Value" cell: a dropdown whose options are the enumeral child
 // names. The chosen option is written to the node's DefaultValue, so selecting a
@@ -12,7 +13,6 @@ export default class PropEnumValue {
     static editor = 'select';
     static column = 'Value';
     static nodeProperty = 'DefaultValue';
-    static defaultValue = '';
 
     static readValue(node: BaseNode): string {
         return node.displayValue;
@@ -22,15 +22,5 @@ export default class PropEnumValue {
         return node.children.map((c) => c.name);
     }
 
-    static format(value: unknown): string {
-        return (value as string) || '';
-    }
-
-    static parse(raw: unknown): string {
-        return String(raw || '');
-    }
-
-    static validate(): string | null {
-        return null;
-    }
+    static format = formatText;
 }

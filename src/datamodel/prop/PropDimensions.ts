@@ -12,7 +12,6 @@ export default class PropDimensions {
     static displayName = 'Dimensions';
     static editor = 'label';
     static column: string | null = 'dimensions';
-    static defaultValue = '';
     // Raw _properties key (differs from the lowercase display key) so the PI
     // "Other" catch-all treats it as already shown.
     static sourceKeys = ['Dimensions'];

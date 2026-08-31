@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { formatText } from './formatText.js';
 export default class PropBaseType {
     static { this.key = 'BaseType'; }
     static { this.displayName = 'Base Type'; }
@@ -8,15 +9,6 @@ export default class PropBaseType {
     // in-place editor, so it renders read-only there.
     static { this.editor = 'text'; }
     static { this.column = 'DataType'; }
-    static { this.defaultValue = ''; }
-    static format(value) {
-        return value || '';
-    }
-    static parse(raw) {
-        return String(raw || '');
-    }
-    static validate() {
-        return null;
-    }
+    static { this.format = formatText; }
 }
 //# sourceMappingURL=PropBaseType.js.map

@@ -7,7 +7,6 @@ export default class PropValue {
     static displayName = 'Value';
     static editor = 'text';
     static column = 'Value';
-    static defaultValue = 0;
 
     static readValue(node: BaseNode): string {
         return node.displayValue;
@@ -32,13 +31,5 @@ export default class PropValue {
             return arrStr.length > 50 ? '<1x' + value.length + ' double>' : arrStr;
         }
         return '';
-    }
-
-    static parse(raw: unknown): unknown {
-        return raw;
-    }
-
-    static validate(): string | null {
-        return null;
     }
 }

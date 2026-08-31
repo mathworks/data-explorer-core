@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { formatText } from './formatText.js';
 // The raw class identity (e.g. 'Simulink.Parameter', 'Simulink.Bus') — the
 // object's Class, distinct from PropKind (the human-readable Kind label, e.g.
 // 'Simulink Parameter'). Read-only, computed from the live node getter, so it
@@ -12,8 +13,6 @@ export default class PropClass {
     static readValue(node) {
         return node.className;
     }
-    static format(value) {
-        return value || '';
-    }
+    static { this.format = formatText; }
 }
 //# sourceMappingURL=PropClass.js.map

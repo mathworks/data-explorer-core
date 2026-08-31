@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { formatText } from './formatText.js';
 // The user-facing Kind (e.g. 'Simulink Parameter', 'Bus', 'Value Type') — the
 // human-readable label for the object's class, distinct from PropClass (the raw
 // class identity, e.g. 'Simulink.Parameter'). Read-only, computed from the live
@@ -13,8 +14,6 @@ export default class PropKind {
     static readValue(node) {
         return node.kind;
     }
-    static format(value) {
-        return value || '';
-    }
+    static { this.format = formatText; }
 }
 //# sourceMappingURL=PropKind.js.map

@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { formatText } from './formatText.js';
 export default class PropType {
     static { this.key = 'Type'; }
     static { this.displayName = 'Type'; }
@@ -8,8 +9,6 @@ export default class PropType {
         const n = node;
         return n.projectItemType || n.className || '';
     }
-    static format(value) {
-        return value || '';
-    }
+    static { this.format = formatText; }
 }
 //# sourceMappingURL=PropType.js.map

@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import type BaseNode from '../node/BaseNode.js';
+import { formatText } from './formatText.js';
 
 // A bus element's Complexity ('real' | 'complex'). MATLAB constrains it to that
 // enum (verified: any other value raises "There is no enumerated value named
@@ -12,7 +13,6 @@ export default class PropComplexity {
     static displayName = 'Complexity';
     static editor = 'label';
     static column: string | null = 'complexity';
-    static defaultValue = '';
     // Raw _properties key (differs from the lowercase display key) so the PI
     // "Other" catch-all treats it as already shown.
     static sourceKeys = ['Complexity'];
@@ -21,7 +21,5 @@ export default class PropComplexity {
         return ((node as unknown as { Complexity?: string }).Complexity) || '';
     }
 
-    static format(value: unknown): string {
-        return (value as string) || '';
-    }
+    static format = formatText;
 }

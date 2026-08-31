@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { formatText } from './formatText.js';
 export default class PropStatus {
     static { this.key = 'Status'; }
     static { this.displayName = 'Status'; }
@@ -7,8 +8,6 @@ export default class PropStatus {
     static readValue(node) {
         return node.resolved ? 'Loaded' : 'Not Loaded';
     }
-    static format(value) {
-        return value || '';
-    }
+    static { this.format = formatText; }
 }
 //# sourceMappingURL=PropStatus.js.map

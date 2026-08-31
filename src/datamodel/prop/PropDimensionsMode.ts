@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import type BaseNode from '../node/BaseNode.js';
+import { formatText } from './formatText.js';
 
 // A bus element's DimensionsMode ('Fixed' | 'Variable'). MATLAB constrains it to
 // that enum (verified), so it COULD be an editable select; surfaced read-only for
@@ -11,7 +12,6 @@ export default class PropDimensionsMode {
     static displayName = 'Dimensions Mode';
     static editor = 'label';
     static column: string | null = 'dimensionsMode';
-    static defaultValue = '';
     // Raw _properties key (differs from the lowercase display key) so the PI
     // "Other" catch-all treats it as already shown.
     static sourceKeys = ['DimensionsMode'];
@@ -20,7 +20,5 @@ export default class PropDimensionsMode {
         return ((node as unknown as { DimensionsMode?: string }).DimensionsMode) || '';
     }
 
-    static format(value: unknown): string {
-        return (value as string) || '';
-    }
+    static format = formatText;
 }

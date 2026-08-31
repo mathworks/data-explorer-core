@@ -4,7 +4,6 @@ export default class PropValue {
     static { this.displayName = 'Value'; }
     static { this.editor = 'text'; }
     static { this.column = 'Value'; }
-    static { this.defaultValue = 0; }
     static readValue(node) {
         return node.displayValue;
     }
@@ -29,12 +28,6 @@ export default class PropValue {
             return arrStr.length > 50 ? '<1x' + value.length + ' double>' : arrStr;
         }
         return '';
-    }
-    static parse(raw) {
-        return raw;
-    }
-    static validate() {
-        return null;
     }
 }
 //# sourceMappingURL=PropValue.js.map

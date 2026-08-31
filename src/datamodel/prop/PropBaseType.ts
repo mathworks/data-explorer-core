@@ -1,5 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
+import { formatText } from './formatText.js';
+
 export default class PropBaseType {
     static key = 'BaseType';
     static displayName = 'Base Type';
@@ -9,17 +11,6 @@ export default class PropBaseType {
     // in-place editor, so it renders read-only there.
     static editor = 'text';
     static column = 'DataType';
-    static defaultValue = '';
 
-    static format(value: unknown): string {
-        return (value as string) || '';
-    }
-
-    static parse(raw: unknown): string {
-        return String(raw || '');
-    }
-
-    static validate(): string | null {
-        return null;
-    }
+    static format = formatText;
 }

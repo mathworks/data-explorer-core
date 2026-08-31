@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { formatText } from './formatText.js';
 export default class PropLocation {
     static { this.key = 'Location'; }
     static { this.displayName = 'Location'; }
@@ -7,8 +8,6 @@ export default class PropLocation {
     static readValue(node) {
         return node.location || '';
     }
-    static format(value) {
-        return value || '';
-    }
+    static { this.format = formatText; }
 }
 //# sourceMappingURL=PropLocation.js.map
