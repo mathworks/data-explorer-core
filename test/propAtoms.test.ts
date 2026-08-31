@@ -136,6 +136,17 @@ describe('PropValue.format', () => {
   it('renders an unrecognised value as empty rather than [object Object]', () => {
     expect(PropValue.format({ a: 1 })).toBe('');
   });
+
+  it('spells a non-finite value as MATLAB does, so the cell stays editable', () => {
+    // Inf is a legal Parameter.Value and MatlabValueParser.parse('Inf') accepts
+    // it — but it rejects the JavaScript spelling 'Infinity'. Rendering with
+    // String() therefore produced a cell whose own displayed text could not be
+    // typed back in: the edit was refused as an invalid MATLAB expression.
+    expect(PropValue.format(Infinity)).toBe('Inf');
+    expect(PropValue.format(-Infinity)).toBe('-Inf');
+    expect(PropValue.format(NaN)).toBe('NaN');
+    expect(PropValue.format([1, Infinity, NaN])).toBe('[1 Inf NaN]');
+  });
 });
 
 describe('PropMin / PropMax.format', () => {
@@ -193,6 +204,13 @@ describe('PropDimensions', () => {
   it('reads the capitalised raw key off the node', () => {
     expect(PropDimensions.readValue(node({ Dimensions: [2, 2] }))).toBe('[2 2]');
     expect(PropDimensions.readValue(node({}))).toBe('');
+  });
+
+  it('spells an Inf dimension as MATLAB does', () => {
+    // Inf is one of the values MATLAB accepts here (see the atom's own note on
+    // why this column is read-only), so it has to render as a MATLAB literal.
+    expect(PropDimensions.format(Infinity)).toBe('Inf');
+    expect(PropDimensions.format([1, Infinity])).toBe('[1 Inf]');
   });
 
   it('declares the raw key it consumes so the PI does not re-list it', () => {

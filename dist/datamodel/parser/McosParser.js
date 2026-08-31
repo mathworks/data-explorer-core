@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import { parseMatrix } from './MatParser.js';
+import { formatMatlabNum } from './XmlUtils.js';
 const MI_MATRIX = 14;
 const MCOS_HANDLE_MAGIC = 3707764736; // 0xDD000000
 const MAX_RECURSION_DEPTH = 32;
@@ -174,7 +175,10 @@ function buildMatrixValue(dims, elements) {
     for (let r = 0; r < rows; r++) {
         const vals = [];
         for (let c = 0; c < cols; c++) {
-            vals.push(String(elements[r * cols + c]));
+            // These elements are raw IEEE-754 doubles out of the blob, so Inf and NaN
+            // reach here as themselves; formatMatlabNum spells them the way MATLAB
+            // does, where String() would write the unreadable 'Infinity'.
+            vals.push(formatMatlabNum(elements[r * cols + c]));
         }
         rowStrs.push('[' + vals.join(', ') + ']');
     }

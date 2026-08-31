@@ -2,7 +2,7 @@
 import BaseNode from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
-import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, transposeToColumnMajor, pad as xmlPad, } from '../parser/XmlUtils.js';
+import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, parseMatlabNum, transposeToColumnMajor, pad as xmlPad, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -444,7 +444,7 @@ export default class DataNode extends BaseNode {
         if (matrixMatch) {
             const rows = parseInt(matrixMatch[1], 10);
             const cols = parseInt(matrixMatch[2], 10);
-            const nums = DataNode._parseMatrixNums(matrixMatch[3], type);
+            const nums = DataNode._parseMatrixNums(matrixMatch[3]);
             const colMajor = transposeToColumnMajor(nums, rows, cols);
             const formatted = colMajor.map(function (v) {
                 return formatNumericXml(v, type);
@@ -465,7 +465,7 @@ export default class DataNode extends BaseNode {
         const vecMatch = raw.match(/^\[(.+)\]$/);
         if (vecMatch) {
             const parts = vecMatch[1].split(',').map(function (s) {
-                return parseFloat(s.trim().replace(/[FU]$/, ''));
+                return parseMatlabNum(s.replace(/[FU]$/, ''));
             });
             const formatted = parts.map(function (v) {
                 return formatNumericXml(v, type);
@@ -481,7 +481,7 @@ export default class DataNode extends BaseNode {
                 formatted.join(' ') +
                 '</P>');
         }
-        const num = parseFloat(raw.replace(/[FU]$/, ''));
+        const num = parseMatlabNum(raw.replace(/[FU]$/, ''));
         return p + '<P Name="' + escapeXml(name) + '" Class="' + type + '">' + formatNumericXml(num, type) + '</P>';
     }
     static _serializeObjectPropertyXml(name, value, indent, ownerNode) {
@@ -572,7 +572,7 @@ export default class DataNode extends BaseNode {
             const vecMatch = raw.match(/^\[(.+)\]$/);
             if (vecMatch) {
                 const parts = vecMatch[1].split(',').map(function (s) {
-                    return parseFloat(s.trim().replace(/[FU]$/, ''));
+                    return parseMatlabNum(s.replace(/[FU]$/, ''));
                 });
                 return (p +
                     '<Element Class="' +
@@ -587,22 +587,28 @@ export default class DataNode extends BaseNode {
                         .join(' ') +
                     '</Element>');
             }
-            const num = parseFloat(raw.replace(/[FU]$/, ''));
+            const num = parseMatlabNum(raw.replace(/[FU]$/, ''));
             return p + '<Element Class="' + type + '">' + formatNumericXml(num, type) + '</Element>';
         }
         return p + '<Element Class="char">' + escapeXml(String(elem)) + '</Element>';
     }
-    static _parseMatrixNums(body, _type) {
+    // Flatten the body of a Matrix(r,c) literal to row-major numbers. Rows are
+    // separated by ';' or by a newline depending on which writer produced the
+    // literal — BinarySlddParser joins with '; ', while MatlabVariableNode,
+    // McosParser, and ParameterNode join with '\n'. Splitting on only one of the
+    // two silently merges every row into one, dropping an element per row break
+    // and shifting the rest, so both have to be accepted here.
+    static _parseMatrixNums(body) {
         const cleaned = body.replace(/^\[/, '').replace(/\]$/, '');
-        const rows = cleaned.split(';').map(function (s) {
-            return s.trim().replace(/^\[/, '').replace(/\]$/, '');
-        });
         const nums = [];
-        for (const row of rows) {
-            const parts = row.split(',').map(function (s) {
-                return parseFloat(s.trim().replace(/[FU]$/, ''));
-            });
-            nums.push(...parts);
+        for (const row of cleaned.split(/[;\n]/)) {
+            const inner = row.trim().replace(/^\[/, '').replace(/\]$/, '');
+            if (inner === '') {
+                continue;
+            }
+            for (const part of inner.split(',')) {
+                nums.push(parseMatlabNum(part.replace(/[FU]$/, '')));
+            }
         }
         return nums;
     }

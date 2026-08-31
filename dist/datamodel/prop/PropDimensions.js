@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { formatMatlabNum } from '../parser/XmlUtils.js';
 // A bus element's Dimensions. Read-only: MATLAB accepts a positive double
 // vector but ALSO scalars, [1 3], Inf and the char inherit-token 'x' (verified),
 // so the constraint is too underspecified to mirror safely — per the
@@ -20,10 +21,12 @@ export default class PropDimensions {
         if (value === undefined || value === null) {
             return '';
         }
+        // Inf is a legal Dimensions value (noted above), and it must show as
+        // MATLAB spells it rather than as JavaScript's 'Infinity'.
         if (Array.isArray(value)) {
-            return '[' + value.join(' ') + ']';
+            return '[' + value.map(formatMatlabNum).join(' ') + ']';
         }
-        return String(value);
+        return formatMatlabNum(value);
     }
 }
 //# sourceMappingURL=PropDimensions.js.map

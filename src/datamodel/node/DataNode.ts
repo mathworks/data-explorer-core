@@ -8,6 +8,7 @@ import {
   formatDoubleXml,
   formatNumericXml,
   formatComplexXml,
+  parseMatlabNum,
   transposeToColumnMajor,
   pad as xmlPad,
 } from '../parser/XmlUtils.js';
@@ -507,7 +508,7 @@ export default class DataNode extends BaseNode {
     if (matrixMatch) {
       const rows = parseInt(matrixMatch[1], 10);
       const cols = parseInt(matrixMatch[2], 10);
-      const nums = DataNode._parseMatrixNums(matrixMatch[3], type);
+      const nums = DataNode._parseMatrixNums(matrixMatch[3]);
       const colMajor = transposeToColumnMajor(nums, rows, cols);
       const formatted = colMajor.map(function (v: number) {
         return formatNumericXml(v, type);
@@ -531,7 +532,7 @@ export default class DataNode extends BaseNode {
     const vecMatch = raw.match(/^\[(.+)\]$/);
     if (vecMatch) {
       const parts = vecMatch[1].split(',').map(function (s: string) {
-        return parseFloat(s.trim().replace(/[FU]$/, ''));
+        return parseMatlabNum(s.replace(/[FU]$/, ''));
       });
       const formatted = parts.map(function (v: number) {
         return formatNumericXml(v, type);
@@ -550,7 +551,7 @@ export default class DataNode extends BaseNode {
       );
     }
 
-    const num = parseFloat(raw.replace(/[FU]$/, ''));
+    const num = parseMatlabNum(raw.replace(/[FU]$/, ''));
     return p + '<P Name="' + escapeXml(name) + '" Class="' + type + '">' + formatNumericXml(num, type) + '</P>';
   }
 
@@ -659,7 +660,7 @@ export default class DataNode extends BaseNode {
       const vecMatch = raw.match(/^\[(.+)\]$/);
       if (vecMatch) {
         const parts = vecMatch[1].split(',').map(function (s: string) {
-          return parseFloat(s.trim().replace(/[FU]$/, ''));
+          return parseMatlabNum(s.replace(/[FU]$/, ''));
         });
         return (
           p +
@@ -676,23 +677,29 @@ export default class DataNode extends BaseNode {
           '</Element>'
         );
       }
-      const num = parseFloat(raw.replace(/[FU]$/, ''));
+      const num = parseMatlabNum(raw.replace(/[FU]$/, ''));
       return p + '<Element Class="' + type + '">' + formatNumericXml(num, type) + '</Element>';
     }
     return p + '<Element Class="char">' + escapeXml(String(elem)) + '</Element>';
   }
 
-  static _parseMatrixNums(body: string, _type: string): number[] {
+  // Flatten the body of a Matrix(r,c) literal to row-major numbers. Rows are
+  // separated by ';' or by a newline depending on which writer produced the
+  // literal — BinarySlddParser joins with '; ', while MatlabVariableNode,
+  // McosParser, and ParameterNode join with '\n'. Splitting on only one of the
+  // two silently merges every row into one, dropping an element per row break
+  // and shifting the rest, so both have to be accepted here.
+  static _parseMatrixNums(body: string): number[] {
     const cleaned = body.replace(/^\[/, '').replace(/\]$/, '');
-    const rows = cleaned.split(';').map(function (s: string) {
-      return s.trim().replace(/^\[/, '').replace(/\]$/, '');
-    });
     const nums: number[] = [];
-    for (const row of rows) {
-      const parts = row.split(',').map(function (s: string) {
-        return parseFloat(s.trim().replace(/[FU]$/, ''));
-      });
-      nums.push(...parts);
+    for (const row of cleaned.split(/[;\n]/)) {
+      const inner = row.trim().replace(/^\[/, '').replace(/\]$/, '');
+      if (inner === '') {
+        continue;
+      }
+      for (const part of inner.split(',')) {
+        nums.push(parseMatlabNum(part.replace(/[FU]$/, '')));
+      }
     }
     return nums;
   }

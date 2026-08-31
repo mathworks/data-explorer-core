@@ -41,6 +41,6 @@ export default class DataNode extends BaseNode {
     static _serializeStructPropertyXml(name: string, value: Record<string, unknown>, indent: number): string;
     static _serializeCellPropertyXml(name: string, value: Record<string, unknown>, indent: number): string;
     static _serializeCellElementXml(elem: unknown, indent: number): string;
-    static _parseMatrixNums(body: string, _type: string): number[];
+    static _parseMatrixNums(body: string): number[];
 }
 //# sourceMappingURL=DataNode.d.ts.map

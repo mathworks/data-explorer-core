@@ -5,6 +5,7 @@ import type { SetPropertyResult } from '../DataNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
+import { formatMatlabNum } from '../../parser/XmlUtils.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -84,7 +85,11 @@ export default class ParameterNode extends DataNode {
                     const rowStrs: string[] = [];
                     for (let r = 0; r < rows; r++) {
                         const vals: string[] = [];
-                        for (let c = 0; c < cols; c++) { vals.push(String((parsed.value as number[])[r * cols + c])); }
+                        // formatMatlabNum, not String: the parser accepts 'Inf'/'NaN' and
+                        // hands back the real non-finite numbers, whose JavaScript spelling
+                        // ('Infinity') is not a MATLAB literal and is one our own parser
+                        // rejects — so String() here would make the value uneditable.
+                        for (let c = 0; c < cols; c++) { vals.push(formatMatlabNum((parsed.value as number[])[r * cols + c])); }
                         rowStrs.push('[' + vals.join(', ') + ']');
                     }
                     rawValue = { _type: 'double', _value: 'Matrix(' + rows + ',' + cols + ')\n' + rowStrs.join('\n') };

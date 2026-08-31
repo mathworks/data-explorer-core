@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import type BaseNode from '../node/BaseNode.js';
+import { formatMatlabNum } from '../parser/XmlUtils.js';
 
 // A bus element's Dimensions. Read-only: MATLAB accepts a positive double
 // vector but ALSO scalars, [1 3], Inf and the char inherit-token 'x' (verified),
@@ -23,7 +24,9 @@ export default class PropDimensions {
 
     static format(value: unknown): string {
         if (value === undefined || value === null) { return ''; }
-        if (Array.isArray(value)) { return '[' + value.join(' ') + ']'; }
-        return String(value);
+        // Inf is a legal Dimensions value (noted above), and it must show as
+        // MATLAB spells it rather than as JavaScript's 'Infinity'.
+        if (Array.isArray(value)) { return '[' + value.map(formatMatlabNum).join(' ') + ']'; }
+        return formatMatlabNum(value);
     }
 }

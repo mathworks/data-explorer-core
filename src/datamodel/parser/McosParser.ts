@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { parseMatrix, MatVariable } from './MatParser.js';
+import { formatMatlabNum } from './XmlUtils.js';
 
 // Decodes the binary MCOS (MATLAB Class Object System) blob embedded in .slx and
 // .mat files into per-variable property bags shaped EXACTLY like the SLDD (JSON)
@@ -279,7 +280,10 @@ function buildMatrixValue(dims: number[], elements: number[]): unknown {
   for (let r = 0; r < rows; r++) {
     const vals: string[] = [];
     for (let c = 0; c < cols; c++) {
-      vals.push(String(elements[r * cols + c]));
+      // These elements are raw IEEE-754 doubles out of the blob, so Inf and NaN
+      // reach here as themselves; formatMatlabNum spells them the way MATLAB
+      // does, where String() would write the unreadable 'Infinity'.
+      vals.push(formatMatlabNum(elements[r * cols + c]));
     }
     rowStrs.push('[' + vals.join(', ') + ']');
   }
