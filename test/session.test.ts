@@ -236,6 +236,89 @@ describe('createSession() — preview node', () => {
   });
 });
 
+describe('createSession() — selection released with its source', () => {
+  it('clears a context node that pointed into the removed source', () => {
+    const s = createSession();
+    const src = s.addDataSource('numeric_json.sldd', loadFixture('numeric_json.sldd')) as any;
+    const child = (src.flatten() as Array<any>)[0];
+    s.setActiveContext(child);
+    s.removeDataSource('numeric_json.sldd');
+    expect(s.getContextNode()).toBeNull();
+    // Otherwise the walk-up keeps resolving to the closed document, and edits
+    // and undo would be routed at a source the session no longer owns.
+    expect(s.getActiveSlddNode()).toBeNull();
+    expect(s.getActiveSourceNode()).toBeNull();
+  });
+
+  it('clears entry nodes that pointed into the removed source', () => {
+    const s = createSession();
+    const src = s.addDataSource('numeric_json.sldd', loadFixture('numeric_json.sldd')) as any;
+    const flat = src.flatten() as Array<any>;
+    s.setActive(src, flat.slice(0, 2));
+    s.removeDataSource('numeric_json.sldd');
+    expect(s.getEntryNodes()).toEqual([]);
+    expect(s.getEntryNode()).toBeNull();
+    expect(s.getActiveNode()).toBeNull();
+  });
+
+  it('clears a preview node that pointed into the removed source', () => {
+    const s = createSession();
+    const src = s.addDataSource('numeric_json.sldd', loadFixture('numeric_json.sldd')) as any;
+    s.setPreviewNode((src.flatten() as Array<any>)[0]);
+    s.removeDataSource('numeric_json.sldd');
+    expect(s.getPreviewNode()).toBeNull();
+  });
+
+  it('publishes active/changed once when the selection is released', () => {
+    const s = createSession();
+    const src = s.addDataSource('numeric_json.sldd', loadFixture('numeric_json.sldd')) as any;
+    s.setActive(src, (src.flatten() as Array<any>)[0]);
+    let hits = 0;
+    s.bus.subscribe('active/changed', () => { hits++; });
+    s.removeDataSource('numeric_json.sldd');
+    expect(hits).toBe(1);
+  });
+
+  it('leaves a selection in another source untouched', () => {
+    const s = createSession();
+    const keep = s.addDataSource('keep.sldd', loadFixture('numeric_json.sldd')) as any;
+    s.addDataSource('drop.sldd', loadFixture('numeric_json.sldd'));
+    const keepChild = (keep.flatten() as Array<any>)[0];
+    s.setActive(keep, keepChild);
+    s.setPreviewNode(keepChild);
+
+    let hits = 0;
+    s.bus.subscribe('active/changed', () => { hits++; });
+    s.removeDataSource('drop.sldd');
+    expect(s.getContextNode()).toBe(keep);
+    expect(s.getEntryNodes()).toEqual([keepChild]);
+    expect(s.getPreviewNode()).toBe(keepChild);
+    expect(hits).toBe(0);
+  });
+
+  it('removeAll releases the selection and preview', () => {
+    const s = createSession();
+    const src = s.addDataSource('numeric_json.sldd', loadFixture('numeric_json.sldd')) as any;
+    const child = (src.flatten() as Array<any>)[0];
+    s.setActive(src, child);
+    s.setPreviewNode(child);
+    s.removeAll();
+    expect(s.getContextNode()).toBeNull();
+    expect(s.getEntryNodes()).toEqual([]);
+    expect(s.getPreviewNode()).toBeNull();
+    expect(s.getActiveSlddNode()).toBeNull();
+  });
+
+  it('leaves the synthetic root selected across a removal', () => {
+    // The all-node belongs to no source, so closing a file must not deselect it.
+    const s = createSession();
+    s.addDataSource('numeric_json.sldd', loadFixture('numeric_json.sldd'));
+    s.setActiveContext(s.allNode);
+    s.removeDataSource('numeric_json.sldd');
+    expect(s.getContextNode()).toBe(s.allNode);
+  });
+});
+
 describe('createSession() — undo wiring', () => {
   it('reports no undo/redo available without an active source', () => {
     const s = createSession();

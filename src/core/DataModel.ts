@@ -196,6 +196,45 @@ function addMatSourceParsed(srcId: string, parsed: unknown, meta?: Partial<Sourc
   return registerSource(srcId, matNode as unknown as ISourceNode, meta);
 }
 
+// The source a node ultimately belongs to, or null for the synthetic all-node.
+function ownerSourceOf(node: INode | IAllNode | null): INode | null {
+  if (!node || ('__isAllNode' in node && node.__isAllNode)) {
+    return null;
+  }
+  let cur = node as INode;
+  while (cur.parent) {
+    cur = cur.parent;
+  }
+  return cur;
+}
+
+// Drop any selection or preview that points into `source` (all of them when
+// `source` is null). Closing a file must not leave the active/preview node
+// referencing a detached tree — getActiveSlddNode() would keep walking up to the
+// removed root and hand callers a source the session no longer owns, so edits
+// and undo would be routed at a document that is no longer open.
+function releaseSelection(source: INode | null): void {
+  let activeChanged = false;
+  if (contextNode && (source === null || ownerSourceOf(contextNode) === source)) {
+    contextNode = null;
+    activeChanged = true;
+  }
+  if (entryNodes.length > 0) {
+    const kept = source === null ? [] : entryNodes.filter((n) => ownerSourceOf(n) !== source);
+    if (kept.length !== entryNodes.length) {
+      entryNodes = kept;
+      activeChanged = true;
+    }
+  }
+  if (previewNode && (source === null || ownerSourceOf(previewNode) === source)) {
+    previewNode = null;
+    publish('preview/changed');
+  }
+  if (activeChanged) {
+    publishActiveChanged();
+  }
+}
+
 function removeDataSource(srcId: string): void {
   const source = dataSources.get(srcId);
   if (!source) {
@@ -204,12 +243,14 @@ function removeDataSource(srcId: string): void {
   deindexSource(source);
   dataSources.delete(srcId);
   publish('datamodel/source-removed', { srcId });
+  releaseSelection(source as unknown as INode);
 }
 
 function removeAll(): void {
   dataSources.clear();
   nodeIndex.clear();
   publish('datamodel/cleared');
+  releaseSelection(null);
 }
 
 function getDataSource(srcId: string): ISourceNode | null {
@@ -555,32 +596,19 @@ function clearPreviewNode(): void {
   }
 }
 
+// The editable source owning the context node. A `dirty` flag is what marks a
+// root as an editable document, so a root without one (e.g. a read-only project)
+// is reported as no active sldd.
 function getActiveSlddNode(): ISourceNode | null {
-  if (!contextNode) {
+  const root = ownerSourceOf(contextNode);
+  if (!root) {
     return null;
   }
-  if ('__isAllNode' in contextNode && contextNode.__isAllNode) {
-    return null;
-  }
-  let node: INode = contextNode as INode;
-  while (node.parent) {
-    node = node.parent;
-  }
-  return (node as IContainerNode).dirty !== undefined ? (node as ISourceNode) : null;
+  return (root as IContainerNode).dirty !== undefined ? (root as ISourceNode) : null;
 }
 
 function getActiveSourceNode(): ISourceNode | null {
-  if (!contextNode) {
-    return null;
-  }
-  if ('__isAllNode' in contextNode && contextNode.__isAllNode) {
-    return null;
-  }
-  let node: INode = contextNode as INode;
-  while (node.parent) {
-    node = node.parent;
-  }
-  return node as ISourceNode;
+  return ownerSourceOf(contextNode) as ISourceNode | null;
 }
 
   const session = {

@@ -23,8 +23,8 @@ function parse(str) {
     if (str === 'false') {
         return { type: 'logical', value: false };
     }
-    const n = Number(str);
-    if (!isNaN(n)) {
+    const n = parseMatlabNumber(str);
+    if (n !== null) {
         return { type: 'double', value: n };
     }
     const complexResult = parseComplex(str);
@@ -32,6 +32,27 @@ function parse(str) {
         return complexResult;
     }
     return null;
+}
+// A MATLAB real scalar literal, or null when `str` is not one. `Number()` alone
+// is too permissive here: it accepts JavaScript-only spellings that MATLAB does
+// not ('Infinity', '0x10', '1_000') while rejecting MATLAB's own 'Inf'/'NaN'.
+// Accepting a non-MATLAB literal is the harmful direction — it would be written
+// back into a .sldd as a value MATLAB cannot evaluate.
+function parseMatlabNumber(str) {
+    // MATLAB spells the non-finite values Inf/NaN, optionally signed.
+    const nonFinite = /^([+-]?)(Inf|NaN)$/.exec(str);
+    if (nonFinite) {
+        if (nonFinite[2] === 'NaN') {
+            return NaN;
+        }
+        return nonFinite[1] === '-' ? -Infinity : Infinity;
+    }
+    // Decimal integer/real with optional exponent — no hex, no separators.
+    if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(str)) {
+        return null;
+    }
+    const n = Number(str);
+    return isNaN(n) ? null : n;
 }
 function parseChar(str) {
     if (str.length < 2 || str.charAt(0) !== "'" || str.charAt(str.length - 1) !== "'") {
@@ -244,8 +265,10 @@ function tokenizeNumbers(rowStr) {
         if (parts[i] === '') {
             continue;
         }
-        const n = Number(parts[i]);
-        if (isNaN(n)) {
+        // Same literal rule as a scalar, so `[1 Inf]` parses and `[1 0x10]` does
+        // not. `isNaN` would additionally have rejected a legitimate NaN element.
+        const n = parseMatlabNumber(parts[i]);
+        if (n === null) {
             return null;
         }
         nums.push(n);
@@ -328,10 +351,11 @@ function parseLiteral(token) {
     if (token === 'false') {
         return false;
     }
-    const n = Number(token);
-    if (!isNaN(n)) {
+    const n = parseMatlabNumber(token);
+    if (n !== null) {
         return n;
     }
+    // Not a number — keep the raw token (a bare identifier in a cell stays text).
     return token;
 }
 function findMatchingBracket(str, start, open, close) {
