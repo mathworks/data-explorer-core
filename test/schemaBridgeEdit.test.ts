@@ -157,6 +157,20 @@ describe('trySetSchemaProperty — validating and writing', () => {
   });
 });
 
+describe('a schema PropClass formats values the same way it reads them', () => {
+  it('renders absent, array, and scalar values consistently through format', () => {
+    // readValue formats what it hydrates; `format` is the same formatter exposed
+    // for a value the caller already has. The two must agree, or a cell rendered
+    // via format would differ from the same cell rendered via readValue.
+    const dims = schemaColumns('Simulink.Parameter').find((c) => c.key === 'dimensions')!;
+    expect(dims.format!(undefined)).toBe('');
+    expect(dims.format!(null)).toBe('');
+    expect(dims.format!([2, 3])).toBe('[2, 3]');
+    expect(dims.format!(5)).toBe('5');
+    expect(dims.format!('inherit')).toBe('inherit');
+  });
+});
+
 describe('schemaColumnLabels — key → label across every schema class', () => {
   it('labels every projected column of every schema class', () => {
     const labels = schemaColumnLabels();
