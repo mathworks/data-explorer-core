@@ -11,6 +11,11 @@ import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, formatMatlabNum, parseMatlabNum, transposeToColumnMajor, pad as xmlPad, } from '../../parser/XmlUtils.js';
+// ---- Pure value helpers ----
+// None of these read node state, which is why they are module-local functions and
+// not methods: staying off the class is what lets the display getters and the
+// static parse entry points at the bottom of the file share them without either
+// side owning the other.
 const MCOS_ICON_MAP = {
     'Simulink.Parameter': 'wsParameters',
     'Simulink.Signal': 'wsSignal',
@@ -146,6 +151,13 @@ export default class MatlabVariableNode extends DataNode {
         this._mcosDimensions = null;
         this._preCollapseDims = null;
     }
+    // ---- Display: what the table columns show ----
+    // Read-only projections of the state above — nothing here mutates (the one
+    // exception, _serializeScalarXml's temporary _kind swap, is in the XML section
+    // and restores it). Two rules recur: an opaque MCOS object is checked FIRST
+    // because its class name and decoded value override the primitive spellings, and
+    // once children exist they are the truth for element values while _elements is
+    // the fallback for a not-yet-expanded container.
     get Value() {
         if (this._kind === 'scalar') {
             return this._scalarValue;
@@ -386,6 +398,7 @@ export default class MatlabVariableNode extends DataNode {
         const strStr = '[' + rowStrs.join('; ') + ']';
         return strStr.length > 50 ? '<' + d.join('x') + ' string>' : strStr;
     }
+    // ---- Property set + Property Inspector layout ----
     getProperties() {
         return [PropName, PropValue, PropDataType, PropDescription];
     }
@@ -394,6 +407,14 @@ export default class MatlabVariableNode extends DataNode {
         // can't be schema-keyed; author the common "General" identity group directly.
         return [{ group: 'General', items: [PropName, PropValue, PropDataType, PropKind, PropClassAtom, PropDescription] }];
     }
+    // ---- Edit + structural mutation (the only writers of the state above) ----
+    // This is the section that makes the class one unit: it is the sole place that
+    // reshapes a variable, and every reshape has to keep FOUR representations
+    // agreed — _kind/_scalarType, _dims, _elements, and the child nodes — plus the
+    // `serial` blob the JSON writer replays. Miss one and the symptom is silent data
+    // loss, not a crash, which is what the long comments on the individual methods
+    // are recording. The add/remove methods come in canX/xChildNode/execX triples:
+    // the gate, the mutation, and the undo/redo wrapper the command stack calls.
     setProperty(propName, stringValue) {
         if (propName === 'Value') {
             if (this._isConstrainedChild()) {
@@ -909,6 +930,13 @@ export default class MatlabVariableNode extends DataNode {
             this.children[i].name = String(i + 1);
         }
     }
+    // ---- JSON serialization (the .sldd text format) ----
+    // Round-trip fidelity first: an untouched value returns its captured `_rawInput`
+    // verbatim rather than being re-rendered, so only edited values are rewritten.
+    // The recurring hazard is that JSON has no literal for Inf/NaN — JSON.stringify
+    // turns them into `null`, which reads back as 0 — so the branches that spot a
+    // non-finite number fall back to the format's typed `{_type, _value}` escape
+    // hatch, which spells them out as text.
     serializeValue() {
         if (this._rawInput !== undefined &&
             this.status !== 'Modified' &&
@@ -996,6 +1024,12 @@ export default class MatlabVariableNode extends DataNode {
         }
         return elements;
     }
+    // ---- XML serialization (the .slx workspace format) ----
+    // A parallel set of per-kind writers rather than a reuse of the JSON ones,
+    // because the two formats disagree on essentials: XML is explicitly typed by a
+    // Class= attribute, carries dimensions as "rows*cols", and — the reason these
+    // can't share the JSON traversal — stores matrix elements in COLUMN-major order,
+    // hence transposeToColumnMajor on the way out.
     serializeXml(tagName, attrs, indent) {
         switch (this._kind) {
             case 'scalar':
@@ -1169,6 +1203,8 @@ export default class MatlabVariableNode extends DataNode {
         xml += p + '</' + tagName + '>';
         return xml;
     }
+    // ---- Binary rebuild: the MatVariable the .mat/.slx save path writes ----
+    //
     // The MatVariable the save path writes (MatNode.getVariables, and the .slx
     // workspace splice in ModelNode.serialize).
     //
@@ -1278,6 +1314,13 @@ export default class MatlabVariableNode extends DataNode {
         }
         return v;
     }
+    // ---- Static factories: binary MatVariable -> node ----
+    // The entry point is parseMatVariable, which dispatches on the parsed
+    // className; the _createFromMat* helpers below are its per-class arms. All of
+    // them keep the source `variable` on _matVar and its bytes on _rawBytes, which
+    // is what lets an untouched variable round-trip byte-for-byte (see the _var
+    // getter). These are statics rather than constructor overloads because the shape
+    // isn't known until the value has been inspected.
     static parseMatVariable(variable, name, parent) {
         if (variable.isOpaque) {
             return MatlabVariableNode._createOpaque(variable, name, parent);
@@ -1418,6 +1461,14 @@ export default class MatlabVariableNode extends DataNode {
         });
         return node;
     }
+    // ---- Static factories: JSON value -> node ----
+    // `parse` is the single entry point (NodeClassMap routes to it) and the rest are
+    // its arms, one per on-disk spelling of a value: the typed {_type,_value}
+    // literals, cdata (both the bit-packed and the plain-text complex forms), the
+    // structured {_array_type} containers, and the bare JSON scalar/array. They are
+    // separate named statics rather than one long switch mainly so the .sldd tests
+    // can drive an individual spelling directly. Each stashes the untouched input on
+    // `_rawInput` so serializeValue can replay it verbatim.
     static get defaultName() {
         return 'Var';
     }
