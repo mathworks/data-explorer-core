@@ -17,7 +17,7 @@
 //      advances. `parseMat` is called unguarded from `DataModel.addMatSource`, so
 //      anything it throws fails the entire file open.
 //
-// Three real defects were found here and are pinned below, each marked REGRESSION.
+// Four real defects were found here and are pinned below, each marked REGRESSION.
 
 import { describe, it, expect } from 'vitest';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
@@ -77,6 +77,25 @@ describe('parseMat — file-level framing', () => {
     // Silently misreading every number would be far worse than refusing the file.
     expect(() => parseMat(doubleFile('x', [1, 1], [1]))).not.toThrow();
     expect(() => parseMat(matFile([scalarField(1)], { endian: 'MI' }))).toThrow('Big-endian MAT files not supported');
+  });
+
+  it('REGRESSION: names the real problem when the file is shorter than the header', () => {
+    // The 128-byte header was read before its size was checked, so the message the
+    // user got depended on how short the file was: an empty or truncated download
+    // failed with "Invalid typed array length: 116" from the header slice, and
+    // anything from 116 to 127 bytes read its endian indicator out of the tail of
+    // the header and blamed "Big-endian MAT files not supported" — pointing at a
+    // format we simply do not implement rather than at the damaged file. Both
+    // reach the user verbatim, as "Failed to parse <name>.mat: <message>".
+    for (const size of [0, 1, 116, 120, 127]) {
+      expect(() => parseMat(new ArrayBuffer(size)), `${size} bytes`).toThrow(
+        'Not a MAT-file: shorter than the 128-byte header',
+      );
+    }
+    // A header-only file is legal — a .mat holding no variables.
+    const empty = parseMat(matFile([]));
+    expect(empty.variables).toEqual([]);
+    expect(empty.header).toContain('MATLAB 5.0 MAT-file');
   });
 
   it('reads every variable in a multi-variable file, in order', () => {

@@ -301,6 +301,15 @@ export function parseMatrix(view, baseOffset, length) {
 export function parseMat(arrayBuffer) {
     const buf = new Uint8Array(arrayBuffer);
     const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+    // A Level-5 MAT-file opens with a fixed 128-byte header. Reading it out of a
+    // shorter buffer threw whatever the byte slice happened to throw — an empty
+    // file surfaced as "Invalid typed array length: 116", and a file of 120 bytes
+    // read its endian indicator out of the zero padding and blamed big-endian.
+    // Both reach the user verbatim as "Failed to parse <name>.mat: ...", so say
+    // what is actually wrong.
+    if (buf.length < 128) {
+        throw new Error('Not a MAT-file: shorter than the 128-byte header');
+    }
     const headerBytes = new Uint8Array(buf.buffer, buf.byteOffset, 116);
     const header = new TextDecoder().decode(headerBytes).trim();
     const endianIndicator = String.fromCharCode(buf[126]) + String.fromCharCode(buf[127]);

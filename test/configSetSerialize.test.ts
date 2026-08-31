@@ -118,4 +118,34 @@ describe('ConfigSetRefNode save path', () => {
     expect(ConfigSetRefNode.createDefault('r', null).className).toBe('Simulink.ConfigSetRef');
     expect(ConfigSetRefNode.defaultName).toBe('ConfigSetRef');
   });
+
+  it('writes SourceName into the XML entry, and a rename only into the entry name', () => {
+    // The XML save path (binary .sldd) goes through _getSerializedProperties
+    // rather than serializeValue, so it is a second, independent copy of the
+    // "which property owns the name" decision — and the one a compressed
+    // dictionary is written with. The ConfigSet counterpart above asserts the
+    // opposite: there the rename MUST reach the Name property.
+    const raw = {
+      _array_class: 'Simulink.ConfigSetRef',
+      _dimensions: [1, 1],
+      _elements: [{ _properties: { SourceName: 'sharedConfig', UseLocalSolver: false } }],
+    };
+    const n = ConfigSetRefNode.parse(raw, 'Ref', null);
+    n.setProperty('Name', 'RenamedRef');
+    const xml = n.serializeXml('entry', { Name: n.name }, 0);
+    expect(xml).toContain('<entry Name="RenamedRef">');
+    expect(xml).toContain('<Element Class="Simulink.ConfigSetRef">');
+    expect(xml).toContain('<P Name="SourceName" Class="char">sharedConfig</P>');
+    // Other properties in the bag are re-emitted untouched alongside it.
+    expect(xml).toContain('<P Name="UseLocalSolver" Class="logical">0</P>');
+    // The new entry name must NOT leak into a property.
+    expect(xml).not.toContain('>RenamedRef<');
+  });
+
+  it('serializes an empty SourceName as an empty char property', () => {
+    // <P Class="char"/> is what MATLAB reads back as ''. The alternative — omitting
+    // the property, or emitting the text 'undefined' — is not loadable.
+    const xml = ConfigSetRefNode.createDefault('r', null).serializeXml('entry', { Name: 'r' }, 0);
+    expect(xml).toContain('<P Name="SourceName" Class="char"/>');
+  });
 });
