@@ -4,7 +4,15 @@ import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
 const CLASS_NAME = 'Simulink.ConfigSet';
 export default class ConfigSetNode extends DataNode {
-    constructor(name, parent, props, serial) { super(name, parent, serial); this.ConfigName = props.Name || ''; }
+    // The config set's own Name property. In a .sldd the entry name and this
+    // property are the same string — both parse paths build the node with
+    // _properties.Name equal to the entry name — so this is a view of `name`
+    // rather than a second copy. It used to be an independently stored field,
+    // which let the two drift: renaming the entry moved `name` but left
+    // ConfigName stale, and since serializeValue writes ConfigName, the saved
+    // file kept the OLD name and the entry reverted on reopen.
+    get ConfigName() { return this.name; }
+    constructor(name, parent, props, serial) { super(name, parent, serial); }
     get icon() { return this.active ? 'check_settings' : 'settings'; }
     get className() { return CLASS_NAME; }
     // A ConfigSet has no scalar "value" — the Value column is empty and not editable.
