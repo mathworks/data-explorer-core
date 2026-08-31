@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+*.tgz
+
+# Internal working notes — never publish to the public tree.
+docs/
+CLAUDE.md

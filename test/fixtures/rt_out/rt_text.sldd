@@ -1,0 +1,81 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "gadget",
+						"metadata": {
+							"uuid": "a43e9523-8ba6-426a-b689-6e7d85901370",
+							"namespace": "42516768-0ace-4981-8ac7-0a9b32cba471",
+							"lastmod": "20260819T184554.000000",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "MyGadget",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Engine": {
+											"_id": "2",
+											"_object_class": "MyEngine",
+											"_properties": {
+												"Cylinders": 16,
+												"Displacement": 6.2
+											}
+										},
+										"Name": "Roadster",
+										"Specs": {
+											"_array_type": "Struct",
+											"_dimensions": [
+												1,
+												1
+											],
+											"_elements": [
+												{
+													"mass": 2000,
+													"field": 0
+												}
+											],
+											"_fields": [
+												"mass",
+												"field"
+											],
+											"_mw_element_type": "MATLABArray"
+										},
+										"Tags": {
+											"_array_type": "Cell",
+											"_dimensions": [
+												1,
+												3
+											],
+											"_elements": [
+												"coupe",
+												"zoom",
+												"v12"
+											],
+											"_mw_element_type": "MATLABArray"
+										},
+										"Wheels": 8
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

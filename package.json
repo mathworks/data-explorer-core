@@ -1,0 +1,66 @@
+{
+  "name": "data-explorer-core",
+  "version": "0.1.0",
+  "description": "Parser, data model, and node schema for Simulink data-dictionary, model, MAT-file, and project files. Presentation-independent; embeddable in-process.",
+  "license": "BSD-3-Clause",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mathworks/data-explorer-core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mathworks/data-explorer-core/issues"
+  },
+  "homepage": "https://github.com/mathworks/data-explorer-core#readme",
+  "keywords": [
+    "simulink",
+    "sldd",
+    "slx",
+    "mat-file",
+    "data-dictionary",
+    "parser",
+    "mathworks"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "default": "./dist/node/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "explore": "node scripts/explore.mjs",
+    "repl": "node scripts/repl.mjs",
+    "dex": "node bin/dex.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "check:pack": "node scripts/check-pack.mjs",
+    "check:leak": "node scripts/leak-check.mjs",
+    "verify": "npm run typecheck && npm run build && npm run smoke && npm run test && npm run check:pack && npm run check:leak",
+    "prepublishOnly": "npm run verify",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.8.0",
+    "fflate": "^0.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

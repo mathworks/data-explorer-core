@@ -1,0 +1,29 @@
+name: CI
+
+# NOTE: This repo is PRIVATE and the mathworks org does not provide GitHub-hosted
+# runner minutes for private repos, so pushes cannot run CI (every run ends in
+# `startup_failure` before a job schedules). Verification is done LOCALLY via
+# `npm run verify` (typecheck + build + runtime smoke + tests + pack/leak checks)
+# — see README. This workflow is left as `workflow_dispatch` only so it exists and
+# documents intent; re-arm it (add the push/pull_request triggers below) once the
+# repo is public OR the org enables private-repo Actions minutes.
+#
+#   on:
+#     push:
+#       branches: [main]
+#     pull_request:
+#       branches: [main]
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run verify
