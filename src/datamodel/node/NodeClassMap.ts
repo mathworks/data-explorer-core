@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import * as NodeRegistry from './NodeRegistry.js';
-import type { NodeClassType } from './NodeRegistry.js';
+import type { NodeClassType, NodeParser } from './NodeRegistry.js';
 import type BaseNode from './BaseNode.js';
 import type DataNode from './DataNode.js';
 import MatlabVariableNode from './data/MatlabVariableNode.js';
@@ -28,7 +28,6 @@ import VariantBankCoderInfoNode from './data/VariantBankCoderInfoNode.js';
 import CustomObjectNode from './data/CustomObjectNode.js';
 import ConfigSetRefNode from './data/ConfigSetRefNode.js';
 import VariantConfigurationDataNode from './data/VariantConfigurationDataNode.js';
-import { _injectNodeClassMap } from './container/SectionNode.js';
 
 const CLASS_MAP: Record<string, NodeClassType> = {
     'MatlabVariable': MatlabVariableNode,
@@ -61,7 +60,7 @@ const CLASS_MAP: Record<string, NodeClassType> = {
 
 interface StructuralParser {
     matcher: (val: unknown) => boolean;
-    NodeClass: NodeClassType;
+    NodeClass: NodeParser;
 }
 
 const STRUCTURAL_PARSERS: StructuralParser[] = [
@@ -124,8 +123,10 @@ export function wrapDerivedVariable(node: DataNode): DataNode {
     return node;
 }
 
+// Installing into NodeRegistry is what makes this module's side-effect import
+// (from the barrel and from src/node) load-bearing: every node class reaches the
+// class map through the registry, so nothing else needs to import this file.
 const api = { getClass, parseValue, getRegisteredClasses, wrapDerivedVariable };
 NodeRegistry.init(api);
-_injectNodeClassMap(api);
 
 export default api;

@@ -4,7 +4,10 @@ import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
-import type { NodeClassMapAPI } from '../NodeRegistry.js';
+// Not a static import of NodeClassMap: NodeRegistry is the deliberately
+// dependency-free indirection (types only) that every node class goes through to
+// reach the class map without a cycle. NodeClassMap installs itself into it.
+import * as NodeRegistry from '../NodeRegistry.js';
 import type { SystemComposerCatalog } from './SlddNode.js';
 import { classificationOf as _classificationOf } from './SlddNode.js';
 
@@ -70,13 +73,6 @@ function formatTimestamp(): string {
     .replace(/\.\d+Z$/, '.000000');
 }
 
-// Lazy import to avoid circular dependency — NodeClassMap imports node classes
-let _nodeClassMap: NodeClassMapAPI | null = null;
-
-export function _injectNodeClassMap(map: NodeClassMapAPI): void {
-  _nodeClassMap = map;
-}
-
 export default class SectionNode extends ContainerNode {
   label: string;
   iconId: string;
@@ -136,10 +132,7 @@ export default class SectionNode extends ContainerNode {
   }
 
   addEntry(className: string, entryName?: string): DataNode | null {
-    if (!_nodeClassMap) {
-      return null;
-    }
-    const NodeClass = _nodeClassMap.getClass(className);
+    const NodeClass = NodeRegistry.getClass(className);
     if (!NodeClass || !NodeClass.createDefault) {
       return null;
     }
@@ -149,7 +142,7 @@ export default class SectionNode extends ContainerNode {
       return null;
     }
 
-    const baseName = entryName || NodeClass.defaultName || className.split('.').pop()!;
+    const baseName = entryName || NodeClass.defaultName;
     const uniqueName = this._uniqueName(baseName);
     const node = NodeClass.createDefault(uniqueName, this) as DataNode;
 
@@ -163,14 +156,7 @@ export default class SectionNode extends ContainerNode {
     node.status = 'New';
 
     this.addChild(node);
-
-    let root: BaseNode | null = this.parent;
-    while (root && root.parent) {
-      root = root.parent;
-    }
-    if (root && (root as unknown as { dirty?: boolean }).dirty !== undefined) {
-      (root as unknown as { dirty: boolean }).dirty = true;
-    }
+    this._markSourceDirty();
 
     return node;
   }
@@ -198,13 +184,7 @@ export default class SectionNode extends ContainerNode {
       return null;
     }
     this.removeChild(node);
-    let root: BaseNode | null = this.parent;
-    while (root && root.parent) {
-      root = root.parent;
-    }
-    if (root && (root as unknown as { dirty?: boolean }).dirty !== undefined) {
-      (root as unknown as { dirty: boolean }).dirty = true;
-    }
+    this._markSourceDirty();
     return {
       undo: () => {
         this.addChild(node, index);
@@ -227,12 +207,12 @@ export default class SectionNode extends ContainerNode {
     return baseName + i;
   }
 
-  parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode | null {
-    if (!_nodeClassMap) {
-      return null;
-    }
+  // Always returns a node: the registry's matcher chain ends in ObjectNode, so an
+  // unrecognized value shape still models as something rather than dropping the
+  // entry out of the file.
+  parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode {
     const entryName = (rawEntry.name as string) || '';
-    let dataNode = _nodeClassMap.parseValue(rawEntry.value, entryName, this) as DataNode;
+    let dataNode = NodeRegistry.parseValue(rawEntry.value, entryName, this) as DataNode;
     dataNode.metadata = (rawEntry.metadata as Record<string, unknown>) || null;
     if (rawEntry.rawXml) {
       dataNode.rawXml = rawEntry.rawXml as string;
@@ -244,7 +224,7 @@ export default class SectionNode extends ContainerNode {
     // seam that makes Design↔Arch conversion automatic (paste/drop rebinds
     // isderived before re-parsing, so the class follows the section).
     if (dataNode.isDerived) {
-      dataNode = _nodeClassMap.wrapDerivedVariable(dataNode);
+      dataNode = NodeRegistry.wrapDerivedVariable(dataNode);
     }
 
     // Classify entries via the systemcomposer catalog. The classification token

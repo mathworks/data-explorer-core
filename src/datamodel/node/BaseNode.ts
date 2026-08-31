@@ -197,6 +197,23 @@ export default class BaseNode {
     return true;
   }
 
+  // Flag the owning file as having unsaved changes. The `dirty` flag lives on the
+  // source root (SlddNode/MatNode/ModelNode) — the node that knows about a file —
+  // so any mutation deep in the tree has to walk up to find it. Silently does
+  // nothing when the node is detached or the root is not a source (a bare subtree
+  // in a test, or a section whose parent is not yet attached): a mutation with no
+  // file behind it has nothing to mark.
+  _markSourceDirty(): void {
+    let root: BaseNode = this;
+    while (root.parent) {
+      root = root.parent;
+    }
+    const source = root as unknown as { dirty?: boolean };
+    if (source.dirty !== undefined) {
+      source.dirty = true;
+    }
+  }
+
   flatten(): BaseNode[] {
     const result: BaseNode[] = [];
     const stack: BaseNode[] = [this];

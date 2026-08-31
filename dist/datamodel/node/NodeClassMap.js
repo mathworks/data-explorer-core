@@ -24,7 +24,6 @@ import VariantBankCoderInfoNode from './data/VariantBankCoderInfoNode.js';
 import CustomObjectNode from './data/CustomObjectNode.js';
 import ConfigSetRefNode from './data/ConfigSetRefNode.js';
 import VariantConfigurationDataNode from './data/VariantConfigurationDataNode.js';
-import { _injectNodeClassMap } from './container/SectionNode.js';
 const CLASS_MAP = {
     'MatlabVariable': MatlabVariableNode,
     // A Constant is a derived MATLAB variable; registering it lets Architectural
@@ -106,8 +105,10 @@ export function wrapDerivedVariable(node) {
     }
     return node;
 }
+// Installing into NodeRegistry is what makes this module's side-effect import
+// (from the barrel and from src/node) load-bearing: every node class reaches the
+// class map through the registry, so nothing else needs to import this file.
 const api = { getClass, parseValue, getRegisteredClasses, wrapDerivedVariable };
 NodeRegistry.init(api);
-_injectNodeClassMap(api);
 export default api;
 //# sourceMappingURL=NodeClassMap.js.map

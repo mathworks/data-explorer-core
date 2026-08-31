@@ -20,7 +20,7 @@ import SectionNode from '../src/datamodel/node/container/SectionNode.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
 import { generateUuid } from '../src/datamodel/node/container/SectionNode.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER } from '../src/datamodel/SectionConstants.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import { getClass, getRegisteredClasses } from '../src/datamodel/node/NodeClassMap.js';
 
 // A real SlddNode already builds the four sections wired to a parent, which is
 // what the namespace and dirty-flag logic reads.
@@ -132,16 +132,13 @@ describe('addEntry', () => {
     expect(sectionOf(root, 'other').addEntry('MatlabVariable')!.metadata!.namespace).toBe(NS_OTHER);
   });
 
-  it('falls back to the class default name, then to the class tail', () => {
+  it('falls back to the class declared default name when none is given', () => {
     const root = sldd();
-    // Simulink.Parameter declares a defaultName.
+    // 'Param', NOT 'Parameter' — the declared defaultName wins, and it is not the
+    // className's last segment.
     expect(sectionOf(root, 'design').addEntry('Simulink.Parameter')!.name).toBe('Param');
-    // The section is unrestricted, so a synthesized class with no defaultName
-    // falls through to the last dotted segment.
-    const loose = new SectionNode('notAKnownKey', null, 'Loose', 'databaseFolder');
-    const node = loose.addEntry('Simulink.ConnectionBus');
-    expect(node).toBeTruthy();
-    expect(node!.name).toBe('ConnectionBus');
+    expect(sectionOf(root, 'arch').addEntry('Simulink.ServiceBus')!.name).toBe('ServiceInterface');
+    expect(sectionOf(root, 'design').addEntry('Simulink.data.dictionary.EnumTypeDefinition')!.name).toBe('EnumType');
   });
 
   it('uses each class own declared default name, not a shared one', () => {
@@ -179,18 +176,15 @@ describe('addEntry', () => {
     expect(loose.children).toEqual([]);
   });
 
-  it('refuses a registered class that cannot be created from nothing', () => {
-    // Some classes parse existing data but have no createDefault (there is no
-    // meaningful blank instance). addEntry must decline rather than throw.
-    const loose = new SectionNode('notAKnownKey', null, 'Loose', 'databaseFolder');
-    const withoutDefault = ['Simulink.VariantBankCoderInfo', 'Simulink.VariantConfigurations'];
-    for (const cls of withoutDefault) {
-      const result = loose.addEntry(cls);
-      // Either the class has a createDefault (then we got a node) or it does not
-      // (then null) — what matters is that neither case throws or half-adds.
-      if (result === null) {
-        expect(loose.children).not.toContainEqual(expect.objectContaining({ className: cls }));
-      }
+  // addEntry names a new entry `entryName || NodeClass.defaultName`, and the
+  // defaultName is what the user sees in the tree — it is NOT the className's last
+  // segment (an EnumTypeDefinition entry is named 'EnumType', a ServiceBus one
+  // 'ServiceInterface'). NodeClassType makes defaultName required so a new class
+  // cannot omit it, but required-ness alone does not stop an empty string, which
+  // would produce an entry named '1', '2', … out of _uniqueName.
+  it('every registered class declares a non-empty defaultName', () => {
+    for (const className of getRegisteredClasses()) {
+      expect(getClass(className)!.defaultName, className).toBeTruthy();
     }
   });
 

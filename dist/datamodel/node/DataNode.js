@@ -290,13 +290,7 @@ export default class DataNode extends BaseNode {
             }
             node._stampLastModified();
         }
-        let root = this;
-        while (root.parent) {
-            root = root.parent;
-        }
-        if (root.dirty !== undefined) {
-            root.dirty = true;
-        }
+        this._markSourceDirty();
     }
     // Refresh the owning entry's last-modified timestamp to now. Called from
     // _markModified on the entry node so every edit (value, name, Min/Max/Unit,

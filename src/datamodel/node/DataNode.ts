@@ -338,13 +338,7 @@ export default class DataNode extends BaseNode {
       }
       (node as DataNode)._stampLastModified();
     }
-    let root: BaseNode = this;
-    while (root.parent) {
-      root = root.parent;
-    }
-    if ((root as unknown as { dirty?: boolean }).dirty !== undefined) {
-      (root as unknown as { dirty: boolean }).dirty = true;
-    }
+    this._markSourceDirty();
   }
 
   // Refresh the owning entry's last-modified timestamp to now. Called from

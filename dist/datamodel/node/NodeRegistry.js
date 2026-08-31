@@ -12,5 +12,8 @@ export function getClass(className) {
 export function getRegisteredClasses() {
     return classMap.getRegisteredClasses();
 }
-export default { init, parseValue, getClass, getRegisteredClasses };
+export function wrapDerivedVariable(node) {
+    return classMap.wrapDerivedVariable(node);
+}
+export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable };
 //# sourceMappingURL=NodeRegistry.js.map

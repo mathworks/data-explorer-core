@@ -86,6 +86,7 @@ export default class BaseNode {
     addChild(child: BaseNode, index?: number): BaseNode;
     removeChild(child: BaseNode): void;
     _replaceWith(newNode: BaseNode): boolean;
+    _markSourceDirty(): void;
     flatten(): BaseNode[];
     get displayName(): string;
     get valueEditable(): boolean;

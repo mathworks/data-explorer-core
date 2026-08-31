@@ -2,12 +2,10 @@ import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
-import type { NodeClassMapAPI } from '../NodeRegistry.js';
 import type { SystemComposerCatalog } from './SlddNode.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
 export declare function generateUuid(): string;
-export declare function _injectNodeClassMap(map: NodeClassMapAPI): void;
 export default class SectionNode extends ContainerNode {
     label: string;
     iconId: string;
@@ -29,6 +27,6 @@ export default class SectionNode extends ContainerNode {
         redo: () => void;
     } | null;
     _uniqueName(baseName: string): string;
-    parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode | null;
+    parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode;
 }
 //# sourceMappingURL=SectionNode.d.ts.map

@@ -1,5 +1,9 @@
 // Copyright 2026 The MathWorks, Inc.
 import ContainerNode from '../ContainerNode.js';
+// Not a static import of NodeClassMap: NodeRegistry is the deliberately
+// dependency-free indirection (types only) that every node class goes through to
+// reach the class map without a cycle. NodeClassMap installs itself into it.
+import * as NodeRegistry from '../NodeRegistry.js';
 import { classificationOf as _classificationOf } from './SlddNode.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
@@ -59,11 +63,6 @@ function formatTimestamp() {
         .replace(/[-:]/g, '')
         .replace(/\.\d+Z$/, '.000000');
 }
-// Lazy import to avoid circular dependency — NodeClassMap imports node classes
-let _nodeClassMap = null;
-export function _injectNodeClassMap(map) {
-    _nodeClassMap = map;
-}
 export default class SectionNode extends ContainerNode {
     constructor(name, parent, label, iconId) {
         super(name, parent);
@@ -113,10 +112,7 @@ export default class SectionNode extends ContainerNode {
         return names;
     }
     addEntry(className, entryName) {
-        if (!_nodeClassMap) {
-            return null;
-        }
-        const NodeClass = _nodeClassMap.getClass(className);
+        const NodeClass = NodeRegistry.getClass(className);
         if (!NodeClass || !NodeClass.createDefault) {
             return null;
         }
@@ -124,7 +120,7 @@ export default class SectionNode extends ContainerNode {
         if (allowed.length > 0 && allowed.indexOf(className) === -1) {
             return null;
         }
-        const baseName = entryName || NodeClass.defaultName || className.split('.').pop();
+        const baseName = entryName || NodeClass.defaultName;
         const uniqueName = this._uniqueName(baseName);
         const node = NodeClass.createDefault(uniqueName, this);
         node.metadata = {
@@ -136,13 +132,7 @@ export default class SectionNode extends ContainerNode {
         };
         node.status = 'New';
         this.addChild(node);
-        let root = this.parent;
-        while (root && root.parent) {
-            root = root.parent;
-        }
-        if (root && root.dirty !== undefined) {
-            root.dirty = true;
-        }
+        this._markSourceDirty();
         return node;
     }
     execAddEntry(className, entryName) {
@@ -167,13 +157,7 @@ export default class SectionNode extends ContainerNode {
             return null;
         }
         this.removeChild(node);
-        let root = this.parent;
-        while (root && root.parent) {
-            root = root.parent;
-        }
-        if (root && root.dirty !== undefined) {
-            root.dirty = true;
-        }
+        this._markSourceDirty();
         return {
             undo: () => {
                 this.addChild(node, index);
@@ -194,12 +178,12 @@ export default class SectionNode extends ContainerNode {
         }
         return baseName + i;
     }
+    // Always returns a node: the registry's matcher chain ends in ObjectNode, so an
+    // unrecognized value shape still models as something rather than dropping the
+    // entry out of the file.
     parseEntry(rawEntry, systemComposer) {
-        if (!_nodeClassMap) {
-            return null;
-        }
         const entryName = rawEntry.name || '';
-        let dataNode = _nodeClassMap.parseValue(rawEntry.value, entryName, this);
+        let dataNode = NodeRegistry.parseValue(rawEntry.value, entryName, this);
         dataNode.metadata = rawEntry.metadata || null;
         if (rawEntry.rawXml) {
             dataNode.rawXml = rawEntry.rawXml;
@@ -210,7 +194,7 @@ export default class SectionNode extends ContainerNode {
         // seam that makes Design↔Arch conversion automatic (paste/drop rebinds
         // isderived before re-parsing, so the class follows the section).
         if (dataNode.isDerived) {
-            dataNode = _nodeClassMap.wrapDerivedVariable(dataNode);
+            dataNode = NodeRegistry.wrapDerivedVariable(dataNode);
         }
         // Classify entries via the systemcomposer catalog. The classification token
         // (e.g. 'DataInterface', 'StructType') drives the entry's user-facing Kind
