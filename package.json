@@ -45,6 +45,7 @@
     "prepare": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "explore": "node scripts/explore.mjs",
     "repl": "node scripts/repl.mjs",
     "dex": "node bin/dex.mjs",
@@ -61,6 +62,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   }

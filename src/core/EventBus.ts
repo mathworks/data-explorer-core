@@ -28,6 +28,13 @@ export interface Subscription {
 
 type Listener<T> = T extends void ? () => void : (payload: T) => void;
 
+// Listeners are held in per-subscription wrappers so that subscribing the same
+// function twice yields two independently-removable subscriptions (filtering by
+// function identity would drop both).
+interface Entry<T> {
+  fn: Listener<T>;
+}
+
 export interface EventBusInstance {
   publish<K extends keyof Topics>(topic: K, ...args: Topics[K] extends void ? [] : [Topics[K]]): void;
   subscribe<K extends keyof Topics>(topic: K, fn: Listener<Topics[K]>): Subscription;
@@ -35,12 +42,23 @@ export interface EventBusInstance {
 }
 
 export function createEventBus(): EventBusInstance {
-  const listeners: { [K in keyof Topics]?: Array<Listener<Topics[K]>> } = {};
+  const listeners: { [K in keyof Topics]?: Array<Entry<Topics[K]>> } = {};
 
   function publish<K extends keyof Topics>(topic: K, ...args: Topics[K] extends void ? [] : [Topics[K]]): void {
-    const fns = listeners[topic] as Array<Listener<Topics[K]>> | undefined;
-    if (fns) {
-      fns.forEach((fn) => (fn as Function)(...args));
+    const entries = listeners[topic] as Array<Entry<Topics[K]>> | undefined;
+    if (!entries) {
+      return;
+    }
+    // Iterate a snapshot so a listener that subscribes or unsubscribes during
+    // dispatch cannot perturb this round. One listener throwing must not silence
+    // the remaining ones — the model fans a single mutation out to many
+    // independent consumers — so report the failure without aborting the fan-out.
+    for (const entry of entries.slice()) {
+      try {
+        (entry.fn as Function)(...args);
+      } catch (err) {
+        console.error(`EventBus: listener for "${String(topic)}" threw`, err);
+      }
     }
   }
 
@@ -48,11 +66,20 @@ export function createEventBus(): EventBusInstance {
     if (!listeners[topic]) {
       (listeners as any)[topic] = [];
     }
-    (listeners[topic] as Array<Listener<Topics[K]>>).push(fn);
+    const entries = listeners[topic] as Array<Entry<Topics[K]>>;
+    const entry: Entry<Topics[K]> = { fn };
+    entries.push(entry);
     return {
       remove() {
-        const arr = listeners[topic] as Array<Listener<Topics[K]>>;
-        (listeners as any)[topic] = arr.filter((f) => f !== fn);
+        // Remove this subscription only, by wrapper identity.
+        const current = listeners[topic] as Array<Entry<Topics[K]>> | undefined;
+        if (!current) {
+          return;
+        }
+        const at = current.indexOf(entry);
+        if (at !== -1) {
+          current.splice(at, 1);
+        }
       },
     };
   }

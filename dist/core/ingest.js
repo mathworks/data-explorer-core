@@ -21,6 +21,25 @@ function extOf(filename) {
     const dot = filename.lastIndexOf('.');
     return dot < 0 ? '' : filename.slice(dot).toLowerCase();
 }
+// True when these bytes open a JSON object, ignoring a leading UTF-8 BOM and any
+// leading whitespace. A binary .sldd is a zip, which starts with 'PK', so the
+// first significant byte cleanly separates the two textual/binary .sldd forms.
+function isJsonText(bytes) {
+    let i = 0;
+    if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+        i = 3; // UTF-8 BOM
+    }
+    while (i < bytes.length) {
+        const b = bytes[i];
+        // space, tab, LF, CR, FF, VT
+        if (b === 0x20 || b === 0x09 || b === 0x0a || b === 0x0d || b === 0x0c || b === 0x0b) {
+            i++;
+            continue;
+        }
+        return b === 0x7b /* '{' */;
+    }
+    return false;
+}
 export function ingest(session, content, opts) {
     const { filename, meta } = opts;
     const id = filename.replace(/^.*[\\/]/, ''); // basename, no fs
@@ -34,12 +53,14 @@ export function ingest(session, content, opts) {
         if (typeof content === 'string') {
             return session.addDataSource(id, JSON.parse(content), meta);
         }
-        // Bytes → JSON text if it parses (leading '{'), else binary .sldd (zip).
+        // Bytes → JSON text if it looks like JSON, else binary .sldd (zip). A textual
+        // .sldd may legitimately lead with a UTF-8 BOM and/or whitespace, so skip
+        // those before sniffing for '{' — otherwise such a file is misrouted to the
+        // zip parser and fails with a misleading "invalid zip data".
         const buf = toArrayBuffer(content);
-        const head = new Uint8Array(buf.slice(0, 1))[0];
-        if (head === 0x7b /* '{' */) {
-            const str = strFromU8(new Uint8Array(buf));
-            return session.addDataSource(id, JSON.parse(str), meta);
+        const bytes = new Uint8Array(buf);
+        if (isJsonText(bytes)) {
+            return session.addDataSource(id, JSON.parse(strFromU8(bytes)), meta);
         }
         return session.addDataSource(id, parseBinarySldd(buf), meta);
     }
