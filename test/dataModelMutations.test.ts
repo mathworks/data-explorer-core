@@ -149,6 +149,42 @@ describe('editProperty', () => {
     s.setActive(src, section);
     expect(s.editProperty(section.id, 'Name', 'x')).toBe(false);
   });
+
+  it('hands a rejected value’s reason back to the caller unchanged', () => {
+    // A rejection is not the same as a refusal: `false` means the edit never
+    // reached the node, whereas the node's own error object carries the message and
+    // the value to restore, which is what the property inspector shows. Collapsing
+    // it to false would leave the UI with a failed edit and nothing to say about it.
+    const { s, src } = loadedSession();
+    const param = sectionOf(src, 'design').children[0];
+    s.setActive(src, param);
+    const before = param.displayValue;
+
+    expect(s.editProperty(param.id, 'Value', '((((')).toEqual({
+      error: true,
+      reason: 'Invalid MATLAB expression',
+      invalidValue: '((((',
+      validValue: before,
+    });
+    expect(param.displayValue).toBe(before);
+    // A rejected edit changed nothing, so it must not leave an undo step behind.
+    expect(s.canUndo()).toBe(false);
+  });
+
+  it('forwards a rejected rename the same way', () => {
+    const { s, src } = loadedSession();
+    const param = sectionOf(src, 'design').children[0];
+    const original = param.name;
+    s.setActive(src, param);
+
+    expect(s.editProperty(param.id, 'Name', '')).toMatchObject({
+      error: true,
+      reason: 'Name cannot be empty',
+      validValue: original,
+    });
+    expect(param.name).toBe(original);
+    expect(s.canUndo()).toBe(false);
+  });
 });
 
 describe('addChild', () => {
@@ -278,5 +314,130 @@ describe('deleteNode', () => {
     // Entry selected but no context, so there is no source to record undo against.
     s.setActiveEntry(firstEntry(src));
     expect(s.deleteNode()).toBe(false);
+  });
+
+  it('refuses to delete a section, which is structure rather than data', () => {
+    // Sections are neither entries nor removable children — the source node has no
+    // execRemoveChild — so deleting one has to be a no-op rather than a tree that
+    // loses a whole section it can never get back.
+    const { s, src } = loadedSession();
+    const design = sectionOf(src, 'design');
+    s.setActive(src, design);
+    expect(s.deleteNode()).toBe(false);
+    expect(src.children.length).toBe(4);
+    expect(s.canUndo()).toBe(false);
+  });
+
+  it('deletes only the entries out of a mixed multi-selection', () => {
+    // A batch delete handles entries alone; a non-entry caught up in the selection
+    // is skipped rather than dragging its whole parent down with it.
+    const { s, src } = loadedSession();
+    const design = sectionOf(src, 'design');
+    const entry = design.children[0];
+    const other = design.children.slice(1).find((e: any) => e.children.length > 0);
+    const child = other.children[0];
+    const before = design.children.length;
+    const otherKids = other.children.length;
+    s.setActive(src, [entry, child]);
+
+    expect(s.deleteNode()).toBe(true);
+    expect(design.children.length).toBe(before - 1);
+    expect(s.findNodeById(entry.id)).toBeNull();
+    expect(s.findNodeById(child.id)).toBe(child);
+    expect(other.children.length).toBe(otherKids);
+  });
+
+  it('returns false for a multi-selection holding no entries at all', () => {
+    const { s, src } = loadedSession();
+    const child = (src.flatten() as any[]).find(
+      (n) => !n.isEntry && n.parent && typeof n.parent.execRemoveChild === 'function',
+    );
+    const parent = child.parent;
+    const before = parent.children.length;
+    s.setActive(src, [child, parent.children[1]]);
+
+    expect(s.deleteNode()).toBe(false);
+    expect(parent.children.length).toBe(before);
+    expect(s.canUndo()).toBe(false);
+  });
+});
+
+// deleteNode records its undo step with a closure that re-runs the removal, and
+// that closure re-reads the node's id AFTER the tree changed — ids are path-derived,
+// so a detached node's id is not the one it had when it was deleted. Undo alone
+// never runs those closures, so without these the redo leg is untested and a stale
+// index key would leave a removed node still resolvable by id.
+describe('deleteNode — redo re-applies the removal', () => {
+  it('re-deletes a single entry and de-indexes it again', () => {
+    const { s, src } = loadedSession();
+    const design = sectionOf(src, 'design');
+    const entry = design.children[0];
+    const before = design.children.length;
+    s.setActive(src, entry);
+
+    s.deleteNode();
+    s.undo();
+    expect(design.children.length).toBe(before);
+    expect(s.canRedo()).toBe(true);
+
+    s.redo();
+    expect(design.children.length).toBe(before - 1);
+    expect(s.findNodeById(entry.id)).toBeNull();
+    expect(s.getEntryNodes()).toEqual([]);
+  });
+
+  it('re-deletes a whole multi-entry batch in one step', () => {
+    const { s, src } = loadedSession();
+    const design = sectionOf(src, 'design');
+    const doomed = design.children.slice(0, 2);
+    const before = design.children.length;
+    s.setActive(src, doomed);
+
+    s.deleteNode();
+    s.undo();
+    s.redo();
+
+    expect(design.children.length).toBe(before - 2);
+    for (const n of doomed) { expect(s.findNodeById(n.id)).toBeNull(); }
+    // One command, so one redo empties the batch and nothing is left to redo.
+    expect(s.canRedo()).toBe(false);
+  });
+
+  it('re-deletes a non-entry child and re-selects its parent', () => {
+    const { s, src } = loadedSession();
+    const child = (src.flatten() as any[]).find(
+      (n) => !n.isEntry && n.parent && typeof n.parent.execRemoveChild === 'function',
+    );
+    const parent = child.parent;
+    const before = parent.children.length;
+    s.setActive(src, child);
+
+    s.deleteNode();
+    s.undo();
+    s.redo();
+
+    expect(parent.children.length).toBe(before - 1);
+    expect(s.findNodeById(child.id)).toBeNull();
+    // Selection lands on the surviving parent, not the node just removed.
+    expect(s.getEntryNode()).toBe(parent);
+  });
+
+  it('takes a deleted entry’s descendants out of the index too, and puts them back', () => {
+    // A removed entry takes its whole subtree out of the tree, so the index has to
+    // lose and regain the children as well — not just the entry itself.
+    const { s, src } = loadedSession();
+    const entry = (src.flatten() as any[]).find((n) => n.isEntry && n.children.length > 0);
+    const child = entry.children[0];
+    expect(s.findNodeById(child.id)).toBe(child);
+
+    s.setActive(src, entry);
+    s.deleteNode();
+    expect(s.findNodeById(child.id)).toBeNull();
+
+    s.undo();
+    expect(s.findNodeById(child.id)).toBe(child);
+
+    s.redo();
+    expect(s.findNodeById(child.id)).toBeNull();
   });
 });

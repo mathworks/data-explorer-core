@@ -169,10 +169,14 @@ function addProjectSource(
   files: Record<string, string>,
   meta?: Partial<SourceMeta>,
 ): ISourceNode {
-  // Filename = basename of srcId (or meta.path) including .prj; display name drops it.
+  // srcId may be a full path or an opaque URI, so prefer meta.path when the host
+  // supplied one; either way the node is labelled with the basename, .prj included,
+  // because the tree shows a file. parseProject wants a project NAME rather than a
+  // filename for its fallback, hence the strip — note ProjectNode.fromParsed labels
+  // itself from the basename and never reads parsed.name, so the stripped form only
+  // shows up if a host calls parseProject itself.
   const basename = ((meta && meta.path) || srcId).split(/[\\/]/).pop() || srcId;
-  const name = basename.replace(/\.prj$/i, '');
-  const parsed = parseProject(files, name);
+  const parsed = parseProject(files, basename.replace(/\.prj$/i, ''));
   const projectNode = ProjectNode.fromParsed(parsed, basename);
   return registerSource(srcId, projectNode as unknown as ISourceNode, meta);
 }
