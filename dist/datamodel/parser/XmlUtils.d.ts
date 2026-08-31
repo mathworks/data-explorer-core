@@ -3,6 +3,5 @@ export declare function formatDoubleXml(num: number): string;
 export declare function formatNumericXml(num: number, type: string): string;
 export declare function formatComplexXml(complexStr: string): string;
 export declare function transposeToColumnMajor<T>(rowMajor: T[], rows: number, cols: number): T[];
-export declare function buildAttrs(attrs: Record<string, unknown> | undefined): string;
 export declare function pad(indent: number): string;
 //# sourceMappingURL=XmlUtils.d.ts.map

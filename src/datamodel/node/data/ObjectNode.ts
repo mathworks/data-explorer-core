@@ -46,7 +46,8 @@ export default class ObjectNode extends DataNode {
 
     get displayValue(): string {
         const raw = (this.serial._rawVal as Record<string, unknown>) || {};
-        const d = (raw._dimensions as number[]) || [(raw._num_rows as number) || 1, (raw._num_columns as number) || 1];
+        // A nested object carries no _dimensions at all — it is always a scalar.
+        const d = (raw._dimensions as number[]) || [1, 1];
         return '<' + d.join('x') + ' ' + this.arrayClass + '>';
     }
 

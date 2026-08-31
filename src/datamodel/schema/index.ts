@@ -72,6 +72,18 @@ const CLASS_DEFS: Record<string, ClassDef> = Object.fromEntries(
     }).map(([cls, def]) => [cls, normalizeClassDef(def)]),
 );
 
+// Alternate MATLAB spellings that share another class's definition. A .sldd may
+// store either name for the same object, and both are routed to the same node
+// class, so both must resolve to the same schema — otherwise the alias silently
+// gets no PI layout at all (a blank Property Inspector).
+const CLASS_ALIASES: Record<string, string> = {
+    'Simulink.VariantConfigurations': 'Simulink.VariantConfigurationData',
+};
+
+function classDef(className: string): ClassDef | undefined {
+    return CLASS_DEFS[className] ?? CLASS_DEFS[CLASS_ALIASES[className]];
+}
+
 const cache = new Map<string, ResolvedProp[] | undefined>();
 
 function resolveRef(ref: ClassRef): ResolvedProp | null {
@@ -93,7 +105,7 @@ export function getSchema(className: string): ResolvedProp[] | undefined {
     if (cache.has(className)) {
         return cache.get(className);
     }
-    const def = CLASS_DEFS[className];
+    const def = classDef(className);
     const resolved = def ? def.props.map(resolveRef).filter((p): p is ResolvedProp => p !== null) : undefined;
     cache.set(className, resolved);
     return resolved;
@@ -104,7 +116,7 @@ export function getSchema(className: string): ResolvedProp[] | undefined {
 // is the single declarative source of PI grouping/order; the node's atom bridge
 // resolves each key to a renderable property.
 export function getLayout(className: string): PILayoutGroup[] | undefined {
-    return CLASS_DEFS[className]?.layout;
+    return classDef(className)?.layout;
 }
 
 // The classNames that have a schema (the keys of the class-definition registry).

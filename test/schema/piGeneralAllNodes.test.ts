@@ -26,6 +26,7 @@ import { BusNode } from '../../src/datamodel/node/data/BusNode.js';
 import { ConnectionBusNode } from '../../src/datamodel/node/data/ConnectionBusNode.js';
 import { ServiceBusNode } from '../../src/datamodel/node/data/ServiceBusNode.js';
 import { EnumTypeNode } from '../../src/datamodel/node/data/EnumTypeNode.js';
+import NodeRegistry from '../../src/datamodel/node/NodeRegistry.js';
 import '../../src/datamodel/node/NodeClassMap.js';
 
 function groupsOf(node: any): { name: string; items: string[] }[] {
@@ -108,5 +109,28 @@ describe('common "General" identity group — override-driven classes', () => {
       name: 'General',
       items: ['Name', 'Value', 'Kind', 'Class', 'Description'],
     });
+  });
+});
+
+describe('every routed class reaches a Property Inspector', () => {
+  it('opens a General group for each class NodeClassMap can produce', () => {
+    // A class registered in NodeClassMap but missing from the schema (and without
+    // a node-authored override) resolves no layout at all, and toPIObject returns
+    // null — the Property Inspector renders empty with no other symptom. Walking
+    // the registry catches that the moment a class is added.
+    for (const className of NodeRegistry.getRegisteredClasses()) {
+      const node = NodeRegistry.parseValue(
+        {
+          _array_class: className,
+          _array_type: 'MATLABArray',
+          _dimensions: [1, 1],
+          _mw_element_type: 'MATLABArray',
+          _elements: [{ _properties: {} }],
+        },
+        'n',
+        null,
+      );
+      expect(firstGroup(node), className).toMatchObject({ name: 'General' });
+    }
   });
 });

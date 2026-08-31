@@ -36,18 +36,6 @@ export function transposeToColumnMajor<T>(rowMajor: T[], rows: number, cols: num
     return result;
 }
 
-export function buildAttrs(attrs: Record<string, unknown> | undefined): string {
-    let s = '';
-    if (attrs) {
-        for (const [k, v] of Object.entries(attrs)) {
-            if (v !== undefined && v !== null) {
-                s += ' ' + k + '="' + escapeXml(String(v)) + '"';
-            }
-        }
-    }
-    return s;
-}
-
 export function pad(indent: number): string {
     return '    '.repeat(indent);
 }

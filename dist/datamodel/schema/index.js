@@ -60,6 +60,16 @@ const CLASS_DEFS = Object.fromEntries(Object.entries({
     ...breakpoint,
     ...customObject,
 }).map(([cls, def]) => [cls, normalizeClassDef(def)]));
+// Alternate MATLAB spellings that share another class's definition. A .sldd may
+// store either name for the same object, and both are routed to the same node
+// class, so both must resolve to the same schema — otherwise the alias silently
+// gets no PI layout at all (a blank Property Inspector).
+const CLASS_ALIASES = {
+    'Simulink.VariantConfigurations': 'Simulink.VariantConfigurationData',
+};
+function classDef(className) {
+    return CLASS_DEFS[className] ?? CLASS_DEFS[CLASS_ALIASES[className]];
+}
 const cache = new Map();
 function resolveRef(ref) {
     const key = typeof ref === 'string' ? ref : ref.$ref;
@@ -79,7 +89,7 @@ export function getSchema(className) {
     if (cache.has(className)) {
         return cache.get(className);
     }
-    const def = CLASS_DEFS[className];
+    const def = classDef(className);
     const resolved = def ? def.props.map(resolveRef).filter((p) => p !== null) : undefined;
     cache.set(className, resolved);
     return resolved;
@@ -89,7 +99,7 @@ export function getSchema(className) {
 // is the single declarative source of PI grouping/order; the node's atom bridge
 // resolves each key to a renderable property.
 export function getLayout(className) {
-    return CLASS_DEFS[className]?.layout;
+    return classDef(className)?.layout;
 }
 // The classNames that have a schema (the keys of the class-definition registry).
 // Lets a host/UI layer enumerate schema-backed classes without a node instance.

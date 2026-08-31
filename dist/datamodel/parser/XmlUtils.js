@@ -31,17 +31,6 @@ export function transposeToColumnMajor(rowMajor, rows, cols) {
     }
     return result;
 }
-export function buildAttrs(attrs) {
-    let s = '';
-    if (attrs) {
-        for (const [k, v] of Object.entries(attrs)) {
-            if (v !== undefined && v !== null) {
-                s += ' ' + k + '="' + escapeXml(String(v)) + '"';
-            }
-        }
-    }
-    return s;
-}
 export function pad(indent) {
     return '    '.repeat(indent);
 }
