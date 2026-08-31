@@ -2,7 +2,7 @@
 
 # Struct (MATLAB struct variable) — data-object fidelity
 
-**Node class:** `StructNode` (`src/dex/datamodel/node/data/StructNode.ts`)
+**Node class:** `StructNode` (`src/datamodel/node/data/StructNode.ts`)
 **MATLAB class:** (none — a plain MATLAB struct stored as a dictionary entry)
 **Editable in our UI:** structural add/remove of fields (1x1 structs only)
 **Verified against:** MATLAB R2027a (params.sldd fixture round-trip)

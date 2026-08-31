@@ -2,7 +2,7 @@
 
 # Simulink.Parameter — data-object fidelity
 
-**Node class:** `ParameterNode` (`src/dex/datamodel/node/data/ParameterNode.ts`)
+**Node class:** `ParameterNode` (`src/datamodel/node/data/ParameterNode.ts`)
 **MATLAB class:** `Simulink.Parameter`
 **Editable in our UI:** yes
 **Verified against:** MATLAB R2027a (probe_class('Simulink.Parameter'))

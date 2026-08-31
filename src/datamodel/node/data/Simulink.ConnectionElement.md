@@ -2,7 +2,7 @@
 
 # Simulink.ConnectionElement — data-object fidelity
 
-**Node class:** `ConnectionBusElementNode` (`src/dex/datamodel/node/data/ConnectionBusNode.ts`)
+**Node class:** `ConnectionBusElementNode` (`src/datamodel/node/data/ConnectionBusNode.ts`)
 **MATLAB class:** `Simulink.ConnectionElement`
 **Editable in our UI:** yes (Name, Description)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.ConnectionElement'))

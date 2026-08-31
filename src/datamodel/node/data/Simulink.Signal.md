@@ -2,7 +2,7 @@
 
 # Simulink.Signal — data-object fidelity
 
-**Node class:** `SignalNode` (`src/dex/datamodel/node/data/SignalNode.ts`)
+**Node class:** `SignalNode` (`src/datamodel/node/data/SignalNode.ts`)
 **MATLAB class:** `Simulink.Signal`
 **Editable in our UI:** yes (Min, Max only; Description via text area; schema
 columns StorageClass/Alignment via schemaBridge)

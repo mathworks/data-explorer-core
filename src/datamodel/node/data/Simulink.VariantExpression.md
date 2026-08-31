@@ -2,7 +2,7 @@
 
 # Simulink.VariantExpression — data-object fidelity
 
-**Node class:** `VariantExpressionNode` (`src/dex/datamodel/node/data/VariantExpressionNode.ts`)
+**Node class:** `VariantExpressionNode` (`src/datamodel/node/data/VariantExpressionNode.ts`)
 **MATLAB class:** `Simulink.VariantExpression`
 **Editable in our UI:** yes (Condition property)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.VariantExpression'))

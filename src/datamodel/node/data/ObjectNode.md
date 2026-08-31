@@ -2,7 +2,7 @@
 
 # ObjectNode — data-object fidelity
 
-**Node class:** `ObjectNode` (`src/dex/datamodel/node/data/ObjectNode.ts`)
+**Node class:** `ObjectNode` (`src/datamodel/node/data/ObjectNode.ts`)
 **MATLAB class:** host-only, generic `_array_class` fallback (className is dynamic)
 **Editable in our UI:** no (displayValue renders as `<RxC ClassName>`, triggering BaseNode's valueEditable=false)
 **Verified against:** n/a — host node, no specific MATLAB data object to probe

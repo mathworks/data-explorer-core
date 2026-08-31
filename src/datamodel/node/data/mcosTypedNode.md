@@ -2,7 +2,7 @@
 
 # mcosTypedNode — data-object fidelity
 
-**Node class:** factory function `buildTypedNodeFromMcos` (`src/dex/datamodel/node/data/mcosTypedNode.ts`)
+**Node class:** factory function `buildTypedNodeFromMcos` (`src/datamodel/node/data/mcosTypedNode.ts`)
 **MATLAB class:** n/a — this is a routing factory, not a node class
 **Editable in our UI:** n/a (routes to other nodes; no own UI)
 **Verified against:** n/a — host factory, not a MATLAB data object

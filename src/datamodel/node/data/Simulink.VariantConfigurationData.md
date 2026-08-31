@@ -2,7 +2,7 @@
 
 # Simulink.VariantConfigurationData — data-object fidelity
 
-**Node class:** `VariantConfigurationDataNode` (`src/dex/datamodel/node/data/VariantConfigurationDataNode.ts`)
+**Node class:** `VariantConfigurationDataNode` (`src/datamodel/node/data/VariantConfigurationDataNode.ts`)
 **MATLAB class:** `Simulink.VariantConfigurationData` (className dynamically read from `_array_class`)
 **Editable in our UI:** no (`valueEditable` explicitly returns `false`)
 **Verified against:** not probed (no params.sldd fixture instantiates this class)

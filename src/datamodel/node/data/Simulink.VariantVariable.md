@@ -2,7 +2,7 @@
 
 # Simulink.VariantVariable — data-object fidelity
 
-**Node class:** `VariantVariableNode` (`src/dex/datamodel/node/data/VariantVariableNode.ts`)
+**Node class:** `VariantVariableNode` (`src/datamodel/node/data/VariantVariableNode.ts`)
 **MATLAB class:** `Simulink.VariantVariable`
 **Editable in our UI:** yes (Specification property)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.VariantVariable'))

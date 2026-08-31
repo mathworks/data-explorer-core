@@ -2,7 +2,7 @@
 
 # CustomObject — data-object fidelity
 
-**Node class:** `CustomObjectNode` (`src/dex/datamodel/node/data/CustomObjectNode.ts`)
+**Node class:** `CustomObjectNode` (`src/datamodel/node/data/CustomObjectNode.ts`)
 **MATLAB class:** host-only, generic MCOS passthrough (className is literal `'CustomObject'`)
 **Editable in our UI:** no (displayValue renders as `<1x1 CustomObject>`, triggering BaseNode's valueEditable=false)
 **Verified against:** n/a — host node, no MATLAB data object to probe

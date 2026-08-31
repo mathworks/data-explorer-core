@@ -2,7 +2,7 @@
 
 # Simulink.NumericType — data-object fidelity
 
-**Node class:** `NumericTypeNode` (`src/dex/datamodel/node/data/NumericTypeNode.ts`)
+**Node class:** `NumericTypeNode` (`src/datamodel/node/data/NumericTypeNode.ts`)
 **MATLAB class:** `Simulink.NumericType`
 **Editable in our UI:** no (read-only pass-through; only Name and Description editable)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.NumericType'))

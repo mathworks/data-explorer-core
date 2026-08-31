@@ -2,8 +2,8 @@
 
 # Code Generation schema columns — fidelity
 
-**Source:** `src/dex/datamodel/schema/props/codeGen.json`
-**Bridge:** `src/dex/datamodel/node/schemaBridge.ts`
+**Source:** `src/datamodel/schema/props/codeGen.json`
+**Bridge:** `src/datamodel/node/schemaBridge.ts`
 **Applies to:** `Simulink.Parameter`, `Simulink.Signal` (via class refs)
 **Verified against:** MATLAB R2027a (probe_enum via CoderInfo.StorageClass path)
 

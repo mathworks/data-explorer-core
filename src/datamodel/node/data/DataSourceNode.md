@@ -2,7 +2,7 @@
 
 # DataSourceNode — data-object fidelity
 
-**Node class:** `DataSourceNode` (`src/dex/datamodel/node/data/DataSourceNode.ts`)
+**Node class:** `DataSourceNode` (`src/datamodel/node/data/DataSourceNode.ts`)
 **MATLAB class:** host-only, no MATLAB data object (data-source tree node)
 **Editable in our UI:** no (`valueEditable` and `nameEditable` explicitly return `false`)
 **Verified against:** n/a — host node, not a Simulink data object

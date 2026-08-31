@@ -2,7 +2,7 @@
 
 # Simulink.VariantBank — data-object fidelity
 
-**Node class:** `VariantBankNode` (`src/dex/datamodel/node/data/VariantBankNode.ts`)
+**Node class:** `VariantBankNode` (`src/datamodel/node/data/VariantBankNode.ts`)
 **MATLAB class:** `Simulink.VariantBank`
 **Editable in our UI:** no (Value column exposed via text editor but no fixture to round-trip)
 **Verified against:** not probed (no params.sldd fixture instantiates this class)

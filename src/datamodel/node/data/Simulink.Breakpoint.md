@@ -2,7 +2,7 @@
 
 # Simulink.Breakpoint — data-object fidelity
 
-**Node class:** `BreakpointNode` (`src/dex/datamodel/node/data/BreakpointNode.ts`)
+**Node class:** `BreakpointNode` (`src/datamodel/node/data/BreakpointNode.ts`)
 **MATLAB class:** `Simulink.Breakpoint`
 **Editable in our UI:** no (read-only pass-through; only Name and Description editable)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.Breakpoint'))

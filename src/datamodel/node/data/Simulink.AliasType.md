@@ -2,7 +2,7 @@
 
 # Simulink.AliasType — data-object fidelity
 
-**Node class:** `AliasTypeNode` (`src/dex/datamodel/node/data/AliasTypeNode.ts`)
+**Node class:** `AliasTypeNode` (`src/datamodel/node/data/AliasTypeNode.ts`)
 **MATLAB class:** `Simulink.AliasType`
 **Editable in our UI:** yes (BaseType editable; Name and Description editable)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.AliasType'))

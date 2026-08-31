@@ -2,7 +2,7 @@
 
 # Simulink.ConnectionBus — data-object fidelity
 
-**Node class:** `ConnectionBusNode` (`src/dex/datamodel/node/data/ConnectionBusNode.ts`, extends `BaseBusNode`)
+**Node class:** `ConnectionBusNode` (`src/datamodel/node/data/ConnectionBusNode.ts`, extends `BaseBusNode`)
 **MATLAB class:** `Simulink.ConnectionBus`
 **Editable in our UI:** container: Name + Description only. Elements: add/remove + per-element edits (see [Simulink.ConnectionElement.md](Simulink.ConnectionElement.md)).
 **Verified against:** MATLAB R2027a (params.sldd fixture `MyConnBus`, round-trip both formats)

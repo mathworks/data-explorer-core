@@ -2,7 +2,7 @@
 
 # Simulink.Bus — data-object fidelity
 
-**Node class:** `BusNode` (`src/dex/datamodel/node/data/BusNode.ts`, extends `BaseBusNode`)
+**Node class:** `BusNode` (`src/datamodel/node/data/BusNode.ts`, extends `BaseBusNode`)
 **MATLAB class:** `Simulink.Bus`
 **Editable in our UI:** container: Name + Description only. Elements: add/remove + per-element property edits (see [Simulink.BusElement.md](Simulink.BusElement.md)).
 **Verified against:** MATLAB R2027a (params.sldd fixture `MyBus`, round-trip both formats)

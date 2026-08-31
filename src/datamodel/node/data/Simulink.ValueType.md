@@ -2,7 +2,7 @@
 
 # Simulink.ValueType — data-object fidelity
 
-**Node class:** `ValueTypeNode` (`src/dex/datamodel/node/data/ValueTypeNode.ts`)
+**Node class:** `ValueTypeNode` (`src/datamodel/node/data/ValueTypeNode.ts`)
 **MATLAB class:** `Simulink.ValueType`
 **Editable in our UI:** no (read-only pass-through; only Name and Description editable)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.ValueType'))

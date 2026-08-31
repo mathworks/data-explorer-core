@@ -2,7 +2,7 @@
 
 # Simulink.ServiceBus — data-object fidelity
 
-**Node class:** `ServiceBusNode` (`src/dex/datamodel/node/data/ServiceBusNode.ts`, extends `BaseBusNode`)
+**Node class:** `ServiceBusNode` (`src/datamodel/node/data/ServiceBusNode.ts`, extends `BaseBusNode`)
 **MATLAB class:** `Simulink.ServiceBus`
 **Editable in our UI:** container: Name only. Elements: add/remove `Simulink.FunctionElement` (see [Simulink.FunctionElement.md](Simulink.FunctionElement.md)).
 **Verified against:** MATLAB R2027a (in-process structural round-trip; no params.sldd fixture entry — exercised via `createDefault`)

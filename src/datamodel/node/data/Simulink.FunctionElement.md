@@ -2,7 +2,7 @@
 
 # Simulink.FunctionElement — data-object fidelity
 
-**Node class:** `FunctionElementNode` (`src/dex/datamodel/node/data/ServiceBusNode.ts`)
+**Node class:** `FunctionElementNode` (`src/datamodel/node/data/ServiceBusNode.ts`)
 **MATLAB class:** `Simulink.FunctionElement`
 **Editable in our UI:** yes (Name only)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.FunctionElement'))

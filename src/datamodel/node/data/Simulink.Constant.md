@@ -2,7 +2,7 @@
 
 # Simulink Constant — data-object fidelity
 
-**Node class:** `ConstantNode` (`src/dex/datamodel/node/data/ConstantNode.ts`)
+**Node class:** `ConstantNode` (`src/datamodel/node/data/ConstantNode.ts`)
 **MATLAB class:** (none — a plain MATLAB variable with metadata.isderived = '1')
 **Editable in our UI:** yes (Value only, subject to scalar-numeric gate)
 **Verified against:** MATLAB R2027a (params.sldd fixture round-trip)

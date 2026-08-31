@@ -2,7 +2,7 @@
 
 # Simulink.ConfigSetRef — data-object fidelity
 
-**Node class:** `ConfigSetRefNode` (`src/dex/datamodel/node/data/ConfigSetRefNode.ts`)
+**Node class:** `ConfigSetRefNode` (`src/datamodel/node/data/ConfigSetRefNode.ts`)
 **MATLAB class:** `Simulink.ConfigSetRef`
 **Editable in our UI:** no (`valueEditable` explicitly returns `false`)
 **Verified against:** not probed (no params.sldd fixture instantiates this class)

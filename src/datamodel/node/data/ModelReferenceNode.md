@@ -2,7 +2,7 @@
 
 # ModelReferenceNode — data-object fidelity
 
-**Node class:** `ModelReferenceNode` (`src/dex/datamodel/node/data/ModelReferenceNode.ts`)
+**Node class:** `ModelReferenceNode` (`src/datamodel/node/data/ModelReferenceNode.ts`)
 **MATLAB class:** host-only, no MATLAB data object (model-reference relationship node)
 **Editable in our UI:** no (`valueEditable` and `nameEditable` explicitly return `false`)
 **Verified against:** n/a — host node, not a Simulink data object

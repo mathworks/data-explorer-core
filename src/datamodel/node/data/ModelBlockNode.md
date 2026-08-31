@@ -2,7 +2,7 @@
 
 # ModelBlockNode — data-object fidelity
 
-**Node class:** `ModelBlockNode` (`src/dex/datamodel/node/data/ModelBlockNode.ts`)
+**Node class:** `ModelBlockNode` (`src/datamodel/node/data/ModelBlockNode.ts`)
 **MATLAB class:** host-only, no MATLAB data object (model-tree relationship node)
 **Editable in our UI:** no (`valueEditable` and `nameEditable` explicitly return `false`)
 **Verified against:** n/a — host node, not a Simulink data object

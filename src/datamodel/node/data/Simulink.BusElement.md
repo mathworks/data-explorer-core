@@ -2,7 +2,7 @@
 
 # Simulink.BusElement — data-object fidelity
 
-**Node class:** `BusElementNode` (`src/dex/datamodel/node/data/BusNode.ts`)
+**Node class:** `BusElementNode` (`src/datamodel/node/data/BusNode.ts`)
 **MATLAB class:** `Simulink.BusElement`
 **Editable in our UI:** yes (Name, Min, Max, Description)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.BusElement'))

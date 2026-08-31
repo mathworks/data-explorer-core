@@ -2,7 +2,7 @@
 
 # Simulink.LookupTable — data-object fidelity
 
-**Node class:** `LookupTableNode` (`src/dex/datamodel/node/data/LookupTableNode.ts`)
+**Node class:** `LookupTableNode` (`src/datamodel/node/data/LookupTableNode.ts`)
 **MATLAB class:** `Simulink.LookupTable`
 **Editable in our UI:** no (read-only pass-through; only Name and Description editable)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.LookupTable'))

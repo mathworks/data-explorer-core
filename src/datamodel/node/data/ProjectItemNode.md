@@ -2,7 +2,7 @@
 
 # ProjectItemNode — data-object fidelity
 
-**Node class:** `ProjectItemNode` (`src/dex/datamodel/node/data/ProjectItemNode.ts`)
+**Node class:** `ProjectItemNode` (`src/datamodel/node/data/ProjectItemNode.ts`)
 **MATLAB class:** host-only, no MATLAB data object (project-tree node)
 **Editable in our UI:** no (`valueEditable` and `nameEditable` explicitly return `false`)
 **Verified against:** n/a — host node, not a Simulink data object

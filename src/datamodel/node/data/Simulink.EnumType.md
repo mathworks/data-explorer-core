@@ -2,7 +2,7 @@
 
 # Simulink.data.dictionary.EnumTypeDefinition — data-object fidelity
 
-**Node class:** `EnumTypeNode` (`src/dex/datamodel/node/data/EnumTypeNode.ts`)
+**Node class:** `EnumTypeNode` (`src/datamodel/node/data/EnumTypeNode.ts`)
 **MATLAB class:** `Simulink.data.dictionary.EnumTypeDefinition`
 **Editable in our UI:** yes
 **Verified against:** MATLAB R2027a (probe_enumdef on params.sldd fixture)

@@ -2,7 +2,7 @@
 
 # MATLAB Variable — data-object fidelity
 
-**Node class:** `MatlabVariableNode` (`src/dex/datamodel/node/data/MatlabVariableNode.ts`)
+**Node class:** `MatlabVariableNode` (`src/datamodel/node/data/MatlabVariableNode.ts`)
 **MATLAB class:** (none — a plain MATLAB value: double, array, cell, struct, string, complex, logical, typed-int)
 **Editable in our UI:** yes (Value column editable for all shapes except struct and opaque)
 **Verified against:** MATLAB R2027a (params.sldd fixture round-trip)

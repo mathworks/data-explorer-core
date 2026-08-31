@@ -2,7 +2,7 @@
 
 # Simulink.VariantControl — data-object fidelity
 
-**Node class:** `VariantControlNode` (`src/dex/datamodel/node/data/VariantControlNode.ts`)
+**Node class:** `VariantControlNode` (`src/datamodel/node/data/VariantControlNode.ts`)
 **MATLAB class:** `Simulink.VariantControl`
 **Editable in our UI:** yes (Value property)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.VariantControl'))
