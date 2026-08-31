@@ -127,6 +127,15 @@ describe('MatlabValueParser — numeric arrays', () => {
     expect(parse('[')).toBeNull();
     expect(parse('[1 2')).toBeNull();
   });
+
+  it('treats semicolons that delimit only whitespace as empty rows', () => {
+    // MATLAB's `[;]` and `[ ; ]` are valid empty-matrix syntax — the semicolons
+    // create empty rows that collapse to []. If we rejected these, a user who
+    // typed a semicolon and backspaced the content would get an error.
+    expect(parse('[;]')).toEqual({ type: 'double', value: [], dims: [0, 0] });
+    expect(parse('[;;]')).toEqual({ type: 'double', value: [], dims: [0, 0] });
+    expect(parse('[  ;  ]')).toEqual({ type: 'double', value: [], dims: [0, 0] });
+  });
 });
 
 describe('MatlabValueParser — char and string', () => {
@@ -153,8 +162,48 @@ describe('MatlabValueParser — char and string', () => {
     expect(parse("['a' 'b']")).toEqual({ type: 'string-array', value: ['a', 'b'], dims: [1, 2] });
   });
 
+  it('parses a single-element string array', () => {
+    expect(parse('["hello"]')).toEqual({ type: 'string-array', value: ['hello'], dims: [1, 1] });
+  });
+
+  it('parses a multi-row string matrix', () => {
+    expect(parse('["a" "b"; "c" "d"]')).toEqual({
+      type: 'string-array', value: ['a', 'b', 'c', 'd'], dims: [2, 2],
+    });
+  });
+
+  it('rejects a ragged string matrix', () => {
+    // Different column count per row — MATLAB would error.
+    expect(parse('["a" "b"; "c"]')).toBeNull();
+  });
+
   it('rejects a row mixing numbers and strings', () => {
     expect(parse('[1 "two"]')).toBeNull();
+  });
+
+  it('rejects rows that switch from numeric to string across a semicolon', () => {
+    // The first row is numeric and the second is strings — MATLAB cannot combine
+    // them into a single array. Before the fix this silently produced a
+    // string-array whose first element was the number 1.
+    expect(parse('[1; "a"]')).toBeNull();
+    expect(parse('[1 2; "a" "b"]')).toBeNull();
+  });
+
+  it('rejects rows that switch from string to numeric across a semicolon', () => {
+    expect(parse('["a"; 1]')).toBeNull();
+    expect(parse('["a" "b"; 1 2]')).toBeNull();
+  });
+
+  it('rejects an unterminated quote inside a string array row', () => {
+    // Without the closing quote the tokenizer cannot know where the string ends.
+    expect(parse('["abc]')).toBeNull();
+    expect(parse("['abc]")).toBeNull();
+  });
+
+  it('ignores trailing commas/spaces in a string array row', () => {
+    // Trailing comma leaves an empty tail after the last element; the tokenizer
+    // should skip it rather than inventing a phantom element.
+    expect(parse('["a", ]')).toEqual({ type: 'string-array', value: ['a'], dims: [1, 1] });
   });
 });
 
@@ -203,6 +252,76 @@ describe('MatlabValueParser — cell arrays', () => {
   it('rejects a ragged cell and an unterminated brace', () => {
     expect(parse("{1, 2; 3}")).toBeNull();
     expect(parse('{1')).toBeNull();
+  });
+
+  it('skips empty rows in a cell delimited by adjacent semicolons', () => {
+    // `{1;;2}` has an empty row between the semicolons — it should be ignored,
+    // not cause a parse failure or corrupt the dimensions.
+    expect(parse('{1;;2}')).toEqual({ type: 'cell', value: [1, 2], dims: [2, 1] });
+  });
+
+  it('collapses to an empty cell when every row is empty', () => {
+    expect(parse('{;}')).toEqual({ type: 'cell', value: [], dims: [0, 0] });
+    expect(parse('{;;}')).toEqual({ type: 'cell', value: [], dims: [0, 0] });
+  });
+
+  it('parses double-quoted strings in a cell', () => {
+    expect(parse('{"hello"}')).toEqual({ type: 'cell', value: ['hello'], dims: [1, 1] });
+    expect(parse('{"a,b"}')).toEqual({ type: 'cell', value: ['a,b'], dims: [1, 1] });
+  });
+
+  it('rejects an unterminated quote inside a cell element', () => {
+    expect(parse("{'abc}")).toBeNull();
+    expect(parse('{"abc}')).toBeNull();
+  });
+
+  it('rejects a nested array with unmatched brackets inside a cell', () => {
+    // The `[1 2` never finds a `]`, so findMatchingBracket returns -1.
+    expect(parse('{[1 2}')).toBeNull();
+  });
+
+  it('rejects a nested array that is itself malformed', () => {
+    // Brackets match, but the content mixes types.
+    expect(parse('{[1 "a"]}')).toBeNull();
+  });
+
+  it('rejects a nested cell with unmatched braces', () => {
+    expect(parse('{{{1}}')).toBeNull();
+  });
+
+  it('rejects a nested cell whose content is malformed', () => {
+    // Braces match, but `[` inside the inner cell is not closed before `}`.
+    expect(parse('{{[}}')).toBeNull();
+  });
+
+  it('parses boolean and non-finite literals inside a cell', () => {
+    expect(parse('{false}')).toEqual({ type: 'cell', value: [false], dims: [1, 1] });
+    const cellInf = parse('{Inf}')!;
+    expect((cellInf.value as unknown[])[0]).toBe(Infinity);
+    const cellNegInf = parse('{-Inf}')!;
+    expect((cellNegInf.value as unknown[])[0]).toBe(-Infinity);
+    const cellNaN = parse('{NaN}')!;
+    expect(Number.isNaN((cellNaN.value as unknown[])[0])).toBe(true);
+  });
+
+  it('keeps bare identifiers as strings in a cell', () => {
+    // MATLAB cells can hold arbitrary expressions; the parser cannot evaluate
+    // function calls, so bare identifiers are kept as raw text — the user sees
+    // what they typed and can edit it.
+    expect(parse('{abc}')).toEqual({ type: 'cell', value: ['abc'], dims: [1, 1] });
+  });
+
+  it('ignores trailing commas/spaces in a cell row', () => {
+    expect(parse('{1, }')).toEqual({ type: 'cell', value: [1], dims: [1, 1] });
+  });
+
+  it('wraps nested empty structures correctly', () => {
+    expect(parse('{[]}')).toEqual({ type: 'cell', value: [[]], dims: [1, 1] });
+    expect(parse('{{}}')).toEqual({
+      type: 'cell',
+      value: [{ _array_type: 'Cell', _dimensions: [0, 0], _elements: [], _mw_element_type: 'MATLABArray' }],
+      dims: [1, 1],
+    });
   });
 });
 

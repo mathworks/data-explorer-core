@@ -69,6 +69,44 @@ describe('ValueType DataType column', () => {
   });
 });
 
+describe('ValueType serializeValue — round-trips overridden DataType/Description', () => {
+  it('includes DataType and Description in the serialized value when they diverge from defaults', () => {
+    // The host stores the entry back via serializeValue(); if a non-default
+    // DataType or Description is dropped, the round-tripped file silently
+    // loses that property — a data-loss bug invisible until the file is reloaded.
+    const node = ValueTypeNode.parse(rawVal('Simulink.ValueType', { DataType: 'uint16', Description: 'speed' }), 'VT', null);
+    const sv = node.serializeValue() as Record<string, unknown>;
+    const elem = ((sv as any)._elements as unknown[])[0] as Record<string, unknown>;
+    const props = elem._properties as Record<string, unknown>;
+    expect(props.DataType).toBe('uint16');
+    expect(props.Description).toBe('speed');
+  });
+
+  it('omits DataType and Description when they equal the defaults and were never on disk', () => {
+    const node = ValueTypeNode.parse(rawVal('Simulink.ValueType', {}), 'VT', null);
+    const sv = node.serializeValue() as Record<string, unknown>;
+    const elem = ((sv as any)._elements as unknown[])[0] as Record<string, unknown>;
+    const props = elem._properties as Record<string, unknown>;
+    expect(props).not.toHaveProperty('DataType');
+    expect(props).not.toHaveProperty('Description');
+  });
+});
+
+describe('ValueType defaultName and isDerived icon', () => {
+  it('defaultName returns "ValueType" (used as the seed for new-entry naming)', () => {
+    expect(ValueTypeNode.defaultName).toBe('ValueType');
+  });
+
+  it('isDerived node shows the Architectural Data icon (typeSignalUI)', () => {
+    // Architectural Data entries (isderived='1') use a distinctive icon so the
+    // tree visually separates them from Design Data; if the icon regresses both
+    // look identical and users cannot tell which section an entry belongs to.
+    const node = ValueTypeNode.parse(rawVal('Simulink.ValueType', {}), 'VT', null);
+    node.metadata = { isderived: '1' };
+    expect(node.icon).toBe('typeSignalUI');
+  });
+});
+
 describe('NumericType / AliasType Value column', () => {
   it('NumericType shows an empty, non-editable Value', () => {
     const node = NumericTypeNode.parse(rawVal('Simulink.NumericType', {}), 'NT', null);

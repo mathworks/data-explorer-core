@@ -10,7 +10,7 @@
 //     ids already consumed by sibling elements' nested arguments),
 // and the parent Elements_internal._dimensions must track the element count.
 import { describe, it, expect } from 'vitest';
-import { ServiceBusNode } from '../src/datamodel/node/data/ServiceBusNode.js';
+import { ServiceBusNode, FunctionElementNode } from '../src/datamodel/node/data/ServiceBusNode.js';
 
 // One Simulink.BusElement argument.
 function arg(id: string, name: string): Record<string, unknown> {
@@ -79,6 +79,70 @@ function collectIds(o: unknown, out: string[] = []): string[] {
   }
   return out;
 }
+
+describe('ServiceBusNode identity and _createElementNode', () => {
+  it('reports the correct icon for a non-derived ServiceBus', () => {
+    // A workspace ServiceBus uses the default icon; getting this wrong would
+    // make a plain Design Data entry look like an arch ServiceInterface.
+    const bus = ServiceBusNode.createDefault('SB', null);
+    expect(bus.icon).toBe('wsDefault');
+    expect(bus.className).toBe('Simulink.ServiceBus');
+    expect(bus.displayValue).toBe('');
+    expect(bus.valueEditable).toBe(false);
+  });
+
+  it('reports the arch icon when marked as derived', () => {
+    const bus = ServiceBusNode.createDefault('SB', null);
+    bus.metadata = { isderived: '1' };
+    expect(bus.icon).toBe('serviceInterfaces');
+  });
+
+  it('_createElementNode produces a FunctionElementNode', () => {
+    // The factory override is what makes addChildNode create function elements
+    // instead of the base null; without it the bus cannot gain children.
+    const bus = ServiceBusNode.createDefault('SB', null);
+    const props = { Name: 'fn' };
+    const serial = { _rawElem: { _id: '2', _properties: props }, _properties: props };
+    const elem = (bus as any)._createElementNode('fn', props, serial);
+    expect(elem).toBeInstanceOf(FunctionElementNode);
+    expect(elem.name).toBe('fn');
+    expect(elem.icon).toBe('function');
+  });
+
+  it('defaultName is ServiceInterface and ELEMENT_CLASS_NAME is Simulink.FunctionElement', () => {
+    expect(ServiceBusNode.defaultName).toBe('ServiceInterface');
+    expect(ServiceBusNode.ELEMENT_CLASS_NAME).toBe('Simulink.FunctionElement');
+  });
+});
+
+describe('FunctionElementNode identity', () => {
+  it('reports the correct icon, className, and an empty dataType', () => {
+    // A function element has no meaningful data type — its Prototype shows as
+    // displayValue instead. Exposing a DataType would let an edit inject a key
+    // the object does not own.
+    const bus = ServiceBusNode.parse(serviceBusRaw(), 'SB', null);
+    const elem = bus.children[0] as FunctionElementNode;
+    expect(elem.icon).toBe('function');
+    expect(elem.className).toBe('Simulink.FunctionElement');
+    expect(elem.dataType).toBe('');
+    expect(elem.displayValue).toBe('y = f(u,v)');
+    expect(elem.getProperties().map((p: any) => p.key)).toEqual(['Name']);
+  });
+});
+
+describe('ServiceBusNode addChildNode name collision avoidance', () => {
+  it('skips existing function names', () => {
+    // When a user adds functions after deleting middle ones, the name allocator
+    // must jump past the remaining children, not reuse a sibling's name.
+    const bus = ServiceBusNode.createDefault('SB', null);
+    const c1 = bus.addChildNode();
+    const c2 = bus.addChildNode();
+    const c3 = bus.addChildNode();
+    expect(c1.name).toBe('f0');
+    expect(c2.name).toBe('f1');
+    expect(c3.name).toBe('f2');
+  });
+});
 
 describe('addChild on a ServiceBus (arch ServiceInterface)', () => {
   it('creates a FunctionElement with Prototype y = fn(u,v) and a full Arguments array', () => {

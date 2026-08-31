@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 // Importing the class map registers the NodeRegistry the adapter routes through.
 import '../src/datamodel/node/NodeClassMap.js';
+import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import { buildTypedNodeFromMcos } from '../src/datamodel/node/data/mcosTypedNode.js';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import SignalNode from '../src/datamodel/node/data/SignalNode.js';
@@ -92,6 +93,17 @@ describe('buildTypedNodeFromMcos — unifies node class + values across formats'
     expect(buildTypedNodeFromMcos('MatlabStruct', 'v', null)).toBeNull();
     expect(buildTypedNodeFromMcos('CustomObject', 'v', null)).toBeNull();
     expect(buildTypedNodeFromMcos('', 'v', null)).toBeNull();
+  });
+
+  it('degrades to null when parseValue throws (corrupt data), not a crash', () => {
+    // A class whose parse() unexpectedly rejects the value (e.g. the MCOS
+    // decoder handed over a corrupted element) must not break the whole file —
+    // the adapter swallows the error and the variable stays opaque.
+    const spy = vi.spyOn(NodeRegistry, 'parseValue').mockImplementationOnce(() => {
+      throw new Error('simulated parse failure');
+    });
+    expect(buildTypedNodeFromMcos('Simulink.Parameter', 'broken', null)).toBeNull();
+    spy.mockRestore();
   });
 });
 

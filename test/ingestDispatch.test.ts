@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { strToU8 } from 'fflate';
+import { strToU8, zipSync } from 'fflate';
 import { createSession, ingest } from '../src/index.js';
 
 function fixtureBytes(name: string): Uint8Array {
@@ -142,5 +142,59 @@ describe('ingest — rejections', () => {
   it('rejects malformed JSON in a textual .sldd', () => {
     const s = createSession();
     expect(() => ingest(s, '{not json', { filename: 'bad.sldd' })).toThrow();
+  });
+});
+
+describe('ingest — .sldd bytes that are neither JSON nor a valid zip', () => {
+  it('whitespace-only bytes fall through to the binary path and fail', () => {
+    // isJsonText returns false for bytes with no '{' — the ingest layer then
+    // tries the zip parser, which rejects the payload. Without this path a
+    // corrupted file silently produces an empty source.
+    const s = createSession();
+    expect(() => ingest(s, new Uint8Array([0x20, 0x09, 0x0a]), { filename: 'empty.sldd' }))
+      .toThrow(/invalid zip/i);
+  });
+
+  it('empty bytes also fall through to the binary path', () => {
+    const s = createSession();
+    expect(() => ingest(s, new Uint8Array(0), { filename: 'zero.sldd' })).toThrow();
+  });
+});
+
+describe('ingest — .prj zip dispatch', () => {
+  function makePrjZip(): ArrayBuffer {
+    const info = (body: string) => `<?xml version="1.0" encoding="UTF-8"?>\n${body}`;
+    const store: Record<string, Uint8Array> = {
+      'resources/project/root/FILESHASHp.xml': strToU8(info('<Info location="Root" type="Files"/>')),
+      'resources/project/FILESHASH/AAAp.xml': strToU8(info('<Info location="helper.m" type="File"/>')),
+      'resources/project/FILESHASH/AAAd.xml': strToU8(info('<Info/>')),
+    };
+    const zipped = zipSync(store);
+    return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength);
+  }
+
+  it('unzips a .prj and builds a project source from its entries', () => {
+    // The VS Code host reads .prj files as raw bytes; ingest must unzip, convert
+    // every entry to a UTF-8 string map, and hand it to addProjectSource. If the
+    // unzip-to-string step is skipped the project parser receives Uint8Arrays
+    // instead of strings and silently produces an empty tree.
+    const s = createSession();
+    const src = ingest(s, makePrjZip(), { filename: '/path/to/MyProj.prj' });
+    expect(src.name).toBe('MyProj.prj');
+    expect(s.hasDataSource('MyProj.prj')).toBe(true);
+    expect(src.flatten().length).toBeGreaterThan(1);
+  });
+
+  it('accepts a Uint8Array as well as an ArrayBuffer', () => {
+    const s = createSession();
+    const ab = makePrjZip();
+    const src = ingest(s, new Uint8Array(ab), { filename: 'Proj.prj' });
+    expect(s.hasDataSource('Proj.prj')).toBe(true);
+    expect(src.flatten().length).toBeGreaterThan(1);
+  });
+
+  it('rejects non-binary content for .prj', () => {
+    const s = createSession();
+    expect(() => ingest(s, '{}', { filename: 'bad.prj' })).toThrow(/requires binary content/);
   });
 });

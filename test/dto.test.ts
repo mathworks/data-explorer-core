@@ -55,4 +55,31 @@ describe('toDTO() — serializable snapshot', () => {
       expect(typeof p.editable).toBe('boolean');
     }
   });
+
+  it('propsOf returns [] for a node missing getProperties', () => {
+    // A node shaped by the host (e.g. a bare container stub) may lack
+    // getProperties entirely; the DTO layer must not throw on it or the
+    // whole tree serialization fails.
+    const stub = {
+      id: 'stub', name: 'stub', displayName: 'Stub', kind: 'other',
+      className: 'Stub', icon: 'stub.svg', isContainer: false, isEntry: false,
+      children: [],
+    };
+    const dto = toDTO(stub as any);
+    expect(dto.props).toEqual([]);
+  });
+
+  it('source DTO carries path and sourceFormat from the live node', () => {
+    // The VS Code host reads SourceDTO.path and .sourceFormat to show the
+    // file label and format badge; if either regresses to undefined the
+    // UI falls back to blank.
+    const s = createSession();
+    const src = ingest(s, text('object_array_text.sldd'), {
+      filename: 'src.sldd',
+      meta: { path: '/work/src.sldd' },
+    });
+    const dto = toDTO(src) as SourceDTO;
+    expect(dto.path).toBe('/work/src.sldd');
+    expect(dto.sourceFormat).toBe('json');
+  });
 });

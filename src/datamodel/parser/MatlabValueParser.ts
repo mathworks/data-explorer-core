@@ -99,6 +99,11 @@ function parseArray(str: string): ParsedValue | null {
         if (nums === null) {
             const strings = tokenizeStrings(rowStr);
             if (strings === null) { return null; }
+            // A row of strings after rows of numbers: MATLAB has no such array,
+            // and accepting it wrote a "string array" whose leading elements were
+            // numbers straight back into the file. The numeric branch below
+            // already refuses the mirror case (numbers after strings).
+            if (!isStringArray && matrix.length > 0) { return null; }
             isStringArray = true;
             if (cols < 0) {
                 cols = strings.length;
