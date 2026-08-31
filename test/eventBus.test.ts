@@ -142,6 +142,25 @@ describe('EventBus — unsubscribe', () => {
     bus.publish('active/changed');
     expect(hits).toBe(1);
   });
+
+  // clear() deletes the whole topic list, so a Subscription handed out beforehand
+  // is now pointing at a topic that no longer exists. Callers keep those handles in
+  // disposal arrays and unsubscribe them on teardown — long after a clear() — so
+  // remove() has to tolerate the missing list rather than throw during cleanup.
+  it('remove() on a subscription that clear() already dropped is a no-op', () => {
+    const bus = createEventBus();
+    let hits = 0;
+    const sub = bus.subscribe('active/changed', () => { hits++; });
+    bus.clear();
+    expect(() => sub.remove()).not.toThrow();
+
+    // And it removed nothing it should not have: a subscription made after the
+    // clear is still live.
+    bus.subscribe('active/changed', () => { hits++; });
+    sub.remove();
+    bus.publish('active/changed');
+    expect(hits).toBe(1);
+  });
 });
 
 describe('EventBus — the module-level default bus', () => {

@@ -23,6 +23,19 @@ function loadedSession() {
   return { s, src };
 }
 
+// A session with model_with_refs.slx loaded. A model is read-only but still counts
+// as an active document (it carries a `dirty` flag), so the delete path runs all
+// the way to the section and is refused there — see the tests below.
+function modelSession() {
+  const path = fileURLToPath(new URL('./fixtures/model_with_refs.slx', import.meta.url));
+  const b = readFileSync(path);
+  const buf = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+  const s = createSession();
+  const src = s.addModelSource('model_with_refs.slx', buf) as any;
+  s.setActiveContext(src);
+  return { s, src };
+}
+
 const sectionOf = (src: any, name: string) => src.children.find((c: any) => c.name === name);
 const firstEntry = (src: any) => (src.flatten() as any[]).find((n) => n.isEntry);
 
@@ -82,6 +95,18 @@ describe('addEntry', () => {
   it('returns null for a class no section accepts', () => {
     const { s } = loadedSession();
     expect(s.addEntry('sldd', 'No.Such.Class')).toBeNull();
+  });
+
+  // The two refusals are distinct: 'sldd' means "find me a section that takes
+  // this", so an unknown class finds none; naming a section that exists but does
+  // not allow the class has to fail too, rather than forcing the entry in.
+  it('returns null when the named section refuses the class', () => {
+    const { s, src } = loadedSession();
+    const design = sectionOf(src, 'design');
+    const before = design.children.length;
+    expect(s.addEntry('design', 'Simulink.ConfigSet')).toBeNull();
+    expect(design.children.length).toBe(before);
+    expect(s.canUndo()).toBe(false);
   });
 });
 
@@ -233,6 +258,23 @@ describe('addChild', () => {
     s.setActive(src, section);
     expect(s.addChild()).toBeNull();
   });
+
+  // A node CAN define execAddChild and still refuse: a 2-D matrix would stop being
+  // rectangular if one element were appended, so its own canAddChild says no. The
+  // session has to honour that refusal — this is a different guard from the one
+  // above, where the node has no execAddChild at all.
+  it('returns null when the node defines execAddChild but refuses', () => {
+    const { s, src } = loadedSession();
+    const matrix = (src.flatten() as any[]).find(
+      (n) => typeof n.execAddChild === 'function' && n.canAddChild && !n.canAddChild(),
+    );
+    expect(matrix).toBeTruthy();
+    const before = matrix.children.length;
+    s.setActive(src, matrix);
+    expect(s.addChild()).toBeNull();
+    expect(matrix.children.length).toBe(before);
+    expect(s.canUndo()).toBe(false);
+  });
 });
 
 describe('deleteNode', () => {
@@ -345,6 +387,60 @@ describe('deleteNode', () => {
     expect(s.findNodeById(entry.id)).toBeNull();
     expect(s.findNodeById(child.id)).toBe(child);
     expect(other.children.length).toBe(otherKids);
+  });
+
+  // A .slx model is read-only: its ModelSectionNode deliberately implements no
+  // execRemoveEntry. But the model DOES carry a `dirty` flag, so it reads as an
+  // active document and the delete runs all the way to the section before being
+  // refused — this is the guard that keeps a read-only file read-only.
+  it('refuses to delete an entry out of a read-only model section', () => {
+    const { s, src } = modelSession();
+    const refs = sectionOf(src, 'references');
+    const entry = refs.children[0];
+    expect(entry.isEntry).toBe(true);
+    s.setActive(src, entry);
+
+    expect(s.deleteNode()).toBe(false);
+    expect(refs.children).toContain(entry);
+    expect(s.canUndo()).toBe(false);
+  });
+
+  it('refuses a whole multi-selection of read-only model entries', () => {
+    const { s, src } = modelSession();
+    const refs = sectionOf(src, 'references');
+    const ds = sectionOf(src, 'dataSources');
+    const doomed = [refs.children[0], ds.children[0]];
+    s.setActive(src, doomed);
+
+    expect(s.deleteNode()).toBe(false);
+    expect(refs.children).toContain(doomed[0]);
+    expect(ds.children).toContain(doomed[1]);
+    expect(s.canUndo()).toBe(false);
+  });
+
+  // The parent implements execRemoveChild but its canRemoveChild says no: dropping
+  // one element of a 2-D matrix would leave it non-rectangular. deleteNode has to
+  // treat a null result as a refusal, not push an undo step for a removal that
+  // never happened.
+  it('returns false when the parent defines execRemoveChild but refuses', () => {
+    const { s, src } = loadedSession();
+    const child = (src.flatten() as any[]).find(
+      (n) =>
+        !n.isEntry &&
+        n.parent &&
+        typeof n.parent.execRemoveChild === 'function' &&
+        n.parent.canRemoveChild &&
+        !n.parent.canRemoveChild(),
+    );
+    expect(child).toBeTruthy();
+    const parent = child.parent;
+    const before = parent.children.length;
+    s.setActive(src, child);
+
+    expect(s.deleteNode()).toBe(false);
+    expect(parent.children.length).toBe(before);
+    expect(s.findNodeById(child.id)).toBe(child);
+    expect(s.canUndo()).toBe(false);
   });
 
   it('returns false for a multi-selection holding no entries at all', () => {
