@@ -418,6 +418,183 @@ describe('MatlabVariableNode — undo of a removal', () => {
   });
 });
 
+// The numeric-array mutation path above is well covered; a string array and a
+// cell array go through the SAME entry points (removeChildNode /
+// restoreChildNode / execAddChild) but branch to their own _update*AfterRemove
+// and their own restore arm. Those arms were untested, and both string ones were
+// wrong — see the two "used to" comments below. Each kind gets its own coverage
+// here rather than being assumed equivalent to the numeric one.
+describe('MatlabVariableNode — string-array children', () => {
+  const strArray = (elements: string[], dims = [1, elements.length]): Any =>
+    parse({ _array_type: 'String', _dimensions: dims, _elements: elements });
+
+  it('parses into one string-kind child per element', () => {
+    const n = strArray(['a', 'b', 'c']);
+    expect(n._kind).toBe('string');
+    expect(n.children.map((c: Any) => [c.name, c._kind, c._scalarValue])).toEqual([
+      ['1', 'string', 'a'],
+      ['2', 'string', 'b'],
+      ['3', 'string', 'c'],
+    ]);
+    expect(n.displayValue).toBe('["a" "b" "c"]');
+  });
+
+  it('leaves a 1x1 string a leaf: no children, and nothing to add or remove', () => {
+    const n = parse({ _array_type: 'String', _dimensions: [1, 1], _elements: ['only'] });
+    expect([n.children.length, n.canAddChild(), n.canRemoveChild()]).toEqual([0, false, false]);
+    expect(n.displayValue).toBe('"only"');
+  });
+
+  it('refuses add/remove on a 2-D string matrix, which cannot stay rectangular', () => {
+    const n = strArray(['a', 'b', 'c', 'd'], [2, 2]);
+    expect([n.canAddChild(), n.canRemoveChild()]).toEqual([false, false]);
+    expect(n.displayValue).toBe('["a" "b"; "c" "d"]');
+  });
+
+  it('removes an element from the middle, keeping text and numbering aligned', () => {
+    const n = strArray(['a', 'b', 'c']);
+    n.removeChildNode(n.children[1]);
+    expect(n._elements).toEqual(['a', 'c']);
+    expect(n._dims).toEqual([1, 2]);
+    expect(n.children.map((c: Any) => [c.name, c._scalarValue])).toEqual([
+      ['1', 'a'],
+      ['2', 'c'],
+    ]);
+    expect(n.displayValue).toBe('["a" "c"]');
+  });
+
+  it('restores the removed element WITH its text, not as an empty string', () => {
+    // restoreChildNode read the element's value only when its _kind was 'scalar',
+    // which is right for a numeric array's children but never true for a string
+    // array's — those are string-KIND nodes. So the branch always fell to its ''
+    // default and an undone element came back blank: the child row still showed
+    // "b" while _elements (and so displayValue and the saved file) held "".
+    const n = strArray(['a', 'b', 'c']);
+    const op: Any = n.execRemoveChild(n.children[1]);
+    expect(n.displayValue).toBe('["a" "c"]');
+    op.undo();
+    expect(n._elements).toEqual(['a', 'b', 'c']);
+    expect(n.displayValue).toBe('["a" "b" "c"]');
+    // Both copies of the data agree — the children and _elements.
+    expect(n.children.map((c: Any) => c._scalarValue)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('rebuilds both elements when undoing the removal that collapsed the array', () => {
+    // A string array down to one element renders as a scalar string and drops the
+    // survivor's child row — but unlike the numeric case it stays _kind 'string',
+    // so restoreChildNode's `_kind === 'scalar'` rebuild never fired. Undo came
+    // back with two elements but only ONE child row.
+    const n = strArray(['a', 'b']);
+    const op: Any = n.execRemoveChild(n.children[1]);
+    expect([n._elements, n._dims, n.children.length]).toEqual([['a'], [1, 1], 0]);
+    expect(n.displayValue).toBe('"a"');
+    op.undo();
+    expect(n._elements).toEqual(['a', 'b']);
+    expect(n.children.map((c: Any) => [c.name, c._kind, c._scalarValue])).toEqual([
+      ['1', 'string', 'a'],
+      ['2', 'string', 'b'],
+    ]);
+    expect(n.displayValue).toBe('["a" "b"]');
+  });
+
+  it('restores the column orientation the collapse discarded', () => {
+    // Coming back as a row would silently transpose the user's data — the same
+    // guarantee the numeric path makes via _preCollapseDims.
+    const n = strArray(['a', 'b'], [2, 1]);
+    expect(n.displayValue).toBe('["a"; "b"]');
+    const op: Any = n.execRemoveChild(n.children[1]);
+    op.undo();
+    expect(n._dims).toEqual([2, 1]);
+    expect(n.displayValue).toBe('["a"; "b"]');
+  });
+
+  it('appends, undoes, and redoes an element without losing the others', () => {
+    const n = strArray(['a', 'b']);
+    const op: Any = n.execAddChild();
+    expect(n._elements).toEqual(['a', 'b', '']);
+    // A structured String container re-serializes as a container, with the grown
+    // dimensions — the new element must reach the saved file, not just the tree.
+    expect(n.serializeValue()).toEqual({
+      _array_type: 'String',
+      _mw_element_type: 'MATLABArray',
+      _dimensions: [1, 3],
+      _elements: ['a', 'b', ''],
+    });
+    op.undo();
+    expect([n._elements, n._dims]).toEqual([['a', 'b'], [1, 2]]);
+    op.redo();
+    expect(n._elements).toEqual(['a', 'b', '']);
+    expect(n.children.map((c: Any) => c._scalarValue)).toEqual(['a', 'b', '']);
+  });
+
+  it('reports a fully emptied string array as 1x0', () => {
+    // A 1x1 string is a leaf with no removable child, so the only route to zero
+    // elements is through the update helper directly. 1x0 (not 0x0) is what the
+    // numeric path uses for an emptied vector, and the two must agree.
+    const n = strArray(['a', 'b']);
+    n._elements = [];
+    n._updateStringAfterRemove();
+    expect(n._dims).toEqual([1, 0]);
+  });
+});
+
+describe('MatlabVariableNode — cell-array children', () => {
+  const cellArray = (elements: unknown[], dims = [1, elements.length]): Any =>
+    parse({ _array_type: 'Cell', _dimensions: dims, _mw_element_type: 'MATLABCell', _elements: elements });
+
+  it('parses each element to a node of its own type', () => {
+    const n = cellArray([1, 'two', 3]);
+    expect(n._kind).toBe('cell');
+    expect(n.displayValue).toBe("{1, 'two', 3}");
+  });
+
+  it('refuses add/remove on a 2-D cell matrix', () => {
+    const n = cellArray([1, 2, 3, 4], [2, 2]);
+    expect([n.canAddChild(), n.canRemoveChild()]).toEqual([false, false]);
+  });
+
+  it('removes an element, shrinking both _dims and the serialized dimensions', () => {
+    // A cell's element data lives only in its children (there is no _elements
+    // mirror), so the dimensions in `serial` are what must be kept in step —
+    // a stale _dimensions would make the saved cell disagree with its contents.
+    const n = cellArray([1, 'two', 3]);
+    n.removeChildNode(n.children[1]);
+    expect(n._dims).toEqual([1, 2]);
+    expect(n.serial._dimensions).toEqual([1, 2]);
+    expect(n.displayValue).toBe('{1, 3}');
+  });
+
+  it('restores a removed element with its value and position', () => {
+    const n = cellArray([1, 'two', 3]);
+    const op: Any = n.execRemoveChild(n.children[1]);
+    op.undo();
+    expect(n._dims).toEqual([1, 3]);
+    expect(n.serial._dimensions).toEqual([1, 3]);
+    expect(n.displayValue).toBe("{1, 'two', 3}");
+    expect(n.children.map((c: Any) => c.name)).toEqual(['1', '2', '3']);
+  });
+
+  it('appends a numeric-zero element and undoes it', () => {
+    const n = cellArray([1]);
+    const op: Any = n.execAddChild();
+    expect(n.children.length).toBe(2);
+    expect(n._dims).toEqual([2, 1]);
+    expect(n.serial._dimensions).toEqual([2, 1]);
+    expect(n.displayValue).toBe('{1; 0}');
+    op.undo();
+    expect([n.children.length, n._dims]).toEqual([1, [1, 1]]);
+  });
+
+  it('goes to 0x0 and {} when the last element is removed', () => {
+    // Not [1,0]: an emptied cell is 0x0 in MATLAB, and displayValue reads the
+    // child count rather than the dims, so the two must not disagree.
+    const n = cellArray([1]);
+    n.removeChildNode(n.children[0]);
+    expect([n._dims, n.children.length]).toEqual([[0, 0], 0]);
+    expect(n.displayValue).toBe('{}');
+  });
+});
+
 describe('MatlabVariableNode — serializeValue', () => {
   it('returns the untouched raw input while the node is unmodified', () => {
     // Round-tripping the original bytes is lossless; re-deriving them is not.

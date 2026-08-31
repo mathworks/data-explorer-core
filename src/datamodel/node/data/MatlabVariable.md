@@ -58,6 +58,28 @@ When editing a child of an array or string-array:
 - **String element:** rejects anything that is not a char or string value. Error:
   **"String elements must be character or string values"**
 
+### A string element is a string-KIND child, not a string-typed scalar
+Every element of a string array is built by `_makeStringElement` as a node with
+`_kind = 'string'` (and `_scalarValue` holding the text), never as
+`_createScalar(..., 'string')`. The reason is serialization: a string-kind node
+emits a bare `""` element, where a string-typed scalar would emit a nested `[""]`
+array via `_serializeScalar`.
+
+The consequence for the mutation paths is that a string array's children do NOT
+match the shape a numeric array's do (those *are* scalar-kind), so code that reads
+a child's value must not gate on `_kind === 'scalar'`. `restoreChildNode` used to,
+which made every undone string element come back as `''` while its child row still
+showed the old text.
+
+### A collapsed string array stays kind 'string'
+Down to one element, a string array renders as a scalar string (`"a"`) and drops
+the survivor's child row, but — unlike a numeric array, which becomes `_kind
+'scalar'` — it keeps `_kind = 'string'`. So the undo-side survivor rebuild needs
+its own condition (`_kind === 'string' && children.length === 0 && _elements.length
+=== 1`) rather than sharing the numeric one. Both paths record the pre-collapse
+`[1,n]`/`[n,1]` orientation in `_preCollapseDims` so undo does not transpose the
+data. Pinned in `test/matlabVariableNode.test.ts`.
+
 ### Structs are not directly editable
 A struct (`_kind='scalar', _scalarType='struct'`) has `valueEditable = false`. Its
 fields are editable as individual children.

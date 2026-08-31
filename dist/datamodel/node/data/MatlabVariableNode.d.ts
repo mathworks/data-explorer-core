@@ -65,6 +65,7 @@ export default class MatlabVariableNode extends DataNode {
     }): void;
     _buildMatrixString(dims: number[], elements: number[]): string;
     _buildArrayChildren(): void;
+    private _makeStringElement;
     _buildStringChildren(): void;
     _buildCellChildren(elements: unknown[]): void;
     canAddChild(): boolean;

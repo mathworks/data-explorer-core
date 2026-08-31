@@ -526,18 +526,27 @@ export default class MatlabVariableNode extends DataNode {
             this.addChild(child);
         }
     }
+    // One element of a string array, built as a string-KIND node rather than a
+    // 'string'-typed scalar: the former serializes as a bare "" element, where
+    // _createScalar('string') would produce a nested [""] array via
+    // _serializeScalar. Shared by the parse, add, and undo paths so all three
+    // build the identical shape — they used to construct it separately, and the
+    // undo path's copy read the value back as if it were a scalar-kind child.
+    _makeStringElement(name, value) {
+        const child = new MatlabVariableNode(name, this, { _dimensions: [1, 1] });
+        child._kind = 'string';
+        child._elements = [value];
+        child._dims = [1, 1];
+        child._scalarValue = value;
+        child._scalarType = 'string';
+        return child;
+    }
     _buildStringChildren() {
         if (this._elements.length <= 1) {
             return;
         }
         for (let i = 0; i < this._elements.length; i++) {
-            const child = new MatlabVariableNode(String(i + 1), this, { _dimensions: [1, 1] });
-            child._kind = 'string';
-            child._elements = [this._elements[i]];
-            child._dims = [1, 1];
-            child._scalarValue = this._elements[i];
-            child._scalarType = 'string';
-            this.addChild(child);
+            this.addChild(this._makeStringElement(String(i + 1), this._elements[i]));
         }
     }
     _buildCellChildren(elements) {
@@ -632,15 +641,7 @@ export default class MatlabVariableNode extends DataNode {
         return child;
     }
     _addStringChild() {
-        // Build the element as a string-kind node (matching _buildStringChildren) so
-        // it serializes as a bare "" element, not a nested [""] array — the latter is
-        // what _createScalar('string') would produce via _serializeScalar.
-        const child = new MatlabVariableNode(String(this.children.length + 1), this, { _dimensions: [1, 1] });
-        child._kind = 'string';
-        child._elements = [''];
-        child._dims = [1, 1];
-        child._scalarValue = '';
-        child._scalarType = 'string';
+        const child = this._makeStringElement(String(this.children.length + 1), '');
         this.addChild(child);
         this._elements.push('');
         this._updateDimsForCount(this._elements.length);
@@ -717,6 +718,11 @@ export default class MatlabVariableNode extends DataNode {
     _updateStringAfterRemove() {
         if (this._elements.length <= 1) {
             if (this._elements.length === 1) {
+                // Down to one element, so this renders as a scalar string: the surviving
+                // element loses its child row and the [1,n]/[n,1] orientation goes to
+                // [1,1]. Undo has to put both back, so remember the orientation on the
+                // way out — the same bookkeeping _updateArrayAfterRemove does.
+                this._preCollapseDims = this._dims.slice();
                 this._dims = [1, 1];
                 this.children = [];
             }
@@ -743,6 +749,17 @@ export default class MatlabVariableNode extends DataNode {
             this._preCollapseDims = null;
             this.children = [survivor];
         }
+        else if (this._kind === 'string' && this.children.length === 0 && this._elements.length === 1) {
+            // The same collapse, for a string array. It stays kind 'string' (a scalar
+            // string is still a string), so it needs its own condition — the survivor
+            // dropped its child row and the orientation went to [1,1], and without
+            // rebuilding both here the undone array comes back with one child for two
+            // elements and a transposed shape.
+            const survivor = this._makeStringElement('1', this._elements[0]);
+            this._dims = this._preCollapseDims ?? [1, 1];
+            this._preCollapseDims = null;
+            this.children = [survivor];
+        }
         this.children.splice(index, 0, child);
         child.parent = this;
         if (this._kind === 'array') {
@@ -758,8 +775,13 @@ export default class MatlabVariableNode extends DataNode {
             }
         }
         else if (this._kind === 'string') {
-            const val = child._kind === 'scalar' ? child._scalarValue : '';
-            this._elements.splice(index, 0, val);
+            // A string-array element is a string-KIND node (see _makeStringElement), so
+            // its text lives in _scalarValue regardless of kind. Reading it only when
+            // _kind === 'scalar' — as the array branch above legitimately does, since
+            // ITS children are scalar-kind — matched nothing here, so every undone
+            // element came back as '' and the array silently lost its text.
+            const restored = child._scalarValue;
+            this._elements.splice(index, 0, typeof restored === 'string' ? restored : '');
             this._updateDimsForCount(this._elements.length);
         }
         this._reindexChildren();
