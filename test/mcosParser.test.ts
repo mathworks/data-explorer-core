@@ -523,3 +523,123 @@ describe('decodeMcosBlob — damaged metadata (bad offsets, flags, ids)', () => 
     expect(decoded).toBeGreaterThan(0);
   });
 });
+
+describe('decodeMcosBlob — damaged nested handles (byte surgery on blob)', () => {
+  // These tests corrupt specific object handles INSIDE the blob (not the variable's
+  // own handle, which patchHandle covers). In busArray.mat, the nested
+  // Elements_internal property on each Bus element holds an object handle as a
+  // uint32 heap cell. The handles are at known blob offsets:
+  //   offset 1872: [magic, 2, 1, 1, 2]     — scalar handle to BusElement obj 2
+  //   offset 2544: [magic, 2, 2, 1, 4, 5]   — 2-element array to objs 4, 5
+  //   offset 3400: [magic, 2, 3, 1, 7, 8, 9] — 3-element array to objs 7, 8, 9
+
+  function patchBlobWord(raw: Uint8Array, magicOffset: number, wordIndex: number, value: number): Uint8Array {
+    const copy = raw.slice();
+    const view = new DataView(copy.buffer, copy.byteOffset, copy.byteLength);
+    view.setUint32(magicOffset + wordIndex * 4, value, true);
+    return copy;
+  }
+
+  it('rejects a nested handle with bad ndims, falling back to scalar path', () => {
+    // Patching ndims to 0 on the 2-element handle triggers objectHandleFromValue's
+    // guard (ndims < 1); resolveValue gets null and falls back to the scalar-handle
+    // path using cell.value[4] directly.
+    const { raw, vars } = blobParts('busArray.mat');
+    const patched = patchBlobWord(raw, 2544, 1, 0); // ndims = 0
+    const result = decodeMcosBlob(patched, vars).get('buses')!;
+    expect(result).toBeDefined();
+    // bus[1] had a 2-element array; after the bad ndims, it falls back to a scalar
+    // reference, so it resolves as a single nested object, not an array.
+    const ei = result.elements[1].Elements_internal as Record<string, unknown>;
+    expect(ei._object_class).toBe('Simulink.BusElement');
+  });
+
+  it('returns undefined for a nested scalar handle pointing to a nonexistent object', () => {
+    // Patching the objId in the scalar handle (offset 1872) to a value beyond the
+    // object table triggers buildObjectValue's guard (if !obj return undefined),
+    // which silently drops the property rather than throwing.
+    const { raw, vars } = blobParts('busArray.mat');
+    const patched = patchBlobWord(raw, 1872, 4, 99999);
+    const result = decodeMcosBlob(patched, vars).get('buses')!;
+    expect(result).toBeDefined();
+    // bus[0].Elements_internal resolves to undefined (dropped from props).
+    expect(result.elements[0].Elements_internal).toBeUndefined();
+  });
+
+  it('returns empty props for a nonexistent object inside a multi-element handle', () => {
+    // Patching one objId in the 2-element handle (offset 2544, word[4]) to 99999
+    // triggers buildProperties' guard (if !obj return {}), producing an element with
+    // an empty _properties bag instead of throwing.
+    const { raw, vars } = blobParts('busArray.mat');
+    const patched = patchBlobWord(raw, 2544, 4, 99999);
+    const result = decodeMcosBlob(patched, vars).get('buses')!;
+    const ei = result.elements[1].Elements_internal as Record<string, unknown>;
+    expect(ei._array_type).toBe('MATLABArray');
+    const elems = ei._elements as { _properties: Record<string, unknown> }[];
+    // The first element (patched to 99999) has an empty props bag.
+    expect(elems[0]._properties).toEqual({});
+    // The second element (untouched, obj 5) still resolves correctly.
+    expect(elems[1]._properties.Name).toBeDefined();
+  });
+
+  it('detects a cycle when a nested handle points back to an ancestor object', () => {
+    // Patching the scalar handle (offset 1872, obj 2) to point to obj 1 (the root
+    // Bus) creates a cycle: Bus -> Elements_internal -> Bus -> ... The path set
+    // catches it and returns an empty _properties bag, preventing infinite recursion.
+    const { raw, vars } = blobParts('busArray.mat');
+    const patched = patchBlobWord(raw, 1872, 4, 1); // obj 1 is the root Bus
+    const result = decodeMcosBlob(patched, vars).get('buses')!;
+    const ei = result.elements[0].Elements_internal as Record<string, unknown>;
+    expect(ei._object_class).toBe('Simulink.Bus');
+    expect(ei._properties).toEqual({});
+  });
+});
+
+// REGRESSION. resolveValue checked `className === 'logical'` to detect logical arrays,
+// but parseMatrix never sets className to 'logical' — it uses the MAT class number
+// (uint8 = 9) for the className and records the logical flag separately on the
+// isLogical field. The check was dead code, so a logical-flagged heap cell fell through
+// to the numeric branches and returned raw numbers (0/1) instead of booleans.
+//
+// The fix: check `cell.isLogical` instead of `cls === 'logical'`.
+//
+// To reach this branch with a real fixture, we set the isLogical flag bit (0x02 at
+// the flags byte offset) on specific heap cells inside the Bp.mat blob. The offsets
+// were found by tracing the nested MAT structure: outer uint8 matrix → blob bytes →
+// struct → MCOS opaque → cell array → child mxArrays → flags subelement.
+describe('decodeMcosBlob — logical-flagged heap cells resolve as booleans', () => {
+  it('scalar logical resolves as boolean, not number (TunableSizeValue)', () => {
+    // cells[3] in Bp.mat is a double scalar (value = -1) used as TunableSizeValue
+    // on the nested Breakpoint. Setting isLogical should resolve it to true.
+    const { raw, vars } = blobParts('Bp.mat');
+    const patched = raw.slice();
+    // The flags byte for cells[3]'s mxArray is at raw offset 1417 (offset 1416 is
+    // the class byte = 0x06 for double; 1417 is the flags byte = 0x00). Setting
+    // bit 1 (0x02) marks it as logical.
+    expect(patched[1416]).toBe(0x06); // class = double — guards against fixture drift
+    patched[1417] |= 0x02;
+
+    const bp = decodeMcosBlob(patched, vars).get('Bp')!;
+    const breakpoints = bp.properties.Breakpoints as Record<string, unknown>;
+    const bpProps = (breakpoints._properties as Record<string, unknown>);
+    // Before fix: -1 (number). After fix: true (boolean, via !!(-1)).
+    expect(bpProps.TunableSizeValue).toBe(true);
+    expect(typeof bpProps.TunableSizeValue).toBe('boolean');
+  });
+
+  it('array of logicals resolves as boolean[], not number[] (Dimensions)', () => {
+    // cells[4] in Bp.mat is a double array [0, 0] used as Dimensions. Setting
+    // isLogical should resolve it to [false, false].
+    const { raw, vars } = blobParts('Bp.mat');
+    const patched = raw.slice();
+    // Flags byte for cells[4] is at raw offset 1481 (class = 0x06 at 1480).
+    expect(patched[1480]).toBe(0x06);
+    patched[1481] |= 0x02;
+
+    const bp = decodeMcosBlob(patched, vars).get('Bp')!;
+    const breakpoints = bp.properties.Breakpoints as Record<string, unknown>;
+    const bpProps = (breakpoints._properties as Record<string, unknown>);
+    // Before fix: [0, 0] (number[]). After fix: [false, false] (boolean[]).
+    expect(bpProps.Dimensions).toEqual([false, false]);
+  });
+});

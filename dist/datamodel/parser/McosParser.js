@@ -257,7 +257,7 @@ function resolveValue(cell, ctx, path, depth) {
     if (cls === 'char') {
         return typeof val === 'string' ? val : '';
     }
-    if (cls === 'logical') {
+    if (cell.isLogical) {
         if (Array.isArray(val))
             return val.map((x) => !!x);
         return !!val;
