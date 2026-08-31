@@ -10,7 +10,7 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
-import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, transposeToColumnMajor, pad as xmlPad, } from '../../parser/XmlUtils.js';
+import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, formatMatlabNum, parseMatlabNum, transposeToColumnMajor, pad as xmlPad, } from '../../parser/XmlUtils.js';
 const MCOS_ICON_MAP = {
     'Simulink.Parameter': 'wsParameters',
     'Simulink.Signal': 'wsSignal',
@@ -28,9 +28,6 @@ const MCOS_ICON_MAP = {
     'Simulink.Breakpoint': 'wsSimulinkBreakpoint',
     'Simulink.ValueType': 'wsValue',
 };
-function formatNum(n) {
-    return String(n);
-}
 function decodeCdata(str) {
     const bits = [];
     for (let i = 0; i < str.length; i++) {
@@ -91,7 +88,7 @@ function formatMatrix(rows, cols, elements) {
         const vals = [];
         for (let c = 0; c < cols; c++) {
             const val = elements[r * cols + c];
-            vals.push(val !== undefined ? formatNum(val) : '?');
+            vals.push(val !== undefined ? formatMatlabNum(val) : '?');
         }
         rowStrs.push(vals.join(' '));
     }
@@ -108,10 +105,12 @@ function parseMatrixValue(raw) {
     const cols = parseInt(dimsMatch[2], 10);
     const body = lines.slice(1).join('');
     const numbers = [];
-    const numMatches = body.match(/-?[\d.]+(?:[eE][+-]?\d+)?/g);
+    // Inf/-Inf/NaN are elements too, and a digits-only pattern would skip them —
+    // shifting every later element one slot left and corrupting the whole matrix.
+    const numMatches = body.match(/-?(?:[\d.]+(?:[eE][+-]?\d+)?|Inf|NaN)/g);
     if (numMatches) {
         numMatches.forEach(function (s) {
-            numbers.push(parseFloat(s));
+            numbers.push(parseMatlabNum(s));
         });
     }
     return { rows, cols, elements: numbers, type: raw._type };
@@ -131,6 +130,7 @@ export default class MatlabVariableNode extends DataNode {
         this._mcosProperties = null;
         this._mcosValue = undefined;
         this._mcosDimensions = null;
+        this._preCollapseDims = null;
     }
     get Value() {
         if (this._kind === 'scalar') {
@@ -316,7 +316,7 @@ export default class MatlabVariableNode extends DataNode {
         if (this._scalarType === 'logical') {
             return this._scalarValue ? 'true' : 'false';
         }
-        return String(this._scalarValue);
+        return formatMatlabNum(this._scalarValue);
     }
     _formatArray() {
         const elems = this.children.length > 0
@@ -407,7 +407,8 @@ export default class MatlabVariableNode extends DataNode {
         return this.parent._kind === 'array' || this.parent._kind === 'string';
     }
     _setConstrainedValue(stringValue) {
-        if (this.parent._kind === 'array') {
+        const parent = this.parent;
+        if (parent._kind === 'array') {
             const parsed = MatlabValueParser.parse(stringValue);
             if (!parsed || parsed.type !== 'double' || Array.isArray(parsed.value)) {
                 return {
@@ -419,11 +420,12 @@ export default class MatlabVariableNode extends DataNode {
             }
             this._scalarValue = parsed.value;
             this._scalarType = 'double';
-            this.parent._rawInput = undefined;
+            parent._syncElementFromChild(this);
+            parent._rawInput = undefined;
             this._markModified();
             return true;
         }
-        if (this.parent._kind === 'string') {
+        if (parent._kind === 'string') {
             const parsed = MatlabValueParser.parse(stringValue);
             if (!parsed || (parsed.type !== 'char' && parsed.type !== 'string')) {
                 return {
@@ -436,11 +438,24 @@ export default class MatlabVariableNode extends DataNode {
             this._scalarValue = parsed.value;
             this._scalarType = 'string';
             this._elements = [parsed.value];
-            this.parent._rawInput = undefined;
+            parent._syncElementFromChild(this);
+            parent._rawInput = undefined;
             this._markModified();
             return true;
         }
         return { error: true, reason: 'Cannot edit', invalidValue: stringValue, validValue: this.displayValue };
+    }
+    // Push an edited element's new value into this container's _elements slot.
+    // _elements and the child nodes are two copies of the same data: the children
+    // back the table rows, while _elements backs displayValue, the Value getter,
+    // _var, and — once the array collapses back to a scalar or an element is
+    // restored by undo — the value that survives. Leaving it stale silently
+    // reverts the user's edit at that point.
+    _syncElementFromChild(child) {
+        const idx = this.children.indexOf(child);
+        if (idx >= 0 && idx < this._elements.length) {
+            this._elements[idx] = child._scalarValue;
+        }
     }
     _applyParsed(parsed) {
         this.children = [];
@@ -496,7 +511,7 @@ export default class MatlabVariableNode extends DataNode {
         for (let r = 0; r < rows; r++) {
             const vals = [];
             for (let c = 0; c < cols; c++) {
-                vals.push(String(elements[r * cols + c]));
+                vals.push(formatMatlabNum(elements[r * cols + c]));
             }
             rowStrs.push('[' + vals.join(', ') + ']');
         }
@@ -667,6 +682,10 @@ export default class MatlabVariableNode extends DataNode {
     _updateArrayAfterRemove() {
         if (this._elements.length <= 1) {
             if (this._elements.length === 1) {
+                // Down to one element, so this is a scalar now — which means dropping the
+                // surviving element's child row and the [1,n]/[n,1] orientation. Undo has
+                // to put both back, so remember the orientation on the way out.
+                this._preCollapseDims = this._dims.slice();
                 this._kind = 'scalar';
                 this._scalarValue = this._elements[0];
                 this._scalarType = 'double';
@@ -709,14 +728,23 @@ export default class MatlabVariableNode extends DataNode {
         this._updateDimsForCount(this._elements.length);
     }
     restoreChildNode(child, index) {
-        this.children.splice(index, 0, child);
-        child.parent = this;
         if (this._kind === 'scalar') {
+            // Undoing the removal that collapsed this array back to a scalar. The
+            // surviving element lost its child row on the way down, so rebuild it here
+            // before `child` is spliced in — otherwise the array comes back one element
+            // short and every row after `index` shows the wrong value.
+            const survivor = MatlabVariableNode._createScalar(this._scalarValue, 'double', '1', this);
             this._kind = 'array';
             this._elements = [this._scalarValue];
             this._scalarValue = undefined;
-            this._scalarType = undefined;
+            this._scalarType = 'double';
+            // Restore the row/column orientation the collapse discarded.
+            this._dims = this._preCollapseDims ?? [1, 1];
+            this._preCollapseDims = null;
+            this.children = [survivor];
         }
+        this.children.splice(index, 0, child);
+        child.parent = this;
         if (this._kind === 'array') {
             const val = child._kind === 'scalar' ? child._scalarValue : 0;
             this._elements.splice(index, 0, val);
@@ -843,37 +871,36 @@ export default class MatlabVariableNode extends DataNode {
         if (this._scalarType === 'complex') {
             return { _type: 'cdata', _value: this._scalarValue };
         }
+        // JSON has no literal for Inf/NaN — JSON.stringify writes them as `null`,
+        // which reads back as 0 and silently destroys the value. The typed form is
+        // the format's own escape hatch for a value a bare JSON number can't carry.
+        if (typeof this._scalarValue === 'number' && !isFinite(this._scalarValue)) {
+            return { _type: this._scalarType, _value: formatMatlabNum(this._scalarValue) };
+        }
         return this._scalarValue;
     }
     _serializeArray() {
         if (this._elements.length === 0) {
             return [];
         }
-        if (this.children.length > 0 && this.serial && this.serial._type) {
-            const elems = this.children.map(function (c) {
-                return c._scalarValue;
-            });
-            const rows = this._dims[0];
-            const cols = this._dims[1];
-            const rowStrs = [];
-            for (let r = 0; r < rows; r++) {
-                const vals = [];
-                for (let c = 0; c < cols; c++) {
-                    vals.push(String(elems[r * cols + c]));
-                }
-                rowStrs.push('[' + vals.join(', ') + ']');
-            }
-            return {
-                _type: this.serial._type,
-                _value: 'Matrix(' + rows + ',' + cols + ')\n' + rowStrs.join('\n'),
-            };
+        if (this.children.length === 0) {
+            return this.serial;
         }
-        if (this.children.length > 0) {
-            return this.children.map(function (c) {
-                return c.serializeValue();
-            });
+        const elems = this.children.map(function (c) {
+            return c._scalarValue;
+        });
+        const serialType = this.serial?._type;
+        if (serialType) {
+            return { _type: serialType, _value: this._buildMatrixString(this._dims, elems) };
         }
-        return this.serial;
+        // A bare JSON array cannot carry Inf/NaN (JSON.stringify writes `null`), so
+        // fall back to the typed-vector literal, which spells them out as text.
+        if (elems.some((v) => typeof v === 'number' && !isFinite(v))) {
+            return { _type: 'double', _value: '[' + elems.map(formatMatlabNum).join(', ') + ']' };
+        }
+        return this.children.map(function (c) {
+            return c.serializeValue();
+        });
     }
     _serializeCell() {
         const elements = this.children.map(function (child) {
@@ -1388,19 +1415,7 @@ export default class MatlabVariableNode extends DataNode {
             node._scalarValue = valStr === '1' || valStr === 'true';
         }
         else {
-            const valStr = rawVal._value.replace(/[FU]$/, '');
-            if (valStr === 'Inf') {
-                node._scalarValue = Infinity;
-            }
-            else if (valStr === '-Inf') {
-                node._scalarValue = -Infinity;
-            }
-            else if (valStr === 'NaN') {
-                node._scalarValue = NaN;
-            }
-            else {
-                node._scalarValue = parseFloat(valStr) || 0;
-            }
+            node._scalarValue = parseMatlabNum(rawVal._value.replace(/[FU]$/, ''));
         }
         return node;
     }
@@ -1501,9 +1516,7 @@ export default class MatlabVariableNode extends DataNode {
             });
         }
         else {
-            node._elements = parts.map(function (s) {
-                return parseFloat(s) || 0;
-            });
+            node._elements = parts.map(parseMatlabNum);
         }
         node._dims = [1, node._elements.length];
         if (node._elements.length > 1) {

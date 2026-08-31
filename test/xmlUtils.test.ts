@@ -10,6 +10,8 @@ import {
   formatDoubleXml,
   formatNumericXml,
   formatComplexXml,
+  formatMatlabNum,
+  parseMatlabNum,
   transposeToColumnMajor,
   pad,
 } from '../src/datamodel/parser/XmlUtils.js';
@@ -50,11 +52,62 @@ describe('formatDoubleXml', () => {
     expect(formatDoubleXml(1e-7)).toBe('1e-7');
   });
 
-  it('emits the non-finite values without a decimal suffix', () => {
-    // 'Infinity.0' would not parse; MATLAB reads these as Inf/NaN tokens.
-    expect(formatDoubleXml(Infinity)).toBe('Infinity');
-    expect(formatDoubleXml(-Infinity)).toBe('-Infinity');
+  it('spells the non-finite values as MATLAB does, with no decimal suffix', () => {
+    // The JavaScript spelling 'Infinity' is not a MATLAB literal: it would be
+    // written into the .sldd as something MATLAB cannot evaluate. 'Infinity.0'
+    // would be worse still.
+    expect(formatDoubleXml(Infinity)).toBe('Inf');
+    expect(formatDoubleXml(-Infinity)).toBe('-Inf');
     expect(formatDoubleXml(NaN)).toBe('NaN');
+  });
+});
+
+describe('formatMatlabNum / parseMatlabNum', () => {
+  it('spells the non-finite values the way MATLAB does', () => {
+    expect([formatMatlabNum(Infinity), formatMatlabNum(-Infinity), formatMatlabNum(NaN)]).toEqual([
+      'Inf',
+      '-Inf',
+      'NaN',
+    ]);
+  });
+
+  it('leaves a finite number, and a non-number, to String()', () => {
+    expect(formatMatlabNum(1.5)).toBe('1.5');
+    expect(formatMatlabNum(-0)).toBe('0');
+    expect(formatMatlabNum('already text')).toBe('already text');
+  });
+
+  it('reads the MATLAB non-finite spellings back as real values', () => {
+    // parseFloat('Inf') is NaN, and the widespread `parseFloat(t) || 0` idiom
+    // then turns all three of these into 0 — silently replacing the value.
+    expect(parseMatlabNum('Inf')).toBe(Infinity);
+    expect(parseMatlabNum('+Inf')).toBe(Infinity);
+    expect(parseMatlabNum('-Inf')).toBe(-Infinity);
+    expect(parseMatlabNum('NaN')).toBeNaN();
+    expect(parseMatlabNum(' Inf ')).toBe(Infinity);
+  });
+
+  it('round-trips every non-finite value through format and parse', () => {
+    for (const v of [Infinity, -Infinity, 1.5, -3]) {
+      expect(parseMatlabNum(formatMatlabNum(v))).toBe(v);
+    }
+    expect(parseMatlabNum(formatMatlabNum(NaN))).toBeNaN();
+  });
+
+  it('reads an ordinary number, and falls back to 0 for text that is not one', () => {
+    expect(parseMatlabNum('2.5e3')).toBe(2500);
+    expect(parseMatlabNum('-7')).toBe(-7);
+    // A missing or malformed value must not poison arithmetic with NaN.
+    expect(parseMatlabNum('')).toBe(0);
+    expect(parseMatlabNum('abc')).toBe(0);
+  });
+
+  it('still reads the JavaScript spelling, to recover files we mis-wrote', () => {
+    // Reading is the lenient direction. Earlier versions of this code emitted
+    // 'Infinity' into .sldd XML; accepting it back recovers those values instead
+    // of zeroing them. Writing it is what we must never do.
+    expect(parseMatlabNum('Infinity')).toBe(Infinity);
+    expect(parseMatlabNum('-Infinity')).toBe(-Infinity);
   });
 });
 

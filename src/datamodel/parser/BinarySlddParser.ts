@@ -2,6 +2,7 @@
 
 import { unzipSync } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
+import { formatDoubleXml, formatMatlabNum, parseMatlabNum } from './XmlUtils.js';
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -401,9 +402,9 @@ function transposeColumnMajor(values: number[], dims: number[]): number[] {
 
 function formatTypedScalar(text: string, type: string): unknown {
   if (type === 'double') {
-    return parseFloat(text) || 0;
+    return parseMatlabNum(text);
   }
-  const num = parseFloat(text);
+  const num = parseMatlabNum(text);
   if (type === 'single') {
     return { _type: 'single', _value: formatNumLiteral(num, 'single') };
   }
@@ -423,20 +424,15 @@ function formatTypedVector(values: number[], type: string): unknown {
 
 function formatNumLiteral(num: number, type: string): string {
   if (type === 'single') {
-    const s = String(num);
-    return s + 'F';
+    return formatMatlabNum(num) + 'F';
   }
   if (type === 'uint8' || type === 'uint16' || type === 'uint32') {
-    return String(num) + 'U';
+    return formatMatlabNum(num) + 'U';
   }
   if (type === 'double') {
-    const s = String(num);
-    if (!s.includes('.') && !s.includes('e') && !s.includes('E')) {
-      return s + '.0';
-    }
-    return s;
+    return formatDoubleXml(num);
   }
-  return String(num);
+  return formatMatlabNum(num);
 }
 
 function formatMatrix(values: number[], dims: number[], type: string): unknown {
@@ -611,7 +607,7 @@ function parseTypedValue(text: string, className: string | null, dimension: stri
     }
 
     if (isNumericClass(className)) {
-      const parts = text.trim().split(/\s+/).map(Number);
+      const parts = text.trim().split(/\s+/).map(parseMatlabNum);
       const rowMajor = transposeColumnMajor(parts, dimParts);
       if (dimParts[0] === 1) {
         return formatTypedVector(rowMajor, className);
@@ -622,7 +618,7 @@ function parseTypedValue(text: string, className: string | null, dimension: stri
 
   switch (className) {
     case 'double':
-      return parseFloat(text) || 0;
+      return parseMatlabNum(text);
     case 'single':
     case 'int32':
     case 'uint32':

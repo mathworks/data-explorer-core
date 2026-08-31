@@ -30,6 +30,7 @@ export default class MatlabVariableNode extends DataNode {
     _mcosProperties: Record<string, unknown> | null;
     _mcosValue: unknown;
     _mcosDimensions: number[] | null;
+    _preCollapseDims: number[] | null;
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
     get Value(): unknown;
     set Value(v: unknown);
@@ -56,6 +57,7 @@ export default class MatlabVariableNode extends DataNode {
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _isConstrainedChild(): boolean;
     _setConstrainedValue(stringValue: string): true | SetPropertyResult;
+    _syncElementFromChild(child: BaseNode): void;
     _applyParsed(parsed: {
         type: string;
         value: unknown;

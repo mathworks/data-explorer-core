@@ -6,9 +6,36 @@ export function escapeXml(str: string): string {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// A number as MATLAB spells it. Only the non-finite values differ from
+// String(num), but they differ in a way that matters: MATLAB cannot read the
+// JavaScript spelling 'Infinity' back, and our own MatlabValueParser rejects it
+// too — so a value displayed as 'Infinity' is also an uneditable one.
+export function formatMatlabNum(num: unknown): string {
+    if (typeof num === 'number' && !isFinite(num)) {
+        return isNaN(num) ? 'NaN' : num > 0 ? 'Inf' : '-Inf';
+    }
+    return String(num);
+}
+
+// The inverse: a number as it appears in a .sldd, falling back to 0 for text
+// that is not a number at all. parseFloat reads MATLAB's Inf/-Inf/NaN as NaN,
+// and the `|| 0` idiom then silently turns each of them into zero — so the
+// non-finite spellings have to be recognised before parseFloat sees them.
+export function parseMatlabNum(text: string): number {
+    const t = text.trim();
+    if (t === 'Inf' || t === '+Inf') { return Infinity; }
+    if (t === '-Inf') { return -Infinity; }
+    if (t === 'NaN') { return NaN; }
+    const n = parseFloat(t);
+    return isNaN(n) ? 0 : n;
+}
+
 export function formatDoubleXml(num: number): string {
+    if (!isFinite(num)) {
+        return formatMatlabNum(num);
+    }
     const s = String(num);
-    if (!s.includes('.') && !s.includes('e') && !s.includes('E') && isFinite(num)) {
+    if (!s.includes('.') && !s.includes('e') && !s.includes('E')) {
         return s + '.0';
     }
     return s;
@@ -18,7 +45,7 @@ export function formatNumericXml(num: number, type: string): string {
     if (type === 'double' || type === 'single') {
         return formatDoubleXml(num);
     }
-    return String(Math.round(num));
+    return formatMatlabNum(Math.round(num));
 }
 
 export function formatComplexXml(complexStr: string): string {
