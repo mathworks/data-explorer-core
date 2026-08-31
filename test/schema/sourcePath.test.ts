@@ -29,6 +29,16 @@ describe('resolveSourcePath — read a dotted path from a _properties bag', () =
   it('returns undefined when an intermediate object is missing', () => {
     expect(resolveSourcePath({ Value: 1 }, 'CoderInfo.StorageClass')).toBeUndefined();
   });
+
+  // The bag reaches this function as `node.serial?._properties`, so a node whose
+  // serial carries no property bag at all passes undefined. That has to read as
+  // "absent" — the same answer as a missing key, which lets hydrate substitute the
+  // descriptor default — rather than throwing on every column of every row.
+  // writeSourcePath has the mirror-image test.
+  it('returns undefined for an undefined bag', () => {
+    expect(resolveSourcePath(undefined, 'Value')).toBeUndefined();
+    expect(resolveSourcePath(undefined, 'CoderInfo.StorageClass')).toBeUndefined();
+  });
 });
 
 describe('resolveSourcePath — real parsed shapes', () => {

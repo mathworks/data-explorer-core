@@ -37,40 +37,34 @@ const REGISTRY: Record<string, RawProp> = {
     ...(typeObject as Record<string, RawProp>),
 };
 
-// A class file authors either the new object form ({ props, layout }) or the
-// legacy bare reference array. Normalize both to ClassDef so the rest of the
-// loader is shape-agnostic.
-function normalizeClassDef(raw: unknown): ClassDef {
-    if (Array.isArray(raw)) {
-        return { props: raw as ClassRef[] };
-    }
-    return raw as ClassDef;
-}
-
-const CLASS_DEFS: Record<string, ClassDef> = Object.fromEntries(
-    Object.entries({
-        ...(parameter as Record<string, unknown>),
-        ...(signal as Record<string, unknown>),
-        ...(valueType as Record<string, unknown>),
-        ...(aliasType as Record<string, unknown>),
-        ...(numericType as Record<string, unknown>),
-        ...(enumType as Record<string, unknown>),
-        ...(bus as Record<string, unknown>),
-        ...(connectionBus as Record<string, unknown>),
-        ...(serviceBus as Record<string, unknown>),
-        ...(variantControl as Record<string, unknown>),
-        ...(variantExpression as Record<string, unknown>),
-        ...(variantVariable as Record<string, unknown>),
-        ...(variantBank as Record<string, unknown>),
-        ...(variantBankCoderInfo as Record<string, unknown>),
-        ...(variantConfigurationData as Record<string, unknown>),
-        ...(configSet as Record<string, unknown>),
-        ...(configSetRef as Record<string, unknown>),
-        ...(lookupTable as Record<string, unknown>),
-        ...(breakpoint as Record<string, unknown>),
-        ...(customObject as Record<string, unknown>),
-    }).map(([cls, def]) => [cls, normalizeClassDef(def)]),
-);
+// Every class file authors the object form ({ props, layout? }), so the JSON is
+// spread straight in and TypeScript checks each file against ClassDef at build
+// time. A normalizer used to sit here to also accept a legacy bare reference
+// array; no file has used that form since the schema landed, and accepting
+// `unknown` cost the shape check — a class file with a typo'd `prop` key would
+// have loaded as a class with no properties and shown a blank Property Inspector.
+const CLASS_DEFS: Record<string, ClassDef> = {
+    ...parameter,
+    ...signal,
+    ...valueType,
+    ...aliasType,
+    ...numericType,
+    ...enumType,
+    ...bus,
+    ...connectionBus,
+    ...serviceBus,
+    ...variantControl,
+    ...variantExpression,
+    ...variantVariable,
+    ...variantBank,
+    ...variantBankCoderInfo,
+    ...variantConfigurationData,
+    ...configSet,
+    ...configSetRef,
+    ...lookupTable,
+    ...breakpoint,
+    ...customObject,
+};
 
 // Alternate MATLAB spellings that share another class's definition. A .sldd may
 // store either name for the same object, and both are routed to the same node
@@ -193,7 +187,9 @@ export function resolveSourcePath(properties: Record<string, unknown> | undefine
 // leaf key need not already exist (we may be adding an omitted default), so we
 // pick the bag by container shape: an inner `_properties` (flat MCOS) or
 // `_elements[0]._properties` (MATLABArray) if present, else the container itself.
-function writableBag(container: Record<string, unknown>): Record<string, unknown> | null {
+// It always finds one, hence the non-nullable return: the fallback is the
+// container itself.
+function writableBag(container: Record<string, unknown>): Record<string, unknown> {
     const inner = container._properties;
     if (inner && typeof inner === 'object') {
         return inner as Record<string, unknown>;
@@ -235,9 +231,6 @@ export function writeSourcePath(
     }
     const leafKey = parts[parts.length - 1];
     const bag = writableBag(current);
-    if (!bag) {
-        return false;
-    }
     const existing = bag[leafKey];
     if (existing && typeof existing === 'object' && !Array.isArray(existing) && '_type' in (existing as Record<string, unknown>) && '_value' in (existing as Record<string, unknown>)) {
         (existing as Record<string, unknown>)._value = String(value);

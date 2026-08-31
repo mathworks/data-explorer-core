@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import { describe, it, expect } from 'vitest';
 import { buildPILayout, schemaColumns } from '../../src/datamodel/node/schemaBridge.js';
+import { getLayout, getSchemaClasses } from '../../src/datamodel/schema/index.js';
 
 // A minimal stand-in for a node: only `serial._properties` is read by the bridge.
 function fakeNode(properties: Record<string, unknown>): any {
@@ -53,6 +54,24 @@ describe('buildPILayout — declarative PI layout from schema', () => {
 
   it('returns null for a class with no schema layout', () => {
     expect(buildPILayout('Simulink.NotAThing')).toBeNull();
+  });
+
+  // A layout key that is neither a curated atom nor a schema prop is SILENTLY
+  // dropped from the group — the only symptom is a property missing from the
+  // Property Inspector, which no test would otherwise notice. So assert the
+  // authored layouts lose nothing: every key of every group resolves.
+  it('every authored layout key resolves — no group silently loses an item', () => {
+    for (const className of getSchemaClasses()) {
+      const authored = getLayout(className);
+      if (!authored) {
+        continue;
+      }
+      const built = buildPILayout(className)!;
+      expect(built.length, className).toBe(authored.length);
+      for (let i = 0; i < authored.length; i++) {
+        expect(built[i].items.length, `${className}/${authored[i].group}`).toBe(authored[i].items.length);
+      }
+    }
   });
 });
 

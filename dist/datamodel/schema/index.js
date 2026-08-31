@@ -29,16 +29,13 @@ const REGISTRY = {
     ...codeGen,
     ...typeObject,
 };
-// A class file authors either the new object form ({ props, layout }) or the
-// legacy bare reference array. Normalize both to ClassDef so the rest of the
-// loader is shape-agnostic.
-function normalizeClassDef(raw) {
-    if (Array.isArray(raw)) {
-        return { props: raw };
-    }
-    return raw;
-}
-const CLASS_DEFS = Object.fromEntries(Object.entries({
+// Every class file authors the object form ({ props, layout? }), so the JSON is
+// spread straight in and TypeScript checks each file against ClassDef at build
+// time. A normalizer used to sit here to also accept a legacy bare reference
+// array; no file has used that form since the schema landed, and accepting
+// `unknown` cost the shape check — a class file with a typo'd `prop` key would
+// have loaded as a class with no properties and shown a blank Property Inspector.
+const CLASS_DEFS = {
     ...parameter,
     ...signal,
     ...valueType,
@@ -59,7 +56,7 @@ const CLASS_DEFS = Object.fromEntries(Object.entries({
     ...lookupTable,
     ...breakpoint,
     ...customObject,
-}).map(([cls, def]) => [cls, normalizeClassDef(def)]));
+};
 // Alternate MATLAB spellings that share another class's definition. A .sldd may
 // store either name for the same object, and both are routed to the same node
 // class, so both must resolve to the same schema — otherwise the alias silently
@@ -171,6 +168,8 @@ export function resolveSourcePath(properties, path) {
 // leaf key need not already exist (we may be adding an omitted default), so we
 // pick the bag by container shape: an inner `_properties` (flat MCOS) or
 // `_elements[0]._properties` (MATLABArray) if present, else the container itself.
+// It always finds one, hence the non-nullable return: the fallback is the
+// container itself.
 function writableBag(container) {
     const inner = container._properties;
     if (inner && typeof inner === 'object') {
@@ -208,9 +207,6 @@ export function writeSourcePath(properties, path, value) {
     }
     const leafKey = parts[parts.length - 1];
     const bag = writableBag(current);
-    if (!bag) {
-        return false;
-    }
     const existing = bag[leafKey];
     if (existing && typeof existing === 'object' && !Array.isArray(existing) && '_type' in existing && '_value' in existing) {
         existing._value = String(value);

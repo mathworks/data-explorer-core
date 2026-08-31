@@ -27,4 +27,13 @@ describe('hydrate — fill omitted defaults for display', () => {
   it('returns undefined when absent and no default is declared', () => {
     expect(hydrate({}, byKey('min'))).toBeUndefined();
   });
+
+  // A node with no property bag at all (serial?._properties is undefined) must
+  // still render every schema column, so an absent bag hydrates to the declared
+  // default exactly as an absent key does.
+  it('fills the default from an undefined bag', () => {
+    expect(hydrate(undefined, byKey('storageClass'))).toBe('Auto');
+    expect(hydrate(undefined, byKey('alignment'))).toBe(-1);
+    expect(hydrate(undefined, byKey('min'))).toBeUndefined();
+  });
 });
