@@ -24,6 +24,12 @@ const MI_COMPRESSED = 15;
 const MI_UTF8 = 16;
 const MI_UTF16 = 17;
 
+// The one description of a parsed MATLAB variable, shared by the parsers that
+// produce it and MatlabVariableNode, which models it. Both sides once declared
+// their own copy, and the two had drifted apart in `fields` and `_rawBytes` far
+// enough to be mutually unassignable — so the public entry points had to bridge
+// them with `as unknown as`, which switched off type checking exactly where a
+// host's data crosses into the model.
 export interface MatVariable {
     name: string;
     className: string;
@@ -31,8 +37,10 @@ export interface MatVariable {
     isComplex: boolean;
     isLogical: boolean;
     value: unknown;
-    fields: Record<string, unknown> | null;
-    _rawBytes?: Uint8Array;
+    // A struct field holds one MatVariable per element of a struct array, so a
+    // 1x1 struct stores the variable directly and an array stores one per element.
+    fields: Record<string, MatVariable | MatVariable[]> | null;
+    _rawBytes?: Uint8Array | null;
     _modified?: boolean;
     _anonymous?: boolean;
     isOpaque?: boolean;
@@ -269,7 +277,7 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
                 if (str) { fieldNames.push(str); }
             }
 
-            const fields: Record<string, unknown> = {};
+            const fields: Record<string, MatVariable | MatVariable[]> = {};
             for (let e = 0; e < totalElements; e++) {
                 for (const fn of fieldNames) {
                     if (offset >= end) { break; }

@@ -120,7 +120,7 @@ export default class MatNode extends ContainerNode {
 
     // Decode MCOS objects if present
     const opaqueVars = parsed.variables.filter((v) => v.isOpaque && v.name);
-    const anonElement = parsed.variables.find((v) => (v as unknown as { _anonymous?: boolean })._anonymous);
+    const anonElement = parsed.variables.find((v) => v._anonymous);
     let mcosData: Map<
       string,
       { value: unknown; properties: Record<string, unknown>; elements: Record<string, unknown>[]; dimensions: number[] }

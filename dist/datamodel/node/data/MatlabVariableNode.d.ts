@@ -4,19 +4,8 @@ import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
-export interface MatVariable {
-    name: string;
-    className: string;
-    dimensions: number[];
-    isComplex: boolean;
-    isLogical: boolean;
-    value: unknown;
-    fields: Record<string, MatVariable | MatVariable[]> | null;
-    isOpaque?: boolean;
-    _rawBytes?: Uint8Array | null;
-    _modified?: boolean;
-    _anonymous?: boolean;
-}
+import type { MatVariable } from '../../parser/MatParser.js';
+export type { MatVariable };
 export default class MatlabVariableNode extends DataNode {
     _kind: string;
     _scalarValue: unknown;

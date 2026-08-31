@@ -5,8 +5,8 @@ export interface MatVariable {
     isComplex: boolean;
     isLogical: boolean;
     value: unknown;
-    fields: Record<string, unknown> | null;
-    _rawBytes?: Uint8Array;
+    fields: Record<string, MatVariable | MatVariable[]> | null;
+    _rawBytes?: Uint8Array | null;
     _modified?: boolean;
     _anonymous?: boolean;
     isOpaque?: boolean;

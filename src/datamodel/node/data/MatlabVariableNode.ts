@@ -14,6 +14,7 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
+import type { MatVariable } from '../../parser/MatParser.js';
 import {
   escapeXml,
   formatDoubleXml,
@@ -152,19 +153,9 @@ function parseMatrixValue(
   return { rows, cols, elements: numbers, type: raw._type as string };
 }
 
-export interface MatVariable {
-  name: string;
-  className: string;
-  dimensions: number[];
-  isComplex: boolean;
-  isLogical: boolean;
-  value: unknown;
-  fields: Record<string, MatVariable | MatVariable[]> | null;
-  isOpaque?: boolean;
-  _rawBytes?: Uint8Array | null;
-  _modified?: boolean;
-  _anonymous?: boolean;
-}
+// Re-exported so the many callers that reach this type through the node keep
+// working; MatParser owns the single declaration.
+export type { MatVariable };
 
 export default class MatlabVariableNode extends DataNode {
   _kind: string;

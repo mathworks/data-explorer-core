@@ -20,6 +20,11 @@ const SECTION_DEFS = [
   { key: 'dataSources', label: 'External Data', icon: 'link_database' },
 ];
 
+// What fromParsed needs, which is deliberately WIDER than SlxParser's own
+// ParsedSlx: nullable rawContents/zipEntries and an optional blockParamUsages let
+// a host that reconstructed only part of a model (or a test) build a ModelNode,
+// while SlxParser's stricter result stays assignable to this. Do not "unify" the
+// two by narrowing this one — that would make the partial callers cast.
 export interface ParsedSlx {
   name: string;
   release: string;

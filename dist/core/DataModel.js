@@ -120,13 +120,11 @@ export function createSession(opts = {}) {
         return registerSource(srcId, slddNode, meta);
     }
     function addModelSource(srcId, buffer, meta) {
-        const parsed = parseSlx(buffer, srcId);
-        const modelNode = ModelNode.fromParsed(parsed, srcId);
+        const modelNode = ModelNode.fromParsed(parseSlx(buffer, srcId), srcId);
         return registerSource(srcId, modelNode, meta);
     }
     function addMatSource(srcId, buffer, meta) {
-        const parsed = parseMat(buffer);
-        const matNode = MatNode.fromParsed(parsed, srcId);
+        const matNode = MatNode.fromParsed(parseMat(buffer), srcId);
         return registerSource(srcId, matNode, meta);
     }
     function addProjectSource(srcId, files, meta) {
@@ -141,6 +139,9 @@ export function createSession(opts = {}) {
         const projectNode = ProjectNode.fromParsed(parsed, basename);
         return registerSource(srcId, projectNode, meta);
     }
+    // The *Parsed entry points take `unknown` because the host parsed the file itself
+    // (on a worker, say) and hands the result back across a boundary that erased its
+    // type, so the cast here is the real one and not a papered-over mismatch.
     function addModelSourceParsed(srcId, parsed, meta) {
         const modelNode = ModelNode.fromParsed(parsed, srcId);
         return registerSource(srcId, modelNode, meta);

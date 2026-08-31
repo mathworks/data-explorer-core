@@ -7,7 +7,9 @@ import ModelNode from '../datamodel/node/container/ModelNode.js';
 import MatNode from '../datamodel/node/container/MatNode.js';
 import ProjectNode from '../datamodel/node/container/ProjectNode.js';
 import { parseSlx } from '../datamodel/parser/SlxParser.js';
+import type { ParsedSlx } from '../datamodel/parser/SlxParser.js';
 import { parseMat } from '../datamodel/parser/MatParser.js';
+import type { ParsedMat } from '../datamodel/parser/MatParser.js';
 import { parseProject } from '../datamodel/parser/ProjectParser.js';
 import type { INode, IContainerNode, ISourceNode, IAllNode, SourceMeta } from './NodeInterfaces.js';
 
@@ -144,23 +146,12 @@ function addParsedSource(srcId: string, slddNode: ISourceNode, meta?: Partial<So
 }
 
 function addModelSource(srcId: string, buffer: ArrayBuffer, meta?: Partial<SourceMeta>): ISourceNode {
-  const parsed = parseSlx(buffer, srcId);
-  const modelNode = ModelNode.fromParsed(
-    parsed as unknown as import('../datamodel/node/container/ModelNode.js').ParsedSlx,
-    srcId,
-  );
+  const modelNode = ModelNode.fromParsed(parseSlx(buffer, srcId), srcId);
   return registerSource(srcId, modelNode as unknown as ISourceNode, meta);
 }
 
 function addMatSource(srcId: string, buffer: ArrayBuffer, meta?: Partial<SourceMeta>): ISourceNode {
-  const parsed = parseMat(buffer);
-  const matNode = MatNode.fromParsed(
-    parsed as unknown as {
-      header: string;
-      variables: import('../datamodel/node/data/MatlabVariableNode.js').MatVariable[];
-    },
-    srcId,
-  );
+  const matNode = MatNode.fromParsed(parseMat(buffer), srcId);
   return registerSource(srcId, matNode as unknown as ISourceNode, meta);
 }
 
@@ -181,22 +172,16 @@ function addProjectSource(
   return registerSource(srcId, projectNode as unknown as ISourceNode, meta);
 }
 
+// The *Parsed entry points take `unknown` because the host parsed the file itself
+// (on a worker, say) and hands the result back across a boundary that erased its
+// type, so the cast here is the real one and not a papered-over mismatch.
 function addModelSourceParsed(srcId: string, parsed: unknown, meta?: Partial<SourceMeta>): ISourceNode {
-  const modelNode = ModelNode.fromParsed(
-    parsed as unknown as import('../datamodel/node/container/ModelNode.js').ParsedSlx,
-    srcId,
-  );
+  const modelNode = ModelNode.fromParsed(parsed as ParsedSlx, srcId);
   return registerSource(srcId, modelNode as unknown as ISourceNode, meta);
 }
 
 function addMatSourceParsed(srcId: string, parsed: unknown, meta?: Partial<SourceMeta>): ISourceNode {
-  const matNode = MatNode.fromParsed(
-    parsed as unknown as {
-      header: string;
-      variables: import('../datamodel/node/data/MatlabVariableNode.js').MatVariable[];
-    },
-    srcId,
-  );
+  const matNode = MatNode.fromParsed(parsed as ParsedMat, srcId);
   return registerSource(srcId, matNode as unknown as ISourceNode, meta);
 }
 
