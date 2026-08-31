@@ -25,6 +25,7 @@ export default class MatlabVariableNode extends DataNode {
     _dims: number[];
     _rawBytes: Uint8Array | null;
     _matVar: MatVariable | null;
+    _varStale: boolean;
     _isOpaque: boolean;
     _opaqueClassName: string | null;
     _mcosProperties: Record<string, unknown> | null;
@@ -57,6 +58,7 @@ export default class MatlabVariableNode extends DataNode {
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _isConstrainedChild(): boolean;
     _setConstrainedValue(stringValue: string): true | SetPropertyResult;
+    _markModified(): void;
     _syncElementFromChild(child: BaseNode): void;
     _applyParsed(parsed: {
         type: string;

@@ -28,6 +28,19 @@ const MCOS_ICON_MAP = {
     'Simulink.Breakpoint': 'wsSimulinkBreakpoint',
     'Simulink.ValueType': 'wsValue',
 };
+// Stands in for a cell slot the parser could not read (see _createFromMatCell).
+// A fresh object per call, since the node built from it keeps a reference.
+function emptyCellSlot() {
+    return {
+        name: '',
+        className: 'double',
+        dimensions: [0, 0],
+        isComplex: false,
+        isLogical: false,
+        value: [],
+        fields: null,
+    };
+}
 function decodeCdata(str) {
     const bits = [];
     for (let i = 0; i < str.length; i++) {
@@ -125,6 +138,7 @@ export default class MatlabVariableNode extends DataNode {
         this._dims = [1, 1];
         this._rawBytes = null;
         this._matVar = null;
+        this._varStale = false;
         this._isOpaque = false;
         this._opaqueClassName = null;
         this._mcosProperties = null;
@@ -444,6 +458,20 @@ export default class MatlabVariableNode extends DataNode {
             return true;
         }
         return { error: true, reason: 'Cannot edit', invalidValue: stringValue, validValue: this.displayValue };
+    }
+    // Every edit routes through _markModified (DataNode), so this is the one place
+    // that catches all of them — value edits, renames, add/remove child, and the
+    // schema-prop path. Invalidate the parsed-variable snapshot on this node and on
+    // every MatlabVariableNode above it, because the save path reads `_var` from the
+    // TOP-LEVEL variable: a struct field's edit has to make the STRUCT's snapshot
+    // stale, not just the field's own. See the _var getter for why.
+    _markModified() {
+        let node = this;
+        while (node instanceof MatlabVariableNode) {
+            node._varStale = true;
+            node = node.parent;
+        }
+        super._markModified();
     }
     // Push an edited element's new value into this container's _elements slot.
     // _elements and the child nodes are two copies of the same data: the children
@@ -1127,8 +1155,28 @@ export default class MatlabVariableNode extends DataNode {
         xml += p + '</' + tagName + '>';
         return xml;
     }
+    // The MatVariable the save path writes (MatNode.getVariables, and the .slx
+    // workspace splice in ModelNode.serialize).
+    //
+    // `_matVar` is the variable exactly as the parser read it, kept so an untouched
+    // variable round-trips byte-for-byte through its `_rawBytes`. But it is a
+    // SNAPSHOT: editing a CHILD of this node — an array element, a struct field, a
+    // cell entry — mutates the child nodes, not this object, so returning the
+    // snapshot wrote the ORIGINAL value back and silently discarded the edit. Only
+    // a whole-variable `setProperty('Value', …)` escaped it, because _applyParsed
+    // clears the cache; that made the bug look shape-dependent rather than what it
+    // is, an edit-depth one.
+    //
+    // A numeric array happened to survive because `_elements` is the very array
+    // `_matVar.value` points at, so element edits landed in both — an aliasing
+    // accident, not a design. Struct fields and cell entries hold child NODES and
+    // had no such alias, so their edits were lost outright.
+    //
+    // So once anything below this node changes, the snapshot is no longer the truth
+    // and we rebuild from the live tree. `_rawBytes` stays on the rebuilt variable
+    // for the parts of the write path that still replay bytes for untouched values.
     get _var() {
-        if (this._matVar) {
+        if (this._matVar && !this._varStale) {
             return this._matVar;
         }
         return this._buildVarObject();
@@ -1154,8 +1202,17 @@ export default class MatlabVariableNode extends DataNode {
         if (this._scalarType === 'struct') {
             v.className = 'struct';
             const fields = {};
+            // A struct ARRAY parses each field as one MatVariable PER ELEMENT, but the
+            // tree models only element 1 (_createFromMatStruct takes fieldVar[0]), so a
+            // rebuild can speak for that element alone. Replaying the remaining elements
+            // from the parsed snapshot keeps them; rebuilding the field as a lone
+            // MatVariable would drop every element after the first — turning a 1x2
+            // struct into a 1x1 on the first edit anywhere in the file.
+            const parsedFields = this._matVar?.fields;
             for (const child of this.children) {
-                fields[child.name] = child._var;
+                const rebuilt = child._var;
+                const parsed = parsedFields?.[child.name];
+                fields[child.name] = Array.isArray(parsed) ? [rebuilt, ...parsed.slice(1)] : rebuilt;
             }
             v.fields = fields;
         }
@@ -1335,10 +1392,15 @@ export default class MatlabVariableNode extends DataNode {
         node._dims = variable.dimensions.slice();
         const cells = Array.isArray(variable.value) ? variable.value : [];
         cells.forEach(function (cell, i) {
-            if (cell) {
-                const child = MatlabVariableNode.parseMatVariable(cell, String(i + 1), node);
-                node.addChild(child);
-            }
+            // MatParser records a slot it could not read as a MATRIX — a truncated or
+            // otherwise malformed cell — as null. Skipping those used to COMPACT the
+            // child list while _dims kept the declared shape, so every later element
+            // slid into the wrong slot: `{[], 2, 3}` displayed as `{2, 3, []}`, and the
+            // cell rebuilt for the save path put 2 and 3 one position early. A hole
+            // becomes an explicit empty 0x0 double instead, which is both what MATLAB
+            // itself shows for an empty cell slot and a value that writes back cleanly.
+            const child = MatlabVariableNode.parseMatVariable(cell ?? emptyCellSlot(), String(i + 1), node);
+            node.addChild(child);
         });
         return node;
     }
