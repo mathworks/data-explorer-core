@@ -3,7 +3,7 @@
 // delivery, and dispatch isolation between subscribers.
 
 import { describe, it, expect } from 'vitest';
-import { createEventBus } from '../src/index.js';
+import { createEventBus, EventBus, publish, subscribe } from '../src/index.js';
 
 describe('EventBus — publish/subscribe', () => {
   it('delivers a payload to a subscriber', () => {
@@ -141,6 +141,82 @@ describe('EventBus — unsubscribe', () => {
     bus.subscribe('active/changed', () => { hits++; });
     bus.publish('active/changed');
     expect(hits).toBe(1);
+  });
+});
+
+describe('EventBus — the module-level default bus', () => {
+  // The bare publish/subscribe/clear exports forward to one process-wide bus, and
+  // that bus is what the singleton DataModel and UndoManager are wired to. So a
+  // consumer that imports `subscribe` from the barrel must land on the SAME bus
+  // the singleton publishes to — if these ever forwarded to a fresh instance,
+  // every such listener would go silent with nothing to show for it.
+  //
+  // Each test cleans up its own subscription: the bus outlives the test file, so a
+  // leaked listener would fire during unrelated tests.
+  it('delivers through the bare publish/subscribe exports', () => {
+    const seen: string[] = [];
+    const sub = subscribe('undo/changed', (p) => { seen.push(p.srcId); });
+    try {
+      publish('undo/changed', { srcId: 'default-bus' });
+      expect(seen).toEqual(['default-bus']);
+    } finally {
+      sub.remove();
+    }
+  });
+
+  it('routes the bare exports and the EventBus.defaultBus methods to one bus', () => {
+    // Two spellings of the same bus — `subscribe(...)` and `EventBus.defaultBus`.
+    // A listener registered through either must see a publish through the other.
+    let viaBare = 0;
+    let viaNamespace = 0;
+    const a = subscribe('active/changed', () => { viaBare++; });
+    const b = EventBus.defaultBus.subscribe('active/changed', () => { viaNamespace++; });
+    try {
+      EventBus.publish('active/changed');
+      expect([viaBare, viaNamespace]).toEqual([1, 1]);
+      publish('active/changed');
+      expect([viaBare, viaNamespace]).toEqual([2, 2]);
+    } finally {
+      a.remove();
+      b.remove();
+    }
+  });
+
+  it('is a different bus from any created by createEventBus', () => {
+    // The singleton is a convenience, not a global: a session-scoped bus must stay
+    // isolated from it, or two open documents would cross-talk.
+    let onDefault = 0;
+    let onOwn = 0;
+    const own = createEventBus();
+    const sub = subscribe('preview/changed', () => { onDefault++; });
+    try {
+      own.subscribe('preview/changed', () => { onOwn++; });
+      own.publish('preview/changed');
+      expect([onDefault, onOwn]).toEqual([0, 1]);
+      publish('preview/changed');
+      expect([onDefault, onOwn]).toEqual([1, 1]);
+    } finally {
+      sub.remove();
+    }
+  });
+
+  it('clear() drops the default bus subscriptions without breaking later ones', () => {
+    // Exercised last, and deliberately: clear() on the shared bus would unsubscribe
+    // the singleton DataModel's own listeners too, so it is called here only with
+    // subscriptions this test owns.
+    let hits = 0;
+    subscribe('graph/expand-node', () => { hits++; });
+    EventBus.clear();
+    publish('graph/expand-node', { nodeId: 'n1' });
+    expect(hits).toBe(0);
+
+    const after = subscribe('graph/expand-node', () => { hits++; });
+    try {
+      publish('graph/expand-node', { nodeId: 'n1' });
+      expect(hits).toBe(1);
+    } finally {
+      after.remove();
+    }
   });
 });
 
