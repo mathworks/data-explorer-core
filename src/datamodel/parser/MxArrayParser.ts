@@ -33,10 +33,12 @@ export function parseMxArray(buffer: ArrayBuffer): MatVariable[] & { _trailingEl
         return result;
     }
 
-    // First record starts at offset 8: outer MI_MATRIX containing all variables
+    // First record starts at offset 8: outer MI_MATRIX containing all variables.
+    // outerSize is self-declared, so clamp it to the bytes present — a truncated
+    // file would otherwise send parseMatrix reading past the end of the buffer.
     const outerTag = ru32(buf, 8);
-    const outerSize = ru32(buf, 12);
-    if (outerTag !== MI_MATRIX || outerSize === 0) { return result; }
+    const outerSize = Math.min(ru32(buf, 12), buf.length - 16);
+    if (outerTag !== MI_MATRIX || outerSize <= 0) { return result; }
 
     const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
 
@@ -50,13 +52,21 @@ export function parseMxArray(buffer: ArrayBuffer): MatVariable[] & { _trailingEl
         result.push(variable);
     }
 
-    // Capture any trailing elements (MCOS metadata for opaque objects)
+    // Capture any trailing elements (MCOS metadata for opaque objects). `size` is
+    // self-declared, so a truncated file can name more bytes than remain — taking
+    // it on trust made the Uint8Array constructor throw a RangeError out of the
+    // parser, which no caller catches. Keep whatever bytes are actually there so
+    // the variables already parsed above still open, and stop: past a bad length
+    // there is no way to find the next tag.
     let offset = 8 + 8 + outerSize;
     while (offset + 8 <= buf.length) {
         const tag = ru32(buf, offset);
         const size = ru32(buf, offset + 4);
         if (tag === 0 && size === 0) { break; }
-        result._trailingElements.push(new Uint8Array(buf.buffer, buf.byteOffset + offset, 8 + size));
+        const available = buf.length - offset;
+        const take = Math.min(8 + size, available);
+        result._trailingElements.push(new Uint8Array(buf.buffer, buf.byteOffset + offset, take));
+        if (take < 8 + size) { break; }
         offset += 8 + size;
     }
 

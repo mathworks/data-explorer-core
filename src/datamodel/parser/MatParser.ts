@@ -54,22 +54,60 @@ function align8(n: number): number {
     return n + ((8 - (n % 8)) % 8);
 }
 
+// Every byte count in a MAT-file is self-declared, and nothing downstream
+// re-checks it: `bytes` becomes a DataView index, a Uint8Array length, and a loop
+// bound. A truncated download or a hand-edited file therefore used to throw a bare
+// RangeError ("Offset is outside the bounds of the DataView") straight out of the
+// reader, and no caller catches it — parseMat is called unguarded from
+// DataModel.addMatSource, so one bad length failed the whole open rather than the
+// one variable. Clamping here fixes every such site at once, because all of them
+// take their length from this one function.
+//
+// A tag that does not itself fit is reported as a zero-length element, which ends
+// the containing loop on the next `offset < end` check.
 function readSubelement(view: DataView, offset: number): SubElement {
+    if (offset < 0 || offset + 8 > view.byteLength) {
+        // dataOffset stays inside the view even here: callers pass it straight to
+        // `new Uint8Array(buffer, dataOffset, bytes)`, which rejects an out-of-range
+        // offset even when the length is 0.
+        return { type: 0, bytes: 0, dataOffset: Math.max(0, Math.min(offset, view.byteLength)), totalSize: 8 };
+    }
     const tag = view.getUint32(offset, true);
     const hi = (tag >>> 16) & 0xFFFF;
     const lo = tag & 0xFFFF;
 
     if (hi !== 0 && lo !== 0) {
-        return { type: lo, bytes: hi, dataOffset: offset + 4, totalSize: 8 };
+        // Small-element form: the payload lives in the tag's own upper 4 bytes.
+        return { type: lo, bytes: Math.min(hi, 4), dataOffset: offset + 4, totalSize: 8 };
     }
     const type = view.getUint32(offset, true);
-    const bytes = view.getUint32(offset + 4, true);
+    const declared = view.getUint32(offset + 4, true);
+    const bytes = Math.min(declared, Math.max(0, view.byteLength - (offset + 8)));
     return { type, bytes, dataOffset: offset + 8, totalSize: 8 + align8(bytes) };
 }
+
+const ELEMENT_WIDTH: Record<number, number> = {
+    [MI_INT8]: 1, [MI_UINT8]: 1, [MI_INT16]: 2, [MI_UINT16]: 2,
+    [MI_INT32]: 4, [MI_UINT32]: 4, [MI_SINGLE]: 4,
+    [MI_DOUBLE]: 8, [MI_INT64]: 8, [MI_UINT64]: 8
+};
 
 function readNumericArray(view: DataView, sub: SubElement, count: number): number[] {
     const values: number[] = [];
     const off = sub.dataOffset;
+
+    // `count` comes from the array's DECLARED dimensions, which a truncated or
+    // hand-corrupted file can inflate past the bytes actually present. Reading on
+    // regardless throws a bare RangeError out of the DataView, which no caller
+    // catches — a single bad byte range would take down the whole open. Clamp to
+    // what the payload and the buffer really hold and return a short array; the
+    // node layer already renders fewer elements than the dimensions claim.
+    const width = ELEMENT_WIDTH[sub.type];
+    if (width) {
+        const available = Math.min(sub.bytes, Math.max(0, view.byteLength - off));
+        count = Math.min(count, Math.floor(available / width));
+    }
+
     for (let i = 0; i < count; i++) {
         switch (sub.type) {
         case MI_DOUBLE: values.push(view.getFloat64(off + i * 8, true)); break;
@@ -93,15 +131,28 @@ function readString(view: DataView, sub: SubElement): string {
     return new TextDecoder().decode(bytes).replace(/\0/g, '');
 }
 
+// MATLAB stores array data column-major; the data model reads it row-major. A
+// vector needs no reordering, which is why a singleton dimension returns as-is.
+//
+// An N-D array is a stack of rows x cols pages, each stored column-major in turn,
+// so every page gets transposed. Handling only the first page (and sizing the
+// result to rows*cols) used to leave the rest as holes in a sparse array — and
+// because Array.prototype.forEach skips holes, the node layer then built children
+// for only the first page: half of a 2x3x2 lost its values with no error anywhere.
+// Starting from a copy is what guarantees no element can go missing, whatever the
+// declared dimensions turn out to be.
 function transposeFromColMajor(values: unknown[], dimensions: number[]): unknown[] {
     if (values.length <= 1) { return values; }
     const rows = dimensions[0];
     const cols = dimensions[1];
     if (rows <= 1 || cols <= 1) { return values; }
-    const result = new Array(values.length);
-    for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-            result[r * cols + c] = values[c * rows + r];
+    const page = rows * cols;
+    const result = values.slice();
+    for (let base = 0; base + page <= values.length; base += page) {
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                result[base + r * cols + c] = values[base + c * rows + r];
+            }
         }
     }
     return result;
@@ -127,6 +178,12 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
 
     const flagsSub = readSubelement(view, offset);
     offset += flagsSub.totalSize;
+    // A matrix truncated before its own array-flags subelement tells us nothing —
+    // not even its class — so there is no partial variable worth returning. The
+    // named-variable check in parseMat drops this shell.
+    if (flagsSub.bytes < 2) {
+        return { name: '', className: 'unknown', dimensions: [], isComplex: false, isLogical: false, value: null, fields: null };
+    }
     const arrayClass = view.getUint8(flagsSub.dataOffset) & 0xFF;
     const flags = view.getUint8(flagsSub.dataOffset + 1);
     const isComplex = !!(flags & 0x08);
@@ -138,7 +195,7 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
 
     const dimsSub = readSubelement(view, offset);
     offset += dimsSub.totalSize;
-    const ndims = dimsSub.bytes / 4;
+    const ndims = Math.floor(dimsSub.bytes / 4);
     const dimensions: number[] = [];
     for (let i = 0; i < ndims; i++) {
         dimensions.push(view.getInt32(dimsSub.dataOffset + i * 4, true));
@@ -188,7 +245,17 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
         if (offset < end) {
             const fieldNameLenSub = readSubelement(view, offset);
             offset += fieldNameLenSub.totalSize;
-            const fieldNameLen = view.getInt32(fieldNameLenSub.dataOffset, true);
+            // The field-name stride comes straight off the file, and it is the loop
+            // increment below. A corrupt zero or negative value makes that loop
+            // never advance — the parse hangs forever rather than failing, which
+            // freezes whatever thread opened the file. A struct with no readable
+            // field-name stride has no readable field names, so stop instead of
+            // spinning. (Fewer than 4 bytes means the file ended mid-stride.)
+            const fieldNameLen = fieldNameLenSub.bytes >= 4 ? view.getInt32(fieldNameLenSub.dataOffset, true) : 0;
+            if (fieldNameLen <= 0) {
+                result.fields = {};
+                return result;
+            }
 
             const fieldNamesSub = readSubelement(view, offset);
             offset += fieldNamesSub.totalSize;
@@ -210,7 +277,12 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
                     const fieldMatrixSub = readSubelement(view, offset);
                     if (fieldMatrixSub.type === MI_MATRIX) {
                         const child = parseMatrix(view, offset + 8, fieldMatrixSub.bytes);
-                        child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + fieldStart, fieldMatrixSub.totalSize);
+                        // totalSize rounds the payload up to an 8-byte boundary, so
+                        // on a file that ends mid-padding it can name more bytes
+                        // than exist. The writer replays these bytes verbatim, so
+                        // keep the ones that are really there.
+                        const rawLen = Math.min(fieldMatrixSub.totalSize, view.byteLength - fieldStart);
+                        child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + fieldStart, Math.max(0, rawLen));
                         if (totalElements === 1) {
                             fields[fn] = child;
                         } else {
