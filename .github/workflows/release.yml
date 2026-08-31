@@ -1,22 +1,15 @@
 name: Release
 
-# Tag-based release to the public npm registry.
+# Tag-based GitHub Release.
 #
 # Push an annotated tag matching `v*` (e.g. `v0.1.0`) to trigger this. The
 # release version comes from the tag (v0.1.0 -> 0.1.0) and must match the
 # `version` in package.json — the job fails fast otherwise, so releases stay
-# consistent. On success it publishes the tarball to npmjs.org and creates a
-# GitHub Release.
+# consistent. On success it runs the full gate and creates a GitHub Release.
 #
-# Gated on the NPM_TOKEN repo secret: an npmjs.com *automation* token for an
-# account with publish rights to the `data-explorer-core` package. Set/rotate
-# with `gh secret set NPM_TOKEN`.
-#
-# IMPORTANT: this repo is PRIVATE and the mathworks org does not provide
-# GitHub-hosted runner minutes for private repos, so this workflow will NOT
-# schedule a job (every run ends in `startup_failure`) until the repo is public
-# OR the org enables private-repo Actions minutes. Until then, publish by hand
-# from a machine with public-npm access (`npm publish`).
+# Consumers pin this package via a `github:` git dependency (not npm), so there
+# is no npm publish step: the tag itself is the release artifact. If npm
+# distribution is wanted later, add a publish step gated on an NPM_TOKEN secret.
 
 on:
   push:
@@ -27,21 +20,20 @@ permissions:
   contents: write # required to create the GitHub Release
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: '22'
           cache: 'npm'
 
       - run: npm ci
 
       # Fail early if the pushed tag doesn't match the package version, so a
-      # mistagged release never reaches npm (publish is not idempotent).
+      # mistagged release never ships.
       - name: Check tag matches package.json version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -51,16 +43,9 @@ jobs:
             exit 1
           fi
 
-      # Full gate (typecheck/build/smoke/test/pack/leak). prepublishOnly reruns
-      # verify too, so this is belt-and-suspenders, but it surfaces failures as
-      # their own step rather than buried in the publish output.
+      # Full gate (typecheck/build/smoke/test/pack/leak).
       - name: Verify
         run: npm run verify
-
-      - name: Publish to npm
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
