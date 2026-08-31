@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { decodeMcosBlob, NOT_AVAILABLE, type McosObjectData, type OpaqueVarRef } from '../src/datamodel/parser/McosParser.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
+import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { parseSlx } from '../src/datamodel/parser/SlxParser.js';
 import type { MatVariable } from '../src/datamodel/node/data/MatlabVariableNode.js';
 
@@ -35,6 +36,36 @@ function decodeMat(name: string): Map<string, McosObjectData> {
     anon._rawBytes,
     opaque.map((v): OpaqueVarRef => ({ name: v.name, className: v.className, rawBytes: v._rawBytes })),
   );
+}
+
+// The two inputs decodeMcosBlob takes, pulled out of a .mat fixture separately so a
+// test can damage one of them and leave the other intact.
+function blobParts(file: string): { raw: Uint8Array; vars: OpaqueVarRef[] } {
+  const { variables } = parseMat(fixture(file));
+  const anon = variables.find((v) => (v as unknown as { _anonymous?: boolean })._anonymous);
+  const opaque = variables.filter((v) => v.isOpaque && v.name);
+  return {
+    raw: anon!._rawBytes!,
+    vars: opaque.map((v): OpaqueVarRef => ({ name: v.name, className: v.className, rawBytes: v._rawBytes })),
+  };
+}
+
+const MCOS_HANDLE_MAGIC = 3707764736; // 0xDD000000
+
+/**
+ * Overwrite one word of the object handle inside a variable's raw bytes, addressed
+ * by its index past the magic: word 1 is ndims, 2.. are the dimensions, and the
+ * ids follow. Returns a copy, so the caller's bytes stay usable.
+ */
+function patchHandle(rawBytes: Uint8Array, wordIndex: number, value: number): Uint8Array {
+  const copy = rawBytes.slice();
+  const view = new DataView(copy.buffer, copy.byteOffset, copy.byteLength);
+  for (let o = 0; o + 8 <= copy.length; o += 4) {
+    if (view.getUint32(o, true) !== MCOS_HANDLE_MAGIC) continue;
+    view.setUint32(o + wordIndex * 4, value, true);
+    return copy;
+  }
+  throw new Error('no object handle in these raw bytes');
 }
 
 // ---- .slx: all objects share one blob. Mirrors ModelNode.fromParsed's setup. ----
@@ -242,6 +273,114 @@ describe('decodeMcosBlob — refuses to guess (confidence gate + defensive retur
     const anon = variables.find((v) => (v as unknown as { _anonymous?: boolean })._anonymous);
     const orphan: OpaqueVarRef = { name: 'Param', className: 'Simulink.Parameter', rawBytes: new Uint8Array(64) };
     expect(decodeMcosBlob(anon!._rawBytes!, [orphan]).has('Param')).toBe(false);
+  });
+
+  it('drops a var whose handle declares an object id the table does not hold', () => {
+    // The id has to be in range before meta.objects[id] can be read for the class
+    // check; an out-of-range id is a blob we mis-located, not an object to guess at.
+    const { raw, vars } = blobParts('Param.mat');
+    expect(decodeMcosBlob(raw, [{ ...vars[0], rawBytes: patchHandle(vars[0].rawBytes!, 4, 99999) }]).size).toBe(0);
+  });
+
+  it('drops a var whose handle declares an impossible shape', () => {
+    const { raw, vars } = blobParts('Param.mat');
+    const rawBytes = vars[0].rawBytes!;
+    // ndims beyond the 1..8 a real handle carries.
+    expect(decodeMcosBlob(raw, [{ ...vars[0], rawBytes: patchHandle(rawBytes, 1, 99) }]).size).toBe(0);
+    // A zero dimension means zero objects, so there is nothing to build.
+    expect(decodeMcosBlob(raw, [{ ...vars[0], rawBytes: patchHandle(rawBytes, 2, 0) }]).size).toBe(0);
+    // An element count whose ids would run off the end of the handle's own bytes.
+    expect(decodeMcosBlob(raw, [{ ...vars[0], rawBytes: patchHandle(rawBytes, 2, 100000) }]).size).toBe(0);
+  });
+});
+
+// REGRESSION. Every offset the decoder walks comes from a length the FILE declared,
+// so a damaged blob can point past the bytes present. DataView answers that with a
+// RangeError, and nothing between here and the host catches it: a .slx whose
+// modelWorkspace.mxarray was truncated threw out of ModelNode.fromParsed and the
+// file would not open AT ALL, rather than opening with the object left unresolved.
+//
+// MxArrayParser is what makes such a blob reachable — it deliberately hands over a
+// SHORT trailing element rather than a fabricated one (see its own comment), which
+// is the honest choice and puts the burden here.
+//
+// The sweep below is the point of these tests: a single hand-picked truncation only
+// proves one offset was guarded, whereas the failure was at 13 specific lengths out
+// of ~3700. Walking every 4-byte boundary is what shows the whole navigation path is
+// bounded rather than one branch of it.
+describe('decodeMcosBlob — a truncated blob must not throw', () => {
+  function sweep(raw: Uint8Array, vars: OpaqueVarRef[]): { threw: number[]; decoded: number } {
+    const threw: number[] = [];
+    let decoded = 0;
+    for (let len = 8; len <= raw.length; len += 4) {
+      try {
+        if (decodeMcosBlob(raw.slice(0, len), vars).size > 0) decoded++;
+      } catch {
+        threw.push(len);
+      }
+    }
+    return { threw, decoded };
+  }
+
+  it('survives every truncation of a .mat blob, and still decodes the whole one', () => {
+    const { raw, vars } = blobParts('Param.mat');
+    const { threw, decoded } = sweep(raw, vars);
+    expect(threw).toEqual([]);
+    // The guards must not have turned the decoder off: a mostly-intact blob still
+    // resolves, so this is a bounds fix rather than a bail-out-early one.
+    expect(decoded).toBeGreaterThan(0);
+    expect(decodeMcosBlob(raw, vars).get('Param')!.properties.Value).toBe(42);
+  });
+
+  it('survives every truncation of the multi-object .mat blob', () => {
+    const { raw, vars } = blobParts('object_props.mat');
+    expect(sweep(raw, vars).threw).toEqual([]);
+    expect(decodeMcosBlob(raw, vars).size).toBe(2);
+  });
+
+  it('survives a truncated .slx model workspace, the case that actually failed', () => {
+    // Walk it exactly as ModelNode.fromParsed does — parseMxArray on the truncated
+    // mxarray part, then decodeMcosBlob on the trailing element it yields — because
+    // the blob that broke this was one parseMxArray had already clamped.
+    const { zipEntries } = parseSlx(fixture('mcosfix.slx'), 'mcosfix.slx');
+    const part = zipEntries['simulink/modelWorkspace.mxarray'];
+    const full = part.buffer.slice(part.byteOffset, part.byteOffset + part.byteLength) as ArrayBuffer;
+
+    const threw: number[] = [];
+    for (let len = 16; len <= part.length; len += 4) {
+      const ws = parseMxArray(full.slice(0, len));
+      const opaque = ws.filter((v) => v.isOpaque && v.name);
+      const trailing = ws._trailingElements;
+      if (opaque.length === 0 || !trailing?.length) continue;
+      try {
+        decodeMcosBlob(
+          trailing[0],
+          opaque.map((v): OpaqueVarRef => ({ name: v.name, className: v.className, rawBytes: v._rawBytes })),
+        );
+      } catch {
+        threw.push(len);
+      }
+    }
+    expect(threw).toEqual([]);
+  });
+
+  it('opens a .slx whose model workspace was cut short, leaving the object a shell', () => {
+    // The host-visible contract: a damaged workspace costs you the decoded property
+    // values, not the file. 1348 is one of the lengths that used to throw.
+    const { zipEntries } = parseSlx(fixture('mcosfix.slx'), 'mcosfix.slx');
+    const part = zipEntries['simulink/modelWorkspace.mxarray'];
+    const cut = (part.buffer as ArrayBuffer).slice(part.byteOffset, part.byteOffset + 1348);
+
+    const ws = parseMxArray(cut);
+    const opaque = ws.filter((v) => v.isOpaque && v.name);
+    expect(opaque.length).toBeGreaterThan(0);
+    const decoded = decodeMcosBlob(
+      ws._trailingElements[0],
+      opaque.map((v): OpaqueVarRef => ({ name: v.name, className: v.className, rawBytes: v._rawBytes })),
+    );
+    // Names survive (they come from the mxarray struct, not the blob); the property
+    // values do not, which is the honest outcome for bytes that are not there.
+    expect(decoded.size).toBe(0);
   });
 });
 

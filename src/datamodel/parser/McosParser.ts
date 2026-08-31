@@ -108,7 +108,19 @@ function align8(n: number): number {
   return n + ((8 - (n % 8)) % 8);
 }
 
-function readSubelement(view: DataView, offset: number): SubElement {
+// Null when the 8-byte tag would read past the end of the view. Every offset here
+// is derived from a length the FILE declared, so a truncated or otherwise damaged
+// blob can point past the bytes present; DataView answers that with a RangeError,
+// and since nothing between here and the host catches it, the throw took out the
+// whole open — a .slx whose modelWorkspace.mxarray was cut short failed to open at
+// all rather than opening with an unresolved object. (MxArrayParser deliberately
+// hands over a SHORT trailing element instead of a fabricated one, which is what
+// makes such a blob reach this function.) A tag we cannot read is a blob we cannot
+// navigate, so callers stop and the variable stays an empty shell.
+function readSubelement(view: DataView, offset: number): SubElement | null {
+  if (offset < 0 || offset + 8 > view.byteLength) {
+    return null;
+  }
   const tag = view.getUint32(offset, true);
   const hi = (tag >>> 16) & 0xffff;
   const lo = tag & 0xffff;
@@ -119,6 +131,12 @@ function readSubelement(view: DataView, offset: number): SubElement {
   const type = view.getUint32(offset, true);
   const bytes = view.getUint32(offset + 4, true);
   return { type, bytes, dataOffset: offset + 8, totalSize: 8 + align8(bytes) };
+}
+
+// A subelement's declared byte count, clamped to the bytes actually present, so a
+// self-declared length cannot send parseMatrix reading off the end of the view.
+function readableBytes(view: DataView, sub: SubElement): number {
+  return Math.max(0, Math.min(sub.bytes, view.byteLength - sub.dataOffset));
 }
 
 function toUint8(value: unknown): Uint8Array | null {
@@ -135,16 +153,21 @@ function findCellArrayInOpaque(
   opaqueContentLength: number,
 ): { offset: number; length: number } | null {
   let offset = opaqueContentOffset;
-  const end = opaqueContentOffset + opaqueContentLength;
+  const end = Math.min(opaqueContentOffset + opaqueContentLength, view.byteLength);
 
   const flagsSub = readSubelement(view, offset);
+  if (!flagsSub) return null;
   offset += flagsSub.totalSize;
 
   while (offset < end) {
     const sub = readSubelement(view, offset);
+    if (!sub) return null;
     if (sub.type === MI_MATRIX) {
-      return { offset: sub.dataOffset, length: sub.bytes };
+      return { offset: sub.dataOffset, length: readableBytes(view, sub) };
     }
+    // A zero-size subelement would leave `offset` where it was and spin here
+    // forever on a damaged blob, so treat it as the end of what we can navigate.
+    if (sub.totalSize <= 0) return null;
     offset += sub.totalSize;
   }
   return null;
@@ -154,26 +177,27 @@ function findCellArrayInOpaque(
 // an opaque "MCOS" field -> that field's cell array. Returns cells[] or null.
 function extractCells(anonRawBytes: Uint8Array): (MatVariable | null)[] | null {
   const outerView = new DataView(anonRawBytes.buffer, anonRawBytes.byteOffset, anonRawBytes.byteLength);
-  if (outerView.getUint32(0, true) !== MI_MATRIX) return null;
+  // The 8-byte outer tag has to be there before either word of it can be read.
+  if (outerView.byteLength < 16 || outerView.getUint32(0, true) !== MI_MATRIX) return null;
 
-  const outerMatrix = parseMatrix(outerView, 8, outerView.getUint32(4, true));
+  const outerMatrix = parseMatrix(outerView, 8, Math.min(outerView.getUint32(4, true), outerView.byteLength - 8));
   const blobBytes = outerMatrix.className === 'uint8' ? toUint8(outerMatrix.value) : null;
   if (!blobBytes || blobBytes.length < 16) return null;
 
   const blobView = new DataView(blobBytes.buffer, blobBytes.byteOffset, blobBytes.byteLength);
   const structSub = readSubelement(blobView, 8);
-  if (structSub.type !== MI_MATRIX) return null;
+  if (!structSub || structSub.type !== MI_MATRIX) return null;
 
-  const structMatrix = parseMatrix(blobView, structSub.dataOffset, structSub.bytes);
+  const structMatrix = parseMatrix(blobView, structSub.dataOffset, readableBytes(blobView, structSub));
   const mcosField =
     structMatrix.fields && structMatrix.fields['MCOS'] ? (structMatrix.fields['MCOS'] as MatVariable) : null;
   if (!mcosField || !mcosField.isOpaque || !mcosField._rawBytes) return null;
 
   const opaqueView = new DataView(mcosField._rawBytes.buffer, mcosField._rawBytes.byteOffset, mcosField._rawBytes.byteLength);
   const opaqueTag = readSubelement(opaqueView, 0);
-  if (opaqueTag.type !== MI_MATRIX) return null;
+  if (!opaqueTag || opaqueTag.type !== MI_MATRIX) return null;
 
-  const cellLoc = findCellArrayInOpaque(opaqueView, opaqueTag.dataOffset, opaqueTag.bytes);
+  const cellLoc = findCellArrayInOpaque(opaqueView, opaqueTag.dataOffset, readableBytes(opaqueView, opaqueTag));
   if (!cellLoc) return null;
 
   const cellArray = parseMatrix(opaqueView, cellLoc.offset, cellLoc.length);
