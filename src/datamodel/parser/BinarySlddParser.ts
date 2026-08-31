@@ -27,6 +27,40 @@ interface XmlNode {
   Object?: XmlNode[];
 }
 
+/**
+ * Read a `Dimension="R*C"` attribute into exactly two dimensions.
+ *
+ * Every shape this parser can represent downstream is 2-D: a numeric array becomes
+ * the `Matrix(rows,cols)` serial string, which is the same form the text .sldd uses
+ * and the only one the save path (DataNode._serializeTypedPropertyXml) and the row
+ * builders read back. So the two off-nominal extent counts have to be folded into
+ * that here — and every caller has to fold them the SAME way. They used to each
+ * `split('*')` for themselves, and both cases went wrong:
+ *
+ *   - Fewer than two extents (`Dimension="3"`) left `cols` undefined, so the value
+ *     formatted as `Matrix(3,undefined)` with an EMPTY body — every element
+ *     dropped on load, and re-saved as the scalar 0.
+ *   - More than two (`Dimension="2*2*2"`, e.g. a 3-D lookup-table breakpoint set)
+ *     read only rows*cols elements, so a 2x2x2 displayed as a 2x2 holding just the
+ *     first page and re-saved with six of its eight values gone.
+ *
+ * Collapsing the trailing extents into the column count keeps every element in
+ * order: the data is column-major, so this is exactly MATLAB's own
+ * `reshape(A, R, [])`. The page structure is not preserved — a 2x2x2 reads as 2x4 —
+ * but nothing is lost, which the previous behaviour could not say.
+ */
+function parseDims(dimension: string): number[] {
+  const parts = dimension.split('*').map(Number);
+  if (parts.length === 2) {
+    return parts;
+  }
+  if (parts.length < 2) {
+    // A lone extent N describes a row vector of N; an unparseable one, a scalar.
+    return Number.isFinite(parts[0]) ? [1, parts[0]] : [1, 1];
+  }
+  return [parts[0], parts.slice(1).reduce((a, b) => a * b, 1)];
+}
+
 export function parseBinarySldd(arrayBuffer: ArrayBuffer): Record<string, unknown> {
   const uint8 = new Uint8Array(arrayBuffer);
   const entries = unzipSync(uint8);
@@ -179,7 +213,7 @@ function parseEntryValue(prop: XmlNode): unknown {
 
   // Struct: Class="struct" with Element children (no Class on Element)
   if (className === 'struct') {
-    const dimParts = dimension ? dimension.split('*').map(Number) : [1, 1];
+    const dimParts = dimension ? parseDims(dimension) : [1, 1];
     const elems = elements || [];
     const parsed = elems.map((e) => parseStructElement(e));
     const fields = parsed.length > 0 ? Object.keys(parsed[0]) : [];
@@ -194,7 +228,7 @@ function parseEntryValue(prop: XmlNode): unknown {
 
   // Cell: Class="cell" with Element children
   if (className === 'cell') {
-    const dimParts = dimension ? dimension.split('*').map(Number) : [1, 1];
+    const dimParts = dimension ? parseDims(dimension) : [1, 1];
     const elems = elements || [];
     const cellElements = elems.map((e) => parseCellElement(e));
     return {
@@ -217,7 +251,7 @@ function parseEntryValue(prop: XmlNode): unknown {
     if (elements.length === 1) {
       return parseElement(elements[0]);
     }
-    const dimParts = dimension ? dimension.split('*').map(Number) : [elements.length, 1];
+    const dimParts = dimension ? parseDims(dimension) : [elements.length, 1];
     return {
       _array_class: elements[0]['@_Class'],
       _dimensions: dimParts,
@@ -246,13 +280,13 @@ function parseEntryValue(prop: XmlNode): unknown {
   if (prop['@_IsComplex'] === '1') {
     const result: Record<string, unknown> = { _type: 'cdata', _value: text };
     if (dimension) {
-      result._dimensions = dimension.split('*').map(Number);
+      result._dimensions = parseDims(dimension);
     }
     return result;
   }
   const type = className || 'double';
   if (dimension) {
-    const dimParts = dimension.split('*').map(Number);
+    const dimParts = parseDims(dimension);
     const total = dimParts.reduce((a, b) => a * b, 1);
     if (total === 0) {
       return { _type: type, _emptyDims: dimParts };
@@ -292,7 +326,7 @@ function parseCellElement(el: XmlNode): unknown {
     elClass === 'uint8'
   ) {
     if (dimension) {
-      const dimParts = dimension.split('*').map(Number);
+      const dimParts = parseDims(dimension);
       const total = dimParts.reduce((a, b) => a * b, 1);
       if (total === 0) {
         return { _type: elClass, _value: 'Matrix(' + dimParts[0] + ',' + dimParts[1] + ')' };
@@ -311,7 +345,7 @@ function parseCellElement(el: XmlNode): unknown {
   }
   if (elClass === 'logical') {
     if (dimension) {
-      const dimParts = dimension.split('*').map(Number);
+      const dimParts = parseDims(dimension);
       const total = dimParts.reduce((a, b) => a * b, 1);
       if (total === 0) {
         return { _type: 'logical', _value: '[]' };
@@ -338,7 +372,7 @@ function parseCellElement(el: XmlNode): unknown {
   }
   if (elClass === 'cell') {
     const childElements = el.Element || [];
-    const dimParts = dimension ? dimension.split('*').map(Number) : [1, childElements.length];
+    const dimParts = dimension ? parseDims(dimension) : [1, childElements.length];
     const cellElements = childElements.map((e) => parseCellElement(e));
     return {
       _array_type: 'Cell',
@@ -371,7 +405,7 @@ function parseStringValue(el: XmlNode, _outerDimension: string | null): unknown 
   const strings = cellElements.map((e) => getTextContent(e) || '');
 
   if (cellDim) {
-    const dimParts = cellDim.split('*').map(Number);
+    const dimParts = parseDims(cellDim);
     if (dimParts[0] === 1 && dimParts[1] === 1) {
       return strings;
     }
@@ -468,7 +502,7 @@ function parsePropContent(prop: XmlNode, handleStructClass = true): unknown {
       // A nested cell property (with or without a Dimension) serializes its
       // items as <Element> children — decode them like the top-level entry
       // path instead of treating each as a generic object with empty props.
-      const dimParts = dimension ? dimension.split('*').map(Number) : [1, childElements.length];
+      const dimParts = dimension ? parseDims(dimension) : [1, childElements.length];
       return {
         _array_type: 'Cell',
         _dimensions: dimParts,
@@ -519,7 +553,7 @@ function parseElement(el: XmlNode): Record<string, unknown> {
       const dimension = prop['@_Dimension'] || null;
       const result: Record<string, unknown> = { _type: 'cdata', _value: text };
       if (dimension) {
-        result._dimensions = dimension.split('*').map(Number);
+        result._dimensions = parseDims(dimension);
       }
       properties[propName] = result;
     } else {
@@ -549,7 +583,7 @@ function parseArrayOfElements(
   dimension: string,
   propClass: string | null,
 ): Record<string, unknown> {
-  const dimParts = dimension.split('*').map(Number);
+  const dimParts = parseDims(dimension);
 
   if (propClass === 'struct') {
     const parsed = elements.map((e) => parseStructElement(e));
@@ -592,7 +626,7 @@ function parseTypedValue(text: string, className: string | null, dimension: stri
   }
 
   if (dimension) {
-    const dimParts = dimension.split('*').map(Number);
+    const dimParts = parseDims(dimension);
     const total = dimParts.reduce((a, b) => a * b, 1);
     if (total === 0) {
       if (isNumericClass(className)) {
