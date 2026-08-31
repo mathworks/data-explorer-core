@@ -707,13 +707,21 @@ export default class MatlabVariableNode extends DataNode {
     return null;
   }
 
-  _convertToStructAndAddField(): MatlabVariableNode {
+  // Turn an untyped `[]` into an empty 1x1 struct. Kept separate from
+  // _convertToStructAndAddField so execAddChild's redo can re-apply the
+  // conversion around the ORIGINAL field node instead of a fresh one.
+  private _becomeStruct(): void {
     this._kind = 'scalar';
     this._scalarType = 'struct';
     this._scalarValue = null;
     this._elements = [];
     this._dims = [1, 1];
+    this.children = [];
     this.serial = {};
+  }
+
+  _convertToStructAndAddField(): MatlabVariableNode {
+    this._becomeStruct();
     const child = MatlabVariableNode._createScalar(0, 'double', 'field', this);
     this.addChild(child);
     this._markModified();
@@ -929,8 +937,15 @@ export default class MatlabVariableNode extends DataNode {
           self.serial = prevSerial!;
           self._markModified();
         },
+        // Re-apply the conversion around the SAME field node undo removed.
+        // Calling _convertToStructAndAddField again minted a second 'field'
+        // instead, so the undo stack's node reference went stale: a following
+        // undo removed a node that was no longer in the tree, and each
+        // undo/redo cycle left one more orphan field behind.
         redo() {
-          self._convertToStructAndAddField();
+          self._becomeStruct();
+          self.addChild(child);
+          self._markModified();
         },
       };
     }

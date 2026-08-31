@@ -20,6 +20,7 @@
 //     to a .sldd is a value MATLAB cannot evaluate.
 import { describe, it, expect } from 'vitest';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
+import { NOT_AVAILABLE } from '../src/datamodel/parser/McosParser.js';
 import '../src/datamodel/node/NodeClassMap.js';
 
 // These tests reach into the node's internal state (_kind, _elements, _dims) on
@@ -215,6 +216,81 @@ describe('MatlabVariableNode — non-finite values survive display and save', ()
   });
 });
 
+// A complex value reaches the reader as `_type: 'cdata'` in one of two spellings:
+// plain text ('1+2i') for values the writer could spell out, or a base-64-ish
+// 6-bit packing of the raw MAT byte stream for the rest. The binary form carries
+// its real and imaginary parts in separate blocks at offsets that depend on how
+// the variable name was stored, so a misread offset silently returns the wrong
+// number rather than failing.
+describe('MatlabVariableNode — complex values from cdata', () => {
+  // Inverse of the reader's 6-bit unpacking, so a test can hand it real bytes.
+  function encodeCdata(bytes: Uint8Array): string {
+    const bits: number[] = [];
+    for (const b of bytes) {
+      for (let i = 7; i >= 0; i--) {
+        bits.push((b >> i) & 1);
+      }
+    }
+    while (bits.length % 6 !== 0) {
+      bits.push(0);
+    }
+    let s = '';
+    for (let i = 0; i < bits.length; i += 6) {
+      let v = 0;
+      for (let b = 0; b < 6; b++) {
+        v = (v << 1) | bits[i + b];
+      }
+      s += String.fromCharCode(v + 0x20);
+    }
+    return s;
+  }
+
+  it('reads the text spelling as a scalar complex', () => {
+    const n = parse({ _type: 'cdata', _value: '1.5-2i' });
+    expect([n._kind, n._scalarType, n._scalarValue]).toEqual(['scalar', 'complex', '1.5-2i']);
+  });
+
+  it('reads the binary spelling, whichever way the name was stored', () => {
+    // The name is either packed into the tag word (small-data form) or written as
+    // a sized, 8-byte-padded block; each shifts the data blocks by a different
+    // amount. Reading the wrong one lands mid-double and yields garbage.
+    const scalarBytes = (nameInline: boolean, re: number, im: number): Uint8Array => {
+      const bytes = new Uint8Array(nameInline ? 88 : 96);
+      const dv = new DataView(bytes.buffer);
+      dv.setInt32(40, 1, true);
+      dv.setInt32(44, 1, true);
+      let off = 48;
+      if (nameInline) {
+        dv.setUint32(off, 0x0002_0001, true);
+        off += 8;
+      } else {
+        dv.setUint32(off, 1, true);
+        dv.setUint32(off + 4, 3, true);
+        off += 16;
+      }
+      dv.setUint32(off, 9, true);
+      dv.setUint32(off + 4, 8, true);
+      dv.setFloat64(off + 8, re, true);
+      dv.setUint32(off + 16, 9, true);
+      dv.setUint32(off + 20, 8, true);
+      dv.setFloat64(off + 24, im, true);
+      return bytes;
+    };
+    expect(parse({ _type: 'cdata', _value: encodeCdata(scalarBytes(true, 1.5, -2.5)) })._scalarValue).toBe('1.5-2.5i');
+    expect(parse({ _type: 'cdata', _value: encodeCdata(scalarBytes(false, 3, 4)) })._scalarValue).toBe('3+4i');
+  });
+
+  it('keeps an undecodable payload as text instead of losing it', () => {
+    // Anything the decoder cannot make sense of still has to survive the round
+    // trip: the node degrades to a char scalar and serializeValue replays the
+    // original _rawInput, so an unreadable value is shown, not destroyed.
+    const raw = { _type: 'cdata', _value: 'ABC' };
+    const n = parse(raw);
+    expect([n._kind, n._scalarType, n._scalarValue]).toEqual(['scalar', 'char', 'ABC']);
+    expect(n.serializeValue()).toBe(raw);
+  });
+});
+
 describe('MatlabVariableNode — editing an element of an array', () => {
   it('keeps _elements in step with the edited child', () => {
     // The children back the table rows but _elements backs displayValue, .Value,
@@ -268,6 +344,41 @@ describe('MatlabVariableNode — editing an element of an array', () => {
     n.setProperty('Value', '[5]');
     expect([n._kind, n._scalarValue, n.children.length]).toEqual(['scalar', 5, 0]);
   });
+
+  it('retypes a numeric array to a string array, rebuilding the element rows', () => {
+    // The elements have to become string-KIND children, not string-typed scalars:
+    // a scalar-typed one serializes as a nested [""] and would write an array of
+    // one-element arrays back into the file.
+    const n = parse([1, 2, 3]);
+    expect(n.setProperty('Value', '["a" "b" "c"]')).toBe(true);
+    expect([n._kind, n._scalarType, n._dims]).toEqual(['string', 'string', [1, 3]]);
+    expect(n._elements).toEqual(['a', 'b', 'c']);
+    expect(n.children.map((c: Any) => [c.name, c._kind, c._scalarValue])).toEqual([
+      ['1', 'string', 'a'],
+      ['2', 'string', 'b'],
+      ['3', 'string', 'c'],
+    ]);
+    expect(n.serializeValue()).toEqual({
+      _array_type: 'String',
+      _dimensions: [1, 3],
+      _elements: ['a', 'b', 'c'],
+      _mw_element_type: 'MATLABArray',
+    });
+  });
+
+  it('leaves a one-element string array childless, as the numeric path does', () => {
+    // One element is a scalar string, so a child row would be noise — but the
+    // value still has to reach _elements or the save writes an empty array.
+    const n = parse([1, 2, 3]);
+    n.setProperty('Value', '["only"]');
+    expect([n._kind, n._dims, n.children.length]).toEqual(['string', [1, 1], 0]);
+    expect(n.serializeValue()).toEqual({
+      _array_type: 'String',
+      _dimensions: [1, 1],
+      _elements: ['only'],
+      _mw_element_type: 'MATLABArray',
+    });
+  });
 });
 
 describe('MatlabVariableNode — add and remove children', () => {
@@ -297,6 +408,20 @@ describe('MatlabVariableNode — add and remove children', () => {
     const empty = parse({ _type: 'double', _emptyDims: [0, 0] });
     const child = empty.addChildNode();
     expect([empty._kind, empty._scalarType, child.name]).toEqual(['scalar', 'struct', 'field']);
+  });
+
+  it('offers Add but not Remove on an empty array or a fresh struct', () => {
+    // An edit to `[]` leaves nothing to remove, and the struct it becomes on the
+    // first add is a scalar — Remove has to stay disabled through both states or
+    // the command would run against a node with no removable element.
+    const empty = parse([1, 2, 3]);
+    empty.setProperty('Value', '[]');
+    expect([empty._kind, empty._elements, empty.displayValue]).toEqual(['array', [], '[]']);
+    expect([empty.canAddChild(), empty.canRemoveChild()]).toEqual([true, false]);
+    empty.addChildNode();
+    expect([empty.canAddChild(), empty.canRemoveChild()]).toEqual([true, false]);
+    // A struct keeps taking fields, each with a distinct name.
+    expect(empty.addChildNode().name).toBe('field1');
   });
 
   it('gives each added struct field a unique name', () => {
@@ -405,6 +530,24 @@ describe('MatlabVariableNode — undo of a removal', () => {
     expect(n._scalarType).toBe('struct');
     op.undo();
     expect([n._kind, n._scalarType, n._elements, n.children.length]).toEqual(['array', 'double', [], 0]);
+  });
+
+  it('redoes the empty-array-to-struct conversion around the same field node', () => {
+    // Redo used to re-run the conversion, minting a SECOND 'field' rather than
+    // putting back the one undo removed. That left the undo stack holding a node
+    // no longer in the tree, so the next undo removed nothing and every extra
+    // undo/redo cycle stranded one more duplicate field in the struct.
+    const n = parse({ _type: 'double', _emptyDims: [0, 0] });
+    const op: Any = n.execAddChild();
+    op.undo();
+    op.redo();
+    expect([n._kind, n._scalarType]).toEqual(['scalar', 'struct']);
+    expect(n.children).toEqual([op.node]);
+
+    op.undo();
+    expect(n.children.length).toBe(0);
+    op.redo();
+    expect(n.children).toEqual([op.node]);
   });
 
   it('returns no operation when the shape forbids the edit', () => {
@@ -630,6 +773,25 @@ describe('MatlabVariableNode — serializeValue', () => {
     expect(n.serializeValue()).toEqual([]);
   });
 
+  it('replays the untouched serial for a one-element typed vector', () => {
+    // A 1-element array has no child rows to read values from, so there is
+    // nothing to re-derive — the stored literal is the only copy of the value.
+    const n = parse({ _type: 'int32', _value: '[5]' });
+    n.status = 'Modified';
+    n._rawInput = undefined;
+    expect(n.serializeValue()).toEqual({ _type: 'int32', _value: '[5]' });
+  });
+
+  it('writes a bare string array as a plain element list when the source had no container', () => {
+    // A JS array of strings parses to kind 'string' with no _array_type in
+    // serial. Emitting the container form anyway would add a wrapper MATLAB
+    // never wrote, showing up as a spurious diff on every save.
+    const n = parse(['x', 'y']);
+    n.status = 'Modified';
+    n._rawInput = undefined;
+    expect(n.serializeValue()).toEqual(['x', 'y']);
+  });
+
   it('writes a cell and a string array back in their container forms', () => {
     const cell = parse({ _array_type: 'Cell', _dimensions: [1, 2], _elements: [1, 'two'] });
     cell._rawInput = undefined;
@@ -750,6 +912,14 @@ describe('MatlabVariableNode — presentation and editability', () => {
     expect(icon({ _array_type: 'String', _dimensions: [1, 1], _elements: ['a'] })).toBe('wsString');
   });
 
+  it('brands a retyped scalar string with the string icon, not the char one', () => {
+    // Typing "hi" produces a scalar of type 'string' rather than 'char'; the two
+    // are different MATLAB types and the icon is what tells them apart in the tree.
+    const n = parse(1);
+    n.setProperty('Value', '"hi"');
+    expect([n._scalarType, n.icon, n.displayValue]).toEqual(['string', 'wsString', '"hi"']);
+  });
+
   it('reports a complex value as class double, since complex is not a type name', () => {
     const n = parse(0);
     n._scalarType = 'complex';
@@ -780,6 +950,51 @@ describe('MatlabVariableNode — presentation and editability', () => {
     expect(parse({ _array_type: 'Cell', _dimensions: [1, 1], _elements: [1] }).isScalarNumeric).toBe(false);
   });
 
+  it('names the container kinds in the Class and DataType columns', () => {
+    const cell = parse({ _array_type: 'Cell', _dimensions: [1, 2], _elements: [1, 2] });
+    expect([cell.className, cell.dataType]).toEqual(['cell', 'cell']);
+    const str = parse(['a', 'b']);
+    expect([str.className, str.dataType]).toEqual(['string', 'string']);
+  });
+
+  it('reads a string array Value from _elements, which the children mirror', () => {
+    // The .Value getter feeds the clipboard and the paste gate; a string array
+    // has to hand back its text, not the child nodes that display it.
+    expect(parse(['a', 'b']).Value).toEqual(['a', 'b']);
+    // A 1x1 string container has no child rows, so _elements is the only copy.
+    expect(parse({ _array_type: 'String', _dimensions: [1, 1], _elements: ['solo'] }).Value).toEqual(['solo']);
+  });
+
+  it('has no inline Value for a cell, whose entries are its children', () => {
+    // Returning something here would put a value in a row that already has child
+    // rows, and an edit of it would have nowhere to land.
+    expect(parse({ _array_type: 'Cell', _dimensions: [1, 2], _elements: [1, 2] }).Value).toBeNull();
+  });
+
+  it('reports a plain variable as a MATLAB Variable but defers to a classification', () => {
+    // In Architectural Data the same variable is a derived Constant, and a
+    // catalog classification (set by the section parser) outranks both.
+    const n = parse(5);
+    expect(n.kind).toBe('MATLAB Variable');
+    n.classification = 'StructType';
+    expect(n.kind).toBe('Struct Type');
+  });
+
+  it('fixes the name of a class property, which the class definition owns', () => {
+    const n = parse(1);
+    n.parent = { isObjectPropertyBag: true } as Any;
+    expect(n.nameEditable).toBe(false);
+  });
+
+  it('refuses to edit the unrecoverable-value placeholder, which is not real text', () => {
+    // The MCOS decoder's sentinel renders unquoted so the table greys it out;
+    // offering an editor would let the user "correct" a value that does not exist.
+    const n = parse(0);
+    n._scalarType = 'char';
+    n._scalarValue = NOT_AVAILABLE;
+    expect([n.displayValue, n.valueEditable]).toEqual([NOT_AVAILABLE, false]);
+  });
+
   it('offers the four table properties and one General group in the inspector', () => {
     const n = parse(1);
     expect(n.getProperties().map((p: Any) => p.key)).toEqual(['Name', 'Value', 'DataType', 'Description']);
@@ -794,6 +1009,67 @@ describe('MatlabVariableNode — presentation and editability', () => {
       'Class',
       'Description',
     ]);
+  });
+});
+
+// An opaque node is an MCOS object the model has no typed class for: the .mat
+// reader decoded its properties but nothing here understands them, so the node
+// shows the object's class and a read-only summary rather than a fake value.
+describe('MatlabVariableNode — opaque MCOS objects', () => {
+  const opaque = (className: string, decoded: Record<string, unknown>): Any =>
+    MatlabVariableNode.createFromMcosDecoded(
+      {
+        name: 'o',
+        className,
+        dimensions: [1, 1],
+        isComplex: false,
+        isLogical: false,
+        value: null,
+        fields: null,
+      } as Any,
+      decoded as Any,
+      null,
+    );
+
+  it('shows the class name as Class but leaves DataType empty', () => {
+    // The class of a Simulink.Parameter is not a data type; putting it in the
+    // DataType column would mix the two concepts in one place.
+    const n = opaque('Simulink.Parameter', { value: 7, properties: { Value: 7 }, dimensions: [1, 1] });
+    expect([n.className, n.dataType]).toEqual(['Simulink.Parameter', '']);
+  });
+
+  it('brands a known Simulink class and falls back for an unknown one', () => {
+    expect(opaque('Simulink.Parameter', { value: null, properties: {}, dimensions: [1, 1] }).icon).toBe('wsParameters');
+    expect(opaque('Some.Unknown', { value: null, properties: {}, dimensions: [1, 1] }).icon).toBe('wsDefault');
+  });
+
+  it('summarizes the decoded value by type, or by class when there is none', () => {
+    expect(opaque('Simulink.Parameter', { value: 7, properties: {}, dimensions: [1, 1] }).displayValue).toBe('7');
+    expect(opaque('Simulink.Parameter', { value: 'txt', properties: {}, dimensions: [1, 1] }).displayValue).toBe(
+      "'txt'",
+    );
+    expect(opaque('Simulink.Parameter', { value: [1, 2, 3], properties: {}, dimensions: [1, 3] }).displayValue).toBe(
+      '[1x3 Simulink.Parameter]',
+    );
+    expect(opaque('Some.Unknown', { value: null, properties: {}, dimensions: [1, 1] }).displayValue).toBe(
+      '<1x1 Some.Unknown>',
+    );
+  });
+
+  it('offers no value editor and is never scalar-numeric', () => {
+    // There is no round-trip for a class this model does not understand, so an
+    // edit could only corrupt the object.
+    const n = opaque('Simulink.Parameter', { value: 7, properties: {}, dimensions: [1, 1] });
+    expect([n.valueEditable, n.isScalarNumeric]).toEqual([false, false]);
+  });
+
+  it('rebuilds the .mat projection as a 1x1 opaque variable', () => {
+    // The rebuilt variable must keep isOpaque and 1x1 dims: the writer replays
+    // the object's original bytes and would otherwise reshape the object.
+    const n = opaque('Simulink.Parameter', { value: 7, properties: {}, dimensions: [1, 1] });
+    n._varStale = true;
+    const v = n._var;
+    expect([v.className, v.isOpaque, v.dimensions]).toEqual(['Simulink.Parameter', true, [1, 1]]);
   });
 });
 

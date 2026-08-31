@@ -109,4 +109,13 @@ describe('ConstantNode value validation on edit', () => {
     const c = ConstantNode.createDefault('K', null);
     expect(c.valueEditable).toBe(true);
   });
+
+  it('delegates non-Value edits (e.g. Name) to the generic DataNode path', () => {
+    // Properties other than Value (name, description, data type) must not hit
+    // the scalar-numeric validator. Without the explicit delegation the Constant
+    // would reject a perfectly valid Name rename with an "invalid expression" error.
+    const c = ConstantNode.createDefault('K', null);
+    expect(c.setProperty('Name', 'NewK')).toBe(true);
+    expect(c.name).toBe('NewK');
+  });
 });

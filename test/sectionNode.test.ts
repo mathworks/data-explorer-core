@@ -144,6 +144,30 @@ describe('addEntry', () => {
     expect(node!.name).toBe('ConnectionBus');
   });
 
+  it('uses each class own declared default name, not a shared one', () => {
+    // Every node class declares its own `static get defaultName`, and addEntry is
+    // the only caller. A class that inherited a sibling's name would silently
+    // create entries called e.g. "Bus" in a Breakpoint slot.
+    const loose = new SectionNode('notAKnownKey', null, 'Loose', 'databaseFolder');
+    const expected: [string, string][] = [
+      ['Simulink.Breakpoint', 'Breakpoint'],
+      ['Simulink.LookupTable', 'LookupTable'],
+      ['Simulink.NumericType', 'NumericType'],
+      ['Simulink.AliasType', 'AliasType'],
+      ['Simulink.Bus', 'Bus'],
+      ['Simulink.Signal', 'Signal'],
+      ['Simulink.ValueType', 'ValueType'],
+    ];
+    for (const [cls, name] of expected) {
+      const node = loose.addEntry(cls);
+      expect(node, cls).toBeTruthy();
+      expect(node!.name, cls).toBe(name);
+      // Only the first of each class gets the bare name; drop it so the next
+      // class is not deconflicted against a leftover sibling.
+      loose.removeChild(node!);
+    }
+  });
+
   it('refuses a class the section does not allow', () => {
     expect(sectionOf(sldd(), 'config').addEntry('Simulink.Parameter', 'Kp')).toBeNull();
     expect(sectionOf(sldd(), 'config').children).toEqual([]);

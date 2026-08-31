@@ -112,3 +112,93 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
     });
   });
 });
+
+describe('parseSlx — model workspace MAT-File source + edge cases', () => {
+  // Simulink models can source their workspace data from a MAT file, recorded in
+  // blockDiagram.json as ModelWorkspace.WSDataSource = 'MAT-File'. The parser
+  // surfaces the filename as an external data source so the host knows to load it.
+  function slxWith(overrides: Record<string, Uint8Array>): ArrayBuffer {
+    const base: Record<string, Uint8Array> = {
+      'simulink/blockDiagram.json': strToU8(JSON.stringify({ BlockDiagram: { ModelUUID: 'u1' } })),
+      'metadata/coreProperties.xml': strToU8(`<?xml version="1.0"?><coreProperties><version>R2026b</version></coreProperties>`),
+    };
+    const parts = { ...base, ...overrides };
+    const zipped = zipSync(parts);
+    return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
+  }
+
+  it('includes a model-workspace MAT source in externalDataSources', () => {
+    // When a model's workspace is sourced from a MAT file (not embedded mxarray),
+    // the filename must appear in externalDataSources so the host resolves it.
+    const buf = slxWith({
+      'simulink/blockDiagram.json': strToU8(JSON.stringify({
+        BlockDiagram: {
+          ModelUUID: 'u1',
+          ModelWorkspace: { WSDataSource: 'MAT-File', WSSourceFileName: 'model_data.mat' },
+        },
+      })),
+    });
+    const parsed = parseSlx(buf, 'test.slx');
+    expect(parsed.externalDataSources).toContain('model_data.mat');
+  });
+
+  it('does not duplicate the MAT source if it already appears from ExternalDataSourceSettings', () => {
+    // The MAT file might already be listed via ExternalDataSourceSettings.xml. The
+    // parser must not add it twice or the host would attempt to load it twice.
+    const buf = slxWith({
+      'simulink/blockDiagram.json': strToU8(JSON.stringify({
+        BlockDiagram: {
+          ModelUUID: 'u1',
+          ModelWorkspace: { WSDataSource: 'MAT-File', WSSourceFileName: 'data.mat' },
+        },
+      })),
+      'simulink/ExternalDataSourceSettings.xml': strToU8(
+        `<?xml version="1.0"?><ExternalDataSourceSettings>` +
+        `<ExplicitExternalBrokerSources><fullPathToSource>data.mat</fullPathToSource></ExplicitExternalBrokerSources>` +
+        `</ExternalDataSourceSettings>`,
+      ),
+    });
+    const parsed = parseSlx(buf, 'test.slx');
+    expect(parsed.externalDataSources.filter((s) => s === 'data.mat')).toHaveLength(1);
+  });
+
+  it('surfaces a numeric-only version tag via the String() fallback in findText', () => {
+    // fast-xml-parser parses <version>42</version> as the number 42, not the string
+    // "42". The findText helper must stringify it (line 114) so the parser always
+    // returns a string release, not a number that breaks downstream comparisons.
+    const buf = slxWith({
+      'metadata/coreProperties.xml': strToU8(
+        `<?xml version="1.0"?><coreProperties><version>42</version></coreProperties>`,
+      ),
+    });
+    const parsed = parseSlx(buf, 'test.slx');
+    expect(typeof parsed.release).toBe('string');
+    expect(parsed.release).toBe('42');
+  });
+
+  it('returns empty metadata when coreProperties.xml is absent', () => {
+    // A stripped or minimal .slx might lack optional parts. The parser must not
+    // throw — it just surfaces empty strings for the metadata fields.
+    const zipped = zipSync({
+      'simulink/blockDiagram.json': strToU8(JSON.stringify({ BlockDiagram: { ModelUUID: 'u1' } })),
+    });
+    const buf = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
+    const parsed = parseSlx(buf, 'minimal.slx');
+    expect(parsed.release).toBe('');
+    expect(parsed.creator).toBe('');
+    expect(parsed.uuid).toBe('u1');
+  });
+
+  it('skips a block that has no <P> children at all', () => {
+    // A block element with attributes but no property children is valid (e.g. a
+    // reference block with everything defaulted). The parser must continue past it
+    // without throwing.
+    const usages = usagesFor(
+      `<Block BlockType="SubSystem" Name="Sub1" SID="1"></Block>` +
+      `<Block BlockType="Gain" Name="G1" SID="2"><P Name="Gain">Kp</P></Block>`,
+    );
+    expect(usages).toEqual([
+      { blockName: 'G1', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp' },
+    ]);
+  });
+});

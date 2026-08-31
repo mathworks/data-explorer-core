@@ -72,6 +72,7 @@ export default class MatlabVariableNode extends DataNode {
     _buildCellChildren(elements: unknown[]): void;
     canAddChild(): boolean;
     addChildNode(): BaseNode | null;
+    private _becomeStruct;
     _convertToStructAndAddField(): MatlabVariableNode;
     _addStructField(): MatlabVariableNode;
     _addArrayChild(): MatlabVariableNode;

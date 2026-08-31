@@ -142,6 +142,21 @@ describe('ServiceBusNode addChildNode name collision avoidance', () => {
     expect(c2.name).toBe('f1');
     expect(c3.name).toBe('f2');
   });
+
+  it('jumps past a colliding name when a middle child was deleted', () => {
+    // After deleting f0, children = [f1, f2]. children.length = 2, so the
+    // candidate name is 'f2' — which collides with the last child. The
+    // allocator must increment past it to 'f3'. Without this loop (line 57)
+    // the bus would get two children both named 'f2', silently overwriting
+    // one on save.
+    const bus = ServiceBusNode.createDefault('SB', null);
+    bus.addChildNode(); // f0
+    bus.addChildNode(); // f1
+    bus.addChildNode(); // f2
+    bus.removeChild(bus.children[0]); // remove f0 → [f1, f2]
+    const next = bus.addChildNode();
+    expect(next.name).toBe('f3');
+  });
 });
 
 describe('addChild on a ServiceBus (arch ServiceInterface)', () => {

@@ -88,6 +88,59 @@ describe('buildOtherRows — PI "Other" catch-all', () => {
     expect(rows).toEqual([{ name: 'Dimensions', value: '[1, 3]' }]);
   });
 
+  it('renders null / undefined sub-properties of a nested object as empty strings', () => {
+    // A nested MATLAB object may have sparse sub-properties (e.g. a CoderInfo
+    // where CSCPackageName is null). formatOther must not throw on these; an
+    // empty cell is correct (no data to show).
+    const rows = buildOtherRows(
+      {
+        CoderInfo: {
+          _object_class: 'Simulink.CoderInfo',
+          _properties: { CSCPackageName: null, CustomAttributes: undefined },
+        },
+      },
+      new Set(),
+    );
+    expect(rows).toEqual([
+      { name: 'CoderInfo.CSCPackageName', value: '' },
+      { name: 'CoderInfo.CustomAttributes', value: '' },
+    ]);
+  });
+
+  it('unwraps a typed scalar inside a nested object sub-property', () => {
+    // A sub-property of a nested object may itself be a typed-scalar envelope
+    // (e.g. { _type: 'int32', _value: '8' }). formatOther must unwrap it
+    // instead of rendering it as an opaque object, or the PI would show a
+    // blank cell for a value that has meaningful data.
+    const rows = buildOtherRows(
+      {
+        Info: {
+          _object_class: 'X',
+          _properties: { Alignment: { _type: 'int32', _value: '8' } },
+        },
+      },
+      new Set(),
+    );
+    expect(rows).toEqual([{ name: 'Info.Alignment', value: '8' }]);
+  });
+
+  it('renders a nested-object sub-property with no class name as [object]', () => {
+    // A sub-property that is an { _properties } bag without _object_class must
+    // still be distinguishable from a primitive empty value — '[object]' is the
+    // fallback that tells the user something is there even though the class is
+    // unknown.
+    const rows = buildOtherRows(
+      {
+        Info: {
+          _object_class: 'X',
+          _properties: { Unknown: { _properties: { a: 1 } } },
+        },
+      },
+      new Set(),
+    );
+    expect(rows).toEqual([{ name: 'Info.Unknown', value: '[object]' }]);
+  });
+
   it('does not mutate the input bag', () => {
     const bag = { CoderInfo: { _object_class: 'C', _properties: { A: 1 } }, X: 2 };
     const before = JSON.stringify(bag);

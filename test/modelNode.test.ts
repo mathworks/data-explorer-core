@@ -310,6 +310,11 @@ describe('ModelBlockNode', () => {
     expect(blockModel(GAIN_TWICE).getSection('blocks').children[0].toRow()._graphTarget).toBe('m.slx');
   });
 
+  it('displayName returns the block name (used by the tree label)', () => {
+    const blk = blockModel(GAIN_TWICE).getSection('blocks').children[0];
+    expect(blk.displayName).toBe('G1');
+  });
+
   it('is a non-editable entry offering only Name in the inspector', () => {
     const blk = blockModel(GAIN_TWICE).getSection('blocks').children[0];
     expect(blk.isEntry).toBe(true);

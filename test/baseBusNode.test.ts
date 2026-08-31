@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { BaseBusNode, BaseBusElementNode } from '../src/datamodel/node/data/BaseBusNode.js';
 import { BusNode, BusElementNode } from '../src/datamodel/node/data/BusNode.js';
+import { ConnectionBusNode } from '../src/datamodel/node/data/ConnectionBusNode.js';
 
 // Minimal raw MATLABArray wrapper for a bus with the given elements.
 function busRaw(elements: Record<string, unknown>[]): Record<string, unknown> {
@@ -94,6 +95,15 @@ describe('BaseBusNode.icon', () => {
     expect(bus.icon).toBe('wsBus');
     bus.metadata = { isderived: '1' };
     expect(bus.icon).toBe('typeBus');
+  });
+
+  it('ConnectionBusNode uses wsConnectionBus for Design Data and typeConnection for Architectural', () => {
+    // A plain Design Data ConnectionBus needs the workspace icon; without it a
+    // physical-connection bus looks identical to a DataInterface bus.
+    const bus = ConnectionBusNode.createDefault('C', null);
+    expect(bus.icon).toBe('wsConnectionBus');
+    bus.metadata = { isderived: '1' };
+    expect(bus.icon).toBe('typeConnection');
   });
 });
 

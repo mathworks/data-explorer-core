@@ -90,3 +90,30 @@ describe('ContainerNode.flatten', () => {
     expect(names).toContain('Cfg');
   });
 });
+
+describe('SlddNode — PI layout and entry delegation', () => {
+  it('reports a General group with its four file-level properties', () => {
+    // The PI for the .sldd root must surface these so the user can inspect the
+    // release version and format without switching to a metadata panel.
+    const root = new SlddNode('d.sldd');
+    const layout = root.getPILayout();
+    expect(layout).toHaveLength(1);
+    expect(layout[0].group).toBe('General');
+    expect(layout[0].items.map((p) => p.key)).toEqual(['Name', 'Release', 'FileFormat', 'NumberOfEntries']);
+  });
+
+  it('delegates addEntry to the named section, creating a real node', () => {
+    const root = new SlddNode('d.sldd');
+    const node = root.addEntry('Simulink.Parameter', 'Kp', 'design');
+    expect(node).not.toBeNull();
+    expect(node!.name).toBe('Kp');
+    expect(node!.parent).toBe(root.getSection('design'));
+    expect(root.getSection('design')!.children).toContain(node);
+  });
+
+  it('returns null when the target section does not exist', () => {
+    // A caller that passes a bad key (e.g. a typo) must get null rather than a
+    // thrown error, so the command gracefully does nothing.
+    expect(new SlddNode('d.sldd').addEntry('Simulink.Parameter', 'Kp', 'nonexistent')).toBeNull();
+  });
+});

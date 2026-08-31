@@ -417,3 +417,109 @@ describe('decodeMcosBlob — object arrays (all elements, real dimensions)', () 
     expect(new Set(names).size).toBe(20); // all distinct
   });
 });
+
+describe('decodeMcosBlob — nested object arrays (Elements_internal in a Bus)', () => {
+  // busArray.mat is a 1x3 Simulink.Bus where each element has a differently-sized
+  // Elements_internal property: bus[0] has 1 BusElement (scalar handle → the
+  // resolveValue scalar path), bus[1] has 2 (object array → the _elements map at
+  // line 344), bus[2] has 3. This is the only case where a PROPERTY (not the root
+  // variable) holds an object array, which takes the multi-id handle branch.
+  const decoded = decodeMat('busArray').get('buses')!;
+
+  it('decodes a 1x3 Bus array with correct dimensions', () => {
+    expect(decoded).toBeDefined();
+    expect(decoded.dimensions).toEqual([1, 3]);
+    expect(decoded.elements).toHaveLength(3);
+  });
+
+  it('resolves a scalar Elements_internal as a single nested object', () => {
+    // bus[0] has one BusElement, so resolveValue takes the scalar-handle path.
+    const ei = decoded.elements[0].Elements_internal as Record<string, unknown>;
+    expect(ei._object_class).toBe('Simulink.BusElement');
+    expect((ei._properties as Record<string, unknown>).Name).toBe('a');
+  });
+
+  it('resolves a multi-element Elements_internal as an object array shape', () => {
+    // bus[1] has 2 BusElements. resolveValue must take the multi-id handle branch
+    // (lines 337-344), producing the _array_class / _elements form that the SLDD
+    // path emits for object arrays, so the data model builds child rows correctly.
+    const ei = decoded.elements[1].Elements_internal as Record<string, unknown>;
+    expect(ei._array_type).toBe('MATLABArray');
+    expect(ei._array_class).toBe('Simulink.BusElement');
+    expect(ei._dimensions).toEqual([2, 1]);
+    const elems = ei._elements as { _properties: Record<string, unknown> }[];
+    expect(elems).toHaveLength(2);
+    expect(elems[0]._properties.Name).toBeDefined();
+    expect(elems[1]._properties.Name).toBeDefined();
+    expect(elems[0]._properties.Name).not.toBe(elems[1]._properties.Name);
+  });
+
+  it('resolves a 3-element object array with each element carrying its own props', () => {
+    const ei = decoded.elements[2].Elements_internal as Record<string, unknown>;
+    expect(ei._array_type).toBe('MATLABArray');
+    const elems = ei._elements as { _properties: Record<string, unknown> }[];
+    expect(elems).toHaveLength(3);
+    const names = elems.map((e) => e._properties.Name);
+    expect(new Set(names).size).toBe(3);
+  });
+});
+
+describe('decodeMcosBlob — short / null / undefined rawBytes on a variable', () => {
+  // objectHandleFromRaw (line 480) bails when rawBytes is missing or too short to
+  // hold even one uint32 word. Without the guard, a variable whose element was
+  // truncated by MxArrayParser would throw RangeError from DataView instead of
+  // quietly producing an unresolved shell.
+  it('skips a variable whose rawBytes is null, undefined, or shorter than 4 bytes', () => {
+    const { raw } = blobParts('Param.mat');
+    expect(decodeMcosBlob(raw, [{ name: 'x', className: 'Simulink.Parameter', rawBytes: null }]).size).toBe(0);
+    expect(decodeMcosBlob(raw, [{ name: 'x', className: 'Simulink.Parameter' }]).size).toBe(0);
+    expect(decodeMcosBlob(raw, [{ name: 'x', className: 'Simulink.Parameter', rawBytes: new Uint8Array(3) }]).size).toBe(0);
+  });
+});
+
+// REGRESSION. The metadata table's property blocks, object references, and string
+// indices all come from the FILE. If any of those is out of range, the decoder used
+// to either throw (RangeError / TypeError on an undefined object) or return a
+// mis-built property bag. Every one of these must silently degrade — the variable
+// opens as an empty shell, exactly like a truncated blob.
+//
+// The damage technique: we decode a known-good fixture to get the blob bytes, then
+// patch specific words in the metadata or property blocks to values that are out of
+// range. The decoder must still return without throwing and must decode the UNDAMAGED
+// variables correctly when possible.
+describe('decodeMcosBlob — damaged metadata (bad offsets, flags, ids)', () => {
+  // For these tests we damage the blob's metadata bytes directly. The metadata is
+  // inside the first heap cell (cells[0]), which is deeply nested in the blob
+  // (outerMatrix → structMatrix → MCOS opaque → cell array → cells[0]). Rather than
+  // navigate that structure, we sweep through the blob bytes looking for a unique
+  // sentinel pattern in the metadata we can patch.
+  //
+  // However, a simpler approach: we test the EFFECTS of bad data by feeding the
+  // decoder variables with broken handles (which we can control via patchHandle).
+
+  it('returns an empty map when the blob is internally valid but no handle resolves', () => {
+    // An opaque var whose handle points to object 0 (the null object) — the
+    // confidence check must reject it because object 0's class is undefined.
+    const { raw, vars } = blobParts('Param.mat');
+    const patched = patchHandle(vars[0].rawBytes!, 4, 0); // objId = 0 (null object)
+    expect(decodeMcosBlob(raw, [{ ...vars[0], rawBytes: patched }]).size).toBe(0);
+  });
+
+  it('truncation sweep on busArray (multi-object blob) never throws', () => {
+    // busArray.mat has a richer metadata table (multiple classes, object arrays,
+    // property blocks with heap-cell references). Truncating it exercises the
+    // bounds guards in the metadata parser and nested-object resolution path.
+    const { raw, vars } = blobParts('busArray.mat');
+    const threw: number[] = [];
+    let decoded = 0;
+    for (let len = 8; len <= raw.length; len += 4) {
+      try {
+        if (decodeMcosBlob(raw.slice(0, len), vars).size > 0) decoded++;
+      } catch {
+        threw.push(len);
+      }
+    }
+    expect(threw).toEqual([]);
+    expect(decoded).toBeGreaterThan(0);
+  });
+});

@@ -15,6 +15,7 @@
 // binarySlddRoundTrip.test.ts.
 import { describe, it, expect } from 'vitest';
 import DataNode from '../src/datamodel/node/DataNode.js';
+import SlddNode from '../src/datamodel/node/container/SlddNode.js';
 import '../src/datamodel/node/NodeClassMap.js';
 
 const prop = (name: string, value: unknown, indent = 0) => DataNode.serializePropertyXml(name, value, indent, null);
@@ -318,5 +319,157 @@ describe('DataNode — base serialization contract', () => {
     // property cannot be lost by an edit to a different one.
     expect(element.other).toBe('kept');
     expect(out._array_class).toBe('Simulink.Parameter');
+  });
+});
+
+describe('DataNode.setProperty — name validation', () => {
+  it('rejects a name longer than 63 characters, the MATLAB maximum', () => {
+    // MATLAB identifiers cap at 63 chars; allowing 64 would create a .sldd that
+    // MATLAB cannot load.
+    const n = new DataNode('Kp', null);
+    const long = 'a'.repeat(64);
+    const r = n.setProperty('name', long) as { error: boolean; reason: string; validValue: string };
+    expect(r.error).toBe(true);
+    expect(r.reason).toContain('63');
+    expect(r.validValue).toBe('Kp');
+    expect(n.name).toBe('Kp');
+  });
+
+  it('rejects a MATLAB keyword, since MATLAB would refuse to read it back', () => {
+    const n = new DataNode('Kp', null);
+    const r = n.setProperty('name', 'break') as { error: boolean; reason: string };
+    expect(r.error).toBe(true);
+    expect(r.reason).toContain('reserved');
+    expect(r.reason).toContain('break');
+    expect(n.name).toBe('Kp');
+  });
+
+  it('renames the entry in the parent _fields array on success', () => {
+    // Struct fields carry a parallel _fields array in the parent serial; a rename
+    // that forgets to update it would serialize the struct with the old field name,
+    // corrupting the saved value.
+    const parent = new DataNode('parent', null) as DataNode & { isContainer: boolean };
+    parent.isContainer = true;
+    parent.serial = { _fields: ['Kp', 'Ki'] } as any;
+    const child = new DataNode('Kp', parent);
+    parent.addChild(child);
+    parent.addChild(new DataNode('Ki', parent));
+    expect(child.setProperty('name', 'Kd')).toBe(true);
+    expect(child.name).toBe('Kd');
+    expect(parent.serial._fields).toEqual(['Kd', 'Ki']);
+  });
+
+  it('assigns a numeric field from a numeric string', () => {
+    // A numeric property round-trips through Number(), so the stored value must
+    // be the number 10 (not the string '10') or the next serialize would change type.
+    const n = new DataNode('n', null) as DataNode & { myNum: number };
+    n.myNum = 5;
+    expect(n.setProperty('myNum', '10')).toBe(true);
+    expect(n.myNum).toBe(10);
+    expect(typeof n.myNum).toBe('number');
+  });
+
+  it('rejects a non-numeric string for a numeric field', () => {
+    const n = new DataNode('n', null) as DataNode & { myNum: number };
+    n.myNum = 5;
+    const r = n.setProperty('myNum', 'abc') as { error: boolean; reason: string; validValue: string };
+    expect(r.error).toBe(true);
+    expect(r.reason).toContain('numeric');
+    expect(r.validValue).toBe('5');
+    expect(n.myNum).toBe(5);
+  });
+
+  it('assigns a boolean field from a string, coercing to strict equality', () => {
+    // Only the literal 'true' must yield true; anything else (including 'True',
+    // '1', 'yes') must yield false, because the serializer writes a JS boolean.
+    const n = new DataNode('b', null) as DataNode & { flag: boolean };
+    n.flag = true;
+    expect(n.setProperty('flag', 'false')).toBe(true);
+    expect(n.flag).toBe(false);
+    expect(n.setProperty('flag', 'true')).toBe(true);
+    expect(n.flag).toBe(true);
+  });
+});
+
+describe('DataNode.nameEditable', () => {
+  it('locks the name when a _displayName alias is set (struct-array elements)', () => {
+    // A struct-array element's displayed name is a positional alias like 'S(2)';
+    // renaming it would make the name diverge from the element index.
+    const n = new DataNode('x', null);
+    n._displayName = 'S(2)';
+    expect(n.nameEditable).toBe(false);
+  });
+
+  it('locks the name when the parent is an object property bag', () => {
+    // A class object's property names are fixed by the class definition; renaming
+    // 'Gain' to 'Foo' would lose the property binding.
+    class ObjBag extends DataNode {
+      get isObjectPropertyBag(): boolean {
+        return true;
+      }
+    }
+    const bag = new ObjBag('obj', null);
+    const child = new DataNode('Gain', bag);
+    bag.addChild(child);
+    expect(child.nameEditable).toBe(false);
+  });
+});
+
+describe('DataNode.kind — classification and derived fallbacks', () => {
+  it('prefers the classification token over the class', () => {
+    // The systemcomposer catalog classifies some entries with a token that drives
+    // Kind; without it, a Simulink.Bus would show 'Bus' rather than 'Struct Type'.
+    const n = new DataNode('x', null, { _rawVal: { _array_class: 'Simulink.Bus' }, _properties: {} });
+    n.classification = 'StructType';
+    expect(n.kind).toBe('Struct Type');
+  });
+
+  it('falls back to DERIVED_KIND_BY_CLASS for a derived unclassified entry', () => {
+    // A freshly pasted Bus in the Architectural Data section is derived but the
+    // catalog has not classified it yet. It must show 'Data Interface', not 'Bus',
+    // so the user sees the same label an already-classified entry would show.
+    const sldd = new SlddNode('d.sldd');
+    const arch = sldd.getSection('arch')!;
+    const busValue = { _array_class: 'Simulink.Bus', _dimensions: [1, 1], _elements: [{ _properties: {} }] };
+    const node = arch.parseEntry(
+      { name: 'MyBus', value: busValue, metadata: { namespace: 'designdata', isderived: '1' } },
+      null,
+    )!;
+    expect(node.isDerived).toBe(true);
+    expect(node.classification).toBeUndefined();
+    expect(node.kind).toBe('Data Interface');
+  });
+
+  it('falls back to KIND_BY_CLASS for a non-derived, unclassified entry', () => {
+    const sldd = new SlddNode('d.sldd');
+    const design = sldd.getSection('design')!;
+    const busValue = { _array_class: 'Simulink.Bus', _dimensions: [1, 1], _elements: [{ _properties: {} }] };
+    const node = design.parseEntry(
+      { name: 'MyBus', value: busValue, metadata: { namespace: 'designdata', isderived: '0' } },
+      null,
+    )!;
+    expect(node.kind).toBe('Bus');
+  });
+});
+
+describe('DataNode.execAddChild / execRemoveChild — base no-ops', () => {
+  it('execAddChild returns null: the base class has no add logic', () => {
+    // Subclasses (BusNode, etc.) override this to create a child element; the base
+    // must return null so a caller that checks the result knows nothing happened.
+    expect(new DataNode('x', null).execAddChild()).toBeNull();
+  });
+
+  it('execRemoveChild returns null: the base class has no remove logic', () => {
+    expect(new DataNode('x', null).execRemoveChild()).toBeNull();
+  });
+});
+
+describe('DataNode._parseMatrixNums', () => {
+  it('skips empty rows from doubled separators instead of injecting NaN', () => {
+    // An empty row in the input (e.g. from a trailing ';' or doubled newlines) must
+    // be skipped, not parsed as 0/NaN — any phantom element would shift every column
+    // after it.
+    const nums = DataNode._parseMatrixNums('[1, 2];;[3, 4]');
+    expect(nums).toEqual([1, 2, 3, 4]);
   });
 });
