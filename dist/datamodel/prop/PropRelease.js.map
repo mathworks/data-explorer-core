@@ -1,0 +1,1 @@
+{"version":3,"file":"PropRelease.js","sourceRoot":"","sources":["../../../src/datamodel/prop/PropRelease.ts"],"names":[],"mappings":"AAAA,qCAAqC;AAErC,MAAM,CAAC,OAAO,OAAO,WAAW;aACrB,QAAG,GAAG,SAAS,CAAC;aAChB,gBAAW,GAAG,SAAS,CAAC;aACxB,WAAM,GAAG,OAAO,CAAC;IAExB,MAAM,CAAC,MAAM,CAAC,KAAc;QACxB,OAAQ,KAAgB,IAAI,EAAE,CAAC;IACnC,CAAC"}

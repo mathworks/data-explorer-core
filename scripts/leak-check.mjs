@@ -1,9 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 // Leak check: no internal MathWorks references may reach the tree. The package is
-// public-bound, so this guards the boundary before any publish. dist/ is generated
-// from src/, so scanning src/test/config/scripts is sufficient. package-lock.json
-// is scanned too — it is where internal Artifactory `resolved` URLs regress if
-// `npm install` is ever run against the internal registry.
+// public-bound, so this guards the boundary before any publish. `git grep` scans
+// every tracked file — including the committed dist/ (shipped so the git dependency
+// resolves without an install-time build) and package-lock.json, where internal
+// Artifactory `resolved` URLs regress if `npm install` runs against the internal
+// registry.
 
 import { execFileSync } from 'node:child_process';
 

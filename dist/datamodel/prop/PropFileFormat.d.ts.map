@@ -1,0 +1,1 @@
+{"version":3,"file":"PropFileFormat.d.ts","sourceRoot":"","sources":["../../../src/datamodel/prop/PropFileFormat.ts"],"names":[],"mappings":"AAEA,MAAM,CAAC,OAAO,OAAO,cAAc;IAC/B,MAAM,CAAC,GAAG,SAAgB;IAC1B,MAAM,CAAC,WAAW,SAAiB;IACnC,MAAM,CAAC,MAAM,SAAW;IAExB,MAAM,CAAC,MAAM,CAAC,KAAK,EAAE,OAAO,GAAG,MAAM;CAGxC"}

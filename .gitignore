@@ -1,7 +1,12 @@
 node_modules/
-dist/
 coverage/
 *.tgz
+
+# NOTE: dist/ is intentionally committed (not ignored). This package is consumed
+# as a git dependency, and enterprise npm setups often set `ignore-scripts=true`,
+# which skips the `prepare` build on install. Shipping a prebuilt dist/ makes the
+# git dependency resolve unconditionally. Rebuild with `npm run build` before
+# committing source changes (CI `verify` enforces it).
 
 # Internal working notes — never publish to the public tree.
 docs/

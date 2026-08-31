@@ -1,0 +1,22 @@
+// Copyright 2026 The MathWorks, Inc.
+export default class PropBaseType {
+    static { this.key = 'BaseType'; }
+    static { this.displayName = 'Base Type'; }
+    // The alias's base type is shown in the Data Type column of the table (the
+    // Value column is not applicable for an alias). It remains an editable text
+    // field in the property inspector; the table's Data Type column has no
+    // in-place editor, so it renders read-only there.
+    static { this.editor = 'text'; }
+    static { this.column = 'DataType'; }
+    static { this.defaultValue = ''; }
+    static format(value) {
+        return value || '';
+    }
+    static parse(raw) {
+        return String(raw || '');
+    }
+    static validate() {
+        return null;
+    }
+}
+//# sourceMappingURL=PropBaseType.js.map

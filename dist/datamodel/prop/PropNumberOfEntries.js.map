@@ -1,0 +1,1 @@
+{"version":3,"file":"PropNumberOfEntries.js","sourceRoot":"","sources":["../../../src/datamodel/prop/PropNumberOfEntries.ts"],"names":[],"mappings":"AAAA,qCAAqC;AAErC,MAAM,CAAC,OAAO,OAAO,mBAAmB;aAC7B,QAAG,GAAG,iBAAiB,CAAC;aACxB,gBAAW,GAAG,mBAAmB,CAAC;aAClC,WAAM,GAAG,OAAO,CAAC;IAExB,MAAM,CAAC,MAAM,CAAC,KAAc;QACxB,OAAO,MAAM,CAAC,KAAK,IAAI,CAAC,CAAC,CAAC;IAC9B,CAAC"}
