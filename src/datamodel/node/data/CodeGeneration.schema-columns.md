@@ -107,6 +107,12 @@ Because of the power-of-2 constraint (which requires non-trivial validation) and
 the `-1` sentinel, it is kept read-only. The `trySetSchemaProperty` code path for
 `editor: 'label'` returns `null` immediately.
 
+Note that a *generic* `int` check (`Number.isInteger`) would NOT be the right
+validation if Alignment were ever made editable: it accepts 3, 5, 6, … which
+MATLAB rejects. Making it editable means writing the power-of-2 + `-1` rule
+explicitly, so no generic int branch is carried in `trySetSchemaProperty`
+speculatively — see below.
+
 ## Validation mirrored in code
 
 - `schemaBridge.ts: trySetSchemaProperty` → for `storageClass` (editor 'select'):
@@ -115,8 +121,13 @@ the `-1` sentinel, it is kept read-only. The `trySetSchemaProperty` code path fo
   `test/parity/fidelity/schemaColumns.fidelity.test.ts`.
 - `headerFile` and `alignment` (editor 'label'): `trySetSchemaProperty` returns
   `null` (not writable), so `DataNode.setProperty` falls through to field-based
-  logic which also does not handle them → effectively read-only. No dead
-  validation code.
+  logic which also does not handle them → effectively read-only.
+- **No dead validation code.** `trySetSchemaProperty` validates only the 'select'
+  editor, because `storageClass` is the sole prop that is both `projected: true`
+  and not `editor: 'label'` — i.e. the only writable schema prop that exists.
+  A generic `int` branch was removed for this reason (it was unreachable, and
+  would have been wrong for Alignment anyway; see above). Adding a writable prop
+  of a new editor type requires adding its validation at the same time.
 
 ## Round-trip coverage
 

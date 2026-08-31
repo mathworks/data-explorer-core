@@ -141,13 +141,6 @@ export function buildPILayout(className) {
 export function schemaColumns(className) {
     return eligibleProps(className).map((prop) => toPropClass(prop, prop.key));
 }
-// The built-in set of enumerated StorageClass values (raw CoderInfo.StorageClass
-// tokens). Sourced from codeGen.json so it stays single-source with the dropdown.
-function storageClassOptions() {
-    const resolved = getSchema('Simulink.Parameter');
-    const sc = resolved?.find((p) => p.key === 'storageClass');
-    return sc?.options ?? [];
-}
 // Attempt to apply an edit to a schema-projected, editable property, writing back
 // into the node's serial._properties bag along the prop's sourcePath (including
 // nested CoderInfo). Returns:
@@ -166,22 +159,21 @@ export function trySetSchemaProperty(node, key, stringValue) {
     if (!prop || prop.editor === 'label') {
         return null;
     }
-    let value = stringValue;
+    // Every writable projected prop today is an enumerated 'select' — the two
+    // other projected props (headerFile, alignment) are 'label' and returned
+    // above. A prop of some other editor would fall through here unvalidated, so
+    // adding one means adding its validation alongside; there is deliberately no
+    // speculative branch for a type we do not yet expose (notably `int`: MATLAB
+    // constrains Alignment to -1 or a power of 2, which Number.isInteger does
+    // not express, so a generic int check would accept values MATLAB rejects).
     if (prop.editor === 'select') {
-        const options = prop.options ?? storageClassOptions();
+        const options = prop.options ?? [];
         if (options.length > 0 && !options.includes(stringValue)) {
             return { error: true, reason: 'Invalid value for ' + prop.label, invalidValue: stringValue, validValue: '' };
         }
     }
-    else if (prop.type === 'int') {
-        const num = Number(stringValue);
-        if (stringValue.trim() === '' || !Number.isInteger(num)) {
-            return { error: true, reason: prop.label + ' must be an integer', invalidValue: stringValue, validValue: '' };
-        }
-        value = num;
-    }
     const props = node.serial?._properties;
-    const ok = writeSourcePath(props, prop.sourcePath, value);
+    const ok = writeSourcePath(props, prop.sourcePath, stringValue);
     if (!ok) {
         return { error: true, reason: 'Cannot set ' + prop.label + ' (target property is absent)', invalidValue: stringValue, validValue: '' };
     }
