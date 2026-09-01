@@ -273,32 +273,134 @@ describe('parseBinarySlddParts — object properties', () => {
     });
   });
 
+  // REGRESSION. Several objects under a <P> carrying no Dimension used to decode to
+  // a plain JS ARRAY of one-element wrappers. Nothing downstream understands that: it
+  // is not a value object, so the serializer fell through to its numeric-array arm and
+  // wrote `Class="double" Dimension="1*2">[object Object] [object Object]` — every
+  // property of both objects gone from the file on the next save of an untouched entry.
+  // It now decodes as the Nx1 object array it is, matching what the entry-level path
+  // already did for the same undimensioned shape.
   it('decodes a property holding several objects with no declared dimension', () => {
-    // Without a Dimension there is no array shape to report, so each element is
-    // decoded on its own and the property becomes a plain list.
     const things = props(
       '<P Name="Things">' +
         '<Element Class="Simulink.Signal"><P Name="A" Class="double">1.0</P></Element>' +
         '<Element Class="Simulink.Signal"><P Name="A" Class="double">2.0</P></Element></P>',
-    ).Things as Record<string, any>[];
-    expect(things).toHaveLength(2);
-    expect(things.map((t) => t._elements[0]._properties.A)).toEqual([1, 2]);
+    ).Things as Record<string, any>;
+    expect(things).toEqual({
+      _array_class: 'Simulink.Signal',
+      _dimensions: [2, 1],
+      _mw_element_type: 'MATLABArray',
+      _elements: [{ _properties: { A: 1 } }, { _properties: { A: 2 } }],
+    });
+    // The point: both objects survive a save, with their class.
+    expect(saved(things)).toContain('<Element Class="Simulink.Signal">');
+    expect(saved(things)).toContain('<P Name="A" Class="double">2.0</P>');
   });
 
-  it('treats classless elements of a dimensioned property as bare structs', () => {
-    // <Element> with no Class is a struct element. Reporting an empty _array_class
-    // is what tells the row builder there is no object type to show.
-    const rows = props(
-      '<P Name="Rows" Dimension="1*2">' +
-        '<Element><P Name="a" Class="double">1.0</P></Element>' +
-        '<Element><P Name="a" Class="double">2.0</P></Element></P>',
-    ).Rows;
-    expect(rows).toEqual({
-      _array_class: '',
+  // REGRESSION. An <Element> with no Class is a STRUCT element, so a dimensioned
+  // property full of them is a struct array — but this decoded to an object array
+  // wrapper with `_array_class: ''`. That empty class is a shape nothing accepts:
+  // it is falsy, so NodeClassMap does not route it to a node, and the serializer
+  // skipped its object arm and wrote `Class="char">[object Object]`, losing every
+  // field. It now decodes exactly as the same elements tagged `Class="struct"` do,
+  // which is what makes them round-trip.
+  it('decodes classless elements of a dimensioned property as the struct array they are', () => {
+    const elems =
+      '<Element><P Name="a" Class="double">1.0</P></Element><Element><P Name="a" Class="double">2.0</P></Element>';
+    const expected = {
+      _array_type: 'Struct',
       _dimensions: [1, 2],
+      _elements: [{ a: 1 }, { a: 2 }],
+      _fields: ['a'],
       _mw_element_type: 'MATLABArray',
-      _elements: [{ _properties: { a: 1 } }, { _properties: { a: 2 } }],
+    };
+    expect(props(`<P Name="Rows" Dimension="1*2">${elems}</P>`).Rows).toEqual(expected);
+    // Identical to the spelling MATLAB itself writes, and it writes back as a struct.
+    expect(props(`<P Name="Rows" Class="struct" Dimension="1*2">${elems}</P>`).Rows).toEqual(expected);
+    expect(saved(expected)).toBe(
+      '<P Name="X" Class="struct" Dimension="1*2">\n' +
+        '    <Element>\n        <P Name="a" Class="double">1.0</P>\n    </Element>\n' +
+        '    <Element>\n        <P Name="a" Class="double">2.0</P>\n    </Element>\n' +
+        '</P>',
+    );
+  });
+
+  // REGRESSION. A single classless <Element> under a <P> — the same struct element,
+  // written without the enclosing Class="struct" tag — decoded to a BARE field bag
+  // ({ a: 1 }) with no envelope at all, which the serializer could only spell
+  // `Class="char">[object Object]`.
+  it('decodes a single classless element as a 1x1 struct, not a bare field bag', () => {
+    const bag = props('<P Name="Bag"><Element><P Name="a" Class="double">1.0</P></Element></P>').Bag;
+    expect(bag).toEqual({
+      _array_type: 'Struct',
+      _dimensions: [1, 1],
+      _elements: [{ a: 1 }],
+      _fields: ['a'],
+      _mw_element_type: 'MATLABArray',
     });
+    expect(saved(bag)).toContain('Class="struct"');
+  });
+
+  // REGRESSION. An object array whose FIRST element carried a Class but a later one
+  // did not threw `Cannot read properties of undefined (reading '0')` out of the
+  // parser: the per-element loop re-entered parseElement and indexed into the
+  // single-element wrapper it returns, which a classless element does not produce.
+  // Nothing between there and the host catches it, so the whole .sldd failed to open.
+  it('does not throw when a later element of an object array carries no class', () => {
+    const v = value(
+      '<P Name="Value" Class="Simulink.Parameter" Dimension="2*1">' +
+        '<Element Class="Simulink.Parameter"><P Name="V" Class="double">1.0</P></Element>' +
+        '<Element><P Name="V" Class="double">2.0</P></Element></P>',
+    ) as Record<string, any>;
+    // The class comes off the wrapper (the first element), and the unclassed element
+    // still contributes its properties rather than costing the file its read.
+    expect(v._array_class).toBe('Simulink.Parameter');
+    expect(v._elements.map((e: any) => e._properties.V)).toEqual([1, 2]);
+  });
+
+  // REGRESSION. A struct-valued property decoded correctly on a SCALAR object but
+  // not on an element of an object ARRAY: the array path had its own copy of the
+  // element loop that suppressed the struct arm, so `s` came back as a bare
+  // { a: 1 } field bag with no Struct envelope. The save path has no way to tell
+  // that from an opaque object and wrote `<P Name="s" Class="char">[object
+  // Object]</P>` — the struct was destroyed on the next save of an untouched
+  // entry. Both shapes now decode through the one element path.
+  it('decodes a struct-valued property the same on an array element as on a scalar object', () => {
+    const structProp = '<P Name="s" Class="struct"><Element><P Name="a" Class="double">1.0</P></Element></P>';
+    const expected = {
+      _array_type: 'Struct',
+      _dimensions: [1, 1],
+      _elements: [{ a: 1 }],
+      _fields: ['a'],
+      _mw_element_type: 'MATLABArray',
+    };
+    // On a scalar object property.
+    expect((props(`<P Name="O"><Element Class="Simulink.BusElement">${structProp}</Element></P>`).O as any)
+      ._elements[0]._properties.s).toEqual(expected);
+    // And on each element of a dimensioned (object-array) property.
+    const arr = props(
+      `<P Name="O" Class="Simulink.BusElement" Dimension="2*1">` +
+        `<Element Class="Simulink.BusElement">${structProp}</Element>` +
+        `<Element Class="Simulink.BusElement">${structProp}</Element></P>`,
+    ).O as Record<string, any>;
+    expect(arr._elements.map((e: any) => e._properties.s)).toEqual([expected, expected]);
+    // The point of the envelope: the save path writes it back AS a struct.
+    expect(saved(arr)).toContain('<P Name="s" Class="struct">');
+  });
+
+  it('keeps a complex element property as cdata inside an object array too', () => {
+    // The array path used to have its own element loop that skipped the
+    // IsComplex="1" case entirely, so a complex property on an array element
+    // decoded as bare text and lost its cdata envelope.
+    const arr = props(
+      '<P Name="O" Class="Simulink.Parameter" Dimension="1*2">' +
+        '<Element Class="Simulink.Parameter"><P Name="V" Class="double" IsComplex="1">1.0+2.0i</P></Element>' +
+        '<Element Class="Simulink.Parameter"><P Name="V" Class="double" IsComplex="1">3.0-4.0i</P></Element></P>',
+    ).O as Record<string, any>;
+    expect(arr._elements.map((e: any) => e._properties.V)).toEqual([
+      { _type: 'cdata', _value: '1.0+2.0i' },
+      { _type: 'cdata', _value: '3.0-4.0i' },
+    ]);
   });
 
   it('decodes a bare property, an unknown class, and an empty typed one', () => {

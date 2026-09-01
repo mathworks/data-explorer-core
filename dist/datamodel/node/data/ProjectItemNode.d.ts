@@ -4,13 +4,11 @@ export interface ProjectItemOpts {
     itemType: string;
     location: string;
     labels?: string[];
-    icon?: string;
 }
 export default class ProjectItemNode extends BaseNode {
     projectItemType: string;
     location: string;
     labels: string[];
-    _icon?: string;
     constructor(name: string, parent: BaseNode | null, opts: ProjectItemOpts);
     get isEntry(): boolean;
     get icon(): string;

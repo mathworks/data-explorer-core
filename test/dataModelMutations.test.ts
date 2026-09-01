@@ -108,6 +108,22 @@ describe('addEntry', () => {
     expect(design.children.length).toBe(before);
     expect(s.canUndo()).toBe(false);
   });
+
+  // The ADD-side twin of 'refuses to delete an entry out of a read-only model
+  // section'. A .slx model's ModelSectionNode implements neither getAllowedTypes
+  // nor execAddEntry, so it is found by name (skipping the class-inference loop
+  // entirely) and then refused for having no add hook — which is what keeps a
+  // read-only model read-only from this direction too.
+  it('returns null for a section of a read-only model, by name or by inference', () => {
+    const { s, src } = modelSession();
+    const ws = sectionOf(src, 'workspace');
+    const before = ws.children.length;
+    expect(s.addEntry('workspace', 'MatlabVariable')).toBeNull();
+    // And from the root, where no model section claims the class either.
+    expect(s.addEntry('sldd', 'MatlabVariable')).toBeNull();
+    expect(ws.children.length).toBe(before);
+    expect(s.canUndo()).toBe(false);
+  });
 });
 
 describe('editProperty', () => {
@@ -440,6 +456,27 @@ describe('deleteNode', () => {
     expect(s.deleteNode()).toBe(false);
     expect(parent.children.length).toBe(before);
     expect(s.findNodeById(child.id)).toBe(child);
+    expect(s.canUndo()).toBe(false);
+  });
+
+  // The section HAS execRemoveEntry, but the node is no longer among its children,
+  // so the hook reports the removal it could not perform. This is the stale-selection
+  // case: a host still holding a node the tree already dropped (a second delete of
+  // the same node, or a selection surviving a reload). deleteNode has to treat the
+  // null as a refusal — pushing an undo step here would let undo re-attach a node
+  // the document deliberately no longer has.
+  it('returns false for an entry its section no longer contains', () => {
+    const { s, src } = loadedSession();
+    const design = sectionOf(src, 'design');
+    const entry = design.children[0];
+    design.children.splice(0, 1);
+    // Still reads as an entry: `parent` is untouched, which is exactly why the
+    // section, not the node, is the one that can tell this is a no-op.
+    expect(entry.isEntry).toBe(true);
+    expect(entry.parent).toBe(design);
+    s.setActive(src, entry);
+
+    expect(s.deleteNode()).toBe(false);
     expect(s.canUndo()).toBe(false);
   });
 

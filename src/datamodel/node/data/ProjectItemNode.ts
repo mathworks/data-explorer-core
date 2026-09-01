@@ -11,31 +11,28 @@ export interface ProjectItemOpts {
     itemType: string;
     location: string;
     labels?: string[];
-    icon?: string;
 }
 
 export default class ProjectItemNode extends BaseNode {
     projectItemType: string;
     location: string;
     labels: string[];
-    _icon?: string;
 
     constructor(name: string, parent: BaseNode | null, opts: ProjectItemOpts) {
         super(name, parent);
         this.projectItemType = opts.itemType;
         this.location = opts.location;
         this.labels = opts.labels || [];
-        this._icon = opts.icon;
     }
 
     get isEntry(): boolean {
         return true;
     }
 
+    // The icon follows from the item TYPE alone (and, for a file, its extension) —
+    // ProjectSectionNode is the only thing that builds these nodes and it sets no
+    // icon per item, so there is deliberately no per-node override to consult.
     get icon(): string {
-        if (this._icon) {
-            return this._icon;
-        }
         const type = this.projectItemType;
         if (type === 'Folder') {
             return 'databaseFolder';

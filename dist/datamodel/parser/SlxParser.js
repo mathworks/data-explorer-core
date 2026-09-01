@@ -43,52 +43,54 @@ function extractExternalDataSources(doc) {
     }
     return sources;
 }
+// Every value stored under `tagName`, at any depth, in document order. An empty
+// element parses to '' rather than an object, so a caller that walks INTO a result
+// (extractExternalDataSources does) hands a non-object straight back in — hence the
+// base case, which is what keeps `<ExplicitExternalBrokerSources/>` from being a
+// crash instead of "no sources".
 function findAll(obj, tagName) {
     const results = [];
     if (!obj || typeof obj !== 'object') {
         return results;
     }
-    for (const key of Object.keys(obj)) {
+    for (const [key, val] of Object.entries(obj)) {
         if (key === tagName) {
-            const val = obj[key];
-            if (Array.isArray(val)) {
-                results.push(...val);
-            }
-            else {
-                results.push(val);
-            }
+            results.push(...(Array.isArray(val) ? val : [val]));
         }
-        else if (typeof obj[key] === 'object') {
-            results.push(...findAll(obj[key], tagName));
+        else if (typeof val === 'object') {
+            results.push(...findAll(val, tagName));
         }
     }
     return results;
 }
+// The first NON-EMPTY text under `tagName`, at any depth. Shares findAll's single
+// traversal rather than keeping a second, near-identical recursion whose empty-value
+// handling depended on match depth (an '' matched at the top level was returned; an
+// '' matched while nested was skipped). Every caller already treats '' as absent —
+// `findText(doc, 'cp:version') || findText(doc, 'version') || ''` — so "first
+// non-empty" is the contract they all assume, applied uniformly.
 function findText(obj, tagName) {
-    if (!obj || typeof obj !== 'object') {
-        return null;
-    }
-    for (const key of Object.keys(obj)) {
-        if (key === tagName) {
-            const val = obj[key];
-            if (typeof val === 'string') {
-                return val;
-            }
-            if (val && val['#text']) {
-                return val['#text'];
-            }
-            return String(val);
-        }
-        if (typeof obj[key] === 'object') {
-            const found = findText(obj[key], tagName);
-            if (found) {
-                return found;
-            }
+    for (const val of findAll(obj, tagName)) {
+        // A tag with attributes parses to an object whose text is under '#text'; a
+        // plain tag parses to the string (or, for a bare number, to a number) itself.
+        const text = val && typeof val === 'object'
+            ? String(val['#text'] ?? '')
+            : String(val ?? '');
+        if (text) {
+            return text;
         }
     }
     return null;
 }
 const NUMERIC_RE = /^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+// The MATLAB non-finite literals, in any case and with an optional sign. A
+// Saturation block's `UpperLimit=Inf` is a NUMBER, not a reference to a workspace
+// variable named Inf. This was a case-SENSITIVE comparison against the three
+// lowercase spellings, so exactly the spellings MATLAB itself writes — `Inf`,
+// `-Inf`, `NaN` — slipped past it and every such block reported a phantom variable
+// usage. Anchored, so `Infinity` still counts as an identifier: that is the
+// JavaScript name, MATLAB cannot evaluate it, and a variable may legally use it.
+const NON_FINITE_RE = /^[+-]?(inf|nan)$/i;
 // At least one MATLAB identifier char-run — i.e. the value could name a variable.
 // Used to gate which block params count as data references (see below).
 const IDENT_RE = /[A-Za-z_]\w*/;
@@ -173,7 +175,7 @@ function extractBlockParamUsages(entries) {
                 const val = pObj['#text'] || '';
                 if (!val || NUMERIC_RE.test(val))
                     continue;
-                if (val === 'inf' || val === '-inf' || val === 'nan')
+                if (NON_FINITE_RE.test(val))
                     continue;
                 if (val === 'on' || val === 'off')
                     continue;

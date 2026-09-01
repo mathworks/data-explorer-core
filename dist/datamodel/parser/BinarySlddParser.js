@@ -169,35 +169,66 @@ function parseEntry(obj, rawXml) {
         rawXml,
     };
 }
+// The SLDD Struct envelope for N struct <Element>s. A struct arrives in four
+// places (entry value, nested property, cell item, dimensioned property) and every
+// one of them has to emit this exact shape, because it is what tells the SAVE path
+// to write `Class="struct"` back — a struct that loses the envelope is written as
+// `Class="char">[object Object]` and its fields are gone from the file.
+function structValue(elements, dimParts) {
+    const parsed = elements.map((e) => parseStructElement(e));
+    return {
+        _array_type: 'Struct',
+        _dimensions: dimParts,
+        _elements: parsed,
+        _fields: parsed.length > 0 ? Object.keys(parsed[0]) : [],
+        _mw_element_type: 'MATLABArray',
+    };
+}
+// The SLDD Cell envelope. The dimension DEFAULT differs by caller (an entry value
+// with no Dimension is 1x1; a nested cell is 1xN), so dims are the caller's to
+// decide and only the envelope is shared.
+function cellValue(elements, dimParts) {
+    return {
+        _array_type: 'Cell',
+        _dimensions: dimParts,
+        _elements: elements.map((e) => parseCellElement(e)),
+        _mw_element_type: 'MATLABArray',
+    };
+}
+// The SLDD object-array envelope. The class lives on the WRAPPER and is read from
+// the first element, so a LATER element carrying no Class of its own still
+// contributes its <P> bag: this path used to re-enter parseElement per element and
+// index into the single-element wrapper it returns, which threw on a classless later
+// element and took the whole file's read down with it.
+//
+// With no class at all there is no object array to describe — a classless <Element>
+// is a struct element — and an empty _array_class is a shape NOTHING downstream
+// accepts: it is falsy, so the node registry does not route it and the serializer
+// writes `Class="char">[object Object]`, losing every field on the next save. So an
+// unclassed element set decodes as the struct array it is.
+function objectArrayValue(elements, dimParts) {
+    const className = elements.length > 0 ? elements[0]['@_Class'] || '' : '';
+    if (!className) {
+        return structValue(elements, dimParts);
+    }
+    return {
+        _array_class: className,
+        _dimensions: dimParts,
+        _mw_element_type: 'MATLABArray',
+        _elements: elements.map((e) => ({ _properties: parseStructElement(e) })),
+    };
+}
 function parseEntryValue(prop) {
     const className = prop['@_Class'] || null;
     const dimension = prop['@_Dimension'] || null;
     const elements = prop.Element;
     // Struct: Class="struct" with Element children (no Class on Element)
     if (className === 'struct') {
-        const dimParts = dimension ? parseDims(dimension) : [1, 1];
-        const elems = elements || [];
-        const parsed = elems.map((e) => parseStructElement(e));
-        const fields = parsed.length > 0 ? Object.keys(parsed[0]) : [];
-        return {
-            _array_type: 'Struct',
-            _dimensions: dimParts,
-            _elements: parsed,
-            _fields: fields,
-            _mw_element_type: 'MATLABArray',
-        };
+        return structValue(elements || [], dimension ? parseDims(dimension) : [1, 1]);
     }
     // Cell: Class="cell" with Element children
     if (className === 'cell') {
-        const dimParts = dimension ? parseDims(dimension) : [1, 1];
-        const elems = elements || [];
-        const cellElements = elems.map((e) => parseCellElement(e));
-        return {
-            _array_type: 'Cell',
-            _dimensions: dimParts,
-            _elements: cellElements,
-            _mw_element_type: 'MATLABArray',
-        };
+        return cellValue(elements || [], dimension ? parseDims(dimension) : [1, 1]);
     }
     // String object: Element with Class="string"
     if (elements && elements.length > 0 && elements[0]['@_Class'] === 'string') {
@@ -210,17 +241,7 @@ function parseEntryValue(prop) {
         if (elements.length === 1) {
             return parseElement(elements[0]);
         }
-        const dimParts = dimension ? parseDims(dimension) : [elements.length, 1];
-        return {
-            _array_class: elements[0]['@_Class'],
-            _dimensions: dimParts,
-            _mw_element_type: 'MATLABArray',
-            _elements: elements.map((el) => {
-                const parsed = parseElement(el);
-                const inner = parsed._elements[0];
-                return { _properties: inner._properties };
-            }),
-        };
+        return objectArrayValue(elements, dimension ? parseDims(dimension) : [elements.length, 1]);
     }
     // Char scalar (no elements, Class="char")
     if (className === 'char') {
@@ -310,27 +331,11 @@ function parseCellElement(el) {
         return text || '';
     }
     if (elClass === 'struct') {
-        const childElements = el.Element || [];
-        const parsed = childElements.map((e) => parseStructElement(e));
-        const fields = parsed.length > 0 ? Object.keys(parsed[0]) : [];
-        return {
-            _array_type: 'Struct',
-            _dimensions: [1, 1],
-            _elements: parsed,
-            _fields: fields,
-            _mw_element_type: 'MATLABArray',
-        };
+        return structValue(el.Element || [], [1, 1]);
     }
     if (elClass === 'cell') {
         const childElements = el.Element || [];
-        const dimParts = dimension ? parseDims(dimension) : [1, childElements.length];
-        const cellElements = childElements.map((e) => parseCellElement(e));
-        return {
-            _array_type: 'Cell',
-            _dimensions: dimParts,
-            _elements: cellElements,
-            _mw_element_type: 'MATLABArray',
-        };
+        return cellValue(childElements, dimension ? parseDims(dimension) : [1, childElements.length]);
     }
     // Nested object
     const childElements = el.Element;
@@ -433,7 +438,7 @@ function formatMatrix(values, dims, type) {
         _value: 'Matrix(' + rows + ',' + cols + ')\n[' + rowStrs.join('; ') + ']',
     };
 }
-function parsePropContent(prop, handleStructClass = true) {
+function parsePropContent(prop) {
     const propClass = prop['@_Class'] || null;
     const dimension = prop['@_Dimension'] || null;
     const childElements = prop.Element;
@@ -442,27 +447,13 @@ function parsePropContent(prop, handleStructClass = true) {
             // A nested cell property (with or without a Dimension) serializes its
             // items as <Element> children — decode them like the top-level entry
             // path instead of treating each as a generic object with empty props.
-            const dimParts = dimension ? parseDims(dimension) : [1, childElements.length];
-            return {
-                _array_type: 'Cell',
-                _dimensions: dimParts,
-                _elements: childElements.map((e) => parseCellElement(e)),
-                _mw_element_type: 'MATLABArray',
-            };
+            return cellValue(childElements, dimension ? parseDims(dimension) : [1, childElements.length]);
         }
         else if (dimension) {
             return parseArrayOfElements(childElements, dimension, propClass);
         }
-        else if (handleStructClass && propClass === 'struct') {
-            const parsed = childElements.map((e) => parseStructElement(e));
-            const fields = parsed.length > 0 ? Object.keys(parsed[0]) : [];
-            return {
-                _array_type: 'Struct',
-                _dimensions: [1, 1],
-                _elements: parsed,
-                _fields: fields,
-                _mw_element_type: 'MATLABArray',
-            };
+        else if (propClass === 'struct') {
+            return structValue(childElements, [1, 1]);
         }
         else if (childElements[0]['@_Class'] === 'string') {
             // A nested MATLAB string property serializes as <Element Class="string">
@@ -474,9 +465,14 @@ function parsePropContent(prop, handleStructClass = true) {
         else if (childElements.length === 1) {
             return parseElement(childElements[0]);
         }
-        else {
-            return childElements.map((e) => parseElement(e));
-        }
+        // Several objects with no declared shape. MATLAB never writes this (every
+        // multi-element <P> in a real dictionary carries a Dimension), but the reader
+        // has to choose SOMETHING, and it must be a shape the save path can write:
+        // this used to be a bare JS array of per-element wrappers, which the serializer
+        // could only spell `Class="double">[object Object] [object Object]` — every
+        // property of every element gone from the file. Nx1 matches the entry-level
+        // path's default for the same undimensioned case.
+        return objectArrayValue(childElements, [childElements.length, 1]);
     }
     else {
         const text = getTextContent(prop);
@@ -485,73 +481,49 @@ function parsePropContent(prop, handleStructClass = true) {
 }
 function parseElement(el) {
     const className = el['@_Class'] || '';
+    // A classless <Element> is a struct element, and only the Struct envelope tells
+    // the save path to write `Class="struct"` back — a bare field bag is written as
+    // `Class="char">[object Object]`, so every field is gone from the file. (MATLAB
+    // itself always tags the enclosing <P> `Class="struct"`, which the callers handle
+    // before reaching here; this is the untagged spelling.)
     if (!className) {
-        return parseStructElement(el);
-    }
-    const properties = {};
-    const props = el.P || [];
-    for (const prop of props) {
-        const propName = prop['@_Name'];
-        if (!prop.Element?.length && prop['@_IsComplex'] === '1') {
-            const text = getTextContent(prop);
-            const dimension = prop['@_Dimension'] || null;
-            const result = { _type: 'cdata', _value: text };
-            if (dimension) {
-                result._dimensions = parseDims(dimension);
-            }
-            properties[propName] = result;
-        }
-        else {
-            properties[propName] = parsePropContent(prop);
-        }
+        return structValue([el], [1, 1]);
     }
     return {
         _array_class: className,
         _dimensions: [1, 1],
         _mw_element_type: 'MATLABArray',
-        _elements: [{ _properties: properties }],
+        _elements: [{ _properties: parseStructElement(el) }],
     };
 }
+// The <P> children of one <Element>, as a plain name → value bag. Serves both the
+// bare struct element (no Class attribute) and the property bag of a classed
+// object element, so an object array's elements and a scalar object's decode
+// through exactly the same path — they used to have separate copies, and the
+// array copy passed a flag that skipped struct decoding, writing a struct-valued
+// property back as `Class="char">[object Object]`.
 function parseStructElement(el) {
     const result = {};
-    const props = el.P || [];
-    for (const prop of props) {
-        result[prop['@_Name']] = parsePropContent(prop);
+    for (const prop of el.P || []) {
+        // A complex scalar carries its value as text with IsComplex="1" rather than
+        // as child elements, so it never reaches the generic content decoder.
+        if (!prop.Element?.length && prop['@_IsComplex'] === '1') {
+            const dimension = prop['@_Dimension'] || null;
+            const cdata = { _type: 'cdata', _value: getTextContent(prop) };
+            if (dimension) {
+                cdata._dimensions = parseDims(dimension);
+            }
+            result[prop['@_Name']] = cdata;
+        }
+        else {
+            result[prop['@_Name']] = parsePropContent(prop);
+        }
     }
     return result;
 }
 function parseArrayOfElements(elements, dimension, propClass) {
     const dimParts = parseDims(dimension);
-    if (propClass === 'struct') {
-        const parsed = elements.map((e) => parseStructElement(e));
-        const fields = parsed.length > 0 ? Object.keys(parsed[0]) : [];
-        return {
-            _array_type: 'Struct',
-            _dimensions: dimParts,
-            _elements: parsed,
-            _fields: fields,
-            _mw_element_type: 'MATLABArray',
-        };
-    }
-    const firstClass = elements.length > 0 ? elements[0]['@_Class'] || '' : '';
-    const parsed = elements.map((e) => {
-        const elClass = e['@_Class'] || '';
-        if (!elClass) {
-            return { _properties: parseStructElement(e) };
-        }
-        const elProps = {};
-        const childPs = e.P || [];
-        for (const p of childPs) {
-            elProps[p['@_Name']] = parsePropContent(p, false);
-        }
-        return { _properties: elProps };
-    });
-    return {
-        _array_class: firstClass,
-        _dimensions: dimParts,
-        _mw_element_type: 'MATLABArray',
-        _elements: parsed,
-    };
+    return propClass === 'struct' ? structValue(elements, dimParts) : objectArrayValue(elements, dimParts);
 }
 function parseTypedValue(text, className, dimension) {
     if (!className) {

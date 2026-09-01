@@ -463,6 +463,106 @@ describe('MatlabVariableNode — add and remove children', () => {
     n.removeChildNode(n.children[1]);
     expect([n._kind, n._scalarValue, n.children.length, n._dims]).toEqual(['scalar', 1, 0, [1, 1]]);
   });
+
+  it('reports a fully emptied numeric array as 1x0', () => {
+    // An `array` node only builds child rows when it has more than one element
+    // (parseFlatArray/parseTypedArray both guard on that), so removeChildNode
+    // always lands on the collapse-to-scalar arm and the only route to zero
+    // elements is the update helper directly — the same shape the string side
+    // tests at 'reports a fully emptied string array as 1x0'.
+    const n = parse([1, 2]);
+    n._elements = [];
+    n._rawInput = undefined;
+    n._updateArrayAfterRemove();
+    expect([n._dims, n.serializeValue()]).toEqual([[1, 0], []]);
+  });
+});
+
+// MATLAB's numeric classes are part of the value: an int32 written back as a
+// double is silent corruption, not a display nit — MATLAB reads the .sldd and gets
+// a differently-typed variable. JSON has one number type and MatlabValueParser
+// reports every bare number as 'double', so the class survives only if the node
+// asserts it. These pin the four places that used to hardcode 'double' and drop it.
+describe('MatlabVariableNode — a typed numeric class survives every edit', () => {
+  const typed = (t: string, v: string): Any => parse({ _type: t, _value: v });
+
+  it('keeps the class when a Value edit re-states the number', () => {
+    for (const t of ['int32', 'uint8', 'int8', 'single']) {
+      const n = typed(t, '5');
+      expect(n.setProperty('Value', '7')).toBe(true);
+      expect([t, n._scalarType, n.serializeValue()]).toEqual([t, t, { _type: t, _value: '7' }]);
+      expect(n.serializeXml('P', {}, 0)).toBe('<P Class="' + t + '">' + (t === 'single' ? '7.0' : '7') + '</P>');
+    }
+  });
+
+  it('lets a non-numeric edit retype the variable, as the user asked', () => {
+    // Only the parser's 'double' default is overridden. Typing text, a logical, or
+    // a complex is an explicit request for that class and must go through.
+    const n = typed('int32', '5');
+    n.setProperty('Value', "'text'");
+    expect([n._scalarType, n._scalarValue]).toEqual(['char', 'text']);
+    const b = typed('int32', '5');
+    b.setProperty('Value', 'true');
+    expect([b._scalarType, b._scalarValue]).toEqual(['logical', true]);
+  });
+
+  it('retypes a logical to double when a number is typed into it', () => {
+    // Unlike the integer classes, 'logical' cannot hold 7 — MATLAB rejects it — so
+    // the parser's double wins here.
+    const n = typed('logical', '1');
+    n.setProperty('Value', '7');
+    expect([n._scalarType, n.serializeValue()]).toEqual(['double', 7]);
+  });
+
+  it('keeps the class when an element is appended', () => {
+    for (const t of ['int32', 'logical']) {
+      const n = typed(t, t === 'logical' ? '[1, 0]' : '[5, 6]');
+      n.addChildNode();
+      expect([t, n._scalarType, n.serializeValue()]).toEqual([
+        t,
+        t,
+        { _type: t, _value: 'Matrix(1,3)\n[' + (t === 'logical' ? '1, 0, 0' : '5, 6, 0') + ']' },
+      ]);
+    }
+  });
+
+  it('keeps the class when a removal collapses the array to a scalar, and on undo', () => {
+    for (const spec of [
+      { t: 'int32', v: '[5, 6]', collapsed: '5', display: '[5 6]' },
+      { t: 'logical', v: '[1, 0]', collapsed: '1', display: '[true false]' },
+      { t: 'single', v: '[5, 6]', collapsed: '5', display: '[5 6]' },
+    ]) {
+      const n = typed(spec.t, spec.v);
+      const op: Any = n.execRemoveChild(n.children[1]);
+      expect([spec.t, n._scalarType, n.serializeValue()]).toEqual([
+        spec.t,
+        spec.t,
+        { _type: spec.t, _value: spec.collapsed },
+      ]);
+      op.undo();
+      expect([spec.t, n._scalarType, n.displayValue]).toEqual([spec.t, spec.t, spec.display]);
+      expect(n.serializeValue()).toEqual({ _type: spec.t, _value: 'Matrix(1,2)\n' + spec.v });
+    }
+  });
+
+  it('still writes a plain double as a bare JSON value', () => {
+    // The typed literal is for values a bare JSON scalar cannot carry. Tagging a
+    // double too would add a wrapper MATLAB never wrote, diffing every save.
+    const n = parse(5);
+    n.setProperty('Value', '7');
+    expect(n.serializeValue()).toBe(7);
+    const arr = parse([1, 2]);
+    arr.addChildNode();
+    expect(arr.serializeValue()).toEqual([1, 2, 0]);
+  });
+
+  it('still writes a logical scalar as a bare JSON boolean', () => {
+    // A logical scalar travels as a JS boolean, which JSON carries losslessly. Only
+    // an element lifted out of a logical ARRAY (stored as 1/0) needs the tag.
+    const n = parse(true);
+    n.setProperty('Value', 'false');
+    expect(n.serializeValue()).toBe(false);
+  });
 });
 
 describe('MatlabVariableNode — undo of a removal', () => {

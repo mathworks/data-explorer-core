@@ -509,10 +509,15 @@ describe('decodeMcosBlob — damaged metadata (bad offsets, flags, ids)', () => 
     // busArray.mat has a richer metadata table (multiple classes, object arrays,
     // property blocks with heap-cell references). Truncating it exercises the
     // bounds guards in the metadata parser and nested-object resolution path.
+    //
+    // EVERY byte length, not every fourth: the navigation guards trigger on how a
+    // declared length lands relative to the bytes present, and a stride of 4 steps
+    // over three quarters of those landings — including the ones where a nested
+    // view is long enough for its own tag but not for the subelement after it.
     const { raw, vars } = blobParts('busArray.mat');
     const threw: number[] = [];
     let decoded = 0;
-    for (let len = 8; len <= raw.length; len += 4) {
+    for (let len = 0; len <= raw.length; len++) {
       try {
         if (decodeMcosBlob(raw.slice(0, len), vars).size > 0) decoded++;
       } catch {
@@ -521,6 +526,9 @@ describe('decodeMcosBlob — damaged metadata (bad offsets, flags, ids)', () => 
     }
     expect(threw).toEqual([]);
     expect(decoded).toBeGreaterThan(0);
+    // The blob only becomes navigable once essentially all of it is present, so a
+    // partial file yields an empty shell rather than a half-built object.
+    expect(decoded).toBeLessThan(raw.length);
   });
 });
 
@@ -641,5 +649,116 @@ describe('decodeMcosBlob — logical-flagged heap cells resolve as booleans', ()
     const bpProps = (breakpoints._properties as Record<string, unknown>);
     // Before fix: [0, 0] (number[]). After fix: [false, false] (boolean[]).
     expect(bpProps.Dimensions).toEqual([false, false]);
+  });
+});
+
+// The metadata table's property blocks are the last thing between the FILE's bytes
+// and a property bag: a block's declared property count is a loop bound, each
+// triple's name index is a string-table lookup, and each triple's flag selects how
+// its value is read. All three come from the file, so all three can be wrong on a
+// damaged or hand-edited blob, and each has to degrade to "that property is absent"
+// rather than throw, hang, or invent a value. The blob's metadata table sits at a
+// known offset in these fixtures (see the block walk below), so we can aim a patch
+// at one real triple and watch exactly one property drop out.
+describe('decodeMcosBlob — damaged property blocks (byte surgery on the metadata table)', () => {
+  // busArray.mat's metadata table starts at this blob offset. Asserted below, so
+  // fixture drift fails loudly instead of silently patching the wrong bytes.
+  const META = 304;
+
+  function meta(raw: Uint8Array): { header: number[]; blocks: { at: number; nProps: number }[] } {
+    const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+    const u32 = (byteOffset: number) => view.getUint32(byteOffset, true);
+    const header = Array.from({ length: 10 }, (_, i) => u32(META + i * 4));
+    const align8 = (n: number) => n + ((8 - (n % 8)) % 8);
+    // Walk the property-block segment [w[5], w[6]) exactly as the parser does.
+    const blocks: { at: number; nProps: number }[] = [];
+    for (let p = header[5]; p < header[6]; ) {
+      const start = p;
+      const nProps = u32(META + p);
+      p += 4 + nProps * 12;
+      blocks.push({ at: start, nProps });
+      p = start + align8(p - start);
+    }
+    return { header, blocks };
+  }
+
+  function patchWord(raw: Uint8Array, byteOffset: number, value: number): Uint8Array {
+    const copy = raw.slice();
+    new DataView(copy.buffer, copy.byteOffset, copy.byteLength).setUint32(byteOffset, value, true);
+    return copy;
+  }
+
+  // The busArray fixture's Bus object: 6 properties, 3 array elements.
+  const ALL_PROPS = ['Alignment', 'PreserveElementDimensions', 'Elements_internal', 'Description', 'DataScope', 'HeaderFile'];
+
+  it('the metadata table is where these tests assume it is', () => {
+    const { raw } = blobParts('busArray.mat');
+    const { header, blocks } = meta(raw);
+    // Segment ends monotonic and in bounds — i.e. we really found the header.
+    expect(header[2]).toBeLessThanOrEqual(header[3]);
+    expect(header[6]).toBeLessThanOrEqual(raw.length - META);
+    // Block 0 is the empty/default block; block 1 is the Bus instance's own.
+    expect(blocks[0].nProps).toBe(0);
+    expect(blocks[1].nProps).toBe(5);
+    expect(Object.keys(decodeMcosBlob(raw, blobParts('busArray.mat').vars).get('buses')!.properties)).toEqual(ALL_PROPS);
+  });
+
+  it('drops a property whose name index points at the empty string', () => {
+    // Index 0 of the string table is the synthetic empty string, so a triple
+    // naming it names nothing. Keying a property bag on '' would put a nameless
+    // row in the Property Inspector; the class default it was overriding
+    // (PreserveElementDimensions) is what remains.
+    const { raw, vars } = blobParts('busArray.mat');
+    const { blocks } = meta(raw);
+    const patched = patchWord(raw, META + blocks[1].at + 4, 0);
+    const props = decodeMcosBlob(patched, vars).get('buses')!.properties;
+    expect(Object.keys(props)).toEqual(ALL_PROPS.filter((p) => p !== 'PreserveElementDimensions'));
+  });
+
+  it('drops a property whose name index is past the end of the string table', () => {
+    // Out of range reads as undefined, which the same guard rejects — the decoder
+    // must not key the bag on the string "undefined".
+    const { raw, vars } = blobParts('busArray.mat');
+    const { blocks } = meta(raw);
+    const patched = patchWord(raw, META + blocks[1].at + 4, 99999);
+    const props = decodeMcosBlob(patched, vars).get('buses')!.properties;
+    expect(Object.keys(props)).not.toContain('undefined');
+    expect(Object.keys(props)).toEqual(ALL_PROPS.filter((p) => p !== 'PreserveElementDimensions'));
+  });
+
+  it('drops a property carrying a flag the format does not define', () => {
+    // Flags 0/1/2 select string-table index / heap-cell index / inline boolean.
+    // Any other flag means we do not know how to read the value word, and a guess
+    // would surface a wrong value indistinguishable from a real one — so the
+    // property is dropped and the rest of the block still decodes.
+    const { raw, vars } = blobParts('busArray.mat');
+    const { blocks } = meta(raw);
+    for (const flag of [3, 7, 0xffffffff]) {
+      const patched = patchWord(raw, META + blocks[1].at + 8, flag);
+      const decoded = decodeMcosBlob(patched, vars).get('buses')!;
+      expect(Object.keys(decoded.properties)).toEqual(ALL_PROPS.filter((p) => p !== 'PreserveElementDimensions'));
+      // The object array is otherwise intact — one bad flag costs one property.
+      expect(decoded.elements).toHaveLength(3);
+    }
+  });
+
+  it('stops reading blocks when a declared property count cannot be right', () => {
+    // The count is the loop bound AND the stride: a wildly large or
+    // segment-overrunning value means we lost alignment, and continuing would
+    // read triples out of whatever bytes follow — fabricating properties. Stopping
+    // costs the blocks after the damage (so only the class defaults remain for
+    // those objects), which is the honest answer.
+    const { raw, vars } = blobParts('busArray.mat');
+    const { header, blocks } = meta(raw);
+    for (const [byteOffset, count] of [
+      [META + header[5], 99999], // over the 1000-property sanity cap
+      [META + blocks[1].at, 999], // under the cap, but overruns the segment
+    ] as const) {
+      const decoded = decodeMcosBlob(patchWord(raw, byteOffset, count), vars).get('buses')!;
+      // Alignment survives: it comes from the per-class DEFAULTS, which are a
+      // separate heap cell and unaffected by block damage.
+      expect(Object.keys(decoded.properties)).toEqual(['Alignment']);
+      expect(decoded.elements).toHaveLength(3);
+    }
   });
 });

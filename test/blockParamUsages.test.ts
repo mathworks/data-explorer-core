@@ -81,6 +81,38 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
     expect(usages).toEqual([]);
   });
 
+  // REGRESSION. A non-finite limit is a NUMBER, not a reference to a workspace
+  // variable — but the filter compared against the three LOWERCASE spellings only,
+  // so exactly the spellings MATLAB itself writes (`Inf`, `-Inf`, `NaN`) slipped
+  // through the identifier gate. Every Saturation/Limit block in a real model then
+  // reported a phantom usage of a variable named "Inf", and the Usage column of an
+  // actual variable could show a block that never referenced it.
+  it('drops non-finite limits in every MATLAB spelling, not just lowercase', () => {
+    for (const v of ['inf', 'Inf', 'INF', '-inf', '-Inf', '+inf', 'nan', 'NaN', 'NAN']) {
+      expect(
+        usagesFor(`<Block BlockType="Saturate" Name="S" SID="1"><P Name="UpperLimit">${v}</P></Block>`),
+      ).toEqual([]);
+    }
+  });
+
+  it('still treats Infinity as an identifier — MATLAB cannot evaluate it', () => {
+    // 'Infinity' is the JavaScript name; in MATLAB it can only be a variable, so it
+    // stays a usage. This is what the anchors on the non-finite pattern buy.
+    const usages = usagesFor(`<Block BlockType="Gain" Name="G" SID="1"><P Name="Gain">Infinity</P></Block>`);
+    expect(usages).toEqual([
+      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Infinity' },
+    ]);
+  });
+
+  it('keeps a value that merely CONTAINS a non-finite token', () => {
+    // `Inf` anchored means the whole value; `[1 Inf]` still names no variable, but
+    // `InfGain` and `2*Tau_inf` do, and an unanchored pattern would have to be
+    // careful not to eat them.
+    const usages = usagesFor(`<Block BlockType="Gain" Name="G" SID="1"><P Name="Gain">2*Tau_inf</P></Block>`);
+    expect(usages).toHaveLength(1);
+    expect(usages[0].paramValue).toBe('2*Tau_inf');
+  });
+
   describe('multi-line block-name normalization (&#xA; = newline)', () => {
     it('collapses a hex newline entity in the block name to a single space', () => {
       // Simulink wraps long labels; the raw SLX stores the break as &#xA;, which
@@ -164,8 +196,8 @@ describe('parseSlx — model workspace MAT-File source + edge cases', () => {
 
   it('surfaces a numeric-only version tag via the String() fallback in findText', () => {
     // fast-xml-parser parses <version>42</version> as the number 42, not the string
-    // "42". The findText helper must stringify it (line 114) so the parser always
-    // returns a string release, not a number that breaks downstream comparisons.
+    // "42". The findText helper must stringify it so the parser always returns a
+    // string release, not a number that breaks downstream comparisons.
     const buf = slxWith({
       'metadata/coreProperties.xml': strToU8(
         `<?xml version="1.0"?><coreProperties><version>42</version></coreProperties>`,
@@ -187,6 +219,56 @@ describe('parseSlx — model workspace MAT-File source + edge cases', () => {
     expect(parsed.release).toBe('');
     expect(parsed.creator).toBe('');
     expect(parsed.uuid).toBe('u1');
+  });
+
+  it('reports no sources for an EMPTY broker-sources element', () => {
+    // fast-xml-parser turns `<X/>` into the empty STRING, not an object, so the
+    // per-element findText walks into a non-object. Without the base case that is a
+    // crash on a legal (if pointless) .slx rather than "this model has no sources".
+    const buf = slxWith({
+      'simulink/ExternalDataSourceSettings.xml': strToU8(
+        `<?xml version="1.0"?><ExternalDataSourceSettings>` +
+        `<ExplicitExternalBrokerSources/></ExternalDataSourceSettings>`,
+      ),
+    });
+    expect(parseSlx(buf, 'test.slx').externalDataSources).toEqual([]);
+  });
+
+  it('skips a broker-sources element whose path tag is empty', () => {
+    // An empty <fullPathToSource/> names no file. Recording '' would make the host
+    // try to resolve a source with no name.
+    const buf = slxWith({
+      'simulink/ExternalDataSourceSettings.xml': strToU8(
+        `<?xml version="1.0"?><ExternalDataSourceSettings>` +
+        `<ExplicitExternalBrokerSources><fullPathToSource/></ExplicitExternalBrokerSources>` +
+        `<ExplicitExternalBrokerSources><fullPathToSource>real.mat</fullPathToSource></ExplicitExternalBrokerSources>` +
+        `</ExternalDataSourceSettings>`,
+      ),
+    });
+    expect(parseSlx(buf, 'test.slx').externalDataSources).toEqual(['real.mat']);
+  });
+
+  it('finds a metadata tag that carries attributes alongside its text', () => {
+    // A tag with attributes parses to an object whose text sits under '#text'.
+    const buf = slxWith({
+      'metadata/coreProperties.xml': strToU8(
+        `<?xml version="1.0"?><coreProperties><cp:version xsi:type="str">R2027a</cp:version></coreProperties>`,
+      ),
+    });
+    expect(parseSlx(buf, 'test.slx').release).toBe('R2027a');
+  });
+
+  it('skips an EMPTY earlier spelling of a metadata tag and takes the later one', () => {
+    // `findText(doc,'cp:version') || findText(doc,'version')` treats '' as absent,
+    // so an empty <cp:version/> must not shadow a populated <version>. Pinning this
+    // is what lets findText share findAll's traversal instead of keeping a second
+    // recursion whose empty-value handling depended on match depth.
+    const buf = slxWith({
+      'metadata/coreProperties.xml': strToU8(
+        `<?xml version="1.0"?><coreProperties><cp:version/><version>R2026b</version></coreProperties>`,
+      ),
+    });
+    expect(parseSlx(buf, 'test.slx').release).toBe('R2026b');
   });
 
   it('skips a block that has no <P> children at all', () => {

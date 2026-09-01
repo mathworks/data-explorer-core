@@ -174,12 +174,15 @@ function readDir(index, dir) {
 }
 /**
  * Given a child filename like `8AEH..._sp.xml` or `qaw0...p.xml`, return the
- * hash (stem before the suffix) and whether it is a pointer.
+ * hash (stem before the suffix) and whether it is a pointer. Null when the stem
+ * carries none of the four recognized suffixes — a file in the store that is not
+ * half of a pointer/def pair, which readDir skips.
+ *
+ * PRECONDITION: `name` ends in `.xml`. parseProject's index only admits `.xml`
+ * paths, and readDir only asks about entries of that index, so re-checking here
+ * would be a branch no input can take.
  */
 function parseChildName(name) {
-    if (!name.endsWith('.xml')) {
-        return null;
-    }
     const stem = name.slice(0, -'.xml'.length);
     if (stem.endsWith('_sp')) {
         return { hash: stem.slice(0, -'_sp'.length), isPointer: true };

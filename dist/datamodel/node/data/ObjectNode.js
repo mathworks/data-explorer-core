@@ -59,20 +59,22 @@ export default class ObjectNode extends DataNode {
         // Object ARRAY: each child is a scalar element node (an ObjectNode for a
         // custom class, or a typed node like ParameterNode for a known one). Rebuild
         // one `_elements` entry per element from its own serialized value, preserving
-        // the array wrapper. A typed node serializes as { _array_class,
-        // _elements:[{_properties}] }; a nested ObjectNode as { _object_class,
-        // _properties } — normalize both to a bare { _properties } array entry.
+        // the array wrapper.
+        //
+        // `parse` hands every element back to NodeRegistry inside a single-element
+        // { _array_class, _elements: [{ _properties }] } wrapper, so a child's
+        // serialized form carries that same wrapper back — a typed node rebuilds it
+        // and a scalar ObjectNode echoes it. Unwrap it to the bare { _properties }
+        // entry the outer array holds. Anything else (an element whose node
+        // serializes to a bare scalar, or to null) contributes an empty bag: the
+        // wrapper is the only shape this array form can carry.
         if (this._isElementArray) {
             const elements = this.children.map((child) => {
                 const elemVal = child.serializeValue();
-                let props = {};
-                if (elemVal && Array.isArray(elemVal._elements) && elemVal._elements.length > 0) {
-                    props = elemVal._elements[0]._properties ?? {};
-                }
-                else if (elemVal && elemVal._properties) {
-                    props = elemVal._properties;
-                }
-                return { _properties: props };
+                const first = Array.isArray(elemVal?._elements)
+                    ? elemVal._elements[0]
+                    : undefined;
+                return { _properties: first?._properties ?? {} };
             });
             return Object.assign({}, rawVal, { _elements: elements });
         }

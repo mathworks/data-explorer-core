@@ -107,6 +107,18 @@ describe('MatlabValueParser — numeric arrays', () => {
     expect(parse('[1 2;]')).toEqual({ type: 'double', value: [1, 2], dims: [1, 2] });
   });
 
+  it('tolerates a stray element separator, as MATLAB does', () => {
+    // MATLAB evaluates all of these to the same 1x2. A separator with nothing on
+    // one side of it contributes no element rather than an empty token that fails
+    // the literal check — otherwise typing a comma before finishing the next
+    // element would report the whole value as invalid mid-keystroke.
+    expect(parse('[1, 2, ]')).toEqual({ type: 'double', value: [1, 2], dims: [1, 2] });
+    expect(parse('[ ,1, 2]')).toEqual({ type: 'double', value: [1, 2], dims: [1, 2] });
+    expect(parse('[1,,2]')).toEqual({ type: 'double', value: [1, 2], dims: [1, 2] });
+    // But separators alone still describe no matrix at all, not a 1x0 one.
+    expect(parse('[,]')).toBeNull();
+  });
+
   it('accepts non-finite elements', () => {
     expect(parse('[1 Inf]')).toEqual({ type: 'double', value: [1, Infinity], dims: [1, 2] });
     const withNan = parse('[1 NaN]')!;

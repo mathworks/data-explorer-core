@@ -139,10 +139,15 @@ function readableBytes(view: DataView, sub: SubElement): number {
   return Math.max(0, Math.min(sub.bytes, view.byteLength - sub.dataOffset));
 }
 
-function toUint8(value: unknown): Uint8Array | null {
-  if (value instanceof Uint8Array) return value;
-  if (Array.isArray(value)) return new Uint8Array(value as number[]);
-  return null;
+// The bytes of a `uint8` matrix, or null if this matrix is not one. parseMatrix
+// decodes every numeric class to a plain number array — never a typed array — so
+// that is the only conversion needed, and a matrix of some other class is not a
+// blob we can navigate. (A ONE-element uint8 matrix decodes to a bare number and
+// is rejected here; both callers separately require at least 16 bytes anyway.)
+function uint8Bytes(matrix: MatVariable): Uint8Array | null {
+  return matrix.className === 'uint8' && Array.isArray(matrix.value)
+    ? new Uint8Array(matrix.value as number[])
+    : null;
 }
 
 // ---- Navigation: raw element bytes -> the MCOS cell array (cells[]) -----------
@@ -155,19 +160,24 @@ function findCellArrayInOpaque(
   let offset = opaqueContentOffset;
   const end = Math.min(opaqueContentOffset + opaqueContentLength, view.byteLength);
 
+  // Unreachable through today's single caller, which hands us a window inside an
+  // opaque field whose own tag it already read — but kept, because what makes it
+  // unreachable is an invariant of MatParser's `_rawBytes` slicing, one module away
+  // and free to change. The cost is one uncovered line; the alternative is a
+  // RangeError out of DataView that nothing between here and the host catches.
   const flagsSub = readSubelement(view, offset);
   if (!flagsSub) return null;
   offset += flagsSub.totalSize;
 
+  // Terminates on any input: readSubelement's totalSize is 8 (small-element form)
+  // or 8 + align8(an unsigned byte count), so it is never below 8 and `offset`
+  // always advances. A damaged blob cannot spin this loop.
   while (offset < end) {
     const sub = readSubelement(view, offset);
     if (!sub) return null;
     if (sub.type === MI_MATRIX) {
       return { offset: sub.dataOffset, length: readableBytes(view, sub) };
     }
-    // A zero-size subelement would leave `offset` where it was and spin here
-    // forever on a damaged blob, so treat it as the end of what we can navigate.
-    if (sub.totalSize <= 0) return null;
     offset += sub.totalSize;
   }
   return null;
@@ -181,7 +191,7 @@ function extractCells(anonRawBytes: Uint8Array): (MatVariable | null)[] | null {
   if (outerView.byteLength < 16 || outerView.getUint32(0, true) !== MI_MATRIX) return null;
 
   const outerMatrix = parseMatrix(outerView, 8, Math.min(outerView.getUint32(4, true), outerView.byteLength - 8));
-  const blobBytes = outerMatrix.className === 'uint8' ? toUint8(outerMatrix.value) : null;
+  const blobBytes = uint8Bytes(outerMatrix);
   if (!blobBytes || blobBytes.length < 16) return null;
 
   const blobView = new DataView(blobBytes.buffer, blobBytes.byteOffset, blobBytes.byteLength);
@@ -195,6 +205,10 @@ function extractCells(anonRawBytes: Uint8Array): (MatVariable | null)[] | null {
 
   const opaqueView = new DataView(mcosField._rawBytes.buffer, mcosField._rawBytes.byteOffset, mcosField._rawBytes.byteLength);
   const opaqueTag = readSubelement(opaqueView, 0);
+  // `!opaqueTag` means `_rawBytes` is under 8 bytes — not producible by today's
+  // MatParser, which only sets the field after reading a tag out of it, but that is
+  // its invariant to keep, not ours to assume. Same trade as the flags guard above:
+  // one uncovered line instead of a DataView RangeError escaping the parser.
   if (!opaqueTag || opaqueTag.type !== MI_MATRIX) return null;
 
   const cellLoc = findCellArrayInOpaque(opaqueView, opaqueTag.dataOffset, readableBytes(opaqueView, opaqueTag));
@@ -209,7 +223,7 @@ function extractCells(anonRawBytes: Uint8Array): (MatVariable | null)[] | null {
 
 function parseMetaTable(cells: (MatVariable | null)[]): MetaTable | null {
   if (cells.length < 1 || !cells[0]) return null;
-  const metadata = cells[0].className === 'uint8' ? toUint8(cells[0].value) : null;
+  const metadata = uint8Bytes(cells[0]);
   if (!metadata || metadata.length < 40) return null;
 
   const view = new DataView(metadata.buffer, metadata.byteOffset, metadata.byteLength);
@@ -271,6 +285,11 @@ function parseMetaTable(cells: (MatVariable | null)[]): MetaTable | null {
 
 // ---- Value resolution ---------------------------------------------------------
 
+// The handle PREFIX check: a uint32 array long enough to carry the shortest legal
+// handle, [magic, ndims, rows, cols, id], and tagged with the magic. This is the
+// single place that shape is decided — objectHandleFromValue takes it as a
+// precondition rather than re-deriving it, so the two cannot drift apart on what
+// counts as a handle.
 function isObjectHandle(cell: MatVariable): boolean {
   if (cell.className !== 'uint32') return false;
   const v = cell.value;
@@ -283,9 +302,13 @@ function isObjectHandle(cell: MatVariable): boolean {
 // is [magic, 2, 1, 1, id]; an N-element array is [magic, 2, N, 1, id0..idN-1]. Returns
 // the dimensions and the FULL id list so a nested object ARRAY (e.g. a Bus's
 // Elements_internal, or any object-array property) keeps every element, not just its
-// first. Returns null if the array isn't a well-formed handle.
+// first.
+//
+// PRECONDITION: isObjectHandle(cell) — so `v` is a magic-tagged uint32 array of at
+// least 5 elements. Null here means the DIMENSION words are not self-consistent
+// (the count they describe does not fit the ids present), which a damaged blob can
+// produce; the caller falls back to reading v[4] as a scalar id.
 function objectHandleFromValue(v: number[]): { dims: number[]; ids: number[] } | null {
-  if (!Array.isArray(v) || v.length < 5 || v[0] !== MCOS_HANDLE_MAGIC) return null;
   const ndims = v[1];
   if (ndims < 1 || ndims > 8 || 2 + ndims > v.length) return null;
   const dims: number[] = [];

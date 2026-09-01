@@ -109,6 +109,38 @@ function decodeCdata(str: string): { rows: number; cols: number; realParts: numb
   return { rows, cols, realParts, imagParts };
 }
 
+// The MATLAB numeric classes a bare JSON number cannot carry. JSON has ONE number
+// type, so an int32 or a single written as a plain number reads back as a double —
+// a silent class change, not a rounding nit. `double` needs no tag.
+const TYPED_NUMERIC_CLASS = /^(?:u?int(?:8|16|32|64)|single)$/;
+
+// The class a value keeps across an edit. A Value edit sets the VALUE, not the
+// class — MATLAB's own `v(:) = 7` on an int32 stays int32, and the Data Type
+// column is read-only here — but MatlabValueParser cannot know the class: a bare
+// `7` always parses as 'double'. So the node's existing class beats the parser's
+// default. Only the integer/single classes qualify: every number is representable
+// in them, whereas keeping 'logical' would render `7` as `true`, which MATLAB
+// rejects outright.
+function classAfterEdit(current: string, parsedType: string): string {
+  return parsedType === 'double' && TYPED_NUMERIC_CLASS.test(current) ? current : parsedType;
+}
+
+// True when a scalar has to be written as the format's typed {_type,_value}
+// literal rather than a bare JSON value. Both reasons are silent data loss:
+// an int32/single written bare reads back as double (see TYPED_NUMERIC_CLASS),
+// and JSON has no literal for Inf/NaN — JSON.stringify writes `null`, which reads
+// back as 0. A `logical` normally travels as a JS boolean and needs no tag, except
+// when it came from an array, whose elements the parser stores as 1/0.
+function needsTypedLiteral(type: string, value: unknown): boolean {
+  if (TYPED_NUMERIC_CLASS.test(type)) {
+    return true;
+  }
+  if (type === 'logical') {
+    return typeof value !== 'boolean';
+  }
+  return typeof value === 'number' && !isFinite(value);
+}
+
 function formatComplex(real: number, imag: number): string {
   const r = String(real);
   const im = String(imag);
@@ -523,44 +555,39 @@ export default class MatlabVariableNode extends DataNode {
     return this.parent._kind === 'array' || this.parent._kind === 'string';
   }
 
+  // An element of a numeric or string array, whose container fixes what it may
+  // hold: one MATLAB array is one class, so an element cannot be retyped the way a
+  // free-standing variable can (setProperty's other path). Reached only when
+  // _isConstrainedChild() is true, i.e. the parent's kind is 'array' or 'string' —
+  // the two the branch below is exhaustive over, which is why it has no third arm.
   _setConstrainedValue(stringValue: string): true | SetPropertyResult {
     const parent = this.parent as MatlabVariableNode;
-    if (parent._kind === 'array') {
-      const parsed = MatlabValueParser.parse(stringValue);
-      if (!parsed || parsed.type !== 'double' || Array.isArray(parsed.value)) {
-        return {
-          error: true,
-          reason: 'Array elements must be scalar numbers',
-          invalidValue: stringValue,
-          validValue: this.displayValue,
-        };
-      }
-      this._scalarValue = parsed.value;
-      this._scalarType = 'double';
-      parent._syncElementFromChild(this);
-      parent._rawInput = undefined;
-      this._markModified();
-      return true;
+    const isArrayElement = parent._kind === 'array';
+    const parsed = MatlabValueParser.parse(stringValue);
+    const accepted = isArrayElement
+      ? parsed?.type === 'double' && !Array.isArray(parsed.value)
+      : parsed?.type === 'char' || parsed?.type === 'string';
+    if (!parsed || !accepted) {
+      return {
+        error: true,
+        reason: isArrayElement
+          ? 'Array elements must be scalar numbers'
+          : 'String elements must be character or string values',
+        invalidValue: stringValue,
+        validValue: this.displayValue,
+      };
     }
-    if (parent._kind === 'string') {
-      const parsed = MatlabValueParser.parse(stringValue);
-      if (!parsed || (parsed.type !== 'char' && parsed.type !== 'string')) {
-        return {
-          error: true,
-          reason: 'String elements must be character or string values',
-          invalidValue: stringValue,
-          validValue: this.displayValue,
-        };
-      }
-      this._scalarValue = parsed.value;
-      this._scalarType = 'string';
+    this._scalarValue = parsed.value;
+    this._scalarType = isArrayElement ? 'double' : 'string';
+    if (!isArrayElement) {
+      // A string-array element is a string-KIND node (see _makeStringElement), and
+      // its own display and serialize paths read the text from _elements.
       this._elements = [parsed.value as string];
-      parent._syncElementFromChild(this);
-      parent._rawInput = undefined;
-      this._markModified();
-      return true;
     }
-    return { error: true, reason: 'Cannot edit', invalidValue: stringValue, validValue: this.displayValue };
+    parent._syncElementFromChild(this);
+    parent._rawInput = undefined;
+    this._markModified();
+    return true;
   }
 
   // Every edit routes through _markModified (DataNode), so this is the one place
@@ -595,22 +622,22 @@ export default class MatlabVariableNode extends DataNode {
     this.children = [];
     this._matVar = null;
     this._rawInput = undefined;
+    // The class this node had going in. A numeric edit re-states the VALUE, not the
+    // class, so classAfterEdit lets it survive the parser's 'double' default — see
+    // its comment. Read before any arm overwrites it.
+    const prevType = this._scalarType;
     if (parsed.type === 'double' && Array.isArray(parsed.value) && parsed.value.length === 1) {
       this._kind = 'scalar';
       this._scalarValue = parsed.value[0];
-      this._scalarType = 'double';
+      this._scalarType = classAfterEdit(prevType, 'double');
       this._dims = [1, 1];
       this.serial = {};
     } else if (parsed.type === 'double' && Array.isArray(parsed.value)) {
       this._kind = 'array';
       this._elements = parsed.value;
       this._dims = parsed.dims!;
-      this._scalarType = 'double';
-      if (parsed.dims![0] > 1) {
-        this.serial = { _type: 'double', _value: this._buildMatrixString(parsed.dims!, parsed.value as number[]) };
-      } else {
-        this.serial = this._elements as unknown as Record<string, unknown>;
-      }
+      this._scalarType = classAfterEdit(prevType, 'double');
+      this._syncArraySerial();
       this._buildArrayChildren();
     } else if (parsed.type === 'string-array') {
       this._kind = 'string';
@@ -628,7 +655,7 @@ export default class MatlabVariableNode extends DataNode {
     } else {
       this._kind = 'scalar';
       this._scalarValue = parsed.value;
-      this._scalarType = parsed.type;
+      this._scalarType = classAfterEdit(prevType, parsed.type);
       this._dims = [1, 1];
       this.serial = {};
     }
@@ -836,10 +863,12 @@ export default class MatlabVariableNode extends DataNode {
         // Down to one element, so this is a scalar now — which means dropping the
         // surviving element's child row and the [1,n]/[n,1] orientation. Undo has
         // to put both back, so remember the orientation on the way out.
+        // _scalarType is deliberately NOT touched: an int32 array whose extra
+        // elements were removed is still an int32, and hardcoding 'double' here
+        // silently reclassified it (and the XML writer then wrote Class="double").
         this._preCollapseDims = this._dims.slice();
         this._kind = 'scalar';
         this._scalarValue = this._elements[0];
-        this._scalarType = 'double';
         this._dims = [1, 1];
         this._elements = [];
         this.children = [];
@@ -893,7 +922,9 @@ export default class MatlabVariableNode extends DataNode {
       this._kind = 'array';
       this._elements = [this._scalarValue as number];
       this._scalarValue = undefined;
-      this._scalarType = 'double';
+      // _scalarType stays as-is: the collapse preserved the array's MATLAB class on
+      // the way down (see _updateArrayAfterRemove), so re-asserting 'double' here
+      // would undo a removal by ALSO changing an int32/logical array to a double one.
       // Restore the row/column orientation the collapse discarded.
       this._dims = this._preCollapseDims ?? [1, 1];
       this._preCollapseDims = null;
@@ -990,9 +1021,20 @@ export default class MatlabVariableNode extends DataNode {
     }
   }
 
+  // Re-render `serial` from the live _elements after the array's shape changed.
+  // _serializeArray reads serial._type to decide whether to emit the typed literal,
+  // so the tag is the ONLY carrier of the MATLAB class through the JSON writer:
+  // hardcoding 'double' here — or dropping the tag entirely, which the bare
+  // element-list form does — turned an int32/single/logical array into a double
+  // array on the first add or remove. A matrix keeps the typed literal whatever its
+  // class, because Matrix(r,c) has no bare JSON spelling at all.
   private _syncArraySerial(): void {
-    if (this._dims[0] > 1) {
-      this.serial = { _type: 'double', _value: this._buildMatrixString(this._dims, this._elements as number[]) };
+    const typed = TYPED_NUMERIC_CLASS.test(this._scalarType) || this._scalarType === 'logical';
+    if (this._dims[0] > 1 || typed) {
+      this.serial = {
+        _type: typed ? this._scalarType : 'double',
+        _value: this._buildMatrixString(this._dims, this._elements as number[]),
+      };
     } else {
       this.serial = this._elements as unknown as Record<string, unknown>;
     }
@@ -1039,10 +1081,10 @@ export default class MatlabVariableNode extends DataNode {
     if (this._scalarType === 'complex') {
       return { _type: 'cdata', _value: this._scalarValue };
     }
-    // JSON has no literal for Inf/NaN — JSON.stringify writes them as `null`,
-    // which reads back as 0 and silently destroys the value. The typed form is
-    // the format's own escape hatch for a value a bare JSON number can't carry.
-    if (typeof this._scalarValue === 'number' && !isFinite(this._scalarValue)) {
+    // The typed form is the format's own escape hatch for a value a bare JSON
+    // scalar cannot carry — an integer/single class, or an Inf/NaN. See
+    // needsTypedLiteral for why each one loses data written bare.
+    if (needsTypedLiteral(this._scalarType, this._scalarValue)) {
       return { _type: this._scalarType, _value: formatMatlabNum(this._scalarValue) };
     }
     return this._scalarValue;

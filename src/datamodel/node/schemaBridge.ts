@@ -112,21 +112,16 @@ function eligibleProps(className: string): ResolvedProp[] {
     return resolved.filter((p) => p.projected === true);
 }
 
-// Resolve one PI-layout key to a renderable PropClass for `className`. Curated
-// atom keys (Name/Value/Data Type/…) resolve to the node atom; any other key is
-// a schema-registry prop, hydrated from its sourcePath and forced read-only
-// ('label') because the Property Inspector has no edit channel. Returns null if
-// the key matches neither (a layout referencing an unknown key is skipped).
-function resolvePropForKey(className: string, key: string): PropClass | null {
-    const atom = ATOM_BY_KEY[key];
-    if (atom) {
-        return atom;
-    }
-    const resolved = getSchema(className)?.find((p) => p.key === key);
-    if (!resolved) {
-        return null;
-    }
-    return toPropClass(resolved, null, 'label');
+// Resolve one PI-layout key to a renderable PropClass. Curated atom keys
+// (Name/Value/Data Type/…) resolve to the node atom; any other key is looked up in
+// `schema` — the class's own resolved props — and forced read-only ('label')
+// because the Property Inspector has no edit channel. A key matching neither is
+// undefined and the caller's filter drops it, so a layout typo costs a missing PI
+// row rather than a crash; the "every authored layout key resolves" test in
+// test/schema/schemaBridge.test.ts is what keeps that from hiding a real property.
+function resolvePropForKey(schema: ResolvedProp[] | undefined, key: string): PropClass | undefined {
+    const resolved = schema?.find((p) => p.key === key);
+    return ATOM_BY_KEY[key] ?? (resolved && toPropClass(resolved, null, 'label'));
 }
 
 // The Property Inspector layout for `className`, built from the declarative schema
@@ -139,11 +134,14 @@ export function buildPILayout(className: string): PIGroupDef[] | null {
     if (!layout) {
         return null;
     }
+    // One getSchema per class, not one per key: a layout has ~20 keys and each
+    // lookup would otherwise re-walk the whole resolved prop list.
+    const schema = getSchema(className);
     return layout.map((g) => ({
         group: g.group,
         items: g.items
-            .map((key) => resolvePropForKey(className, key))
-            .filter((pc): pc is PropClass => pc !== null),
+            .map((key) => resolvePropForKey(schema, key))
+            .filter((pc): pc is PropClass => pc !== undefined),
     }));
 }
 

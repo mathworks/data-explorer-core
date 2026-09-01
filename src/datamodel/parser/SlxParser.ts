@@ -78,52 +78,56 @@ function extractExternalDataSources(doc: unknown): string[] {
   return sources;
 }
 
+// Every value stored under `tagName`, at any depth, in document order. An empty
+// element parses to '' rather than an object, so a caller that walks INTO a result
+// (extractExternalDataSources does) hands a non-object straight back in — hence the
+// base case, which is what keeps `<ExplicitExternalBrokerSources/>` from being a
+// crash instead of "no sources".
 function findAll(obj: unknown, tagName: string): unknown[] {
   const results: unknown[] = [];
   if (!obj || typeof obj !== 'object') {
     return results;
   }
-  for (const key of Object.keys(obj as object)) {
+  for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
     if (key === tagName) {
-      const val = (obj as Record<string, unknown>)[key];
-      if (Array.isArray(val)) {
-        results.push(...val);
-      } else {
-        results.push(val);
-      }
-    } else if (typeof (obj as Record<string, unknown>)[key] === 'object') {
-      results.push(...findAll((obj as Record<string, unknown>)[key], tagName));
+      results.push(...(Array.isArray(val) ? val : [val]));
+    } else if (typeof val === 'object') {
+      results.push(...findAll(val, tagName));
     }
   }
   return results;
 }
 
+// The first NON-EMPTY text under `tagName`, at any depth. Shares findAll's single
+// traversal rather than keeping a second, near-identical recursion whose empty-value
+// handling depended on match depth (an '' matched at the top level was returned; an
+// '' matched while nested was skipped). Every caller already treats '' as absent —
+// `findText(doc, 'cp:version') || findText(doc, 'version') || ''` — so "first
+// non-empty" is the contract they all assume, applied uniformly.
 function findText(obj: unknown, tagName: string): string | null {
-  if (!obj || typeof obj !== 'object') {
-    return null;
-  }
-  for (const key of Object.keys(obj as object)) {
-    if (key === tagName) {
-      const val = (obj as Record<string, unknown>)[key];
-      if (typeof val === 'string') {
-        return val;
-      }
-      if (val && (val as Record<string, unknown>)['#text']) {
-        return (val as Record<string, unknown>)['#text'] as string;
-      }
-      return String(val);
-    }
-    if (typeof (obj as Record<string, unknown>)[key] === 'object') {
-      const found = findText((obj as Record<string, unknown>)[key], tagName);
-      if (found) {
-        return found;
-      }
+  for (const val of findAll(obj, tagName)) {
+    // A tag with attributes parses to an object whose text is under '#text'; a
+    // plain tag parses to the string (or, for a bare number, to a number) itself.
+    const text =
+      val && typeof val === 'object'
+        ? String((val as Record<string, unknown>)['#text'] ?? '')
+        : String(val ?? '');
+    if (text) {
+      return text;
     }
   }
   return null;
 }
 
 const NUMERIC_RE = /^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+// The MATLAB non-finite literals, in any case and with an optional sign. A
+// Saturation block's `UpperLimit=Inf` is a NUMBER, not a reference to a workspace
+// variable named Inf. This was a case-SENSITIVE comparison against the three
+// lowercase spellings, so exactly the spellings MATLAB itself writes — `Inf`,
+// `-Inf`, `NaN` — slipped past it and every such block reported a phantom variable
+// usage. Anchored, so `Infinity` still counts as an identifier: that is the
+// JavaScript name, MATLAB cannot evaluate it, and a variable may legally use it.
+const NON_FINITE_RE = /^[+-]?(inf|nan)$/i;
 // At least one MATLAB identifier char-run — i.e. the value could name a variable.
 // Used to gate which block params count as data references (see below).
 const IDENT_RE = /[A-Za-z_]\w*/;
@@ -207,7 +211,7 @@ function extractBlockParamUsages(entries: Record<string, Uint8Array>): BlockPara
         if (!propName || NON_PARAM_PROPS.has(propName)) continue;
         const val = (pObj['#text'] as string) || '';
         if (!val || NUMERIC_RE.test(val)) continue;
-        if (val === 'inf' || val === '-inf' || val === 'nan') continue;
+        if (NON_FINITE_RE.test(val)) continue;
         if (val === 'on' || val === 'off') continue;
         // Must contain an identifier that could name a variable. This excludes
         // operator-only sign patterns (Sum `Inputs=|++`) and enum-ish tokens
