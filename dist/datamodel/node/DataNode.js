@@ -2,7 +2,7 @@
 import BaseNode from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
-import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, parseMatlabNum, transposeToColumnMajor, pad as xmlPad, } from '../parser/XmlUtils.js';
+import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, parseMatlabNum, transposeToColumnMajor, matlabTimestampNow, pad as xmlPad, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -18,12 +18,6 @@ function formatMatlabTimestamp(raw) {
     const min = raw.substring(11, 13);
     const sec = raw.substring(13, 15);
     return year + '-' + month + '-' + day + 'T' + hour + ':' + min + ':' + sec + 'Z';
-}
-// The current time as a raw MATLAB timestamp ('YYYYMMDDThhmmss.000000'), the
-// shape both serializers write and both parsers read. Mirrors SectionNode's
-// formatTimestamp (new entries) and BinarySlddSerializer's formatDateNow.
-function matlabTimestampNow() {
-    return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, '.000000');
 }
 const MATLAB_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 const MATLAB_KEYWORDS = new Set([

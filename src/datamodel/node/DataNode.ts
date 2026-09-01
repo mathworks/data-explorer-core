@@ -10,6 +10,7 @@ import {
   formatComplexXml,
   parseMatlabNum,
   transposeToColumnMajor,
+  matlabTimestampNow,
   pad as xmlPad,
 } from '../parser/XmlUtils.js';
 
@@ -28,13 +29,6 @@ function formatMatlabTimestamp(raw: string): string {
   const min = raw.substring(11, 13);
   const sec = raw.substring(13, 15);
   return year + '-' + month + '-' + day + 'T' + hour + ':' + min + ':' + sec + 'Z';
-}
-
-// The current time as a raw MATLAB timestamp ('YYYYMMDDThhmmss.000000'), the
-// shape both serializers write and both parsers read. Mirrors SectionNode's
-// formatTimestamp (new entries) and BinarySlddSerializer's formatDateNow.
-function matlabTimestampNow(): string {
-  return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, '.000000');
 }
 
 const MATLAB_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;

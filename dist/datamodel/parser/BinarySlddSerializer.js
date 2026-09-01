@@ -6,7 +6,7 @@
 // entry-level splice edit path). Untouched bytes are preserved by the splice caller,
 // not here.
 import { zipSync } from 'fflate';
-import { escapeXml } from './XmlUtils.js';
+import { escapeXml, matlabTimestampNow } from './XmlUtils.js';
 export function serializeBinarySldd(slddNode) {
     const xmlString = buildDataChunkXml(slddNode);
     const encoder = new TextEncoder();
@@ -44,7 +44,14 @@ export function buildDataChunkXml(slddNode) {
 }
 export function serializeEntryToXml(entryNode) {
     const meta = entryNode.metadata || {};
-    const lastMod = meta._rawLastMod || formatDateNow();
+    // Prefer whichever raw timestamp the entry actually carries, in the same order
+    // DataNode's `lastModified` getter reads them: `_rawLastMod` for an entry parsed
+    // from a binary file, `lastmod` for one just added (addEntry stamps that key, and
+    // _markModified refreshes whichever key is present). Only an entry with neither —
+    // which nothing in the data model produces — falls back to now. Reading just
+    // `_rawLastMod` used to display one timestamp in the Last Modified column and
+    // write a different one to disk on every save of a newly added entry.
+    const lastMod = meta._rawLastMod || meta.lastmod || matlabTimestampNow();
     let xml = '    <Object Class="DD.ENTRY">\n';
     xml += '        <P Name="Name" Class="char">' + escapeXml(entryNode.name) + '</P>\n';
     xml += '        <P Name="UUID" Class="char">' + (meta.uuid || '') + '</P>\n';
@@ -55,8 +62,5 @@ export function serializeEntryToXml(entryNode) {
     xml += entryNode.serializeXml('P', { Name: 'Value' }, 2) + '\n';
     xml += '    </Object>\n';
     return xml;
-}
-function formatDateNow() {
-    return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, '.000000');
 }
 //# sourceMappingURL=BinarySlddSerializer.js.map

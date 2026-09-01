@@ -4,6 +4,7 @@ import ContainerNode from '../ContainerNode.js';
 // dependency-free indirection (types only) that every node class goes through to
 // reach the class map without a cycle. NodeClassMap installs itself into it.
 import * as NodeRegistry from '../NodeRegistry.js';
+import { matlabTimestampNow } from '../../parser/XmlUtils.js';
 import { classificationOf as _classificationOf } from './SlddNode.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
@@ -56,12 +57,6 @@ export function generateUuid() {
         return s;
     })
         .join('-');
-}
-function formatTimestamp() {
-    return new Date()
-        .toISOString()
-        .replace(/[-:]/g, '')
-        .replace(/\.\d+Z$/, '.000000');
 }
 export default class SectionNode extends ContainerNode {
     constructor(name, parent, label, iconId) {
@@ -126,7 +121,7 @@ export default class SectionNode extends ContainerNode {
         node.metadata = {
             uuid: generateUuid(),
             namespace: SECTION_NAMESPACE[this.name] || NS_OTHER,
-            lastmod: formatTimestamp(),
+            lastmod: matlabTimestampNow(),
             modifiedby: '',
             isderived: this.name === 'arch' ? '1' : '0',
         };

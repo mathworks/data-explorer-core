@@ -66,3 +66,11 @@ export function transposeToColumnMajor<T>(rowMajor: T[], rows: number, cols: num
 export function pad(indent: number): string {
     return '    '.repeat(indent);
 }
+
+// The current time as a raw MATLAB timestamp ('YYYYMMDDThhmmss.000000') — the one
+// shape both .sldd serializers write and both parsers read. Sub-second precision is
+// dropped rather than converted: MATLAB writes 6 fractional digits, we have 3, and a
+// timestamp that claims microseconds it does not have is worse than a rounded one.
+export function matlabTimestampNow(): string {
+    return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, '.000000');
+}

@@ -59,4 +59,22 @@ describe('serializeBinarySldd', () => {
     const raw = entry.metadata._rawLastMod as string;
     expect(serializeEntryToXml(entry)).toContain('<P Name="LastMod" Class="char">' + raw + '</P>');
   });
+
+  // A newly added entry has no `_rawLastMod` — addEntry stamps `lastmod` instead —
+  // so the serializer has to read that key too. Reading only `_rawLastMod` fell back
+  // to "now", which meant the Last Modified column showed one timestamp and the file
+  // on disk got a different one on every save.
+  it('writes a newly added entry own lastmod, not the save time', () => {
+    const model = freshModel('mem://ser4');
+    const entry = model.getSection('design')!.addEntry('Simulink.Parameter')!;
+    expect(entry.metadata._rawLastMod).toBeUndefined();
+
+    const pinned = '20200101T010203.000000';
+    entry.metadata.lastmod = pinned;
+    expect(serializeEntryToXml(entry as any)).toContain(
+      '<P Name="LastMod" Class="char">' + pinned + '</P>',
+    );
+    // ...and it is the same value the UI displays, so the two cannot drift.
+    expect(entry.lastModified).toBe('2020-01-01T01:02:03Z');
+  });
 });
