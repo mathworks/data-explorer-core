@@ -18,10 +18,6 @@ export interface ClassDef {
     props: ClassRef[];
     layout?: PILayoutGroup[];
 }
-export interface SchemaBundle {
-    props: Record<string, RawProp>;
-    classes: Record<string, ClassDef>;
-}
 export interface ResolvedProp {
     key: string;
     label: string;

@@ -30,19 +30,23 @@ import lookupTable from './classes/lookupTable.json' with { type: "json" };
 import breakpoint from './classes/breakpoint.json' with { type: "json" };
 import customObject from './classes/customObject.json' with { type: "json" };
 
+// Spread straight in, with no per-file `as Record<string, RawProp>`: the plain
+// assignment makes TypeScript check every props/*.json against RawProp, so a
+// typo'd or missing required key (e.g. `sourcePth`) is a build error here rather
+// than a property that silently resolves to undefined at runtime.
 const REGISTRY: Record<string, RawProp> = {
-    ...(core as Record<string, RawProp>),
-    ...(dataObject as Record<string, RawProp>),
-    ...(codeGen as Record<string, RawProp>),
-    ...(typeObject as Record<string, RawProp>),
+    ...core,
+    ...dataObject,
+    ...codeGen,
+    ...typeObject,
 };
 
 // Every class file authors the object form ({ props, layout? }), so the JSON is
 // spread straight in and TypeScript checks each file against ClassDef at build
 // time. A normalizer used to sit here to also accept a legacy bare reference
-// array; no file has used that form since the schema landed, and accepting
-// `unknown` cost the shape check — a class file with a typo'd `prop` key would
-// have loaded as a class with no properties and shown a blank Property Inspector.
+// array; no file has used that form since the schema landed, and it took an
+// `unknown` cast per file to do so — which pushed the shape check off the JSON
+// and onto a hand-written type name nobody re-checks.
 const CLASS_DEFS: Record<string, ClassDef> = {
     ...parameter,
     ...signal,

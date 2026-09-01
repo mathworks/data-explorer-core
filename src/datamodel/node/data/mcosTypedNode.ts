@@ -1,8 +1,11 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import * as NodeRegistry from '../NodeRegistry.js';
+import MatlabVariableNode from './MatlabVariableNode.js';
+import { decodeMcosBlob } from '../../parser/McosParser.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
+import type { MatVariable } from '../../parser/MatParser.js';
 
 // Bridges the binary (MCOS) decode path to the same typed data-model nodes the
 // SLDD (JSON) path builds, so a Simulink object resolves to the SAME node class
@@ -81,4 +84,65 @@ export function buildTypedNodeFromMcos(
     // opaque node rather than breaking the whole file.
     return null;
   }
+}
+
+// One decoded object, keyed by variable name. `elements`/`dimensions` are populated
+// for an object ARRAY; a scalar carries only `properties`.
+export interface McosDecoded {
+  value: unknown;
+  properties: Record<string, unknown>;
+  elements: Record<string, unknown>[];
+  dimensions: number[];
+}
+
+// Decode the MCOS blob that carries every opaque object's real property values.
+// A .mat file keeps it in an anonymous trailing element; an .slx model workspace in
+// its own trailing-element list — hence `blobBytes` rather than a container-specific
+// lookup. Returns null when there is nothing to decode (no opaque objects, or no
+// blob), which callers treat as "every object stays an empty shell".
+export function decodeMcosObjects(
+  blobBytes: Uint8Array | null | undefined,
+  variables: MatVariable[],
+): Map<string, McosDecoded> | null {
+  const opaque = variables.filter((v) => v.isOpaque && v.name);
+  if (opaque.length === 0 || !blobBytes) {
+    return null;
+  }
+  return decodeMcosBlob(
+    blobBytes,
+    opaque.map((v) => ({ name: v.name, className: v.className, rawBytes: v._rawBytes })),
+  );
+}
+
+// Model ONE opaque MCOS variable, or null to say "not an MCOS object — model it the
+// container's normal way". Shared verbatim by MatNode (.mat) and ModelNode (.slx
+// model workspace), which reach the identical three-way decision:
+//
+//   1. A class the data model knows, or an unknown class the decoder recovered
+//      properties for -> the SAME typed node the SLDD path builds, so one Simulink
+//      class has one node class and one presentation across all three formats.
+//   2. No typed node for this class (e.g. Simulink.DataStore) but the decoder DID
+//      resolve it -> the opaque MatlabVariableNode, enriched with those properties.
+//   3. Neither -> null; the caller falls back to its plain-variable path, which
+//      still shows the right class and icon from the variable's own metadata.
+export function modelOpaqueMcosVariable(
+  variable: MatVariable,
+  decoded: McosDecoded | undefined,
+  parent: BaseNode,
+): DataNode | null {
+  const typed = buildTypedNodeFromMcos(
+    variable.className,
+    variable.name,
+    parent,
+    decoded?.properties,
+    decoded?.elements,
+    decoded?.dimensions,
+  );
+  if (typed) {
+    return typed;
+  }
+  if (decoded) {
+    return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent);
+  }
+  return null;
 }

@@ -3,7 +3,13 @@ import { describe, it, expect, vi } from 'vitest';
 // Importing the class map registers the NodeRegistry the adapter routes through.
 import '../src/datamodel/node/NodeClassMap.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
-import { buildTypedNodeFromMcos } from '../src/datamodel/node/data/mcosTypedNode.js';
+import {
+  buildTypedNodeFromMcos,
+  decodeMcosObjects,
+  modelOpaqueMcosVariable,
+} from '../src/datamodel/node/data/mcosTypedNode.js';
+import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
+import type { MatVariable } from '../src/datamodel/parser/MatParser.js';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import SignalNode from '../src/datamodel/node/data/SignalNode.js';
 import { BusNode } from '../src/datamodel/node/data/BusNode.js';
@@ -165,5 +171,65 @@ describe('buildTypedNodeFromMcos — object ARRAYS (the .slx/.mat entry point)',
     )!;
     expect(node).toBeInstanceOf(ParameterNode);
     expect((node as ParameterNode).Value).toBe(7);
+  });
+});
+
+// The two helpers MatNode (.mat) and ModelNode (.slx model workspace) share, so the
+// three-way decision below is written once instead of once per container format.
+describe('decodeMcosObjects / modelOpaqueMcosVariable — the shared container path', () => {
+  const opaque = (name: string, className: string): MatVariable =>
+    ({
+      name,
+      className,
+      dimensions: [1, 1],
+      isComplex: false,
+      isLogical: false,
+      value: null,
+      fields: null,
+      isOpaque: true,
+    }) as unknown as MatVariable;
+
+  it('returns null when there is no blob to decode', () => {
+    // No opaque objects at all...
+    expect(decodeMcosObjects(new Uint8Array([1, 2, 3]), [])).toBeNull();
+    // ...and opaque objects but no blob bytes, which is what a .mat with no
+    // anonymous trailing element (or an .slx with no trailing elements) yields.
+    expect(decodeMcosObjects(undefined, [opaque('K', 'Simulink.Parameter')])).toBeNull();
+    expect(decodeMcosObjects(null, [opaque('K', 'Simulink.Parameter')])).toBeNull();
+  });
+
+  it('a class the data model knows becomes its typed node, decoded or not', () => {
+    expect(modelOpaqueMcosVariable(opaque('K', 'Simulink.Parameter'), undefined, null as never))
+      .toBeInstanceOf(ParameterNode);
+    const decoded = { value: 5, properties: { Value: 5 }, elements: [], dimensions: [1, 1] };
+    const node = modelOpaqueMcosVariable(opaque('K', 'Simulink.Parameter'), decoded, null as never);
+    expect((node as ParameterNode).Value).toBe(5);
+  });
+
+  it('an unknown class with recovered properties expands as a generic object', () => {
+    const decoded = { value: null, properties: { Foo: 1 }, elements: [], dimensions: [1, 1] };
+    const node = modelOpaqueMcosVariable(opaque('d', 'Simulink.DataStore'), decoded, null as never);
+    expect(node!.constructor.name).toBe('ObjectNode');
+    expect(node!.children.map((c) => c.name)).toEqual(['Foo']);
+  });
+
+  // The enriched-opaque arm. An unknown class with an EMPTY property bag has nothing
+  // to expand as an object, so buildTypedNodeFromMcos declines it — but the decoder
+  // still recovered the object's VALUE, and that value has to reach the Value column.
+  // Falling through to the caller's plain-variable path instead would drop it and
+  // render the bare '<1x1 Simulink.DataStore>' shell.
+  it('an unknown class with only a decoded value becomes an enriched opaque node', () => {
+    const decoded = { value: 'abc', properties: {}, elements: [], dimensions: [1, 1] };
+    const node = modelOpaqueMcosVariable(opaque('d', 'Simulink.DataStore'), decoded, null as never);
+    expect(node).toBeInstanceOf(MatlabVariableNode);
+    expect((node as MatlabVariableNode)._isOpaque).toBe(true);
+    expect((node as MatlabVariableNode)._opaqueClassName).toBe('Simulink.DataStore');
+    expect((node as MatlabVariableNode).displayValue).toBe("'abc'");
+  });
+
+  // Nothing decoded and no typed class: null, telling the caller to use its own
+  // plain-variable path (parseMatVariable / addWorkspaceEntry).
+  it('returns null when neither a typed class nor a decode is available', () => {
+    expect(modelOpaqueMcosVariable(opaque('d', 'Simulink.DataStore'), undefined, null as never)).toBeNull();
   });
 });

@@ -39,16 +39,11 @@ export interface PILayoutGroup {
 }
 
 // A class definition: the ordered prop reference list plus an optional PI layout.
-// (Older single-array form is normalized to { props } by the loader.)
+// This is the shape every classes/*.json is checked against at build time (the
+// loader spreads them in untyped-cast-free), so it is authoritative, not advisory.
 export interface ClassDef {
     props: ClassRef[];
     layout?: PILayoutGroup[];
-}
-
-// The registry (merged props/*.json) plus per-class definitions.
-export interface SchemaBundle {
-    props: Record<string, RawProp>;
-    classes: Record<string, ClassDef>;
 }
 
 // A fully resolved descriptor for one property of one class.

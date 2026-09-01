@@ -15,8 +15,11 @@ export interface NodeClassMapAPI {
 }
 
 // Anything that can turn a parsed value into a node. This is all the structural
-// fallback chain needs — those entries are reached by value SHAPE, never by name,
-// so they are never asked to create a blank entry and carry no defaultName.
+// fallback chain needs: those entries are reached by value SHAPE, never by
+// className, so they are never asked to create a blank entry. It is a separate
+// interface because ObjectNode — the chain's catch-all for any object shape — is
+// parse-only and so carries no defaultName; typing the chain as NodeClassType
+// would force a meaningless one on it.
 export interface NodeParser {
     parse(rawVal: unknown, name: string, parent: BaseNode | null): DataNode;
 }
@@ -26,8 +29,8 @@ export interface NodeClassType extends NodeParser {
     // Optional: a class may be able to model existing data yet have no meaningful
     // blank instance, in which case "Add <class>" is not offered for it.
     createDefault?(name: string, parent: BaseNode | null): DataNode;
-    // REQUIRED, even for a parse-only class: this is the user-facing name a new
-    // entry gets, and it is deliberately not derivable from the className — an
+    // REQUIRED, even when createDefault is absent: this is the user-facing name a
+    // new entry gets, and it is deliberately not derivable from the className — an
     // EnumTypeDefinition entry is named 'EnumType', a ServiceBus one
     // 'ServiceInterface'. Making it required is what stops a newly registered class
     // from silently inheriting a wrong name from a fallback.

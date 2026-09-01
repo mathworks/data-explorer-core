@@ -201,9 +201,9 @@ export default class SectionNode extends ContainerNode {
     return baseName + i;
   }
 
-  // Always returns a node: the registry's matcher chain ends in ObjectNode, so an
-  // unrecognized value shape still models as something rather than dropping the
-  // entry out of the file.
+  // Always returns a node: parseValue's matcher chain falls through to
+  // MatlabVariableNode for any shape it does not recognize, so an unfamiliar value
+  // still models as something rather than dropping the entry out of the file.
   parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode {
     const entryName = (rawEntry.name as string) || '';
     let dataNode = NodeRegistry.parseValue(rawEntry.value, entryName, this) as DataNode;

@@ -1,9 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import ContainerNode from '../ContainerNode.js';
 import ModelSectionNode from './ModelSectionNode.js';
-import MatlabVariableNode from '../data/MatlabVariableNode.js';
-import { buildTypedNodeFromMcos } from '../data/mcosTypedNode.js';
-import { decodeMcosBlob } from '../../parser/McosParser.js';
+import { decodeMcosObjects, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import PropName from '../../prop/PropName.js';
 import PropRelease from '../../prop/PropRelease.js';
 const SECTION_DEFS = [
@@ -126,30 +124,13 @@ export default class ModelNode extends ContainerNode {
         const wsSection = node.getSection('workspace');
         const wsVars = parsed.workspace;
         const trailingElements = wsVars._trailingElements;
-        const opaqueWsVars = wsVars.filter((v) => v.isOpaque && v.name);
-        let mcosData = null;
-        if (opaqueWsVars.length > 0 && trailingElements && trailingElements.length > 0) {
-            mcosData = decodeMcosBlob(trailingElements[0], opaqueWsVars.map((v) => ({ name: v.name, className: v.className, rawBytes: v._rawBytes })));
-        }
+        // An .slx model workspace keeps the MCOS blob in its own trailing-element list.
+        const mcosData = decodeMcosObjects(trailingElements?.[0], wsVars);
         for (const entry of wsVars) {
             if (entry.isOpaque) {
-                // Unify on CLASS: any opaque Simulink object whose class the data model
-                // knows (Parameter, Signal, LookupTable, NumericType, Bus, …) becomes the
-                // SAME typed node the SLDD path builds. When the MCOS decoder resolved the
-                // object's properties, they populate the node with real values (SLDD-
-                // shaped); otherwise it is an empty shell. The class comes from the
-                // variable's own metadata, so it works even for objects the decoder
-                // could not resolve.
-                const decoded = mcosData?.get(entry.name);
-                const typed = buildTypedNodeFromMcos(entry.className, entry.name, wsSection, decoded?.properties, decoded?.elements, decoded?.dimensions);
-                if (typed) {
-                    wsSection.addChild(typed);
-                    continue;
-                }
-                // No typed node for this class (e.g. Simulink.DataStore): keep the opaque
-                // representation, enriched with decoded properties when available.
-                if (decoded) {
-                    wsSection.addChild(MatlabVariableNode.createFromMcosDecoded(entry, decoded, wsSection));
+                const mcosNode = modelOpaqueMcosVariable(entry, mcosData?.get(entry.name), wsSection);
+                if (mcosNode) {
+                    wsSection.addChild(mcosNode);
                     continue;
                 }
             }
