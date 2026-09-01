@@ -66,12 +66,24 @@ export interface PIObject {
 // only they receive the editable-object cell shape in toRow.
 const DEDICATED_COLUMNS = new Set(['Name', 'Value', 'DataType', 'Class', 'Kind', 'Description', 'UsedBy', 'Status']);
 
+// Which of the four value shapes a MatlabVariableNode holds. Declared here, not in
+// MatlabVariableNode, because `_kind` is declared on BaseNode (this class reads a
+// parent's kind to derive indexed display names) and BaseNode must not depend on a
+// subclass. Keeping it a closed union is load-bearing: MatlabVariableNode dispatches
+// on it in five exhaustive switches with no fallback arm, so widening it to a fifth
+// kind fails to compile (TS2366, "function lacks ending return statement") until
+// every switch handles the new case, rather than silently returning '' at run time.
+// Only serializeValue escapes the check, its `unknown` return type admitting
+// undefined — but it cannot be reached without widening this union, which the other
+// four switches refuse.
+export type MatlabVariableKind = 'scalar' | 'array' | 'cell' | 'string';
+
 export default class BaseNode {
   name: string;
   parent: BaseNode | null;
   children: BaseNode[];
   _displayName?: string;
-  _kind?: string;
+  _kind?: MatlabVariableKind;
   _dims?: number[];
 
   constructor(name: string, parent: BaseNode | null) {

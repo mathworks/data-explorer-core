@@ -218,8 +218,6 @@ export default class MatlabVariableNode extends DataNode {
                 return 'wsBrackets';
             case 'string':
                 return 'wsString';
-            default:
-                return 'wsDefault';
         }
     }
     get className() {
@@ -235,8 +233,6 @@ export default class MatlabVariableNode extends DataNode {
                 return 'cell';
             case 'string':
                 return 'string';
-            default:
-                return '';
         }
     }
     // A primitive variable's data type ('double', 'string', 'cell', …) is a real
@@ -318,8 +314,6 @@ export default class MatlabVariableNode extends DataNode {
                 return this._formatCell();
             case 'string':
                 return this._formatString();
-            default:
-                return '';
         }
     }
     _formatScalar() {
@@ -952,8 +946,6 @@ export default class MatlabVariableNode extends DataNode {
                 return this._serializeCell();
             case 'string':
                 return this._serializeString();
-            default:
-                return null;
         }
     }
     _serializeScalar() {
@@ -1040,8 +1032,6 @@ export default class MatlabVariableNode extends DataNode {
                 return this._serializeCellXml(tagName, attrs, indent);
             case 'string':
                 return this._serializeStringXml(tagName, attrs, indent);
-            default:
-                return xmlPad(indent) + '<' + tagName + '/>';
         }
     }
     _serializeScalarXml(tagName, attrs, indent) {

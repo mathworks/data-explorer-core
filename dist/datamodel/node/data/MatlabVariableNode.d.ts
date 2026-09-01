@@ -1,13 +1,13 @@
 import DataNode from '../DataNode.js';
 import type { SetPropertyResult } from '../DataNode.js';
-import type { PropClass } from '../BaseNode.js';
+import type { PropClass, MatlabVariableKind } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import type { MatVariable } from '../../parser/MatParser.js';
 export type { MatVariable };
 export default class MatlabVariableNode extends DataNode {
-    _kind: string;
+    _kind: MatlabVariableKind;
     _scalarValue: unknown;
     _scalarType: string;
     _elements: unknown[];

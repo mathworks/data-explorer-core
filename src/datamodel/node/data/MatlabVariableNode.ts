@@ -3,7 +3,7 @@
 import DataNode from '../DataNode.js';
 import type { SetPropertyResult } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
-import type { PropClass } from '../BaseNode.js';
+import type { PropClass, MatlabVariableKind } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import PropName from '../../prop/PropName.js';
@@ -173,7 +173,10 @@ export default class MatlabVariableNode extends DataNode {
   // _kind. Splitting them into modules would mean either making these fields part
   // of a public surface or threading a context object through every call — both
   // strictly worse than the file being long.
-  _kind: string;
+  // A closed union, not `string`: the five switches below are each exhaustive over
+  // these four, and typing the field this way is what makes tsc reject a fifth kind
+  // at every switch instead of silently routing it to a fallback that returns ''.
+  _kind: MatlabVariableKind;
   _scalarValue: unknown;
   _scalarType: string;
   _elements: unknown[];
@@ -283,8 +286,6 @@ export default class MatlabVariableNode extends DataNode {
         return 'wsBrackets';
       case 'string':
         return 'wsString';
-      default:
-        return 'wsDefault';
     }
   }
 
@@ -301,8 +302,6 @@ export default class MatlabVariableNode extends DataNode {
         return 'cell';
       case 'string':
         return 'string';
-      default:
-        return '';
     }
   }
 
@@ -389,8 +388,6 @@ export default class MatlabVariableNode extends DataNode {
         return this._formatCell();
       case 'string':
         return this._formatString();
-      default:
-        return '';
     }
   }
 
@@ -1052,8 +1049,6 @@ export default class MatlabVariableNode extends DataNode {
         return this._serializeCell();
       case 'string':
         return this._serializeString();
-      default:
-        return null;
     }
   }
 
@@ -1147,8 +1142,6 @@ export default class MatlabVariableNode extends DataNode {
         return this._serializeCellXml(tagName, attrs, indent);
       case 'string':
         return this._serializeStringXml(tagName, attrs, indent);
-      default:
-        return xmlPad(indent) + '<' + tagName + '/>';
     }
   }
 

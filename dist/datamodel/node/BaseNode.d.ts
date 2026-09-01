@@ -62,12 +62,13 @@ export interface PIObject {
     showGroups: boolean;
     showDefaultGroup: boolean;
 }
+export type MatlabVariableKind = 'scalar' | 'array' | 'cell' | 'string';
 export default class BaseNode {
     name: string;
     parent: BaseNode | null;
     children: BaseNode[];
     _displayName?: string;
-    _kind?: string;
+    _kind?: MatlabVariableKind;
     _dims?: number[];
     constructor(name: string, parent: BaseNode | null);
     get id(): string;
