@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import DataNode from '../DataNode.js';
+import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropEnumValue from '../../prop/PropEnumValue.js';
@@ -125,30 +126,8 @@ export class EnumTypeNode extends DataNode {
         this._markModified();
         return childNode;
     }
-    execAddChild() {
-        if (!this.canAddChild()) {
-            return null;
-        }
-        const child = this.addChildNode();
-        if (!child) {
-            return null;
-        }
-        const self = this;
-        const index = this.children.indexOf(child);
-        return { node: child, undo() { self.removeChildNode(child); }, redo() { self.restoreChildNode(child, index); } };
-    }
-    execRemoveChild(child) {
-        if (!this.canRemoveChild() || !child) {
-            return null;
-        }
-        const index = this.children.indexOf(child);
-        if (index < 0) {
-            return null;
-        }
-        this.removeChildNode(child);
-        const self = this;
-        return { undo() { self.restoreChildNode(child, index); }, redo() { self.removeChildNode(child); } };
-    }
+    execAddChild() { return addChildUndoable(this); }
+    execRemoveChild(child) { return removeChildUndoable(this, child); }
     static get defaultName() { return 'EnumType'; }
     static createDefault(name, parent) {
         const enumerals = { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ Description: '', Name: 'enum1', Value: '0' }], _fields: ['Name', 'Value', 'Description'] };

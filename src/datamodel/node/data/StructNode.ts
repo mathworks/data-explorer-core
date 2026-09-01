@@ -4,6 +4,8 @@ import DataNode from '../DataNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
+import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
+import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -178,28 +180,8 @@ export default class StructNode extends DataNode {
         return childNode;
     }
 
-    execAddChild(): { node: DataNode; undo: () => void; redo: () => void } | null {
-        if (!this.canAddChild()) { return null; }
-        const child = this.addChildNode();
-        if (!child) { return null; }
-        const index = this.children.indexOf(child);
-        return {
-            node: child,
-            undo: () => { this.removeChildNode(child); },
-            redo: () => { this.restoreChildNode(child, index); }
-        };
-    }
-
-    execRemoveChild(child: BaseNode): { undo: () => void; redo: () => void } | null {
-        if (!this.canRemoveChild()) { return null; }
-        const index = this.children.indexOf(child);
-        if (index < 0) { return null; }
-        this.removeChildNode(child);
-        return {
-            undo: () => { this.restoreChildNode(child, index); },
-            redo: () => { this.removeChildNode(child); }
-        };
-    }
+    execAddChild(): ChildAddEdit<DataNode> | null { return addChildUndoable(this); }
+    execRemoveChild(child?: BaseNode): ChildUndoRedo | null { return removeChildUndoable(this, child); }
 
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): StructNode {
         const serial: Record<string, unknown> = {

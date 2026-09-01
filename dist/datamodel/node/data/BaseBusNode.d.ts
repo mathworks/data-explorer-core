@@ -1,6 +1,7 @@
 import DataNode from '../DataNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
+import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
@@ -32,8 +33,8 @@ export declare class BaseBusNode extends DataNode {
     addChildNode(): BaseNode | null;
     _maxElementId(): number;
     _nextElementId(): string;
-    execAddChild(): unknown;
-    execRemoveChild(child?: BaseNode): unknown;
+    execAddChild(): ChildAddEdit | null;
+    execRemoveChild(child?: BaseNode): ChildUndoRedo | null;
     _createElementNode(_name: string, _props: Record<string, unknown>, _serial: Record<string, unknown>): BaseNode | null;
     static ELEMENT_CLASS_NAME: string;
     static _parseElements(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null, BusNodeClass: new (name: string, parent: BaseNode | null, serial: Record<string, unknown>) => BaseBusNode, ElementNodeClass: new (name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) => BaseBusElementNode): BaseBusNode;

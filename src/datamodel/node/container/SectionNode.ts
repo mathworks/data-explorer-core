@@ -97,7 +97,9 @@ export default class SectionNode extends ContainerNode {
   }
 
   // Whether an entry of `className` may live in this section. An empty allow-list
-  // means "no restriction" (matching addEntry's semantics).
+  // means "no restriction". This is the ONE gate: addEntry calls it too (rather
+  // than re-testing the list inline), so the host's paste/drop pre-check can never
+  // drift from what addEntry actually permits.
   allowsType(className: string): boolean {
     const allowed = this.getAllowedTypes();
     return allowed.length === 0 || allowed.indexOf(className) !== -1;
@@ -131,8 +133,7 @@ export default class SectionNode extends ContainerNode {
       return null;
     }
 
-    const allowed = this.getAllowedTypes();
-    if (allowed.length > 0 && allowed.indexOf(className) === -1) {
+    if (!this.allowsType(className)) {
       return null;
     }
 

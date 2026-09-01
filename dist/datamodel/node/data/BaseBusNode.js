@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import DataNode from '../DataNode.js';
+import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
@@ -136,30 +137,11 @@ export class BaseBusNode extends DataNode {
     // element never collides with the wrapper or a sibling (or a sibling's
     // nested arguments).
     _nextElementId() { return String(this._maxElementId() + 1); }
-    execAddChild() {
-        if (!this.canAddChild()) {
-            return null;
-        }
-        const child = this.addChildNode();
-        if (!child) {
-            return null;
-        }
-        const self = this;
-        const index = this.children.indexOf(child);
-        return { node: child, undo() { self.removeChildNode(child); }, redo() { self.restoreChildNode(child, index); } };
-    }
-    execRemoveChild(child) {
-        if (!this.canRemoveChild() || !child) {
-            return null;
-        }
-        const index = this.children.indexOf(child);
-        if (index < 0) {
-            return null;
-        }
-        this.removeChildNode(child);
-        const self = this;
-        return { undo() { self.restoreChildNode(child, index); }, redo() { self.removeChildNode(child); } };
-    }
+    execAddChild() { return addChildUndoable(this); }
+    execRemoveChild(child) { return removeChildUndoable(this, child); }
+    // Overridden by each concrete bus to mint its own element class. The base
+    // returns null, which addChildUndoable reports as a refused add — a bus type
+    // that forgot to implement this adds nothing rather than a broken element.
     _createElementNode(_name, _props, _serial) { return null; }
     static { this.ELEMENT_CLASS_NAME = ''; }
     static _parseElements(rawVal, name, parent, BusNodeClass, ElementNodeClass) {

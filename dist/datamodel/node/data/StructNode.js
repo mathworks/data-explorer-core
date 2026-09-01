@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import DataNode from '../DataNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
+import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -158,35 +159,8 @@ export default class StructNode extends DataNode {
         this._markModified();
         return childNode;
     }
-    execAddChild() {
-        if (!this.canAddChild()) {
-            return null;
-        }
-        const child = this.addChildNode();
-        if (!child) {
-            return null;
-        }
-        const index = this.children.indexOf(child);
-        return {
-            node: child,
-            undo: () => { this.removeChildNode(child); },
-            redo: () => { this.restoreChildNode(child, index); }
-        };
-    }
-    execRemoveChild(child) {
-        if (!this.canRemoveChild()) {
-            return null;
-        }
-        const index = this.children.indexOf(child);
-        if (index < 0) {
-            return null;
-        }
-        this.removeChildNode(child);
-        return {
-            undo: () => { this.restoreChildNode(child, index); },
-            redo: () => { this.removeChildNode(child); }
-        };
-    }
+    execAddChild() { return addChildUndoable(this); }
+    execRemoveChild(child) { return removeChildUndoable(this, child); }
     static parse(rawVal, name, parent) {
         const serial = {
             _dimensions: rawVal._dimensions,

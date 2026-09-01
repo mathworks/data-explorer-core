@@ -179,6 +179,19 @@ describe('BaseBusNode._createElementNode (base)', () => {
     expect(node._createElementNode('x', {}, {})).toBeNull();
     expect(node.addChildNode()).toBeNull();
   });
+
+  // The two-stage refusal in childEdit.addChildUndoable: canAddChild() is
+  // unconditionally true on BaseBusNode, so the gate lets this through, and only
+  // the null from addChildNode stops it. Without the second check the wrapper
+  // would hand the undo stack `{ node: null }` and a redo closure that restores
+  // nothing — an entry in the history that cannot be replayed.
+  it('execAddChild returns null (not a null-node edit) when no element can be minted', () => {
+    const serial = { _rawVal: { _elements: [{ _properties: {} }] }, _properties: {} };
+    const node = new (BaseBusNode as any)('B', null, serial);
+    expect(node.canAddChild()).toBe(true);
+    expect(node.execAddChild()).toBeNull();
+    expect(node.children).toHaveLength(0);
+  });
 });
 
 describe('_parseElements edge cases', () => {

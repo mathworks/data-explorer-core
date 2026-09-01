@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import BaseNode from './BaseNode.js';
+import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
 import {
@@ -136,8 +137,7 @@ export default class DataNode extends BaseNode {
   }
 
   // isIndexedName is inherited from BaseNode (structural: parent is array/cell/
-  // string). DataNode keeps its own nameEditable because a _displayName alias also
-  // fixes the name here.
+  // string), as is nameEditable — see the note below.
 
   get isDerived(): boolean {
     return !!(this.metadata && this.metadata.isderived === '1');
@@ -175,16 +175,9 @@ export default class DataNode extends BaseNode {
     return typeof by === 'string' ? by : '';
   }
 
-  get nameEditable(): boolean {
-    if (this._displayName) {
-      return false;
-    }
-    // A class property name is fixed by the class definition (see BaseNode).
-    if (this.parent?.isObjectPropertyBag) {
-      return false;
-    }
-    return !this.isIndexedName;
-  }
+  // nameEditable is inherited from BaseNode: the three things that fix a name — a
+  // synthetic positional index, a `_displayName` alias, and an object-property-bag
+  // parent — are all structural, so the base rule already covers every data node.
 
   get disabled(): boolean {
     return !this.isEntry;
@@ -309,11 +302,15 @@ export default class DataNode extends BaseNode {
     return true;
   }
 
-  execAddChild(): unknown {
+  // No structural editing by default. The classes that DO manage children (bus,
+  // enum type, struct, MATLAB array/cell/string) override both, delegating to
+  // childEdit.ts. Returning null here — rather than inheriting a wrapper around
+  // no-op hooks — is what lets those hooks live only on the classes that mean them.
+  execAddChild(): ChildAddEdit | null {
     return null;
   }
 
-  execRemoveChild(_child?: BaseNode): unknown {
+  execRemoveChild(_child?: BaseNode): ChildUndoRedo | null {
     return null;
   }
 

@@ -189,7 +189,10 @@ See `StructNode.md` for full documentation. Key structural differences from buse
 ## Undo/Redo contract
 
 All structural operations return undo/redo closures via `execAddChild()` and
-`execRemoveChild()`:
+`execRemoveChild()`. Both are one shared wrapper — `addChildUndoable` /
+`removeChildUndoable` in `node/childEdit.ts` — that every container delegates to,
+so the gate checks and closure shapes cannot drift between bus, enum, struct, and
+MATLAB variable:
 
 | Operation | undo() | redo() |
 |-----------|--------|--------|
@@ -199,6 +202,14 @@ All structural operations return undo/redo closures via `execAddChild()` and
 The `index` captures the child's position at the time of the operation, ensuring
 undo restores it to the exact same position in the children array (and `_fields`
 for structs).
+
+Each container supplies the five hooks the wrapper drives (`canAddChild`,
+`addChildNode`, `canRemoveChild`, `removeChildNode`, `restoreChildNode`); `DataNode`
+supplies none and returns null from both exec methods, which is how a node with no
+structural editing declines. The one exception is a MATLAB variable's empty `[]`,
+whose add CONVERTS the node to a struct — a shape change the generic
+remove/restore pair cannot reverse, so `MatlabVariableNode` handles that single
+case itself and delegates every other shape.
 
 **Idempotence:** `execAddChild()` followed by `execRemoveChild(addedChild)` returns
 the node to its original state (same child count, same names, same order).

@@ -3,6 +3,8 @@
 import DataNode from '../DataNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
+import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
+import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
@@ -141,24 +143,12 @@ export class BaseBusNode extends DataNode {
     // nested arguments).
     _nextElementId(): string { return String(this._maxElementId() + 1); }
 
-    execAddChild(): unknown {
-        if (!this.canAddChild()) { return null; }
-        const child = this.addChildNode();
-        if (!child) { return null; }
-        const self = this;
-        const index = this.children.indexOf(child);
-        return { node: child, undo() { self.removeChildNode(child); }, redo() { self.restoreChildNode(child, index); } };
-    }
+    execAddChild(): ChildAddEdit | null { return addChildUndoable(this); }
+    execRemoveChild(child?: BaseNode): ChildUndoRedo | null { return removeChildUndoable(this, child); }
 
-    execRemoveChild(child?: BaseNode): unknown {
-        if (!this.canRemoveChild() || !child) { return null; }
-        const index = this.children.indexOf(child);
-        if (index < 0) { return null; }
-        this.removeChildNode(child);
-        const self = this;
-        return { undo() { self.restoreChildNode(child, index); }, redo() { self.removeChildNode(child); } };
-    }
-
+    // Overridden by each concrete bus to mint its own element class. The base
+    // returns null, which addChildUndoable reports as a refused add — a bus type
+    // that forgot to implement this adds nothing rather than a broken element.
     _createElementNode(_name: string, _props: Record<string, unknown>, _serial: Record<string, unknown>): BaseNode | null { return null; }
 
     static ELEMENT_CLASS_NAME = '';

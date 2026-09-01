@@ -59,9 +59,10 @@ remaining children and fields stay in their original order.
 
 ### execAddChild / execRemoveChild
 
-Return undo/redo closures that call `removeChildNode`/`restoreChildNode` for
-rollback. `restoreChildNode` reinserts the child at its original index position in
-both the children array and `_fields`.
+Both delegate to the shared wrapper in `node/childEdit.ts`, which returns undo/redo
+closures that call `removeChildNode`/`restoreChildNode` for rollback.
+`restoreChildNode` reinserts the child at its original index position in both the
+children array and `_fields`.
 
 ## Serialized shape
 

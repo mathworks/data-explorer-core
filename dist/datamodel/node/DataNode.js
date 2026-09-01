@@ -98,8 +98,7 @@ export default class DataNode extends BaseNode {
         return !!(this.parent && this.parent.isContainer);
     }
     // isIndexedName is inherited from BaseNode (structural: parent is array/cell/
-    // string). DataNode keeps its own nameEditable because a _displayName alias also
-    // fixes the name here.
+    // string), as is nameEditable — see the note below.
     get isDerived() {
         return !!(this.metadata && this.metadata.isderived === '1');
     }
@@ -133,16 +132,9 @@ export default class DataNode extends BaseNode {
         const by = m.lastModifiedBy ?? m.modifiedby;
         return typeof by === 'string' ? by : '';
     }
-    get nameEditable() {
-        if (this._displayName) {
-            return false;
-        }
-        // A class property name is fixed by the class definition (see BaseNode).
-        if (this.parent?.isObjectPropertyBag) {
-            return false;
-        }
-        return !this.isIndexedName;
-    }
+    // nameEditable is inherited from BaseNode: the three things that fix a name — a
+    // synthetic positional index, a `_displayName` alias, and an object-property-bag
+    // parent — are all structural, so the base rule already covers every data node.
     get disabled() {
         return !this.isEntry;
     }
@@ -263,6 +255,10 @@ export default class DataNode extends BaseNode {
         this._markModified();
         return true;
     }
+    // No structural editing by default. The classes that DO manage children (bus,
+    // enum type, struct, MATLAB array/cell/string) override both, delegating to
+    // childEdit.ts. Returning null here — rather than inheriting a wrapper around
+    // no-op hooks — is what lets those hooks live only on the classes that mean them.
     execAddChild() {
         return null;
     }

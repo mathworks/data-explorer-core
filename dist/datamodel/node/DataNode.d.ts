@@ -1,4 +1,5 @@
 import BaseNode from './BaseNode.js';
+import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 export interface SetPropertyResult {
     error: boolean;
     reason: string;
@@ -20,13 +21,12 @@ export default class DataNode extends BaseNode {
     get isDerived(): boolean;
     get lastModified(): string;
     get lastModifiedBy(): string;
-    get nameEditable(): boolean;
     get disabled(): boolean;
     _resolveProperty(propName: string): string;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _setMinMax(propName: 'Min' | 'Max', stringValue: string): true | SetPropertyResult;
-    execAddChild(): unknown;
-    execRemoveChild(_child?: BaseNode): unknown;
+    execAddChild(): ChildAddEdit | null;
+    execRemoveChild(_child?: BaseNode): ChildUndoRedo | null;
     _markModified(): void;
     _stampLastModified(): void;
     serialize(): unknown;

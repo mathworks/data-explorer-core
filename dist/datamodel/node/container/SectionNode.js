@@ -80,7 +80,9 @@ export default class SectionNode extends ContainerNode {
         return ALLOWED_TYPES[this.name] || [];
     }
     // Whether an entry of `className` may live in this section. An empty allow-list
-    // means "no restriction" (matching addEntry's semantics).
+    // means "no restriction". This is the ONE gate: addEntry calls it too (rather
+    // than re-testing the list inline), so the host's paste/drop pre-check can never
+    // drift from what addEntry actually permits.
     allowsType(className) {
         const allowed = this.getAllowedTypes();
         return allowed.length === 0 || allowed.indexOf(className) !== -1;
@@ -111,8 +113,7 @@ export default class SectionNode extends ContainerNode {
         if (!NodeClass || !NodeClass.createDefault) {
             return null;
         }
-        const allowed = this.getAllowedTypes();
-        if (allowed.length > 0 && allowed.indexOf(className) === -1) {
+        if (!this.allowsType(className)) {
             return null;
         }
         const baseName = entryName || NodeClass.defaultName;
@@ -173,9 +174,9 @@ export default class SectionNode extends ContainerNode {
         }
         return baseName + i;
     }
-    // Always returns a node: the registry's matcher chain ends in ObjectNode, so an
-    // unrecognized value shape still models as something rather than dropping the
-    // entry out of the file.
+    // Always returns a node: parseValue's matcher chain falls through to
+    // MatlabVariableNode for any shape it does not recognize, so an unfamiliar value
+    // still models as something rather than dropping the entry out of the file.
     parseEntry(rawEntry, systemComposer) {
         const entryName = rawEntry.name || '';
         let dataNode = NodeRegistry.parseValue(rawEntry.value, entryName, this);

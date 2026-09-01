@@ -1,6 +1,7 @@
 import DataNode from '../DataNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
+import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 export default class StructNode extends DataNode {
     _isElementNode?: boolean;
     get icon(): string;
@@ -18,15 +19,8 @@ export default class StructNode extends DataNode {
     restoreChildNode(child: BaseNode, index: number): void;
     canAddChild(): boolean;
     addChildNode(): DataNode;
-    execAddChild(): {
-        node: DataNode;
-        undo: () => void;
-        redo: () => void;
-    } | null;
-    execRemoveChild(child: BaseNode): {
-        undo: () => void;
-        redo: () => void;
-    } | null;
+    execAddChild(): ChildAddEdit<DataNode> | null;
+    execRemoveChild(child?: BaseNode): ChildUndoRedo | null;
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): StructNode;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): StructNode;

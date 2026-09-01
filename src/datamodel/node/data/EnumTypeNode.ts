@@ -3,6 +3,8 @@
 import DataNode from '../DataNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
+import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
+import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropEnumValue from '../../prop/PropEnumValue.js';
@@ -103,7 +105,7 @@ export class EnumTypeNode extends DataNode {
     restoreChildNode(child: BaseNode, index: number): void { this.children.splice(index, 0, child); child.parent = this; this._markModified(); }
     canAddChild(): boolean { return true; }
 
-    addChildNode(): BaseNode {
+    addChildNode(): EnumValueNode {
         const existing = new Set(this.children.map(function (c) { return c.name; }));
         let i = 1; let uniqueName = 'enum' + i;
         while (existing.has(uniqueName)) { i++; uniqueName = 'enum' + i; }
@@ -116,19 +118,8 @@ export class EnumTypeNode extends DataNode {
         return childNode;
     }
 
-    execAddChild(): unknown {
-        if (!this.canAddChild()) { return null; }
-        const child = this.addChildNode(); if (!child) { return null; }
-        const self = this; const index = this.children.indexOf(child);
-        return { node: child, undo() { self.removeChildNode(child); }, redo() { self.restoreChildNode(child, index); } };
-    }
-
-    execRemoveChild(child?: BaseNode): unknown {
-        if (!this.canRemoveChild() || !child) { return null; }
-        const index = this.children.indexOf(child); if (index < 0) { return null; }
-        this.removeChildNode(child); const self = this;
-        return { undo() { self.restoreChildNode(child, index); }, redo() { self.removeChildNode(child); } };
-    }
+    execAddChild(): ChildAddEdit<EnumValueNode> | null { return addChildUndoable(this); }
+    execRemoveChild(child?: BaseNode): ChildUndoRedo | null { return removeChildUndoable(this, child); }
 
     static get defaultName(): string { return 'EnumType'; }
 

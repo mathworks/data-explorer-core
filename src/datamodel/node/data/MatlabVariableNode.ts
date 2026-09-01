@@ -5,6 +5,8 @@ import type { SetPropertyResult } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
 import type { PropClass, MatlabVariableKind } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
+import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
+import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
@@ -934,72 +936,50 @@ export default class MatlabVariableNode extends DataNode {
     this._markModified();
   }
 
-  execAddChild(): unknown {
-    if (!this.canAddChild()) {
-      return null;
+  execAddChild(): ChildAddEdit | null {
+    // Adding to an empty `[]` converts it to a struct, and that needs an undo/redo
+    // pair the shared wrapper cannot express — see _addFirstStructField. Every
+    // other shape takes the generic remove/restore pair.
+    if (this._kind === 'array' && this._elements.length === 0) {
+      return this.canAddChild() ? this._addFirstStructField() : null;
     }
-    const wasEmptyArray = this._kind === 'array' && this._elements.length === 0;
-    const prevSerial = wasEmptyArray ? { ...this.serial } : null;
-    const child = this.addChildNode();
-    if (!child) {
-      return null;
-    }
+    return addChildUndoable(this);
+  }
+
+  // Add the first field to an empty `[]`, turning it into a 1x1 struct. Undo has to
+  // put back the array shape the conversion discarded — removeChildNode/
+  // restoreChildNode only move a child within a shape that already exists — and
+  // redo has to re-apply the conversion around the SAME field node undo removed.
+  // Calling _convertToStructAndAddField again minted a second 'field' instead, so
+  // the undo stack's node reference went stale: a following undo removed a node
+  // that was no longer in the tree, and each undo/redo cycle left one more orphan
+  // field behind.
+  private _addFirstStructField(): ChildAddEdit {
+    const prevSerial = { ...this.serial };
+    const child = this._convertToStructAndAddField();
     const self = this;
-    const index = this.children.indexOf(child);
-    if (wasEmptyArray) {
-      return {
-        node: child,
-        undo() {
-          self.removeChild(child);
-          self._kind = 'array';
-          self._scalarType = 'double';
-          self._scalarValue = undefined;
-          self._elements = [];
-          self._dims = [0, 0];
-          self.serial = prevSerial!;
-          self._markModified();
-        },
-        // Re-apply the conversion around the SAME field node undo removed.
-        // Calling _convertToStructAndAddField again minted a second 'field'
-        // instead, so the undo stack's node reference went stale: a following
-        // undo removed a node that was no longer in the tree, and each
-        // undo/redo cycle left one more orphan field behind.
-        redo() {
-          self._becomeStruct();
-          self.addChild(child);
-          self._markModified();
-        },
-      };
-    }
     return {
       node: child,
       undo() {
-        self.removeChildNode(child);
+        self.removeChild(child);
+        self._kind = 'array';
+        self._scalarType = 'double';
+        self._scalarValue = undefined;
+        self._elements = [];
+        self._dims = [0, 0];
+        self.serial = prevSerial;
+        self._markModified();
       },
       redo() {
-        self.restoreChildNode(child, index);
+        self._becomeStruct();
+        self.addChild(child);
+        self._markModified();
       },
     };
   }
 
-  execRemoveChild(child?: BaseNode): unknown {
-    if (!this.canRemoveChild() || !child) {
-      return null;
-    }
-    const index = this.children.indexOf(child);
-    if (index < 0) {
-      return null;
-    }
-    this.removeChildNode(child);
-    const self = this;
-    return {
-      undo() {
-        self.restoreChildNode(child, index);
-      },
-      redo() {
-        self.removeChildNode(child);
-      },
-    };
+  execRemoveChild(child?: BaseNode): ChildUndoRedo | null {
+    return removeChildUndoable(this, child);
   }
 
   private _updateDimsForCount(count: number): void {
