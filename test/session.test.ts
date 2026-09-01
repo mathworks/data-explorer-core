@@ -97,6 +97,56 @@ describe('createSession() — load + query', () => {
     expect(s.findNodeById(child.id)).toBeNull();
   });
 
+  it('de-indexes the displaced tree when a srcId is re-registered', () => {
+    // Re-adding the same srcId REPLACES its tree — the ordinary shape of "the file
+    // changed on disk, reload it". Node ids are path-derived, so entries that still
+    // exist are simply re-indexed onto the new tree; the ones that leaked were the
+    // entries the reload DROPPED. Their ids stayed in nodeIndex forever, so
+    // findNodeById kept handing back nodes from a tree the session no longer owns.
+    // An edit routed at one of those detached nodes mutates an orphan: it appears to
+    // succeed and is absent from the saved file.
+    const s = createSession();
+    const first = s.addDataSource('doc.sldd', loadFixture('numeric_json.sldd')) as any;
+    const firstIds = (first.flatten() as Array<{ id: string }>).map((n) => n.id);
+
+    const second = s.addDataSource('doc.sldd', loadFixture('arch.sldd')) as any;
+    expect(second).not.toBe(first);
+    expect(s.getDataSourceCount()).toBe(1);
+
+    // Ids present only in the displaced tree must no longer resolve at all.
+    const liveIds = new Set((second.flatten() as Array<{ id: string }>).map((n) => n.id));
+    const droppedIds = firstIds.filter((id) => !liveIds.has(id));
+    expect(droppedIds.length).toBeGreaterThan(0);
+    expect(droppedIds.filter((id) => s.findNodeById(id) !== null)).toEqual([]);
+
+    // Ids the reload kept must resolve to the LIVE node, never the displaced one.
+    for (const id of liveIds) {
+      expect(s.findNodeById(id)).not.toBeNull();
+      expect(s.findNodeById(id)!.id).toBe(id);
+    }
+  });
+
+  it('clears the selection before announcing a source removal', () => {
+    // A subscriber to 'datamodel/source-removed' legitimately asks what is selected
+    // now, to repaint or to close a panel. Publishing before releasing the selection
+    // answered with the tree that was just removed — getActiveSlddNode() walks
+    // parents and handed back the removed root, the exact stale-context hazard
+    // releaseSelection exists to prevent.
+    const s = createSession();
+    const src = s.addDataSource('numeric_json.sldd', loadFixture('numeric_json.sldd')) as any;
+    s.setActiveContext(src);
+    expect(s.getContextNode()).toBe(src);
+
+    let contextDuringEvent: unknown = 'not-observed';
+    s.bus.subscribe('datamodel/source-removed', () => {
+      contextDuringEvent = s.getContextNode();
+    });
+    s.removeDataSource('numeric_json.sldd');
+
+    expect(contextDuringEvent).toBeNull();
+    expect(s.getContextNode()).toBeNull();
+  });
+
   it('removeAll drops every source and its index entries', () => {
     const s = createSession();
     const src = s.addDataSource('numeric_json.sldd', loadFixture('numeric_json.sldd')) as any;

@@ -54,17 +54,79 @@ function parseMatlabNumber(str) {
     const n = Number(str);
     return isNaN(n) ? null : n;
 }
-function parseChar(str) {
-    if (str.length < 2 || str.charAt(0) !== "'" || str.charAt(str.length - 1) !== "'") {
+// ---- Quoted-literal scanning ----
+// MATLAB escapes the quote character by DOUBLING it, so 'it''s' is one char value
+// of four characters and '''' is the single-quote character itself. Every reader
+// below shares this one scanner rather than searching for the next quote: the
+// first-quote-wins form ended a value in the middle of it, so a 1x2 cell
+// {'it''s', 'ok'} tokenized as the three elements "it", "s'" and "ok" — a cell of
+// the wrong SIZE with mangled text, written back to the file with no error shown.
+// Read the quoted token that starts at `start` (which must hold the quote
+// character). Returns the unescaped text and the index just past the closing
+// quote, or null when the token never closes.
+function scanQuoted(str, start) {
+    const q = str.charAt(start);
+    let text = '';
+    let i = start + 1;
+    while (i < str.length) {
+        const ch = str.charAt(i);
+        if (ch === q) {
+            if (str.charAt(i + 1) === q) {
+                text += q;
+                i += 2;
+                continue;
+            }
+            return { text, next: i + 1 };
+        }
+        text += ch;
+        i++;
+    }
+    return null;
+}
+// The text of `str` when it is EXACTLY one quoted literal, else null. Trailing
+// content after the closing quote is a rejection, not something to ignore:
+// 'a'b' is a syntax error in MATLAB, and reading it as `a'b` stored a value the
+// file could no longer evaluate.
+function unquote(str, q) {
+    if (str.charAt(0) !== q) {
         return null;
     }
-    return { type: 'char', value: str.slice(1, -1) };
+    const scanned = scanQuoted(str, 0);
+    return scanned && scanned.next === str.length ? scanned.text : null;
+}
+// A char/string value spelled as the MATLAB literal that reads back as itself —
+// the exact inverse of parse() for those two types, which is why it lives here
+// and not with the other display helpers. Concatenating the raw text instead
+// produced 'it's', which is not a literal at all: the table showed it, the
+// in-place editor was seeded with it, and committing it unchanged split the value.
+export function formatMatlabChar(value) {
+    return "'" + value.replace(/'/g, "''") + "'";
+}
+export function formatMatlabString(value) {
+    return '"' + value.replace(/"/g, '""') + '"';
+}
+// For a property whose DISPLAY is the quoted literal but whose stored value is the
+// raw text (a Variant condition/specification, a bank Value): strip one layer of
+// quotes and undouble the escapes, passing unquoted input through unchanged. The
+// table seeds the editor with the displayed text, so without this a commit that
+// changed nothing stored the quotes themselves and the next edit nested them
+// again — 'a == 1' → ''a == 1'' → … until the saved condition was no longer an
+// expression MATLAB could evaluate.
+export function unquoteMatlabText(text) {
+    const asChar = unquote(text, "'");
+    if (asChar !== null) {
+        return asChar;
+    }
+    const asString = unquote(text, '"');
+    return asString !== null ? asString : text;
+}
+function parseChar(str) {
+    const value = unquote(str, "'");
+    return value === null ? null : { type: 'char', value };
 }
 function parseString(str) {
-    if (str.length < 2 || str.charAt(0) !== '"' || str.charAt(str.length - 1) !== '"') {
-        return null;
-    }
-    return { type: 'string', value: str.slice(1, -1) };
+    const value = unquote(str, '"');
+    return value === null ? null : { type: 'string', value };
 }
 function parseComplex(str) {
     const m = str.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)([+-](?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)i$/);
@@ -161,21 +223,13 @@ function tokenizeStrings(rowStr) {
             break;
         }
         const ch = rowStr.charAt(i);
-        if (ch === '"') {
-            const end = rowStr.indexOf('"', i + 1);
-            if (end < 0) {
+        if (ch === '"' || ch === "'") {
+            const scanned = scanQuoted(rowStr, i);
+            if (!scanned) {
                 return null;
             }
-            elements.push(rowStr.slice(i + 1, end));
-            i = end + 1;
-        }
-        else if (ch === "'") {
-            const end = rowStr.indexOf("'", i + 1);
-            if (end < 0) {
-                return null;
-            }
-            elements.push(rowStr.slice(i + 1, end));
-            i = end + 1;
+            elements.push(scanned.text);
+            i = scanned.next;
         }
         else {
             return null;
@@ -223,32 +277,23 @@ function parseCell(str) {
     }
     return { type: 'cell', value: elements, dims: [matrix.length, cols] };
 }
+// Split on the row separator, ignoring any ';' that is inside a nested
+// bracket/brace or inside a quoted literal — `{'a;b'}` is one element, not two
+// rows. An unterminated quote swallows the rest of the text rather than splitting
+// it, which leaves the malformed input for the element tokenizer to reject.
 function splitRows(inner) {
     const rows = [];
     let depth = 0;
-    let inSingleQuote = false;
-    let inDoubleQuote = false;
     let start = 0;
-    for (let i = 0; i < inner.length; i++) {
+    let i = 0;
+    while (i < inner.length) {
         const ch = inner.charAt(i);
-        if (inSingleQuote) {
-            if (ch === "'") {
-                inSingleQuote = false;
+        if (ch === "'" || ch === '"') {
+            const scanned = scanQuoted(inner, i);
+            if (!scanned) {
+                break;
             }
-            continue;
-        }
-        if (inDoubleQuote) {
-            if (ch === '"') {
-                inDoubleQuote = false;
-            }
-            continue;
-        }
-        if (ch === "'") {
-            inSingleQuote = true;
-            continue;
-        }
-        if (ch === '"') {
-            inDoubleQuote = true;
+            i = scanned.next;
             continue;
         }
         if (ch === '[' || ch === '{') {
@@ -261,6 +306,7 @@ function splitRows(inner) {
             rows.push(inner.slice(start, i));
             start = i + 1;
         }
+        i++;
     }
     rows.push(inner.slice(start));
     return rows;
@@ -294,21 +340,13 @@ function tokenizeCellElements(rowStr) {
             break;
         }
         const ch = rowStr.charAt(i);
-        if (ch === "'") {
-            const end = rowStr.indexOf("'", i + 1);
-            if (end < 0) {
+        if (ch === "'" || ch === '"') {
+            const scanned = scanQuoted(rowStr, i);
+            if (!scanned) {
                 return null;
             }
-            elements.push(rowStr.slice(i + 1, end));
-            i = end + 1;
-        }
-        else if (ch === '"') {
-            const end = rowStr.indexOf('"', i + 1);
-            if (end < 0) {
-                return null;
-            }
-            elements.push(rowStr.slice(i + 1, end));
-            i = end + 1;
+            elements.push(scanned.text);
+            i = scanned.next;
         }
         else if (ch === '[') {
             const end = findMatchingBracket(rowStr, i, '[', ']');
@@ -365,18 +403,33 @@ function parseLiteral(token) {
     // Not a number — keep the raw token (a bare identifier in a cell stays text).
     return token;
 }
+// Skip over quoted spans rather than counting brackets inside them: a bracket is
+// ordinary text between quotes, so `{['a]'], 1}` closed its inner array at the ']'
+// inside the char value and the whole cell then failed to parse (null → "Invalid
+// MATLAB expression" on a value MATLAB accepts).
 function findMatchingBracket(str, start, open, close) {
     let depth = 0;
-    for (let i = start; i < str.length; i++) {
-        if (str.charAt(i) === open) {
+    let i = start;
+    while (i < str.length) {
+        const ch = str.charAt(i);
+        if (ch === "'" || ch === '"') {
+            const scanned = scanQuoted(str, i);
+            if (!scanned) {
+                return -1;
+            }
+            i = scanned.next;
+            continue;
+        }
+        if (ch === open) {
             depth++;
         }
-        if (str.charAt(i) === close) {
+        if (ch === close) {
             depth--;
             if (depth === 0) {
                 return i;
             }
         }
+        i++;
     }
     return -1;
 }
@@ -400,5 +453,13 @@ function parsedIsScalarNumeric(parsed) {
     return parsed.type === 'logical' || parsed.type === 'complex';
 }
 export { parsedIsScalarNumeric };
-export default { parse, parseArray, parseCell, parsedIsScalarNumeric };
+export default {
+    parse,
+    parseArray,
+    parseCell,
+    parsedIsScalarNumeric,
+    formatMatlabChar,
+    formatMatlabString,
+    unquoteMatlabText,
+};
 //# sourceMappingURL=MatlabValueParser.js.map

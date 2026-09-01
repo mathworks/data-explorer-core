@@ -145,6 +145,34 @@ describe('MatlabVariableNode — displayValue per kind', () => {
     n.children[1]._scalarValue = 99;
     expect(n.displayValue).toBe('[1 99 3]');
   });
+
+  it("REGRESSION: escapes a quote inside a char/string by doubling it", () => {
+    // A concatenated "'" + value + "'" showed `it's` as 'it's', which is not a
+    // MATLAB literal. That matters beyond looks: the table seeds its in-place
+    // editor with the DISPLAYED text, so committing the cell unchanged re-parsed
+    // a different, shorter value — a silent edit of the user's data.
+    expect(parse("it's").displayValue).toBe("'it''s'");
+    expect(parse("'").displayValue).toBe("''''");
+    expect(parse({ _array_type: 'String', _dimensions: [1, 1], _elements: ['say "hi"'] }).displayValue).toBe(
+      '"say ""hi"""',
+    );
+    // A string ARRAY element gets the same treatment as a string scalar.
+    expect(
+      parse({ _array_type: 'String', _dimensions: [1, 2], _elements: ['a"b', 'c'] }).displayValue,
+    ).toBe('["a""b" "c"]');
+  });
+
+  it('REGRESSION: a displayed char/string round-trips through a Value edit', () => {
+    // format and parse have to be inverses, since the editor is seeded with
+    // format's output. This is the whole point of the escaping above.
+    for (const text of ["it's", "'", 'a;b', 'plain']) {
+      const n = parse(text);
+      const shown = n.displayValue;
+      expect(n.setProperty('Value', shown)).toBe(true);
+      expect([n._scalarType, n._scalarValue]).toEqual(['char', text]);
+      expect(n.displayValue).toBe(shown);
+    }
+  });
 });
 
 describe('MatlabVariableNode — non-finite values survive display and save', () => {
@@ -835,6 +863,26 @@ describe('MatlabVariableNode — cell-array children', () => {
     n.removeChildNode(n.children[0]);
     expect([n._dims, n.children.length]).toEqual([[0, 0], 0]);
     expect(n.displayValue).toBe('{}');
+  });
+
+  it('REGRESSION: a cell holding a quote survives its own displayed form', () => {
+    // The data-loss case, and it changed the cell's SHAPE with no error reported.
+    // The element was shown as 'it's' (unescaped), and re-reading that text ended
+    // the first element after `it` — so committing the cell unchanged turned a 1x2
+    // cell into a 1x3 one holding "it", "s'" and "ok", and setProperty returned
+    // true. The saved file then had the wrong dimensions AND mangled text.
+    const n = cellArray(["it's", 'ok']);
+    const shown = n.displayValue;
+    expect(shown).toBe("{'it''s', 'ok'}");
+    expect(n.setProperty('Value', shown)).toBe(true);
+    expect(n._dims).toEqual([1, 2]);
+    expect(n.children.map((c: Any) => c._scalarValue)).toEqual(["it's", 'ok']);
+    expect(n.displayValue).toBe(shown);
+    expect(n.serializeValue()).toMatchObject({
+      _array_type: 'Cell',
+      _dimensions: [1, 2],
+      _elements: ["it's", 'ok'],
+    });
   });
 });
 

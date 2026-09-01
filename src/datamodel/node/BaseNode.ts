@@ -11,6 +11,12 @@ export interface PropClass {
   nodeProperty?: string;
   readValue?: (node: BaseNode) => string;
   readOptions?: (node: BaseNode) => string[];
+  // The inverse of `format`, for a prop whose DISPLAY differs from what is stored
+  // — currently the ones shown as a quoted MATLAB literal. The table seeds its
+  // in-place editor with the displayed text, so an edit arrives in display form;
+  // without this the display decoration is stored as part of the value and grows
+  // by one layer per edit. Omitted when format is the identity on strings.
+  unformat?: (text: string) => string;
   // Top-level keys in the node's raw `_properties` bag that this prop consumes.
   // The PI "Other" catch-all group uses this to avoid re-listing already-shown
   // data. When omitted, toPIObject falls back to [nodeProperty ?? key].

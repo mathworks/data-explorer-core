@@ -128,6 +128,33 @@ export default class StructNode extends DataNode {
         return xml;
     }
 
+    // A struct ARRAY has a single field list shared by every element — that is what
+    // makes it an array rather than a bag of unrelated structs — so renaming a field
+    // on one element renames it on all of them, and each element's matching child
+    // has to be renamed too. Without that, every OTHER element serialized its value
+    // under a field name it no longer had: undefined, and the value simply gone from
+    // the saved file. An element hands the job up to the array root, which owns them
+    // all; the root then renames the shared list once (super) and fixes up the
+    // siblings. Renaming a child that already carries the new name is a no-op, which
+    // is what makes this safe to call from the element that triggered it.
+    _renameField(from: string, to: string): void {
+        if (this._isElementNode && this.parent instanceof StructNode) {
+            this.parent._renameField(from, to);
+            return;
+        }
+        super._renameField(from, to);
+        for (const element of this.children) {
+            if (!(element as StructNode)._isElementNode) {
+                continue;
+            }
+            for (const field of element.children) {
+                if (field.name === from) {
+                    field.name = to;
+                }
+            }
+        }
+    }
+
     canRemoveChild(): boolean {
         const d = (this.serial._dimensions as number[]) || [1, 1];
         return d[0] === 1 && d[1] === 1 && !this._isElementNode && this.children.length > 0;

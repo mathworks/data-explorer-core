@@ -171,6 +171,25 @@ describe('editProperty', () => {
     expect(entry.name).toBe('renamed');
   });
 
+  it('undo restores the previous value even when the caller omits oldValue', () => {
+    // `oldValue` is optional and README's own example omits it, so undo cannot rely
+    // on the caller supplying it. It used to: undo called setProperty(prop,
+    // undefined), which wiped the prior value rather than restoring it — and redo
+    // could not bring it back either, so one undo silently destroyed the old text.
+    const { s, src } = loadedSession();
+    const entry = firstEntry(src);
+    const original = entry.name;
+    s.setActive(src, entry);
+
+    expect(s.editProperty(entry.id, 'Name', 'renamed')).toBe(true);
+    expect(entry.name).toBe('renamed');
+
+    s.undo();
+    expect(entry.name).toBe(original);
+    s.redo();
+    expect(entry.name).toBe('renamed');
+  });
+
   it('refuses an edit aimed at a node that is not the active one', () => {
     const { s, src } = loadedSession();
     s.setActive(src, firstEntry(src));

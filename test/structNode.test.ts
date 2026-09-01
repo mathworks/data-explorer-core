@@ -133,6 +133,57 @@ describe('StructNode.removeChildNode', () => {
   });
 });
 
+// --- renaming a field ------------------------------------------------------
+
+describe('StructNode field rename', () => {
+  it('renames the field on every element of a struct array', () => {
+    // A struct array has ONE field list shared by all its elements, so renaming a
+    // field is a whole-array operation. The rename used to rewrite that shared
+    // list while renaming the child of only the element the user was editing, so
+    // every OTHER element then serialized its value under a field name it no
+    // longer had — undefined, and the value simply gone from the saved .sldd.
+    const node = parseStruct(['x', 'y'], [{ x: 1, y: 2 }, { x: 3, y: 4 }], [2, 1]);
+    const firstElement = node.children[0];
+
+    expect((firstElement.children[0] as any).setProperty('Name', 'renamed')).toBe(true);
+
+    const json = JSON.parse(JSON.stringify(node.serializeValue()));
+    expect(json._fields).toEqual(['renamed', 'y']);
+    expect(json._elements).toEqual([
+      { renamed: 1, y: 2 },
+      { renamed: 3, y: 4 },
+    ]);
+    // The XML save path has to agree — it names each <P> from the child node.
+    expect(node.serializeXml('P', { Name: 'S' }, 0)).not.toContain('Name="x"');
+  });
+
+  it('renames from a non-first element and restores on rename back', () => {
+    const node = parseStruct(['x', 'y'], [{ x: 1, y: 2 }, { x: 3, y: 4 }], [2, 1]);
+    const secondElement = node.children[1];
+
+    (secondElement.children[1] as any).setProperty('Name', 'why');
+    expect(JSON.parse(JSON.stringify(node.serializeValue()))._elements).toEqual([
+      { x: 1, why: 2 },
+      { x: 3, why: 4 },
+    ]);
+
+    // Renaming back is how undo of a rename is spelled, so it has to land exactly.
+    (secondElement.children[1] as any).setProperty('Name', 'y');
+    expect(JSON.parse(JSON.stringify(node.serializeValue()))._elements).toEqual([
+      { x: 1, y: 2 },
+      { x: 3, y: 4 },
+    ]);
+  });
+
+  it('renames a field of a scalar struct', () => {
+    const node = parseStruct(['a', 'b'], [{ a: 1, b: 2 }]);
+    (node.children[0] as any).setProperty('Name', 'a2');
+    const json = JSON.parse(JSON.stringify(node.serializeValue()));
+    expect(json._fields).toEqual(['a2', 'b']);
+    expect(json._elements).toEqual([{ a2: 1, b: 2 }]);
+  });
+});
+
 // --- canAddChild / addChildNode / execAddChild -----------------------------
 
 describe('StructNode.addChildNode', () => {

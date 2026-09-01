@@ -5,7 +5,12 @@
 // reject anything MATLAB itself could not evaluate.
 
 import { describe, it, expect } from 'vitest';
-import MatlabValueParser, { parsedIsScalarNumeric } from '../src/datamodel/parser/MatlabValueParser.js';
+import MatlabValueParser, {
+  parsedIsScalarNumeric,
+  formatMatlabChar,
+  formatMatlabString,
+  unquoteMatlabText,
+} from '../src/datamodel/parser/MatlabValueParser.js';
 
 const parse = (s: string) => MatlabValueParser.parse(s);
 
@@ -162,6 +167,56 @@ describe('MatlabValueParser — char and string', () => {
   it('parses the empty char and empty string', () => {
     expect(parse("''")).toEqual({ type: 'char', value: '' });
     expect(parse('""')).toEqual({ type: 'string', value: '' });
+  });
+
+  it("REGRESSION: undoubles an escaped quote inside a char literal", () => {
+    // MATLAB escapes a quote by DOUBLING it, so 'it''s' is ONE value of four
+    // characters. Slicing the outer quotes off and stopping there kept the doubled
+    // quote in the value, so the text shown and saved was `it''s` — not what the
+    // user typed, and doubled again on the next save.
+    expect(parse("'it''s'")).toEqual({ type: 'char', value: "it's" });
+    // '''' is the single-quote CHARACTER: two quotes of delimiter, two of escape.
+    expect(parse("''''")).toEqual({ type: 'char', value: "'" });
+    expect(parse("'a''''b'")).toEqual({ type: 'char', value: "a''b" });
+    expect(parse('"say ""hi"""')).toEqual({ type: 'string', value: 'say "hi"' });
+  });
+
+  it("REGRESSION: rejects a literal with text after its closing quote", () => {
+    // 'a'b' is a syntax error in MATLAB. Reading it as `a'b` (slice off the first
+    // and last character) stored a value the saved file could no longer evaluate.
+    expect(parse("'a'b'")).toBeNull();
+    expect(parse('"a"b"')).toBeNull();
+    // A doubled quote is not a terminator, so this one is still unterminated.
+    expect(parse("'a''")).toBeNull();
+  });
+
+  it("REGRESSION: undoubles escaped quotes in a string-array element", () => {
+    expect(parse('["a""b" "c"]')).toEqual({ type: 'string-array', value: ['a"b', 'c'], dims: [1, 2] });
+    expect(parse("['it''s' 'ok']")).toEqual({ type: 'string-array', value: ["it's", 'ok'], dims: [1, 2] });
+  });
+
+  it('round-trips every awkward char through formatMatlabChar', () => {
+    // format and parse are inverses by construction — that pairing is the whole
+    // point, since the table displays format's output and feeds it back to parse.
+    for (const text of ["it's", "'", "''", 'plain', '', 'a;b', 'a]b', 'x}y', '"dq"']) {
+      expect(parse(formatMatlabChar(text))).toEqual({ type: 'char', value: text });
+    }
+    for (const text of ['say "hi"', '"', 'plain', '', "it's"]) {
+      expect(parse(formatMatlabString(text))).toEqual({ type: 'string', value: text });
+    }
+  });
+
+  it('unquoteMatlabText strips one layer and passes bare text through', () => {
+    // The Variant Condition/Specification path: stored raw, displayed quoted, and
+    // edited through the displayed form.
+    expect(unquoteMatlabText("'strcmp(mode,''fast'')'")).toBe("strcmp(mode,'fast')");
+    expect(unquoteMatlabText('"a""b"')).toBe('a"b');
+    expect(unquoteMatlabText('a == 1')).toBe('a == 1');
+    // Only ONE layer comes off, so a value that really is a quoted literal keeps
+    // its inner quoting.
+    expect(unquoteMatlabText("'''q'''")).toBe("'q'");
+    // Not a single well-formed literal — left alone rather than half-stripped.
+    expect(unquoteMatlabText("'a'b'")).toBe("'a'b'");
   });
 
   it('rejects an unterminated quote', () => {
@@ -334,6 +389,37 @@ describe('MatlabValueParser — cell arrays', () => {
       value: [{ _array_type: 'Cell', _dimensions: [0, 0], _elements: [], _mw_element_type: 'MATLABArray' }],
       dims: [1, 1],
     });
+  });
+
+  it("REGRESSION: an escaped quote does not end a cell element early", () => {
+    // The worst of the quote bugs, because it changed the SHAPE of the value with
+    // no error: taking the next quote as the terminator split 'it''s' after `it`,
+    // so this 1x2 cell tokenized to the THREE elements "it", "s'" and "ok" and was
+    // written back to the file as a 1x3 cell of mangled text.
+    expect(parse("{'it''s', 'ok'}")).toEqual({ type: 'cell', value: ["it's", 'ok'], dims: [1, 2] });
+    expect(parse('{"a""b", "c"}')).toEqual({ type: 'cell', value: ['a"b', 'c'], dims: [1, 2] });
+    expect(parse("{''''}")).toEqual({ type: 'cell', value: ["'"], dims: [1, 1] });
+  });
+
+  it("REGRESSION: a bracket inside a quoted element is text, not a delimiter", () => {
+    // findMatchingBracket counted brackets everywhere, so the ']' inside the char
+    // value closed the nested array early and the whole cell failed to parse —
+    // "Invalid MATLAB expression" on an expression MATLAB accepts.
+    expect(parse("{['a]'], 1}")).toEqual({ type: 'cell', value: [['a]'], 1], dims: [1, 2] });
+    expect(parse("{{'a}b'}, 2}")).toEqual({
+      type: 'cell',
+      value: [{ _array_type: 'Cell', _dimensions: [1, 1], _elements: ['a}b'], _mw_element_type: 'MATLABArray' }, 2],
+      dims: [1, 2],
+    });
+  });
+
+  it('a semicolon inside a quoted element does not start a new row', () => {
+    // splitRows already skipped quoted spans, but it did so with a flag that a
+    // doubled quote toggled twice — so this checks the shared scanner kept it.
+    expect(parse("{'a;b', 'c'}")).toEqual({ type: 'cell', value: ['a;b', 'c'], dims: [1, 2] });
+    expect(parse("{'it''s;x'}")).toEqual({ type: 'cell', value: ["it's;x"], dims: [1, 1] });
+    // A real row separator still splits.
+    expect(parse("{'a;b'; 'c'}")).toEqual({ type: 'cell', value: ['a;b', 'c'], dims: [2, 1] });
   });
 });
 

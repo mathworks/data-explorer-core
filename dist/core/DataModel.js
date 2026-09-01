@@ -37,6 +37,17 @@ export function createSession(opts = {}) {
     }
     function registerSource(srcId, sourceNode, meta) {
         sourceNode.meta = buildMeta(meta);
+        // Re-registering a srcId REPLACES its tree, so the outgoing tree's nodes have to
+        // leave nodeIndex first. `dataSources.set` drops the only reference to the old
+        // source, but its node ids stay in nodeIndex forever otherwise — and findNodeById
+        // would keep resolving them, handing callers a detached node from a tree the
+        // session no longer owns. Edits routed there mutate an orphan and vanish on save.
+        // Reloading the same file (parse → addDataSource on the same uri) is the ordinary
+        // way to hit this, so it is a routine path, not a corner case.
+        const previous = dataSources.get(srcId);
+        if (previous) {
+            deindexSource(previous);
+        }
         dataSources.set(srcId, sourceNode);
         indexSource(sourceNode);
         publish('datamodel/source-added', { srcId, slddNode: sourceNode });
@@ -194,8 +205,14 @@ export function createSession(opts = {}) {
         }
         deindexSource(source);
         dataSources.delete(srcId);
-        publish('datamodel/source-removed', { srcId });
+        // Drop the selection BEFORE announcing the removal. A subscriber to
+        // 'datamodel/source-removed' legitimately asks what is selected now (to repaint a
+        // property inspector, to decide whether to close a panel), and publishing first
+        // answered that question with the tree that was just removed — getActiveSlddNode()
+        // walks parents and would hand back the removed root, exactly the stale-context
+        // hazard releaseSelection exists to prevent.
         releaseSelection(source);
+        publish('datamodel/source-removed', { srcId });
     }
     function removeAll() {
         dataSources.clear();
@@ -229,6 +246,29 @@ export function createSession(opts = {}) {
     subscribe('node/deleted', reindexAll);
     subscribe('node/children-changed', reindexAll);
     // --- Mutation Actions ---
+    // The value `propertyName` currently holds on `node`, as the string setProperty
+    // accepts, so an edit can be undone without the caller having to supply the prior
+    // value. Falls back to `fallback` when the node does not project the property (an
+    // arbitrary key, or one absent from getProperties), which keeps a caller that DOES
+    // pass oldValue authoritative for anything this cannot see.
+    function readPropertyValue(node, propertyName, fallback) {
+        try {
+            const props = node.getProperties();
+            for (let i = 0; i < props.length; i++) {
+                const key = props[i].key;
+                const column = props[i].column;
+                if (key === propertyName || column === propertyName) {
+                    // displayValue is the round-trippable text form (what the inspector shows
+                    // and what an edit submits); `value` may be a live object reference.
+                    return node.getPropInfo(props[i]).displayValue;
+                }
+            }
+        }
+        catch {
+            // A node whose property projection throws must not break the edit itself.
+        }
+        return fallback;
+    }
     function editProperty(nodeId, propertyName, newValue, oldValue) {
         const activeNode = getActiveNode();
         if (!activeNode || activeNode.id !== nodeId) {
@@ -241,6 +281,14 @@ export function createSession(opts = {}) {
         if (!node.setProperty) {
             return false;
         }
+        // Capture the pre-edit value so undo can restore it even when the caller omits
+        // `oldValue`. The parameter is optional, and README's own example omits it, so
+        // trusting it meant undo called setProperty(prop, undefined) — destroying the
+        // prior value instead of restoring it, with redo unable to bring it back either.
+        // Read through getPropInfo (the same path the property inspector displays) so the
+        // captured value is in the shape setProperty round-trips; fall back to the passed
+        // `oldValue` if this node does not project the property.
+        const priorValue = readPropertyValue(node, propertyName, oldValue);
         const result = node.setProperty(propertyName, newValue);
         if (result !== true) {
             return result || false;
@@ -258,7 +306,7 @@ export function createSession(opts = {}) {
                     publish('node/children-changed', { parent: node });
                 },
                 undo() {
-                    node.setProperty(propertyName, oldValue);
+                    node.setProperty(propertyName, priorValue);
                     publish('node/edited', { source: 'undo', nodeId: node.id, kind });
                     if (kind === 'rename') {
                         publishActiveChanged();

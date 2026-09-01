@@ -143,6 +143,42 @@ describe('per-class display differences', () => {
   });
 });
 
+describe('REGRESSION: a quoted display round-trips through an edit', () => {
+  // These leaves store RAW text but display it as a quoted MATLAB literal, and the
+  // table seeds its in-place editor with the displayed text — so an edit arrives
+  // quoted. Storing it verbatim made the quotes part of the value and the next
+  // edit wrapped them again ('a == 1' → ''a == 1'' → …), until the saved .sldd
+  // held a condition MATLAB could no longer evaluate. Note the edit is committed
+  // in the 'Value' COLUMN, which is how the table addresses these props.
+  const QUOTED = [
+    { cls: 'Simulink.VariantExpression', Node: VariantExpressionNode, prop: 'Condition', raw: "strcmp(mode,'fast')" },
+    { cls: 'Simulink.VariantVariable', Node: VariantVariableNode, prop: 'Specification', raw: "p('x')" },
+    { cls: 'Simulink.VariantBank', Node: VariantBankNode, prop: 'Value', raw: "bank'1" },
+  ] as const;
+
+  for (const { cls, Node, prop, raw } of QUOTED) {
+    it(cls + ' keeps its ' + prop + ' unquoted after committing the displayed text', () => {
+      const n = Node.parse(wrap(cls, { [prop]: raw }), 'n', null) as any;
+      const shown = n.displayValue;
+      // A quote in the value displays doubled, so the shown text is a real literal.
+      expect(shown).toBe("'" + raw.replace(/'/g, "''") + "'");
+      expect(n.setProperty('Value', shown)).toBe(true);
+      expect(n[prop]).toBe(raw);
+      expect(n.displayValue).toBe(shown);
+      expect(n.serializeValue()).toEqual(wrap(cls, { [prop]: raw }));
+    });
+
+    it(cls + ' stores a NEW value typed in the displayed quoted form', () => {
+      const n = Node.parse(wrap(cls, { [prop]: 'old' }), 'n', null) as any;
+      expect(n.setProperty('Value', "'a''b'")).toBe(true);
+      expect(n[prop]).toBe("a'b");
+      // Unquoted text is stored as typed, since that is not a literal to strip.
+      expect(n.setProperty('Value', 'a == 1')).toBe(true);
+      expect(n[prop]).toBe('a == 1');
+    });
+  }
+});
+
 describe('a leaf parsed from a value with no elements', () => {
   it('still constructs, with an empty property and no XML element', () => {
     // Defensive: a hand-edited or truncated .sldd can omit _elements. The node

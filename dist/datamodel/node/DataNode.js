@@ -138,14 +138,19 @@ export default class DataNode extends BaseNode {
     get disabled() {
         return !this.isEntry;
     }
+    // The prop atom `propName` names — by its own key or by the column it renders
+    // into, which is how an edit committed in the 'Value' column reaches the atom
+    // that actually owns it (a Variant's Condition/Specification). Undefined when
+    // this node has no such prop.
+    _propFor(propName) {
+        return this.getProperties().find((prop) => prop.key === propName || prop.column === propName);
+    }
     _resolveProperty(propName) {
-        const props = this.getProperties();
-        for (let i = 0; i < props.length; i++) {
-            if (props[i].key === propName || props[i].column === propName) {
-                return props[i].nodeProperty || props[i].key;
-            }
+        const prop = this._propFor(propName);
+        if (!prop) {
+            return propName;
         }
-        return propName;
+        return prop.nodeProperty || prop.key;
     }
     setProperty(propName, stringValue) {
         // A schema-projected, editable property (e.g. the Code Generation columns
@@ -184,14 +189,16 @@ export default class DataNode extends BaseNode {
             }
             const oldName = this.name;
             this.name = stringValue;
-            if (this.parent && this.parent.serial) {
-                const parentSerial = this.parent.serial;
-                if (parentSerial._fields) {
-                    const idx = parentSerial._fields.indexOf(oldName);
-                    if (idx >= 0) {
-                        parentSerial._fields[idx] = stringValue;
-                    }
-                }
+            // A container that keys its children by name (a struct, via serial._fields)
+            // has to be told, or its field list still spells the old name and the child
+            // is orphaned on save. Ask the parent rather than reaching into its serial
+            // from here, so a container with more to do can say so — a struct ARRAY
+            // shares one field list across every element, which makes a field rename a
+            // whole-array operation only StructNode knows about.
+            const renameField = this.parent
+                ?._renameField;
+            if (typeof renameField === 'function') {
+                renameField.call(this.parent, oldName, stringValue);
             }
             this._markModified();
             return true;
@@ -215,7 +222,14 @@ export default class DataNode extends BaseNode {
             self[resolved] = stringValue === 'true';
         }
         else {
-            self[resolved] = stringValue;
+            // A prop displayed in a decorated form (a quoted MATLAB literal) has to be
+            // undecorated on the way back in: the table seeds its in-place editor with
+            // the DISPLAYED text, so committing a cell unchanged arrives here already
+            // quoted. Stored as-is, the quotes became part of the value and the next
+            // edit wrapped them again — 'a == 1' → ''a == 1'' → … — so the .sldd ended
+            // up holding a condition MATLAB can no longer evaluate.
+            const unformat = this._propFor(propName)?.unformat;
+            self[resolved] = unformat ? unformat(stringValue) : stringValue;
         }
         this._markModified();
         return true;
@@ -264,6 +278,21 @@ export default class DataNode extends BaseNode {
     }
     execRemoveChild(_child) {
         return null;
+    }
+    // A child of this node was renamed; keep any name-keyed serial in step. The
+    // default is the field list a struct-shaped serial carries, which is all a
+    // plain container needs. StructNode overrides it because a struct array shares
+    // one field list across every element, so the rename has to reach the matching
+    // child of each of them too.
+    _renameField(from, to) {
+        const fields = this.serial?._fields;
+        if (!fields) {
+            return;
+        }
+        const idx = fields.indexOf(from);
+        if (idx >= 0) {
+            fields[idx] = to;
+        }
     }
     _markModified() {
         let node = this;

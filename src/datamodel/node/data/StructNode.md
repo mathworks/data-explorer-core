@@ -57,6 +57,17 @@ the children array.
 Removes the specified child and splices its name from `serial._fields`. The
 remaining children and fields stay in their original order.
 
+### _renameField(from, to)
+
+Renaming a field is the one structural change a struct **array** does allow, and it
+is a whole-array operation: all elements share one `_fields` list, so the new name
+has to reach the matching child of every element. `DataNode.setProperty` calls this
+hook on the parent instead of writing `serial._fields` itself; an element node
+forwards to the array root, which renames the shared list (via `DataNode`'s default)
+and then renames the matching child of each element. Renaming only the edited
+element's child left every other element serializing its value under a field name
+it no longer had — `undefined`, i.e. the value dropped from the saved file.
+
 ### execAddChild / execRemoveChild
 
 Both delegate to the shared wrapper in `node/childEdit.ts`, which returns undo/redo

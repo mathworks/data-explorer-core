@@ -123,6 +123,15 @@ describe('PropValue.format', () => {
     expect(PropValue.format(['abc'])).toBe('"abc"');
   });
 
+  it("REGRESSION: doubles a quote inside the value, as MATLAB escapes it", () => {
+    // "'" + value + "'" rendered `it's` as 'it's', which is not a MATLAB literal.
+    // The cell is also what seeds the in-place editor, so the displayed text has
+    // to be text that reads back as the same value.
+    expect(PropValue.format("it's")).toBe("'it''s'");
+    expect(PropValue.format("'")).toBe("''''");
+    expect(PropValue.format(['a"b'])).toBe('"a""b"');
+  });
+
   it('renders a short numeric array in bracket form', () => {
     expect(PropValue.format([1, 2, 3])).toBe('[1 2 3]');
   });
@@ -186,6 +195,43 @@ describe('quoting atoms', () => {
   it('both feed the shared Value column', () => {
     expect(PropCondition.column).toBe('Value');
     expect(PropSpecification.column).toBe('Value');
+  });
+
+  it('REGRESSION: double an embedded quote instead of emitting a broken literal', () => {
+    // strcmp(mode,'fast') is an ordinary variant condition, and it has to display
+    // as text MATLAB could evaluate.
+    expect(PropCondition.format("strcmp(mode,'fast')")).toBe("'strcmp(mode,''fast'')'");
+    expect(PropSpecification.format("p('x')")).toBe("'p(''x'')'");
+  });
+
+  it('REGRESSION: every quoting atom carries the inverse of its format', () => {
+    // DataNode.setProperty consults unformat on the way in. Without it the display
+    // quotes were stored as part of the value and the next edit wrapped them again
+    // ('a == 1' → ''a == 1'' → …) until the saved condition was no longer an
+    // expression MATLAB could evaluate.
+    for (const atom of [PropCondition, PropSpecification, PropValue]) {
+      expect(typeof atom.unformat, `${atom.name}.unformat`).toBe('function');
+      for (const raw of ["strcmp(mode,'fast')", 'a == 1', 'plain', '']) {
+        // The displayed form of `raw`, spelled the way all three atoms spell it.
+        const shown = "'" + raw.replace(/'/g, "''") + "'";
+        expect(atom.unformat(shown), `${atom.name} ${raw}`).toBe(raw);
+      }
+      // Text that is not a single well-formed literal is left alone, not
+      // half-stripped into something different from what the user typed.
+      expect(atom.unformat("'a'b'"), atom.name).toBe("'a'b'");
+      expect(atom.unformat('a == 1'), atom.name).toBe('a == 1');
+    }
+  });
+
+  it('only the atoms whose display is decorated declare an unformat', () => {
+    // unformat exists to undo a display decoration. An atom whose format is the
+    // identity on strings must not have one, or an edit whose text happens to look
+    // like a quoted literal would be silently unquoted.
+    const decorated = new Set([PropCondition, PropSpecification, PropValue]);
+    for (const atom of ALL_ATOMS) {
+      const has = typeof (atom as unknown as { unformat?: unknown }).unformat === 'function';
+      expect(has, `${atom.name}.unformat`).toBe(decorated.has(atom as never));
+    }
   });
 });
 

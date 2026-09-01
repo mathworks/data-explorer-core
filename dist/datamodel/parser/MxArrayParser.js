@@ -4,8 +4,15 @@
 import { parseMatrix } from './MatParser.js';
 const MXARRAY_MAGIC = [0x00, 0x01, 0x49, 0x4D]; // \x00\x01IM
 const MI_MATRIX = 14;
+// A little-endian uint32. The `>>> 0` is load-bearing, not decoration: `<< 24`
+// yields a SIGNED 32-bit result, so any length with the high bit set read as a
+// negative number. A corrupt or malicious trailing length of 0xfffffff8 then read
+// as -8, which made `offset += 8 + size` advance by zero — the scan loop below span
+// forever pushing empty views until the heap died, taking the extension host with
+// it. Unsigned, that length is simply larger than the file and the loop's own
+// clamp-and-stop handles it.
 function ru32(buf, offset) {
-    return buf[offset] | (buf[offset + 1] << 8) | (buf[offset + 2] << 16) | (buf[offset + 3] << 24);
+    return (buf[offset] | (buf[offset + 1] << 8) | (buf[offset + 2] << 16) | (buf[offset + 3] << 24)) >>> 0;
 }
 /**
  * Parse an .mxarray buffer and extract workspace variables.

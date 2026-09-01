@@ -136,6 +136,28 @@ describe('formatComplexXml', () => {
     expect(formatComplexXml('1.5+2.5i')).toBe('1.5+2.5i');
     expect(formatComplexXml('1.5+2i')).toBe('1.5+2.0i');
   });
+
+  it('leaves an exponent alone instead of appending .0 to it', () => {
+    // Typing '0.0000001+0.00000002i' into the inspector stores '1e-7+2e-8i',
+    // because Number stringifies anything below 1e-6 in exponent form — so this
+    // is an ordinary small value, not a corner case. Appending '.0' to the
+    // trailing digits of each part turned it into '1e-7.0+2e-8.0i', which is not
+    // a MATLAB literal, so the written .sldd no longer round-trips.
+    expect(formatComplexXml('1e-7+2e-8i')).toBe('1e-7+2e-8i');
+    expect(formatComplexXml('1e+21+2i')).toBe('1e+21+2.0i');
+    expect(formatComplexXml('1.0e-07+2.0e-08i')).toBe('1.0e-07+2.0e-08i');
+    expect(formatComplexXml('1E10+2E5i')).toBe('1E10+2E5i');
+  });
+
+  it('formats a whole array of complex literals and the non-finite spellings', () => {
+    expect(formatComplexXml('1+2i 3+4i')).toBe('1.0+2.0i 3.0+4.0i');
+    expect(formatComplexXml('2i')).toBe('2.0i');
+    expect(formatComplexXml('-3-4i')).toBe('-3.0-4.0i');
+    // A bare leading dot is one number, not a digit run that would give '.5.0'.
+    expect(formatComplexXml('.5+.25i')).toBe('.5+.25i');
+    expect(formatComplexXml('Inf+2i')).toBe('Inf+2.0i');
+    expect(formatComplexXml('NaN+0i')).toBe('NaN+0.0i');
+  });
 });
 
 describe('transposeToColumnMajor', () => {

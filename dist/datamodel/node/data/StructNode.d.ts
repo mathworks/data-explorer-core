@@ -14,6 +14,7 @@ export default class StructNode extends DataNode {
     serializeElement(): Record<string, unknown>;
     serializeValue(): unknown;
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
+    _renameField(from: string, to: string): void;
     canRemoveChild(): boolean;
     removeChildNode(child: BaseNode): void;
     restoreChildNode(child: BaseNode, index: number): void;

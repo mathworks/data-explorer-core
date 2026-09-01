@@ -6,6 +6,7 @@ export interface PropClass {
     nodeProperty?: string;
     readValue?: (node: BaseNode) => string;
     readOptions?: (node: BaseNode) => string[];
+    unformat?: (text: string) => string;
     sourceKeys?: string[];
     format: (value: unknown) => string;
 }

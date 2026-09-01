@@ -9,7 +9,7 @@ import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
-import MatlabValueParser from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, formatMatlabNum, parseMatlabNum, transposeToColumnMajor, pad as xmlPad, } from '../../parser/XmlUtils.js';
 // ---- Pure value helpers ----
@@ -327,7 +327,7 @@ export default class MatlabVariableNode extends DataNode {
                 if (typeof this._mcosValue === 'number')
                     return String(this._mcosValue);
                 if (typeof this._mcosValue === 'string')
-                    return this._mcosValue ? "'" + this._mcosValue + "'" : '<1x1 ' + this._opaqueClassName + '>';
+                    return this._mcosValue ? formatMatlabChar(this._mcosValue) : '<1x1 ' + this._opaqueClassName + '>';
                 if (Array.isArray(this._mcosValue)) {
                     const dims = this._mcosDimensions || [1, this._mcosValue.length];
                     return '[' + dims.join('x') + ' ' + (this._opaqueClassName || 'double') + ']';
@@ -355,10 +355,10 @@ export default class MatlabVariableNode extends DataNode {
             return NOT_AVAILABLE;
         }
         if (this._scalarType === 'char') {
-            return "'" + this._scalarValue + "'";
+            return formatMatlabChar(String(this._scalarValue));
         }
         if (this._scalarType === 'string') {
-            return '"' + this._scalarValue + '"';
+            return formatMatlabString(String(this._scalarValue));
         }
         if (this._scalarType === 'struct') {
             return '<' + this._dims.join('x') + ' struct>';
@@ -406,7 +406,7 @@ export default class MatlabVariableNode extends DataNode {
     _formatString() {
         const d = this._dims;
         if (d[0] === 1 && d[1] === 1 && this._elements.length === 1) {
-            return '"' + this._elements[0] + '"';
+            return formatMatlabString(String(this._elements[0]));
         }
         const rows = d[0];
         const cols = d[1];
@@ -415,7 +415,7 @@ export default class MatlabVariableNode extends DataNode {
             const vals = [];
             for (let c = 0; c < cols; c++) {
                 const el = this._elements[r * cols + c];
-                vals.push('"' + (el !== undefined ? el : '') + '"');
+                vals.push(formatMatlabString(el !== undefined ? String(el) : ''));
             }
             rowStrs.push(vals.join(' '));
         }

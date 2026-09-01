@@ -576,4 +576,30 @@ describe('parseMxArray', () => {
       ).not.toThrow();
     }
   });
+
+  // A uint32 length with the high bit set. Read with a signed `<< 24` these came
+  // back NEGATIVE, so `offset += 8 + size` advanced by zero or went backwards and
+  // the trailing-element scan span forever, pushing empty views until the heap died
+  // — an out-of-memory crash of the whole extension host, not a parse failure the
+  // caller could report. Unsigned, each is simply longer than the file and the
+  // existing clamp-and-stop handles it. Note how a regression here shows up: the
+  // worker dies of heap exhaustion, so the run fails with "Worker exited
+  // unexpectedly" rather than a normal assertion diff.
+  it.each([
+    ['0xfffffff8, which reads as -8', 0xfffffff8],
+    ['0x80000000, the first negative value', 0x80000000],
+    ['0xffffffff, which reads as -1', 0xffffffff],
+  ])('REGRESSION: a trailing length of %s terminates', (_label, size) => {
+    const trailing = new Uint8Array([...u32le(MI.DOUBLE), ...u32le(size)]);
+    const parsed = parseMxArray(mxArrayFile(workspaceBody({ p: scalarField(5) }), { trailing }));
+    expect(parsed.map((v) => v.name)).toEqual(['p']);
+    expect(parsed._trailingElements.map((t) => t.length)).toEqual([8]);
+  }, 5000);
+
+  it('REGRESSION: a high-bit outer size does not read as a negative length', () => {
+    // outerSize feeds Math.min(size, buf.length - 16); a negative one won that
+    // comparison and was passed to parseMatrix as a negative length.
+    const parsed = parseMxArray(mxArrayFile(workspaceBody({ p: scalarField(5) }), { outerSize: 0x80000000 }));
+    expect(parsed.map((v) => v.name)).toEqual(['p']);
+  });
 });

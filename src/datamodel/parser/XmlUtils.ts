@@ -48,8 +48,19 @@ export function formatNumericXml(num: number, type: string): string {
     return formatMatlabNum(Math.round(num));
 }
 
+// Every numeric part of a complex literal has to read as a double, so an integral
+// part gains a '.0'. Match the WHOLE number rather than a trailing run of digits:
+// the run-of-digits form appended '.0' to the EXPONENT, so '1e-7+2e-8i' was written
+// as '1e-7.0+2e-8.0i', which is not a MATLAB literal at all. Exponents are not a
+// corner case here — Number stringifies anything below 1e-6 that way, so typing an
+// ordinary small value like '0.0000001+0.00000002i' into the inspector is stored as
+// '1e-7+2e-8i' and reached this routine. The leading-dot alternative comes first so
+// '.5' is seen as one number instead of a bare '5' that would yield '.5.0'.
 export function formatComplexXml(complexStr: string): string {
-    return complexStr.replace(/(?<![.\d])(\d+)(?=[+\-i])/g, '$1.0');
+    return complexStr.replace(
+        /\.\d+(?:[eE][+-]?\d+)?|\d+\.?\d*(?:[eE][+-]?\d+)?/g,
+        (num) => (/[.eE]/.test(num) ? num : num + '.0'),
+    );
 }
 
 export function transposeToColumnMajor<T>(rowMajor: T[], rows: number, cols: number): T[] {
