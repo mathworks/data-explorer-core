@@ -67,7 +67,7 @@ The threshold follows **expandability**, not class. One rule, two constants, one
 module.
 
 - **No child rows** → the cell is the only way to see the value → threshold on
-  **display length**, `SUMMARY_MAX_CHARS = 200`. This is char and scalar string.
+  **display length**, `SUMMARY_MAX_CHARS = 1000`. This is char and scalar string.
 - **Has child rows** → the cell is a summary and the value is one expand away →
   threshold on **element count**, `SUMMARY_MAX_ELEMENTS = 10`. This is numeric
   array/matrix, cell, and string *array* (which does expand, via
@@ -77,9 +77,13 @@ module.
 Rationale: element count makes shapes look consistent — every 1x10 double
 renders like every other 1x10 double, rather than depending on how many digits
 its values happen to have. `N = 10` keeps every vector and small matrix up to
-2x5 / 3x3 as a literal while `1:30` summarizes. `M = 200` means a realistic
+2x5 / 3x3 as a literal while `1:30` summarizes. `M = 1000` means a realistic
 description or unit string is never hidden behind a summary it cannot be
-expanded out of.
+expanded out of; it is a runaway guard against a pathological blob, not a
+display budget. (An earlier draft said 200, which contradicted its own worked
+example of a 300-char description showing in full. The principle — text that
+cannot expand should not be summarized — is the part that was agreed, so the
+constant moved to fit it.)
 
 | value | expands? | rule | display |
 |---|---|---|---|
@@ -287,11 +291,30 @@ MATLAB's own `ind2sub` labels and values.
    `<2x3x2 double>` rather than invent a multi-page inline form. `_formatString`
    has the same loop shape; not yet exercised by a fixture.
 
-8. **Rank >= 3 produces subscripts that do not exist.** With `dims` truncated
-   or flattened, a 2x3x2 object array labels children `v(1,1)` … `v(4,3)`, and a
-   2x3x2 struct array in `.sldd` flattens to `<2x6 struct>` with labels
-   `s(1,1)` … `s(2,6)`. MATLAB's are `v(1,1,1)` … `v(2,3,2)`. The same shared
-   helper from defect 6 must emit a full subscript tuple.
+8. **Rank >= 3 produces subscripts that do not exist — in three duplicated
+   places.** The formula `Math.floor(ei / cols) + 1`, `(ei % cols) + 1` with
+   `isMatrix = dims[0] > 1 && dims[1] > 1` appears three times and consults
+   `dims[2..]` in none of them:
+
+   - `BaseNode.displayName` (`:256-274`) — numeric, cell and string array
+     elements. **This is the most-used copy**, and it also owns the correct
+     cell spelling `name{r,c}`, the one thing the three do not share.
+   - `ObjectNode.ts:196`
+   - `StructNode.ts:237`
+
+   Observed on MATLAB-authored files: a 2x3x2 double labels `A(1,1)` … `A(4,3)`
+   and a 2x2x2 cell labels `C{1,1}` … `C{4,2}` — row subscripts run to 4 in
+   two-row arrays. A 2x3x2 object array labels `v(1,1)` … `v(4,3)`; a 2x3x2
+   struct array in `.sldd` flattens to `<2x6 struct>` and labels `s(1,1)` …
+   `s(2,6)`. MATLAB's are `A(1,1,1)` … `A(2,3,2)`. One shared helper emitting a
+   full subscript tuple, parameterized by bracket style, replaces all three.
+   Fixing only the object/struct pair leaves the numeric path — the common one —
+   broken.
+
+   Rank 2 is correct on the numeric/cell/string path: `Kp` labels `Kp(1,1)` …
+   `Kp(2,3)` and its element list is row-major, so labels and data agree.
+   Defect 6's transpose does **not** apply there; it is specific to the
+   object/struct element lists, which arrive column-major.
 
 9. **`mcosTypedNode.ts:55` truncates an object array's rank, and it is
    visible.** `[dimensions[0], dimensions[1]]` makes a 2x3x2 array report
@@ -321,12 +344,53 @@ MATLAB's own `ind2sub` labels and values.
     either decoded as a MAT stream or reported as unsupported — silently
     rendering it as complex is the defect.
 
-**Correction to the upstream findings note.** Its claim that the container
-"reports `<2x3x2 Simulink.Parameter>` correctly" and its verdict that full
-dimensions are reachable from the host without a core change hold for bare
-numeric/cell/struct variables only; for object arrays both are false (defect 9).
-Its C4 was recorded as unconfirmed and possibly N-D-only; it is confirmed, and
-it bites at rank 2 (defect 6).
+12. **`.sldd` flattens rank >= 3 on read, and cannot spell it on write.**
+    `parseDims` (`BinarySlddParser.ts:52-62`) explicitly folds any rank >= 3 into
+    `[dims[0], prod(dims[1..])]`, so a `Dimension="2*3*2"` entry becomes `[2,6]`:
+    a 2x3x2 double reads back as `[1 2 3 7 8 9; 4 5 6 10 11 12]` and a 2x3x2
+    struct array as `<2x6 struct>`. **The files are not at fault** — MATLAB's own
+    binary dictionary writes `Dimension="2*3*2"` with a flat column-major value
+    list, and the text format carries a full MAT stream under `cdata` (defect
+    11). Both preserve the rank; the parser discards it. On the write side the
+    repo's own literal `Matrix(rows,cols)` (`BinarySlddParser.ts:480`) is 2-D
+    only, so N-D write-back needs the `Dimension=` spelling MATLAB already
+    uses — nothing has to be invented. Reading is a plain parser fix and comes
+    first.
+
+13. **Object and struct array containers expose no shape.**
+    `MatlabVariableNode` is the only node class with a `dims` accessor
+    (`:301-309`). `ObjectNode` and `StructNode` read `_dimensions` into local
+    `rows`/`cols`, use them for the label, and drop them, so a 2x3
+    `Simulink.Parameter` array reports `dims = undefined` to any consumer. Add
+    the accessor alongside defect 6's shared helper, which wants the same
+    `dims`. Note the related upstream claim that *elements* are
+    indistinguishable — "every element … reports `<1x1 Simulink.Parameter>`" —
+    does not hold for a **known** class: each element is a `ParameterNode` and
+    displays its own `Value` (`w(1,1)` shows `11`). It would hold for
+    unknown-class elements, which fall back to the generic `ObjectNode` display.
+
+**Consequence to accept: `valueEditable` is keyed on the `<...>` form.**
+`BaseNode.valueEditable` (`:276-282`) returns false for any display value
+wrapped in angle brackets. Moving the summary forms onto `<mxn class>` (defect 3)
+therefore makes summarized cells non-editable, where `{1x3 cell}` and
+`[1x2 MyClass]` are editable today. That is the correct behaviour — a summary is
+not a value you can retype — but it is a functional change, not only a styling
+one, and the parity suite must assert it deliberately rather than discover it.
+
+**Corrections to the upstream findings note.** Its claim that the container
+"reports `<2x3x2 Simulink.Parameter>` correctly" holds only on the path that
+supplies dimensions by hand (`addMatSourceParsed`); through the real MCOS
+decoder the container reports `<2x3 …>`, because `mcosTypedNode` truncates
+before `ObjectNode` is built (defect 9). Both observations are right for their
+own path — the doc should say which. Its C4 was recorded as unconfirmed and
+possibly N-D-only; it is confirmed, and it bites at rank 2 (defect 6).
+
+**Correction to our own earlier record.** A first pass here reported that bare
+array/cell/string children are named by bare linear index. That was wrong: it
+read `_displayName ?? name`, bypassing the `BaseNode.displayName` **getter**
+that computes the subscript. Those rows are correctly labelled `Kp(1,1)` and
+`C{1,2}` at rank 2; the real defect in that getter is the rank >= 3 formula, now
+folded into defect 8. The upstream note's retraction of its own C5 is correct.
 
 `.sldd` cannot store an object array **at all** — `addEntry` rejects
 `Simulink.Parameter`, `Simulink.Bus`, and even a 1x2 array with "Arrays of class
