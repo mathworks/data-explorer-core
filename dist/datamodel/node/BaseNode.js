@@ -76,6 +76,13 @@ export default class BaseNode {
         }
         return true;
     }
+    // Called on a node after a structural edit added or removed a child of `child`
+    // — i.e. one of ITS children changed shape, not this node's own list. Every node
+    // ignores it: a tree row's existence is normally decided once, at parse time.
+    // Simulink.Parameter is the exception, because its Value row exists only while
+    // the value has something to expand into (see ParameterNode), so an edit two
+    // levels down can add or remove that row.
+    childStructureChanged(_child) { }
     canAddChild() {
         return false;
     }

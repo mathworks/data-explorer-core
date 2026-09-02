@@ -4,6 +4,8 @@ import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 export default class ParameterNode extends DataNode {
     Value: unknown;
+    _valueNode: DataNode | null;
+    DataType: string;
     _rawMin: unknown;
     _rawMax: unknown;
     Min: number | undefined;
@@ -13,7 +15,10 @@ export default class ParameterNode extends DataNode {
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>);
     get icon(): string;
     get className(): string;
+    get dataType(): string;
     get displayValue(): string;
+    _adoptValueNode(rawValue: unknown): void;
+    childStructureChanged(child: BaseNode): void;
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _getSerializedProperties(): Record<string, unknown>;

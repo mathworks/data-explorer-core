@@ -16,6 +16,14 @@ export default class ParameterNode extends DataNode {
     constructor(name, parent, props, serial) {
         super(name, parent, serial);
         this.Value = props.Value;
+        this._valueNode = null;
+        // 'auto' when the key is absent, because that is MATLAB's default and not a
+        // missing value: a text sldd omits DataType for a default-typed Parameter
+        // while a binary one writes DataType="auto", so reading absence literally
+        // showed the same parameter as blank in one format and 'auto' in the other.
+        // Display-only — _getSerializedProperties copies the on-disk properties, so
+        // nothing writes this default back into a file that did not have it.
+        this.DataType = props.DataType || 'auto';
         this._rawMin = props.Min;
         this._rawMax = props.Max;
         this.Min = ParameterNode._normalizeMinMax(props.Min);
@@ -29,11 +37,69 @@ export default class ParameterNode extends DataNode {
     get className() {
         return CLASS_NAME;
     }
+    // A Parameter's declared data type IS a real data type ('int16', 'boolean',
+    // 'auto', an AliasType/enum/typedef name), so it belongs in the Data Type
+    // column — DataNode returns '' there because most object classes have none.
+    // Without this the column and the PI label were blank for every Parameter in
+    // every dictionary, and once scalar values started showing inline (no Value
+    // child row to carry it) the type had nowhere left to appear.
+    get dataType() {
+        return this.DataType;
+    }
     get displayValue() {
-        if (this.children.length > 0) {
-            return this.children[0].displayValue;
+        if (this._valueNode) {
+            return this._valueNode.displayValue;
         }
         return PropValue.format(this.Value);
+    }
+    // Model `rawValue` as this Parameter's Value, giving it a tree row only when
+    // the resulting node has children — array elements or struct fields, i.e. the
+    // only cases where expanding the row reveals anything. A SCALAR of any class
+    // is already shown whole in this Parameter's own Value column, so a row for it
+    // would be an expander onto a single restatement of the cell above it.
+    //
+    // The on-disk spelling must not decide this. A plain double scalar is written
+    // as a bare number, but int16(500), Inf, and 3+4i are all written as
+    // { _type, _value } wrapper objects — and gating on "is the raw value an
+    // object" (what this replaced) therefore gave a row to some scalars and not
+    // others, and gave the same Inf parameter a row in a JSON dictionary but not
+    // in a binary one, where our own reader hands back a bare number.
+    //
+    // Holding the node while hiding it (rather than not building it) is what keeps
+    // the wrapper alive: it is the node's serializeValue that writes int16/cdata
+    // back out, so a scalar that displayed inline off a bare `this.Value` would
+    // save as an untyped double — silent retyping of the user's data.
+    //
+    // Deliberately scoped to Simulink.Parameter: every other class, including a
+    // custom object that happens to have a Value property, keeps the general
+    // expansion rule and shows a row for whatever its value parses into.
+    _adoptValueNode(rawValue) {
+        const valueNode = NodeRegistry.parseValue(rawValue, 'Value', this);
+        this.children = [];
+        this._valueNode = valueNode;
+        if (valueNode.children.length > 0) {
+            this.addChild(valueNode);
+        }
+    }
+    // Re-decide the Value row after an element or field was added to / removed from
+    // the value node — the same rule _adoptValueNode applies at parse time, now that
+    // an edit has moved the value across the line. Deleting [1 2] down to one element
+    // collapses the value node to the scalar 1, and without this the Parameter kept a
+    // childless Value row (an expander onto nothing) until the file was reloaded.
+    childStructureChanged(child) {
+        if (child !== this._valueNode) {
+            return;
+        }
+        if (child.children.length > 0) {
+            if (this.children.length === 0) {
+                this.addChild(child);
+            }
+            return;
+        }
+        // Not removeChild: that nulls the child's parent, and this node lives on as
+        // _valueNode — it still formats and serializes the value, so it has to keep
+        // pointing back at this Parameter.
+        this.children = [];
     }
     getProperties() {
         return [PropName, PropValue, PropDataType, PropMin, PropMax, PropUnit, PropDescription, ...schemaColumns(this.className)];
@@ -80,23 +146,19 @@ export default class ParameterNode extends DataNode {
                 else {
                     rawValue = parsed.value;
                 }
-                const childNode = NodeRegistry.parseValue(rawValue, 'Value', this);
-                this.children = [];
-                this.addChild(childNode);
+                this._adoptValueNode(rawValue);
                 this.Value = parsed.value;
                 this._markModified();
                 return true;
             }
             if (parsed.type === 'complex') {
-                const rawValue = { _type: 'cdata', _value: parsed.value };
-                const childNode = NodeRegistry.parseValue(rawValue, 'Value', this);
-                this.children = [];
-                this.addChild(childNode);
+                this._adoptValueNode({ _type: 'cdata', _value: parsed.value });
                 this.Value = parsed.value;
                 this._markModified();
                 return true;
             }
             this.children = [];
+            this._valueNode = null;
             this.Value = parsed.value;
             this._markModified();
             return true;
@@ -108,8 +170,8 @@ export default class ParameterNode extends DataNode {
     }
     _getSerializedProperties() {
         let innerValue;
-        if (this.children.length > 0) {
-            innerValue = this.children[0].serializeValue();
+        if (this._valueNode) {
+            innerValue = this._valueNode.serializeValue();
         }
         else {
             innerValue = this.Value;
@@ -166,8 +228,7 @@ export default class ParameterNode extends DataNode {
         const serial = { _rawVal: rawVal, _properties: props };
         const node = new ParameterNode(name, parent, props, serial);
         if (props.Value && typeof props.Value === 'object' && !(Array.isArray(props.Value) && props.Value.length === 0)) {
-            const childNode = NodeRegistry.parseValue(props.Value, 'Value', node);
-            node.addChild(childNode);
+            node._adoptValueNode(props.Value);
         }
         return node;
     }

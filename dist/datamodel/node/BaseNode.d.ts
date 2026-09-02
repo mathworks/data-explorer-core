@@ -83,6 +83,7 @@ export default class BaseNode {
     get isElementName(): boolean;
     get isObjectPropertyBag(): boolean;
     get nameEditable(): boolean;
+    childStructureChanged(_child: BaseNode): void;
     canAddChild(): boolean;
     addChildNode(): BaseNode | null;
     addChild(child: BaseNode, index?: number): BaseNode;

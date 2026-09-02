@@ -1,6 +1,7 @@
 import type BaseNode from './BaseNode.js';
 export interface ChildEditableNode<C extends BaseNode = BaseNode> {
     children: BaseNode[];
+    parent: BaseNode | null;
     canAddChild(): boolean;
     addChildNode(): C | null;
     canRemoveChild(): boolean;

@@ -23,11 +23,24 @@ import type BaseNode from './BaseNode.js';
 // (StructNode returns DataNode) keeps that type in its own exec signature.
 export interface ChildEditableNode<C extends BaseNode = BaseNode> {
   children: BaseNode[];
+  parent: BaseNode | null;
   canAddChild(): boolean;
   addChildNode(): C | null;
   canRemoveChild(): boolean;
   removeChildNode(child: BaseNode): void;
   restoreChildNode(child: BaseNode, index: number): void;
+}
+
+// Tell the container's own parent that the container gained or lost a child, so a
+// parent whose row for this container depends on its shape can follow. Called after
+// every mutation below, including the undo/redo closures — a Simulink.Parameter's
+// Value row disappears when its array collapses to a single element and has to come
+// back when that removal is undone. Nothing else reacts (BaseNode's hook is a no-op),
+// and this is the one place the four container classes share: doing it inside their
+// own removeChildNode/restoreChildNode would mean five copies, each having to fire
+// only AFTER the collapse bookkeeping those methods do last.
+function notifyParent(node: ChildEditableNode<BaseNode>): void {
+  node.parent?.childStructureChanged(node as unknown as BaseNode);
 }
 
 export interface ChildUndoRedo {
@@ -55,10 +68,17 @@ export function addChildUndoable<C extends BaseNode>(node: ChildEditableNode<C>)
     return null;
   }
   const index = node.children.indexOf(child);
+  notifyParent(node);
   return {
     node: child,
-    undo: () => node.removeChildNode(child),
-    redo: () => node.restoreChildNode(child, index),
+    undo: () => {
+      node.removeChildNode(child);
+      notifyParent(node);
+    },
+    redo: () => {
+      node.restoreChildNode(child, index);
+      notifyParent(node);
+    },
   };
 }
 
@@ -74,8 +94,15 @@ export function removeChildUndoable(node: ChildEditableNode, child?: BaseNode): 
     return null;
   }
   node.removeChildNode(child);
+  notifyParent(node);
   return {
-    undo: () => node.restoreChildNode(child, index),
-    redo: () => node.removeChildNode(child),
+    undo: () => {
+      node.restoreChildNode(child, index);
+      notifyParent(node);
+    },
+    redo: () => {
+      node.removeChildNode(child);
+      notifyParent(node);
+    },
   };
 }
