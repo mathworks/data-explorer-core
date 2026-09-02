@@ -21,7 +21,7 @@
 import { describe, it, expect } from 'vitest';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { NOT_AVAILABLE } from '../src/datamodel/parser/McosParser.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import * as NodeClassMap from '../src/datamodel/node/NodeClassMap.js';
 
 // These tests reach into the node's internal state (_kind, _elements, _dims) on
 // purpose: that state is the contract each mutation path has to keep consistent,
@@ -590,6 +590,201 @@ describe('MatlabVariableNode — a typed numeric class survives every edit', () 
     const n = parse(true);
     n.setProperty('Value', 'false');
     expect(n.serializeValue()).toBe(false);
+  });
+});
+
+// One MATLAB array is one class, so an element of an int32 array IS an int32.
+// The element rows hardcoded 'double', which put 'int32' in the array's Data Type
+// column and 'double' in the column of every row under it — the same value
+// described two ways, one of them wrong. For the integer/single classes here this
+// moves the Data Type column and nothing else, since they format exactly as a double
+// does; the logical case, which also changes the row's text and icon, is the next
+// describe. Elements of a CELL or a struct are independent values and keep their own.
+describe("MatlabVariableNode — an array element's data type follows the array", () => {
+  const typed = (t: string, v: string): Any => parse({ _type: t, _value: v });
+  // Every numeric class a MATLAB array can carry, not a sample of them: the rule is
+  // one regex, so a class left untested is a class one edit to that regex can drop.
+  // 'logical' is the same rule and has its own describe (its rows also change text
+  // and icon); 'double' is the identity case, asserted separately below.
+  const CLASSES = ['int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32', 'uint64', 'single'];
+
+  it('gives every element of a typed vector the array class', () => {
+    for (const t of CLASSES) {
+      const n = typed(t, '[100, 200, 300]');
+      expect([t, n.dataType, n.children.map((c: Any) => c.dataType)]).toEqual([t, t, [t, t, t]]);
+    }
+  });
+
+  it('leaves the elements displaying exactly what they displayed as doubles', () => {
+    // The integer/single classes format through formatMatlabNum, same as double, so
+    // asserting the text pins that this change is invisible outside the Data Type
+    // column — and that an element cell still shows something re-typeable.
+    for (const t of CLASSES) {
+      expect([t, typed(t, '[100, 200, 300]').children.map((c: Any) => c.displayValue)]).toEqual([
+        t,
+        ['100', '200', '300'],
+      ]);
+    }
+  });
+
+  it('gives every element of a typed matrix the array class', () => {
+    // A matrix arrives through parseTypedArray, a different builder from the vector's
+    // parseTypedVector, so it needs its own pass over the classes.
+    for (const t of CLASSES) {
+      const n = typed(t, 'Matrix(2,2)\n[1, 2]\n[3, 4]');
+      expect([t, n.children.map((c: Any) => c.dataType)]).toEqual([t, [t, t, t, t]]);
+    }
+  });
+
+  it('leaves a plain double array alone', () => {
+    expect(parse([1, 2, 3]).children.map((c: Any) => c.dataType)).toEqual(['double', 'double', 'double']);
+  });
+
+  it('keeps the class on an element that was edited', () => {
+    // _setConstrainedValue rewrote the element's class on every commit, so the
+    // column flipped back to 'double' the moment a user touched a cell.
+    for (const t of CLASSES) {
+      const n = typed(t, '[100, 200]');
+      expect(n.children[0].setProperty('Value', '150')).toBe(true);
+      expect([t, n.children.map((c: Any) => c.dataType), n.serializeValue()]).toEqual([
+        t,
+        [t, t],
+        { _type: t, _value: 'Matrix(1,2)\n[150, 200]' },
+      ]);
+    }
+  });
+
+  it('gives an appended element the array class', () => {
+    for (const t of CLASSES) {
+      const n = typed(t, '[100, 200]');
+      n.addChildNode();
+      expect([t, n.children.map((c: Any) => c.dataType)]).toEqual([t, [t, t, t]]);
+    }
+  });
+
+  it('gives the survivor of an undone collapse the array class', () => {
+    // The collapse drops the last element row and undo rebuilds it, so the rebuilt
+    // survivor is a third place the class has to be re-asserted.
+    for (const t of CLASSES) {
+      const n = typed(t, '[100, 200]');
+      const op: Any = n.execRemoveChild(n.children[1]);
+      op.undo();
+      expect([t, n.children.map((c: Any) => c.dataType)]).toEqual([t, [t, t]]);
+    }
+  });
+
+  it('leaves a cell array\'s elements with their own classes', () => {
+    // A cell holds unrelated values — {int32(5), 'text'} is one cell of two
+    // classes — so there is no container class to inherit.
+    const n = parse({
+      _array_type: 'Cell',
+      _dimensions: [1, 2],
+      _mw_element_type: 'MATLABCell',
+      _elements: [{ _type: 'int32', _value: '5' }, 'text'],
+    });
+    expect([n._kind, n.children.map((c: Any) => c.dataType)]).toEqual(['cell', ['int32', 'char']]);
+  });
+
+  it('leaves a struct\'s fields with their own classes', () => {
+    const n = NodeClassMap.parseValue(
+      {
+        _array_type: 'Struct',
+        _dimensions: [1, 1],
+        _elements: [{ a: { _type: 'int32', _value: '5' }, b: 'text' }],
+        _fields: ['a', 'b'],
+      },
+      's',
+      null,
+    ) as Any;
+    expect(n.children.map((c: Any) => c.dataType)).toEqual(['int32', 'char']);
+  });
+
+});
+
+// A logical array's elements are logicals too, and unlike the integer classes that
+// changes what the row LOOKS like: 'logical' in the Data Type column, true/false as
+// the text, and the checkbox icon a logical scalar has always had. The rows used to
+// read 'double' and show 1/0 — the array's own cell said [true false true] while
+// every row under it said 1 or 0, the storage representation leaking into the UI.
+// Making them logical is also what closes the editor hole below: the element editor
+// took any scalar number, so typing 7 into a logical array wrote
+// {_type:'logical', _value:'[7, 0, 1]'} — a logical array holding 7.
+describe("MatlabVariableNode — a logical array's elements are logicals", () => {
+  const logicals = (): Any => parse({ _type: 'logical', _value: '[1, 0, 1]' });
+
+  it('gives the array itself the checkbox icon, like the logical scalar', () => {
+    // The container is a logical too — one MATLAB array is one class — so the row a
+    // user sees first should say so. Arrays showed the generic wsDefault whatever
+    // they held, which put the checkbox on every element row under an array row that
+    // looked like a plain double vector.
+    expect([logicals().icon, parse(true).icon, parse([1, 2]).icon]).toEqual(['wsCheck', 'wsCheck', 'wsDefault']);
+  });
+
+  it('keeps the checkbox icon when the array collapses to a scalar and on undo', () => {
+    const n = parse({ _type: 'logical', _value: '[1, 0]' }) as Any;
+    const op: Any = n.execRemoveChild(n.children[1]);
+    expect([n._kind, n.icon]).toEqual(['scalar', 'wsCheck']);
+    op.undo();
+    expect([n._kind, n.icon]).toEqual(['array', 'wsCheck']);
+  });
+
+  it('gives each element the logical class, true/false text, and the checkbox icon', () => {
+    const n = logicals();
+    expect(n.children.map((c: Any) => [c.dataType, c.displayValue, c.icon])).toEqual([
+      ['logical', 'true', 'wsCheck'],
+      ['logical', 'false', 'wsCheck'],
+      ['logical', 'true', 'wsCheck'],
+    ]);
+  });
+
+  it('accepts true/false typed into an element and stores it as 1/0', () => {
+    // What the row displays has to be what the row accepts. The stored element stays
+    // numeric because that is the one representation the whole class agrees on — the
+    // container's display, _var, and the typed literal all read _elements.
+    const n = logicals();
+    expect(n.children[0].setProperty('Value', 'false')).toBe(true);
+    expect([n.children[0].displayValue, n.children[0].dataType]).toEqual(['false', 'logical']);
+    expect([n._elements, n.displayValue]).toEqual([[0, 0, 1], '[false false true]']);
+    expect(n.serializeValue()).toEqual({ _type: 'logical', _value: 'Matrix(1,3)\n[0, 0, 1]' });
+  });
+
+  it('accepts 1 and 0 as shorthand for true and false', () => {
+    // MATLAB's own L(1) = 1 keeps the array logical, and a user who sees a numeric
+    // array everywhere else should not have to learn which cells refuse digits.
+    const n = logicals();
+    expect(n.children[1].setProperty('Value', '1')).toBe(true);
+    expect([n.children[1].dataType, n.children[1].displayValue]).toEqual(['logical', 'true']);
+    expect(n.serializeValue()).toEqual({ _type: 'logical', _value: 'Matrix(1,3)\n[1, 1, 1]' });
+  });
+
+  it('rejects a number a logical cannot hold, instead of writing it into the array', () => {
+    const n = logicals();
+    expect(n.children[0].setProperty('Value', '7')).toEqual({
+      error: true,
+      reason: 'Logical array elements must be true or false',
+      invalidValue: '7',
+      validValue: 'true',
+    });
+    expect([n._elements, n.serializeValue()]).toEqual([
+      [1, 0, 1],
+      { _type: 'logical', _value: '[1, 0, 1]' },
+    ]);
+  });
+
+  it('gives an appended element the logical class', () => {
+    const n = logicals();
+    n.addChildNode();
+    expect(n.children.map((c: Any) => [c.dataType, c.displayValue])[3]).toEqual(['logical', 'false']);
+  });
+
+  it('gives the survivor of an undone collapse the logical class', () => {
+    const n = parse({ _type: 'logical', _value: '[1, 0]' }) as Any;
+    const op: Any = n.execRemoveChild(n.children[1]);
+    op.undo();
+    expect(n.children.map((c: Any) => [c.dataType, c.displayValue])).toEqual([
+      ['logical', 'true'],
+      ['logical', 'false'],
+    ]);
   });
 });
 

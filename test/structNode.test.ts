@@ -51,6 +51,25 @@ describe('StructNode parse', () => {
     const node = parseStruct(['a'], [{ a: 1 }, { a: 2 }], [2, 1]);
     expect(node.children.map((c) => (c as any)._displayName)).toEqual(['S(1)', 'S(2)']);
   });
+
+  it('types each element of a struct array as a struct, and each field by its own value', () => {
+    // The counterpart of the numeric rule (an int32 array's elements are int32s, see
+    // matlabVariableNode.test.ts): a struct array's elements are structs, but the
+    // inheritance stops there. Fields hold unrelated values — one int32, one char —
+    // so each one's Data Type is its own, never the container's.
+    const node = parseStruct(['n', 'tag'], [
+      { n: { _type: 'int32', _value: '5' }, tag: 'lo' },
+      { n: { _type: 'int32', _value: '6' }, tag: 'hi' },
+    ], [1, 2]);
+    expect(node.children.map((c) => [(c as any)._displayName, c.dataType])).toEqual([
+      ['S(1)', 'struct'],
+      ['S(2)', 'struct'],
+    ]);
+    expect(node.children[0].children.map((c) => [c.name, c.dataType])).toEqual([
+      ['n', 'int32'],
+      ['tag', 'char'],
+    ]);
+  });
 });
 
 // --- static accessors ------------------------------------------------------

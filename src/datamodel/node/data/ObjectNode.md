@@ -33,6 +33,23 @@ icon (architectural data support).
 | DataType      | label  | Read-only label                               |
 | Description   | label  | Read-only display                             |
 
+## Element rows of an object array
+
+A multi-element value object expands in two levels — N element rows `name(i)`, each
+expanding into its own rows (see `test/objectArrayExpansion.test.ts`). Those element
+rows do NOT inherit a data type from the container, which is the opposite of the
+numeric rule one level over (an int32 array's elements are int32s — see
+`MatlabVariable.md`). An object's class is Class, not a data type, so:
+
+- a custom-class element shows its class in **Class** and leaves **Data Type** blank
+  (`dataType` returns `''`, as it does for an opaque MCOS variable);
+- a KNOWN-class element shows its OWN data type — a `Simulink.Parameter` array's
+  elements each report their own `DataType` property, which may differ element to
+  element, and default to `'auto'` where the dictionary stores no key.
+
+Handing the container's `_array_class` to a Data Type column would put a class name
+in a type column for every unrecognized object in the tree.
+
 ## Read-only / host status
 
 - `displayValue` returns `<RxC ClassName>` which triggers BaseNode's

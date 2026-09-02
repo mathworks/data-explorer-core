@@ -104,6 +104,25 @@ const TYPED_NUMERIC_CLASS = /^(?:u?int(?:8|16|32|64)|single)$/;
 function classAfterEdit(current, parsedType) {
     return parsedType === 'double' && TYPED_NUMERIC_CLASS.test(current) ? current : parsedType;
 }
+// The class one ELEMENT of a numeric array carries. One MATLAB array is one class,
+// so an element of an int32 array is an int32 and an element of a logical array is a
+// logical. The element rows' hardcoded 'double' put 'int32' in the array's Data Type
+// column and 'double' in the column of every row beneath it — one value described two
+// ways, one of them wrong — and showed a logical array as [true false] over rows
+// reading 1 and 0, leaking the 1/0 storage form into the UI.
+//
+// classAfterEdit's set plus 'logical'. For the integer/single classes this moves the
+// Data Type column and nothing else, since they format through formatMatlabNum
+// exactly as a double does. 'logical' additionally changes the element's icon and
+// text (see icon and _formatScalar), which is the point: the row should look like the
+// logical scalar it is, checkbox included. It is also why _setConstrainedValue has a
+// logical arm — a row that reads 'true' has to accept 'true'.
+//
+// Cell and struct children never come through here: they are independent values, and
+// their container has no one class to hand down.
+function elementClass(arrayClass) {
+    return TYPED_NUMERIC_CLASS.test(arrayClass) || arrayClass === 'logical' ? arrayClass : 'double';
+}
 // True when a scalar has to be written as the format's typed {_type,_value}
 // literal rather than a bare JSON value. Both reasons are silent data loss:
 // an int32/single written bare reads back as double (see TYPED_NUMERIC_CLASS),
@@ -243,7 +262,11 @@ export default class MatlabVariableNode extends DataNode {
                 }
                 return 'wsDefault';
             case 'array':
-                return 'wsDefault';
+                // A logical array is a logical, so it gets the checkbox its scalar form has
+                // always had — otherwise the container row looked like a plain double vector
+                // while every element row under it carried a checkbox. Numeric classes have
+                // no icon of their own: int32 and double are both wsDefault.
+                return this._scalarType === 'logical' ? 'wsCheck' : 'wsDefault';
             case 'cell':
                 return 'wsBrackets';
             case 'string':
@@ -473,22 +496,46 @@ export default class MatlabVariableNode extends DataNode {
     _setConstrainedValue(stringValue) {
         const parent = this.parent;
         const isArrayElement = parent._kind === 'array';
+        // A logical element is the one array element that does not display as a number,
+        // so it is the one with its own accept set: true/false, plus 1/0 for the user who
+        // types digits into every other array. Any other number is refused rather than
+        // stored, because a logical array cannot hold it — the editor used to take 7 and
+        // write {_type:'logical', _value:'[7, 0, 1]'}. MATLAB's own answer to L(1) = 7 is
+        // to retype the whole ARRAY to double, which an element editor cannot express, so
+        // refusing is the honest one here.
+        const isLogicalElement = isArrayElement && parent._scalarType === 'logical';
         const parsed = MatlabValueParser.parse(stringValue);
-        const accepted = isArrayElement
-            ? parsed?.type === 'double' && !Array.isArray(parsed.value)
-            : parsed?.type === 'char' || parsed?.type === 'string';
+        let accepted;
+        if (isLogicalElement) {
+            accepted = parsed?.type === 'logical' || (parsed?.type === 'double' && (parsed.value === 0 || parsed.value === 1));
+        }
+        else if (isArrayElement) {
+            accepted = parsed?.type === 'double' && !Array.isArray(parsed.value);
+        }
+        else {
+            accepted = parsed?.type === 'char' || parsed?.type === 'string';
+        }
         if (!parsed || !accepted) {
             return {
                 error: true,
-                reason: isArrayElement
-                    ? 'Array elements must be scalar numbers'
-                    : 'String elements must be character or string values',
+                reason: isLogicalElement
+                    ? 'Logical array elements must be true or false'
+                    : isArrayElement
+                        ? 'Array elements must be scalar numbers'
+                        : 'String elements must be character or string values',
                 invalidValue: stringValue,
                 validValue: this.displayValue,
             };
         }
-        this._scalarValue = parsed.value;
-        this._scalarType = isArrayElement ? 'double' : 'string';
+        // 1/0, never the boolean: _elements is the one representation the container's
+        // display, its _var snapshot, and the typed literal all read, and the parsers
+        // store a logical ARRAY as 1/0 (see parseTypedVector). An edited element must not
+        // become the only boolean in it.
+        this._scalarValue = isLogicalElement ? (parsed.value ? 1 : 0) : parsed.value;
+        // elementClass, not 'double': the container fixes the element's class (this
+        // method exists because of that), so re-stating 'double' here flipped an int32
+        // element's Data Type column to double the moment its cell was committed.
+        this._scalarType = isArrayElement ? elementClass(parent._scalarType) : 'string';
         if (!isArrayElement) {
             // A string-array element is a string-KIND node (see _makeStringElement), and
             // its own display and serialize paths read the text from _elements.
@@ -589,7 +636,7 @@ export default class MatlabVariableNode extends DataNode {
             return;
         }
         for (let i = 0; i < this._elements.length; i++) {
-            const child = MatlabVariableNode._createScalar(this._elements[i], 'double', String(i + 1), this);
+            const child = MatlabVariableNode._createScalar(this._elements[i], elementClass(this._scalarType), String(i + 1), this);
             this.addChild(child);
         }
     }
@@ -696,7 +743,7 @@ export default class MatlabVariableNode extends DataNode {
     }
     _addArrayChild() {
         const idx = this.children.length + 1;
-        const child = MatlabVariableNode._createScalar(0, 'double', String(idx), this);
+        const child = MatlabVariableNode._createScalar(0, elementClass(this._scalarType), String(idx), this);
         this.addChild(child);
         this._elements.push(0);
         this._updateDimsForCount(this._elements.length);
@@ -815,7 +862,7 @@ export default class MatlabVariableNode extends DataNode {
             // surviving element lost its child row on the way down, so rebuild it here
             // before `child` is spliced in — otherwise the array comes back one element
             // short and every row after `index` shows the wrong value.
-            const survivor = MatlabVariableNode._createScalar(this._scalarValue, 'double', '1', this);
+            const survivor = MatlabVariableNode._createScalar(this._scalarValue, elementClass(this._scalarType), '1', this);
             this._kind = 'array';
             this._elements = [this._scalarValue];
             this._scalarValue = undefined;
@@ -1414,7 +1461,7 @@ export default class MatlabVariableNode extends DataNode {
             })
             : values;
         node._elements.forEach(function (el, i) {
-            const child = MatlabVariableNode._createScalar(el, node._scalarType === 'logical' ? 'double' : node._scalarType, String(i + 1), node);
+            const child = MatlabVariableNode._createScalar(el, elementClass(node._scalarType), String(i + 1), node);
             node.addChild(child);
         });
         return node;
@@ -1676,7 +1723,7 @@ export default class MatlabVariableNode extends DataNode {
         node._dims = [1, node._elements.length];
         if (node._elements.length > 1) {
             node._elements.forEach(function (el, i) {
-                const child = MatlabVariableNode._createScalar(el, 'double', String(i + 1), node);
+                const child = MatlabVariableNode._createScalar(el, elementClass(node._scalarType), String(i + 1), node);
                 node.addChild(child);
             });
         }
@@ -1691,7 +1738,10 @@ export default class MatlabVariableNode extends DataNode {
         node._scalarType = 'double';
         if (rawVal.length > 1) {
             rawVal.forEach(function (el, i) {
-                const child = MatlabVariableNode._createScalar(el, 'double', String(i + 1), node);
+                // elementClass, not the 'double' literal, even though the class above IS
+                // 'double': every element builder states the rule the same way, so none of
+                // them can drift out of step with the container again.
+                const child = MatlabVariableNode._createScalar(el, elementClass(node._scalarType), String(i + 1), node);
                 node.addChild(child);
             });
         }
@@ -1716,7 +1766,7 @@ export default class MatlabVariableNode extends DataNode {
         node._scalarType = parsed.type;
         if (parsed.elements.length > 1) {
             parsed.elements.forEach(function (el, i) {
-                const child = MatlabVariableNode._createScalar(el, 'double', String(i + 1), node);
+                const child = MatlabVariableNode._createScalar(el, elementClass(node._scalarType), String(i + 1), node);
                 node.addChild(child);
             });
         }

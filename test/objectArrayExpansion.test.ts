@@ -77,3 +77,40 @@ describe('general array rule — NodeClassMap.parseValue routing (format-indepen
     ]);
   });
 });
+
+// The columns those element rows fill in. A NUMERIC array hands its class down to
+// its elements (one MATLAB array is one class — see matlabVariableNode.test.ts), and
+// the question these pin is what the same two levels look like when the elements are
+// OBJECTS: an object's class belongs in Class, not in Data Type, and its data type —
+// if it has one at all — is its own property, never the container's class. So the
+// inheritance that is right for int32 would be wrong here, and nothing should hand
+// 'Simulink.Parameter' to a Data Type column.
+describe('general array rule — the columns an object element row fills', () => {
+  it('shows a custom-class element its class, and leaves its Data Type blank', () => {
+    const val = arrayValue('MyPkg.MyGain', [1, 3], [{ Value: 1 }, { Value: 2 }, { Value: 3 }]);
+    const node = NodeRegistry.parseValue(val, 'objs', null);
+    expect(node.children.map((c: any) => [c.displayName, c.className, c.dataType])).toEqual([
+      ['objs(1)', 'MyPkg.MyGain', ''],
+      ['objs(2)', 'MyPkg.MyGain', ''],
+      ['objs(3)', 'MyPkg.MyGain', ''],
+    ]);
+  });
+
+  it('shows each Parameter element its OWN DataType, not one inherited from the array', () => {
+    // Deliberately mixed: a Parameter array's elements are independent objects, so
+    // the column has to read per element. Inheriting anything from the container —
+    // the class name, or the first element's type — would show one of these wrong.
+    const val = arrayValue('Simulink.Parameter', [1, 3], [
+      { Value: 1, DataType: 'int8' },
+      { Value: 2, DataType: 'single' },
+      { Value: 3 },
+    ]);
+    const node = NodeRegistry.parseValue(val, 'params', null);
+    expect(node.children.map((c: any) => [c.className, c.dataType])).toEqual([
+      ['Simulink.Parameter', 'int8'],
+      ['Simulink.Parameter', 'single'],
+      // No DataType key on disk means MATLAB's default, 'auto' — see ParameterNode.
+      ['Simulink.Parameter', 'auto'],
+    ]);
+  });
+});

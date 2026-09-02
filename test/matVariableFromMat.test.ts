@@ -105,13 +105,20 @@ describe('MatlabVariableNode from a .mat numeric variable', () => {
     expect(node.arrayType).toBe('logical');
   });
 
-  it('stores a logical array as 1/0 but displays it as true/false', () => {
-    // The elements stay numeric because the child rows are plain doubles; only the
-    // container's own display translates them.
+  it('stores a logical array as 1/0 but displays it as true/false, rows included', () => {
+    // The stored elements stay numeric — 1/0 is the representation the container's
+    // display, its _var snapshot, and the typed literal all read — while the element
+    // ROWS are logicals like the array itself, so they read true/false and carry the
+    // checkbox icon rather than exposing the storage form.
     const node = parse({ isLogical: true, className: 'uint8', dimensions: [1, 3], value: [1, 0, 1] });
     expect(node.Value).toEqual([1, 0, 1]);
-    expect(node.displayValue).toBe('[true false true]');
-    expect(kids(node)).toEqual([['1', '1'], ['2', '0'], ['3', '1']]);
+    expect([node.displayValue, node.icon]).toEqual(['[true false true]', 'wsCheck']);
+    expect(kids(node)).toEqual([['1', 'true'], ['2', 'false'], ['3', 'true']]);
+    expect(node.children.map((c) => [c.dataType, c.icon])).toEqual([
+      ['logical', 'wsCheck'],
+      ['logical', 'wsCheck'],
+      ['logical', 'wsCheck'],
+    ]);
   });
 
   it('keeps an integer class as the data type rather than widening to double', () => {

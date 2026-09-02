@@ -45,11 +45,61 @@ byte-identical.
 
 ## Non-obvious behavior
 
-### Editing a typed integer loses the type
+### A typed integer/single class survives an edit
 `MatlabValueParser.parse('500')` produces `{ type: 'double', value: 500 }` — there
-is no `int16(500)` syntax in the parser. After a user edits a typed-int entry, the
-stored value becomes `double`. This is a known limitation documented here; the
-numeric value is preserved exactly.
+is no `int16(500)` syntax in the parser — so the node's existing class, not the
+parser's default, decides the result (`classAfterEdit`). Editing an int16 entry to
+`500` keeps int16, matching MATLAB's own `v(:) = 500`. Only the integer and single
+classes (`TYPED_NUMERIC_CLASS`) qualify: they can hold any number the editor
+accepts. A `logical` retypes to double instead, because MATLAB rejects `7` in a
+logical and keeping the class would render the value as `true`. Typing something
+that is explicitly another class (`'text'`, `true`, `3+4i`) always retypes — only
+the parser's *default* is overridden. (An ELEMENT of a logical array cannot retype
+its container, so that path refuses the edit instead — see below.)
+
+### An array element's data type is the array's
+One MATLAB array is one class, so every element row of an int32 vector shows
+`int32` in the Data Type column, not `double`. `elementClass(arrayClass)` is the
+single definition, applied by every element builder — the parse paths
+(`parseTypedVector`, `parseTypedArray`, `parseFlatArray`, `_createFromMatNumeric`),
+the mutation paths (`_buildArrayChildren`, `_addArrayChild`, `restoreChildNode`'s
+collapse survivor), and the element editor (`_setConstrainedValue`). They used to
+hardcode `'double'`, which described one value two ways: `int32` on the array row
+and `double` on every row beneath it.
+
+The eligible set is `TYPED_NUMERIC_CLASS` plus `logical`. For the integer/single
+classes the change moves the Data Type column and nothing else — they format through
+`formatMatlabNum` exactly as a double does. Cell and struct children never inherit —
+they are independent values, and their container has no one class to hand down
+(arrays and matrices only). Pinned in `test/matlabVariableNode.test.ts`.
+
+### A logical array and its element rows are logicals
+`logical` is the one inherited class that changes how the row looks: `logical` in the
+Data Type column, `true`/`false` as the text, and the `wsCheck` checkbox icon — the
+same three the logical SCALAR path has always produced (`icon`, `_formatScalar`), now
+reached because the element's `_scalarType` is `logical`. Before this, an array cell
+read `[true false true]` over rows reading `1` and `0`: the storage form leaking into
+the UI.
+
+The CONTAINER row carries the checkbox too (`icon`, `_kind === 'array'`). Array rows
+returned the generic `wsDefault` whatever they held, so a logical array looked like a
+plain double vector while every element row under it was a checkbox. The numeric
+classes still share `wsDefault` — int32 and double have no icons of their own — and a
+logical array that collapses to a scalar keeps the icon, since the scalar path was
+already `wsCheck`.
+
+Stored elements stay 1/0. `_elements` is the single representation the container's
+display, its `_var` snapshot, and the typed literal all read, and every parser writes
+a logical array that way, so `_setConstrainedValue` normalizes an edited element back
+to 1/0 rather than leaving one boolean among the numbers.
+
+The element editor gets a logical arm to match: it accepts `true`/`false` (a row that
+displays `true` must accept `true`) and also `1`/`0`, and **refuses any other
+number** — "Logical array elements must be true or false". That closes a hole rather
+than adding a restriction: the numeric-only accept set took `7` and wrote
+`{_type:'logical', _value:'[7, 0, 1]'}`, a logical array holding 7. MATLAB answers
+`L(1) = 7` by retyping the whole ARRAY to double, which an element editor cannot
+express — see the deferred note below.
 
 ### Constrained children (array elements and string elements)
 When editing a child of an array or string-array:
@@ -100,6 +150,7 @@ Both are supported by the parser.
 | Rule | Code path | Error message |
 |------|-----------|---------------|
 | Array child must be scalar number | `MatlabVariableNode._setConstrainedValue` | "Array elements must be scalar numbers" |
+| Logical array child must be true/false (or 1/0) | `MatlabVariableNode._setConstrainedValue` | "Logical array elements must be true or false" |
 | String child must be char/string | `MatlabVariableNode._setConstrainedValue` | "String elements must be character or string values" |
 | Unparseable expression | `MatlabVariableNode.setProperty` | "Invalid MATLAB expression" |
 
@@ -127,10 +178,14 @@ Test: `test/parity/fidelity/variable.fidelity.test.ts`
 
 ## Open questions / deferred
 
-- **Type-preserving edits for typed integers**: the parser has no `int16(...)` cast
-  syntax. A future enhancement could detect when the edited entry was originally
-  typed (from `_type` in the serial) and re-wrap the new value in the same type
-  container. Tracked as a known limitation for now.
+- **Casting to a typed integer from the editor**: the parser has no `int16(...)`
+  cast syntax, so a `double` entry cannot be *changed* into an int16 by typing —
+  only an already-typed entry keeps its class across an edit (`classAfterEdit`).
+  Widening this would mean teaching `MatlabValueParser` the cast expressions.
+- **Retyping an array from one of its elements**: MATLAB's `L(1) = 7` on a logical
+  array converts the whole array to double. We refuse the edit instead, because the
+  conversion would have to rewrite the container's class, its serial tag, and every
+  sibling row's class and icon from inside a single cell's editor.
 - **Complex array editing**: editing individual elements of a complex array is not
   supported through the constrained-child path (they are read-only). This is safe
   because the complex array's cdata serial is preserved unmodified until the parent
