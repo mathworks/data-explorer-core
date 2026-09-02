@@ -194,9 +194,18 @@ row vector, column vector, matrix, empty. Non-finites (`Inf`, `-Inf`, `NaN`).
 Integer-class extremes (`intmax`/`intmin` for 64-bit, which is where precision
 breaks). Cell: nested, ragged, empty. Struct: scalar, array, nested, empty.
 
+**Shapes that must be non-square and rank >= 3.** Every array case includes a
+2x3 (never 2x2) and a 2x3x2. A square fixture cannot distinguish row-major from
+column-major, and a rank-2 fixture cannot expose page handling — between them
+those two gaps hid defects 6–9. Assertions compare against MATLAB's own
+`ind2sub` subscript labels and per-element values, not against a hand-written
+expectation.
+
 **Known object classes** — the 19 MATLAB-instantiable classes behind
 `schema/classes/`, each with non-default values on every writable property.
-Object arrays (e.g. 3x1 `Simulink.Parameter`). Container classes with real
+Object arrays — 3x1, 1x3, **2x3**, and **2x3x2** `Simulink.Parameter`, each
+element carrying a distinguishable `Value` so a transposed label is detectable.
+`.mat`/`.slx` only; the dictionary rejects object arrays. Container classes with real
 children: `Bus`/`BusElement`, `ConnectionBus`/`ConnectionElement`,
 `ServiceBus`/`FunctionElement`, `LookupTable`/`Breakpoint`,
 `VariantVariable`/`VariantExpression`, `VariantBank`. The element classes
@@ -237,6 +246,93 @@ Each gets a failing test first, then the fix.
    constants above, applied by every path.
 5. **Empty rendering split.** `PropValue.format` returns `[ ]` (correct) while
    the variable path returns `[]`. Unify on `[ ]`.
+
+## Defects found by MATLAB-authored N-D / matrix fixtures
+
+A second pass generated real MATLAB artifacts for shapes the suite had never
+seen: N-D numeric, N-D cell, N-D and rank-2 struct arrays, and — the case that
+had stayed invisible — object and struct **matrices**, whose row-major and
+column-major orders differ. Generators: `probe_ndarray.m`, `probe_rank2.m`.
+Every defect below was observed through the public `ingest` path, against
+MATLAB's own `ind2sub` labels and values.
+
+6. **Element streams are column-major; the subscript labels read them
+   row-major — 4 of 6 labels name the wrong object.** This is the most severe
+   finding. `ObjectNode.ts:196` and `StructNode.ts:237` both index with
+   `Math.floor(ei / cols)` / `ei % cols`, but the element list arrives in
+   MATLAB's column-major order. For a 2x3 `Simulink.Parameter` array `w` with
+   `Value = row*10 + col`:
+
+   | label | repo shows | MATLAB |
+   |---|---|---|
+   | `w(1,1)` | 11 | 11 ✓ |
+   | `w(1,2)` | 21 | 12 ✗ |
+   | `w(1,3)` | 12 | 13 ✗ |
+   | `w(2,1)` | 22 | 21 ✗ |
+   | `w(2,2)` | 13 | 22 ✗ |
+   | `w(2,3)` | 23 | 23 ✓ |
+
+   Only the two corners are right. **It is not N-D-specific and not
+   object-specific:** a plain rank-2 2x3 struct array is transposed identically
+   in *both* `.sldd` formats (`s2(1,2)` shows 21, MATLAB says 12). Vectors are
+   correct, because there the two orders coincide — which is exactly why every
+   existing fixture (all N x 1) missed it. One shared subscript helper, fed
+   column-major, fixes both call sites.
+
+7. **N-D arrays display only their first page.** `formatMatrix`
+   (`MatlabVariableNode.ts:173`) loops `rows x cols`. A 2x3x2 double shows
+   `[1 2 3; 4 5 6]` while carrying all 12 children; a 2x2x2 cell shows
+   `{1, 2; 3, 4}` of 8. Note MATLAB's own `mat2str` **errors** on rank >= 3
+   ("Input matrix must be 2-D"), so there is no literal to match — collapse to
+   `<2x3x2 double>` rather than invent a multi-page inline form. `_formatString`
+   has the same loop shape; not yet exercised by a fixture.
+
+8. **Rank >= 3 produces subscripts that do not exist.** With `dims` truncated
+   or flattened, a 2x3x2 object array labels children `v(1,1)` … `v(4,3)`, and a
+   2x3x2 struct array in `.sldd` flattens to `<2x6 struct>` with labels
+   `s(1,1)` … `s(2,6)`. MATLAB's are `v(1,1,1)` … `v(2,3,2)`. The same shared
+   helper from defect 6 must emit a full subscript tuple.
+
+9. **`mcosTypedNode.ts:55` truncates an object array's rank, and it is
+   visible.** `[dimensions[0], dimensions[1]]` makes a 2x3x2 array report
+   `<2x3 Simulink.Parameter>` — the container prints a shape that is not the
+   object's. `ObjectNode` also carries no `_dims`, so unlike the bare
+   numeric/cell/struct nodes (which do preserve full N-D dims) an object array's
+   true rank is unrecoverable by a consumer.
+
+10. **`.mat` struct arrays expand only their first element.** Any rank,
+    including a 1x3: `s1` displays `<1x3 struct>` correctly but the tree holds a
+    single `a` child, so 2 of 3 elements are simply absent. A 2x3 shows 1 of 6.
+    The `.sldd` paths expand all elements (transposed — defect 6), so this is
+    `.mat`-specific and is tree-level data loss, not a display issue.
+
+11. **`_type: 'cdata'` is assumed to be complex double; R2027a also uses it as
+    a uuencoded MAT-byte escape.** `parseCdata` (`MatlabVariableNode.ts:1793`)
+    routes every non-numeric `cdata` payload through `decodeCdata` as
+    complex-double bytes. In an **uncompressed-text** `.sldd` — the R2027a
+    default — MATLAB stores N-D arrays, cell arrays, and N-D struct arrays as
+    `{_type: 'cdata', _value: <uuencoded MAT stream>}`. Those decode to garbage
+    denormals with fabricated imaginary parts and the wrong class: a 2x3x2
+    double reads `[2.03711595937e-312+7i 4+8i …]`, and a 2x2x2 cell and a 2x3x2
+    struct array both come back as complex numeric matrices. Rank-2 numeric
+    (`Matrix(r,c)`) and rank-2 struct entries are unaffected. Serialization
+    preserves the `cdata` entry byte-identically, so this is display/model
+    corruption, **not** save-back data loss. Needs the payload sniffed and
+    either decoded as a MAT stream or reported as unsupported — silently
+    rendering it as complex is the defect.
+
+**Correction to the upstream findings note.** Its claim that the container
+"reports `<2x3x2 Simulink.Parameter>` correctly" and its verdict that full
+dimensions are reachable from the host without a core change hold for bare
+numeric/cell/struct variables only; for object arrays both are false (defect 9).
+Its C4 was recorded as unconfirmed and possibly N-D-only; it is confirmed, and
+it bites at rank 2 (defect 6).
+
+`.sldd` cannot store an object array **at all** — `addEntry` rejects
+`Simulink.Parameter`, `Simulink.Bus`, and even a 1x2 array with "Arrays of class
+'X' are not supported in the dictionary." So the `.sldd` object-array expansion
+code is unreachable from any MATLAB-authored file, and object-array parity is a
+`.mat`/`.slx` question only.
 
 ## Known limitations, to verify and document
 
