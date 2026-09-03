@@ -24,5 +24,5 @@
 export declare function parseDims(dimension: string): number[];
 export declare function parseBinarySldd(arrayBuffer: ArrayBuffer): Record<string, unknown>;
 export declare function parseBinarySlddParts(xmlString: string, zipMetadata: Record<string, Uint8Array>): Record<string, unknown>;
-export declare function transposeColumnMajor(values: number[], dims: number[]): number[];
+export declare function transposeColumnMajor<T>(values: T[], dims: number[]): T[];
 //# sourceMappingURL=BinarySlddParser.d.ts.map

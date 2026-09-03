@@ -9,6 +9,14 @@
 // the typed `Matrix(d1,...,dn)` literal (NodeClassMap -> parseTypedArray) for a
 // shaped numeric. There is no `_array_type: 'Matrix'` anywhere on the parse
 // side, so emitting one would be a form only the writer understands.
+//
+// Both of those forms stop at RANK 2. MATLAB reads every candidate rank-3
+// spelling of the literal back as an empty 1x0 and writes such a value as a
+// `{"_type": "cdata"}` MAT byte stream instead, wherever it sits — as an entry
+// value, an object property, a struct field or a cell element
+// (test/parity/matlab/probe_rank3_serial.m, probe_nd_rich.m, probe_nd_nested.m;
+// defect 22). So the rank-3 cases below assert the cdata form and read it back,
+// while the rank-2 cases keep the literal they always had.
 import { describe, it, expect } from 'vitest';
 import { loadFile, findEntry } from './parity/loadFile.js';
 import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
@@ -19,7 +27,7 @@ import '../src/datamodel/node/NodeClassMap.js';
 const MAT = ['./artifacts/mat/cases.mat', 'cases.mat'] as const;
 
 describe('serializeValue preserves struct contents (defect 15, hole 1)', () => {
-  for (const name of ['structScalar', 'structNest', 'struct1x3', 'struct2x3', 'structNd']) {
+  for (const name of ['structScalar', 'structNest', 'struct1x3', 'struct2x3']) {
     it(name + ' does not serialize to null', () => {
       const n = findEntry(loadFile(MAT[0], MAT[1]), name) as any;
       const out = n.serializeValue();
@@ -30,6 +38,23 @@ describe('serializeValue preserves struct contents (defect 15, hole 1)', () => {
       expect((out as Record<string, unknown>)._dimensions).toEqual(n._dims);
     });
   }
+
+  it('structNd keeps every element, in the form MATLAB uses at rank 3', () => {
+    // `_array_type: 'Struct'` with `_dimensions: [2,3,2]` is a form OUR reader
+    // rebuilds and MATLAB's reads as an empty struct, so the shape lives in the
+    // cdata bytes here. Nothing may be lost on the way: twelve elements out,
+    // twelve back.
+    const n = findEntry(loadFile(MAT[0], MAT[1]), 'structNd') as any;
+    const out = n.serializeValue() as Record<string, unknown>;
+    expect(out, 'a null here wipes the entry on save').not.toBe(null);
+    expect(out._type).toBe('cdata');
+    const back = NodeRegistry.parseValue(out, 'structNd', null) as any;
+    expect(back._dims).toEqual(n._dims);
+    expect(back.children.length).toBe(12);
+    expect(back.children.map((c: any) => c.children[0].displayValue)).toEqual(
+      n.children.map((c: any) => c.children[0].displayValue),
+    );
+  });
 
   it('a 2x3 struct array round-trips every element and field back through the reader', () => {
     const n = findEntry(loadFile(MAT[0], MAT[1]), 'struct2x3') as any;
@@ -62,18 +87,27 @@ describe('serializeValue preserves array shape (defect 15, hole 2)', () => {
     const out = n.serializeValue() as Record<string, unknown>;
     // Whatever form it takes, the rank must be recoverable from it.
     expect(Array.isArray(out), 'a bare array has nowhere to put [2,3,2]').toBe(false);
-    expect(out._value).toBe('Matrix(2,3,2)\n[1, 2, 3]\n[4, 5, 6]\n[7, 8, 9]\n[10, 11, 12]');
-    // And the reader gives the same shape back.
+    // At rank 3 that form is the cdata MAT stream, because MATLAB reads the
+    // `Matrix(2,3,2)` literal this used to assert — in every spelling, including
+    // the bracketed-group one it accepts at rank 2 — back as an empty 1x0
+    // (test/parity/matlab/probe_rank3_serial.m).
+    expect(out._type).toBe('cdata');
+    // And the reader gives the same shape, and the same values, back.
     const back = NodeRegistry.parseValue(out, 'nd2x3x2', null) as any;
     expect(back._dims).toEqual([2, 3, 2]);
     expect(back.children.length).toBe(12);
+    expect(back.children.map((c: any) => c.displayValue)).toEqual(
+      ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'],
+    );
   });
 
   it('a 2x3 double keeps its two extents', () => {
     const n = findEntry(loadFile(MAT[0], MAT[1]), 'mat2x3') as any;
     const out = n.serializeValue() as Record<string, unknown>;
     expect(Array.isArray(out)).toBe(false);
-    expect(out._value).toBe('Matrix(2,3)\n[1, 2, 3]\n[4, 5, 6]');
+    // Byte-for-byte what MATLAB itself wrote for mat2x3 in
+    // test/parity/artifacts/text/cases.sldd, including the forced '.0' on each double.
+    expect(out._value).toBe('Matrix(2,3)\n[[1.0, 2.0, 3.0]; [4.0, 5.0, 6.0]]');
     const back = NodeRegistry.parseValue(out, 'mat2x3', null) as any;
     expect(back._dims).toEqual([2, 3]);
   });

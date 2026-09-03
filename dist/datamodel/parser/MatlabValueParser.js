@@ -157,6 +157,14 @@ function parseArray(str) {
     const matrix = [];
     let cols = -1;
     let isStringArray = false;
+    // Which QUOTE the text rows used, which is the whole difference between a char
+    // matrix and a string array: MATLAB reads ['ab'; 'cd'] as a 2x2 CHAR and
+    // ["ab"; "cd"] as a 2x1 string, and it promotes a mixed literal to string. Both
+    // spellings used to come back as a string array, so committing a char matrix's own
+    // displayed value — the text the table seeds its editor with — silently retyped the
+    // entry from char to string and reshaped it 2x2 -> 2x1 (defect 25).
+    let anyDoubleQuoted = false;
+    const charRows = [];
     for (let r = 0; r < rows.length; r++) {
         const rowStr = rows[r].trim();
         if (rowStr === '') {
@@ -164,10 +172,11 @@ function parseArray(str) {
         }
         const nums = tokenizeNumbers(rowStr);
         if (nums === null) {
-            const strings = tokenizeStrings(rowStr);
-            if (strings === null) {
+            const scanned = tokenizeStrings(rowStr);
+            if (scanned === null) {
                 return null;
             }
+            const strings = scanned.texts;
             // A row of strings after rows of numbers: MATLAB has no such array,
             // and accepting it wrote a "string array" whose leading elements were
             // numbers straight back into the file. The numeric branch below
@@ -176,11 +185,19 @@ function parseArray(str) {
                 return null;
             }
             isStringArray = true;
+            anyDoubleQuoted = anyDoubleQuoted || scanned.anyDouble;
+            // A char row is the horizontal CONCATENATION of its pieces — ['ab' 'cd'] is
+            // the 1x4 'abcd' — so the char reading keeps the joined text per row beside
+            // the per-element matrix the string reading needs. The two readings measure
+            // a row differently (elements vs characters), so an inconsistent element
+            // count is recorded rather than refused here: ['ab'; 'c' 'd'] is a ragged
+            // string array and a perfectly good 2x2 char.
+            charRows.push(strings.join(''));
             if (cols < 0) {
                 cols = strings.length;
             }
             else if (strings.length !== cols) {
-                return null;
+                cols = -2;
             }
             matrix.push(strings);
         }
@@ -200,6 +217,16 @@ function parseArray(str) {
     if (matrix.length === 0) {
         return { type: 'double', value: [], dims: [0, 0] };
     }
+    // Single-quoted text is a CHAR array — one value, its rows concatenated
+    // vertically — so it is measured in characters and not in elements, and it is
+    // built here rather than from `matrix`.
+    if (isStringArray && !anyDoubleQuoted) {
+        return charFromRows(charRows);
+    }
+    // Beyond this point a row means a list of elements, so the counts have to agree.
+    if (cols < 0) {
+        return null;
+    }
     const elements = [];
     for (let r = 0; r < matrix.length; r++) {
         for (let c = 0; c < cols; c++) {
@@ -211,8 +238,36 @@ function parseArray(str) {
     }
     return { type: 'double', value: elements, dims: [matrix.length, cols] };
 }
+// The char array `['ab'; 'cd']` spells, from its already-concatenated rows.
+//
+// Every row must be the same LENGTH — MATLAB's own rule for vertical char
+// concatenation, which is why ['ab'; 'c'] is an error there and null here — and the
+// value is stored the way every other channel stores a char: one string in MATLAB's
+// column-major order, with the real extents beside it. A single row is left without
+// dims because a 1xN char states no shape anywhere (charNeedsShape).
+function charFromRows(rows) {
+    const width = rows[0].length;
+    for (let r = 1; r < rows.length; r++) {
+        if (rows[r].length !== width) {
+            return null;
+        }
+    }
+    if (rows.length === 1 || width === 0) {
+        return { type: 'char', value: rows.length === 1 ? rows[0] : '' };
+    }
+    let text = '';
+    for (let c = 0; c < width; c++) {
+        for (let r = 0; r < rows.length; r++) {
+            text += rows[r].charAt(c);
+        }
+    }
+    return { type: 'char', value: text, dims: [rows.length, width] };
+}
+// The quoted pieces of one row, plus whether ANY of them used the double quote —
+// which is the only thing in the text that says string rather than char.
 function tokenizeStrings(rowStr) {
     const elements = [];
+    let anyDouble = false;
     let i = 0;
     const len = rowStr.length;
     while (i < len) {
@@ -228,6 +283,9 @@ function tokenizeStrings(rowStr) {
             if (!scanned) {
                 return null;
             }
+            if (ch === '"') {
+                anyDouble = true;
+            }
             elements.push(scanned.text);
             i = scanned.next;
         }
@@ -235,7 +293,7 @@ function tokenizeStrings(rowStr) {
             return null;
         }
     }
-    return elements.length > 0 ? elements : null;
+    return elements.length > 0 ? { texts: elements, anyDouble } : null;
 }
 function parseCell(str) {
     str = str.trim();

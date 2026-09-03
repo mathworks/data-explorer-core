@@ -17,7 +17,7 @@ export default class ParameterNode extends DataNode {
     get className(): string;
     get dataType(): string;
     get displayValue(): string;
-    _adoptValueNode(rawValue: unknown): void;
+    _adoptValueNode(rawValue: unknown, edited?: boolean): void;
     childStructureChanged(child: BaseNode): void;
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;

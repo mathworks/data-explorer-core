@@ -114,7 +114,18 @@ export default class ObjectNode extends DataNode {
         if (attrs && attrs.Name) {
             attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
         }
-        const dimAttr = ' Dimension="' + dims[0] + '*' + (dims[1] ?? 1) + '"';
+        // Every extent, not just the first two. Phase 8 stopped the MCOS decoder
+        // truncating rank, so this node now reports [2,3,2] through `dims` and
+        // displays <2x3x2 Simulink.Parameter> — but this attribute still said "2*3"
+        // over the twelve <Element>s below it, the node contradicting itself.
+        // MATLAB gives no ground truth for an object array's Dimension= (it refuses
+        // object arrays in both .sldd flavours and the .slx model workspace,
+        // truth.notes.slddRejected/slxRejected), but a Dimension= that contradicts
+        // its own body is wrong regardless: for the struct analogue MATLAB's XML
+        // reader segfaults on "2*3" carrying twelve elements. Its struct-array
+        // spelling — every extent named, one <Element> each — is the only form
+        // known to be accepted for an N-D array of things.
+        const dimAttr = ' Dimension="' + (dims.length > 1 ? dims.join('*') : dims[0] + '*1') + '"';
         let xml = p + '<' + tagName + attrStr + dimAttr + '>\n';
         for (const child of this.children) {
             xml += ip + '<Element Class="' + escapeXml(this.arrayClass) + '">\n';
@@ -132,10 +143,15 @@ export default class ObjectNode extends DataNode {
     // object/struct/cell edit recurses through the same path. Feeds both the JSON
     // (serializeValue) and XML (_serializeSimulinkObjectXml) write-back paths.
     _getSerializedProperties() {
+        const stored = this.serial._properties || {};
         if (this.children.length === 0) {
-            return Object.assign({}, this.serial._properties);
+            return Object.assign({}, stored);
         }
-        const props = {};
+        // The reserved keys FIRST, because they have no child to be rebuilt from: a
+        // saveobj envelope is data the tree deliberately does not show
+        // (_addPropertyChildren), so rebuilding the bag from children alone would drop
+        // the whole of a saveobj-serializing object's state on the first save.
+        const props = ObjectNode._reservedProps(stored);
         for (const child of this.children) {
             props[child.name] = child.serializeValue();
         }
@@ -203,9 +219,28 @@ export default class ObjectNode extends DataNode {
             return;
         }
         for (const propName of Object.keys(properties)) {
+            // A reserved key is not a property and gets no row. Today that is only
+            // SAVEOBJ_KEY, the bag key the reader has to invent for MATLAB's unnamed
+            // saveobj envelope (XmlUtils.SAVEOBJ_KEY): shown, it would put a `_saveobj`
+            // struct next to the real properties in the tree and offer it for editing.
+            // The '_' test rather than the constant because a MATLAB identifier cannot
+            // begin with '_', so no real property name can ever be hidden by this rule.
+            if (propName.charAt(0) === '_') {
+                continue;
+            }
             const child = NodeRegistry.parseValue(properties[propName], propName, node);
             node.addChild(child);
         }
+    }
+    /** The reserved keys of a stored bag — the ones _addPropertyChildren gave no child. */
+    static _reservedProps(bag) {
+        const out = {};
+        for (const key of Object.keys(bag || {})) {
+            if (key.charAt(0) === '_') {
+                out[key] = bag[key];
+            }
+        }
+        return out;
     }
 }
 //# sourceMappingURL=ObjectNode.js.map

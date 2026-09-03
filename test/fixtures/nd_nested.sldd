@@ -1,0 +1,228 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "ndInCell",
+						"metadata": {
+							"uuid": "5a1f9f8b-20e0-4d48-bbd4-ff595cb5e472",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180120.975147",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								2
+							],
+							"_elements": [
+								1,
+								{
+									"_type": "cdata",
+									"_value": "  %)30     .    F     8    (    !@         %    #     (    #     @         !          D   !@            \\#\\         0         A         $$         40        !A         '$         @0        \")         )$         F0        \"A \u0000"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "ndInStruct",
+						"metadata": {
+							"uuid": "f68feeef-e969-4bcd-ad40-413f55e18f64",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180120.974889",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"deep": {
+										"_type": "cdata",
+										"_value": "  %)30     .    F     8    (    !@         %    #     (    #     @         !          D   !@            \\#\\         0         A         $$         40        !A         '$         @0        \")         )$         F0        \"A \u0000"
+									},
+									"flat": 7
+								}
+							],
+							"_fields": [
+								"flat",
+								"deep"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "ndParam",
+						"metadata": {
+							"uuid": "a588e7cd-9ef4-4255-bd39-f0101f71fe04",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180120.971161",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"Dimensions": [
+											2,
+											3,
+											2
+										],
+										"Value": {
+											"_type": "cdata",
+											"_value": "  %)30     .    F     8    (    !@         %    #     (    #     @         !          D   !@            \\#\\         0         A         $$         40        !A         '$         @0        \")         )$         F0        \"A \u0000"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "ndSignal",
+						"metadata": {
+							"uuid": "a5931c98-8d6f-436b-9a87-60277f4e6b67",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180120.974458",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Signal",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "3",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "4",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Signal",
+												"StorageClass": "Auto"
+											}
+										},
+										"Dimensions": [
+											2,
+											3,
+											2
+										],
+										"LoggingInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.LoggingInfo",
+											"_properties": {}
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "ndTop",
+						"metadata": {
+							"uuid": "a490f84d-4a8b-4705-a2a2-9bd7911943c5",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180120.969632",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    F     8    (    !@         %    #     (    #     @         !          D   !@            \\#\\         0         A         $$         40        !A         '$         @0        \")         )$         F0        \"A \u0000"
+						}
+					},
+					{
+						"name": "ndTwoLevel",
+						"metadata": {
+							"uuid": "ab77c976-e904-4a58-822f-85f0bcfdbd00",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180120.975591",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"inner": {
+										"_array_type": "Struct",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"deep": {
+													"_type": "cdata",
+													"_value": "  %)30     .    F     8    (    !@         %    #     (    #     @         !          D   !@            \\#\\         0         A         $$         40        !A         '$         @0        \")         )$         F0        \"A \u0000"
+												}
+											}
+										],
+										"_fields": [
+											"deep"
+										]
+									}
+								}
+							],
+							"_fields": [
+								"inner"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

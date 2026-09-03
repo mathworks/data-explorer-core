@@ -4,7 +4,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix the 13 defects catalogued in `DESIGN.md` and land a committed, MATLAB-free test suite that pins every value shape, in every file format, against MATLAB-authored ground truth.
+**Goal:** Fix the defects catalogued in `DESIGN.md` and land a committed, MATLAB-free test suite that pins every value shape, in every file format, against MATLAB-authored ground truth. The catalogue was 13 when this plan was written; it now stands at 21, the later entries having been found by the MATLAB-authored N-D fixtures (12–15) and by the cross-phase sweep of Phases 6–8 (16–21).
 
 **Architecture:** MATLAB is a *fixture generator*, not a test dependency — `gen_truth.m` emits committed artifacts plus a truth JSON, and the tests read both. The display convention and the subscript rule each become one shared module that every code path calls, replacing the three-to-five duplicated copies that are the root cause of most defects here.
 
@@ -18,20 +18,34 @@
 
 Ordered by value, subject to dependency. If work stops partway, everything completed is independently useful and committed.
 
-| # | Phase | Defects closed | Depends on |
-|---|---|---|---|
-| 1 | Display convention module + shared test loader | — (foundation) | — |
-| 2 | MATLAB truth corpus | — (foundation) | — |
-| 3 | Shared subscript helper | **6, 8** | 1 |
-| 4 | `.mat` struct-array elements | **10** | 3 |
-| 5 | Text `.sldd` `cdata` MAT stream | **11** | — |
-| 6 | `.sldd` rank preservation | **12** | 1 |
-| 7 | Display convention wiring | **3, 4, 5, 7** | 1 |
-| 8 | Container shape accessors | **9, 13** | 1, 3 |
-| 9 | MCOS `string` decoding | **2** | — |
-| 10 | 64-bit exactness | **1** | — |
-| 11 | `expect.ts` + tier-1 parity suites | verifies all | 2, 7 |
-| 12 | Live write-back tier + drift script | verifies write-back | 2, 11 |
+| # | Phase | Defects closed | Depends on | Status |
+|---|---|---|---|---|
+| 1 | Display convention module + shared test loader | — (foundation) | — | done |
+| 2 | MATLAB truth corpus | — (foundation) | — | done |
+| 3 | Shared subscript helper | **6, 8** | 1 | done |
+| 4 | `.mat` struct-array elements | **10** | 3 | done |
+| 5 | Text `.sldd` `cdata` MAT stream | **11** | — | done |
+| 6 | `.sldd` rank preservation | **12**, **15** | 1 | done (+ repair) |
+| 7 | Display convention wiring | **3, 4, 5, 7** | 1 | done |
+| 8 | Container shape accessors | **9, 13** | 1, 3 | done |
+| — | Cross-phase sweep of 6/7/8 | **16, 17, 18, 19** | 6, 7, 8 | done |
+| 9 | MCOS `string` decoding | **2** | — | |
+| 10 | 64-bit exactness | **1** | — | |
+| 11 | `expect.ts` + tier-1 parity suites | verifies all | 2, 7 | |
+| 12 | Live write-back tier + drift script | verifies write-back | 2, 11 | |
+
+Defect 14 was found and fixed during Phase 5 (see `DESIGN.md`); defect 15 was
+folded into Phase 6 as Task 6.4. The cross-phase sweep row is not a planned phase:
+Phases 6, 7 and 8 each passed in isolation, and walking one value through all four
+of its channels afterwards found four write-path defects (16, 17, 18, 19) that no
+single-phase check could see — 19 being two `Matrix(...)` writers that had drifted
+apart, in a spelling MATLAB reads back as an EMPTY matrix. It also catalogued two
+it did not fix — **20** (a text `.sldd` empty struct is never a struct) and **21**
+(a typed vector gains a `Matrix(1,N)` header MATLAB does not write) — both of
+which need their own MATLAB-verified task before Phase 11's round-trip suite can
+go green.
+
+Still open: **1** (Phase 10), **2** (Phase 9), **20**, **21**.
 
 Phase 1 is first because Phases 3, 6, 7 and 8 all import from it. Phase 2 is second because it needs MATLAB, which may not stay available, and because Phases 3–10 assert against its artifacts. Phase 3 is the highest-value *behaviour* fix: defect 6 currently names 4 of the 6 elements of a 2x3 object array after the wrong object.
 
@@ -1974,6 +1988,25 @@ git commit -m "[wip] keep every dimension a .sldd declares, transpose every page
 ```
 
 ### Task 6.2: Carry rank through the serial string
+
+> **CORRECTED — the WRITE half of this task rests on a premise MATLAB disproved.** The
+> read half stands and shipped: `Matrix(d1,...,dn)` is what our own reader must accept,
+> because that is what our writer used to emit and what a file in the wild may hold. But
+> the `formatMatrix` code in Step 3 below writes a rank-3 literal MATLAB **cannot read**.
+> Asked directly (`probe_rank3_serial.m`, six candidate spellings for a 2x3x2), MATLAB
+> answers every one of them `size [1 0]`, numel 0 — the value silently gone, the file
+> opening cleanly — because `_value` is a restricted literal grammar that stops at
+> rank 2, not a MATLAB expression. So this task made an N-D edit go from losing half its
+> values to losing all of them while newly *claiming* the right shape. See DESIGN.md
+> defect 22.
+>
+> The correct rank >= 3 channel is the one MATLAB uses itself: a `{"_type": "cdata"}`
+> uuencoded MAT byte stream, at the LEAF, with every container above it in ordinary
+> JSON. Built later (`CdataCodec.uuencode`, `MatWriter.matCdata`) and verified by
+> reopening our output in MATLAB. Read Step 3 below as history: the write-side snippet is
+> superseded, and the `Matrix()` body it shows is also the wrong JOIN for rank 2 (defect
+> 19 — newline-joined rows, which MATLAB also reads as empty). Both writers now share
+> `XmlUtils.formatMatrixSerial`.
 
 **Files:**
 - Modify: `src/datamodel/parser/BinarySlddParser.ts:480-501` (`formatMatrix`)

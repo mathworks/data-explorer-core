@@ -75,8 +75,13 @@ describe('Matrix(...) serial string', () => {
     // so the second page of a 2x3x2 was gone from the file on the first edit.
     const raw = { _type: 'double', _value: 'Matrix(2,3,2)\n[[1, 2, 3]; [4, 5, 6]; [7, 8, 9]; [10, 11, 12]]' };
     const node = MatlabVariableNode.parseTypedArray(raw, 'A', null) as any;
+    // The re-rendered body is the same bracketed-group form it was read from, which
+    // matters twice over: MATLAB reads only that form (the line-per-row spelling this
+    // used to expect comes back as a 1x0 empty — test/parity/matlab/probe_matrix_serial.m),
+    // and an edit that changed the SPELLING as well as the shape would diff every
+    // untouched neighbour in the file.
     expect(node._buildMatrixString(node._dims, node._elements)).toBe(
-      'Matrix(2,3,2)\n[1, 2, 3]\n[4, 5, 6]\n[7, 8, 9]\n[10, 11, 12]',
+      'Matrix(2,3,2)\n[[1.0, 2.0, 3.0]; [4.0, 5.0, 6.0]; [7.0, 8.0, 9.0]; [10.0, 11.0, 12.0]]',
     );
   });
 });

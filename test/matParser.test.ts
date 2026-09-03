@@ -23,6 +23,7 @@ import { describe, it, expect } from 'vitest';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { createSession } from '../src/index.js';
+import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import {
   CLASS,
   MI,
@@ -254,13 +255,23 @@ describe('parseMat — column-major to row-major', () => {
     expect(node.children).toHaveLength(12);
     // The serialized form used to be the bare list [1,3,5,2,4,6,7,9,11,8,10,12]:
     // every element present, but nowhere to put [2,3,2], so writing this entry into
-    // a dictionary turned MATLAB's 2x3x2 into a 1x12 (defect 15, hole 2). It now
-    // takes the typed Matrix() literal, which is the shaped form the reader accepts
-    // — the element order is unchanged, one bracketed group per row, pages in order.
-    expect(node.serializeValue()).toEqual({
-      _type: 'double',
-      _value: 'Matrix(2,3,2)\n[1, 3, 5]\n[2, 4, 6]\n[7, 9, 11]\n[8, 10, 12]',
-    });
+    // a dictionary turned MATLAB's 2x3x2 into a 1x12 (defect 15, hole 2).
+    //
+    // It now takes the cdata MAT stream, which is the only form MATLAB reads at
+    // rank >= 3: the typed `Matrix(2,3,2)` literal that first closed this hole is
+    // read back by MATLAB as an empty 1x0 in every spelling, so the entry saved
+    // clean and opened destroyed (defect 22, test/parity/matlab/probe_rank3_serial.m
+    // and probe_nd_rich.m). What matters here is the same thing it always was —
+    // twelve elements and the shape — so this reads the bytes back rather than
+    // matching a string.
+    const out = node.serializeValue() as Record<string, unknown>;
+    expect(out._type).toBe('cdata');
+    const back = NodeRegistry.parseValue(out, 'nd', null) as any;
+    expect(back._dims).toEqual([2, 3, 2]);
+    expect(back.children).toHaveLength(12);
+    expect(back.children.map((c: any) => c.displayValue)).toEqual(
+      node.children.map((c: any) => c.displayValue),
+    );
   });
 
   it('leaves a trailing partial page in place rather than dropping it', () => {

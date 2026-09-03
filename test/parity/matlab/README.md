@@ -50,9 +50,10 @@ MATLAB changed its own answer — that is a finding, not a test to fix.
 
 | path | what |
 |---|---|
-| `gen_truth.m` | the only entry point: one case catalog, every format emitted from it |
-| `probe_ndarray.m`, `probe_rank2.m` | the design-time probes that produced the rank-3 and object-array evidence in `DESIGN.md`; they write to `/tmp/c4probe`, not to `artifacts/` |
-| `DESIGN.md` | the display convention, the coverage matrix, and the 13 defects this suite exists to pin |
+| `gen_truth.m` | the only entry point for the corpus: one case catalog, every format emitted from it |
+| `probe_*.m`, `probe_writeback*.mjs` | one-question probes — see the table below. None of them writes to `artifacts/` |
+| `wbcompare.m` | the comparison both write-back gates share: `fullsig`, which walks a value to every leaf spelling class, size, complexity and exact value |
+| `DESIGN.md` | the display convention, the coverage matrix, and the 30 defects this suite exists to pin |
 | `../artifacts/truth.json` | the expectations, for every format at once |
 | `../artifacts/meta.json` | `version` and `release` of the MATLAB that wrote the corpus |
 | `../artifacts/mat/cases.mat` | all 77 cases — the only format that holds the object arrays |
@@ -69,6 +70,74 @@ suites share the `artifacts/` tree only so that
 
 `.prj` has no case file: a project carries no data objects, so parity for it is
 structural only.
+
+### The probes
+
+Each one asks MATLAB a single question the corpus could not answer, and the answer
+is recorded in `DESIGN.md` under the defect it settled. They are developer tools,
+not tests: nothing in `npm test` runs them, and each prints a completion marker of
+its own on the last line (`CHARSHAPE OK`, `ND_RICH OK`, `PROBEDONE`,
+`WRITEBACKDONE`, …) so a probe that died halfway is not mistaken for one that found
+nothing. Every one takes an absolute path — `-batch` starts in whatever directory
+you launched from — and those that write a dictionary need an ABSOLUTE output
+directory, because `Simulink.data.dictionary.open` rejects a relative one with
+`SLDD:sldd:DictionaryNotFound` (which turns every verdict into a meaningless FAIL).
+
+| probe | question | writes | fixture it produced |
+|---|---|---|---|
+| `probe_ndarray.m` | what does MATLAB write for a rank-3 numeric array, in both flavours? | `/tmp/c4probe` | `nd_text.sldd`, `nd_binary.sldd` |
+| `probe_rank2.m` | is a rank-2 struct/object matrix transposed on read? (defect 6) | `/tmp/c4probe` | — |
+| `probe_nd_edge.m` | the two N-D shapes a rank-2 reading does not merely get wrong but crashes on: `1*1*3`, and a `2*3*2` complex | `/tmp/ndedge` | `nd_1x1x3.sldd`, `nd_complex.sldd` |
+| `probe_matrix_serial.m` | which `Matrix(...)` spellings can MATLAB read back? (defect 19) | `tempdir` | — |
+| `probe_rank3_serial.m` | is there ANY literal spelling for rank >= 3, or is cdata the only form? (defect 22) | `tempdir` | — |
+| `probe_nd_rich.m` | what exactly is in the cdata stream, for all thirteen rank-3 kinds? | `$ND_RICH_OUT` or `tempdir/ndrich` | `nd_rich.sldd` |
+| `probe_nd_nested.m` | at which LEVEL does the cdata go when the N-D value is nested? (defect 22's placement rule) | `$ND_NESTED_OUT` or `tempdir/ndnested` | `nd_nested.sldd` |
+| `probe_typed_shapes.m` | how is a typed array spelled at the top level, in a struct field, in a cell? (defects 21, 23) | `$TYPED_SHAPES_OUT` or `tempdir/typedshapes` | `typed_text.sldd`, `typed_binary.sldd` |
+| `probe_char_shape.m` | what does a dictionary do with a char array that is not 1xN, and which literals does MATLAB accept for one? (defect 25) | `$CHAR_SHAPE_OUT` or `tempdir/charshape` | `char_text.sldd`, `char_binary.sldd` |
+| `probe_writeback.mjs` + `.m` | **the acceptance gate for the TEXT dictionary**: does MATLAB read back the JSON `_value` our writer emits? | `$PROBE_OUT` | — |
+| `probe_writeback_bin.mjs` + `.m` | **the acceptance gate for the BINARY dictionary**: does MATLAB read back the XML chunk our writer emits? (defects 27-30) | `$PROBE_OUT` | — |
+
+The two `probe_writeback` probes are the only two-part probes and the only ones with a
+pass/fail verdict. Both read the BUILT package, so a stale `dist/` is a stale verdict, and
+both need `PROBE_OUT` to be the same ABSOLUTE path in each half.
+
+The text gate splices our serialization of ONE entry into a copy of the MATLAB-authored
+dictionary it came from, and the `.m` half reopens each spliced file and compares against
+the untouched original:
+
+```bash
+npm run build
+env PROBE_OUT=/tmp/wb node test/parity/matlab/probe_writeback.mjs
+env PROBE_OUT=/tmp/wb mw -using Bmain matlab -nodesktop \
+    -batch "run('$PWD/test/parity/matlab/probe_writeback.m')"
+```
+
+Its last line is `WRITEBACK FAILURES n of m`. **Zero is the only acceptable result**
+(currently 0 of 54, 5 controls). A case our writer cannot produce at all counts as a
+failure, not as an absence.
+
+The binary gate cannot splice, because `serializeBinarySldd` rebuilds the WHOLE package —
+every entry's XML, the DataSource header, the dictionary object, the zip. One rebuilt file
+therefore carries every entry at once, and the manifest lists each entry as its own case so
+a failure names the value rather than the file:
+
+```bash
+npm run build
+env PROBE_OUT=/tmp/wbbin node test/parity/matlab/probe_writeback_bin.mjs
+env PROBE_OUT=/tmp/wbbin mw -using Bmain matlab -nodesktop \
+    -batch "run('$PWD/test/parity/matlab/probe_writeback_bin.m')"
+```
+
+Its last line is `WRITEBACK FAILURES n of m` too, then `WRITEBACKBINDONE` (currently
+**0 of 101**, 10 controls). Set `PROBE_SHOWSIG=1` to print the full `fullsig` of both
+sides of every case — the way to tell a real PASS from a vacuous one, which is how
+defect 28 was found. Two controls per source file: `control_copy_*` hands MATLAB the bytes
+it wrote, and `control_zip_*` hands back MATLAB's own `chunk0.xml` repacked by `fflate`, so
+a zip we build is proved readable independently of anything we put inside it.
+
+Both gates need every node in the subtree marked modified, not just the root:
+`_markModified` walks UP the chain and an unmodified node replays its `_rawInput`, so
+marking a container leaves the writer untested on every field and element beneath it.
 
 ## The catalog
 

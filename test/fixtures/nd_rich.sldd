@@ -1,0 +1,197 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "ndCellMixed",
+						"metadata": {
+							"uuid": "fa8722ee-cd0d-4192-82e4-e3c5a84579f5",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.092591",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    ^ (   8    (     0         %    #     (    \"     @         !          X    X    !@    @    &          4    (     0    $    !          D    (            14 .    ,     8    (    !          %    \"     $    #     0         0  , ='AT  X    P    !@    @    ,          4    (     0    $    !          4 !  '    #@   #     &    \"     D\"        !0    @    !     0    $          @ !  $    .    2     8    (    !@         %    \"     $    #     0         )    &            / _         $         (0 X   \"@    !@    @    !          4    (     0    (    !          X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    ,     8    (    !          %    \"     $    \"     0         0  ( :6X   X   \"     !@    @    \"          4    (     0    $    !          4 !  %     0    4   !F          X    X    !@    @    &          4    (     0    $    !          D    (            %$ .    6     8    (    !@         %    #     (    !     @         !          D    @            \\#\\         0         A         $$ \u0000\u0000"
+						}
+					},
+					{
+						"name": "ndChar",
+						"metadata": {
+							"uuid": "597b657b-9f45-408c-b7e8-76a2484b85bb",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.091676",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    2     8    (    !          %    #     (    #     @         !         !     ,    86)C9&5F9VAI:FML      \u0000\u0000\u0000"
+						}
+					},
+					{
+						"name": "ndComplex",
+						"metadata": {
+							"uuid": "fefaf9c5-cf50-4276-a613-2ad023373979",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.092156",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    P     8    (    !@@        %    #     (    \"     @         !          D   !             \\#\\         0         A         $$         40        !A         '$         @0 D   !             )D         H0        \"I         +$         N0        #!         ,4         R0 \u0000\u0000\u0000"
+						}
+					},
+					{
+						"name": "ndDouble",
+						"metadata": {
+							"uuid": "c83f633e-3916-4447-b66e-e29310068f07",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.080534",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    F     8    (    !@         %    #     (    #     @         !          D   !@            \\#\\         0         A         $$         40        !A         '$         @0        \")         )$         F0        \"A \u0000"
+						}
+					},
+					{
+						"name": "ndInt32",
+						"metadata": {
+							"uuid": "44f11207-308c-4480-a46b-bb94c299300e",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.090185",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    6     8    (    #          %    #     (    \"     @         !          4    @     0    (    #    !     4    &    !P    @    \u0000\u0000"
+						}
+					},
+					{
+						"name": "ndLogical",
+						"metadata": {
+							"uuid": "34e78e65-9f76-4ac5-b462-36b5c789c7fe",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.091213",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    0     8    (    \"0(        %    #     (    \"     @         !          (    (     0 ! 0   0 \u0000\u0000"
+						}
+					},
+					{
+						"name": "ndSingle",
+						"metadata": {
+							"uuid": "247cb715-0c20-428a-8ab7-d4da82e58654",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.089545",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    6     8    (    !P         %    #     (    \"     @         !          <    @      \" /P   $   $!   \" 0   H$   ,!   #@0    $$\u0000\u0000"
+						}
+					},
+					{
+						"name": "ndStride3",
+						"metadata": {
+							"uuid": "ba960373-d5a3-4a5e-b2f2-bbb1f3f6a5ea",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.093401",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    2 $   8    (     @         %    #     (    !     @         !          4 !  %     0    4   !Z>GH       X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 X    X    !@    @    &          4    (     0    $    !          D    (            $$ \u0000\u0000"
+						}
+					},
+					{
+						"name": "ndStride4",
+						"metadata": {
+							"uuid": "5ecfbc57-9d62-42d2-a362-885bfb03a7e7",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.093972",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    2 $   8    (     @         %    #     (    !     @         !          4 !  %     0    4   !Z>GIZ      X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 X    X    !@    @    &          4    (     0    $    !          D    (            $$ \u0000\u0000"
+						}
+					},
+					{
+						"name": "ndStride5",
+						"metadata": {
+							"uuid": "f58f92de-a80d-4cd4-9dd7-0702ea15ab32",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.094312",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    2 $   8    (     @         %    #     (    !     @         !          4 !  &     0    8   !Z>GIZ>@    X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 X    X    !@    @    &          4    (     0    $    !          D    (            $$ \u0000\u0000"
+						}
+					},
+					{
+						"name": "ndStride6",
+						"metadata": {
+							"uuid": "786a448e-299f-4785-aca4-9a68595ed2d1",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.094588",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    2 $   8    (     @         %    #     (    !     @         !          4 !  '     0    <   !Z>GIZ>GH   X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 X    X    !@    @    &          4    (     0    $    !          D    (            $$ \u0000\u0000"
+						}
+					},
+					{
+						"name": "ndStructMulti",
+						"metadata": {
+							"uuid": "0cbab920-1c61-46aa-b208-33db32ca0846",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.092989",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    ( 8   8    (     @         %    #     (    \"     @         !          4 !  )     0   !L   !A          !B8@        !C8V-C8V-C8P        X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    ,     8    (    !          %    \"     $    \"     0         0  ( 93$   X    X    !@    @    ,          4    (     0    (    !          4    (     0    (    .    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #     &    \"     0         !0    @    !     @    $         $  \" &4R   .    .     8    (    #          %    \"     $    \"     0         %    \"     (    #    #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 X    P    !@    @    $          4    (     0    (    !         !   @!E,P  #@   #@    &    \"     P         !0    @    !     @    $         !0    @    #    !     X    X    !@    @    &          4    (     0    $    !          D    (            $$ .    ,     8    (    !          %    \"     $    \"     0         0  ( 930   X    X    !@    @    ,          4    (     0    (    !          4    (    !     4    .    .     8    (    !@         %    \"     $    !     0         )    \"            !1 #@   #     &    \"     0         !0    @    !     @    $         $  \" &4U   .    .     8    (    #          %    \"     $    \"     0         %    \"     4    &    #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            80 X    P    !@    @    $          4    (     0    (    !         !   @!E-@  #@   #@    &    \"     P         !0    @    !     @    $         !0    @    &    !P    X    X    !@    @    &          4    (     0    $    !          D    (            '$ .    ,     8    (    !          %    \"     $    \"     0         0  ( 93<   X    X    !@    @    ,          4    (     0    (    !          4    (    !P    @    .    .     8    (    !@         %    \"     $    !     0         )    \"            \"! #@   #     &    \"     0         !0    @    !     @    $         $  \" &4X   .    .     8    (    #          %    \"     $    \"     0         %    \"     @    )    \u0000"
+						}
+					},
+					{
+						"name": "ndUint64",
+						"metadata": {
+							"uuid": "8f5ba9cf-59f9-4fc5-9f1e-0701967dc2ed",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T172914.090707",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    >     8    (    #P         %    #     (    \"     @         !          T   !      0         \"          ,         !          %          8         !P         (          \u0000\u0000\u0000"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

@@ -643,10 +643,25 @@ describe('MatlabVariableNode — a typed numeric class survives every edit', () 
   const typed = (t: string, v: string): Any => parse({ _type: t, _value: v });
 
   it('keeps the class when a Value edit re-states the number', () => {
-    for (const t of ['int32', 'uint8', 'int8', 'single']) {
+    // The number inside a `_value` body is a MATLAB LITERAL, so it wears the suffix
+    // MATLAB gives that class there: 'U' on an unsigned integer, 'F' on a single,
+    // nothing on a signed one. Read off MATLAB's own cases.sldd, which writes `7U` for
+    // a uint8, `255U`, `3.14159274F` for a single, and a bare `7`/`-128` for the signed
+    // classes. The array path already spelled it this way (formatNumLiteral, and the
+    // append test below); the scalar path used the bare number, so the same value
+    // spelled itself two ways depending only on whether it had siblings.
+    //
+    // XML is a different grammar and is unaffected: there the class lives in the Class
+    // attribute, so the body is a plain number — with the '.0' a single/double gets.
+    for (const [t, literal] of [
+      ['int32', '7'],
+      ['uint8', '7U'],
+      ['int8', '7'],
+      ['single', '7F'],
+    ]) {
       const n = typed(t, '5');
       expect(n.setProperty('Value', '7')).toBe(true);
-      expect([t, n._scalarType, n.serializeValue()]).toEqual([t, t, { _type: t, _value: '7' }]);
+      expect([t, n._scalarType, n.serializeValue()]).toEqual([t, t, { _type: t, _value: literal }]);
       expect(n.serializeXml('P', {}, 0)).toBe('<P Class="' + t + '">' + (t === 'single' ? '7.0' : '7') + '</P>');
     }
   });
@@ -671,22 +686,34 @@ describe('MatlabVariableNode — a typed numeric class survives every edit', () 
   });
 
   it('keeps the class when an element is appended', () => {
+    // The body is bare — a 1xN typed array states no shape, which is MATLAB's own
+    // spelling for it (defect 21). Only a column or a matrix carries the Matrix()
+    // header, because there the shape is the only thing the reader could not infer.
     for (const t of ['int32', 'logical']) {
       const n = typed(t, t === 'logical' ? '[1, 0]' : '[5, 6]');
       n.addChildNode();
       expect([t, n._scalarType, n.serializeValue()]).toEqual([
         t,
         t,
-        { _type: t, _value: 'Matrix(1,3)\n[' + (t === 'logical' ? '1, 0, 0' : '5, 6, 0') + ']' },
+        { _type: t, _value: '[' + (t === 'logical' ? '1, 0, 0' : '5, 6, 0') + ']' },
       ]);
     }
   });
 
   it('keeps the class when a removal collapses the array to a scalar, and on undo', () => {
+    // `serial` is spelled per class rather than reused from `v` because MATLAB spells
+    // the literal's numbers with a class suffix: its own uncompressed-text dictionary
+    // writes a single as '3.14159274F' and a uint64 as '18446744073709551615U', while
+    // int32 and logical are bare. The old expectation reused `v` for every class and
+    // so read as correct — but a suffixless body is one MATLAB reads back as DOUBLE,
+    // silently retyping the entry the test claims keeps its class.
     for (const spec of [
-      { t: 'int32', v: '[5, 6]', collapsed: '5', display: '[5 6]' },
-      { t: 'logical', v: '[1, 0]', collapsed: '1', display: '[true false]' },
-      { t: 'single', v: '[5, 6]', collapsed: '5', display: '[5 6]' },
+      { t: 'int32', v: '[5, 6]', serial: '[5, 6]', collapsed: '5', display: '[5 6]' },
+      { t: 'logical', v: '[1, 0]', serial: '[1, 0]', collapsed: '1', display: '[true false]' },
+      // The collapsed scalar keeps the suffix too: it is the same literal grammar with
+      // one number in it, and a collapse that dropped the 'F' would retype the entry to
+      // double on the way out — the very thing this test is about.
+      { t: 'single', v: '[5, 6]', serial: '[5F, 6F]', collapsed: '5F', display: '[5 6]' },
     ]) {
       const n = typed(spec.t, spec.v);
       const op: Any = n.execRemoveChild(n.children[1]);
@@ -697,7 +724,8 @@ describe('MatlabVariableNode — a typed numeric class survives every edit', () 
       ]);
       op.undo();
       expect([spec.t, n._scalarType, n.displayValue]).toEqual([spec.t, spec.t, spec.display]);
-      expect(n.serializeValue()).toEqual({ _type: spec.t, _value: 'Matrix(1,2)\n' + spec.v });
+      // Bare again after the undo: the restored value is a 1x2 row (defect 21).
+      expect(n.serializeValue()).toEqual({ _type: spec.t, _value: spec.serial });
     }
   });
 
@@ -735,6 +763,14 @@ describe("MatlabVariableNode — an array element's data type follows the array"
   // 'logical' is the same rule and has its own describe (its rows also change text
   // and icon); 'double' is the identity case, asserted separately below.
   const CLASSES = ['int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32', 'uint64', 'single'];
+
+  // MATLAB's own suffix for a number inside a typed `_value` literal, read off its
+  // uncompressed-text dictionary in test/parity/artifacts/text/cases.sldd: the
+  // unsigned classes take 'U' ('[18446744073709551615U, 1U, 0U]'), single takes 'F'
+  // ('3.14159274F'), the signed integers are bare ('[1, 2, 3]' for int16). Spelled
+  // out here rather than imported from XmlUtils so the expectation does not merely
+  // restate the implementation.
+  const suffixOf = (t: string): string => (t === 'single' ? 'F' : t.startsWith('u') ? 'U' : '');
 
   it('gives every element of a typed vector the array class', () => {
     for (const t of CLASSES) {
@@ -777,7 +813,10 @@ describe("MatlabVariableNode — an array element's data type follows the array"
       expect([t, n.children.map((c: Any) => c.dataType), n.serializeValue()]).toEqual([
         t,
         [t, t],
-        { _type: t, _value: 'Matrix(1,2)\n[150, 200]' },
+        // Suffixed per class: a suffixless body is one MATLAB reads back as double,
+        // which would undo the very class this test is about. Bare of a Matrix()
+        // header, because a 1xN row states no shape (defect 21).
+        { _type: t, _value: '[150' + suffixOf(t) + ', 200' + suffixOf(t) + ']' },
       ]);
     }
   });
@@ -873,7 +912,7 @@ describe("MatlabVariableNode — a logical array's elements are logicals", () =>
     expect(n.children[0].setProperty('Value', 'false')).toBe(true);
     expect([n.children[0].displayValue, n.children[0].dataType]).toEqual(['false', 'logical']);
     expect([n._elements, n.displayValue]).toEqual([[0, 0, 1], '[false false true]']);
-    expect(n.serializeValue()).toEqual({ _type: 'logical', _value: 'Matrix(1,3)\n[0, 0, 1]' });
+    expect(n.serializeValue()).toEqual({ _type: 'logical', _value: '[0, 0, 1]' });
   });
 
   it('accepts 1 and 0 as shorthand for true and false', () => {
@@ -882,7 +921,7 @@ describe("MatlabVariableNode — a logical array's elements are logicals", () =>
     const n = logicals();
     expect(n.children[1].setProperty('Value', '1')).toBe(true);
     expect([n.children[1].dataType, n.children[1].displayValue]).toEqual(['logical', 'true']);
-    expect(n.serializeValue()).toEqual({ _type: 'logical', _value: 'Matrix(1,3)\n[1, 1, 1]' });
+    expect(n.serializeValue()).toEqual({ _type: 'logical', _value: '[1, 1, 1]' });
   });
 
   it('rejects a number a logical cannot hold, instead of writing it into the array', () => {
@@ -1227,21 +1266,43 @@ describe('MatlabVariableNode — serializeValue', () => {
     expect(n.serializeValue()).toEqual([9, 2, 3]);
   });
 
-  it('writes a scalar string as a one-element array and a complex as cdata', () => {
+  it('writes a scalar string as a one-element array and a complex as a cdata byte stream', () => {
     const s = parse(0);
     s._scalarType = 'string';
     s._scalarValue = 'hi';
     s._rawInput = undefined;
     expect(s.serializeValue()).toEqual(['hi']);
+    // A complex scalar goes out as the MAT byte stream, not as the plain text
+    // '1+2i'. Both wear the `_type: 'cdata'` tag, and the difference is the whole
+    // value: the plain text is what a BINARY dictionary carries for the property,
+    // and MATLAB reads it back out of a TEXT dictionary as an empty 1x0 double —
+    // measured, not inferred (probe_writeback, defect 24). MATLAB's own text
+    // dictionary stores a complex scalar as a stream, and our stream for
+    // cases.sldd's cplxScalar is byte-identical to the one MATLAB wrote there.
     s._scalarType = 'complex';
     s._scalarValue = '1+2i';
-    expect(s.serializeValue()).toEqual({ _type: 'cdata', _value: '1+2i' });
+    const out = s.serializeValue() as { _type: string; _value: string };
+    expect(out._type).toBe('cdata');
+    expect(out._value.startsWith('  %)')).toBe(true);
+    // The stream is the value: read it back and the number has to survive whole.
+    expect(parse(out)._scalarValue).toBe('1+2i');
   });
 
   it('writes a matrix back as a Matrix(r,c) literal', () => {
+    // Input keeps the newline-joined spelling on purpose — our own older writer
+    // emitted it, so files in the wild carry it and the reader must still take it.
+    // The OUTPUT is MATLAB's spelling: bracketed groups joined '; ', with each double
+    // carrying the '.0' MATLAB writes. The old expectation echoed the input form and
+    // so looked symmetrical, but MATLAB reads a newline-joined body as a 1x0 EMPTY
+    // matrix (probed in test/parity/matlab/probe_matrix_serial.m:
+    // 'Matrix(2,3)\n[1, 2, 3]\n[4, 5, 6]' -> double [1 0]), so every matrix we wrote
+    // back into an uncompressed-text dictionary was destroyed on the next open.
     const n = parse({ _type: 'double', _value: 'Matrix(2,2)\n[1, 2]\n[3, 4]' });
     n.children[0].setProperty('Value', '9');
-    expect(n.serializeValue()).toEqual({ _type: 'double', _value: 'Matrix(2,2)\n[9, 2]\n[3, 4]' });
+    expect(n.serializeValue()).toEqual({
+      _type: 'double',
+      _value: 'Matrix(2,2)\n[[9.0, 2.0]; [3.0, 4.0]]',
+    });
   });
 
   it('writes an empty array as []', () => {

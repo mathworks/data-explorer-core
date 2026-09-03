@@ -56,7 +56,7 @@ export default class MatlabVariableNode extends DataNode {
         value: unknown;
         dims?: number[];
     }): void;
-    _buildMatrixString(dims: number[], elements: number[]): string;
+    _buildMatrixString(dims: number[], elements: (number | string)[], type?: string): string;
     _buildArrayChildren(): void;
     private _makeStringElement;
     _buildStringChildren(): void;
@@ -82,6 +82,17 @@ export default class MatlabVariableNode extends DataNode {
     private _syncArraySerial;
     _reindexChildren(): void;
     serializeValue(): unknown;
+    /**
+     * Is this a complex value? The two tests are the two shapes complexity arrives
+     * in: a complex SCALAR carries `_scalarType === 'complex'`, while a complex ARRAY
+     * is a plain `double` whose per-element values are the literal text `'1+2i'` —
+     * the element nodes are the complex ones, not the parent. `_buildVarObject` has
+     * always had to make the same distinction to set `isComplex`, and it asks here so
+     * the projection and the serialization cannot disagree about what is complex; a
+     * disagreement would mean writing a cdata stream built from a non-complex `_var`.
+     */
+    _isComplexValue(): boolean;
+    _serializeCdata(): unknown | null;
     _serializeScalar(): unknown;
     _serializeArray(): unknown;
     _serializeStructValue(): unknown;
@@ -114,6 +125,21 @@ export default class MatlabVariableNode extends DataNode {
     static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _parseCdataText(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseTypedVector(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
+    /**
+     * MATLAB's `mxchar` literal: a char array of rank >= 2, spelled as character CODES
+     * under a `Matrix(r,c)` header with one bracketed group per ROW.
+     *
+     * It becomes the same node a .mat or a binary dictionary produces for the same value
+     * — one char-KIND scalar holding the whole text in MATLAB's column-major storage
+     * order, with the real extents on _dims. So `['ab'; 'cd']` reads identically out of
+     * all three channels, and the writers (_serializeScalar, _serializeScalarXml,
+     * _buildVarObject) each spell it their own way from that single representation.
+     *
+     * Read as a numeric array instead — which is what the Matrix() dispatch did before
+     * this arm existed — the value came back as a 2x2 of 97/98/99/100 with dataType
+     * 'mxchar', displayed `[97 98; 99 100]`, and had no char anything about it.
+     */
+    static parseMxChar(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseFlatArray(rawVal: unknown[], name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseTypedArray(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseCell(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;

@@ -190,9 +190,13 @@ describe('MatlabValueParser — char and string', () => {
     expect(parse("'a''")).toBeNull();
   });
 
-  it("REGRESSION: undoubles escaped quotes in a string-array element", () => {
+  it("REGRESSION: undoubles escaped quotes inside a bracketed literal", () => {
     expect(parse('["a""b" "c"]')).toEqual({ type: 'string-array', value: ['a"b', 'c'], dims: [1, 2] });
-    expect(parse("['it''s' 'ok']")).toEqual({ type: 'string-array', value: ["it's", 'ok'], dims: [1, 2] });
+    // Single quotes make it a CHAR, so the pieces concatenate into one 1x6 value
+    // rather than staying two elements — MATLAB's own answer for ['it''s' 'ok'] is
+    // the 1x6 char `it'sok` (probe_char_shape's LITERALS section). The undoubling is
+    // what this test is here for and it happens either way.
+    expect(parse("['it''s' 'ok']")).toEqual({ type: 'char', value: "it'sok" });
   });
 
   it('round-trips every awkward char through formatMatlabChar', () => {
@@ -224,9 +228,44 @@ describe('MatlabValueParser — char and string', () => {
     expect(parse('"abc')).toBeNull();
   });
 
-  it('parses an array of quoted strings as a string array', () => {
+  it('parses an array of DOUBLE-quoted strings as a string array', () => {
     expect(parse('["x" "y"]')).toEqual({ type: 'string-array', value: ['x', 'y'], dims: [1, 2] });
-    expect(parse("['a' 'b']")).toEqual({ type: 'string-array', value: ['a', 'b'], dims: [1, 2] });
+  });
+
+  // The quote decides the class, which is the rule charShape.test.ts owns end to end;
+  // these are the parser-level statements of it. Measured in MATLAB, not assumed —
+  // probe_char_shape.m evals each spelling and prints class and size.
+  it('parses an array of SINGLE-quoted text as one char value', () => {
+    // ['a' 'b'] is horizontal char concatenation: a 1x2 char, not two elements. Read
+    // as a string array it retyped the value and doubled its element count, and since
+    // this is the text the table seeds a char row's editor with, committing a char's
+    // own displayed value changed its class (defect 25).
+    expect(parse("['a' 'b']")).toEqual({ type: 'char', value: 'ab' });
+    expect(parse("['ab' 'cd']")).toEqual({ type: 'char', value: 'abcd' });
+    // A single row states no shape — that is charNeedsShape, the same rule the writers
+    // apply — so there is no `dims` key here at all.
+    expect(parse("['abc']")).toEqual({ type: 'char', value: 'abc' });
+  });
+
+  it('parses a multi-row single-quoted literal as a char MATRIX', () => {
+    // Stored the way every channel stores a char: one string in MATLAB's column-major
+    // order, with the real extents beside it. MATLAB's ['ab'; 'cd'] is a 2x2 char
+    // whose storage order is 'acbd'.
+    expect(parse("['ab'; 'cd']")).toEqual({ type: 'char', value: 'acbd', dims: [2, 2] });
+    expect(parse("['a'; 'b'; 'c']")).toEqual({ type: 'char', value: 'abc', dims: [3, 1] });
+    expect(parse("['it''s'; 'okay']")).toEqual({ type: 'char', value: "iotk'asy", dims: [2, 4] });
+    // Rows are measured in CHARACTERS, not in pieces: MATLAB accepts this one as a
+    // 2x2 char because both rows are two characters wide.
+    expect(parse("['ab'; 'c' 'd']")).toEqual({ type: 'char', value: 'acbd', dims: [2, 2] });
+    // And rejects rows of unequal width — "Dimensions of arrays being concatenated
+    // are not consistent."
+    expect(parse("['ab'; 'c']")).toBeNull();
+  });
+
+  it('promotes a MIXED-quote literal to a string array, as MATLAB does', () => {
+    // ['ab'; "cd"] is a 2x1 string in MATLAB: one double-quoted piece anywhere makes
+    // the whole literal a string array, and then the rows are elements again.
+    expect(parse('[\'ab\'; "cd"]')).toEqual({ type: 'string-array', value: ['ab', 'cd'], dims: [2, 1] });
   });
 
   it('parses a single-element string array', () => {
@@ -405,7 +444,10 @@ describe('MatlabValueParser — cell arrays', () => {
     // findMatchingBracket counted brackets everywhere, so the ']' inside the char
     // value closed the nested array early and the whole cell failed to parse —
     // "Invalid MATLAB expression" on an expression MATLAB accepts.
-    expect(parse("{['a]'], 1}")).toEqual({ type: 'cell', value: [['a]'], 1], dims: [1, 2] });
+    // `['a]']` is a 1x2 CHAR — brackets around one single-quoted piece are just
+    // concatenation of one thing — so the element is the text itself and not a
+    // one-element list holding it (defect 25).
+    expect(parse("{['a]'], 1}")).toEqual({ type: 'cell', value: ['a]', 1], dims: [1, 2] });
     expect(parse("{{'a}b'}, 2}")).toEqual({
       type: 'cell',
       value: [{ _array_type: 'Cell', _dimensions: [1, 1], _elements: ['a}b'], _mw_element_type: 'MATLABArray' }, 2],
