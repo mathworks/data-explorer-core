@@ -14,7 +14,7 @@ import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { parseMatrix } from '../../parser/MatParser.js';
 import { uudecode } from '../../parser/CdataCodec.js';
 import { encodeCdata } from '../../parser/MatWriter.js';
-import { EMPTY_CELL, EMPTY_NUMERIC, effectiveDims, elementCount, needsSummary, overCharBudget, summaryForm, } from '../../display/DisplayConvention.js';
+import { EMPTY_CELL, EMPTY_NUMERIC, MISSING_STRING, effectiveDims, elementCount, needsSummary, overCharBudget, summaryForm, } from '../../display/DisplayConvention.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
 // ---- Pure value helpers ----
@@ -38,6 +38,10 @@ const MCOS_ICON_MAP = {
     'Simulink.LookupTable': 'wsLookup',
     'Simulink.Breakpoint': 'wsSimulinkBreakpoint',
     'Simulink.ValueType': 'wsValue',
+    // Not a Simulink class: a `string` reaches the opaque path because MATLAB stores it as
+    // an MCOS object, and without this entry the same string array that shows a string icon
+    // out of a dictionary showed the default one out of a .mat.
+    string: 'wsString',
 };
 // An empty 0x0 double, MATLAB's own `[]`. Stands in for a cell slot the parser
 // could not read (see _createFromMatCell) and for a struct-array element that no
@@ -54,6 +58,17 @@ function emptyDouble() {
         value: [],
         fields: null,
     };
+}
+// One element of a string array as MATLAB displays it: quoted, or the unquoted
+// `<missing>` for a `missing`. `null` is the marker for a `missing` because the display
+// text cannot be — a real string whose characters are `<missing>` still has to print
+// quoted, and the two would be indistinguishable if the marker were the text.
+// `undefined` is a hole rather than a missing (a shorter `_elements` than `_dims`
+// claims), and prints as the empty string it always did.
+function formatStringElement(el) {
+    if (el === null)
+        return MISSING_STRING;
+    return formatMatlabString(el !== undefined ? String(el) : '');
 }
 // A text .sldd stores a value its JSON schema cannot spell as uuencoded bytes,
 // and what those bytes CONTAIN is an 8-byte preamble followed by one MAT-file
@@ -254,6 +269,14 @@ export default class MatlabVariableNode extends DataNode {
         return this._elements;
     }
     get dims() {
+        // An opaque MCOS object's shape is the one the decoder recovered, not _dims —
+        // which no opaque path ever sets, so it is the [1,1] the constructor left. That
+        // was the only shape available while the decoder had nothing better; a `string`
+        // now carries MATLAB's own size() from its payload, and a 1x3 reporting 1x1 here
+        // would contradict the summary the same node displays.
+        if (this._isOpaque) {
+            return this._mcosDimensions || this._dims;
+        }
         // A char is measured in CHARACTERS, and the bare-JSON-string channel hands one
         // over with no shape at all, so _dims is [1,1] there however long the text is.
         // Reporting that made the accessor the only channel disagreeing with MATLAB's
@@ -323,7 +346,14 @@ export default class MatlabVariableNode extends DataNode {
     // className is a Class name (e.g. 'Simulink.Parameter'), which is Class, not a
     // data type — suppress it here so the column stays type-only.
     get dataType() {
-        return this._isOpaque ? '' : this.className;
+        if (this._isOpaque) {
+            // `string` is the one exception: it arrives as an opaque MCOS object because
+            // MATLAB implements it as one, but it IS a MATLAB data type, so a string
+            // variable out of a .mat belongs in the DataType column alongside the one out
+            // of a dictionary rather than showing a blank cell.
+            return this._opaqueClassName === 'string' ? 'string' : '';
+        }
+        return this.className;
     }
     // A plain MATLAB variable (scalar, array, cell, struct-like, or opaque MCOS
     // object) is a "MATLAB Variable" in Design Data. In Architectural Data the same
@@ -348,6 +378,13 @@ export default class MatlabVariableNode extends DataNode {
     }
     get valueEditable() {
         if (this._isOpaque) {
+            return false;
+        }
+        // An ELEMENT of an opaque value is as read-only as the value: a decoded `string`
+        // array is the first opaque node with children at all, and its elements display real
+        // editable-looking text ("alpha"), so without this they would have offered an editor
+        // whose commit could not reach the file.
+        if (this.parent instanceof MatlabVariableNode && this.parent._isOpaque) {
             return false;
         }
         if (this._scalarType === 'struct') {
@@ -381,13 +418,22 @@ export default class MatlabVariableNode extends DataNode {
     }
     get displayValue() {
         if (this._isOpaque) {
+            // A `string` whose payload decoded is an opaque node that nonetheless HAS a value:
+            // _adoptStringPayload gave it the same _kind/_dims/_elements a dictionary string
+            // array carries, so it renders through the one string formatter and matches the
+            // other three formats character for character. A payload that did not decode never
+            // adopts that kind, stays the scalar-kind shell the constructor made, and falls
+            // through to the summary below — which is still its true shape.
+            if (this._kind === 'string') {
+                return this._formatString();
+            }
             if (this._mcosValue !== undefined && this._mcosValue !== null) {
                 if (typeof this._mcosValue === 'number')
                     return String(this._mcosValue);
                 if (typeof this._mcosValue === 'string')
                     return this._mcosValue
                         ? formatMatlabChar(this._mcosValue)
-                        : summaryForm([1, 1], this._opaqueClassName || 'double');
+                        : summaryForm(this._mcosDimensions || [1, 1], this._opaqueClassName || 'double');
                 if (Array.isArray(this._mcosValue)) {
                     const dims = this._mcosDimensions || [1, this._mcosValue.length];
                     // Angle brackets, like every other summary: square brackets read as a
@@ -396,7 +442,10 @@ export default class MatlabVariableNode extends DataNode {
                     return summaryForm(dims, this._opaqueClassName || 'double');
                 }
             }
-            return summaryForm([1, 1], this._opaqueClassName || 'double');
+            // No value to print: the shape and the class are all there is. The shape used
+            // to be a hardcoded [1,1], which is right for every scalar object and wrong for
+            // a `string` array — one object holding a 1x3 displayed as <1x1 string>.
+            return summaryForm(this._mcosDimensions || [1, 1], this._opaqueClassName || 'double');
         }
         switch (this._kind) {
             case 'scalar':
@@ -536,11 +585,17 @@ export default class MatlabVariableNode extends DataNode {
         if (d[0] === 1 && d[1] === 1 && this._elements.length === 1) {
             // A scalar string has no child rows, so the char budget is the rule — same
             // as the char arm of _formatScalar.
-            const text = formatMatlabString(String(this._elements[0]));
+            const text = formatStringElement(this._elements[0]);
             return overCharBudget(text) ? summaryForm(d, 'string') : text;
         }
         if (needsSummary(d)) {
             return summaryForm(d, 'string');
+        }
+        // strings(0,0) — the empty-value spelling, as _formatArray and _formatCell do for
+        // their own kinds. Without this the loops below produce a bare '[]', which is not the
+        // convention's spelling and is one character from a scalar that happens to be empty.
+        if (this._elements.length === 0) {
+            return EMPTY_NUMERIC;
         }
         const rows = d[0];
         const cols = d[1];
@@ -550,8 +605,7 @@ export default class MatlabVariableNode extends DataNode {
             for (let c = 0; c < cols; c++) {
                 // COLUMN-major, exactly as in _formatCell above: a string array's element
                 // list is not transposed on the way in either.
-                const el = this._elements[c * rows + r];
-                vals.push(formatMatlabString(el !== undefined ? String(el) : ''));
+                vals.push(formatStringElement(this._elements[c * rows + r]));
             }
             rowStrs.push(vals.join(' '));
         }
@@ -608,6 +662,19 @@ export default class MatlabVariableNode extends DataNode {
     // the two the branch below is exhaustive over, which is why it has no third arm.
     _setConstrainedValue(stringValue) {
         const parent = this.parent;
+        // An element of a decoded `string` out of a .mat/.slx MCOS subsystem. `valueEditable`
+        // already withholds the editor, so a consumer that honors it never gets here; this is
+        // the second gate for one that calls setProperty directly, because accepting the text
+        // would update the node and leave the file's own bytes — which is what gets written
+        // back — saying something else.
+        if (parent._isOpaque) {
+            return {
+                error: true,
+                reason: 'This value is read-only',
+                invalidValue: stringValue,
+                validValue: this.displayValue,
+            };
+        }
         const isArrayElement = parent._kind === 'array';
         // A logical element is the one array element that does not display as a number,
         // so it is the one with its own accept set: true/false, plus 1/0 for the user who
@@ -792,6 +859,14 @@ export default class MatlabVariableNode extends DataNode {
         }
     }
     canAddChild() {
+        // An opaque MCOS value is read-only in both directions: its bytes go back out
+        // verbatim because nothing here writes a .mat MCOS subsystem. Before a `string`
+        // decoded, no opaque node had a _kind that reached the vector case below, so this
+        // gate was never exercised — a decoded 1x3 string would have offered Add Child and
+        // then dropped the added element on save.
+        if (this._isOpaque) {
+            return false;
+        }
         if (this._kind === 'scalar' && this._scalarType === 'struct') {
             return true;
         }
@@ -892,6 +967,10 @@ export default class MatlabVariableNode extends DataNode {
         return child;
     }
     canRemoveChild() {
+        // Read-only in both directions, as in canAddChild.
+        if (this._isOpaque) {
+            return false;
+        }
         if (this._kind === 'scalar') {
             return false;
         }
@@ -1773,7 +1852,33 @@ export default class MatlabVariableNode extends DataNode {
         node._mcosProperties = decoded.properties;
         node._mcosValue = decoded.value;
         node._mcosDimensions = decoded.dimensions;
+        if (decoded.stringElements) {
+            node._adoptStringPayload(decoded.dimensions, decoded.stringElements);
+        }
         return node;
+    }
+    // Give a decoded `string` the state a string array carries on every other path, so one
+    // formatter, one child-label rule and one serializer cover all four formats. STAYS
+    // OPAQUE: `_isOpaque` is what withholds the editor and the add/remove-child actions, and
+    // what keeps `_var` handing back the variable's own bytes verbatim on save. Nothing in
+    // this package writes a .mat MCOS subsystem, so a writable string here would be a value
+    // typed into a node whose bytes go out unchanged — silent data loss, not an edit.
+    _adoptStringPayload(dims, elements) {
+        this._kind = 'string';
+        this._scalarType = 'string';
+        // COLUMN-major, which is the order the payload stores and the order _formatString and
+        // BaseNode.displayName both read a string-kind node's elements in. No transpose.
+        this._elements = elements.slice();
+        this._dims = dims.slice();
+        // The dimensioned envelope a text/binary .sldd uses for a string array. Set so that a
+        // string COPIED out of a .mat into a dictionary carries its shape with it rather than
+        // flattening to a bare element list (_serializeString reads _array_type to choose).
+        this.serial = {
+            _array_type: 'String',
+            _dimensions: dims.slice(),
+            _mw_element_type: 'MATLABArray',
+        };
+        this._buildStringChildren();
     }
     static _createFromMatNumeric(variable, name, parent) {
         const node = new MatlabVariableNode(name, parent, {});

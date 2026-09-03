@@ -33,6 +33,13 @@ export const SUMMARY_MAX_ELEMENTS = 10;
 export const EMPTY_NUMERIC = '[ ]';
 export const EMPTY_CELL = '{ }';
 
+// A `missing` element of a string array. This IS MATLAB's spelling — `disp(["" missing])`
+// prints `<missing>` — and it is unquoted there, where every real element is quoted, so
+// the display already distinguishes a `missing` from the four-character string
+// `"<missing>"`. Angle brackets also withhold the editor (BaseNode.valueEditable), which
+// is right: there is no text to type that produces a `missing`.
+export const MISSING_STRING = '<missing>';
+
 // MATLAB's size() drops trailing singleton dimensions past the second, so a
 // 2x3x1 IS a 2x3. Doing the same keeps our spelling equal to MATLAB's and keeps
 // a 2x3x1 out of the rank->=3 summary path.

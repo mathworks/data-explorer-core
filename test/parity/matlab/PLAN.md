@@ -3049,6 +3049,14 @@ Two separate things are wrong downstream, and only one of them depends on cracki
 
 So Task 9.1 probes, Task 9.2 fixes shape and type unconditionally, and Task 9.3 decodes the text **if and only if** the probe confirms a layout. If it does not, 9.2 still lands and the sentinel stays — an honest `<1x2 string>` with Data Type `string` beats a wrong `<1x1 string>` with a blank type. **Do not guess a byte layout.** A decoder built on a guess produces plausible mojibake, which is worse than the sentinel.
 
+> **STATUS — Phase 9 is complete.** 9.1 confirmed the layout in both directions
+> (`test/parity/matlab/STRING_MCOS.md`), 9.2 fixed shape and Data Type (DESIGN.md defect
+> 31), and 9.3 decoded the text (DESIGN.md defect 33) — so the sentinel is now only the
+> fallback for a payload that does not match the measured layout. The "do not guess"
+> warning earned its keep twice over: the layout was right from the first probe, and the
+> six cases that still came out as mojibake were a **lossy 64-bit read**, not a wrong
+> layout. Fixing that read was Task 10.2, which 9.3 therefore had to wait for.
+
 ### Task 9.1: Probe the payload
 
 **Files:**
@@ -3248,6 +3256,41 @@ git commit -m "[wip] report a MAT string's real shape and its data type"
 - Modify: `src/datamodel/parser/McosParser.ts:476-487`
 - Test: `test/matStringOpaque.test.ts` (append)
 
+> **DONE — the layout was confirmed, so the decoder was built. DESIGN.md defect 33 is the
+> write-up; `STRING_MCOS.md` "Implemented" is the mechanism.** Where it deviated from the
+> steps below:
+>
+> - **Step 1 resolved in favour of decoding.** `STRING_MCOS.md` accounts for every
+>   metadata word, the encoding (UTF-16 code units, 4 per `uint64`, low bits first) and the
+>   empty-vs-`missing` distinction (count word `0` vs all-ones), all measured in both
+>   directions. There is no "Not implemented" heading to write.
+> - **The touched files are more than `McosParser.ts`.** The decode also needed
+>   `mcosTypedNode.modelOpaqueMcosVariable` to route a `string` variable to
+>   `MatlabVariableNode.createFromMcosDecoded`, a new `_adoptStringPayload` there, and
+>   `MISSING_STRING` in `DisplayConvention`. Step 4's "no new display code is needed" held
+>   for the *formatting* — `_formatString` and the column-major subscript labels were
+>   already right — but the node had to be told it is a string-kind node first.
+> - **`missing` needed a spelling.** The plan's test asserts `'<missing>'` and that is what
+>   was implemented, as `DisplayConvention.MISSING_STRING`: MATLAB's own word, unquoted,
+>   and the angle brackets are also what withholds the editor. Note that no `.sldd` writer
+>   can express `missing`, so this value has no round-trip — recorded as a Known limitation.
+> - **A decoded string is read-only.** `canAddChild`, `canRemoveChild`, `valueEditable`
+>   and `_setConstrainedValue` all refuse on an opaque node and on a child of one. `.mat`
+>   and `.slx` have no write-back, so an editable cell would promise a save that cannot
+>   happen. The same string in a text `.sldd` stays editable.
+> - **31 tests, not the six sketched below.** Beyond the sketch: all eleven probe cases
+>   against `strings_truth.json` (text, code units, column-major order, subscript labels at
+>   ranks 1-3), the six cases that the lossy 64-bit read used to mojibake, four-way parity
+>   across `.mat`/`.slx`/text `.sldd`/binary `.sldd`, the `-v7` flavour
+>   (`test/fixtures/strings_v7.mat`), a string held as a user-class **property**
+>   (`object_props.mat` — the plan's forerunner note said this was unreachable, which was
+>   wrong), the read-only contract, and the nested-in-struct/cell gap pinned as a
+>   limitation (`test/fixtures/strings_nested.mat`).
+> - **`test/mcosParser.test.ts` had to change.** Its
+>   `surfaces a MATLAB string-typed property value as the honest sentinel` asserted the
+>   sentinel for `Vehicle.Name`; that value now decodes to `"Model-X"`, so the test asserts
+>   the decoded envelope and a second test pins `NOT_AVAILABLE` as the surviving fallback.
+
 - [ ] **Step 1: Decide, in writing**
 
 Read `test/parity/matlab/STRING_MCOS.md`. If it does not state the layout with enough certainty to write a decoder — every metadata word accounted for, character encoding and packing known, empty and `missing` distinguishable — **stop here.** Record the decision in `STRING_MCOS.md` under a "Not implemented" heading with what is still unknown, note it in DESIGN.md's Known limitations section, and move to Phase 10. This is a legitimate outcome, not a failure: the sentinel is honest and Task 9.2 already fixed what was verifiably wrong.
@@ -3332,6 +3375,32 @@ Three sites lose the digits, and one already keeps them:
 | `.sldd` serialize | `formatMatlabNum` -> `String(num)` — `XmlUtils.ts:13-18` | already exact for a `bigint`, since `String(10n)` is `'10'` |
 
 **The rule: `bigint` only where a `number` would be wrong.** A 64-bit value inside the safe-integer range stays a `number`, so nothing in the existing code, tests or arithmetic changes; only the values that are currently corrupted switch representation. Mixed types within one array are harmless because every display and serialize path goes through `formatMatlabNum`, which handles both.
+
+> **STATUS — read this before starting Phase 10.** Two of the three tasks below are already
+> done, in a different representation, and the third was completed against that one.
+>
+> The `.sldd` half of this phase was implemented during Phase 8 as **defects 29 and 30**,
+> where the same corruption was found from the other direction: MATLAB refuses to read an
+> out-of-range token back, and `u64Vec`'s neighbour was destroyed along with it. The exact
+> form chosen there is not `bigint` but the canonical decimal **STRING** —
+> `XmlUtils.parseExactNum(text): number | string`, with `parseExactBody` and
+> `needsExactInt` beside it — already wired through `BinarySlddParser.ts:738`,
+> `DataNode.ts:847`, `MatlabVariableNode.ts:241, 2230, 2325` and consumed by `MatWriter`.
+> The rule is identical to the one stated above (a number wherever a double is lossless),
+> and it works for the same reason: every display and serialize path goes through
+> `formatMatlabNum`, which is `String()`.
+>
+> So:
+> - **Task 10.1 — already satisfied.** `formatMatlabNum` handles a `bigint` and needs no
+>   change; `parseMatlabInt` was NOT added, because `parseExactNum` is the same function in
+>   the string form. Adding it would create a second exact representation, which is worse
+>   than either one alone: every consumer would have to handle both.
+> - **Task 10.2 — DONE, in the string form.** See the task for what was actually built.
+> - **Task 10.3 — already satisfied** by defects 29 and 30, pinned by the tests added under
+>   task 8 of that phase.
+>
+> Keep the two task bodies below as written: they are the record of the design that was
+> considered and the reason the other one was chosen.
 
 ### Task 10.1: `formatMatlabNum` and an exact integer parse
 
@@ -3445,6 +3514,30 @@ git commit -m "[wip] add an exact integer parse and bigint formatting"
 **Files:**
 - Modify: `src/datamodel/parser/MatParser.ts:103-135` (`readNumericArray`), `:219-236` (the numeric branch's types)
 - Test: `test/mat64.test.ts` (create)
+
+> **DONE — and here is where it deviated from the steps below.** DESIGN.md defect 32 is the
+> write-up.
+>
+> - **The exact form is the decimal string, not `bigint`** — see the phase STATUS note.
+>   `XmlUtils.exactInt(bigint): number | string` is `parseExactNum`'s binary twin: one
+>   definition of the rule (`Number.isSafeInteger` decides), so the text reader and the
+>   `.mat` reader cannot disagree about which values take the text form.
+> - **No new fixture.** The steps below generate `test/fixtures/int64.mat`. It is not
+>   needed: the Phase 2 corpus already carries `s_int64`, `max_int64`, `min_int64`,
+>   `i64Unsafe`, `i64Vec`, `s_uint64`, `min_uint64`, `maxU64` and `u64Vec`, with MATLAB's own
+>   `mat2str` for each in `truth.json` — strictly more cases than the proposed fixture, and
+>   in **all four formats**, which is what makes the cross-channel assertion possible. A
+>   second MATLAB-authored binary for the same coverage is a cost with no return.
+> - **The test asserts all four channels against one truth string**, not just `.mat`. A
+>   value that survives `.sldd` and dies in `.mat` is precisely this defect, and only
+>   MATLAB's own spelling can distinguish them.
+> - **Three consumers had to widen**, none of them a mere type complaint:
+>   `McosParser.resolveValue` would have **dropped** a scalar 64-bit object property that
+>   arrived as a token; `MatWriter.realPart`/`imagPart` would have rounded the real part of
+>   a complex int64 straight back; and `isExactToken` moved from private in `MatWriter` to
+>   the single exported definition in `XmlUtils`.
+> - The assertion `expect(Number(truth) ).not.toBe(18446744073709551615)` cannot be written
+>   that way: the literal in the test file IS the wrong double already. Compare strings.
 
 - [ ] **Step 1: Generate MATLAB truth and write the failing test**
 
@@ -4714,7 +4807,7 @@ It must answer, for someone who has never seen this directory:
 
 Two edits the implementation earned:
 1. The threshold section records the char budget as a runaway guard on expandable values, not only the element rule (decision 2 in this plan's decisions table).
-2. Each defect 1-13 gets its resolution: fixed in phase N, or moved to Known limitations with the reason (defect 2's text decoding, if Task 9.3 stopped at the probe).
+2. Each defect 1-13 gets its resolution: fixed in phase N, or moved to Known limitations with the reason. (Defect 2's text decoding did **not** stop at the probe — Task 9.3 decoded it, DESIGN.md defect 33. What did move to Known limitations is the nested-in-struct/cell case, which is a nested-MCOS gap shared with every class rather than anything about strings.)
 
 - [ ] **Step 3: Final verification**
 

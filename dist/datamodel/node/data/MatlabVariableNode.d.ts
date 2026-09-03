@@ -111,7 +111,9 @@ export default class MatlabVariableNode extends DataNode {
         value: unknown;
         properties: Record<string, unknown>;
         dimensions: number[];
+        stringElements?: (string | null)[] | null;
     }, parent: BaseNode | null): MatlabVariableNode;
+    private _adoptStringPayload;
     static _createFromMatNumeric(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createFromMatChar(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createFromMatStruct(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;

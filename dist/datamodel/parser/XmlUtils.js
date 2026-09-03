@@ -100,6 +100,35 @@ export function parseExactBody(text) {
     return text.trim().split(/\s+/).map(parseExactNum);
 }
 /**
+ * parseExactNum's binary twin: one 64-bit integer read out of a BINARY container, in the
+ * same `number | string` form.
+ *
+ * A `.mat` file stores an int64/uint64 as eight raw bytes, so there is no decimal text to
+ * canonicalize — `DataView.getBigInt64` gives the value exactly and the only question is
+ * whether a double can carry it onward. Same rule as parseExactNum, same two outcomes, so
+ * the two readers cannot disagree about which values take the text form: everything a
+ * double holds stays a number, and only the tokens that were actually being corrupted
+ * become text.
+ *
+ * `Number.isSafeInteger` is the exact test — not `<= Number.MAX_SAFE_INTEGER`, which is
+ * true of 2^53 + 1 as a double after it has ALREADY rounded down to 2^53.
+ */
+export function exactInt(big) {
+    const num = Number(big);
+    return Number.isSafeInteger(num) ? num : big.toString();
+}
+/**
+ * Is this value an exact 64-bit token — a bare decimal integer carried as TEXT because a
+ * double cannot hold it (parseExactNum, exactInt)?
+ *
+ * Every consumer that has to tell one apart from an ordinary string asks here, so the
+ * readers, the McosParser value resolver and MatWriter's byte packer cannot disagree about
+ * what counts as one.
+ */
+export function isExactToken(x) {
+    return typeof x === 'string' && /^-?\d+$/.test(x);
+}
+/**
  * Does this MATLAB class need the exact reader?
  *
  * Only the 64-bit integers: every other class a dictionary carries is either narrower

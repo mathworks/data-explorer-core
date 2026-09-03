@@ -54,6 +54,7 @@ MATLAB changed its own answer — that is a finding, not a test to fix.
 | `probe_*.m`, `probe_writeback*.mjs` | one-question probes — see the table below. None of them writes to `artifacts/` |
 | `wbcompare.m` | the comparison both write-back gates share: `fullsig`, which walks a value to every leaf spelling class, size, complexity and exact value |
 | `DESIGN.md` | the display convention, the coverage matrix, and the 30 defects this suite exists to pin |
+| `STRING_MCOS.md` | how MATLAB stores a `string` in a `.mat`: the metadata segment the parser skipped, the packed `uint64` payload, and what could not be determined |
 | `../artifacts/truth.json` | the expectations, for every format at once |
 | `../artifacts/meta.json` | `version` and `release` of the MATLAB that wrote the corpus |
 | `../artifacts/mat/cases.mat` | all 77 cases — the only format that holds the object arrays |
@@ -94,6 +95,7 @@ directory, because `Simulink.data.dictionary.open` rejects a relative one with
 | `probe_nd_nested.m` | at which LEVEL does the cdata go when the N-D value is nested? (defect 22's placement rule) | `$ND_NESTED_OUT` or `tempdir/ndnested` | `nd_nested.sldd` |
 | `probe_typed_shapes.m` | how is a typed array spelled at the top level, in a struct field, in a cell? (defects 21, 23) | `$TYPED_SHAPES_OUT` or `tempdir/typedshapes` | `typed_text.sldd`, `typed_binary.sldd` |
 | `probe_char_shape.m` | what does a dictionary do with a char array that is not 1xN, and which literals does MATLAB accept for one? (defect 25) | `$CHAR_SHAPE_OUT` or `tempdir/charshape` | `char_text.sldd`, `char_binary.sldd` |
+| `probe_string.m` | how does MATLAB store a `string` in a `.mat`, and which heap cell holds the text? (`STRING_MCOS.md`) | `$STRING_OUT` or `tempdir/strprobe` | `strings.mat`, `strings_truth.json`, `strings_mixed.mat` |
 | `probe_writeback.mjs` + `.m` | **the acceptance gate for the TEXT dictionary**: does MATLAB read back the JSON `_value` our writer emits? | `$PROBE_OUT` | — |
 | `probe_writeback_bin.mjs` + `.m` | **the acceptance gate for the BINARY dictionary**: does MATLAB read back the XML chunk our writer emits? (defects 27-30) | `$PROBE_OUT` | — |
 

@@ -2,7 +2,7 @@
 
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
-import { decodeMcosBlob } from '../../parser/McosParser.js';
+import { decodeMcosBlob, STRING_CLASS_NAME } from '../../parser/McosParser.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
 import type { MatVariable } from '../../parser/MatParser.js';
@@ -105,6 +105,9 @@ export interface McosDecoded {
   properties: Record<string, unknown>;
   elements: Record<string, unknown>[];
   dimensions: number[];
+  // A `string`'s text, column-major, `null` per element for a MATLAB `missing` and null
+  // for the whole array when the payload declared a shape without recoverable text.
+  stringElements?: (string | null)[] | null;
 }
 
 // Decode the MCOS blob that carries every opaque object's real property values.
@@ -137,11 +140,19 @@ export function decodeMcosObjects(
 //      resolve it -> the opaque MatlabVariableNode, enriched with those properties.
 //   3. Neither -> null; the caller falls back to its plain-variable path, which
 //      still shows the right class and icon from the variable's own metadata.
+//
+// A `string` short-circuits ahead of all three. It is the one opaque className that is a
+// MATLAB DATA TYPE rather than a class with properties, so case 1 would hand it to a
+// typed/object node and present a value-less property shell; the opaque node knows how to
+// render its decoded text as a string array.
 export function modelOpaqueMcosVariable(
   variable: MatVariable,
   decoded: McosDecoded | undefined,
   parent: BaseNode,
 ): DataNode | null {
+  if (variable.className === STRING_CLASS_NAME && decoded) {
+    return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent);
+  }
   const typed = buildTypedNodeFromMcos(
     variable.className,
     variable.name,

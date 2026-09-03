@@ -1148,6 +1148,176 @@ the reason for leaving each one is stated.
   channel gives no shape at all, so `_dims` is left at `[1,1]`. Anything reading the
   private field instead of the accessor will disagree with MATLAB.
 
+## Defects found by reversing the MCOS `string` payload
+
+`probe_string.m` asked one question the corpus could not answer — how does MATLAB store a
+`string` in a `.mat`? — and the answer is written up in `STRING_MCOS.md`, verified in both
+directions: the whole `uint64` word list predicted from MATLAB's own `size`, `strlength`
+and text, then compared word for word against the bytes in the file (11 of 11 cases match).
+Two separate things were wrong and only one of them needs the text decoded.
+
+31. **A `string` array reported `[1,1]` with a blank Data Type.** `cases.mat`'s `strArray`
+    is 1x3 and `strMat` is 2x3, and both displayed `<1x1 string>`. The cause is that a
+    `string` array is ONE MCOS object however many elements it holds — unlike a 1x3
+    `Simulink.Parameter`, which is three — so the object handle a named variable carries
+    says `[1,1]` for every shape, and the real extents are inside the object's own payload
+    cell. That cell is reached through a metadata segment `McosParser.parseMetaTable`
+    never read: object-row **word3** indexes a TYPE-1 block segment at `[w[3], w[4])`,
+    alongside the type-2 segment at `[w[5], w[6])` it already parsed. A `string` has
+    exactly one type-1 property, named `"any"`, flag 1, whose heap index is the payload —
+    the binary form of the text dictionary's `saveobj` envelope (defect 28).
+
+    `payload cell = objId + 1` fits every file whose only objects are strings and is NOT
+    the rule: `test/fixtures/strings_mixed.mat` has the string as object 4 with its
+    payload at `cells[9]`, because the `Simulink.Parameter` ahead of it took the first
+    seven heap slots. A reader built on that coincidence reads the Parameter's `CoderInfo`
+    as text, so the fixture is committed specifically to fail such a reader.
+
+    Second, `string` is a genuine MATLAB **data type**, not just a class name, so it is the
+    one opaque className that belongs in the DataType column. Every other one
+    (`Simulink.Parameter`) is a Class and stays suppressed.
+
+    Both halves land whatever happens to the text: the extents are small integers. Pinned
+    by `test/matStringOpaque.test.ts` (31 tests, over all eleven probe cases plus the two
+    corpus entries) and by the unit pair in `matlabVariableNode.test.ts`.
+
+**The text needed one thing more, and it was not the layout.**
+`MatParser.readNumericArray` read a 64-bit integer through
+`Number(view.getBigUint64(...))`, and a `uint64` holding four packed UTF-16 code units is
+routinely outside a double's exact range: 11 of the 154 payload words across the eleven
+cases are not exactly representable, and because code unit 3 sits in the HIGH bits the
+rounding lands on the LOW bits — unit 0, the FIRST character of every group. Decoded
+straight out of the words that reader gave us, **6 of 11 cases came out wrong**, each as
+the plausible mojibake a guessed layout would produce (`"café"` → `` "`afé" ``). Exact
+64-bit `.mat` reads were therefore a hard prerequisite; **defect 32 below removed it**, and
+**defect 33 is the text** (both are listed after it, in the order they were done).
+
+## Defects found by asking a `.mat` for a 64-bit integer
+
+32. **`.mat` was the last channel that could not read `intmax('uint64')`.** Defects 29 and
+    30 fixed the text and binary dictionaries by carrying an int64/uint64 a double cannot
+    hold as its own decimal TEXT (`XmlUtils.parseExactNum`), from reader to writer.
+    `MatParser.readNumericArray` kept `Number(view.getBigInt64(...))`, so the same nine
+    values in the same corpus displayed differently depending on which of MATLAB's four
+    files you opened:
+
+    | | text / binary / slx | mat |
+    |---|---|---|
+    | `maxU64` | 18446744073709551615 | 18446744073709552000 |
+    | `max_int64` | 9223372036854775807 | 9223372036854776000 |
+    | `i64Unsafe` | 9007199254740993 | 9007199254740992 |
+
+    The `.mat` column is not merely rounded: 18446744073709552000 is **outside** uint64
+    range, the value MATLAB's own reader refuses rather than clamps (defect 29's own
+    finding). `i64Unsafe` is 2^53 + 1 — the first integer a double misses, and the reason
+    the test is a round trip and not a range check.
+
+    Fixed by `XmlUtils.exactInt(bigint)`, the binary twin of `parseExactNum`: same
+    `number | string` result, same rule (`Number.isSafeInteger` decides), so the two
+    readers cannot disagree about which values take the text form and no value a double
+    does hold changes representation. `readNumericArray` returns `(number | string)[]`.
+
+    **The representation was already chosen; this defect only extends it.** The plan for
+    this task (PLAN.md Task 10.1) proposed a `bigint` and a `parseMatlabInt` returning one.
+    That would have been a SECOND exact form beside the decimal string the `.sldd` readers,
+    `DataNode`, `MatlabVariableNode` and `MatWriter` already speak — every display path
+    goes through `formatMatlabNum`, which is `String()`, so a string is already exact
+    everywhere a number is. Tasks 10.1 and 10.3 are therefore satisfied as written, in the
+    other representation, and only the `.mat` read path was outstanding.
+
+    Three consumers had to widen, and each was a real hole, not a type-checker complaint:
+
+    - `McosParser.resolveValue` returned a numeric property only on
+      `typeof val === 'number'`, so a scalar int64 property arriving as a token would have
+      been **dropped from the object entirely** — worse than the rounding.
+    - `MatWriter.realPart`/`imagPart` put `{re, im}` through `Number(...) || 0`, which
+      would round the real part of a complex int64 one step after the reader kept it exact.
+      Both now go through a shared `exactPart`.
+    - `isExactToken` was private to `MatWriter`; it is now the single exported definition
+      in `XmlUtils`, so the readers, the MCOS resolver and the byte packer share one rule
+      for what counts as exact.
+
+    Pinned by `test/mat64.test.ts` (10 tests): every 64-bit entry in the corpus asserted
+    against `truth.json`'s `mat2str` **in all four channels at once** — the point being
+    that a value which survives `.sldd` and dies in `.mat` is exactly this bug — plus the
+    element rows of both vectors (a summary line and its children are formatted by
+    different code), `exactInt`'s boundary behaviour, and a byte-level round trip through
+    `encodeMatVariable` that checks `maxU64` leaves as the eight bytes MATLAB wrote.
+
+## Defects found by decoding the `string` payload's text
+
+33. **Two of the four formats could not show a string's characters at all.** The same
+    string, authored once in MATLAB and saved four ways, read back two different ways:
+
+    | | text / binary `.sldd` | `.mat` / `.slx` |
+    |---|---|---|
+    | `strScalar` | `"world"` | `<1x1 string>` |
+    | `strArray` | `["a" "bb" "ccc"]` | `<1x3 string>` (`<1x1 string>` before defect 31) |
+    | `strMat` | `["a" "bb" "ccc"; "d" "ee" "fff"]` | `<2x3 string>` |
+    | child rows | one per element, with its text | none |
+
+    So the format a user happened to open decided whether they could see their own value,
+    and an MCOS-held string had no child rows at any size. A string PROPERTY was worse: an
+    unrecoverable-value sentinel, `<not available>`, in place of the text.
+
+    Fixed by decoding the payload cell per the layout `STRING_MCOS.md` records —
+    `McosParser.stringPayload` returns MATLAB's own `size()` and one text element per
+    entry, column-major — and by handing that to the node layer as the state a string array
+    already carries everywhere else (`_kind = 'string'`, `_dims`, `_elements`), so the
+    display, the child rows, the subscript labels and the icon all come from the one
+    existing path rather than from new MCOS-specific code. All four formats now produce
+    byte-identical display values, child names and child values.
+
+    Four details are the substance of it, and each is a way to be wrong that looks right:
+
+    - **The code units are one continuous stream.** An element does not start a fresh
+      word: `"alpha" "beta" "gamma"` packs as `alph | abet | agam | ma__`. A decoder that
+      restarted per element reads `"alph"`, `"abet"`, `"agam"`.
+    - **The count is CODE UNITS, not characters.** `"a😀b"` counts 4 because the emoji is
+      a surrogate pair, and MATLAB's own `strlength` says 4 too. Walking characters
+      desynchronizes the whole stream after the first astral character.
+    - **`""` and `missing` are told apart by the count word** — 0 versus all ones — not by
+      absence, and `strings(0,0)` writes no count words at all. Three distinct empties.
+    - **Exact 64-bit reads (defect 32) are load-bearing.** A count or data word arrives as
+      a decimal TOKEN when a double cannot hold it, which is the common case for a word
+      packing four characters. Every read goes through `payloadWord`, which takes a number
+      or a token; `typeof word === 'number'` alone would skip exactly those words.
+
+    **Partial recovery is per element, and the sentinel stays** for a payload whose words
+    do not account for the text: the shape is still reported (the extents are small
+    integers and survive conditions the packed words do not), with no characters invented.
+    `<not available>` is now unreachable in the corpus rather than the corpus's answer.
+
+    Three display decisions, all following MATLAB where MATLAB has a spelling:
+
+    - **`missing` displays as `<missing>`, unquoted** — MATLAB's own `disp` spelling. The
+      marker in `_elements` is `null`, not that text, because the real string whose
+      characters are `<missing>` must still print quoted. Unquoted also means the angle
+      brackets withhold the editor, which is right: no text a user can type is a `missing`.
+    - **`strings(0,0)` displays as `[ ]`**, the convention's empty-value spelling, matching
+      the empty numeric rather than emitting the bare `[]` the literal loop would produce.
+      MATLAB prints nothing at all for it, so there is no spelling to match.
+    - **A `string` gets the string icon in every format.** The icon is keyed on the MCOS
+      class name, and `string` — the one opaque class that is a data type — had no entry,
+      so the same array showed `wsString` out of a dictionary and the generic `wsDefault`
+      out of a `.mat`.
+
+    **A decoded string stays read-only, deliberately.** Nothing in this package writes a
+    `.mat` MCOS subsystem: an opaque variable's bytes go back out verbatim. An accepted
+    edit would update the node and change nothing in the file, so `valueEditable`,
+    `canAddChild` and `canRemoveChild` all refuse, on the array and on its element rows,
+    and `_setConstrainedValue` refuses as the second gate for a caller that skips the
+    first. A decoded string is the first opaque node to have child rows at all and the
+    first to display ordinary editable-looking text, so it is the first for which those
+    gates matter — before it, no opaque node had a `_kind` that reached the vector case.
+
+    Pinned by `test/matStringOpaque.test.ts` (31 tests): every element of all eleven probe
+    cases against MATLAB's text AND against MATLAB's code units, the surrogate pair, the
+    six cases the inexact read used to corrupt, column-major order, the subscript labels at
+    ranks 1–3, the three empties, all four formats compared to each other and to
+    `truth.json`, the `-v7` flavour, the read-only gates, and the string properties of
+    `object_props.mat`'s two hand-authored classes.
+
 ## Known limitations, to verify and document
 
 - **Derived MCOS classes.** A customer class `MyParam < Simulink.Parameter`
@@ -1157,6 +1327,23 @@ the reason for leaving each one is stated.
   expansion path. The suite verifies this degrades gracefully: no crash, no data
   loss, every property visible, values correct. It does not attempt a heuristic.
 - **`.mat` / `.slx` / `.prj` are read-only.** No write-back verification.
+- **An MCOS object NESTED in a struct field or a cell element shows a summary, not its
+  contents.** `test/fixtures/strings_nested.mat` (MATLAB-authored, `probe_string.m`) has a
+  struct with a `Simulink.Parameter` field and a string field, and a cell holding both:
+  each presents as `<1x1 Simulink.Parameter>` / `<1x1 string>` with no property rows and no
+  text. The cause is not string-specific. Only NAMED variables reach the decoder —
+  `decodeMcosObjects` filters `v.isOpaque && v.name` — and a nested opaque is built by
+  `MatlabVariableNode._createOpaque` from a `MatVariable` that has no name, so the shared
+  blob is never consulted for it. Closing it means threading the blob into the nested
+  constructors, and additionally making `MatParser`'s cell branch set `_rawBytes` on cell
+  children at all (only its struct branch does today, at `MatParser.ts:307`), so a cell
+  element has no object handle to resolve. Pinned as today's answer by the last two tests
+  in `matStringOpaque.test.ts`, so a change to it is a deliberate one.
+- **A `missing` has no dictionary spelling.** If a decoded string array carrying a
+  `missing` were copied into a `.sldd`, the element would serialize as JSON `null`; what
+  MATLAB reads that back as was not measured. Not reachable today (a `.mat` string is
+  read-only and nothing else produces a `missing`), and recorded rather than invented — the
+  alternative would be writing `""`, which is a different value MATLAB can tell apart.
 - **Truth can go stale** against a future MATLAB release. `drift.mjs` is the
   mitigation; it is a developer action, not a CI gate.
 

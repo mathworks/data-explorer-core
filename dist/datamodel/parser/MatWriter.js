@@ -37,7 +37,7 @@
 // The tests hold all of it to byte equality against MATLAB's own eighteen cdata
 // streams, so a wrong guess here fails loudly rather than shipping a file MATLAB
 // reads as empty.
-import { transposeToColumnMajorND } from './XmlUtils.js';
+import { isExactToken, transposeToColumnMajorND } from './XmlUtils.js';
 import { uuencode } from './CdataCodec.js';
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
@@ -272,28 +272,30 @@ function flatValues(value) {
     }
     return Array.isArray(value) ? value : [value];
 }
-/**
- * An exact 64-bit token: a bare decimal integer carried as TEXT because a double cannot
- * hold it (XmlUtils.parseExactNum). Only numericPayload's two 64-bit arms consume one,
- * and only a 64-bit class ever produces one, so every other arm sees numbers as before.
- */
-function isExactToken(x) {
-    return typeof x === 'string' && /^-?\d+$/.test(x);
-}
-function realPart(x) {
-    if (x !== null && typeof x === 'object' && 're' in x) {
-        return Number(x.re) || 0;
-    }
-    // Untouched: `Number(x) || 0` here would round maxU64 to 18446744073709552000 on the
-    // way into the byte stream, one step after the reader had kept it exact (defect 29).
+// An exact 64-bit token is a bare decimal integer carried as TEXT because a double cannot
+// hold it (XmlUtils.isExactToken). Only numericPayload's two 64-bit arms consume one, and
+// only a 64-bit class ever produces one, so every other arm sees numbers as before.
+//
+// A complex int64/uint64 carries one in `re`/`im` as well: MatParser builds `{re, im}` out
+// of the same readNumericArray both parts come from, so `Number(...) || 0` here would round
+// the real part of `complex(intmax('int64'), 1)` one step after the reader kept it exact.
+function exactPart(x) {
     if (isExactToken(x)) {
         return x;
     }
     return Number(x) || 0;
 }
+function realPart(x) {
+    if (x !== null && typeof x === 'object' && 're' in x) {
+        return exactPart(x.re);
+    }
+    // Untouched: `Number(x) || 0` here would round maxU64 to 18446744073709552000 on the
+    // way into the byte stream, one step after the reader had kept it exact (defect 29).
+    return exactPart(x);
+}
 function imagPart(x) {
     if (x !== null && typeof x === 'object' && 'im' in x) {
-        return Number(x.im) || 0;
+        return exactPart(x.im);
     }
     return 0;
 }

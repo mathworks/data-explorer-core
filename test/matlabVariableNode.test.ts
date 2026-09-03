@@ -253,6 +253,36 @@ describe('MatlabVariableNode — displayValue per kind', () => {
     expect(unread.displayValue).toBe('<1x1 Simulink.Parameter>');
   });
 
+  it('summarizes an unreadable opaque value at the shape the decoder recovered', () => {
+    // A MATLAB `string` array is ONE MCOS object, so its object handle says [1,1]
+    // however big the array is and the shape has to come from the decoded payload.
+    // A hardcoded [1,1] here printed MATLAB's 1x3 as <1x1 string> — and there is no
+    // value to print, so the summary is the whole answer.
+    const arr: Any = new MatlabVariableNode('o', null, {});
+    arr._isOpaque = true;
+    arr._opaqueClassName = 'string';
+    arr._mcosDimensions = [1, 3];
+    expect(arr.displayValue).toBe('<1x3 string>');
+    // …and the accessor agrees with the summary, rather than reporting the [1,1] the
+    // constructor left on _dims (which no opaque path ever sets).
+    expect(arr.dims).toEqual([1, 3]);
+  });
+
+  it('calls `string` a data type and every other opaque class not one', () => {
+    // An opaque className is normally a CLASS name — 'Simulink.Parameter' is not a
+    // type, so the DataType column stays blank for it. `string` is the exception:
+    // MATLAB implements it as an MCOS object but it is a genuine data type, and a
+    // string out of a .mat belongs in that column next to one out of a dictionary.
+    const str: Any = new MatlabVariableNode('o', null, {});
+    str._isOpaque = true;
+    str._opaqueClassName = 'string';
+    expect(str.dataType).toBe('string');
+    const obj: Any = new MatlabVariableNode('o', null, {});
+    obj._isOpaque = true;
+    obj._opaqueClassName = 'Simulink.Parameter';
+    expect(obj.dataType).toBe('');
+  });
+
   it("REGRESSION: escapes a quote inside a char/string by doubling it", () => {
     // A concatenated "'" + value + "'" showed `it's` as 'it's', which is not a
     // MATLAB literal. That matters beyond looks: the table seeds its in-place

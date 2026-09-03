@@ -39,7 +39,7 @@
 // reads as empty.
 
 import type { MatVariable } from './MatParser.js';
-import { transposeToColumnMajorND } from './XmlUtils.js';
+import { isExactToken, transposeToColumnMajorND } from './XmlUtils.js';
 import { uuencode } from './CdataCodec.js';
 
 /**
@@ -296,30 +296,32 @@ function flatValues(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [value];
 }
 
-/**
- * An exact 64-bit token: a bare decimal integer carried as TEXT because a double cannot
- * hold it (XmlUtils.parseExactNum). Only numericPayload's two 64-bit arms consume one,
- * and only a 64-bit class ever produces one, so every other arm sees numbers as before.
- */
-function isExactToken(x: unknown): x is string {
-  return typeof x === 'string' && /^-?\d+$/.test(x);
-}
-
-function realPart(x: unknown): number | string {
-  if (x !== null && typeof x === 'object' && 're' in (x as Record<string, unknown>)) {
-    return Number((x as { re: number }).re) || 0;
-  }
-  // Untouched: `Number(x) || 0` here would round maxU64 to 18446744073709552000 on the
-  // way into the byte stream, one step after the reader had kept it exact (defect 29).
+// An exact 64-bit token is a bare decimal integer carried as TEXT because a double cannot
+// hold it (XmlUtils.isExactToken). Only numericPayload's two 64-bit arms consume one, and
+// only a 64-bit class ever produces one, so every other arm sees numbers as before.
+//
+// A complex int64/uint64 carries one in `re`/`im` as well: MatParser builds `{re, im}` out
+// of the same readNumericArray both parts come from, so `Number(...) || 0` here would round
+// the real part of `complex(intmax('int64'), 1)` one step after the reader kept it exact.
+function exactPart(x: unknown): number | string {
   if (isExactToken(x)) {
     return x;
   }
   return Number(x) || 0;
 }
 
-function imagPart(x: unknown): number {
+function realPart(x: unknown): number | string {
+  if (x !== null && typeof x === 'object' && 're' in (x as Record<string, unknown>)) {
+    return exactPart((x as { re: unknown }).re);
+  }
+  // Untouched: `Number(x) || 0` here would round maxU64 to 18446744073709552000 on the
+  // way into the byte stream, one step after the reader had kept it exact (defect 29).
+  return exactPart(x);
+}
+
+function imagPart(x: unknown): number | string {
   if (x !== null && typeof x === 'object' && 'im' in (x as Record<string, unknown>)) {
-    return Number((x as { im: number }).im) || 0;
+    return exactPart((x as { im: unknown }).im);
   }
   return 0;
 }

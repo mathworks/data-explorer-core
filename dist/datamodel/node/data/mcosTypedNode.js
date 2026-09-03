@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
-import { decodeMcosBlob } from '../../parser/McosParser.js';
+import { decodeMcosBlob, STRING_CLASS_NAME } from '../../parser/McosParser.js';
 // Bridges the binary (MCOS) decode path to the same typed data-model nodes the
 // SLDD (JSON) path builds, so a Simulink object resolves to the SAME node class
 // with the SAME property values regardless of source format — one class per entry
@@ -106,7 +106,15 @@ export function decodeMcosObjects(blobBytes, variables) {
 //      resolve it -> the opaque MatlabVariableNode, enriched with those properties.
 //   3. Neither -> null; the caller falls back to its plain-variable path, which
 //      still shows the right class and icon from the variable's own metadata.
+//
+// A `string` short-circuits ahead of all three. It is the one opaque className that is a
+// MATLAB DATA TYPE rather than a class with properties, so case 1 would hand it to a
+// typed/object node and present a value-less property shell; the opaque node knows how to
+// render its decoded text as a string array.
 export function modelOpaqueMcosVariable(variable, decoded, parent) {
+    if (variable.className === STRING_CLASS_NAME && decoded) {
+        return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent);
+    }
     const typed = buildTypedNodeFromMcos(variable.className, variable.name, parent, decoded?.properties, decoded?.elements, decoded?.dimensions);
     if (typed) {
         return typed;
