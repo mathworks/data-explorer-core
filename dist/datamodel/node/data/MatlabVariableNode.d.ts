@@ -37,6 +37,7 @@ export default class MatlabVariableNode extends DataNode {
     get isScalarNumeric(): boolean;
     get displayValue(): string;
     _formatScalar(): string;
+    _textDims(text: string): number[];
     _formatArray(): string;
     _formatCell(): string;
     _formatString(): string;

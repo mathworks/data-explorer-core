@@ -142,6 +142,21 @@ describe('PropValue.format', () => {
     expect(PropValue.format(long)).toBe('<1x40 double>');
   });
 
+  it('renders up to 10 elements inline and summarizes at 11', () => {
+    // The threshold is SUMMARY_MAX_ELEMENTS from DisplayConvention, the same one
+    // the node layer uses. It was a private 50-character test here, so an
+    // 11-element vector of one-digit numbers (25 characters) rendered inline
+    // while the identical value elsewhere summarized — the exact split the
+    // shared module exists to close.
+    expect(PropValue.format([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])).toBe('[1 2 3 4 5 6 7 8 9 10]');
+    expect(PropValue.format([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])).toBe('<1x11 double>');
+  });
+
+  it('uses the shared summary form, so the consumer styles it like every other', () => {
+    const s = PropValue.format(Array.from({ length: 20 }, (_, i) => i));
+    expect(s.startsWith('<') && s.endsWith('>')).toBe(true);
+  });
+
   it('renders an unrecognised value as empty rather than [object Object]', () => {
     expect(PropValue.format({ a: 1 })).toBe('');
   });

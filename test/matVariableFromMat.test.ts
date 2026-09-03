@@ -89,13 +89,18 @@ describe('MatlabVariableNode from a .mat numeric variable', () => {
     expect(kids(node)).toEqual([['1', '1+2i'], ['2', '3-4i']]);
   });
 
-  it('keeps an empty array shaped, and shows it as []', () => {
+  it('keeps an empty array shaped, and shows it as [ ]', () => {
     // The declared dimensions are the only record of a 0x3's orientation, so they
     // must survive even though there is no element to display.
+    //
+    // '[ ]', with the space, is the display convention's empty spelling. The old
+    // '[]' looked right because that is what mat2str writes, but the identical
+    // empty value on the object-property path has always shown '[ ]' — one value,
+    // two spellings, depending on which parser produced it.
     const node = parse({ dimensions: [0, 3], value: [] });
     expect(node.dims).toEqual([0, 3]);
     expect(node.elements).toEqual([]);
-    expect(node.displayValue).toBe('[]');
+    expect(node.displayValue).toBe('[ ]');
     expect(node.children).toHaveLength(0);
   });
 
@@ -177,9 +182,10 @@ describe('MatlabVariableNode from a .mat char, struct or cell', () => {
     expect(kids(node)).toEqual([['1', '1'], ['2', "'x'"]]);
   });
 
-  it('shows a cell whose value is not an array as {}', () => {
+  it('shows a cell whose value is not an array as { }', () => {
     const node = parse({ className: 'cell', dimensions: [0, 0], value: null });
-    expect(node.displayValue).toBe('{}');
+    // '{ }' is the convention's empty-cell spelling; see DESIGN.md.
+    expect(node.displayValue).toBe('{ }');
     expect(node.children).toHaveLength(0);
   });
 
@@ -189,8 +195,9 @@ describe('MatlabVariableNode from a .mat char, struct or cell', () => {
     // `{2, 3, []}` — every element one position early, in the display AND in the
     // cell rebuilt for the save path.
     const node = parse({ className: 'cell', dimensions: [1, 3], value: [null, num(2), num(3)] });
-    expect(node.displayValue).toBe('{[], 2, 3}');
-    expect(kids(node)).toEqual([['1', '[]'], ['2', '2'], ['3', '3']]);
+    // '[ ]' not '[]': the empty slot renders through the display convention now.
+    expect(node.displayValue).toBe('{[ ], 2, 3}');
+    expect(kids(node)).toEqual([['1', '[ ]'], ['2', '2'], ['3', '3']]);
   });
 
   it('REGRESSION: keeps a hole in the middle of a 2-D cell in its own slot', () => {
@@ -202,7 +209,7 @@ describe('MatlabVariableNode from a .mat char, struct or cell', () => {
     // (see test/cellElementOrder.test.ts). The point of the test is unchanged:
     // the hole stays in exactly one slot instead of shifting its neighbours.
     const node = parse({ className: 'cell', dimensions: [2, 2], value: [num(1), null, num(3), num(4)] });
-    expect(node.displayValue).toBe('{1, 3; [], 4}');
+    expect(node.displayValue).toBe('{1, 3; [ ], 4}');
   });
 });
 
@@ -246,9 +253,13 @@ describe('MatlabVariableNode from an opaque MCOS variable', () => {
   });
 
   it('summarizes a decoded object array by its extent and class', () => {
-    expect(decoded([1, 2, 3], [3, 1])).toBe('[3x1 C]');
+    // Angle brackets, not the old '[3x1 C]'. Square brackets read as a MATLAB
+    // literal, so the consumer table styled this summary as ordinary editable
+    // text while the '<1x1 C>' placeholder two tests up came out gray and
+    // read-only — one concept, two renderings.
+    expect(decoded([1, 2, 3], [3, 1])).toBe('<3x1 C>');
     // With no decoded dimensions, the element count stands in for the shape.
-    expect(decoded([1, 2], null)).toBe('[1x2 C]');
+    expect(decoded([1, 2], null)).toBe('<1x2 C>');
   });
 
   it('reports the object class rather than the MATLAB storage class in _var', () => {

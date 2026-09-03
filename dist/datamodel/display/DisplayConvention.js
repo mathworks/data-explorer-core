@@ -8,17 +8,25 @@
 // path and print unbounded on the variable path.
 //
 // The normative table this implements is in test/parity/matlab/DESIGN.md.
-// A value with NO child rows is visible ONLY in the cell, so its budget is
-// generous: a runaway guard against a pathological blob, not a display budget.
-// char and scalar string.
+// A value with NO child rows — char, scalar string — is visible ONLY in the
+// cell, so its budget is generous: a runaway guard against a pathological blob,
+// not a display budget. Being a runaway guard is also why it applies to the
+// EXPANDABLE literals too, on top of the element rule below: a 1x4 cell of
+// 300-character strings is well under the element budget and still a
+// 1200-character table cell.
 export const SUMMARY_MAX_CHARS = 1000;
 // A value WITH child rows is one expand away, so the cell is a summary and the
 // budget is tight. Counted in ELEMENTS, not characters, so every 1x10 double
 // renders like every other 1x10 double instead of depending on how many digits
-// its values happen to have.
+// its values happen to have. This is the primary rule for numeric arrays, cells
+// and string arrays.
 export const SUMMARY_MAX_ELEMENTS = 10;
 // A space inside the brackets. This deviates from mat2str (`[]`) deliberately,
-// and matches what the object-property path has always emitted.
+// and matches what the object-property path has always emitted. There is no
+// MATLAB spelling to match either way: checked against R2027a, mat2str([]) is
+// '[]' and formattedDisplayText([]) / formattedDisplayText({}) are both the
+// empty string. The one-space form makes an empty value visible in a table cell
+// rather than reading as a rendering failure.
 export const EMPTY_NUMERIC = '[ ]';
 export const EMPTY_CELL = '{ }';
 // MATLAB's size() drops trailing singleton dimensions past the second, so a

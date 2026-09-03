@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import { formatMatlabNum } from '../parser/XmlUtils.js';
 import { formatMatlabChar, formatMatlabString, unquoteMatlabText } from '../parser/MatlabValueParser.js';
+import { EMPTY_NUMERIC, needsSummary, overCharBudget, summaryForm } from '../display/DisplayConvention.js';
 export default class PropValue {
     static { this.key = 'Value'; }
     static { this.displayName = 'Value'; }
@@ -11,7 +12,7 @@ export default class PropValue {
     }
     static format(value) {
         if (value === null || value === undefined) {
-            return '[ ]';
+            return EMPTY_NUMERIC;
         }
         // formatMatlabNum, not String: a Value of Inf/-Inf/NaN is legal in MATLAB
         // and reaches us as a real non-finite number, but its JavaScript spelling
@@ -34,13 +35,21 @@ export default class PropValue {
         }
         if (Array.isArray(value)) {
             if (value.length === 0) {
-                return '[ ]';
+                return EMPTY_NUMERIC;
             }
             if (value.length === 1 && typeof value[0] === 'string') {
                 return formatMatlabString(value[0]);
             }
+            // The same rule the node layer uses, from the same module. The private
+            // 50-character test that used to live here is why an 11-element vector
+            // rendered inline as a property and summarized as a variable, and why
+            // only some summaries came out in the angle form the consumer styles.
+            const dims = [1, value.length];
+            if (needsSummary(dims)) {
+                return summaryForm(dims, 'double');
+            }
             const arrStr = '[' + value.map(formatMatlabNum).join(' ') + ']';
-            return arrStr.length > 50 ? '<1x' + value.length + ' double>' : arrStr;
+            return overCharBudget(arrStr) ? summaryForm(dims, 'double') : arrStr;
         }
         return '';
     }

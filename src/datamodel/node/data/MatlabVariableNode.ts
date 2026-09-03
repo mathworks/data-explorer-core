@@ -17,7 +17,15 @@ import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { parseMatrix, type MatVariable } from '../../parser/MatParser.js';
-import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
+import {
+  EMPTY_CELL,
+  EMPTY_NUMERIC,
+  effectiveDims,
+  elementCount,
+  needsSummary,
+  overCharBudget,
+  summaryForm,
+} from '../../display/DisplayConvention.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import {
   escapeXml,
@@ -153,28 +161,30 @@ function needsTypedLiteral(type: string, value: unknown): boolean {
   return typeof value === 'number' && !isFinite(value);
 }
 
-// Rank >= 3 gets a summary whatever its size: `mat2str` itself errors with "Input
-// matrix must be 2-D." on an N-D array, so there is no MATLAB literal to match, and
-// a bracketed string would be valid 2-D syntax describing only page 1. This is the
-// rank half of DisplayConvention.needsSummary; wiring the element-count half into
-// every display site is Phase 7's job and moves values MATLAB does have a literal
-// for, so the two arrive separately.
-function needsPageSummary(dims: number[] | undefined | null): boolean {
-  return effectiveDims(dims).length > 2;
-}
-
+// A MATLAB matrix literal: `[1 2 3; 4 5 6]`. Only ever called for rank <= 2 — the
+// caller summarizes anything higher, because mat2str itself refuses rank >= 3 and
+// there is no MATLAB one-line spelling to match.
+//
+// The row loop used to run the full rows x cols grid and print '?' for anything it
+// could not find, so an element list shorter than the declared shape filled the
+// display with question marks. It now formats the elements that exist.
 function formatMatrix(rows: number, cols: number, elements: unknown[]): string {
   if (elements.length === 0) {
-    return '[]';
+    return EMPTY_NUMERIC;
   }
   const rowStrs: string[] = [];
   for (let r = 0; r < rows; r++) {
     const vals: string[] = [];
     for (let c = 0; c < cols; c++) {
-      const val = elements[r * cols + c];
-      vals.push(val !== undefined ? formatMatlabNum(val) : '?');
+      const i = r * cols + c;
+      if (i >= elements.length) {
+        break;
+      }
+      vals.push(formatMatlabNum(elements[i]));
     }
-    rowStrs.push(vals.join(' '));
+    if (vals.length > 0) {
+      rowStrs.push(vals.join(' '));
+    }
   }
   return '[' + rowStrs.join('; ') + ']';
 }
@@ -410,7 +420,12 @@ export default class MatlabVariableNode extends DataNode {
     if (this._scalarValue === NOT_AVAILABLE) {
       return false;
     }
-    return true;
+    // Then BaseNode's rule: a value that DISPLAYS as a <mxn class> summary gets no
+    // editor. It has to be consulted here too — returning a bare `true` shadowed
+    // it, so a summarized 2x3x2 offered an editor seeded with the text
+    // '<2x3x2 double>', and committing that cell unchanged replaced twelve
+    // elements with an unparseable string.
+    return super.valueEditable;
   }
 
   // True when this variable currently holds a SCALAR NUMERIC value — the shape a
@@ -434,13 +449,18 @@ export default class MatlabVariableNode extends DataNode {
       if (this._mcosValue !== undefined && this._mcosValue !== null) {
         if (typeof this._mcosValue === 'number') return String(this._mcosValue);
         if (typeof this._mcosValue === 'string')
-          return this._mcosValue ? formatMatlabChar(this._mcosValue) : '<1x1 ' + this._opaqueClassName + '>';
+          return this._mcosValue
+            ? formatMatlabChar(this._mcosValue)
+            : summaryForm([1, 1], this._opaqueClassName || 'double');
         if (Array.isArray(this._mcosValue)) {
           const dims = this._mcosDimensions || [1, (this._mcosValue as unknown[]).length];
-          return '[' + dims.join('x') + ' ' + (this._opaqueClassName || 'double') + ']';
+          // Angle brackets, like every other summary: square brackets read as a
+          // MATLAB literal, and the consumer table keys its gray/italic styling
+          // (and its no-editor rule) on the angle-bracket form.
+          return summaryForm(dims, this._opaqueClassName || 'double');
         }
       }
-      return '<1x1 ' + this._opaqueClassName + '>';
+      return summaryForm([1, 1], this._opaqueClassName || 'double');
     }
     switch (this._kind) {
       case 'scalar':
@@ -462,14 +482,30 @@ export default class MatlabVariableNode extends DataNode {
     if (this._scalarValue === NOT_AVAILABLE) {
       return NOT_AVAILABLE;
     }
+    // char and a scalar string have no child rows, so the cell is the only place
+    // the value is ever visible and the char budget is the only rule that applies:
+    // a realistic description shows in full, a 1500-character blob does not take
+    // the row over. Summarized at the value's real 1xN size, which is what MATLAB's
+    // size() reports for a char row vector — the JS-string parse path stores [1,1]
+    // because it never knew the length, so derive it when _dims cannot account for
+    // the characters.
     if (this._scalarType === 'char') {
-      return formatMatlabChar(String(this._scalarValue));
+      const s = String(this._scalarValue);
+      const text = formatMatlabChar(s);
+      return overCharBudget(text) ? summaryForm(this._textDims(s), 'char') : text;
     }
+    // A string scalar stays 1x1 however long its text is — a MATLAB string holds
+    // the text, it is not made of it — so no _textDims here.
     if (this._scalarType === 'string') {
-      return formatMatlabString(String(this._scalarValue));
+      const text = formatMatlabString(String(this._scalarValue));
+      return overCharBudget(text) ? summaryForm(this._dims, 'string') : text;
     }
     if (this._scalarType === 'struct') {
-      return '<' + this._dims.join('x') + ' struct>';
+      // Always a summary, at every size: MATLAB never prints a struct inline.
+      // summaryForm normalizes through effectiveDims, so a struct whose _dims was
+      // never set prints '<1x1 struct>' rather than the '< struct>' the raw join
+      // produced.
+      return summaryForm(this._dims, 'struct');
     }
     if (this._scalarType === 'logical') {
       return this._scalarValue ? 'true' : 'false';
@@ -477,37 +513,49 @@ export default class MatlabVariableNode extends DataNode {
     return formatMatlabNum(this._scalarValue);
   }
 
+  // The shape to name in a char summary. _dims wins when it accounts for every
+  // character (a 2x5 char array from a .mat file), otherwise the value is a plain
+  // row vector and its length is its second extent.
+  _textDims(text: string): number[] {
+    return elementCount(this._dims) === text.length ? this._dims : [1, text.length];
+  }
+
   _formatArray(): string {
-    // MATLAB has no bracketed literal for rank >= 3 — mat2str answers "Input matrix
-    // must be 2-D." — and formatMatrix walks dims[0] x dims[1], so a 2x3x2 rendered
-    // as page 1 alone and read as the plain 2x3 sitting beside it in the same
-    // dictionary. A summary is the only honest one-line form; the elements are one
-    // expand away and all twelve of them are there.
-    if (needsPageSummary(this._dims)) {
-      return summaryForm(this._dims, this.className);
-    }
     const elems =
       this.children.length > 0
         ? this.children.map(function (c) {
             return (c as MatlabVariableNode)._scalarValue;
           })
         : this._elements;
-    if (this._scalarType === 'logical') {
-      const formatted = elems.map(function (v) {
-        return v ? 'true' : 'false';
-      });
-      return formatMatrix(this._dims[0], this._dims[1], formatted);
+    if (elems.length === 0) {
+      return EMPTY_NUMERIC;
     }
-    return formatMatrix(this._dims[0], this._dims[1], elems);
+    // Rank >= 3 (mat2str answers "Input matrix must be 2-D." — a bracketed string
+    // would be valid 2-D syntax describing only page 1), or more elements than a
+    // one-line literal should carry. The elements are expandable child rows, so
+    // the count rule applies and the user loses nothing: they are one click away.
+    if (needsSummary(this._dims)) {
+      return summaryForm(this._dims, this.className);
+    }
+    const formatted =
+      this._scalarType === 'logical'
+        ? elems.map(function (v) {
+            return v ? 'true' : 'false';
+          })
+        : elems;
+    const text = formatMatrix(this._dims[0], this._dims[1], formatted);
+    // The count rule alone is not a bound on LENGTH: ten 200-character elements
+    // are still a 2000-character cell. The char budget is the runaway guard.
+    return overCharBudget(text) ? summaryForm(this._dims, this.className) : text;
   }
 
   _formatCell(): string {
     if (this.children.length === 0) {
-      return '{}';
+      return EMPTY_CELL;
     }
-    // Rank >= 3, as in _formatArray: the rows x cols walk below showed four of a
-    // 2x2x2's eight cells with nothing to say the other four existed.
-    if (needsPageSummary(this._dims)) {
+    // Rank >= 3 (the rows x cols walk below showed four of a 2x2x2's eight cells
+    // with nothing to say the other four existed), or past the element budget.
+    if (needsSummary(this._dims)) {
       return summaryForm(this._dims, 'cell');
     }
     const rows = this._dims[0];
@@ -522,21 +570,27 @@ export default class MatlabVariableNode extends DataNode {
         // non-square cell's literal: MATLAB's {1 2 3; 4 5 6} printed as
         // {1, 4, 2; 5, 3, 6}. See test/cellElementOrder.test.ts.
         const child = this.children[c * rows + r];
-        vals.push(child ? child.displayValue : '[]');
+        vals.push(child ? child.displayValue : EMPTY_NUMERIC);
       }
       rowStrs.push(vals.join(', '));
     }
-    const result = '{' + rowStrs.join('; ') + '}';
-    if (result.length > 50) {
-      return '{' + this._dims.join('x') + ' cell}';
-    }
-    return result;
+    const text = '{' + rowStrs.join('; ') + '}';
+    // Under the element budget but over the char budget: a 1x4 cell of 300-char
+    // strings is a 1200-character table cell. Angle brackets, not the old
+    // '{1x4 cell}' — only the angle form reads as a summary downstream.
+    return overCharBudget(text) ? summaryForm(this._dims, 'cell') : text;
   }
 
   _formatString(): string {
     const d = this._dims;
     if (d[0] === 1 && d[1] === 1 && this._elements.length === 1) {
-      return formatMatlabString(String(this._elements[0]));
+      // A scalar string has no child rows, so the char budget is the rule — same
+      // as the char arm of _formatScalar.
+      const text = formatMatlabString(String(this._elements[0]));
+      return overCharBudget(text) ? summaryForm(d, 'string') : text;
+    }
+    if (needsSummary(d)) {
+      return summaryForm(d, 'string');
     }
     const rows = d[0];
     const cols = d[1];
@@ -551,8 +605,8 @@ export default class MatlabVariableNode extends DataNode {
       }
       rowStrs.push(vals.join(' '));
     }
-    const strStr = '[' + rowStrs.join('; ') + ']';
-    return strStr.length > 50 ? '<' + d.join('x') + ' string>' : strStr;
+    const text = '[' + rowStrs.join('; ') + ']';
+    return overCharBudget(text) ? summaryForm(d, 'string') : text;
   }
 
   // ---- Property set + Property Inspector layout ----

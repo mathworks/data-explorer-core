@@ -61,6 +61,13 @@ can.
 `<mxn class>`. Today three different bracket styles are in use, so only some
 summaries render italic — see defect 3.
 
+**`[ ]` is ours, not MATLAB's.** Checked against R2027a while implementing
+Phase 7: MATLAB offers no spelling to match for an empty. `mat2str([])` is
+`[]`, and `formattedDisplayText([])` / `formattedDisplayText({})` are both the
+empty string. `[ ]` is this project's choice — it is what the object-property
+path has always emitted, and the one-space form makes an empty value visible in
+a table cell instead of reading as a rendering failure.
+
 ### Threshold rule
 
 The threshold follows **expandability**, not class. One rule, two constants, one
@@ -73,6 +80,13 @@ module.
   array/matrix, cell, and string *array* (which does expand, via
   `_makeStringElement`).
 - **struct** → always `<mxn struct>`; no threshold applies.
+
+`SUMMARY_MAX_CHARS` **also bounds the expandable literals**, on top of the
+element rule. Applied literally, the element rule alone is not a bound on
+length: a 1x4 cell of 300-character strings is 8 elements under budget and a
+1200-character table cell. Since the char budget is defined as a runaway guard
+rather than a display budget, it applies to every literal — primary rule
+unchanged, pathological case bounded.
 
 Rationale: element count makes shapes look consistent — every 1x10 double
 renders like every other 1x10 double, rather than depending on how many digits
@@ -93,6 +107,7 @@ constant moved to fit it.)
 | `1:30` | yes | elements | `<1x30 double>` |
 | `{1, 'two', [3 4]}` | yes | elements | `{1, 'two', [3 4]}` |
 | `["a" "bb" … ×20]` | yes | elements | `<1x20 string>` |
+| `{300 chars ×4}` | yes | elements, then chars | `<1x4 cell>` |
 | any struct | yes | n/a | `<mxn struct>` |
 
 Unifying the threshold **changes current behaviour**: long arrays on the

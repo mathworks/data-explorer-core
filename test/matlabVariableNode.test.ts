@@ -122,29 +122,135 @@ describe('MatlabVariableNode — displayValue per kind', () => {
     expect(parse({ _type: 'logical', _value: '[1, 0]' }).displayValue).toBe('[true false]');
   });
 
-  it('shows an empty array as [] and an empty cell as {}', () => {
-    expect(parse({ _type: 'double', _emptyDims: [0, 0] }).displayValue).toBe('[]');
-    expect(parse({ _array_type: 'Cell', _dimensions: [0, 0], _elements: [] }).displayValue).toBe('{}');
+  it('shows an empty array as [ ] and an empty cell as { }', () => {
+    // '[ ]' and '{ }', with the space, are the display convention's spellings
+    // (DESIGN.md's normative table) and what the object-property path has always
+    // emitted. They deviate from mat2str's '[]' on purpose: the old '[]'/'{}' here
+    // made the same empty value read two ways depending on which parser produced it.
+    expect(parse({ _type: 'double', _emptyDims: [0, 0] }).displayValue).toBe('[ ]');
+    expect(parse({ _array_type: 'Cell', _dimensions: [0, 0], _elements: [] }).displayValue).toBe('{ }');
   });
 
-  it('summarizes a long cell or string array by its dimensions', () => {
-    // A cell that would render longer than the column can show becomes a
-    // {RxC cell} summary rather than truncated garbage.
+  it('spells an empty numeric as the convention does', () => {
+    const node = MatlabVariableNode.parseTypedArray({ _type: 'double', _value: 'nope' }, 'e', null);
+    expect(node.displayValue).toBe('[ ]');
+  });
+
+  it('renders a 10-element array in full and summarizes at 11', () => {
+    // The element budget (SUMMARY_MAX_ELEMENTS = 10) replaces "print whatever
+    // you have": the variable path used to render a 10000-element array inline
+    // while the identical value on the object-property path summarized at 50
+    // characters.
+    const ten = { _type: 'double', _value: 'Matrix(1,10)\n[' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].join(', ') + ']' };
+    expect(MatlabVariableNode.parseTypedArray(ten, 'a', null).displayValue).toBe('[1 2 3 4 5 6 7 8 9 10]');
+    const eleven = {
+      _type: 'double',
+      _value: 'Matrix(1,11)\n[' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].join(', ') + ']',
+    };
+    expect(MatlabVariableNode.parseTypedArray(eleven, 'a', null).displayValue).toBe('<1x11 double>');
+  });
+
+  it('summarizes a rank-3 array whatever its element count', () => {
+    const raw = { _type: 'double', _value: 'Matrix(2,3,2)\n[[1, 3, 5]; [2, 4, 6]; [7, 9, 11]; [8, 10, 12]]' };
+    expect(MatlabVariableNode.parseTypedArray(raw, 'A', null).displayValue).toBe('<2x3x2 double>');
+  });
+
+  it('renders a 2x3 as a MATLAB matrix literal', () => {
+    const raw = { _type: 'double', _value: 'Matrix(2,3)\n[[1, 2, 3]; [4, 5, 6]]' };
+    expect(MatlabVariableNode.parseTypedArray(raw, 'B', null).displayValue).toBe('[1 2 3; 4 5 6]');
+  });
+
+  it('renders an 8-element cell or string array in full — under the element budget', () => {
+    // This used to expect '{1x8 cell}' and '<1x8 string>': the old rule was 50
+    // display characters, and eight 'element_N' entries pass it. The rule is now
+    // the ELEMENT count for anything with expandable child rows, and 8 <= 10, so
+    // both render their literal. Two spellings ('{…}' vs '<…>') for one concept
+    // is what the old code got wrong — only the angle form reads as a summary.
     const longs = Array.from({ length: 8 }, (_, i) => 'element_' + i);
-    expect(parse({ _array_type: 'Cell', _dimensions: [1, 8], _elements: longs }).displayValue).toBe('{1x8 cell}');
-    expect(parse({ _array_type: 'String', _dimensions: [1, 8], _elements: longs }).displayValue).toBe('<1x8 string>');
+    expect(parse({ _array_type: 'Cell', _dimensions: [1, 8], _elements: longs }).displayValue).toBe(
+      "{'element_0', 'element_1', 'element_2', 'element_3', 'element_4', 'element_5', 'element_6', 'element_7'}",
+    );
+    expect(parse({ _array_type: 'String', _dimensions: [1, 8], _elements: longs }).displayValue).toBe(
+      '["element_0" "element_1" "element_2" "element_3" "element_4" "element_5" "element_6" "element_7"]',
+    );
   });
 
-  it('shows a struct by its dimensions, since it has no inline value', () => {
-    const n = parse(0);
-    n._scalarType = 'struct';
-    expect(n.displayValue).toBe('<1x1 struct>');
+  it('summarizes an 11-element cell or string array in angle brackets', () => {
+    const many = Array.from({ length: 11 }, (_, i) => String.fromCharCode(97 + i));
+    expect(parse({ _array_type: 'Cell', _dimensions: [1, 11], _elements: many }).displayValue).toBe('<1x11 cell>');
+    expect(parse({ _array_type: 'String', _dimensions: [1, 11], _elements: many }).displayValue).toBe(
+      '<1x11 string>',
+    );
+  });
+
+  it('summarizes a short cell or string array whose CONTENTS are huge', () => {
+    // The element rule alone is not a bound on LENGTH. SUMMARY_MAX_CHARS is the
+    // runaway guard: four 300-character entries are a 1200-character table cell.
+    const long = 'x'.repeat(300);
+    const four = [long, long, long, long];
+    expect(parse({ _array_type: 'Cell', _dimensions: [1, 4], _elements: four }).displayValue).toBe('<1x4 cell>');
+    expect(parse({ _array_type: 'String', _dimensions: [1, 4], _elements: four }).displayValue).toBe(
+      '<1x4 string>',
+    );
+  });
+
+  it('summarizes a char scalar past the char budget, at its real 1xN size', () => {
+    // char has no child rows, so the char budget is the only rule that applies —
+    // and MATLAB's size() for a char row vector is 1xN, not 1x1.
+    const n = parse('x'.repeat(1500));
+    expect(n.displayValue).toBe('<1x1500 char>');
+    // One character under the budget (1000 chars + 2 quotes = 1002 > 1000, so
+    // 998 characters is the last inline length) still shows in full.
+    expect(parse('y'.repeat(998)).displayValue).toBe("'" + 'y'.repeat(998) + "'");
+  });
+
+  it('always summarizes a struct, at every size', () => {
+    const scalar = parse(0);
+    scalar._scalarType = 'struct';
+    expect(scalar.displayValue).toBe('<1x1 struct>');
+    const arr = parse(0);
+    arr._scalarType = 'struct';
+    arr._dims = [2, 3];
+    expect(arr.displayValue).toBe('<2x3 struct>');
+    // _dims never set: summaryForm normalizes through effectiveDims, so this is
+    // '<1x1 struct>' rather than the '<... struct>' a raw join produced.
+    const bare = parse(0);
+    bare._scalarType = 'struct';
+    bare._dims = [];
+    expect(bare.displayValue).toBe('<1x1 struct>');
   });
 
   it('prefers the live children over _elements, so an edit is visible', () => {
     const n = parse([1, 2, 3]);
     n.children[1]._scalarValue = 99;
     expect(n.displayValue).toBe('[1 99 3]');
+  });
+
+  it('summarizes an opaque array in angle brackets, not square ones', () => {
+    // '[1x2 string]' read as a MATLAB literal and the consumer table styled it as
+    // ordinary editable text. Angle brackets are what keys the gray/italic form
+    // and the no-editor rule.
+    const node: Any = new MatlabVariableNode('o', null, {});
+    node._isOpaque = true;
+    node._opaqueClassName = 'string';
+    node._mcosValue = ['a', 'b'];
+    node._mcosDimensions = [1, 2];
+    expect(node.displayValue).toBe('<1x2 string>');
+  });
+
+  it('keeps the opaque 1x1 placeholders on the shared summary form', () => {
+    // Nothing in displayValue spells a summary by hand any more, so an empty
+    // opaque string and an opaque value we could not read agree with everything
+    // else in the tree.
+    const empty: Any = new MatlabVariableNode('o', null, {});
+    empty._isOpaque = true;
+    empty._opaqueClassName = 'string';
+    empty._mcosValue = '';
+    expect(empty.displayValue).toBe('<1x1 string>');
+    const unread: Any = new MatlabVariableNode('o', null, {});
+    unread._isOpaque = true;
+    unread._opaqueClassName = 'Simulink.Parameter';
+    expect(unread.displayValue).toBe('<1x1 Simulink.Parameter>');
   });
 
   it("REGRESSION: escapes a quote inside a char/string by doubling it", () => {
@@ -465,7 +571,8 @@ describe('MatlabVariableNode — add and remove children', () => {
     // the command would run against a node with no removable element.
     const empty = parse([1, 2, 3]);
     empty.setProperty('Value', '[]');
-    expect([empty._kind, empty._elements, empty.displayValue]).toEqual(['array', [], '[]']);
+    // Typed '[]' still parses; it DISPLAYS as the convention's '[ ]'.
+    expect([empty._kind, empty._elements, empty.displayValue]).toEqual(['array', [], '[ ]']);
     expect([empty.canAddChild(), empty.canRemoveChild()]).toEqual([true, false]);
     empty.addChildNode();
     expect([empty.canAddChild(), empty.canRemoveChild()]).toEqual([true, false]);
@@ -1076,13 +1183,14 @@ describe('MatlabVariableNode — cell-array children', () => {
     expect([n.children.length, n._dims]).toEqual([1, [1, 1]]);
   });
 
-  it('goes to 0x0 and {} when the last element is removed', () => {
+  it('goes to 0x0 and { } when the last element is removed', () => {
     // Not [1,0]: an emptied cell is 0x0 in MATLAB, and displayValue reads the
     // child count rather than the dims, so the two must not disagree.
+    // '{ }', with the space, is the convention's empty-cell spelling.
     const n = cellArray([1]);
     n.removeChildNode(n.children[0]);
     expect([n._dims, n.children.length]).toEqual([[0, 0], 0]);
-    expect(n.displayValue).toBe('{}');
+    expect(n.displayValue).toBe('{ }');
   });
 
   it('REGRESSION: a cell holding a quote survives its own displayed form', () => {
@@ -1309,6 +1417,38 @@ describe('MatlabVariableNode — presentation and editability', () => {
     expect(n.valueEditable).toBe(false);
   });
 
+  it('offers no editor for a summarized value, and does for an inline one', () => {
+    // valueEditable keys on the angle-bracket form, so moving summaries onto
+    // <mxn class> deliberately makes summarized cells read-only: a 2x3x2 cannot
+    // be typed into a one-line box, and the box would be seeded with the summary
+    // text — committing it unchanged would replace the value with garbage.
+    // Assert it rather than let it drift.
+    const inline = MatlabVariableNode.parseTypedArray(
+      { _type: 'double', _value: 'Matrix(1,3)\n[1, 2, 3]' },
+      'a',
+      null,
+    );
+    expect(inline.displayValue).toBe('[1 2 3]');
+    expect(inline.valueEditable).toBe(true);
+
+    const summarized = MatlabVariableNode.parseTypedArray(
+      { _type: 'double', _value: 'Matrix(2,3,2)\n[[1, 3, 5]; [2, 4, 6]; [7, 9, 11]; [8, 10, 12]]' },
+      'A',
+      null,
+    );
+    expect(summarized.displayValue).toBe('<2x3x2 double>');
+    expect(summarized.valueEditable).toBe(false);
+
+    // The element budget has the same consequence: an 11-element vector is a
+    // summary, so it loses its editor too.
+    const eleven = MatlabVariableNode.parseTypedArray(
+      { _type: 'double', _value: 'Matrix(1,11)\n[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]' },
+      'b',
+      null,
+    );
+    expect([eleven.displayValue, eleven.valueEditable]).toEqual(['<1x11 double>', false]);
+  });
+
   it('treats only a non-opaque numeric 1x1 as scalar-numeric', () => {
     // The shape a Constant requires; the Variable-to-Constant paste gate uses it.
     expect(parse(1).isScalarNumeric).toBe(true);
@@ -1416,8 +1556,12 @@ describe('MatlabVariableNode — opaque MCOS objects', () => {
     expect(opaque('Simulink.Parameter', { value: 'txt', properties: {}, dimensions: [1, 1] }).displayValue).toBe(
       "'txt'",
     );
+    // '<1x3 …>', not the old '[1x3 …]'. Square brackets looked right because they
+    // are how MATLAB spells a literal — which is the problem: the consumer table
+    // reads a bracketed string as ordinary editable text, so only the summaries
+    // that happened to use angle brackets rendered gray/italic and read-only.
     expect(opaque('Simulink.Parameter', { value: [1, 2, 3], properties: {}, dimensions: [1, 3] }).displayValue).toBe(
-      '[1x3 Simulink.Parameter]',
+      '<1x3 Simulink.Parameter>',
     );
     expect(opaque('Some.Unknown', { value: null, properties: {}, dimensions: [1, 1] }).displayValue).toBe(
       '<1x1 Some.Unknown>',
