@@ -335,12 +335,12 @@ export function summaryForm(dims: number[] | undefined | null, className: string
 - [ ] **Step 4: Run the tests and make sure they pass**
 
 Run: `npx vitest run test/displayConvention.test.ts`
-Expected: PASS, 14 tests.
+Expected: PASS, 12 tests (2 constants + 3 `effectiveDims` + 1 `elementCount` + 3 `needsSummary` + 1 `overCharBudget` + 2 `summaryForm`).
 
 - [ ] **Step 5: Full suite + typecheck**
 
 Run: `npm run typecheck && npm test`
-Expected: typecheck clean; **83 files, 1722 tests, all passing** (nothing else imports the module yet, so no existing test can move).
+Expected: typecheck clean; **83 files, 1720 tests, all passing** (nothing else imports the module yet, so no existing test can move). With Task 1.2's three tests as well, the full Phase 1 total is **84 files, 1723 tests**.
 
 - [ ] **Step 6: Commit**
 
@@ -1715,7 +1715,7 @@ Expected: PASS.
 - [ ] **Step 5: Confirm the old reader is gone**
 
 Run: `grep -n 'decodeCdata\|realParts\|imagParts' src/datamodel/node/data/MatlabVariableNode.ts`
-Expected: no output. If `formatComplex` is now unused there too, `npm run lint` will say so — delete it only if nothing else calls it (`grep -rn formatComplex src/`).
+Expected: no output. There is no lint script in this repo, so nothing will flag a newly-unused `formatComplex` for you — check by hand with `grep -rn formatComplex src/` and delete it only if nothing else calls it.
 
 - [ ] **Step 6: Commit**
 
@@ -4422,14 +4422,12 @@ Two edits the implementation earned:
 - [ ] **Step 3: Final verification**
 
 ```bash
-npm run typecheck
-npm run lint
-npm test
+npm run verify
 env DEX_MATLAB_CMD="mw -using Bmain matlab" npm test
 env DEX_MATLAB_CMD="mw -using Bmain matlab" npm run parity:drift
 ```
 
-Expected: clean, all passing, no drift. The fourth command runs the live tiers that the third one skips — both must pass, and a suite that passes only *because* it skipped is not passing.
+Expected: clean, all passing, no drift. **There is no `npm run lint` in this repo** — `npm run verify` is the full gate (`typecheck && build && smoke && test && check:pack && check:leak`), and it is what to run here, because `check:pack` and `check:leak` are the two that would catch a new test-only module accidentally shipped in the package. The second command runs the live tiers that `verify` skips — both must pass, and a suite that passes only *because* it skipped is not passing.
 
 - [ ] **Step 4: Squash the `[wip]` commits and open the branch for review**
 
@@ -4444,7 +4442,7 @@ Review the list, then rebase into one commit per phase (or one per defect group)
 ## Done when
 
 - [ ] All 13 defects in DESIGN.md are either fixed with a test that fails without the fix, or recorded under Known limitations with a written reason.
-- [ ] `npm run typecheck && npm run lint && npm test` clean, with MATLAB configured and without.
+- [ ] `npm run verify` clean, with MATLAB configured and without.
 - [ ] `npm run parity:drift` reports no drift.
 - [ ] The four tier-1 suites assert against MATLAB-authored truth, and `expect.ts` imports nothing from `src/`.
 - [ ] The live write-back tier passes for both `.sldd` formats.
