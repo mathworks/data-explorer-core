@@ -2261,6 +2261,16 @@ export default class MatlabVariableNode extends DataNode {
       if (rv._type === 'mxchar') {
         return MatlabVariableNode.parseMxChar(rv, name, parent);
       }
+      // Also before the shape dispatch, and for the same reason. `{_type: 'struct',
+      // _value: '[]'}` is MATLAB's only text spelling for struct([]) — the sole
+      // _type:'struct' in the whole corpus. Read on its leading '[' it went to
+      // parseTypedVector, which took the empty literal for one element of 0 and
+      // showed the 0x0 struct as `[0]` with dims 1x1. A struct with FIELDS never
+      // arrives this way: MATLAB writes `_array_type: 'Struct'` for rank <= 2 and a
+      // cdata byte stream for rank >= 3.
+      if (rv._type === 'struct' && /^\[\s*\]$/.test(rv._value as string)) {
+        return MatlabVariableNode.parseEmptyStruct(rv, name, parent);
+      }
       if ((rv._value as string).indexOf('Matrix(') === 0) {
         return MatlabVariableNode.parseTypedArray(rv, name, parent);
       }
@@ -2306,6 +2316,22 @@ export default class MatlabVariableNode extends DataNode {
       node._scalarType = 'double';
       node._scalarValue = rawVal === null || rawVal === undefined ? 0 : rawVal;
     }
+    return node;
+  }
+
+  /**
+   * struct([]) out of a text dictionary. Deliberately the same node
+   * `_createFromMatStruct` builds for the same value — scalar kind, 'struct' class,
+   * a null scalar value and the real extents — so `<0x0 struct>` is what all four
+   * channels show and `displayValue`'s struct arm needs no empty case of its own.
+   */
+  static parseEmptyStruct(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode {
+    const node = new MatlabVariableNode(name, parent, rawVal);
+    node._rawInput = rawVal;
+    node._kind = 'scalar';
+    node._scalarType = 'struct';
+    node._scalarValue = null;
+    node._dims = [0, 0];
     return node;
   }
 
@@ -2476,7 +2502,12 @@ export default class MatlabVariableNode extends DataNode {
     node._rawInput = rawVal;
     node._kind = 'array';
     node._elements = rawVal;
-    node._dims = [1, rawVal.length];
+    // 0x0 for an empty, not [1, 0]: a bare `[]` is what MATLAB writes for `[]`,
+    // whose `size` is 0x0, and the binary dictionary, the .slx and the .mat all
+    // report 0x0 for the same value — only the text path said 1x0. 1x0 is the
+    // shape of `x=1; x(1)=[]`, which is what _updateArrayAfterRemove produces and
+    // is a different value; nothing was removed from a stored `[]`.
+    node._dims = rawVal.length === 0 ? [0, 0] : [1, rawVal.length];
     node._scalarType = 'double';
     if (rawVal.length > 1) {
       rawVal.forEach(function (el, i) {

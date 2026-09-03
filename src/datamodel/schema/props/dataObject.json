@@ -9,5 +9,7 @@
   "storedIntMax":  { "label": "Stored Integer Max", "sourcePath": "StoredIntegerMaximum", "type": "any", "editor": "label", "default": "" },
   "initialValue":  { "label": "Initial Value",  "sourcePath": "InitialValue",  "type": "any",    "editor": "label", "default": "" },
   "sampleTime":    { "label": "Sample Time",    "sourcePath": "SampleTime",    "type": "any",    "editor": "label", "default": "" },
-  "samplingMode":  { "label": "Sampling Mode",  "sourcePath": "SamplingMode",  "type": "string", "editor": "label", "default": "" }
+  "samplingMode":  { "label": "Sampling Mode",  "sourcePath": "SamplingMode",  "type": "string", "editor": "label", "default": "" },
+  "breakpointsSpecification": { "label": "Breakpoints Specification", "sourcePath": "BreakpointsSpecification", "type": "string", "editor": "label", "default": "Explicit values" },
+  "bank":          { "label": "Bank",           "sourcePath": "Bank",          "type": "any",    "editor": "label", "default": "" }
 }

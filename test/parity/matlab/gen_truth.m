@@ -289,12 +289,15 @@ function t = truthOf(name, v)
     if n > 1 && n <= 64 && ~ischar(v)
         subs = cell(1, n);
         vals = cell(1, n);
+        elems = cell(1, n);
         for k = 1:n
             subs{k} = subLabel(name, size(v), k, iscell(v));
             vals{k} = elemText(v, k);
+            elems{k} = elemTruth(name, v, k);
         end
         t.linearSubs = subs;
         t.linearValues = vals;
+        t.linearElems = elems;
     end
     % MATLAB says isobject("a") is TRUE -- string is an object, not a fundamental
     % type -- and properties() then reads a string as a CLASS NAME: properties("world")
@@ -333,6 +336,54 @@ function s = subLabel(name, sz, k, isCell)
         s = sprintf('%s{%s}', name, idx);
     else
         s = sprintf('%s(%s)', name, idx);
+    end
+end
+
+function s = elemSubject(v, k)
+    % The value the ELEMENT ROW displays. Not always element k itself:
+    %   cell    -> the content, v{k}, because the row shows the content
+    %   object  -> v(k).Value, because a Simulink data object's row shows its value
+    %   struct  -> v(k), the 1x1 struct itself, which is what MATLAB summarizes
+    %   else    -> v(k)
+    % isstring is checked before isobject because isobject("a") is TRUE, and the
+    % object branch would then ask a string for a 'Value' property.
+    if iscell(v)
+        s = v{k};
+    elseif isstring(v)
+        s = v(k);
+    elseif isobject(v) && isprop(v(k), 'Value')
+        s = v(k).Value;
+    else
+        s = v(k);
+    end
+end
+
+function e = elemTruth(name, v, k)
+    % The same measurements truthOf takes, taken on elemSubject -- so an element is
+    % just another value and Phase 11 can put it through the SAME expectedDisplay().
+    %
+    % This exists alongside linearValues because the two answer different questions.
+    % linearValues is formattedDisplayText, MATLAB's COMMAND WINDOW format: `1` for
+    % a logical, `1.0000 + 2.0000i` for a complex, `3     4` for [3 4], unquoted
+    % text for a string. A table cell follows the mat2str convention instead --
+    % `true`, `1+2i`, `[3 4]`, `"a"` -- so comparing a cell against the command
+    % window would fail for every one of those and prove nothing about the model.
+    % Both are MATLAB's own output; only mat2str is the one the cell claims to match.
+    x = elemSubject(v, k);
+    e = struct();
+    e.name = subLabel(name, size(v), k, iscell(v));
+    e.class = class(x);
+    e.size = size(x);
+    e.numel = numel(x);
+    e.iscomplex = ~isreal(x);
+    e.islogical = islogical(x);
+    e.isobject = isobject(x);
+    e.isempty = isempty(x);
+    e.disp = strtrim(formattedDisplayText(x, 'SuppressMarkup', true));
+    try
+        e.mat2str = mat2str(x);
+    catch err
+        e.mat2str_error = err.message;
     end
 end
 

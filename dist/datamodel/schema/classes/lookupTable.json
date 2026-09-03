@@ -1,8 +1,9 @@
 {
     "Simulink.LookupTable": {
-        "props": [],
+        "props": ["breakpointsSpecification"],
         "layout": [
-            { "group": "General", "items": ["name", "value", "dataType", "kind", "class", "description"] }
+            { "group": "General", "items": ["name", "value", "dataType", "kind", "class", "description"] },
+            { "group": "Value Properties", "items": ["breakpointsSpecification"] }
         ]
     }
 }

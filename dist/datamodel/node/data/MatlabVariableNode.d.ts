@@ -123,6 +123,13 @@ export default class MatlabVariableNode extends DataNode {
     static _createScalar(value: unknown, type: string, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parse(rawVal: unknown, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseScalar(rawVal: unknown, name: string, parent: BaseNode | null): MatlabVariableNode;
+    /**
+     * struct([]) out of a text dictionary. Deliberately the same node
+     * `_createFromMatStruct` builds for the same value — scalar kind, 'struct' class,
+     * a null scalar value and the real extents — so `<0x0 struct>` is what all four
+     * channels show and `displayValue`'s struct arm needs no empty case of its own.
+     */
+    static parseEmptyStruct(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseTypedScalar(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _parseCdataText(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;

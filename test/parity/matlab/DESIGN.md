@@ -68,6 +68,40 @@ empty string. `[ ]` is this project's choice — it is what the object-property
 path has always emitted, and the one-space form makes an empty value visible in
 a table cell instead of reading as a rendering failure.
 
+### A property sheet is not a table cell
+
+The table above is the **table cell** convention: a cell holds a MATLAB LITERAL,
+because what it shows is what you would type to get the value back. The Property
+Inspector holds the **value**, because its cell IS the text box you edit the
+property in. One property, two right answers:
+
+| | table cell | property sheet |
+|---|---|---|
+| `Unit = 'm/s'` | `'m/s'` | `m/s` |
+| `Description = ''` | `''` | (empty) |
+| `Dimensions = [1 1]` | `[1 1]` | `[1 1]` |
+| `Min = -10` | `-10` | `-10` |
+
+So the difference is exactly one rule — **char and string take MATLAB's own text
+(`disp`) instead of its `mat2str` literal** — and everything else keeps the
+mat2str spelling, which for a number or an array already IS the value. That one
+rule is the whole of `expectedPropertyText` in `expect.ts`; `expectedDisplay` is
+the cell form and the two share the float-tolerance matcher, so a divergence
+between them can only ever be this rule and never an accident of formatting.
+
+A nested object property (`CoderInfo`) gets **no** expected text: `mat2str`
+refuses it, and its contents are a sub-sheet of their own. There the suite
+asserts PRESENCE instead — see defect 37 below for what that catches.
+
+**The property surface is `toPIObject()`, not the tree.** An object's properties
+are not its child rows, and conflating the two was the plan's own mistake for
+Phase 11: `aParam` has no children at all, and `aBus`'s children are its bus
+ELEMENTS. `toPIObject()` returns one flat namespace per node — a curated or
+schema-group prop under its own key (`Value`, `dimensions`), a nested
+sub-property under its raw path (`Other.CoderInfo.StorageClass`) — and that,
+matched case-insensitively on the last path segment, is what MATLAB's
+`properties()` list is checked against.
+
 ### Threshold rule
 
 The threshold follows **expandability**, not class. One rule, two constants, one
@@ -132,31 +166,42 @@ actually run for a public repo. Instead MATLAB emits committed truth, and the
 tests read it.
 
 ```
+test/parity/artifacts/
+  truth.json                  ONE truth file, not one per format: MATLAB's
+                              measurements are of the VALUE, and the value is
+                              the same in every format. Per entry: class, size,
+                              iscomplex/islogical/isobject/isempty, mat2str (or
+                              mat2str_error), disp, per-element linearSubs /
+                              linearValues / linearElems, and for an object the
+                              full public property list measured the same way.
+                              A per-format claim is a `verdict`, recorded where
+                              a format REFUSED the case.
+  text/cases.sldd             uncompressed-text dictionary
+  binary/cases.sldd           compressed-binary dictionary
+  slx/cases.slx               model workspace
+  mat/cases.mat
+
 test/parity/matlab/
   gen_truth.m                 MATLAB: the only entry point. Builds every
-                              artifact from one case catalog, emits truth JSON.
-  artifacts/
-    sldd-text/cases.sldd      uncompressed-text dictionary
-    sldd-binary/cases.sldd    compressed-binary dictionary
-    slx/cases.slx             model workspace
-    mat/cases.mat
-    prj/                      project fixture (structure only)
-  truth/
-    sldd-text.json            per entry: MATLAB class, size, complexity,
-    sldd-binary.json          mat2str, disp text, and for objects the full
-    slx.json                  public property list with values and classes
-    mat.json
-    prj.json                  expected node tree only — a .prj carries no data
-                              objects, so there is nothing to value-compare
+                              artifact from one case catalog, emits truth.json.
+  loadTruth.ts                loads truth.json and all four artifacts; the
+                              accessors the suites share (elementsByLabel,
+                              childrenByName, piProperties, piLookup, refused)
   expect.ts                   the display convention, once, as a pure function
-  README.md                   how to regenerate truth
-  display.parity.test.ts
-  structure.parity.test.ts
-  lossless.parity.test.ts
-  schemaProps.parity.test.ts
+  expect.test.ts              expect.ts on its own — see below
+  display.test.ts
+  structure.test.ts
+  lossless.test.ts
+  schemaProps.test.ts
   writeback.live.test.ts      dev-only, gated on DEX_MATLAB_CMD
   drift.mjs                   dev script: regenerate truth and diff
+  README.md                   how to regenerate truth
+  probe_*.m / *.mjs           one-question probes, kept as the record of what
+                              MATLAB was actually asked
 ```
+
+A `.prj` carries no data objects, so there is nothing to value-compare and no
+artifact of its own; its structural coverage lives with the other loaders.
 
 ### `gen_truth.m`
 
@@ -180,16 +225,26 @@ does not scale to the matrix and rots silently) nor computed from our own parse
 reported, so the derivation is independent of the code under test, and the
 convention lives in one file that reads like the normative table.
 
+**`expect.ts` imports nothing from `src/`**, and that is enforced by reading it, not
+by a lint rule — it is the one file whose independence the whole tier rests on.
+
+**It is unit-tested on its own** (`expect.test.ts`), because a bug HERE would make
+every parity suite agree with a wrong data model: the one failure mode a parity suite
+cannot detect from the inside. So the thresholds, the empty spellings, the
+object-array rule, the `isobject("a")` trap, the float tolerances at `double` and
+`single` resolution, and the property-sheet rule each get an assertion of their own.
+
 ### Test tiers
 
 **Tier 1 — committed truth, no MATLAB, runs in CI on every PR.**
 
 | file | asserts |
 |---|---|
-| `display.parity.test.ts` | `displayValue` and Data Type, per format × case |
-| `structure.parity.test.ts` | child counts, index naming (`v(1)`, `v(1,2)`, `s.f`, `c{1}`), leaves bottom out at primitives |
-| `lossless.parity.test.ts` | stored value equals MATLAB's exact value; serialize→reparse is a fixed point |
-| `schemaProps.parity.test.ts` | every property MATLAB reports on a known class is surfaced by the schema or on an explicit documented ignore list; unknown classes expand generically; derived-from-known behaves as unknown |
+| `display.test.ts` | `displayValue` and Data Type, per format × case, plus every element row's value |
+| `structure.test.ts` | child counts, shape, index naming (`v(1)`, `v(1,2)`, `s.f`, `c{1}`), row ORDER against MATLAB's linearization, leaves bottom out at primitives |
+| `lossless.test.ts` | an untouched serialize→reparse is a fixed point of the whole display tree |
+| `schemaProps.test.ts` | every property MATLAB reports on an object is surfaced by the Property Inspector with MATLAB's value; a nested object surfaces by name, by its sub-properties, or as element rows |
+| `expect.test.ts` | the convention itself, independently of any artifact |
 
 `lossless` is deliberately separate from `display`. Display is lossy by design
 (a summary, a threshold); storage must not be. The dangerous failure is an
@@ -1318,6 +1373,169 @@ the plausible mojibake a guessed layout would produce (`"café"` → `` "`afé" 
     `truth.json`, the `-v7` flavour, the read-only gates, and the string properties of
     `object_props.mat`'s two hand-authored classes.
 
+## Defects found by walking the tree MATLAB describes
+
+Phases 9–10 built the tier-1 suites: `loadTruth.ts` loads MATLAB's `truth.json` and
+all four artifacts, `expect.ts` states the convention as a pure function of what
+MATLAB reported, and `display.test.ts` / `structure.test.ts` put every corpus entry
+in every format through it. 596 + 184 assertions, and the 24 skips are MATLAB's own
+refusals, each titled with MATLAB's message — `Arrays of class 'Simulink.Parameter'
+are not supported in the dictionary` for the object arrays in a `.sldd`, and the
+model-workspace equivalent for the `.slx`. Not a skip list we chose; a skip list
+MATLAB dictated.
+
+**`linearElems` is why element rows became checkable at all.** `gen_truth.m` already
+recorded `linearValues` — `formattedDisplayText` per element — but that is MATLAB's
+COMMAND WINDOW format, not the table-cell convention: `1` for a logical where a cell
+says `true`, `1.0000 + 2.0000i` where a cell says `1+2i`, `3     4` where a cell says
+`[3 4]`, unquoted text for a string. Comparing a cell against the command window
+would have failed for every one of those and proved nothing. So `linearElems` takes
+the SAME measurements on element `k` that `truthOf` takes on a variable — class,
+size, `iscomplex`, `isempty`, `disp`, `mat2str` — and an element is then just another
+value that goes through the same `expectedDisplay()`. Which element is measured is
+itself a rule (`elemSubject`): a cell row shows its CONTENT `v{k}`, a data-object row
+shows `v(k).Value`, a struct row shows the 1x1 struct, everything else shows `v(k)` —
+and `isstring` is tested before `isobject`, because `isobject("a")` is true and the
+object branch would otherwise ask a string for a `Value`.
+
+34. **An empty numeric read as 1x0 out of a text dictionary and 0x0 out of the other
+    three.** MATLAB writes a bare `[]` for `[]`, and `size([])` is 0x0 — which the
+    binary dictionary, the `.slx` and the `.mat` all reported. Only the text path
+    said 1x0, because `parseTypedVector` set `_dims = [1, rawVal.length]`
+    unconditionally. 1x0 is not a harmless off-by-one: it is the shape of
+    `x=1; x(1)=[]`, a genuinely different value, and it is what
+    `_updateArrayAfterRemove` produces. A stored `[]` has no removal behind it.
+    Fixed by making the empty case `[0, 0]`. Pinned by
+    `matlabVariableNode.test.ts` alongside the shape it must not be.
+
+35. **`struct([])` displayed as `[0]`.** `{_type: 'struct', _value: '[]'}` is MATLAB's
+    only text spelling for an empty struct, and it is the sole `_type: 'struct'` in
+    the whole corpus. Dispatched on its leading `[`, it went to `parseTypedVector`,
+    which read the empty literal as one element of value 0 — so a 0x0 struct
+    presented as a 1x1 numeric vector containing zero. Fixed with a `parseEmptyStruct`
+    arm ahead of the shape dispatch, building deliberately the same node
+    `_createFromMatStruct` builds for the same value (scalar kind, `struct` class,
+    null value, real extents), so `<0x0 struct>` comes out of the existing
+    `displayValue` struct arm in all four channels and no empty case is added to it.
+    A struct with FIELDS never arrives this way — MATLAB writes `_array_type: 'Struct'`
+    for rank ≤ 2 and a cdata byte stream for rank ≥ 3 — so the guard is exact.
+
+36. **A numeric matrix lists its element ROWS in storage order, not MATLAB's.**
+    **Pinned, not fixed.** MATLAB linearizes column-major, so a 2x3 is
+    (1,1) (2,1) (1,2) (2,2) (1,3) (2,3); the tree lists
+    (1,1) (1,2) (1,3) (2,1) (2,2) (2,3), because `_elements` is row-major within each
+    page and the child rows come out in `_elements` order. Cell, string, struct and
+    object arrays are all column-major already, so this is one kind, and only at rank
+    ≥ 2 with both leading extents > 1 — a vector's two orders coincide. The labels and
+    the values are correct either way; it is the row ORDER that differs, so nothing is
+    wrong on screen except the sequence.
+
+    Not fixed because the fix is not local. Child order and storage order are the same
+    list today, at roughly ten creation sites, and `_syncElementFromChild` recovers an
+    element's index with `children.indexOf(child)` — so decoupling them means every
+    writer learning the permutation too, on top of the paired transposes in
+    `MatParser`, `BinarySlddParser`, `XmlUtils`, `MatWriter` and `DataNode`. That is a
+    storage-layer change with a display-layer motive, and it is worth doing
+    deliberately rather than as a parity fix.
+
+    `structure.test.ts` asserts it EXACTLY and in BOTH directions: `listsInStorageOrder`
+    classifies from MATLAB's own class and size (not from a list of entry names, so a
+    new fixture is classified automatically), the storage-order arm compares against
+    MATLAB's label list permuted by the page-preserving transpose, and the other arm
+    compares against MATLAB's linear order untouched. The day this is fixed the test
+    goes red and gets moved to the other arm, rather than quietly agreeing with
+    whatever the model happens to do.
+
+## Defects found by putting MATLAB's property list through the Property Inspector
+
+Phase 11's `schemaProps.test.ts` asks a narrower question than `display.test.ts`: for
+every property MATLAB's `properties()` lists on every object in the corpus, in every
+format, does the Property Inspector show MATLAB's value? 168 assertions, no skips.
+Five defects, all in the same shape — a property MATLAB reports that our sheet does
+not, or reports differently.
+
+The suite's premise had to be corrected first. The plan assumed an object's properties
+were its child rows keyed by `name`; they are not, and no amount of tree-walking would
+have found them (see *A property sheet is not a table cell* above). The property
+surface is `toPIObject()`.
+
+37. **`Simulink.Signal.DataType` never surfaced, in any format, though every format
+    carried the key.** All four raw bags held `DataType: "single"` and the Data Type
+    column and the PI row were blank for every Signal everywhere. `SignalNode` simply
+    never read the key: it had no `DataType` field and no `dataType` getter, so
+    `PropDataType` had nothing to read. Fixed on exactly `ParameterNode`'s terms — read
+    both `DataType_internal` and `DataType` (a `.sldd` may store either spelling, which
+    is why `BusNode` reads both), default to `'auto'` when absent because that is
+    MATLAB's default rather than a missing value, and expose it through a `dataType`
+    getter so the column and the row share one source. Display-only:
+    `_getSerializedProperties` copies the on-disk bag, so the default is never written
+    into a file that did not have it.
+
+38. **Four `Simulink.Signal` defaults were wrong or missing whenever the text
+    dictionary omitted the key.** The text `.sldd` omits default-valued properties;
+    the binary, `.slx` and `.mat` channels write them explicitly. So the same object
+    read four ways gave two answers:
+
+    | | text `.sldd` | MATLAB |
+    |---|---|---|
+    | `Dimensions` | (empty) | `-1` |
+    | `Complexity` | `real` | `auto` |
+    | `SampleTime` | (empty) | `-1` |
+    | `SamplingMode` | (empty) | `auto` |
+
+    `Complexity` is the instructive one: the sheet was not blank, it was **confidently
+    wrong**, because the shared `complexity` registry entry carries
+    `Simulink.Parameter`'s default (`real`) and `Simulink.Signal`'s is `auto`. A
+    per-class default is the whole mechanism the `$ref` override form exists for, so
+    the fix is four `{ "$ref": ..., "default": ... }` entries in `signal.json` and no
+    code. Defaults hydrate for display only and are never written back, so a minimal
+    file stays minimal.
+
+39. **`Simulink.LookupTable.BreakpointsSpecification` was absent from the sheet
+    entirely** when the text dictionary omitted it — not blank, not defaulted, simply
+    not a row. MATLAB reports `'Explicit values'`. Fixed by authoring the prop in the
+    registry with that default and giving `lookupTable.json` a second group for it.
+
+40. **`Simulink.VariantVariable` carries almost no property data in three of the four
+    channels, and its choices are invisible in all four.** MATLAB's public property
+    list is `Specification` and `Bank`, both empty in the corpus, so a new `bank`
+    registry entry defaulting to `''` (defect 39's fix again) is what makes the suite
+    green — and green here is a weaker statement than it looks. What is actually in the
+    four channels:
+
+    | | raw bag |
+    |---|---|
+    | text `.sldd` | `Bank`, `Specification`, and `Choices` as a nested `simulink.variant.Variable` holding a 1x2 `simulink.variant.Choice` array (`fValue`, `fVariantCondition`) |
+    | binary `.sldd` | one undecoded `_saveobj` struct: `Choices` as a 2x1 `Condition`/`Value` struct, `Specification: []`, `Bank: []` |
+    | `.slx` | `{}` |
+    | `.mat` | `{}` |
+
+    **Not fixed**, and three separate things are wrong. The binary dictionary leaves the
+    whole object as `_saveobj` and leaks that internal key into the Property Inspector
+    as a row of its own, so the object's real properties are reachable only by decoding
+    it. The `.slx` and the `.mat` produce an empty bag — the object is there, named and
+    classed, with nothing in it. And the choice table that MATLAB's own `disp` leads
+    with (`V == 1 → 1`, `V == 2 → 2`) is present in two channels' bytes and displayed
+    in none; even the text channel renders `Choices.fChoices` as empty. Parity does not
+    catch it because MATLAB does not call `Choices` a property, so this is recorded from
+    the raw bags rather than from a failing assertion.
+
+41. **The schema Property Inspector spelled a numeric array `[1, 1]` where mat2str and
+    every other surface spell `[1 1]`.** `Simulink.Parameter.Dimensions` therefore had
+    a third spelling of one value: a table cell said `[1 1]`, a bus element's
+    `PropDimensions` said `[1 1]`, and the schema-driven PI row said `[1, 1]`. Fixed in
+    `formatSchemaValue` — a space join, the convention's array spelling. This changed
+    the formatter's own published contract, so `schemaBridgeEdit.test.ts`'s assertion on
+    `format([2, 3])` was updated with the reason inline rather than worked around.
+
+**Two of these fixes had to be moved, and the reason is a convention worth keeping.**
+Adding `bank` and `breakpointsSpecification` inside each class's `General` group turned
+`piGeneralAllNodes.test.ts` red, correctly: the identity group is deliberately fixed at
+`[Name, value-like, DataType, Kind, Class]` (plus `Description` where the class has
+one), so that the first thing a user sees is the same five things for every class. A new
+property goes in a group AFTER General — here a `Value Properties` group in each class
+JSON — and the test that says so is doing its job.
+
 ## Known limitations, to verify and document
 
 - **Derived MCOS classes.** A customer class `MyParam < Simulink.Parameter`
@@ -1344,6 +1562,13 @@ the plausible mojibake a guessed layout would produce (`"café"` → `` "`afé" 
   MATLAB reads that back as was not measured. Not reachable today (a `.mat` string is
   read-only and nothing else produces a `missing`), and recorded rather than invented — the
   alternative would be writing `""`, which is a different value MATLAB can tell apart.
+- **A numeric matrix's element ROWS are in storage order, not MATLAB's** — defect 36.
+  Pinned exactly and in both directions by `structure.test.ts`; the fix is a
+  storage-layer change and is deliberately not a parity fix.
+- **A `Simulink.VariantVariable`'s choices are not displayed in any format**, and three
+  of the four channels carry no property data for it at all — defect 40. Recorded from
+  the raw bags, because MATLAB does not call `Choices` a property and parity therefore
+  passes.
 - **Truth can go stale** against a future MATLAB release. `drift.mjs` is the
   mitigation; it is a developer action, not a CI gate.
 

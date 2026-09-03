@@ -237,6 +237,83 @@
         "-Inf",
         "NaN",
         "5"
+      ],
+      "linearElems": [
+        {
+          "name": "nonFinVec(1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "nonFinVec(2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "Inf",
+          "mat2str": "Inf"
+        },
+        {
+          "name": "nonFinVec(3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "-Inf",
+          "mat2str": "-Inf"
+        },
+        {
+          "name": "nonFinVec(4)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "NaN",
+          "mat2str": "NaN"
+        },
+        {
+          "name": "nonFinVec(5)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        }
       ]
     },
     "s_int8": {
@@ -622,6 +699,53 @@
         "1",
         "2",
         "3"
+      ],
+      "linearElems": [
+        {
+          "name": "rowVec(1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "rowVec(2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "rowVec(3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        }
       ]
     },
     "colVec": {
@@ -647,6 +771,53 @@
         "1",
         "2",
         "3"
+      ],
+      "linearElems": [
+        {
+          "name": "colVec(1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "colVec(2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "colVec(3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        }
       ]
     },
     "mat2x3": {
@@ -678,6 +849,98 @@
         "5",
         "3",
         "6"
+      ],
+      "linearElems": [
+        {
+          "name": "mat2x3(1,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "mat2x3(2,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "4",
+          "mat2str": "4"
+        },
+        {
+          "name": "mat2x3(1,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "mat2x3(2,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        {
+          "name": "mat2x3(1,3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        },
+        {
+          "name": "mat2x3(2,3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "6",
+          "mat2str": "6"
+        }
       ]
     },
     "nd2x3x2": {
@@ -722,6 +985,188 @@
         "11",
         "9",
         "12"
+      ],
+      "linearElems": [
+        {
+          "name": "nd2x3x2(1,1,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "nd2x3x2(2,1,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "4",
+          "mat2str": "4"
+        },
+        {
+          "name": "nd2x3x2(1,2,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "nd2x3x2(2,2,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        {
+          "name": "nd2x3x2(1,3,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        },
+        {
+          "name": "nd2x3x2(2,3,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "6",
+          "mat2str": "6"
+        },
+        {
+          "name": "nd2x3x2(1,1,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "7",
+          "mat2str": "7"
+        },
+        {
+          "name": "nd2x3x2(2,1,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "10",
+          "mat2str": "10"
+        },
+        {
+          "name": "nd2x3x2(1,2,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "8",
+          "mat2str": "8"
+        },
+        {
+          "name": "nd2x3x2(2,2,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "11",
+          "mat2str": "11"
+        },
+        {
+          "name": "nd2x3x2(1,3,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "9",
+          "mat2str": "9"
+        },
+        {
+          "name": "nd2x3x2(2,3,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "12",
+          "mat2str": "12"
+        }
       ]
     },
     "emptyD": {
@@ -816,6 +1261,458 @@
         "28",
         "29",
         "30"
+      ],
+      "linearElems": [
+        {
+          "name": "long30(1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "long30(2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "long30(3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        },
+        {
+          "name": "long30(4)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "4",
+          "mat2str": "4"
+        },
+        {
+          "name": "long30(5)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        {
+          "name": "long30(6)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "6",
+          "mat2str": "6"
+        },
+        {
+          "name": "long30(7)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "7",
+          "mat2str": "7"
+        },
+        {
+          "name": "long30(8)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "8",
+          "mat2str": "8"
+        },
+        {
+          "name": "long30(9)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "9",
+          "mat2str": "9"
+        },
+        {
+          "name": "long30(10)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "10",
+          "mat2str": "10"
+        },
+        {
+          "name": "long30(11)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "11",
+          "mat2str": "11"
+        },
+        {
+          "name": "long30(12)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "12",
+          "mat2str": "12"
+        },
+        {
+          "name": "long30(13)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "13",
+          "mat2str": "13"
+        },
+        {
+          "name": "long30(14)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "14",
+          "mat2str": "14"
+        },
+        {
+          "name": "long30(15)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "15",
+          "mat2str": "15"
+        },
+        {
+          "name": "long30(16)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "16",
+          "mat2str": "16"
+        },
+        {
+          "name": "long30(17)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "17",
+          "mat2str": "17"
+        },
+        {
+          "name": "long30(18)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "18",
+          "mat2str": "18"
+        },
+        {
+          "name": "long30(19)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "19",
+          "mat2str": "19"
+        },
+        {
+          "name": "long30(20)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "20",
+          "mat2str": "20"
+        },
+        {
+          "name": "long30(21)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "21",
+          "mat2str": "21"
+        },
+        {
+          "name": "long30(22)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "22",
+          "mat2str": "22"
+        },
+        {
+          "name": "long30(23)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "23",
+          "mat2str": "23"
+        },
+        {
+          "name": "long30(24)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "24",
+          "mat2str": "24"
+        },
+        {
+          "name": "long30(25)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "25",
+          "mat2str": "25"
+        },
+        {
+          "name": "long30(26)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "26",
+          "mat2str": "26"
+        },
+        {
+          "name": "long30(27)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "27",
+          "mat2str": "27"
+        },
+        {
+          "name": "long30(28)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "28",
+          "mat2str": "28"
+        },
+        {
+          "name": "long30(29)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "29",
+          "mat2str": "29"
+        },
+        {
+          "name": "long30(30)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "30",
+          "mat2str": "30"
+        }
       ]
     },
     "exactly10": {
@@ -855,6 +1752,158 @@
         "8",
         "9",
         "10"
+      ],
+      "linearElems": [
+        {
+          "name": "exactly10(1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "exactly10(2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "exactly10(3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        },
+        {
+          "name": "exactly10(4)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "4",
+          "mat2str": "4"
+        },
+        {
+          "name": "exactly10(5)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        {
+          "name": "exactly10(6)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "6",
+          "mat2str": "6"
+        },
+        {
+          "name": "exactly10(7)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "7",
+          "mat2str": "7"
+        },
+        {
+          "name": "exactly10(8)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "8",
+          "mat2str": "8"
+        },
+        {
+          "name": "exactly10(9)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "9",
+          "mat2str": "9"
+        },
+        {
+          "name": "exactly10(10)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "10",
+          "mat2str": "10"
+        }
       ]
     },
     "eleven": {
@@ -896,6 +1945,173 @@
         "9",
         "10",
         "11"
+      ],
+      "linearElems": [
+        {
+          "name": "eleven(1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "eleven(2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "eleven(3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        },
+        {
+          "name": "eleven(4)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "4",
+          "mat2str": "4"
+        },
+        {
+          "name": "eleven(5)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        {
+          "name": "eleven(6)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "6",
+          "mat2str": "6"
+        },
+        {
+          "name": "eleven(7)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "7",
+          "mat2str": "7"
+        },
+        {
+          "name": "eleven(8)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "8",
+          "mat2str": "8"
+        },
+        {
+          "name": "eleven(9)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "9",
+          "mat2str": "9"
+        },
+        {
+          "name": "eleven(10)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "10",
+          "mat2str": "10"
+        },
+        {
+          "name": "eleven(11)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "11",
+          "mat2str": "11"
+        }
       ]
     },
     "boolVec": {
@@ -921,6 +2137,53 @@
         "1",
         "0",
         "1"
+      ],
+      "linearElems": [
+        {
+          "name": "boolVec(1)",
+          "class": "logical",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": true,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "true"
+        },
+        {
+          "name": "boolVec(2)",
+          "class": "logical",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": true,
+          "isobject": false,
+          "isempty": false,
+          "disp": "0",
+          "mat2str": "false"
+        },
+        {
+          "name": "boolVec(3)",
+          "class": "logical",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": true,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "true"
+        }
       ]
     },
     "i16Vec": {
@@ -946,6 +2209,53 @@
         "1",
         "2",
         "3"
+      ],
+      "linearElems": [
+        {
+          "name": "i16Vec(1)",
+          "class": "int16",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "i16Vec(2)",
+          "class": "int16",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "i16Vec(3)",
+          "class": "int16",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        }
       ]
     },
     "u64Vec": {
@@ -971,6 +2281,53 @@
         "18446744073709551615",
         "1",
         "0"
+      ],
+      "linearElems": [
+        {
+          "name": "u64Vec(1)",
+          "class": "uint64",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "18446744073709551615",
+          "mat2str": "18446744073709551615"
+        },
+        {
+          "name": "u64Vec(2)",
+          "class": "uint64",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "u64Vec(3)",
+          "class": "uint64",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "0",
+          "mat2str": "0"
+        }
       ]
     },
     "i64Vec": {
@@ -996,6 +2353,53 @@
         "9223372036854775807",
         "-9223372036854775808",
         "-1"
+      ],
+      "linearElems": [
+        {
+          "name": "i64Vec(1)",
+          "class": "int64",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "9223372036854775807",
+          "mat2str": "9223372036854775807"
+        },
+        {
+          "name": "i64Vec(2)",
+          "class": "int64",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "-9223372036854775808",
+          "mat2str": "-9223372036854775808"
+        },
+        {
+          "name": "i64Vec(3)",
+          "class": "int64",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "-1",
+          "mat2str": "-1"
+        }
       ]
     },
     "i64Unsafe": {
@@ -1034,6 +2438,38 @@
       "linearValues": [
         "1.0000 + 2.0000i",
         "3.0000 - 4.0000i"
+      ],
+      "linearElems": [
+        {
+          "name": "cplxVec(1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1.0000 + 2.0000i",
+          "mat2str": "1+2i"
+        },
+        {
+          "name": "cplxVec(2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3.0000 - 4.0000i",
+          "mat2str": "3-4i"
+        }
       ]
     },
     "strArray": {
@@ -1059,6 +2495,53 @@
         "a",
         "bb",
         "ccc"
+      ],
+      "linearElems": [
+        {
+          "name": "strArray(1)",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": true,
+          "isempty": false,
+          "disp": "a",
+          "mat2str": "\"a\""
+        },
+        {
+          "name": "strArray(2)",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": true,
+          "isempty": false,
+          "disp": "bb",
+          "mat2str": "\"bb\""
+        },
+        {
+          "name": "strArray(3)",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": true,
+          "isempty": false,
+          "disp": "ccc",
+          "mat2str": "\"ccc\""
+        }
       ]
     },
     "strMat": {
@@ -1090,6 +2573,98 @@
         "ee",
         "ccc",
         "fff"
+      ],
+      "linearElems": [
+        {
+          "name": "strMat(1,1)",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": true,
+          "isempty": false,
+          "disp": "a",
+          "mat2str": "\"a\""
+        },
+        {
+          "name": "strMat(2,1)",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": true,
+          "isempty": false,
+          "disp": "d",
+          "mat2str": "\"d\""
+        },
+        {
+          "name": "strMat(1,2)",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": true,
+          "isempty": false,
+          "disp": "bb",
+          "mat2str": "\"bb\""
+        },
+        {
+          "name": "strMat(2,2)",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": true,
+          "isempty": false,
+          "disp": "ee",
+          "mat2str": "\"ee\""
+        },
+        {
+          "name": "strMat(1,3)",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": true,
+          "isempty": false,
+          "disp": "ccc",
+          "mat2str": "\"ccc\""
+        },
+        {
+          "name": "strMat(2,3)",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": true,
+          "isempty": false,
+          "disp": "fff",
+          "mat2str": "\"fff\""
+        }
       ]
     },
     "longChar": {
@@ -1145,6 +2720,53 @@
         "1",
         "two",
         "3     4"
+      ],
+      "linearElems": [
+        {
+          "name": "cellFlat{1}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "cellFlat{2}",
+          "class": "char",
+          "size": [
+            1,
+            3
+          ],
+          "numel": 3,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "two",
+          "mat2str": "'two'"
+        },
+        {
+          "name": "cellFlat{3}",
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3     4",
+          "mat2str": "[3 4]"
+        }
       ]
     },
     "cellNest": {
@@ -1168,6 +2790,38 @@
       "linearValues": [
         "1",
         "{[2]}    {1×1 cell}"
+      ],
+      "linearElems": [
+        {
+          "name": "cellNest{1}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "cellNest{2}",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "{[2]}    {1×1 cell}",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        }
       ]
     },
     "cell2x3": {
@@ -1199,6 +2853,98 @@
         "5",
         "3",
         "6"
+      ],
+      "linearElems": [
+        {
+          "name": "cell2x3{1,1}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "cell2x3{2,1}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "4",
+          "mat2str": "4"
+        },
+        {
+          "name": "cell2x3{1,2}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "cell2x3{2,2}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        {
+          "name": "cell2x3{1,3}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        },
+        {
+          "name": "cell2x3{2,3}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "6",
+          "mat2str": "6"
+        }
       ]
     },
     "cellNd": {
@@ -1243,6 +2989,188 @@
         "10",
         "11",
         "12"
+      ],
+      "linearElems": [
+        {
+          "name": "cellNd{1,1,1}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "cellNd{2,1,1}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "cellNd{1,2,1}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        },
+        {
+          "name": "cellNd{2,2,1}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "4",
+          "mat2str": "4"
+        },
+        {
+          "name": "cellNd{1,3,1}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        {
+          "name": "cellNd{2,3,1}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "6",
+          "mat2str": "6"
+        },
+        {
+          "name": "cellNd{1,1,2}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "7",
+          "mat2str": "7"
+        },
+        {
+          "name": "cellNd{2,1,2}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "8",
+          "mat2str": "8"
+        },
+        {
+          "name": "cellNd{1,2,2}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "9",
+          "mat2str": "9"
+        },
+        {
+          "name": "cellNd{2,2,2}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "10",
+          "mat2str": "10"
+        },
+        {
+          "name": "cellNd{1,3,2}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "11",
+          "mat2str": "11"
+        },
+        {
+          "name": "cellNd{2,3,2}",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "12",
+          "mat2str": "12"
+        }
       ]
     },
     "cellEmpty": {
@@ -1313,6 +3241,53 @@
         "1",
         "2",
         "3"
+      ],
+      "linearElems": [
+        {
+          "name": "struct1x3(1)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 1\n    b: 10",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "struct1x3(2)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 2\n    b: 20",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "struct1x3(3)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 3\n    b: 30",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        }
       ]
     },
     "struct2x3": {
@@ -1344,6 +3319,98 @@
         "4",
         "5",
         "6"
+      ],
+      "linearElems": [
+        {
+          "name": "struct2x3(1,1)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 1",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "struct2x3(2,1)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 2",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "struct2x3(1,2)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 3",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "struct2x3(2,2)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 4",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "struct2x3(1,3)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 5",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "struct2x3(2,3)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 6",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        }
       ]
     },
     "structNd": {
@@ -1388,6 +3455,188 @@
         "10",
         "11",
         "12"
+      ],
+      "linearElems": [
+        {
+          "name": "structNd(1,1,1)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 1",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(2,1,1)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 2",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(1,2,1)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 3",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(2,2,1)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 4",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(1,3,1)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 5",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(2,3,1)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 6",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(1,1,2)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 7",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(2,1,2)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 8",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(1,2,2)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 9",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(2,2,2)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 10",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(1,3,2)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 11",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        {
+          "name": "structNd(2,3,2)",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": true,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "a: 12",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        }
       ]
     },
     "structEmpty": {
@@ -1922,6 +4171,53 @@
         "1",
         "2",
         "3"
+      ],
+      "linearElems": [
+        {
+          "name": "objRow(1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "objRow(2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "objRow(3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        }
       ]
     },
     "objCol": {
@@ -1947,6 +4243,53 @@
         "1",
         "2",
         "3"
+      ],
+      "linearElems": [
+        {
+          "name": "objCol(1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "objCol(2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "objCol(3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        }
       ]
     },
     "obj2x3": {
@@ -1978,6 +4321,98 @@
         "22",
         "13",
         "23"
+      ],
+      "linearElems": [
+        {
+          "name": "obj2x3(1,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "11",
+          "mat2str": "11"
+        },
+        {
+          "name": "obj2x3(2,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "21",
+          "mat2str": "21"
+        },
+        {
+          "name": "obj2x3(1,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "12",
+          "mat2str": "12"
+        },
+        {
+          "name": "obj2x3(2,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "22",
+          "mat2str": "22"
+        },
+        {
+          "name": "obj2x3(1,3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "13",
+          "mat2str": "13"
+        },
+        {
+          "name": "obj2x3(2,3)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "23",
+          "mat2str": "23"
+        }
       ]
     },
     "obj2x3x2": {
@@ -2022,6 +4457,188 @@
         "10",
         "11",
         "12"
+      ],
+      "linearElems": [
+        {
+          "name": "obj2x3x2(1,1,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "1",
+          "mat2str": "1"
+        },
+        {
+          "name": "obj2x3x2(2,1,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "2",
+          "mat2str": "2"
+        },
+        {
+          "name": "obj2x3x2(1,2,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        },
+        {
+          "name": "obj2x3x2(2,2,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "4",
+          "mat2str": "4"
+        },
+        {
+          "name": "obj2x3x2(1,3,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        {
+          "name": "obj2x3x2(2,3,1)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "6",
+          "mat2str": "6"
+        },
+        {
+          "name": "obj2x3x2(1,1,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "7",
+          "mat2str": "7"
+        },
+        {
+          "name": "obj2x3x2(2,1,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "8",
+          "mat2str": "8"
+        },
+        {
+          "name": "obj2x3x2(1,2,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "9",
+          "mat2str": "9"
+        },
+        {
+          "name": "obj2x3x2(2,2,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "10",
+          "mat2str": "10"
+        },
+        {
+          "name": "obj2x3x2(1,3,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "11",
+          "mat2str": "11"
+        },
+        {
+          "name": "obj2x3x2(2,3,2)",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "iscomplex": false,
+          "islogical": false,
+          "isobject": false,
+          "isempty": false,
+          "disp": "12",
+          "mat2str": "12"
+        }
       ]
     }
   },

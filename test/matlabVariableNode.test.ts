@@ -100,6 +100,29 @@ describe('MatlabVariableNode.parse — raw shape to _kind', () => {
     expect([n._kind, n._elements]).toEqual(['string', ['a', 'b']]);
     expect(n.children.map((c: Any) => c._kind)).toEqual(['string', 'string']);
   });
+
+  // MATLAB writes `[]` for an empty numeric into a text dictionary, and
+  // `size([])` is 0x0 — the binary dictionary, the .slx and the .mat all report
+  // 0x0 for the same value. 1x0 would be the shape of `x=1; x(1)=[]`, which is a
+  // different value and is what the REMOVAL path produces (see
+  // _updateArrayAfterRemove). A stored bare `[]` has no removal behind it.
+  it('reads a bare empty array as 0x0, the shape MATLAB reports for []', () => {
+    const n = parse([]);
+    expect([n._kind, n._elements, n._dims, n.displayValue]).toEqual(['array', [], [0, 0], '[ ]']);
+  });
+
+  // `{_type: 'struct', _value: '[]'}` is how MATLAB spells struct([]) in a text
+  // dictionary — the only _type:'struct' in the whole corpus, and its value is
+  // always the empty literal. Routed on the leading '[' it went to
+  // parseTypedVector, which read `[]` as one element of 0 and displayed the
+  // 0x0 struct as `[0]` with dims 1x1.
+  it('reads the typed struct literal as an empty struct, not a numeric vector', () => {
+    const n = parse({ _type: 'struct', _value: '[]' });
+    expect([n._kind, n._scalarType, n._dims, n.children.length]).toEqual([
+      'scalar', 'struct', [0, 0], 0,
+    ]);
+    expect(n.displayValue).toBe('<0x0 struct>');
+  });
 });
 
 describe('MatlabVariableNode — displayValue per kind', () => {

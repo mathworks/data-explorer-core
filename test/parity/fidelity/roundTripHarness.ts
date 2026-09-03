@@ -97,14 +97,28 @@ export function serializeModel(model: any, format: SlddFormat): Uint8Array {
 }
 
 /**
+ * Re-parse serialized bytes and return the ROOT node, so a test can compare the
+ * whole tree rather than one entry (see reparseEntry for the single-entry form).
+ */
+export function reparseModel(
+  bytes: Uint8Array,
+  format: SlddFormat,
+  fixture: string,
+  uri: string,
+): any {
+  DataModel.removeDataSource(uri);
+  return addSlddSource(uri, fixture, bytes);
+}
+
+/**
  * Full in-process round trip: reparse the serialized bytes and return the fresh
- * entry node, so a test can assert the edited value survived.
+ * entry node, so a test can assert the edited value survived. Goes through
+ * reparseModel so there is exactly one re-parse path — two harnesses that
+ * disagree is worse than one.
  */
 export function reparseEntry(bytes: Uint8Array, format: SlddFormat, fixture: string, name: string): any {
   const uri = `test://rt-${Math.abs(hash(name + format))}.sldd`;
-  DataModel.removeDataSource(uri);
-  const model = addSlddSource(uri, fixture, bytes);
-  return entryByName(model, uri, name);
+  return entryByName(reparseModel(bytes, format, fixture, uri), uri, name);
 }
 
 export function matlabAvailable(): boolean {

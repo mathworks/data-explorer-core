@@ -55,15 +55,18 @@ const ATOM_BY_KEY: Record<string, PropClass> = {
     description: PropDescription as unknown as PropClass,
 };
 
-// Format a hydrated raw value for display. Arrays render as `[a, b]`; absent
-// values as ''; everything else via String(). (Type-specific formatting can be
-// enriched later; this covers the current Phase 2 props.)
+// Format a hydrated raw value for display. Arrays render the way MATLAB's own
+// mat2str spells a row — `[1 1]`, space-separated — because that is the spelling
+// every other surface in the product uses for the same value (a table cell for a
+// 1x2 double, and PropDimensions for a bus element's Dimensions). A comma-joined
+// `[1, 1]` gave `Simulink.Parameter.Dimensions` a second spelling in the Property
+// Inspector that matched neither. Absent values render ''; everything else String().
 function formatSchemaValue(value: unknown): string {
     if (value === undefined || value === null) {
         return '';
     }
     if (Array.isArray(value)) {
-        return '[' + value.join(', ') + ']';
+        return '[' + value.join(' ') + ']';
     }
     return String(value);
 }
