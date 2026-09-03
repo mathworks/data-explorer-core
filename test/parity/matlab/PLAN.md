@@ -2174,6 +2174,188 @@ git add -A
 git commit -m "[wip] pin N-D .sldd shape against a MATLAB-authored dictionary"
 ```
 
+### Task 6.4: the two write-path holes — defect 15
+
+Phase 3's verifier found two `serializeValue` gaps that no test in the repo
+covers, and I measured both against the Phase 2 corpus before writing this task.
+They belong here because both are shape/structure lost on **write**, which is
+what this phase is about, and because Phase 11's `lossless.test.ts` (Task 11.6)
+is a read-write-read assertion that will fail on both — fix them before the test
+that catches them, not after.
+
+**Hole 1 — every `.mat`-sourced struct serializes to `null`.** Measured on
+`cases.mat`: `structScalar`, `structNest`, `struct1x3`, `struct2x3` and
+`structNd` **all** produce `null`. On the `.mat` path a struct arrives as
+`_kind: 'scalar'` with `_scalarType: 'struct'`, and `_serializeScalar`
+(`MatlabVariableNode.ts:1112`) has arms for `string` and `complex` and a
+`needsTypedLiteral` check, then falls through to `return this._scalarValue` —
+which is `undefined` for a struct. So copying a struct from a `.mat` into a
+dictionary writes `null` and the entry's contents are gone, silently. The text
+`.sldd` path is unaffected only by luck: there a struct has `_kind: undefined`
+and takes the `_rawInput` early return, so the intact `_array_type: 'Struct'`
+object passes straight through. Any *modified* `.sldd` struct hits the same hole.
+
+**Hole 2 — `_serializeArray`'s bare-JSON path carries no shape at all.**
+Measured: `nd2x3x2` from `cases.mat` serializes to `[1,2,3,4,5,6,7,8,9,10,11,12]`
+and `mat2x3` to `[1,2,3,4,5,6]`. There is no `_dimensions` key and no
+`Matrix(...)` header, so a 2x3x2 reads back as a 1x12 and a 2x3 as a 1x6 — and
+because the children are row-major, even the element order is wrong against
+MATLAB's column-major linearization. Note this is a *different* hole from Task
+6.2: that one widens the `Matrix(r,c)` string, which only the typed path emits.
+`_serializeCell` already does the right thing (`_dimensions: this._dims`), so the
+fix is to make the array path match the cell path it sits next to.
+
+**Files:**
+- Modify: `src/datamodel/node/data/MatlabVariableNode.ts:1112` (`_serializeScalar`), `:1128` (`_serializeArray`)
+- Test: `test/serializeShape.test.ts` (create)
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+// Copyright 2026 The MathWorks, Inc.
+//
+// serializeValue must not lose a struct's contents or an array's shape. Both
+// holes are defect 15; both were invisible because no test round-tripped a
+// .mat-sourced struct or an N-D numeric.
+import { describe, it, expect } from 'vitest';
+import { loadFile, findEntry } from './parity/loadFile.js';
+
+const MAT = ['./parity/artifacts/mat/cases.mat', 'cases.mat'] as const;
+
+describe('serializeValue preserves struct contents (defect 15, hole 1)', () => {
+  for (const name of ['structScalar', 'structNest', 'struct1x3', 'struct2x3', 'structNd']) {
+    it(name + ' does not serialize to null', () => {
+      const n = findEntry(loadFile(MAT[0], MAT[1]), name) as any;
+      const out = n.serializeValue();
+      expect(out, 'a null here wipes the entry on save').not.toBe(null);
+      expect(out).not.toBe(undefined);
+      expect((out as Record<string, unknown>)._array_type).toBe('Struct');
+      // The shape must survive too, so the reader rebuilds the same array.
+      expect((out as Record<string, unknown>)._dimensions).toEqual(n._dims);
+    });
+  }
+});
+
+describe('serializeValue preserves array shape (defect 15, hole 2)', () => {
+  it('a 2x3x2 double does not flatten to a bare 12-element list', () => {
+    const n = findEntry(loadFile(MAT[0], MAT[1]), 'nd2x3x2') as any;
+    const out = n.serializeValue() as Record<string, unknown>;
+    // Whatever form it takes, the rank must be recoverable from it.
+    expect(Array.isArray(out), 'a bare array has nowhere to put [2,3,2]').toBe(false);
+    expect(out._dimensions ?? out._value).toBeDefined();
+    if (out._dimensions) { expect(out._dimensions).toEqual([2, 3, 2]); }
+  });
+
+  it('a 2x3 double keeps its two extents', () => {
+    const n = findEntry(loadFile(MAT[0], MAT[1]), 'mat2x3') as any;
+    const out = n.serializeValue() as Record<string, unknown>;
+    expect(Array.isArray(out)).toBe(false);
+    if (out._dimensions) { expect(out._dimensions).toEqual([2, 3]); }
+  });
+});
+```
+
+- [ ] **Step 2: Run it to make sure it fails**
+
+Run: `npx vitest run test/serializeShape.test.ts`
+Expected: FAIL — 5 struct cases assert `null` is not `null`; both array cases assert a bare `Array.isArray` true is false.
+
+- [ ] **Step 3: Implement**
+
+Give `_serializeScalar` the missing struct arm, immediately after the `string` arm. A struct's contents live in its children, exactly as `_serializeCell` reads them:
+
+```ts
+    if (this._scalarType === 'struct') {
+      // Without this arm a struct falls through to `return this._scalarValue`,
+      // which is undefined for a struct -- the entry serializes to null and its
+      // contents are gone. The .sldd path only escapes because it takes the
+      // _rawInput early return; a modified .sldd struct lands here too.
+      return this._serializeStructValue();
+    }
+```
+
+and add the helper next to `_serializeCell`, mirroring its shape so both paths
+emit the one form the readers already accept:
+
+```ts
+  // The `_array_type: 'Struct'` form, rebuilt from the tree. Deliberately the
+  // same shape a text .sldd carries in _rawInput, so a struct read from a .mat
+  // and written to a .sldd round-trips through the existing reader unchanged.
+  _serializeStructValue(): unknown {
+    const fields: string[] = [];
+    const elements: Record<string, unknown>[] = [];
+    for (const child of this.children) {
+      const c = child as MatlabVariableNode;
+      if (!fields.includes(c.name)) {
+        fields.push(c.name);
+      }
+    }
+    // A struct node's children are its fields for a 1x1 and its elements for an
+    // array; StructNode owns the array case, so a MatlabVariableNode struct is
+    // the scalar one and its children are fields.
+    const one: Record<string, unknown> = {};
+    for (const child of this.children) {
+      const c = child as MatlabVariableNode;
+      one[c.name] = c.serializeValue();
+    }
+    elements.push(one);
+    return {
+      _array_type: 'Struct',
+      _dimensions: effectiveDims(this._dims),
+      _elements: elements,
+      _fields: fields,
+      _mw_element_type: 'MATLABArray',
+    };
+  }
+```
+
+Import `effectiveDims` from `../../display/DisplayConvention.js` if the file does not already have it — `grep -n effectiveDims src/datamodel/node/data/MatlabVariableNode.ts` first.
+
+Then close hole 2 by giving the bare path the same `_dimensions` channel the cell path has. Replace the final `return` of `_serializeArray` (`:1147`):
+
+```ts
+    const values = this.children.map(function (c) {
+      return (c as MatlabVariableNode).serializeValue();
+    });
+    // A bare JSON array has nowhere to carry [2,3,2], so a matrix written that
+    // way reads back as a vector. Only a true vector may serialize bare.
+    const d = effectiveDims(this._dims);
+    if (d.length <= 1 || d[0] === 1 || d[1] === 1) {
+      return values;
+    }
+    return {
+      _array_type: 'Matrix',
+      _dimensions: d,
+      _elements: values,
+      _mw_element_type: 'MATLABArray',
+    };
+```
+
+**Check the reader accepts `_array_type: 'Matrix'` before you commit to that
+key.** Run `grep -rn "_array_type" src/` and use whatever spelling the parse side
+already recognizes for a shaped numeric array; if none exists, prefer the typed
+`{_type, _value: 'Matrix(2,3,2)\n...'}` literal Task 6.2 just taught the reader,
+and assert that form in the test instead. Do not invent a form only the writer
+understands — the test's `_dimensions ?? _value` branch permits either, so pick
+the one the reader can actually read back.
+
+- [ ] **Step 4: Run the tests and make sure they pass**
+
+Run: `npx vitest run test/serializeShape.test.ts`
+Expected: PASS.
+
+Then the full suite, because `serializeValue` is on every save path:
+
+Run: `npx vitest run`
+Expected: no new failures. If a `.sldd` write fixture changes bytes, read the diff before accepting it — a shaped form where a bare list used to be is the intended change; anything else is not.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add -A
+git commit -m "[wip] stop serializeValue wiping structs and flattening matrices"
+```
+
 ---
 
 ## Phase 7: wire the display convention — defects 3, 4, 5, 7
@@ -2330,6 +2512,20 @@ git commit -m "[wip] give numeric arrays one display rule: [ ] empty, <mxn class
 - Modify: `src/datamodel/node/data/MatlabVariableNode.ts:466-467` (struct), `:491-531`
 - Test: `test/matlabVariableNode.test.ts` (modify `:133`; add)
 
+> **OBLIGATION — do not regress the column-major read (defect 14).** This task
+> rewrites both formatters wholesale, and both already carry a fix that Phase 5
+> landed: they index the element list `[c * rows + r]`, **not** `[r * cols + c]`.
+> A cell or string element list is column-major (`MatParser.parseMatrix`
+> transposes only its numeric branch, `MatParser.ts:234`), so a row-major read
+> prints MATLAB's `{1 2 3; 4 5 6}` as `{1, 4, 2; 5, 3, 6}`. The listings below
+> already have the correct index — copy them literally. `test/cellElementOrder.test.ts`
+> will fail loudly if this regresses, so run it as part of Step 4, not just the
+> one file named above:
+>
+> ```bash
+> npx vitest run test/matlabVariableNode.test.ts test/cellElementOrder.test.ts
+> ```
+
 - [ ] **Step 1: Write the failing test**
 
 The existing expectation at `test/matlabVariableNode.test.ts:133` pins `{1x8 cell}` for an 8-element cell. Under the count rule 8 <= 10, so that cell now renders its literal. Re-pin the summary with an 11-element cell and correct the 8-element case:
@@ -2386,7 +2582,9 @@ Replace `_formatCell` (lines 491-511) with:
     for (let r = 0; r < rows; r++) {
       const vals: string[] = [];
       for (let c = 0; c < cols; c++) {
-        const child = this.children[r * cols + c];
+        // [c * rows + r], NOT [r * cols + c]: the cell element list is
+        // column-major. See the obligation note at the top of this task.
+        const child = this.children[c * rows + r];
         vals.push(child ? child.displayValue : EMPTY_NUMERIC);
       }
       rowStrs.push(vals.join(', '));
@@ -2413,7 +2611,8 @@ Replace `_formatString` (lines 513-531) with:
     for (let r = 0; r < rows; r++) {
       const vals: string[] = [];
       for (let c = 0; c < cols; c++) {
-        const el = this._elements[r * cols + c];
+        // Column-major, same as _formatCell above.
+        const el = this._elements[c * rows + r];
         vals.push(formatMatlabString(el !== undefined ? String(el) : ''));
       }
       rowStrs.push(vals.join(' '));

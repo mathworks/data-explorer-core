@@ -2,6 +2,7 @@
 
 import { buildPILayout } from './schemaBridge.js';
 import { buildOtherRows } from './piOther.js';
+import { subscriptLabel } from '../display/Subscript.js';
 
 export interface PropClass {
   key: string;
@@ -258,18 +259,28 @@ export default class BaseNode {
       this.parent &&
       (this.parent._kind === 'cell' || this.parent._kind === 'array' || this.parent._kind === 'string')
     ) {
-      const parentName = this.parent.displayName;
-      const idx = this.parent.children.indexOf(this) + 1;
-      const cols = this.parent._dims![1];
-      const isMatrix = this.parent._dims![0] > 1 && cols > 1;
-      if (this.parent._kind === 'cell') {
-        return isMatrix
-          ? parentName + '{' + (Math.floor((idx - 1) / cols) + 1) + ',' + (((idx - 1) % cols) + 1) + '}'
-          : parentName + '{' + idx + '}';
-      }
-      return isMatrix
-        ? parentName + '(' + (Math.floor((idx - 1) / cols) + 1) + ',' + (((idx - 1) % cols) + 1) + ')'
-        : parentName + '(' + idx + ')';
+      // The order is NOT uniform across these three kinds, and assuming it was
+      // mislabelled every non-square cell and string array in every format.
+      //
+      //   'array'  (numeric) ROW-major    -- MatParser.parseMatrix runs its
+      //                                      numeric branch through
+      //                                      transposeFromColMajor (:234).
+      //   'cell'               COLUMN-major -- the cell branch (:317) stores the
+      //   'string'                            elements in file order, and MATLAB
+      //                                        writes them column-major. Nothing
+      //                                        transposes them, on any path.
+      //
+      // Verified against MATLAB's own linearSubs/linearValues for cell2x3 and
+      // strMat in all four formats -- see test/cellElementOrder.test.ts. A square
+      // fixture cannot see this: the label SET is right either way, only the
+      // label->value pairing is wrong.
+      return subscriptLabel(
+        this.parent.displayName,
+        this.parent.children.indexOf(this),
+        this.parent._dims,
+        this.parent._kind === 'array' ? 'row-major' : 'column-major',
+        this.parent._kind === 'cell' ? '{}' : '()',
+      );
     }
     return this._displayName || this.name;
   }

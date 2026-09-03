@@ -5,7 +5,7 @@ import type BaseNode from '../BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
-import type { MatVariable } from '../../parser/MatParser.js';
+import { type MatVariable } from '../../parser/MatParser.js';
 export type { MatVariable };
 export default class MatlabVariableNode extends DataNode {
     _kind: MatlabVariableKind;

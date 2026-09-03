@@ -40,11 +40,38 @@ describe('StructNode parse', () => {
 
   it('uses row,column subscripts for a matrix-shaped struct array', () => {
     // Without correct subscript naming the user sees only a flat list index,
-    // losing the 2-D structure that MATLAB shows.
+    // losing the 2-D structure that MATLAB shows. The element list arrives in
+    // MATLAB's own COLUMN-major order, so element 2 is S(2,1), not S(1,2).
     const node = parseStruct(['x'], [{ x: 1 }, { x: 2 }, { x: 3 }, { x: 4 }], [2, 2]);
     expect(node.children.map((c) => (c as any)._displayName)).toEqual([
-      'S(1,1)', 'S(1,2)', 'S(2,1)', 'S(2,2)',
+      'S(1,1)', 'S(2,1)', 'S(1,2)', 'S(2,2)',
     ]);
+  });
+
+  it('labels a 2x3 struct array in MATLAB column-major order', () => {
+    // MATLAB-authored truth (gen_truth.m, struct2x3): the linear order is
+    // (1,1)(2,1)(1,2)(2,2)(1,3)(2,3), so a label must name the value MATLAB
+    // stores at that subscript — a = row*10 + col here.
+    const node = parseStruct(['a'], [11, 21, 12, 22, 13, 23].map((n) => ({
+      a: { _type: 'double', _value: String(n) },
+    })), [2, 3]);
+    const pairs = node.children.map((c) => [(c as any)._displayName, c.children[0].displayValue]);
+    expect(pairs).toEqual([
+      ['S(1,1)', '11'], ['S(2,1)', '21'], ['S(1,2)', '12'],
+      ['S(2,2)', '22'], ['S(1,3)', '13'], ['S(2,3)', '23'],
+    ]);
+  });
+
+  it('emits three-part subscripts for a rank-3 struct array', () => {
+    // truth.json structNd is 2x3x2; MATLAB's own subscripts run
+    // (1,1,1)(2,1,1)(1,2,1)…(2,3,2) and never mention a row 3.
+    const elems = Array.from({ length: 12 }, (_, i) => ({ a: i + 1 }));
+    const node = parseStruct(['a'], elems, [2, 3, 2]);
+    const labels = node.children.map((c) => (c as any)._displayName as string);
+    expect(labels[0]).toBe('S(1,1,1)');
+    expect(labels[1]).toBe('S(2,1,1)');
+    expect(labels[11]).toBe('S(2,3,2)');
+    expect(labels.some((s) => /\(3,|\(4,/.test(s))).toBe(false);
   });
 
   it('uses linear subscripts for a vector struct array', () => {

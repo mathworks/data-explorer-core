@@ -316,10 +316,15 @@ MATLAB's own `ind2sub` labels and values.
    Fixing only the object/struct pair leaves the numeric path — the common one —
    broken.
 
-   Rank 2 is correct on the numeric/cell/string path: `Kp` labels `Kp(1,1)` …
-   `Kp(2,3)` and its element list is row-major, so labels and data agree.
-   Defect 6's transpose does **not** apply there; it is specific to the
-   object/struct element lists, which arrive column-major.
+   Rank 2 is correct on the **numeric** path only: `Kp` labels `Kp(1,1)` …
+   `Kp(2,3)` and its element list really is row-major, so labels and data agree.
+   An earlier draft of this document extended that claim to cell and string
+   arrays. **That was wrong**, and defect 14 below is the correction:
+   `MatParser.parseMatrix` runs only its *numeric* branch through
+   `transposeFromColMajor` (`MatParser.ts:234`); the cell branch (`:317`) stores
+   `result.value = cells` in file order, which is MATLAB's column order. So the
+   order is not uniform even within rank 2 — numeric is row-major, cell and
+   string join struct and object in being column-major.
 
 9. **`mcosTypedNode.ts:55` truncates an object array's rank, and it is
    visible.** `[dimensions[0], dimensions[1]]` makes a 2x3x2 array report
@@ -373,6 +378,49 @@ MATLAB's own `ind2sub` labels and values.
     does not hold for a **known** class: each element is a `ParameterNode` and
     displays its own `Value` (`w(1,1)` shows `11`). It would hold for
     unknown-class elements, which fall back to the generic `ObjectNode` display.
+
+14. **Cell and string element lists arrive column-major, and both the labels
+    and the inline literal read them row-major.** Found while implementing
+    defect 6's shared helper, and it invalidates this document's own earlier
+    claim (see the rank-2 paragraph above). `MatParser.parseMatrix` calls
+    `transposeFromColMajor` **only** in its numeric branch (`MatParser.ts:234`,
+    guarded by `arrayClass >= 6 && arrayClass <= 15`); the cell branch (`:317`)
+    assigns `result.value = cells` in file order and the struct branch pushes
+    field elements in file order. MATLAB writes all of them down its columns. So
+    at the node layer the order is **not uniform by rank, it is uniform by
+    kind**: numeric is row-major, and cell, string, struct and object are
+    column-major. Two symptoms, both real, both format-independent:
+    `BaseNode.displayName` passed `'row-major'` for every kind, so MATLAB's
+    `c{1,2}` (value `2`) was labelled onto the element holding `4`; and
+    `_formatCell`/`_formatString` build the inline literal by reading
+    `[r * cols + c]`, printing MATLAB's `{1 2 3; 4 5 6}` as
+    `{1, 4, 2; 5, 3, 6}`. A square fixture cannot see either one — the label SET
+    and the literal's shape are both right, only the pairing is wrong — and
+    every cell/string fixture in the repo was 2x2 or a vector. The non-square
+    `cell2x3` and `strMat` in `cases.mat` are what exposed it, in all four
+    formats. Fixed in Phase 5 and locked by `test/cellElementOrder.test.ts`,
+    which also carries a numeric control so a future "make everything
+    column-major" fix cannot pass.
+
+15. **`serializeValue` wipes a `.mat` struct and flattens every matrix.** Two
+    write-path holes, found by Phase 3's verifier and measured against
+    `cases.mat`. First: all five `.mat` struct cases — `structScalar`,
+    `structNest`, `struct1x3`, `struct2x3`, `structNd` — serialize to `null`.
+    On the `.mat` path a struct is `_kind: 'scalar'` / `_scalarType: 'struct'`,
+    and `_serializeScalar` (`MatlabVariableNode.ts:1112`) has no struct arm, so
+    it falls through to `return this._scalarValue`, which is `undefined` for a
+    struct. Copy a struct from a `.mat` into a dictionary and the entry's
+    contents are silently gone. The text `.sldd` escapes only because its struct
+    has `_kind: undefined` and takes the `_rawInput` early return — a *modified*
+    `.sldd` struct hits the same hole. Second: `_serializeArray`'s bare-JSON path
+    (`:1147`) emits a naked list, so `nd2x3x2` writes as `[1..12]` and `mat2x3`
+    as `[1,2,3,4,5,6]` — no `_dimensions`, no `Matrix(...)` header, nothing to
+    carry the shape, and since the children are row-major the element order is
+    wrong against MATLAB's column-major linearization too. `_serializeCell`,
+    directly alongside, does carry `_dimensions`. Distinct from defect 12, which
+    widens the `Matrix(r,c)` string only the *typed* path emits. Owned by Phase 6
+    Task 6.4, deliberately ahead of the `lossless.test.ts` round-trip in Phase 11
+    that would otherwise land red.
 
 **Consequence to accept: `valueEditable` is keyed on the `<...>` form.**
 `BaseNode.valueEditable` (`:276-282`) returns false for any display value

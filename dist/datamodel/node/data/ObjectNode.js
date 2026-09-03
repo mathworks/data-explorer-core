@@ -8,6 +8,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
+import { subscriptLabel } from '../../display/Subscript.js';
 export default class ObjectNode extends DataNode {
     constructor(name, parent, arrayClass, serial) {
         super(name, parent, serial);
@@ -157,9 +158,6 @@ export default class ObjectNode extends DataNode {
         if (elements.length > 1) {
             node._isElementArray = true;
             const dims = rawVal._dimensions || [1, elements.length];
-            const rows = dims[0];
-            const cols = dims[1];
-            const isMatrix = rows > 1 && cols > 1;
             elements.forEach((elem, ei) => {
                 // Each element is a SCALAR object of the same class. Route it back
                 // through NodeRegistry as a single-element value object so a KNOWN
@@ -174,9 +172,11 @@ export default class ObjectNode extends DataNode {
                     _elements: [{ _properties: elem._properties || {} }],
                 };
                 const elemNode = NodeRegistry.parseValue(elemRaw, String(ei), node);
-                elemNode._displayName = isMatrix
-                    ? name + '(' + (Math.floor(ei / cols) + 1) + ',' + ((ei % cols) + 1) + ')'
-                    : name + '(' + (ei + 1) + ')';
+                // The MCOS decoder and both SLDD paths deliver elements in MATLAB's
+                // own COLUMN-major order, so element ei is MATLAB's linear index
+                // ei+1. Reading it row-major named 4 of the 6 elements of a 2x3
+                // array after the wrong object.
+                elemNode._displayName = subscriptLabel(name, ei, dims, 'column-major', '()');
                 node.addChild(elemNode);
             });
         }

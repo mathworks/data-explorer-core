@@ -9,6 +9,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
+import { subscriptLabel } from '../../display/Subscript.js';
 export default class StructNode extends DataNode {
     get icon() {
         return 'wsTree';
@@ -199,9 +200,6 @@ export default class StructNode extends DataNode {
         const elements = rawVal._elements || [];
         if (elements.length > 1) {
             const dims = rawVal._dimensions || [1, elements.length];
-            const rows = dims[0];
-            const cols = dims[1];
-            const isMatrix = rows > 1 && cols > 1;
             elements.forEach((elem, ei) => {
                 const elemSerial = {
                     _dimensions: [1, 1],
@@ -210,9 +208,8 @@ export default class StructNode extends DataNode {
                 };
                 const elemNode = new StructNode(String(ei), node, elemSerial);
                 elemNode._isElementNode = true;
-                elemNode._displayName = isMatrix
-                    ? name + '(' + (Math.floor(ei / cols) + 1) + ',' + (ei % cols + 1) + ')'
-                    : name + '(' + (ei + 1) + ')';
+                // Column-major, as MATLAB stores it — see ObjectNode.
+                elemNode._displayName = subscriptLabel(name, ei, dims, 'column-major', '()');
                 fields.forEach((field) => {
                     const childNode = NodeRegistry.parseValue(elem[field], field, elemNode);
                     elemNode.addChild(childNode);

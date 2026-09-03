@@ -11,6 +11,9 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
+import { parseMatrix } from '../../parser/MatParser.js';
+import { elementCount } from '../../display/DisplayConvention.js';
+import { subscriptLabel } from '../../display/Subscript.js';
 import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, formatMatlabNum, parseMatlabNum, transposeToColumnMajor, pad as xmlPad, } from '../../parser/XmlUtils.js';
 // ---- Pure value helpers ----
 // None of these read node state, which is why they are module-local functions and
@@ -34,9 +37,12 @@ const MCOS_ICON_MAP = {
     'Simulink.Breakpoint': 'wsSimulinkBreakpoint',
     'Simulink.ValueType': 'wsValue',
 };
-// Stands in for a cell slot the parser could not read (see _createFromMatCell).
+// An empty 0x0 double, MATLAB's own `[]`. Stands in for a cell slot the parser
+// could not read (see _createFromMatCell) and for a struct-array element that no
+// longer has one of the array's fields (see _buildVarObject): in both places a
+// hole must stay a hole, or every later element slides one slot early.
 // A fresh object per call, since the node built from it keeps a reference.
-function emptyCellSlot() {
+function emptyDouble() {
     return {
         name: '',
         className: 'double',
@@ -47,7 +53,14 @@ function emptyCellSlot() {
         fields: null,
     };
 }
-function decodeCdata(str) {
+// A text .sldd stores a value its XML schema cannot spell as uuencoded bytes:
+// six bits per printable character, offset by 0x20. What those bytes CONTAIN is
+// an 8-byte preamble followed by one MAT-file miMATRIX element — so decoding
+// stops here and MatParser reads the rest. This function used to keep going and
+// hand-read a 2-D complex double at fixed offsets (rows at 40, cols at 44),
+// which meant every other class MATLAB puts in a cdata came back as garbage
+// complex numbers or fell through to a char.
+function uudecode(str) {
     const bits = [];
     for (let i = 0; i < str.length; i++) {
         const v = str.charCodeAt(i) - 0x20;
@@ -63,33 +76,10 @@ function decodeCdata(str) {
         }
         bytes[i] = byte;
     }
-    const dv = new DataView(bytes.buffer);
-    const rows = dv.getInt32(40, true);
-    const cols = dv.getInt32(44, true);
-    let offset = 48;
-    const nameWord = dv.getUint32(offset, true);
-    const nameHigh = (nameWord >> 16) & 0xffff;
-    if (nameHigh > 0 && nameHigh <= 4) {
-        offset += 8;
-    }
-    else {
-        const nSize = dv.getUint32(offset + 4, true);
-        offset += 8 + Math.ceil(nSize / 8) * 8;
-    }
-    offset += 8;
-    const numElements = rows * cols;
-    const realParts = [];
-    for (let i = 0; i < numElements; i++) {
-        realParts.push(dv.getFloat64(offset + i * 8, true));
-    }
-    offset += Math.ceil((numElements * 8) / 8) * 8;
-    offset += 8;
-    const imagParts = [];
-    for (let i = 0; i < numElements; i++) {
-        imagParts.push(dv.getFloat64(offset + i * 8, true));
-    }
-    return { rows, cols, realParts, imagParts };
+    return bytes;
 }
+// MAT-file element type miMATRIX: the one thing a cdata payload ever holds.
+const MI_MATRIX = 14;
 // The MATLAB numeric classes a bare JSON number cannot carry. JSON has ONE number
 // type, so an int32 or a single written as a plain number reads back as a double —
 // a silent class change, not a rounding nit. `double` needs no tag.
@@ -137,14 +127,6 @@ function needsTypedLiteral(type, value) {
         return typeof value !== 'boolean';
     }
     return typeof value === 'number' && !isFinite(value);
-}
-function formatComplex(real, imag) {
-    const r = String(real);
-    const im = String(imag);
-    if (imag >= 0) {
-        return r + '+' + im + 'i';
-    }
-    return r + im + 'i';
 }
 function formatMatrix(rows, cols, elements) {
     if (elements.length === 0) {
@@ -415,7 +397,12 @@ export default class MatlabVariableNode extends DataNode {
         for (let r = 0; r < rows; r++) {
             const vals = [];
             for (let c = 0; c < cols; c++) {
-                const child = this.children[r * cols + c];
+                // A cell's element list is COLUMN-major -- MatParser's cell branch does
+                // not transpose, unlike its numeric branch -- so display position (r,c)
+                // is list index c*rows+r. Reading r*cols+c here transposed every
+                // non-square cell's literal: MATLAB's {1 2 3; 4 5 6} printed as
+                // {1, 4, 2; 5, 3, 6}. See test/cellElementOrder.test.ts.
+                const child = this.children[c * rows + r];
                 vals.push(child ? child.displayValue : '[]');
             }
             rowStrs.push(vals.join(', '));
@@ -437,7 +424,9 @@ export default class MatlabVariableNode extends DataNode {
         for (let r = 0; r < rows; r++) {
             const vals = [];
             for (let c = 0; c < cols; c++) {
-                const el = this._elements[r * cols + c];
+                // COLUMN-major, exactly as in _formatCell above: a string array's element
+                // list is not transposed on the way in either.
+                const el = this._elements[c * rows + r];
                 vals.push(formatMatlabString(el !== undefined ? String(el) : ''));
             }
             rowStrs.push(vals.join(' '));
@@ -1305,17 +1294,38 @@ export default class MatlabVariableNode extends DataNode {
         if (this._scalarType === 'struct') {
             v.className = 'struct';
             const fields = {};
-            // A struct ARRAY parses each field as one MatVariable PER ELEMENT, but the
-            // tree models only element 1 (_createFromMatStruct takes fieldVar[0]), so a
-            // rebuild can speak for that element alone. Replaying the remaining elements
-            // from the parsed snapshot keeps them; rebuilding the field as a lone
-            // MatVariable would drop every element after the first — turning a 1x2
-            // struct into a 1x1 on the first edit anywhere in the file.
-            const parsedFields = this._matVar?.fields;
-            for (const child of this.children) {
-                const rebuilt = child._var;
-                const parsed = parsedFields?.[child.name];
-                fields[child.name] = Array.isArray(parsed) ? [rebuilt, ...parsed.slice(1)] : rebuilt;
+            if (elementCount(this._dims) > 1) {
+                // A struct ARRAY models one child per ELEMENT, each holding that
+                // element's fields, so a field rebuilds as one MatVariable per element
+                // in the same column-major order MatParser read. This replaces a
+                // replay-from-snapshot compensation that could only ever speak for
+                // element 1 — an edit to element 2 was silently discarded on save.
+                const fieldNames = [];
+                for (const elem of this.children) {
+                    for (const f of elem.children) {
+                        if (fieldNames.indexOf(f.name) < 0) {
+                            fieldNames.push(f.name);
+                        }
+                    }
+                }
+                for (const fname of fieldNames) {
+                    fields[fname] = this.children.map(function (elem) {
+                        const f = elem.children.find(function (c) {
+                            return c.name === fname;
+                        });
+                        // A MATLAB struct array is homogeneous, so every element has every
+                        // field — but a whole-value edit ON an element node clears its
+                        // children (_applyParsed), and a save must not throw on the way to
+                        // the writer. An empty [] holds the element's slot; dropping it would
+                        // slide every later element one position early.
+                        return f ? f._var : emptyDouble();
+                    });
+                }
+            }
+            else {
+                for (const child of this.children) {
+                    fields[child.name] = child._var;
+                }
             }
             v.fields = fields;
         }
@@ -1484,12 +1494,42 @@ export default class MatlabVariableNode extends DataNode {
         node._scalarType = 'struct';
         node._scalarValue = null;
         node._dims = variable.dimensions.slice();
-        if (variable.fields) {
-            for (const [fieldName, fieldVar] of Object.entries(variable.fields)) {
+        if (!variable.fields) {
+            return node;
+        }
+        const fieldNames = Object.keys(variable.fields);
+        const count = elementCount(node._dims);
+        if (count <= 1) {
+            for (const fieldName of fieldNames) {
+                const fieldVar = variable.fields[fieldName];
+                // A 1x1 struct stores the field directly, but tolerate the array form.
                 const childVar = Array.isArray(fieldVar) ? fieldVar[0] : fieldVar;
-                const child = MatlabVariableNode.parseMatVariable(childVar, fieldName, node);
-                node.addChild(child);
+                if (childVar) {
+                    node.addChild(MatlabVariableNode.parseMatVariable(childVar, fieldName, node));
+                }
             }
+            return node;
+        }
+        // A struct ARRAY gets one child per element, each holding that element's own
+        // fields. Keeping only fields[f][0] used to make every element after the
+        // first invisible, and forced _buildVarObject to replay them from the parse
+        // snapshot on save. MatParser fills fields[f] in MATLAB's column-major
+        // order, so element ei is MATLAB's linear index ei+1.
+        for (let ei = 0; ei < count; ei++) {
+            const elemNode = new MatlabVariableNode(String(ei + 1), node, {});
+            elemNode._kind = 'scalar';
+            elemNode._scalarType = 'struct';
+            elemNode._scalarValue = null;
+            elemNode._dims = [1, 1];
+            elemNode._displayName = subscriptLabel(name, ei, node._dims, 'column-major', '()');
+            for (const fieldName of fieldNames) {
+                const fieldVar = variable.fields[fieldName];
+                const childVar = Array.isArray(fieldVar) ? fieldVar[ei] : fieldVar;
+                if (childVar) {
+                    elemNode.addChild(MatlabVariableNode.parseMatVariable(childVar, fieldName, elemNode));
+                }
+            }
+            node.addChild(elemNode);
         }
         return node;
     }
@@ -1509,7 +1549,7 @@ export default class MatlabVariableNode extends DataNode {
             // cell rebuilt for the save path put 2 and 3 one position early. A hole
             // becomes an explicit empty 0x0 double instead, which is both what MATLAB
             // itself shows for an empty cell slot and a value that writes back cleanly.
-            const child = MatlabVariableNode.parseMatVariable(cell ?? emptyCellSlot(), String(i + 1), node);
+            const child = MatlabVariableNode.parseMatVariable(cell ?? emptyDouble(), String(i + 1), node);
             node.addChild(child);
         });
         return node;
@@ -1627,33 +1667,21 @@ export default class MatlabVariableNode extends DataNode {
             return MatlabVariableNode._parseCdataText(rawVal, name, parent);
         }
         try {
-            const { rows, cols, realParts, imagParts } = decodeCdata(valStr);
-            const numElements = rows * cols;
-            if (numElements === 1) {
-                const node = new MatlabVariableNode(name, parent, rawVal);
-                node._rawInput = rawVal;
-                node._kind = 'scalar';
-                node._dims = [1, 1];
-                node._scalarType = 'complex';
-                node._scalarValue = formatComplex(realParts[0], imagParts[0]);
-                return node;
+            const bytes = uudecode(valStr);
+            const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            // 8-byte preamble, then one miMATRIX element: tag (type, byte count) at 8,
+            // payload at 16.
+            const tagType = dv.getUint32(8, true);
+            const tagSize = dv.getUint32(12, true);
+            if (tagType !== MI_MATRIX) {
+                throw new Error('cdata is not a MAT matrix element');
             }
-            const rowMajor = [];
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    rowMajor.push(formatComplex(realParts[c * rows + r], imagParts[c * rows + r]));
-                }
-            }
-            const node = new MatlabVariableNode(name, parent, rawVal);
+            const variable = parseMatrix(dv, 16, tagSize);
+            const node = MatlabVariableNode.parseMatVariable(variable, name, parent);
+            // parseMatVariable's factories set _matVar/_rawBytes but not _rawInput, and
+            // an untouched node writes itself back by replaying _rawInput verbatim. Set
+            // it so a cdata entry nobody edited still round-trips byte-identical.
             node._rawInput = rawVal;
-            node._kind = 'array';
-            node._scalarType = 'double';
-            node._dims = [rows, cols];
-            node._elements = rowMajor;
-            rowMajor.forEach(function (el, i) {
-                const child = MatlabVariableNode._createScalar(el, 'complex', String(i + 1), node);
-                node.addChild(child);
-            });
             return node;
         }
         catch (_e) {

@@ -252,9 +252,32 @@ describe('BaseNode.displayName for positional elements', () => {
     ]);
   });
 
-  it('uses row,col braces for a cell matrix', () => {
+  it('uses row,col braces for a cell matrix, in MATLAB COLUMN-major order', () => {
+    // A cell's element list is column-major (MatParser's cell branch does not
+    // transpose, unlike its numeric branch), so element 1 is (2,1), not (1,2).
+    // This expectation used to read c{1,2} for element 1, which on this square
+    // fixture produced the right label SET while pairing every off-diagonal
+    // element with the wrong value. Verified against MATLAB's own cell2x3 in
+    // test/cellElementOrder.test.ts.
     const p = elementParent('cell', [2, 2], 'c');
-    expect(withChildren(p, 4).map((k) => k.displayName)).toEqual(['c{1,1}', 'c{1,2}', 'c{2,1}', 'c{2,2}']);
+    expect(withChildren(p, 4).map((k) => k.displayName)).toEqual(['c{1,1}', 'c{2,1}', 'c{1,2}', 'c{2,2}']);
+  });
+
+  it('emits a three-part subscript for a rank-3 array, not a row index past the rows', () => {
+    const p = elementParent('array', [2, 3, 2], 'A');
+    const got = withChildren(p, 12).map((k) => k.displayName);
+    expect(got).toEqual([
+      'A(1,1,1)', 'A(1,2,1)', 'A(1,3,1)', 'A(2,1,1)', 'A(2,2,1)', 'A(2,3,1)',
+      'A(1,1,2)', 'A(1,2,2)', 'A(1,3,2)', 'A(2,1,2)', 'A(2,2,2)', 'A(2,3,2)',
+    ]);
+  });
+
+  it('emits a three-part BRACED subscript for a rank-3 cell', () => {
+    const p = elementParent('cell', [2, 2, 2], 'C');
+    const got = withChildren(p, 8).map((k) => k.displayName);
+    expect(got[0]).toBe('C{1,1,1}');
+    expect(got[7]).toBe('C{2,2,2}');
+    expect(got.some((s) => /\{3,|\{4,/.test(s))).toBe(false);
   });
 
   it('nests the parent subscript, so a matrix inside a cell reads as one path', () => {

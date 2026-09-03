@@ -67,14 +67,40 @@ describe('general array rule — NodeClassMap.parseValue routing (format-indepen
     expect((node as any).Value).toBe(7);
   });
 
-  it('labels a 2x2 matrix of objects with (row,col) subscripts', () => {
+  it('labels a 2x2 matrix of objects in MATLAB column-major order', () => {
     const val = arrayValue('Simulink.Parameter', [2, 2], [
       { Value: 1 }, { Value: 2 }, { Value: 3 }, { Value: 4 },
     ]);
     const node = NodeRegistry.parseValue(val, 'm', null);
+    // The elements arrive in MATLAB's own order, so element 2 IS m(2,1).
     expect(node.children.map((c: any) => c._displayName)).toEqual([
-      'm(1,1)', 'm(1,2)', 'm(2,1)', 'm(2,2)',
+      'm(1,1)', 'm(2,1)', 'm(1,2)', 'm(2,2)',
     ]);
+  });
+
+  it('maps a 2x3 object array label to the value MATLAB puts there', () => {
+    // MATLAB-authored truth (gen_truth.m, obj2x3): Value = row*10 + col, and
+    // the element list arrives column-major: 11 21 12 22 13 23.
+    const val = arrayValue('Simulink.Parameter', [2, 3], [
+      { Value: 11 }, { Value: 21 }, { Value: 12 },
+      { Value: 22 }, { Value: 13 }, { Value: 23 },
+    ]);
+    const node = NodeRegistry.parseValue(val, 'w', null);
+    const pairs = node.children.map((c: any) => [c._displayName, c.Value]);
+    expect(pairs).toEqual([
+      ['w(1,1)', 11], ['w(2,1)', 21], ['w(1,2)', 12],
+      ['w(2,2)', 22], ['w(1,3)', 13], ['w(2,3)', 23],
+    ]);
+  });
+
+  it('emits three-part subscripts for a rank-3 object array', () => {
+    const elems = Array.from({ length: 12 }, (_, i) => ({ Value: i + 1 }));
+    const val = arrayValue('Simulink.Parameter', [2, 3, 2], elems);
+    const node = NodeRegistry.parseValue(val, 'v', null);
+    const labels = node.children.map((c: any) => c._displayName);
+    expect(labels[0]).toBe('v(1,1,1)');
+    expect(labels[11]).toBe('v(2,3,2)');
+    expect(labels.some((s: string) => /\(3,|\(4,/.test(s))).toBe(false);
   });
 });
 

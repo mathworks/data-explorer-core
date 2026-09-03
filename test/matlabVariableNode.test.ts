@@ -22,6 +22,7 @@ import { describe, it, expect } from 'vitest';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { NOT_AVAILABLE } from '../src/datamodel/parser/McosParser.js';
 import * as NodeClassMap from '../src/datamodel/node/NodeClassMap.js';
+import { CLASS, MI, arrayFlags, dims, matrix, numericData, varName } from './tools/matBytes.js';
 
 // These tests reach into the node's internal state (_kind, _elements, _dims) on
 // purpose: that state is the contract each mutation path has to keep consistent,
@@ -244,12 +245,21 @@ describe('MatlabVariableNode — non-finite values survive display and save', ()
   });
 });
 
-// A complex value reaches the reader as `_type: 'cdata'` in one of two spellings:
-// plain text ('1+2i') for values the writer could spell out, or a base-64-ish
-// 6-bit packing of the raw MAT byte stream for the rest. The binary form carries
-// its real and imaginary parts in separate blocks at offsets that depend on how
-// the variable name was stored, so a misread offset silently returns the wrong
-// number rather than failing.
+// A value reaches the reader as `_type: 'cdata'` in one of two spellings: plain
+// text ('1+2i') for a complex value the writer could spell out, or a 6-bit
+// packing (uuencode) of raw MAT bytes for the rest. The binary form is an 8-byte
+// preamble followed by ONE miMATRIX element, which MatParser reads — see
+// test/cdataParse.test.ts for the MATLAB-authored proof of that layout and for
+// the classes other than complex double that appear there.
+//
+// The fixture below builds a real miMATRIX with test/tools/matBytes.ts. It used
+// to hand-place rows at byte 40 and cols at 44 with offsets 0-39 left zero,
+// which is not a MAT element at all — it was reverse-engineered from the reader
+// this suite was testing. MATLAB's own bytes for `cplxScalar` are
+// `00 01 49 4d 00 00 00 00` then `0e 00 00 00 48 00 00 00` (miMATRIX, 72 bytes)
+// then array flags, dims, name, real, imag. Dims data happens to land at 40/44
+// in that layout, which is exactly why the old reader worked for a 2-D complex
+// double and for nothing else.
 describe('MatlabVariableNode — complex values from cdata', () => {
   // Inverse of the reader's 6-bit unpacking, so a test can hand it real bytes.
   function encodeCdata(bytes: Uint8Array): string {
@@ -278,34 +288,45 @@ describe('MatlabVariableNode — complex values from cdata', () => {
     expect([n._kind, n._scalarType, n._scalarValue]).toEqual(['scalar', 'complex', '1.5-2i']);
   });
 
+  // MATLAB's preamble ahead of the element: two version bytes then 'IM'.
+  const PREAMBLE = [0x00, 0x01, 0x49, 0x4d, 0x00, 0x00, 0x00, 0x00];
+
+  /** The 8-byte preamble plus one complex-double miMATRIX, as a cdata payload. */
+  function cdataOf(nameSub: Uint8Array, re: number, im: number): Uint8Array {
+    const el = matrix([
+      arrayFlags(CLASS.DOUBLE, { complex: true }),
+      dims([1, 1]),
+      nameSub,
+      numericData(MI.DOUBLE, [re]),
+      numericData(MI.DOUBLE, [im]),
+    ]);
+    const out = new Uint8Array(8 + el.length);
+    out.set(PREAMBLE, 0);
+    out.set(el, 8);
+    return out;
+  }
+
+  /**
+   * A name subelement in the SMALL-element form: byte count in the tag word's
+   * high half, type in its low half, payload in the tag word's own upper 4 bytes.
+   * matBytes only writes the long form, and both forms shift every later
+   * subelement by a different amount.
+   */
+  function smallName(s: string): Uint8Array {
+    const out = new Uint8Array(8);
+    new DataView(out.buffer).setUint32(0, (s.length << 16) | MI.INT8, true);
+    out.set(new TextEncoder().encode(s), 4);
+    return out;
+  }
+
   it('reads the binary spelling, whichever way the name was stored', () => {
-    // The name is either packed into the tag word (small-data form) or written as
-    // a sized, 8-byte-padded block; each shifts the data blocks by a different
+    // The name is either packed into the tag word (small-element form) or written
+    // as a sized, 8-byte-padded block; each shifts the data blocks by a different
     // amount. Reading the wrong one lands mid-double and yields garbage.
-    const scalarBytes = (nameInline: boolean, re: number, im: number): Uint8Array => {
-      const bytes = new Uint8Array(nameInline ? 88 : 96);
-      const dv = new DataView(bytes.buffer);
-      dv.setInt32(40, 1, true);
-      dv.setInt32(44, 1, true);
-      let off = 48;
-      if (nameInline) {
-        dv.setUint32(off, 0x0002_0001, true);
-        off += 8;
-      } else {
-        dv.setUint32(off, 1, true);
-        dv.setUint32(off + 4, 3, true);
-        off += 16;
-      }
-      dv.setUint32(off, 9, true);
-      dv.setUint32(off + 4, 8, true);
-      dv.setFloat64(off + 8, re, true);
-      dv.setUint32(off + 16, 9, true);
-      dv.setUint32(off + 20, 8, true);
-      dv.setFloat64(off + 24, im, true);
-      return bytes;
-    };
-    expect(parse({ _type: 'cdata', _value: encodeCdata(scalarBytes(true, 1.5, -2.5)) })._scalarValue).toBe('1.5-2.5i');
-    expect(parse({ _type: 'cdata', _value: encodeCdata(scalarBytes(false, 3, 4)) })._scalarValue).toBe('3+4i');
+    // MATLAB itself writes the long form with a zero-length name here.
+    expect(parse({ _type: 'cdata', _value: encodeCdata(cdataOf(varName(''), 1.5, -2.5)) })._scalarValue).toBe('1.5-2.5i');
+    expect(parse({ _type: 'cdata', _value: encodeCdata(cdataOf(varName('abc'), 3, 4)) })._scalarValue).toBe('3+4i');
+    expect(parse({ _type: 'cdata', _value: encodeCdata(cdataOf(smallName('ab'), 3, 4)) })._scalarValue).toBe('3+4i');
   });
 
   it('keeps an undecodable payload as text instead of losing it', () => {
@@ -914,7 +935,11 @@ describe('MatlabVariableNode — string-array children', () => {
   it('refuses add/remove on a 2-D string matrix, which cannot stay rectangular', () => {
     const n = strArray(['a', 'b', 'c', 'd'], [2, 2]);
     expect([n.canAddChild(), n.canRemoveChild()]).toEqual([false, false]);
-    expect(n.displayValue).toBe('["a" "b"; "c" "d"]');
+    // COLUMN-major element list, as MATLAB writes it: ['a','b','c','d'] at 2x2 is
+    // (1,1)=a (2,1)=b (1,2)=c (2,2)=d. Was ["a" "b"; "c" "d"], a row-major
+    // reading -- see test/cellElementOrder.test.ts, where MATLAB's own 2x3 strMat
+    // pins the order. The add/remove refusal this test exists for is unaffected.
+    expect(n.displayValue).toBe('["a" "c"; "b" "d"]');
   });
 
   it('removes an element from the middle, keeping text and numbering aligned', () => {
