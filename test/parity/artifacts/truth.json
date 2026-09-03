@@ -1,0 +1,2050 @@
+{
+  "vars": {
+    "kp": {
+      "name": "kp",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1.5000",
+      "mat2str": "1.5"
+    },
+    "scalarD": {
+      "name": "scalarD",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "3.1416",
+      "mat2str": "3.14159265358979"
+    },
+    "negD": {
+      "name": "negD",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "-2.5000",
+      "mat2str": "-2.5"
+    },
+    "bigD": {
+      "name": "bigD",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1.0000e+300",
+      "mat2str": "1e+300"
+    },
+    "tinyD": {
+      "name": "tinyD",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1.0000e-300",
+      "mat2str": "1e-300"
+    },
+    "scalarS": {
+      "name": "scalarS",
+      "class": "single",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "3.1416",
+      "mat2str": "3.14159274101257"
+    },
+    "boolT": {
+      "name": "boolT",
+      "class": "logical",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": true,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1",
+      "mat2str": "true"
+    },
+    "boolF": {
+      "name": "boolF",
+      "class": "logical",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": true,
+      "isobject": false,
+      "isempty": false,
+      "disp": "0",
+      "mat2str": "false"
+    },
+    "charStr": {
+      "name": "charStr",
+      "class": "char",
+      "size": [
+        1,
+        4
+      ],
+      "numel": 4,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "it's",
+      "mat2str": "'it''s'"
+    },
+    "strScalar": {
+      "name": "strScalar",
+      "class": "string",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "world",
+      "mat2str": "\"world\""
+    },
+    "cplxScalar": {
+      "name": "cplxScalar",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "3.0000 + 4.0000i",
+      "mat2str": "3+4i"
+    },
+    "infP": {
+      "name": "infP",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "Inf",
+      "mat2str": "Inf"
+    },
+    "infN": {
+      "name": "infN",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "-Inf",
+      "mat2str": "-Inf"
+    },
+    "nanV": {
+      "name": "nanV",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "NaN",
+      "mat2str": "NaN"
+    },
+    "nonFinVec": {
+      "name": "nonFinVec",
+      "class": "double",
+      "size": [
+        1,
+        5
+      ],
+      "numel": 5,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1   Inf  -Inf   NaN     5",
+      "mat2str": "[1 Inf -Inf NaN 5]",
+      "linearSubs": [
+        "nonFinVec(1)",
+        "nonFinVec(2)",
+        "nonFinVec(3)",
+        "nonFinVec(4)",
+        "nonFinVec(5)"
+      ],
+      "linearValues": [
+        "1",
+        "Inf",
+        "-Inf",
+        "NaN",
+        "5"
+      ]
+    },
+    "s_int8": {
+      "name": "s_int8",
+      "class": "int8",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "7",
+      "mat2str": "7"
+    },
+    "max_int8": {
+      "name": "max_int8",
+      "class": "int8",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "127",
+      "mat2str": "127"
+    },
+    "min_int8": {
+      "name": "min_int8",
+      "class": "int8",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "-128",
+      "mat2str": "-128"
+    },
+    "s_int16": {
+      "name": "s_int16",
+      "class": "int16",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "7",
+      "mat2str": "7"
+    },
+    "max_int16": {
+      "name": "max_int16",
+      "class": "int16",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "32767",
+      "mat2str": "32767"
+    },
+    "min_int16": {
+      "name": "min_int16",
+      "class": "int16",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "-32768",
+      "mat2str": "-32768"
+    },
+    "s_int32": {
+      "name": "s_int32",
+      "class": "int32",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "7",
+      "mat2str": "7"
+    },
+    "max_int32": {
+      "name": "max_int32",
+      "class": "int32",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "2147483647",
+      "mat2str": "2147483647"
+    },
+    "min_int32": {
+      "name": "min_int32",
+      "class": "int32",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "-2147483648",
+      "mat2str": "-2147483648"
+    },
+    "s_int64": {
+      "name": "s_int64",
+      "class": "int64",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "7",
+      "mat2str": "7"
+    },
+    "max_int64": {
+      "name": "max_int64",
+      "class": "int64",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "9223372036854775807",
+      "mat2str": "9223372036854775807"
+    },
+    "min_int64": {
+      "name": "min_int64",
+      "class": "int64",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "-9223372036854775808",
+      "mat2str": "-9223372036854775808"
+    },
+    "s_uint8": {
+      "name": "s_uint8",
+      "class": "uint8",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "7",
+      "mat2str": "7"
+    },
+    "max_uint8": {
+      "name": "max_uint8",
+      "class": "uint8",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "255",
+      "mat2str": "255"
+    },
+    "min_uint8": {
+      "name": "min_uint8",
+      "class": "uint8",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "0",
+      "mat2str": "0"
+    },
+    "s_uint16": {
+      "name": "s_uint16",
+      "class": "uint16",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "7",
+      "mat2str": "7"
+    },
+    "max_uint16": {
+      "name": "max_uint16",
+      "class": "uint16",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "65535",
+      "mat2str": "65535"
+    },
+    "min_uint16": {
+      "name": "min_uint16",
+      "class": "uint16",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "0",
+      "mat2str": "0"
+    },
+    "s_uint32": {
+      "name": "s_uint32",
+      "class": "uint32",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "7",
+      "mat2str": "7"
+    },
+    "max_uint32": {
+      "name": "max_uint32",
+      "class": "uint32",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "4294967295",
+      "mat2str": "4294967295"
+    },
+    "min_uint32": {
+      "name": "min_uint32",
+      "class": "uint32",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "0",
+      "mat2str": "0"
+    },
+    "s_uint64": {
+      "name": "s_uint64",
+      "class": "uint64",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "7",
+      "mat2str": "7"
+    },
+    "maxU64": {
+      "name": "maxU64",
+      "class": "uint64",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "18446744073709551615",
+      "mat2str": "18446744073709551615"
+    },
+    "min_uint64": {
+      "name": "min_uint64",
+      "class": "uint64",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "0",
+      "mat2str": "0"
+    },
+    "rowVec": {
+      "name": "rowVec",
+      "class": "double",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1     2     3",
+      "mat2str": "[1 2 3]",
+      "linearSubs": [
+        "rowVec(1)",
+        "rowVec(2)",
+        "rowVec(3)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "colVec": {
+      "name": "colVec",
+      "class": "double",
+      "size": [
+        3,
+        1
+      ],
+      "numel": 3,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1\n     2\n     3",
+      "mat2str": "[1;2;3]",
+      "linearSubs": [
+        "colVec(1)",
+        "colVec(2)",
+        "colVec(3)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "mat2x3": {
+      "name": "mat2x3",
+      "class": "double",
+      "size": [
+        2,
+        3
+      ],
+      "numel": 6,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1     2     3\n     4     5     6",
+      "mat2str": "[1 2 3;4 5 6]",
+      "linearSubs": [
+        "mat2x3(1,1)",
+        "mat2x3(2,1)",
+        "mat2x3(1,2)",
+        "mat2x3(2,2)",
+        "mat2x3(1,3)",
+        "mat2x3(2,3)"
+      ],
+      "linearValues": [
+        "1",
+        "4",
+        "2",
+        "5",
+        "3",
+        "6"
+      ]
+    },
+    "nd2x3x2": {
+      "name": "nd2x3x2",
+      "class": "double",
+      "size": [
+        2,
+        3,
+        2
+      ],
+      "numel": 12,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "(:,:,1) =\n\n     1     2     3\n     4     5     6\n\n\n(:,:,2) =\n\n     7     8     9\n    10    11    12",
+      "mat2str_error": "Input matrix must be 2-D.",
+      "linearSubs": [
+        "nd2x3x2(1,1,1)",
+        "nd2x3x2(2,1,1)",
+        "nd2x3x2(1,2,1)",
+        "nd2x3x2(2,2,1)",
+        "nd2x3x2(1,3,1)",
+        "nd2x3x2(2,3,1)",
+        "nd2x3x2(1,1,2)",
+        "nd2x3x2(2,1,2)",
+        "nd2x3x2(1,2,2)",
+        "nd2x3x2(2,2,2)",
+        "nd2x3x2(1,3,2)",
+        "nd2x3x2(2,3,2)"
+      ],
+      "linearValues": [
+        "1",
+        "4",
+        "2",
+        "5",
+        "3",
+        "6",
+        "7",
+        "10",
+        "8",
+        "11",
+        "9",
+        "12"
+      ]
+    },
+    "emptyD": {
+      "name": "emptyD",
+      "class": "double",
+      "size": [
+        0,
+        0
+      ],
+      "numel": 0,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": true,
+      "disp": "",
+      "mat2str": "[]"
+    },
+    "long30": {
+      "name": "long30",
+      "class": "double",
+      "size": [
+        1,
+        30
+      ],
+      "numel": 30,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "Columns 1 through 13\n\n     1     2     3     4     5     6     7     8     9    10    11    12    13\n\n  Columns 14 through 26\n\n    14    15    16    17    18    19    20    21    22    23    24    25    26\n\n  Columns 27 through 30\n\n    27    28    29    30",
+      "mat2str": "[1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30]",
+      "linearSubs": [
+        "long30(1)",
+        "long30(2)",
+        "long30(3)",
+        "long30(4)",
+        "long30(5)",
+        "long30(6)",
+        "long30(7)",
+        "long30(8)",
+        "long30(9)",
+        "long30(10)",
+        "long30(11)",
+        "long30(12)",
+        "long30(13)",
+        "long30(14)",
+        "long30(15)",
+        "long30(16)",
+        "long30(17)",
+        "long30(18)",
+        "long30(19)",
+        "long30(20)",
+        "long30(21)",
+        "long30(22)",
+        "long30(23)",
+        "long30(24)",
+        "long30(25)",
+        "long30(26)",
+        "long30(27)",
+        "long30(28)",
+        "long30(29)",
+        "long30(30)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "22",
+        "23",
+        "24",
+        "25",
+        "26",
+        "27",
+        "28",
+        "29",
+        "30"
+      ]
+    },
+    "exactly10": {
+      "name": "exactly10",
+      "class": "double",
+      "size": [
+        1,
+        10
+      ],
+      "numel": 10,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1     2     3     4     5     6     7     8     9    10",
+      "mat2str": "[1 2 3 4 5 6 7 8 9 10]",
+      "linearSubs": [
+        "exactly10(1)",
+        "exactly10(2)",
+        "exactly10(3)",
+        "exactly10(4)",
+        "exactly10(5)",
+        "exactly10(6)",
+        "exactly10(7)",
+        "exactly10(8)",
+        "exactly10(9)",
+        "exactly10(10)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10"
+      ]
+    },
+    "eleven": {
+      "name": "eleven",
+      "class": "double",
+      "size": [
+        1,
+        11
+      ],
+      "numel": 11,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1     2     3     4     5     6     7     8     9    10    11",
+      "mat2str": "[1 2 3 4 5 6 7 8 9 10 11]",
+      "linearSubs": [
+        "eleven(1)",
+        "eleven(2)",
+        "eleven(3)",
+        "eleven(4)",
+        "eleven(5)",
+        "eleven(6)",
+        "eleven(7)",
+        "eleven(8)",
+        "eleven(9)",
+        "eleven(10)",
+        "eleven(11)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11"
+      ]
+    },
+    "boolVec": {
+      "name": "boolVec",
+      "class": "logical",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "iscomplex": false,
+      "islogical": true,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1   0   1",
+      "mat2str": "[true false true]",
+      "linearSubs": [
+        "boolVec(1)",
+        "boolVec(2)",
+        "boolVec(3)"
+      ],
+      "linearValues": [
+        "1",
+        "0",
+        "1"
+      ]
+    },
+    "i16Vec": {
+      "name": "i16Vec",
+      "class": "int16",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1   2   3",
+      "mat2str": "[1 2 3]",
+      "linearSubs": [
+        "i16Vec(1)",
+        "i16Vec(2)",
+        "i16Vec(3)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "u64Vec": {
+      "name": "u64Vec",
+      "class": "uint64",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "18446744073709551615                      1                      0",
+      "mat2str": "[18446744073709551615 1 0]",
+      "linearSubs": [
+        "u64Vec(1)",
+        "u64Vec(2)",
+        "u64Vec(3)"
+      ],
+      "linearValues": [
+        "18446744073709551615",
+        "1",
+        "0"
+      ]
+    },
+    "i64Vec": {
+      "name": "i64Vec",
+      "class": "int64",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "9223372036854775807   -9223372036854775808                     -1",
+      "mat2str": "[9223372036854775807 -9223372036854775808 -1]",
+      "linearSubs": [
+        "i64Vec(1)",
+        "i64Vec(2)",
+        "i64Vec(3)"
+      ],
+      "linearValues": [
+        "9223372036854775807",
+        "-9223372036854775808",
+        "-1"
+      ]
+    },
+    "i64Unsafe": {
+      "name": "i64Unsafe",
+      "class": "int64",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "9007199254740993",
+      "mat2str": "9007199254740993"
+    },
+    "cplxVec": {
+      "name": "cplxVec",
+      "class": "double",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1.0000 + 2.0000i   3.0000 - 4.0000i",
+      "mat2str": "[1+2i 3-4i]",
+      "linearSubs": [
+        "cplxVec(1)",
+        "cplxVec(2)"
+      ],
+      "linearValues": [
+        "1.0000 + 2.0000i",
+        "3.0000 - 4.0000i"
+      ]
+    },
+    "strArray": {
+      "name": "strArray",
+      "class": "string",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "\"a\"    \"bb\"    \"ccc\"",
+      "mat2str": "[\"a\" \"bb\" \"ccc\"]",
+      "linearSubs": [
+        "strArray(1)",
+        "strArray(2)",
+        "strArray(3)"
+      ],
+      "linearValues": [
+        "a",
+        "bb",
+        "ccc"
+      ]
+    },
+    "strMat": {
+      "name": "strMat",
+      "class": "string",
+      "size": [
+        2,
+        3
+      ],
+      "numel": 6,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "\"a\"    \"bb\"    \"ccc\"\n    \"d\"    \"ee\"    \"fff\"",
+      "mat2str": "[\"a\" \"bb\" \"ccc\";\"d\" \"ee\" \"fff\"]",
+      "linearSubs": [
+        "strMat(1,1)",
+        "strMat(2,1)",
+        "strMat(1,2)",
+        "strMat(2,2)",
+        "strMat(1,3)",
+        "strMat(2,3)"
+      ],
+      "linearValues": [
+        "a",
+        "d",
+        "bb",
+        "ee",
+        "ccc",
+        "fff"
+      ]
+    },
+    "longChar": {
+      "name": "longChar",
+      "class": "char",
+      "size": [
+        1,
+        300
+      ],
+      "numel": 300,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "mat2str": "'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+    },
+    "hugeChar": {
+      "name": "hugeChar",
+      "class": "char",
+      "size": [
+        1,
+        1500
+      ],
+      "numel": 1500,
+      "iscomplex": false,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+      "mat2str": "'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy'"
+    },
+    "cellFlat": {
+      "name": "cellFlat",
+      "class": "cell",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "{[1]}    {'two'}    {[3 4]}",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "linearSubs": [
+        "cellFlat{1}",
+        "cellFlat{2}",
+        "cellFlat{3}"
+      ],
+      "linearValues": [
+        "1",
+        "two",
+        "3     4"
+      ]
+    },
+    "cellNest": {
+      "name": "cellNest",
+      "class": "cell",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "{[1]}    {1×2 cell}",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "linearSubs": [
+        "cellNest{1}",
+        "cellNest{2}"
+      ],
+      "linearValues": [
+        "1",
+        "{[2]}    {1×1 cell}"
+      ]
+    },
+    "cell2x3": {
+      "name": "cell2x3",
+      "class": "cell",
+      "size": [
+        2,
+        3
+      ],
+      "numel": 6,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "{[1]}    {[2]}    {[3]}\n    {[4]}    {[5]}    {[6]}",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "linearSubs": [
+        "cell2x3{1,1}",
+        "cell2x3{2,1}",
+        "cell2x3{1,2}",
+        "cell2x3{2,2}",
+        "cell2x3{1,3}",
+        "cell2x3{2,3}"
+      ],
+      "linearValues": [
+        "1",
+        "4",
+        "2",
+        "5",
+        "3",
+        "6"
+      ]
+    },
+    "cellNd": {
+      "name": "cellNd",
+      "class": "cell",
+      "size": [
+        2,
+        3,
+        2
+      ],
+      "numel": 12,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "(:,:,1) = \n\n    {[1]}    {[3]}    {[5]}\n    {[2]}    {[4]}    {[6]}\n\n\n(:,:,2) = \n\n    {[7]}    {[ 9]}    {[11]}\n    {[8]}    {[10]}    {[12]}",
+      "mat2str_error": "Input matrix must be 2-D.",
+      "linearSubs": [
+        "cellNd{1,1,1}",
+        "cellNd{2,1,1}",
+        "cellNd{1,2,1}",
+        "cellNd{2,2,1}",
+        "cellNd{1,3,1}",
+        "cellNd{2,3,1}",
+        "cellNd{1,1,2}",
+        "cellNd{2,1,2}",
+        "cellNd{1,2,2}",
+        "cellNd{2,2,2}",
+        "cellNd{1,3,2}",
+        "cellNd{2,3,2}"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12"
+      ]
+    },
+    "cellEmpty": {
+      "name": "cellEmpty",
+      "class": "cell",
+      "size": [
+        0,
+        0
+      ],
+      "numel": 0,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": true,
+      "disp": "",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+    },
+    "structScalar": {
+      "name": "structScalar",
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "a: 1\n    b: 'txt'",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+    },
+    "structNest": {
+      "name": "structNest",
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "a: [1×1 struct]",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+    },
+    "struct1x3": {
+      "name": "struct1x3",
+      "class": "struct",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1×3 struct array with fields:\n\n    a\n    b",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "linearSubs": [
+        "struct1x3(1)",
+        "struct1x3(2)",
+        "struct1x3(3)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "struct2x3": {
+      "name": "struct2x3",
+      "class": "struct",
+      "size": [
+        2,
+        3
+      ],
+      "numel": 6,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "2×3 struct array with fields:\n\n    a",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "linearSubs": [
+        "struct2x3(1,1)",
+        "struct2x3(2,1)",
+        "struct2x3(1,2)",
+        "struct2x3(2,2)",
+        "struct2x3(1,3)",
+        "struct2x3(2,3)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ]
+    },
+    "structNd": {
+      "name": "structNd",
+      "class": "struct",
+      "size": [
+        2,
+        3,
+        2
+      ],
+      "numel": 12,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": false,
+      "disp": "2×3×2 struct array with fields:\n\n    a",
+      "mat2str_error": "Input matrix must be 2-D.",
+      "linearSubs": [
+        "structNd(1,1,1)",
+        "structNd(2,1,1)",
+        "structNd(1,2,1)",
+        "structNd(2,2,1)",
+        "structNd(1,3,1)",
+        "structNd(2,3,1)",
+        "structNd(1,1,2)",
+        "structNd(2,1,2)",
+        "structNd(1,2,2)",
+        "structNd(2,2,2)",
+        "structNd(1,3,2)",
+        "structNd(2,3,2)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12"
+      ]
+    },
+    "structEmpty": {
+      "name": "structEmpty",
+      "class": "struct",
+      "size": [
+        0,
+        0
+      ],
+      "numel": 0,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": false,
+      "isempty": true,
+      "disp": "",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+    },
+    "aParam": {
+      "name": "aParam",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 5\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: 'a param'\n       DataType: 'int16'\n            Min: -10\n            Max: 10\n           Unit: 'm/s'",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            1,
+            7
+          ],
+          "numel": 7,
+          "isempty": false,
+          "disp": "a param",
+          "mat2str": "'a param'"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            5
+          ],
+          "numel": 5,
+          "isempty": false,
+          "disp": "int16",
+          "mat2str": "'int16'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "-10",
+          "mat2str": "-10"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "10",
+          "mat2str": "10"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            1,
+            3
+          ],
+          "numel": 3,
+          "isempty": false,
+          "disp": "m/s",
+          "mat2str": "'m/s'"
+        }
+      }
+    },
+    "aSignal": {
+      "name": "aSignal",
+      "class": "Simulink.Signal",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Signal with properties:\n\n        Dimensions: -1\n    DimensionsMode: 'auto'\n        Complexity: 'auto'\n        SampleTime: -1\n      InitialValue: ''\n         CoderInfo: [1×1 Simulink.CoderInfo]\n       Description: 'a signal'\n          DataType: 'single'\n               Min: 0\n               Max: 100\n              Unit: 'K'",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "properties": {
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "-1",
+          "mat2str": "-1"
+        },
+        "DimensionsMode": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "SampleTime": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "-1",
+          "mat2str": "-1"
+        },
+        "SamplingMode": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "InitialValue": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "LoggingInfo": {
+          "class": "Simulink.LoggingInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "LoggingInfo with properties:\n\n        DataLogging: 0\n           NameMode: 0\n        LoggingName: ''\n       DecimateData: 0\n         Decimation: 2\n    LimitDataPoints: 0\n          MaxPoints: 5000",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            1,
+            8
+          ],
+          "numel": 8,
+          "isempty": false,
+          "disp": "a signal",
+          "mat2str": "'a signal'"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            6
+          ],
+          "numel": 6,
+          "isempty": false,
+          "disp": "single",
+          "mat2str": "'single'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "0",
+          "mat2str": "0"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "100",
+          "mat2str": "100"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "K",
+          "mat2str": "'K'"
+        }
+      }
+    },
+    "aBus": {
+      "name": "aBus",
+      "class": "Simulink.Bus",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Bus with properties:\n\n                  Description: 'a bus'\n                    DataScope: 'Auto'\n                   HeaderFile: ''\n                    Alignment: -1\n    PreserveElementDimensions: 0\n                     Elements: [2×1 Simulink.BusElement]",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "properties": {
+        "Alignment": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "-1",
+          "mat2str": "-1"
+        },
+        "PreserveElementDimensions": {
+          "class": "logical",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "0",
+          "mat2str": "false"
+        },
+        "Elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            2,
+            1
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "2×1 BusElement array with properties:\n\n    Min\n    Max\n    DimensionsMode\n    Description\n    Unit\n    Name\n    DataType\n    Complexity\n    Dimensions",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            1,
+            5
+          ],
+          "numel": 5,
+          "isempty": false,
+          "disp": "a bus",
+          "mat2str": "'a bus'"
+        },
+        "DataScope": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "Auto",
+          "mat2str": "'Auto'"
+        },
+        "HeaderFile": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "aLookup": {
+      "name": "aLookup",
+      "class": "Simulink.LookupTable",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "LookupTable with properties:\n\n                                                              Table: [1×1 Simulink.lookuptable.Table]\n                                           BreakpointsSpecification: 'Explicit values'\n                                                        Breakpoints: [1×1 Simulink.lookuptable.Breakpoint]\n    AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes: 0\n                                                 SupportTunableSize: 0\n                                                          CoderInfo: [1×1 Simulink.CoderInfo]\n                                                     StructTypeInfo: [1×1 Simulink.lookuptable.StructTypeInfo]",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "properties": {
+        "Table": {
+          "class": "Simulink.lookuptable.Table",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "Table with properties:\n\n          Value: []\n       DataType: 'auto'\n     Dimensions: [0 0]\n            Min: []\n            Max: []\n           Unit: ''\n      FieldName: 'Table'\n    Description: ''",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "BreakpointsSpecification": {
+          "class": "char",
+          "size": [
+            1,
+            15
+          ],
+          "numel": 15,
+          "isempty": false,
+          "disp": "Explicit values",
+          "mat2str": "'Explicit values'"
+        },
+        "Breakpoints": {
+          "class": "Simulink.lookuptable.Breakpoint",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "Breakpoint with properties:\n\n          Value: []\n       DataType: 'auto'\n     Dimensions: [0 0]\n            Min: []\n            Max: []\n           Unit: ''\n      FieldName: 'BP1'\n    Description: ''",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes": {
+          "class": "logical",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "0",
+          "mat2str": "false"
+        },
+        "SupportTunableSize": {
+          "class": "logical",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "0",
+          "mat2str": "false"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "StructTypeInfo": {
+          "class": "Simulink.lookuptable.StructTypeInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "StructTypeInfo with properties:\n\n              Name: 'LtType'\n         DataScope: 'Auto'\n    HeaderFileName: ''",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        }
+      }
+    },
+    "aVariant": {
+      "name": "aVariant",
+      "class": "Simulink.VariantVariable",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "VariantVariable with 2 choices:\n\nCondition\tValue\n_________\t_____\nV == 1   \t1\nV == 2   \t2\n\nSpecification: ''\n\nBank: ''\n\nUse getChoice, setChoice, addChoice, removeChoice to access, modify, add or\nremove choices",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "properties": {
+        "Specification": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "Bank": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    }
+  },
+  "objArr": {
+    "objRow": {
+      "name": "objRow",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "1×3 Parameter array with properties:\n\n    Value\n    Complexity\n    Dimensions\n    CoderInfo\n    Description\n    DataType\n    Min\n    Max\n    Unit",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "linearSubs": [
+        "objRow(1)",
+        "objRow(2)",
+        "objRow(3)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "objCol": {
+      "name": "objCol",
+      "class": "Simulink.Parameter",
+      "size": [
+        3,
+        1
+      ],
+      "numel": 3,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "3×1 Parameter array with properties:\n\n    Value\n    Complexity\n    Dimensions\n    CoderInfo\n    Description\n    DataType\n    Min\n    Max\n    Unit",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "linearSubs": [
+        "objCol(1)",
+        "objCol(2)",
+        "objCol(3)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3"
+      ]
+    },
+    "obj2x3": {
+      "name": "obj2x3",
+      "class": "Simulink.Parameter",
+      "size": [
+        2,
+        3
+      ],
+      "numel": 6,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "2×3 Parameter array with properties:\n\n    Value\n    Complexity\n    Dimensions\n    CoderInfo\n    Description\n    DataType\n    Min\n    Max\n    Unit",
+      "mat2str_error": "Input matrix must be a numeric array, character array, or string array.",
+      "linearSubs": [
+        "obj2x3(1,1)",
+        "obj2x3(2,1)",
+        "obj2x3(1,2)",
+        "obj2x3(2,2)",
+        "obj2x3(1,3)",
+        "obj2x3(2,3)"
+      ],
+      "linearValues": [
+        "11",
+        "21",
+        "12",
+        "22",
+        "13",
+        "23"
+      ]
+    },
+    "obj2x3x2": {
+      "name": "obj2x3x2",
+      "class": "Simulink.Parameter",
+      "size": [
+        2,
+        3,
+        2
+      ],
+      "numel": 12,
+      "iscomplex": true,
+      "islogical": false,
+      "isobject": true,
+      "isempty": false,
+      "disp": "2×3×2 Parameter array with properties:\n\n    Value\n    Complexity\n    Dimensions\n    CoderInfo\n    Description\n    DataType\n    Min\n    Max\n    Unit",
+      "mat2str_error": "Input matrix must be 2-D.",
+      "linearSubs": [
+        "obj2x3x2(1,1,1)",
+        "obj2x3x2(2,1,1)",
+        "obj2x3x2(1,2,1)",
+        "obj2x3x2(2,2,1)",
+        "obj2x3x2(1,3,1)",
+        "obj2x3x2(2,3,1)",
+        "obj2x3x2(1,1,2)",
+        "obj2x3x2(2,1,2)",
+        "obj2x3x2(1,2,2)",
+        "obj2x3x2(2,2,2)",
+        "obj2x3x2(1,3,2)",
+        "obj2x3x2(2,3,2)"
+      ],
+      "linearValues": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12"
+      ]
+    }
+  },
+  "notes": {
+    "slxRejected": {
+      "objRow": "Creating an array of Simulink data or data type objects in the model workspace is not allowed.",
+      "objCol": "Creating an array of Simulink data or data type objects in the model workspace is not allowed.",
+      "obj2x3": "Creating an array of Simulink data or data type objects in the model workspace is not allowed.",
+      "obj2x3x2": "Creating an array of Simulink data or data type objects in the model workspace is not allowed."
+    },
+    "slddRejected": {
+      "text": {
+        "objRow": "Arrays of class 'Simulink.Parameter' are not supported in the dictionary.",
+        "objCol": "Arrays of class 'Simulink.Parameter' are not supported in the dictionary.",
+        "obj2x3": "Arrays of class 'Simulink.Parameter' are not supported in the dictionary.",
+        "obj2x3x2": "Arrays of class 'Simulink.Parameter' are not supported in the dictionary."
+      },
+      "binary": {
+        "objRow": "Arrays of class 'Simulink.Parameter' are not supported in the dictionary.",
+        "objCol": "Arrays of class 'Simulink.Parameter' are not supported in the dictionary.",
+        "obj2x3": "Arrays of class 'Simulink.Parameter' are not supported in the dictionary.",
+        "obj2x3x2": "Arrays of class 'Simulink.Parameter' are not supported in the dictionary."
+      }
+    }
+  }
+}

@@ -209,7 +209,12 @@ expectation.
 `schema/classes/`, each with non-default values on every writable property.
 Object arrays — 3x1, 1x3, **2x3**, and **2x3x2** `Simulink.Parameter`, each
 element carrying a distinguishable `Value` so a transposed label is detectable.
-`.mat`/`.slx` only; the dictionary rejects object arrays. Container classes with real
+**`.mat` only** — verified against R2027a in Phase 2: the dictionary rejects object
+arrays (*"Arrays of class 'Simulink.Parameter' are not supported in the dictionary."*)
+and so does the `.slx` model workspace (*"Creating an array of Simulink data or data
+type objects in the model workspace is not allowed."*). An earlier draft of this
+document claimed the model workspace holds them; MATLAB was asked directly and it
+does not. Both refusals are recorded in `truth.notes`. Container classes with real
 children: `Bus`/`BusElement`, `ConnectionBus`/`ConnectionElement`,
 `ServiceBus`/`FunctionElement`, `LookupTable`/`Breakpoint`,
 `VariantVariable`/`VariantExpression`, `VariantBank`. The element classes
@@ -394,9 +399,22 @@ folded into defect 8. The upstream note's retraction of its own C5 is correct.
 
 `.sldd` cannot store an object array **at all** — `addEntry` rejects
 `Simulink.Parameter`, `Simulink.Bus`, and even a 1x2 array with "Arrays of class
-'X' are not supported in the dictionary." So the `.sldd` object-array expansion
-code is unreachable from any MATLAB-authored file, and object-array parity is a
-`.mat`/`.slx` question only.
+'X' are not supported in the dictionary." Neither can a `.slx` model workspace:
+`assignin` fails with "Creating an array of Simulink data or data type objects in
+the model workspace is not allowed." So the `.sldd` object-array expansion code is
+unreachable from any MATLAB-authored file, and object-array parity is a **`.mat`
+question only** — `cases.mat` is the one artifact that holds all four arrays.
+
+Two further R2027a facts Phase 2 established, both of which change what a test may
+assume:
+
+- **`isobject("world")` is true.** A `string` reports as an object, and
+  `properties()` then interprets the string's *contents* as a class name. Anything
+  walking properties must exclude `isstring`.
+- **`obj.Value` on a nonscalar Simulink data array silently returns element 1**
+  rather than erroring. So an object array has no meaningful array-level property
+  value, and recording one would be a lie dressed as truth. Per-element truth
+  (`linearSubs`/`linearValues`) is the only honest form.
 
 ## Known limitations, to verify and document
 

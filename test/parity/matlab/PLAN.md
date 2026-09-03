@@ -427,6 +427,27 @@ Runs MATLAB once and commits what it produced. Everything from here on asserts a
 
 One catalog, every format emitted from it, so a new case is one line and appears everywhere. Where a case is illegal in a format, the failure is *recorded* rather than skipped, so the gap is visible in review.
 
+> **DONE — the committed `test/parity/matlab/gen_truth.m` is authoritative, not this listing.** Six things
+> below were contradicted by MATLAB and corrected in the file; the listing is kept for the reasoning, not
+> as a source to copy. What MATLAB forced:
+> 1. `Simulink.VariantVariable`'s `Choices` is `{condition, value, ...}` — `{'V == 1', 1, 'V == 2', 2}`, not
+>    `{'A', Simulink.Parameter(1), ...}`.
+> 2. `isobject("world")` is **true** — a `string` counts as an object, and `properties()` then reads the
+>    string's *contents* as a class name. The property walk is gated `t.isobject && ~isstring(v) && isscalar(v)`.
+> 3. `isscalar` in that guard matters on its own: `ar.Value` on a **nonscalar** Simulink data array does not
+>    error, it silently returns element 1. Recording that as the array's property truth is a lie, so an object
+>    array gets no `properties` block — its per-element truth is `linearSubs`/`linearValues`.
+> 4. `formattedDisplayText` emits Command Window **HTML** for some classes (`struct` arrays, `Simulink.Bus`)
+>    and not others, so no consumer can strip it with one rule. All seven call sites pass `'SuppressMarkup', true`.
+> 5. `char` must not get per-element truth — DESIGN.md says char does not expand, and per-character
+>    `linearValues` would make Phase 11 demand one child row per character. The element walk skips `ischar(v)`.
+>    `string` is deliberately *not* skipped: a string array does expand.
+> 6. MATLAB keys open dictionaries by **file name alone**, and a held section handle counts as a reference, so
+>    two `cases.sldd` in different directories collide. The loop does `saveChanges; clear ds; close; clear dd;`
+>    then `Simulink.data.dictionary.closeAll('-discard')`.
+>
+> Also settled: the `intmax('uint64')` entry is **`maxU64`**, and the model is named `cases`.
+
 ```matlab
 % Copyright 2026 The MathWorks, Inc.
 %
@@ -531,7 +552,8 @@ lt = Simulink.LookupTable; lt.StructTypeInfo.Name = 'LtType';
 C(end+1,:) = {'aLookup', lt};
 vv = Simulink.VariantVariable('Choices', {'A', Simulink.Parameter(1), 'B', Simulink.Parameter(2)});
 C(end+1,:) = {'aVariant', vv};
-% object ARRAYS -- .mat/.slx only; the dictionary rejects them (see below).
+% object ARRAYS -- .mat ONLY. Both the dictionary AND the .slx model workspace
+% reject them in R2027a; each refusal is recorded, not worked around (see below).
 % Value = row*10 + col makes the label->value mapping self-describing, which is
 % what catches a transposed read.
 clear w; for i = 1:2, for j = 1:3, w(i,j) = Simulink.Parameter(i*10 + j); end, end
@@ -558,13 +580,27 @@ for i = 1:size(C,1),      matvars.(C{i,1})      = C{i,2}; end
 for i = 1:size(OBJARR,1), matvars.(OBJARR{i,1}) = OBJARR{i,2}; end
 save(fullfile(artdir,'mat','cases.mat'), '-struct', 'matvars');
 
-%% ---- .slx model workspace (holds object arrays; the dictionary does not) --
-mdl = 'parity_cases';
+%% ---- .slx model workspace ------------------------------------------------
+% It does NOT hold object arrays either: assignin of a Simulink.Parameter array
+% fails with "Creating an array of Simulink data or data type objects in the
+% model workspace is not allowed." So every assignin is guarded exactly like the
+% dictionary loop below, and the refusal is recorded in truth.notes.slxRejected
+% (one level, entry name -> message, 'ACCEPTED' when it went in).
+mdl = 'cases';
 if bdIsLoaded(mdl), close_system(mdl, 0); end
 new_system(mdl);
 ws = get_param(mdl, 'ModelWorkspace');
+slxRejected = struct();
 for i = 1:size(C,1),      assignin(ws, C{i,1}, C{i,2}); end
-for i = 1:size(OBJARR,1), assignin(ws, OBJARR{i,1}, OBJARR{i,2}); end
+for i = 1:size(OBJARR,1)
+    try
+        assignin(ws, OBJARR{i,1}, OBJARR{i,2});
+        slxRejected.(OBJARR{i,1}) = 'ACCEPTED';
+    catch e
+        slxRejected.(OBJARR{i,1}) = e.message;
+    end
+end
+truth.notes.slxRejected = slxRejected;
 save_system(mdl, fullfile(artdir,'slx','cases.slx'), 'OverwriteIfChangedOnDisk', true);
 close_system(mdl, 0);
 
@@ -742,13 +778,15 @@ Iterate until `GEN_TRUTH OK` prints with no uncaught error.
 ```bash
 node -e "const t=require('./test/parity/artifacts/truth.json'); \
 console.log(t.vars.nd2x3x2.mat2str_error, '|', t.vars.mat2x3.mat2str, '|', \
-t.vars.max_uint64.disp, '|', t.objArr.obj2x3.linearValues.join(','));"
+t.vars.maxU64.disp, '|', t.objArr.obj2x3.linearValues.join(','));"
 ```
 
 Expected, and these four are the load-bearing ones:
 - `nd2x3x2.mat2str_error` contains **"must be 2-D"** — proves defect 7's fix shape.
 - `mat2x3.mat2str` is `[1 2 3;4 5 6]` — the literal our convention adds a space to.
-- `max_uint64.disp` is `18446744073709551615` — proves defect 1 is real data loss, not rounding taste.
+- `maxU64.disp` is `18446744073709551615` — proves defect 1 is real data loss, not rounding taste. (The
+  integer loop special-cases `uint64`, so `intmax('uint64')` is the single entry `maxU64`; Phases 10 and
+  12 already spell it that way.)
 - `obj2x3.linearValues` is `11,21,12,22,13,23` — column-major, which is defect 6's whole story.
 
 ```bash
@@ -787,20 +825,29 @@ tests means MATLAB changed its own output; see `drift.mjs`.
 |---|---|
 | `gen_truth.m` | the only entry point; one case catalog, every format emitted from it |
 | `artifacts/mat/cases.mat` | every case, including object arrays |
-| `artifacts/slx/cases.slx` | same catalog in a model workspace |
+| `artifacts/slx/cases.slx` | model `cases`; the same catalog **minus the object arrays**, which the model workspace also refuses |
 | `artifacts/text/cases.sldd` | `FileFormat = 'uncompressed-text'` (the R2027a default) |
 | `artifacts/binary/cases.sldd` | `FileFormat = 'compressed-binary'` |
 | `artifacts/truth.json` | per entry: class, size, complexity, emptiness, `mat2str`, `disp`, per-element subscripts and values, and for objects the full property list; plus `notes.slddRejected` |
 | `artifacts/meta.json` | the MATLAB release the truth came from |
 
-## Two facts the corpus encodes
+## Three facts the corpus encodes
 
 - **A dictionary cannot hold an object array at all.** `addEntry` rejects
-  `Simulink.Parameter`, `Simulink.Bus`, even a 1x2. Recorded in
-  `truth.notes.slddRejected`. Object-array parity is a `.mat`/`.slx` question only.
+  `Simulink.Parameter`, `Simulink.Bus`, even a 1x2: *"Arrays of class
+  'Simulink.Parameter' are not supported in the dictionary."* Recorded in
+  `truth.notes.slddRejected`, per format.
+- **Neither can a `.slx` model workspace.** `assignin` fails with *"Creating an array
+  of Simulink data or data type objects in the model workspace is not allowed."*
+  Recorded in `truth.notes.slxRejected` (one level, not per format). So **object-array
+  parity is a `.mat` question only** — `cases.mat` is the sole artifact holding all 74
+  names. DESIGN.md's earlier claim that the model workspace holds object arrays is
+  wrong for R2027a; MATLAB was asked and it refused.
 - **`mat2str` errors on rank >= 3.** There is no one-line MATLAB literal for an N-D
   array, which is why our convention collapses it to `<2x3x2 double>` rather than
-  printing a 2-D-looking lie.
+  printing a 2-D-looking lie. (`mat2str` also refuses objects outright, with a
+  different message: *"Input matrix must be a numeric array, character array, or
+  string array."*)
 
 ## Shapes are deliberately non-square
 
@@ -3595,9 +3642,14 @@ export interface VarTruth {
 
 export interface Truth {
   vars: Record<string, VarTruth>;
+  /** object arrays. `.mat` ONLY — both .sldd formats and the .slx model workspace refuse them. */
   objArr: Record<string, VarTruth>;
-  /** per format ('text' | 'binary') -> per entry -> 'ACCEPTED' or MATLAB's message */
-  notes: { slddRejected: Record<string, Record<string, string>> };
+  notes: {
+    /** per format ('text' | 'binary') -> per entry -> 'ACCEPTED' or MATLAB's message */
+    slddRejected: Record<string, Record<string, string>>;
+    /** ONE level: per entry -> 'ACCEPTED' or MATLAB's message. Not per format — there is one .slx. */
+    slxRejected: Record<string, string>;
+  };
 }
 
 export function truth(): Truth {
@@ -3912,10 +3964,17 @@ for (const fmt of FORMATS) {
     }
     const root = loadArtifact(fmt);
     const isSldd = fmt === 'sldd-text' || fmt === 'sldd-binary';
-    // notes.slddRejected is keyed by format subdirectory, then by entry name.
+    // Two refusal maps, two shapes. notes.slddRejected is keyed by format
+    // subdirectory THEN entry name; notes.slxRejected is one level, entry name
+    // only. This suite is the only one that must consult slxRejected, because it
+    // is the only one that iterates T.objArr — and in R2027a the .slx model
+    // workspace refuses an object array just as the dictionary does, so
+    // entry(root, 'objRow') would throw from findEntry on fmt === 'slx'.
     const rejected = (isSldd
       ? T.notes.slddRejected?.[fmt === 'sldd-text' ? 'text' : 'binary']
-      : undefined) || {};
+      : fmt === 'slx'
+        ? T.notes.slxRejected
+        : undefined) || {};
 
     // gen_truth.m records `linearValues` as one display string per MATLAB linear
     // index and `linearSubs` as the matching subscript label — so the pair is a
@@ -3923,7 +3982,7 @@ for (const fmt of FORMATS) {
     // when 1 < numel <= 64.
     for (const [name, v] of Object.entries({ ...T.vars, ...T.objArr })) {
       if (!v.linearValues || v.linearValues.length <= 1) { continue; }
-      if (isSldd && rejected[name] && rejected[name] !== 'ACCEPTED') {
+      if (rejected[name] && rejected[name] !== 'ACCEPTED') {
         it.skip(name + ' — MATLAB rejected: ' + rejected[name], () => {});
         continue;
       }
@@ -4353,13 +4412,17 @@ for (const section of ['vars', 'objArr']) {
     }
   }
 }
-const ra = JSON.stringify(old.notes?.slddRejected ?? {});
-const rb = JSON.stringify(fresh.notes?.slddRejected ?? {});
-if (ra !== rb) {
-  drift++;
-  console.log('\nDRIFT notes.slddRejected');
-  console.log('  committed: ' + ra);
-  console.log('  regenerated: ' + rb);
+// Both refusal maps. A change here is the MOST interesting kind of drift: it
+// means MATLAB lifted (or added) a storage restriction, which retires a skip.
+for (const key of ['slddRejected', 'slxRejected']) {
+  const ra = JSON.stringify(old.notes?.[key] ?? {});
+  const rb = JSON.stringify(fresh.notes?.[key] ?? {});
+  if (ra !== rb) {
+    drift++;
+    console.log('\nDRIFT notes.' + key);
+    console.log('  committed: ' + ra);
+    console.log('  regenerated: ' + rb);
+  }
 }
 
 if (drift === 0) {
@@ -4371,7 +4434,9 @@ console.log('behaviour is correct — and update DESIGN.md if the CONVENTION cha
 process.exit(1);
 ```
 
-`gen_truth.m` must honour an `outdir` set by the caller before `run(...)`. Confirm Phase 2 wrote it that way (`grep -n "outdir" test/parity/matlab/gen_truth.m`); if it hardcodes the path, change it to `if ~exist('outdir','var'), outdir = '<default>'; end` and re-run Phase 2's sanity checks.
+`gen_truth.m` honours an `outdir` set by the caller before `run(...)` — Phase 2 wrote it that way and proved it by regenerating into `/tmp/gtprobe` without disturbing the repo copy.
+
+**Compare `truth.json`, never container bytes.** Only `truth.json` and `meta.json` are byte-reproducible; `cases.mat`, `cases.slx` and both `cases.sldd` differ on every run because MATLAB stamps each entry with a fresh UUID and `lastmod` (e.g. `"lastmod": "20260903T121143.963203"`). A byte comparison of the containers would report drift every single time and train the reader to ignore it.
 
 - [ ] **Step 2: Add the script entry**
 
