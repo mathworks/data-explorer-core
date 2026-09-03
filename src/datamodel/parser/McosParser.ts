@@ -358,7 +358,12 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
     // value-object array shape the SLDD path emits so the data model builds one
     // child node per element instead of dropping all but the first.
     const cls = ctx.meta.classes[ctx.meta.objects[handle.ids[0]]?.classId];
-    const dims = handle.dims.length >= 2 ? [handle.dims[0], handle.dims[1]] : [1, handle.ids.length];
+    // Every extent, as at the root-variable site below: a property holding a 2x3x2
+    // object array (ndNested.mat's h.Kids) reported [2, 3] over twelve elements, so
+    // the container printed a shape MATLAB never had and the element subscripts ran
+    // (1,1)..(2,3) twice. Identical to the old expression for the Nx1 property a Bus
+    // holds, which is why nothing here noticed.
+    const dims = handle.dims.length >= 2 ? handle.dims.slice() : [1, handle.ids.length];
     return {
       _array_class: cls ? cls.fullName : '',
       _array_type: 'MATLABArray',
@@ -560,10 +565,12 @@ export function decodeMcosBlob(anonRawBytes: Uint8Array, opaqueVars: OpaqueVarRe
     if (!classesMatch) continue;
 
     const elements = handle.ids.map((id) => buildProperties(id, ctx, new Set<number>(), 0));
-    // Normalize to a 2-D [rows, cols] shape the display path expects (a bare
-    // MATLAB column vector arrives as [N, 1]; a scalar as [1, 1]).
+    // EVERY extent the handle declares. Keeping only the first two turned MATLAB's
+    // 2x3x2 obj2x3x2 into a 2x3 — a shape it never had, over twelve elements whose
+    // subscripts then repeated (1,1)..(2,3) twice. The handle's own ndims is the
+    // authority; a 1-extent handle is a vector, which MATLAB reports as [1, N].
     const dimensions =
-      handle.dims.length >= 2 ? [handle.dims[0], handle.dims[1]] : [1, handle.dims[0] ?? elements.length];
+      handle.dims.length >= 2 ? handle.dims.slice() : [1, handle.dims[0] ?? elements.length];
     const { packageName, shortClassName } = splitClassName(v.className);
     result.set(v.name, {
       name: v.name,

@@ -8,6 +8,7 @@ export default class ObjectNode extends DataNode {
     get icon(): string;
     get className(): string;
     get isObjectPropertyBag(): boolean;
+    get dims(): number[];
     get displayValue(): string;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];

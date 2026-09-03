@@ -14,7 +14,7 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { subscriptLabel } from '../../display/Subscript.js';
-import { effectiveDims, elementCount } from '../../display/DisplayConvention.js';
+import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
 
 export default class StructNode extends DataNode {
     _isElementNode?: boolean;
@@ -38,15 +38,19 @@ export default class StructNode extends DataNode {
     }
 
     get displayValue(): string {
-        return '<' + this._shape.join('x') + ' struct>';
+        return summaryForm(this.dims, 'struct');
     }
 
     // Every extent a MATLAB struct array declares, normalized the way MATLAB's own
     // size() reports it. Read this rather than serial._dimensions[0]/[1]: MATLAB
     // writes a 1x1x3 struct array as Dimension="1*1*3" and a 2x3x2 as "2*3*2", so a
     // rank-2 reading of either one contradicts the element list underneath it.
-    get _shape(): number[] {
-        return effectiveDims(this.serial._dimensions as number[]);
+    //
+    // Public, and named like MatlabVariableNode.dims, because the shape is DATA: it
+    // was reachable only inside displayValue, so a consumer that wanted MATLAB's
+    // size() had to parse the display string it was also checking.
+    get dims(): number[] {
+        return effectiveDims(this.serial._dimensions as number[] | undefined);
     }
 
     // How many <Element>s the array has — the product of EVERY extent. d[0]*d[1]
@@ -55,7 +59,7 @@ export default class StructNode extends DataNode {
     // elements in one bogus outer <Element> and, on the serializeValue path, threw
     // their contents away).
     get _numElements(): number {
-        return elementCount(this._shape);
+        return elementCount(this.dims);
     }
 
     // A struct array's children are its ELEMENTS; only a scalar struct's children
@@ -91,7 +95,7 @@ export default class StructNode extends DataNode {
         if (this._rawInput !== undefined && this.status !== 'Modified') {
             return this._rawInput;
         }
-        const d = this._shape;
+        const d = this.dims;
         const fields = (this.serial._fields as string[]) || [];
 
         if (this._isElementNode) {
@@ -121,7 +125,7 @@ export default class StructNode extends DataNode {
 
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
         const p = xmlPad(indent);
-        const d = this._shape;
+        const d = this.dims;
         let attrStr = '';
         if (attrs && attrs.Name) { attrStr += ' Name="' + escapeXml(attrs.Name) + '"'; }
 

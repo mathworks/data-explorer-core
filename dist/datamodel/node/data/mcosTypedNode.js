@@ -29,16 +29,27 @@ const GENERIC_KEYS = new Set(['MatlabVariable', 'MatlabStruct', 'CustomObject'])
 //
 // `elements`/`dimensions` describe an object ARRAY (e.g. a 20x1
 // Simulink.VariableUsage): each entry is one element's decoded `_properties` bag,
-// in column-major order. When omitted, the object is treated as a scalar built from
-// `properties`. An array routes through ObjectNode, which expands one child row per
-// element (Name(1), Name(2), …), each itself expanding into its property rows.
+// in MATLAB's own column-major order. When omitted, the object is treated as a
+// scalar built from `properties`. An array routes through ObjectNode, which expands
+// one child row per element — Name(1,1), Name(2,1), … down the columns, or a single
+// linear Name(1), Name(2), … for a vector, matching MATLAB's own subscripts — each
+// itself expanding into its property rows.
 export function buildTypedNodeFromMcos(className, name, parent, properties, elements, dimensions) {
     if (!className || GENERIC_KEYS.has(className)) {
         return null;
     }
     // Prefer the full element list (object arrays); fall back to the single scalar bag.
     const elems = elements && elements.length > 0 ? elements : [properties || {}];
-    const dims = dimensions && dimensions.length >= 2 ? [dimensions[0], dimensions[1]] : [1, 1];
+    // Every extent, not just the first two. Truncating to [d0, d1] reported MATLAB's
+    // 2x3x2 obj2x3x2 as a 2x3 — a shape it never had — and handed the subscript
+    // helper two extents for twelve elements, so elements 7..12 were labelled
+    // (1,1)..(2,3) a second time. A missing or single-extent `dimensions` is a scalar
+    // unless there are more elements than that, in which case it is a row vector.
+    const dims = dimensions && dimensions.length >= 2
+        ? dimensions.slice()
+        : elems.length > 1
+            ? [1, elems.length]
+            : [1, 1];
     const isArray = elems.length > 1;
     // A class the data model KNOWS (Simulink.Parameter, …) routes to its own typed
     // node. A class it does NOT know is a customer-defined object: expand it as the

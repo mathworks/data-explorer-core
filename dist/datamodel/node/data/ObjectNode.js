@@ -9,6 +9,7 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { subscriptLabel } from '../../display/Subscript.js';
+import { effectiveDims, summaryForm } from '../../display/DisplayConvention.js';
 export default class ObjectNode extends DataNode {
     constructor(name, parent, arrayClass, serial) {
         super(name, parent, serial);
@@ -30,11 +31,18 @@ export default class ObjectNode extends DataNode {
     get isObjectPropertyBag() {
         return true;
     }
-    get displayValue() {
+    // The shape as DATA, normalized the way MATLAB's own size() reports it. It used
+    // to exist only baked into displayValue, so a consumer — a parity test above all
+    // — had to parse the display string to learn the shape, and could not check the
+    // shape independently of the string it was already asserting.
+    get dims() {
         const raw = this.serial._rawVal || {};
-        // A nested object carries no _dimensions at all — it is always a scalar.
-        const d = raw._dimensions || [1, 1];
-        return '<' + d.join('x') + ' ' + this.arrayClass + '>';
+        // A nested object ({ _object_class, _properties }) carries no _dimensions at
+        // all — it is always a scalar, which effectiveDims spells [1, 1].
+        return effectiveDims(raw._dimensions);
+    }
+    get displayValue() {
+        return summaryForm(this.dims, this.arrayClass);
     }
     getProperties() {
         return [PropName, PropValue, PropDataType, PropDescription];

@@ -104,6 +104,47 @@ describe('general array rule — NodeClassMap.parseValue routing (format-indepen
   });
 });
 
+// Defect 13. The container knew its shape and exposed it ONLY baked into the
+// display string, so a test (or any other consumer) that wanted MATLAB's size()
+// had to parse the very string it was checking — an assertion that cannot fail
+// independently of the thing it asserts.
+describe('object array container — shape as data', () => {
+  it('reports every extent MATLAB reports, normalized the way size() does', () => {
+    const elems = Array.from({ length: 12 }, (_, i) => ({ Value: i + 1 }));
+    expect((NodeRegistry.parseValue(arrayValue('Simulink.Parameter', [2, 3], [
+      { Value: 11 }, { Value: 21 }, { Value: 12 }, { Value: 22 }, { Value: 13 }, { Value: 23 },
+    ]), 'w', null) as any).dims).toEqual([2, 3]);
+    expect((NodeRegistry.parseValue(arrayValue('Simulink.Parameter', [2, 3, 2], elems), 'v', null) as any).dims)
+      .toEqual([2, 3, 2]);
+    // MATLAB's size() drops trailing singletons past the second, so a 2x3x1 IS a
+    // 2x3 — the container must not claim a rank MATLAB does not report.
+    expect((NodeRegistry.parseValue(arrayValue('Simulink.Parameter', [2, 3, 1], [
+      { Value: 1 }, { Value: 2 }, { Value: 3 }, { Value: 4 }, { Value: 5 }, { Value: 6 },
+    ]), 'q', null) as any).dims).toEqual([2, 3]);
+  });
+
+  it('reports [1,1] for a scalar object, which carries no _dimensions at all', () => {
+    // A single-element value object of a KNOWN class becomes a ParameterNode, so
+    // the ObjectNode cases are a custom class (scalar) and a NESTED object — the
+    // { _object_class, _properties } form, which has no _dimensions key.
+    const scalar = NodeRegistry.parseValue(arrayValue('MyPkg.MyGain', [1, 1], [{ Value: 1 }]), 'g', null) as any;
+    expect(scalar.constructor.name).toBe('ObjectNode');
+    expect(scalar.dims).toEqual([1, 1]);
+    const nested = NodeRegistry.parseValue(
+      { _object_class: 'MyPkg.MyGain', _properties: { Value: 1 } }, 'n', null,
+    ) as any;
+    expect(nested.constructor.name).toBe('ObjectNode');
+    expect(nested.dims).toEqual([1, 1]);
+  });
+
+  it('spells the display value out of that same shape', () => {
+    const node = NodeRegistry.parseValue(arrayValue('Simulink.Parameter', [2, 3, 1], [
+      { Value: 1 }, { Value: 2 }, { Value: 3 }, { Value: 4 }, { Value: 5 }, { Value: 6 },
+    ]), 'q', null) as any;
+    expect(node.displayValue).toBe('<' + node.dims.join('x') + ' Simulink.Parameter>');
+  });
+});
+
 // The columns those element rows fill in. A NUMERIC array hands its class down to
 // its elements (one MATLAB array is one class — see matlabVariableNode.test.ts), and
 // the question these pin is what the same two levels look like when the elements are

@@ -99,6 +99,28 @@ describe('StructNode parse', () => {
   });
 });
 
+// Defect 13. The shape was reachable only through the display string, so any
+// consumer wanting MATLAB's size() had to parse the string it was also checking.
+describe('StructNode shape as data', () => {
+  it('reports every extent, normalized the way MATLAB size() reports it', () => {
+    expect(parseStruct(['a'], [{ a: 1 }], [2, 3]).dims).toEqual([2, 3]);
+    const nd = parseStruct(['a'], Array.from({ length: 12 }, (_, i) => ({ a: i + 1 })), [2, 3, 2]);
+    expect(nd.dims).toEqual([2, 3, 2]);
+    // A trailing singleton past the second extent is not part of size().
+    expect(parseStruct(['a'], [{ a: 1 }], [2, 3, 1]).dims).toEqual([2, 3]);
+    // A struct value with no _dimensions at all is a scalar, as is a 1-extent one.
+    expect((StructNode.parse({ _fields: ['a'], _elements: [{ a: 1 }] } as never, 's', null)).dims)
+      .toEqual([1, 1]);
+    expect(parseStruct(['a'], [{ a: 1 }, { a: 2 }, { a: 3 }], [3]).dims).toEqual([1, 3]);
+  });
+
+  it('spells the display value out of that same shape', () => {
+    const nd = parseStruct(['a'], Array.from({ length: 12 }, (_, i) => ({ a: i + 1 })), [2, 3, 2]);
+    expect(nd.displayValue).toBe('<2x3x2 struct>');
+    expect(nd.displayValue).toBe('<' + nd.dims.join('x') + ' struct>');
+  });
+});
+
 // --- static accessors ------------------------------------------------------
 
 describe('StructNode static accessors', () => {

@@ -464,6 +464,27 @@ describe('decodeMcosBlob — nested object arrays (Elements_internal in a Bus)',
   });
 });
 
+// Defect 9's third site. resolveValue's object-array branch truncated a nested
+// property's shape to its first two extents exactly as the root-variable branch and
+// mcosTypedNode did. busArray cannot see it — a Bus's Elements_internal is always
+// Nx1 — so ndNested.mat exists for this: MATLAB R2027a wrote
+// `h.Kids = reshape(arrayfun(@(k) Simulink.Parameter(k), 1:12), [2 3 2])` and
+// reports size(h.Kids) as [2 3 2], h.Kids(:) as Values 1..12 (see NdHolder.m).
+describe('decodeMcosBlob — a RANK-3 nested object array property (ndNested.mat)', () => {
+  const decoded = decodeMat('ndNested').get('h');
+
+  it('keeps every extent the property handle declares', () => {
+    expect(decoded).toBeDefined();
+    const kids = decoded!.properties.Kids as Record<string, unknown>;
+    expect(kids._array_class).toBe('Simulink.Parameter');
+    expect(kids._dimensions).toEqual([2, 3, 2]);
+    const elems = kids._elements as { _properties: Record<string, unknown> }[];
+    expect(elems).toHaveLength(12);
+    // Column-major, as MATLAB stores it.
+    expect(elems.map((e) => e._properties.Value)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  });
+});
+
 describe('decodeMcosBlob — short / null / undefined rawBytes on a variable', () => {
   // objectHandleFromRaw (line 480) bails when rawBytes is missing or too short to
   // hold even one uint32 word. Without the guard, a variable whose element was
