@@ -10,6 +10,7 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { subscriptLabel } from '../../display/Subscript.js';
+import { effectiveDims, elementCount } from '../../display/DisplayConvention.js';
 export default class StructNode extends DataNode {
     get icon() {
         return 'wsTree';
@@ -26,8 +27,28 @@ export default class StructNode extends DataNode {
         return 'MATLAB Variable';
     }
     get displayValue() {
-        const d = this.serial._dimensions || [1, 1];
-        return '<' + d.join('x') + ' struct>';
+        return '<' + this._shape.join('x') + ' struct>';
+    }
+    // Every extent a MATLAB struct array declares, normalized the way MATLAB's own
+    // size() reports it. Read this rather than serial._dimensions[0]/[1]: MATLAB
+    // writes a 1x1x3 struct array as Dimension="1*1*3" and a 2x3x2 as "2*3*2", so a
+    // rank-2 reading of either one contradicts the element list underneath it.
+    get _shape() {
+        return effectiveDims(this.serial._dimensions);
+    }
+    // How many <Element>s the array has — the product of EVERY extent. d[0]*d[1]
+    // said 6 for a 2x3x2 (which then wrote Dimension="2*3" over twelve elements and
+    // segfaulted MATLAB's XML reader) and 1 for a 1x1x3 (which wrapped the three
+    // elements in one bogus outer <Element> and, on the serializeValue path, threw
+    // their contents away).
+    get _numElements() {
+        return elementCount(this._shape);
+    }
+    // A struct array's children are its ELEMENTS; only a scalar struct's children
+    // are its fields. Anything that edits or reads fields has to ask this and not
+    // `d[0] === 1 && d[1] === 1`, which is true of a 1x1x3 array as well.
+    get _isScalarStruct() {
+        return this._numElements === 1;
     }
     getProperties() {
         return [PropName, PropValue, PropDataType, PropDescription];
@@ -52,14 +73,13 @@ export default class StructNode extends DataNode {
         if (this._rawInput !== undefined && this.status !== 'Modified') {
             return this._rawInput;
         }
-        const d = this.serial._dimensions || [1, 1];
-        const numElems = d[0] * d[1];
+        const d = this._shape;
         const fields = this.serial._fields || [];
         if (this._isElementNode) {
             return this.serializeElement();
         }
         const elements = [];
-        if (numElems > 1) {
+        if (this._numElements > 1) {
             this.children.forEach((elemNode) => {
                 elements.push(elemNode.serializeValue());
             });
@@ -80,7 +100,7 @@ export default class StructNode extends DataNode {
     }
     serializeXml(tagName, attrs, indent) {
         const p = xmlPad(indent);
-        const d = this.serial._dimensions || [1, 1];
+        const d = this._shape;
         let attrStr = '';
         if (attrs && attrs.Name) {
             attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
@@ -93,10 +113,14 @@ export default class StructNode extends DataNode {
             xml += p + '</Element>';
             return xml;
         }
-        const dimAttr = (d[0] === 1 && d[1] === 1) ? '' : ' Dimension="' + d[0] + '*' + d[1] + '"';
+        // Every extent, joined — MATLAB's own spelling for a 1x1x3 struct array is
+        // `Class="struct" Dimension="1*1*3"` with one <Element> per element. Writing
+        // `d[0] + '*' + d[1]` promised 6 elements over a 2x3x2's twelve, and for a
+        // 1x1x3 dropped the attribute entirely (d[0] and d[1] are both 1), which
+        // MATLAB's XML reader answers with a segmentation fault rather than an error.
+        const dimAttr = d.every((n) => n === 1) ? '' : ' Dimension="' + d.join('*') + '"';
         let xml = p + '<' + tagName + attrStr + ' Class="struct"' + dimAttr + '>\n';
-        const numElems = d[0] * d[1];
-        if (numElems > 1) {
+        if (this._numElements > 1) {
             for (const elemNode of this.children) {
                 xml += elemNode.serializeXml('Element', {}, indent + 1) + '\n';
             }
@@ -138,8 +162,7 @@ export default class StructNode extends DataNode {
         }
     }
     canRemoveChild() {
-        const d = this.serial._dimensions || [1, 1];
-        return d[0] === 1 && d[1] === 1 && !this._isElementNode && this.children.length > 0;
+        return this._isScalarStruct && !this._isElementNode && this.children.length > 0;
     }
     removeChildNode(child) {
         const idx = this.children.indexOf(child);
@@ -165,8 +188,7 @@ export default class StructNode extends DataNode {
         this._markModified();
     }
     canAddChild() {
-        const d = this.serial._dimensions || [1, 1];
-        return d[0] === 1 && d[1] === 1 && !this._isElementNode;
+        return this._isScalarStruct && !this._isElementNode;
     }
     addChildNode() {
         const baseName = 'field';

@@ -83,6 +83,7 @@ export default class MatlabVariableNode extends DataNode {
     serializeValue(): unknown;
     _serializeScalar(): unknown;
     _serializeArray(): unknown;
+    _serializeStructValue(): unknown;
     _serializeCell(): unknown;
     _serializeString(): unknown;
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;

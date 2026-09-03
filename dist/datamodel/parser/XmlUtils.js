@@ -70,6 +70,51 @@ export function transposeToColumnMajor(rowMajor, rows, cols) {
     }
     return result;
 }
+// The N-D form: an array of rank >= 3 is a stack of rows x cols pages, each stored
+// column-major in turn, so every page is transposed and the page order is untouched.
+// The exact inverse of BinarySlddParser.transposeColumnMajor. The rank-2-only
+// version above, handed a 2x3x2, filled only the first six slots of a
+// twelve-element result and left the rest as holes — half a .slx-bound N-D array
+// written out as empty text.
+export function transposeToColumnMajorND(rowMajor, dims) {
+    const rows = dims[0];
+    const cols = dims[1];
+    if (rows <= 1 || cols <= 1) {
+        return rowMajor;
+    }
+    const page = rows * cols;
+    const result = rowMajor.slice();
+    for (let base = 0; base + page <= rowMajor.length; base += page) {
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                result[base + c * rows + r] = rowMajor[base + r * cols + c];
+            }
+        }
+    }
+    return result;
+}
+// The other direction: MATLAB's column-major storage order to the row-major-within-
+// page order the display layer and the subscript helper both read. Generic over T
+// because the complex path carries its elements as strings ('1+1i'), and the copy of
+// this loop it used to carry was rank-2-only: handed a 2x3x2 it read six of the
+// twelve values MATLAB wrote and the second page was gone on the next save.
+export function transposeFromColumnMajorND(colMajor, dims) {
+    const rows = dims[0];
+    const cols = dims[1];
+    if (rows <= 1 || cols <= 1) {
+        return colMajor;
+    }
+    const page = rows * cols;
+    const result = colMajor.slice();
+    for (let base = 0; base + page <= colMajor.length; base += page) {
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                result[base + r * cols + c] = colMajor[base + c * rows + r];
+            }
+        }
+    }
+    return result;
+}
 export function pad(indent) {
     return '    '.repeat(indent);
 }

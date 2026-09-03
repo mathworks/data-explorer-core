@@ -252,7 +252,15 @@ describe('parseMat — column-major to row-major', () => {
     const mat = session.addMatSource('nd.mat', doubleFile('nd', [2, 3, 2], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])) as any;
     const node = mat.children[0];
     expect(node.children).toHaveLength(12);
-    expect(node.serializeValue()).toEqual([1, 3, 5, 2, 4, 6, 7, 9, 11, 8, 10, 12]);
+    // The serialized form used to be the bare list [1,3,5,2,4,6,7,9,11,8,10,12]:
+    // every element present, but nowhere to put [2,3,2], so writing this entry into
+    // a dictionary turned MATLAB's 2x3x2 into a 1x12 (defect 15, hole 2). It now
+    // takes the typed Matrix() literal, which is the shaped form the reader accepts
+    // — the element order is unchanged, one bracketed group per row, pages in order.
+    expect(node.serializeValue()).toEqual({
+      _type: 'double',
+      _value: 'Matrix(2,3,2)\n[1, 3, 5]\n[2, 4, 6]\n[7, 9, 11]\n[8, 10, 12]',
+    });
   });
 
   it('leaves a trailing partial page in place rather than dropping it', () => {

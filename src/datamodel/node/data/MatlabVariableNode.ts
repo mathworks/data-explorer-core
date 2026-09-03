@@ -17,7 +17,7 @@ import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { parseMatrix, type MatVariable } from '../../parser/MatParser.js';
-import { elementCount } from '../../display/DisplayConvention.js';
+import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import {
   escapeXml,
@@ -26,7 +26,8 @@ import {
   formatComplexXml,
   formatMatlabNum,
   parseMatlabNum,
-  transposeToColumnMajor,
+  transposeToColumnMajorND,
+  transposeFromColumnMajorND,
   pad as xmlPad,
 } from '../../parser/XmlUtils.js';
 
@@ -152,6 +153,16 @@ function needsTypedLiteral(type: string, value: unknown): boolean {
   return typeof value === 'number' && !isFinite(value);
 }
 
+// Rank >= 3 gets a summary whatever its size: `mat2str` itself errors with "Input
+// matrix must be 2-D." on an N-D array, so there is no MATLAB literal to match, and
+// a bracketed string would be valid 2-D syntax describing only page 1. This is the
+// rank half of DisplayConvention.needsSummary; wiring the element-count half into
+// every display site is Phase 7's job and moves values MATLAB does have a literal
+// for, so the two arrive separately.
+function needsPageSummary(dims: number[] | undefined | null): boolean {
+  return effectiveDims(dims).length > 2;
+}
+
 function formatMatrix(rows: number, cols: number, elements: unknown[]): string {
   if (elements.length === 0) {
     return '[]';
@@ -170,16 +181,21 @@ function formatMatrix(rows: number, cols: number, elements: unknown[]): string {
 
 function parseMatrixValue(
   raw: Record<string, unknown>,
-): { rows: number; cols: number; elements: number[]; type: string } | null {
+): { dims: number[]; elements: number[]; type: string } | null {
   const lines = (raw._value as string).split('\n');
   const header = lines[0];
-  const dimsMatch = header.match(/^Matrix\((\d+),(\d+)\)$/);
+  // Rank 3 and up appear as Matrix(2,3,2) — MATLAB's binary dictionary writes a
+  // 2x3x2 as Dimension="2*3*2", and BinarySlddParser now carries every extent
+  // through. Only the two-group form was matched, so an N-D entry fell through
+  // to the [0,0] empty node with all twelve of its elements gone.
+  const dimsMatch = header.match(/^Matrix\((\d+(?:,\d+)*)\)$/);
   if (!dimsMatch) {
     return null;
   }
 
-  const rows = parseInt(dimsMatch[1], 10);
-  const cols = parseInt(dimsMatch[2], 10);
+  const dims = dimsMatch[1].split(',').map(function (s) {
+    return parseInt(s, 10);
+  });
   const body = lines.slice(1).join('');
 
   const numbers: number[] = [];
@@ -192,7 +208,14 @@ function parseMatrixValue(
     });
   }
 
-  return { rows, cols, elements: numbers, type: raw._type as string };
+  // A one-group header (Matrix(5)) has no MATLAB spelling but is cheap to accept
+  // as the row vector it must mean, rather than handing back a rank-1 dims array
+  // every downstream reader would have to special-case.
+  return {
+    dims: dims.length >= 2 ? dims : [1, dims[0] || 0],
+    elements: numbers,
+    type: raw._type as string,
+  };
 }
 
 // Re-exported so the many callers that reach this type through the node keep
@@ -455,6 +478,14 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   _formatArray(): string {
+    // MATLAB has no bracketed literal for rank >= 3 — mat2str answers "Input matrix
+    // must be 2-D." — and formatMatrix walks dims[0] x dims[1], so a 2x3x2 rendered
+    // as page 1 alone and read as the plain 2x3 sitting beside it in the same
+    // dictionary. A summary is the only honest one-line form; the elements are one
+    // expand away and all twelve of them are there.
+    if (needsPageSummary(this._dims)) {
+      return summaryForm(this._dims, this.className);
+    }
     const elems =
       this.children.length > 0
         ? this.children.map(function (c) {
@@ -473,6 +504,11 @@ export default class MatlabVariableNode extends DataNode {
   _formatCell(): string {
     if (this.children.length === 0) {
       return '{}';
+    }
+    // Rank >= 3, as in _formatArray: the rows x cols walk below showed four of a
+    // 2x2x2's eight cells with nothing to say the other four existed.
+    if (needsPageSummary(this._dims)) {
+      return summaryForm(this._dims, 'cell');
     }
     const rows = this._dims[0];
     const cols = this._dims[1];
@@ -696,18 +732,26 @@ export default class MatlabVariableNode extends DataNode {
     }
   }
 
+  // The write-side twin of parseMatrixValue: `Matrix(d1,...,dn)` and one bracketed
+  // group per row, pages in order. Emitting only rows x cols groups under a
+  // `Matrix(r,c)` header dropped every page after the first of an N-D array as
+  // soon as anything in the variable was edited.
   _buildMatrixString(dims: number[], elements: number[]): string {
     const rows = dims[0];
     const cols = dims[1];
     const rowStrs: string[] = [];
-    for (let r = 0; r < rows; r++) {
-      const vals: string[] = [];
-      for (let c = 0; c < cols; c++) {
-        vals.push(formatMatlabNum(elements[r * cols + c]));
+    const pages = Math.max(1, Math.floor(elements.length / Math.max(1, rows * cols)));
+    for (let pg = 0; pg < pages; pg++) {
+      const base = pg * rows * cols;
+      for (let r = 0; r < rows; r++) {
+        const vals: string[] = [];
+        for (let c = 0; c < cols; c++) {
+          vals.push(formatMatlabNum(elements[base + r * cols + c]));
+        }
+        rowStrs.push('[' + vals.join(', ') + ']');
       }
-      rowStrs.push('[' + vals.join(', ') + ']');
     }
-    return 'Matrix(' + rows + ',' + cols + ')\n' + rowStrs.join('\n');
+    return 'Matrix(' + dims.join(',') + ')\n' + rowStrs.join('\n');
   }
 
   _buildArrayChildren(): void {
@@ -1113,6 +1157,14 @@ export default class MatlabVariableNode extends DataNode {
     if (this._scalarType === 'string') {
       return [this._scalarValue];
     }
+    if (this._scalarType === 'struct') {
+      // Without this arm a struct falls through to `return this._scalarValue`,
+      // which is null for a struct — the entry serializes to null and its
+      // contents are gone, silently, on the first save. The .sldd path only
+      // escapes because it takes the _rawInput early return; a MODIFIED .sldd
+      // struct lands here too. Measured on cases.mat: all five struct entries.
+      return this._serializeStructValue();
+    }
     if (this._scalarType === 'complex') {
       return { _type: 'cdata', _value: this._scalarValue };
     }
@@ -1144,9 +1196,54 @@ export default class MatlabVariableNode extends DataNode {
     if (elems.some((v) => typeof v === 'number' && !isFinite(v))) {
       return { _type: 'double', _value: '[' + elems.map(formatMatlabNum).join(', ') + ']' };
     }
-    return this.children.map(function (c) {
-      return (c as MatlabVariableNode).serializeValue();
-    });
+    // A bare JSON array has nowhere to carry [2,3] or [2,3,2] either, so a matrix
+    // written that way read back as a 1xN — and because the children are row-major
+    // even the element order was wrong against MATLAB's column-major
+    // linearization. Only a true vector may serialize bare; anything with two
+    // spread extents takes the typed Matrix() literal, which is the shaped form
+    // both readers already accept (there is no `_array_type: 'Matrix'`).
+    const d = effectiveDims(this._dims);
+    if (d.length <= 2 && (d[0] === 1 || d[1] === 1)) {
+      return this.children.map(function (c) {
+        return (c as MatlabVariableNode).serializeValue();
+      });
+    }
+    return { _type: this._scalarType || 'double', _value: this._buildMatrixString(d, elems as number[]) };
+  }
+
+  // The `_array_type: 'Struct'` form, rebuilt from the tree. Deliberately the same
+  // shape BinarySlddParser.structValue produces and a text .sldd carries in
+  // _rawInput, so a struct read from a .mat and written to a dictionary
+  // round-trips through the existing reader (NodeClassMap -> StructNode.parse)
+  // unchanged.
+  _serializeStructValue(): unknown {
+    const dims = effectiveDims(this._dims);
+    // A .mat struct ARRAY hangs its ELEMENTS off this node (named 1..N, each a
+    // struct-kind node whose own children are the fields); a 1x1 hangs the fields
+    // directly. StructNode owns neither case on the .mat path, so both are here —
+    // reading this node's children as fields unconditionally would have named a
+    // 2x3's six elements '1'..'6' and written six garbage fields.
+    const elementNodes: BaseNode[] = elementCount(dims) > 1 ? this.children : [this];
+    const fields: string[] = [];
+    const elements: Record<string, unknown>[] = [];
+    for (const el of elementNodes) {
+      const bag: Record<string, unknown> = {};
+      for (const child of el.children) {
+        const c = child as MatlabVariableNode;
+        bag[c.name] = c.serializeValue();
+        if (!fields.includes(c.name)) {
+          fields.push(c.name);
+        }
+      }
+      elements.push(bag);
+    }
+    return {
+      _array_type: 'Struct',
+      _dimensions: dims,
+      _elements: elements,
+      _fields: fields,
+      _mw_element_type: 'MATLABArray',
+    };
   }
 
   _serializeCell(): unknown {
@@ -1187,7 +1284,7 @@ export default class MatlabVariableNode extends DataNode {
   // because the two formats disagree on essentials: XML is explicitly typed by a
   // Class= attribute, carries dimensions as "rows*cols", and — the reason these
   // can't share the JSON traversal — stores matrix elements in COLUMN-major order,
-  // hence transposeToColumnMajor on the way out.
+  // hence transposeToColumnMajorND on the way out.
 
   serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
     switch (this._kind) {
@@ -1265,6 +1362,11 @@ export default class MatlabVariableNode extends DataNode {
     const dims = this._dims;
     const rows = dims[0];
     const cols = dims[1];
+    // Every extent, not just the first two: an N-D array written as Dimension="2*3"
+    // claimed a shape it does not have AND, because the rank-2 transpose fills only
+    // rows x cols slots of its result, emitted the remaining pages as empty text —
+    // half a 2x3x2 gone from the .slx on save.
+    const dimAttr = dims.join('*');
     let attrStr = '';
     if (attrs && attrs.Name) {
       attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
@@ -1272,7 +1374,7 @@ export default class MatlabVariableNode extends DataNode {
 
     if (rows === 0 || cols === 0 || (this._elements.length === 0 && this.children.length === 0)) {
       return (
-        p + '<' + tagName + attrStr + ' Class="' + (type || 'double') + '" Dimension="' + rows + '*' + cols + '"/>'
+        p + '<' + tagName + attrStr + ' Class="' + (type || 'double') + '" Dimension="' + dimAttr + '"/>'
       );
     }
 
@@ -1287,7 +1389,7 @@ export default class MatlabVariableNode extends DataNode {
       type === 'complex' ||
       (elems.length > 0 && typeof elems[0] === 'string' && (elems[0] as string).includes('i'))
     ) {
-      const colMajor = transposeToColumnMajor(elems as string[], rows, cols);
+      const colMajor = transposeToColumnMajorND(elems as string[], dims);
       const formatted = colMajor.map(function (v) {
         return formatComplexXml(String(v));
       });
@@ -1297,9 +1399,7 @@ export default class MatlabVariableNode extends DataNode {
         tagName +
         attrStr +
         ' Class="double" IsComplex="1" Dimension="' +
-        rows +
-        '*' +
-        cols +
+        dimAttr +
         '">' +
         formatted.join(' ') +
         '</' +
@@ -1308,7 +1408,7 @@ export default class MatlabVariableNode extends DataNode {
       );
     }
 
-    const colMajor = transposeToColumnMajor(elems as number[], rows, cols);
+    const colMajor = transposeToColumnMajorND(elems as number[], dims);
     const formatted = colMajor.map(function (v) {
       return formatNumericXml(v as number, type || 'double');
     });
@@ -1321,9 +1421,7 @@ export default class MatlabVariableNode extends DataNode {
       ' Class="' +
       classAttr +
       '" Dimension="' +
-      rows +
-      '*' +
-      cols +
+      dimAttr +
       '">' +
       formatted.join(' ') +
       '</' +
@@ -1344,7 +1442,9 @@ export default class MatlabVariableNode extends DataNode {
       return p + '<' + tagName + attrStr + ' Class="cell" Dimension="0*0"/>';
     }
 
-    let xml = p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + dims[0] + '*' + dims[1] + '">\n';
+    // dims.join, so a 2x3x2 cell keeps its third extent here as it does in
+    // _serializeCellPropertyXml and in what MATLAB itself writes.
+    let xml = p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + dims.join('*') + '">\n';
     for (const child of this.children) {
       xml += (child as MatlabVariableNode).serializeXml('Element', {}, indent + 1) + '\n';
     }
@@ -1375,8 +1475,8 @@ export default class MatlabVariableNode extends DataNode {
     let xml = p + '<' + tagName + attrStr + '>\n';
     xml += ip + '<Element Class="string">\n';
     xml += ip2 + '<P Source="saveobj" PropertyType="any" Class="cell"';
-    if (!(dims[0] === 1 && dims[1] === 1)) {
-      xml += ' Dimension="' + dims[0] + '*' + dims[1] + '"';
+    if (!(dims.length <= 2 && dims[0] === 1 && dims[1] === 1)) {
+      xml += ' Dimension="' + dims.join('*') + '"';
     }
     xml += '>\n';
     for (const str of elements) {
@@ -1880,20 +1980,18 @@ export default class MatlabVariableNode extends DataNode {
       node._scalarValue = colMajorParts[0];
       return node;
     }
-    const dims = (rawVal._dimensions as number[]) || [1, colMajorParts.length];
-    const rows = dims[0];
-    const cols = dims[1];
-    const parts: string[] = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        parts.push(colMajorParts[c * rows + r]);
-      }
-    }
+    // Every extent, and every page. MATLAB writes a complex 2x3x2 as
+    // `IsComplex="1" Dimension="2*3*2"` with twelve column-major values, and
+    // BinarySlddParser hands all three extents through; a loop over dims[0] x dims[1]
+    // consumed six of the twelve and set _dims = [2,3], so a plain open-and-save
+    // wrote MATLAB's own file back with its entire second page missing.
+    const dims = effectiveDims((rawVal._dimensions as number[]) || [1, colMajorParts.length]);
+    const parts = transposeFromColumnMajorND(colMajorParts, dims);
     const node = new MatlabVariableNode(name, parent, rawVal);
     node._rawInput = rawVal;
     node._kind = 'array';
     node._scalarType = 'double';
-    node._dims = [rows, cols];
+    node._dims = dims;
     node._elements = parts;
     parts.forEach(function (el, i) {
       const child = MatlabVariableNode._createScalar(el, 'complex', String(i + 1), node);
@@ -1963,7 +2061,7 @@ export default class MatlabVariableNode extends DataNode {
     node._rawInput = rawVal;
     node._kind = 'array';
     node._elements = parsed.elements;
-    node._dims = [parsed.rows, parsed.cols];
+    node._dims = parsed.dims.slice();
     node._scalarType = parsed.type;
     if (parsed.elements.length > 1) {
       parsed.elements.forEach(function (el, i) {

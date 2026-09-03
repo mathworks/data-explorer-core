@@ -2,7 +2,7 @@
 import BaseNode from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
-import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, parseMatlabNum, transposeToColumnMajor, matlabTimestampNow, pad as xmlPad, } from '../parser/XmlUtils.js';
+import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, parseMatlabNum, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -453,12 +453,18 @@ export default class DataNode extends BaseNode {
             const formatted = formatComplexXml(raw);
             return p + '<P Name="' + escapeXml(name) + '" Class="double" IsComplex="1">' + formatted + '</P>';
         }
-        const matrixMatch = raw.match(/^Matrix\((\d+),(\d+)\)\n(.+)$/s);
+        // Rank 3 and up spells its header Matrix(2,3,2) — MATLAB's own binary
+        // dictionary writes such an entry as Dimension="2*3*2" with a flat
+        // column-major body, so every extent has to survive the round trip. The
+        // two-group form was the only one matched, so an N-D literal fell through to
+        // the scalar branch below and was written out as the single number 0.
+        const matrixMatch = raw.match(/^Matrix\((\d+(?:,\d+)*)\)\n(.+)$/s);
         if (matrixMatch) {
-            const rows = parseInt(matrixMatch[1], 10);
-            const cols = parseInt(matrixMatch[2], 10);
-            const nums = DataNode._parseMatrixNums(matrixMatch[3]);
-            const colMajor = transposeToColumnMajor(nums, rows, cols);
+            const dims = matrixMatch[1].split(',').map(function (s) {
+                return parseInt(s, 10);
+            });
+            const nums = DataNode._parseMatrixNums(matrixMatch[2]);
+            const colMajor = transposeToColumnMajorND(nums, dims);
             const formatted = colMajor.map(function (v) {
                 return formatNumericXml(v, type);
             });
@@ -468,9 +474,7 @@ export default class DataNode extends BaseNode {
                 '" Class="' +
                 type +
                 '" Dimension="' +
-                rows +
-                '*' +
-                cols +
+                dims.join('*') +
                 '">' +
                 formatted.join(' ') +
                 '</P>');
@@ -535,7 +539,10 @@ export default class DataNode extends BaseNode {
         const ip = xmlPad(indent + 1);
         const dims = value._dimensions || [1, 1];
         const elements = value._elements || [];
-        const dimAttr = dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims[0] + '*' + dims[1] + '"';
+        // Every extent, not the first two: MATLAB's own binary dictionary writes
+        // `Class="struct" Dimension="2*3*2"` for a 2x3x2 struct array, and twelve
+        // <Element>s under a `2*3` would read back as a six-element array.
+        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims.join('*') + '"';
         let xml = p + '<P Name="' + escapeXml(name) + '" Class="struct"' + dimAttr + '>\n';
         for (const elem of elements) {
             xml += ip + '<Element>\n';
@@ -551,7 +558,7 @@ export default class DataNode extends BaseNode {
         const p = xmlPad(indent);
         const dims = value._dimensions || [1, 1];
         const elements = value._elements || [];
-        let xml = p + '<P Name="' + escapeXml(name) + '" Class="cell" Dimension="' + dims[0] + '*' + dims[1] + '">\n';
+        let xml = p + '<P Name="' + escapeXml(name) + '" Class="cell" Dimension="' + dims.join('*') + '">\n';
         for (const elem of elements) {
             xml += DataNode._serializeCellElementXml(elem, indent + 1) + '\n';
         }

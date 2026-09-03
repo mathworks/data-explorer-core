@@ -58,7 +58,7 @@ function saved(decoded: unknown): string {
 }
 
 describe('parseBinarySlddParts — Dimension attributes that are not R*C', () => {
-  it('REGRESSION: keeps every element of a 3-D array, and writes them all back', () => {
+  it('REGRESSION: keeps every element of a 3-D array, and its rank', () => {
     // A 3-D numeric is ordinary in a dictionary — a lookup table's breakpoint set
     // or a 3-D gain schedule. MATLAB writes Dimension="2*2*2" with the 8 elements
     // column-major. Each of the thirteen places that read this attribute did its
@@ -67,11 +67,18 @@ describe('parseBinarySlddParts — Dimension attributes that are not R*C', () =>
     // the first page, and any save that rebuilt the chunk wrote a 2x2 back. Half
     // the array was gone from the file, with nothing reported.
     const v = value('<P Name="Value" Class="double" Dimension="2*2*2">1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0</P>');
-    // Collapsed to 2x4, which is MATLAB's own reshape(A,2,[]): the page structure
-    // is not representable downstream, but no element is lost.
-    expect(v).toEqual({ _type: 'double', _value: 'Matrix(2,4)\n[[1.0, 3.0, 5.0, 7.0]; [2.0, 4.0, 6.0, 8.0]]' });
-    // And the save path re-emits all eight, in the original column-major order.
-    expect(saved(v)).toBe('<P Name="X" Class="double" Dimension="2*4">1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0</P>');
+    // This used to fold to 2x4 (MATLAB's own reshape(A,2,[])), which kept every
+    // element but reported a shape MATLAB never had -- `size(A)` is [2 2 2], so
+    // every subscript was wrong and a Matrix(2,4) went back into the file. The
+    // serial string carries all three extents now, one bracketed group per row
+    // with the two pages in order.
+    expect(v).toEqual({
+      _type: 'double',
+      _value: 'Matrix(2,2,2)\n[[1.0, 3.0]; [2.0, 4.0]; [5.0, 7.0]; [6.0, 8.0]]',
+    });
+    // And the save path re-emits all eight in MATLAB's own column-major order
+    // under MATLAB's own Dimension spelling -- byte-identical to what MATLAB wrote.
+    expect(saved(v)).toBe('<P Name="X" Class="double" Dimension="2*2*2">1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0</P>');
   });
 
   it('REGRESSION: reads a single-extent Dimension as a row vector', () => {
@@ -83,42 +90,46 @@ describe('parseBinarySlddParts — Dimension attributes that are not R*C', () =>
     expect(saved(v)).toBe('<P Name="X" Class="double" Dimension="1*3">1.0 2.0 3.0</P>');
   });
 
-  it('applies the same folding to typed, logical and empty arrays', () => {
+  it('reads typed, logical and empty N-D arrays through the same helper', () => {
     // Every branch that reads a Dimension goes through one helper, so a 3-D of any
-    // class is folded identically rather than each path inventing its own answer.
+    // class is read identically rather than each path inventing its own answer.
+    // A 1x2x2 used to take the row-vector shortcut and come back as the flat
+    // 4-vector [1, 2, 3, 4] -- a 1x4 MATLAB never had. Only rank 2 may do that.
     expect(value('<P Name="Value" Class="int16" Dimension="1*2*2">1 2 3 4</P>')).toEqual({
       _type: 'int16',
-      _value: '[1, 2, 3, 4]',
+      _value: 'Matrix(1,2,2)\n[[1, 2]; [3, 4]]',
     });
+    // Logical is the one class that carries no shape at all in this format's
+    // literal, at any rank -- a 2x2 logical is spelled flat too. Out of scope here;
+    // pinned so a later change to the logical spelling is a deliberate one.
     expect(value('<P Name="Value" Class="logical" Dimension="2*2*2">1 0 1 0 1 0 1 0</P>')).toEqual({
       _type: 'logical',
       _value: '[1, 0, 1, 0, 1, 0, 1, 0]',
     });
-    // An empty 3-D keeps its zero extent, so it still reads as empty and not as a
-    // 0-element array of some non-zero shape.
+    // An empty 3-D keeps every extent, so it still reads as empty AND reports the
+    // 0x2x2 that MATLAB's size() reports, not a folded 0x4.
     expect(value('<P Name="Value" Class="double" Dimension="0*2*2"></P>')).toEqual({
       _type: 'double',
-      _emptyDims: [0, 4],
+      _emptyDims: [0, 2, 2],
     });
   });
 
-  it('folds a 3-D nested inside a cell and inside an object property alike', () => {
+  it('reads a 3-D nested inside a cell and inside an object property alike', () => {
     // The three decode paths (entry value, cell element, object property) are
-    // separate code; a fold applied in only one of them would lose data through
+    // separate code; a rule applied in only one of them would lose shape through
     // the other two.
+    const nd = 'Matrix(2,2,2)\n[[1.0, 3.0]; [2.0, 4.0]; [5.0, 7.0]; [6.0, 8.0]]';
     const cellValue = value(
       '<P Name="Value" Class="cell" Dimension="1*1">' +
         '<Element Class="double" Dimension="2*2*2">1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0</Element></P>',
     ) as Record<string, any>;
-    expect(cellValue._elements[0]._value).toBe('Matrix(2,4)\n[[1.0, 3.0, 5.0, 7.0]; [2.0, 4.0, 6.0, 8.0]]');
+    expect(cellValue._elements[0]._value).toBe(nd);
 
     const propValue = value(
       '<P Name="Value"><Element Class="Simulink.Parameter">' +
         '<P Name="V" Class="double" Dimension="2*2*2">1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0</P></Element></P>',
     ) as Record<string, any>;
-    expect(propValue._elements[0]._properties.V._value).toBe(
-      'Matrix(2,4)\n[[1.0, 3.0, 5.0, 7.0]; [2.0, 4.0, 6.0, 8.0]]',
-    );
+    expect(propValue._elements[0]._properties.V._value).toBe(nd);
   });
 
   it('leaves an ordinary R*C dimension exactly as it was', () => {

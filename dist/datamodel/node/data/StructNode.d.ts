@@ -9,6 +9,9 @@ export default class StructNode extends DataNode {
     get dataType(): string;
     get kind(): string;
     get displayValue(): string;
+    get _shape(): number[];
+    get _numElements(): number;
+    get _isScalarStruct(): boolean;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];
     serializeElement(): Record<string, unknown>;

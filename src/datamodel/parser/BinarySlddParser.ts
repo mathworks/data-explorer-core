@@ -2,7 +2,12 @@
 
 import { unzipSync } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
-import { formatDoubleXml, formatMatlabNum, parseMatlabNum } from './XmlUtils.js';
+import {
+  formatDoubleXml,
+  formatMatlabNum,
+  parseMatlabNum,
+  transposeFromColumnMajorND,
+} from './XmlUtils.js';
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -28,37 +33,46 @@ interface XmlNode {
 }
 
 /**
- * Read a `Dimension="R*C"` attribute into exactly two dimensions.
+ * Read a `Dimension="d1*d2*...*dn"` attribute into every extent it declares.
  *
- * Every shape this parser can represent downstream is 2-D: a numeric array becomes
- * the `Matrix(rows,cols)` serial string, which is the same form the text .sldd uses
- * and the only one the save path (DataNode._serializeTypedPropertyXml) and the row
- * builders read back. So the two off-nominal extent counts have to be folded into
- * that here — and every caller has to fold them the SAME way. They used to each
- * `split('*')` for themselves, and both cases went wrong:
+ * All of them are kept: MATLAB's own binary dictionary writes a 2x3x2 as
+ * `"2*3*2"` with a flat column-major body, so folding the trailing extents into
+ * the column count (2x6) reported a shape MATLAB never had, mislabelled every
+ * element, and wrote `Matrix(2,6)` back on save. The serial string carries the
+ * full rank now — `Matrix(2,3,2)` — so there is nothing left to fold into.
+ *
+ * A trailing singleton is dropped because MATLAB's `size()` drops it too: a
+ * 2x3x1 IS a 2x3.
+ *
+ * The two off-nominal extent counts still have to be normalized here so every
+ * caller folds them the SAME way — they used to each `split('*')` for
+ * themselves, and both cases went wrong:
  *
  *   - Fewer than two extents (`Dimension="3"`) left `cols` undefined, so the value
  *     formatted as `Matrix(3,undefined)` with an EMPTY body — every element
- *     dropped on load, and re-saved as the scalar 0.
- *   - More than two (`Dimension="2*2*2"`, e.g. a 3-D lookup-table breakpoint set)
- *     read only rows*cols elements, so a 2x2x2 displayed as a 2x2 holding just the
- *     first page and re-saved with six of its eight values gone.
- *
- * Collapsing the trailing extents into the column count keeps every element in
- * order: the data is column-major, so this is exactly MATLAB's own
- * `reshape(A, R, [])`. The page structure is not preserved — a 2x2x2 reads as 2x4 —
- * but nothing is lost, which the previous behaviour could not say.
+ *     dropped on load, and re-saved as the scalar 0. A lone extent N is a row
+ *     vector of N.
+ *   - An unparseable Dimension has to become SOMETHING; a scalar is the least
+ *     destructive guess.
  */
-function parseDims(dimension: string): number[] {
+export function parseDims(dimension: string): number[] {
+  // `''.split('*')` is `['']` and `Number('')` is 0, which is finite — without
+  // this guard an absent Dimension would read as the empty 1x0.
+  if (!dimension) {
+    return [1, 1];
+  }
   const parts = dimension.split('*').map(Number);
-  if (parts.length === 2) {
-    return parts;
+  if (parts.some((n) => !Number.isFinite(n) || n < 0)) {
+    return [1, 1];
   }
-  if (parts.length < 2) {
-    // A lone extent N describes a row vector of N; an unparseable one, a scalar.
-    return Number.isFinite(parts[0]) ? [1, parts[0]] : [1, 1];
+  if (parts.length === 1) {
+    return [1, parts[0]];
   }
-  return [parts[0], parts.slice(1).reduce((a, b) => a * b, 1)];
+  const dims = parts.slice();
+  while (dims.length > 2 && dims[dims.length - 1] === 1) {
+    dims.pop();
+  }
+  return dims;
 }
 
 export function parseBinarySldd(arrayBuffer: ArrayBuffer): Record<string, unknown> {
@@ -324,7 +338,9 @@ function parseEntryValue(prop: XmlNode): unknown {
     // Column-major to row-major transpose
     const rowMajor = transposeColumnMajor(parts, dimParts);
     // Row vector (1*N)
-    if (dimParts[0] === 1) {
+    // Only a true rank-2 row vector may drop its shape: a 1x2x2 spelled as the
+    // flat 4-vector [1, 2, 3, 4] reads back as a 1x4 MATLAB never had.
+    if (dimParts.length <= 2 && dimParts[0] === 1) {
       return formatTypedVector(rowMajor, type);
     }
     // Column or matrix
@@ -353,11 +369,13 @@ function parseCellElement(el: XmlNode): unknown {
       const dimParts = parseDims(dimension);
       const total = dimParts.reduce((a, b) => a * b, 1);
       if (total === 0) {
-        return { _type: elClass, _value: 'Matrix(' + dimParts[0] + ',' + dimParts[1] + ')' };
+        // Every extent, so an empty N-D cell element agrees with what
+        // parseMatrixValue reads back.
+        return { _type: elClass, _value: 'Matrix(' + dimParts.join(',') + ')' };
       }
       const parts = text.trim().split(/\s+/).map(Number);
       const rowMajor = transposeColumnMajor(parts, dimParts);
-      if (dimParts[0] === 1) {
+      if (dimParts.length <= 2 && dimParts[0] === 1) {
         return formatTypedVector(rowMajor, elClass);
       }
       return formatMatrix(rowMajor, dimParts, elClass);
@@ -427,19 +445,19 @@ function parseStringValue(el: XmlNode, _outerDimension: string | null): unknown 
   return strings;
 }
 
-function transposeColumnMajor(values: number[], dims: number[]): number[] {
-  const rows = dims[0];
-  const cols = dims[1];
-  if (rows <= 1) {
-    return values;
-  }
-  const result = new Array(values.length);
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      result[r * cols + c] = values[c * rows + r];
-    }
-  }
-  return result;
+// Column-major (MATLAB) to row-major-within-page (what the display layer reads).
+// An N-D array is a stack of rows x cols pages, each stored column-major in turn,
+// so every page is transposed and the page order is untouched — the same rule
+// MatParser.transposeFromColMajor applies to .mat data. Handling only dims[0] and
+// dims[1] left every page after the first in column order, so a rank-3 array's
+// later pages displayed transposed.
+// The loop itself lives in XmlUtils, shared with the complex/cdata reader in
+// MatlabVariableNode, which carried its own rank-2-only copy of it. A vector is the
+// same list in both orders and a body whose element count disagrees with the
+// declared Dimension keeps its extra values rather than coming back full of holes;
+// both are properties of the shared helper now.
+export function transposeColumnMajor(values: number[], dims: number[]): number[] {
+  return transposeFromColumnMajorND(values, dims);
 }
 
 function formatTypedScalar(text: string, type: string): unknown {
@@ -477,26 +495,38 @@ function formatNumLiteral(num: number, type: string): string {
   return formatMatlabNum(num);
 }
 
+// The serial string every downstream reader consumes. `Matrix(d1,...,dn)` for
+// rank >= 3 and the unchanged `Matrix(r,c)` at rank <= 2, so no existing fixture
+// moves a byte: `pages` is 1 and `dims.join(',')` is `r,c` there.
 function formatMatrix(values: number[], dims: number[], type: string): unknown {
   const rows = dims[0];
   const cols = dims[1];
   type = type || 'double';
-  // Column vector: single bracketed list
-  if (cols === 1) {
+  const header = 'Matrix(' + dims.join(',') + ')';
+  // Column vector: single bracketed list. Only at rank <= 2 — an Rx1xP still has
+  // pages to lay out.
+  if (cols === 1 && dims.length <= 2) {
     const formatted = values.map((v) => formatNumLiteral(v, type));
-    return { _type: type, _value: 'Matrix(' + rows + ',' + cols + ')\n[' + formatted.join(', ') + ']' };
+    return { _type: type, _value: header + '\n[' + formatted.join(', ') + ']' };
   }
+  // One bracketed group per row, pages laid out in order — the body a rank-3
+  // entry needs is just its pages' rows concatenated, which is what
+  // parseMatrixValue and DataNode._parseMatrixNums consume.
   const rowStrs: string[] = [];
-  for (let r = 0; r < rows; r++) {
-    const row: string[] = [];
-    for (let c = 0; c < cols; c++) {
-      row.push(formatNumLiteral(values[r * cols + c], type));
+  const pages = Math.max(1, Math.floor(values.length / Math.max(1, rows * cols)));
+  for (let p = 0; p < pages; p++) {
+    const base = p * rows * cols;
+    for (let r = 0; r < rows; r++) {
+      const row: string[] = [];
+      for (let c = 0; c < cols; c++) {
+        row.push(formatNumLiteral(values[base + r * cols + c], type));
+      }
+      rowStrs.push('[' + row.join(', ') + ']');
     }
-    rowStrs.push('[' + row.join(', ') + ']');
   }
   return {
     _type: type,
-    _value: 'Matrix(' + rows + ',' + cols + ')\n[' + rowStrs.join('; ') + ']',
+    _value: header + '\n[' + rowStrs.join('; ') + ']',
   };
 }
 
@@ -614,7 +644,7 @@ function parseTypedValue(text: string, className: string | null, dimension: stri
     if (isNumericClass(className)) {
       const parts = text.trim().split(/\s+/).map(parseMatlabNum);
       const rowMajor = transposeColumnMajor(parts, dimParts);
-      if (dimParts[0] === 1) {
+      if (dimParts.length <= 2 && dimParts[0] === 1) {
         return formatTypedVector(rowMajor, className);
       }
       return formatMatrix(rowMajor, dimParts, className);
