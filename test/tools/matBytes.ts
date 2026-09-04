@@ -285,6 +285,59 @@ export function matFile(elements: Uint8Array[], opts: MatFileOptions = {}): Arra
   return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer;
 }
 
+/**
+ * The header text a `-v7.3` save writes, in the shape MATLAB writes it: the same
+ * "MATLAB <version> MAT-file, Platform: ..., Created on: ..." form a Level-5 file
+ * uses, with `7.3` where a Level-5 file says `5.0`, and the HDF5 schema version
+ * appended.
+ *
+ * SYNTHESIZED, not recorded. No MATLAB-authored `-v7.3` file has ever been read
+ * into this corpus — `probe_string.m:80` writes one to /tmp and it was never
+ * harvested — so the platform and date text here is invented and only the `MATLAB
+ * 7.3 MAT-file` prefix is load-bearing. That is why the reader matches on the
+ * prefix rather than on this whole string; see the test that pins it.
+ */
+export const V73_HEADER_TEXT =
+  'MATLAB 7.3 MAT-file, Platform: MACA64, Created on: Thu Sep 04 09:41:00 2025 HDF5 schema 1.00';
+
+/** The HDF5 superblock signature: \x89 H D F \r \n \x1a \n. */
+export const HDF5_SIGNATURE = new Uint8Array([0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+export interface Hdf5MatOptions {
+  headerText?: string;
+  /**
+   * HDF5 userblock size, i.e. where the superblock signature starts. MATLAB uses
+   * 512, read off a real file (`test/parity/matlab/STRING_MCOS.md:132`); HDF5
+   * itself requires a power of two >= 512.
+   */
+  userblock?: number;
+}
+
+/**
+ * A `-v7.3` .mat buffer, as far as everything before the HDF5 superblock goes: the
+ * ordinary 128-byte MATLAB header, zero padding out to the userblock size, then the
+ * HDF5 superblock signature and some payload.
+ *
+ * Only the first 128 bytes are what a Level-5 reader ever looks at, and they are the
+ * whole reason this format was reported as an empty file: the endian indicator is a
+ * genuine little-endian `IM`, so the big-endian throw does not fire, and the first
+ * record tag is read out of userblock padding, i.e. out of zeros.
+ */
+export function hdf5MatFile(opts: Hdf5MatOptions = {}): ArrayBuffer {
+  const userblock = opts.userblock ?? 512;
+  const out = new Uint8Array(userblock + HDF5_SIGNATURE.length + 64);
+  out.fill(0x20, 0, 116);
+  out.set(new TextEncoder().encode(opts.headerText ?? V73_HEADER_TEXT), 0);
+  // Bytes 116-125 — the subsystem-data offset and the version field — are left zero.
+  // A Level-5 file writes 0x0100 as its version and a v7.3 file is believed to write
+  // something else, but nothing here has read one, so no test relies on that field
+  // and this fixture does not pretend to know it.
+  out[126] = 0x49; // 'I'
+  out[127] = 0x4d; // 'M'
+  out.set(HDF5_SIGNATURE, userblock);
+  return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength) as ArrayBuffer;
+}
+
 export interface MxArrayOptions {
   /** Defaults to the real magic, 00 01 49 4D. */
   magic?: number[];

@@ -103,9 +103,24 @@ directory, because `Simulink.data.dictionary.open` rejects a relative one with
 | `probe_nd_nested.m` | at which LEVEL does the cdata go when the N-D value is nested? (defect 22's placement rule) | `$ND_NESTED_OUT` or `tempdir/ndnested` | `nd_nested.sldd` |
 | `probe_typed_shapes.m` | how is a typed array spelled at the top level, in a struct field, in a cell? (defects 21, 23) | `$TYPED_SHAPES_OUT` or `tempdir/typedshapes` | `typed_text.sldd`, `typed_binary.sldd` |
 | `probe_char_shape.m` | what does a dictionary do with a char array that is not 1xN, and which literals does MATLAB accept for one? (defect 25) | `$CHAR_SHAPE_OUT` or `tempdir/charshape` | `char_text.sldd`, `char_binary.sldd` |
-| `probe_string.m` | how does MATLAB store a `string` in a `.mat`, and which heap cell holds the text? (`STRING_MCOS.md`) | `$STRING_OUT` or `tempdir/strprobe` | `strings.mat`, `strings_truth.json`, `strings_mixed.mat` |
+| `probe_string.m` | how does MATLAB store a `string` in a `.mat`, and which heap cell holds the text? (`STRING_MCOS.md`) | `$STRING_OUT` or `tempdir/strprobe` | `strings.mat`, `strings_truth.json`, `strings_mixed.mat`; also writes `strings_v73.mat`, **never harvested** — see below |
 | `probe_writeback.mjs` + `.m` | **the acceptance gate for the TEXT dictionary**: does MATLAB read back the JSON `_value` our writer emits? | `$PROBE_OUT` | — |
 | `probe_writeback_bin.mjs` + `.m` | **the acceptance gate for the BINARY dictionary**: does MATLAB read back the XML chunk our writer emits? (defects 27-30) | `$PROBE_OUT` | — |
+
+**The one fixture this table lists that is not in `test/fixtures/`** is
+`strings_v73.mat` (`probe_string.m:80`). It was written only so `STRING_MCOS.md` could
+say whether the corpus *could* contain a `-v7.3` file, and it was left in `/tmp`. It has
+since acquired a use: `parseMat` now refuses a v7.3 file by its header text
+(`MatParser.ts:356-369`), and the only fixture behind that check is a synthesized one
+(`hdf5MatFile()` in `test/tools/matBytes.ts`), which makes the expected header string
+hand-written — exactly what the rule at the top of this file forbids. Next time this
+probe is run, copy that file in and assert against it:
+
+```bash
+env STRING_OUT=/tmp/strprobe mw -using Bmain matlab -nodesktop \
+    -batch "run('$PWD/test/parity/matlab/probe_string.m')"
+cp /tmp/strprobe/strings_v73.mat test/fixtures/
+```
 
 The two `probe_writeback` probes are the only two-part probes and the only ones with a
 pass/fail verdict. Both read the BUILT package, so a stale `dist/` is a stale verdict, and
