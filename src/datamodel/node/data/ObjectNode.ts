@@ -11,6 +11,8 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
+import { subscriptLabel } from '../../display/Subscript.js';
+import { effectiveDims, summaryForm } from '../../display/DisplayConvention.js';
 
 export default class ObjectNode extends DataNode {
     arrayClass: string;
@@ -44,11 +46,19 @@ export default class ObjectNode extends DataNode {
         return true;
     }
 
-    get displayValue(): string {
+    // The shape as DATA, normalized the way MATLAB's own size() reports it. It used
+    // to exist only baked into displayValue, so a consumer — a parity test above all
+    // — had to parse the display string to learn the shape, and could not check the
+    // shape independently of the string it was already asserting.
+    get dims(): number[] {
         const raw = (this.serial._rawVal as Record<string, unknown>) || {};
-        // A nested object carries no _dimensions at all — it is always a scalar.
-        const d = (raw._dimensions as number[]) || [1, 1];
-        return '<' + d.join('x') + ' ' + this.arrayClass + '>';
+        // A nested object ({ _object_class, _properties }) carries no _dimensions at
+        // all — it is always a scalar, which effectiveDims spells [1, 1].
+        return effectiveDims(raw._dimensions as number[] | undefined);
+    }
+
+    get displayValue(): string {
+        return summaryForm(this.dims, this.arrayClass);
     }
 
     getProperties(): PropClass[] {
@@ -122,7 +132,18 @@ export default class ObjectNode extends DataNode {
         const dims = (rawVal._dimensions as number[]) || [this.children.length, 1];
         let attrStr = '';
         if (attrs && attrs.Name) { attrStr += ' Name="' + escapeXml(attrs.Name) + '"'; }
-        const dimAttr = ' Dimension="' + dims[0] + '*' + (dims[1] ?? 1) + '"';
+        // Every extent, not just the first two. Phase 8 stopped the MCOS decoder
+        // truncating rank, so this node now reports [2,3,2] through `dims` and
+        // displays <2x3x2 Simulink.Parameter> — but this attribute still said "2*3"
+        // over the twelve <Element>s below it, the node contradicting itself.
+        // MATLAB gives no ground truth for an object array's Dimension= (it refuses
+        // object arrays in both .sldd flavours and the .slx model workspace,
+        // truth.notes.slddRejected/slxRejected), but a Dimension= that contradicts
+        // its own body is wrong regardless: for the struct analogue MATLAB's XML
+        // reader segfaults on "2*3" carrying twelve elements. Its struct-array
+        // spelling — every extent named, one <Element> each — is the only form
+        // known to be accepted for an N-D array of things.
+        const dimAttr = ' Dimension="' + (dims.length > 1 ? dims.join('*') : dims[0] + '*1') + '"';
         let xml = p + '<' + tagName + attrStr + dimAttr + '>\n';
         for (const child of this.children) {
             xml += ip + '<Element Class="' + escapeXml(this.arrayClass) + '">\n';
@@ -141,10 +162,15 @@ export default class ObjectNode extends DataNode {
     // object/struct/cell edit recurses through the same path. Feeds both the JSON
     // (serializeValue) and XML (_serializeSimulinkObjectXml) write-back paths.
     _getSerializedProperties(): Record<string, unknown> {
+        const stored = (this.serial._properties as Record<string, unknown>) || {};
         if (this.children.length === 0) {
-            return Object.assign({}, this.serial._properties as Record<string, unknown>);
+            return Object.assign({}, stored);
         }
-        const props: Record<string, unknown> = {};
+        // The reserved keys FIRST, because they have no child to be rebuilt from: a
+        // saveobj envelope is data the tree deliberately does not show
+        // (_addPropertyChildren), so rebuilding the bag from children alone would drop
+        // the whole of a saveobj-serializing object's state on the first save.
+        const props: Record<string, unknown> = ObjectNode._reservedProps(stored);
         for (const child of this.children) {
             props[child.name] = (child as DataNode).serializeValue();
         }
@@ -176,9 +202,6 @@ export default class ObjectNode extends DataNode {
         if (elements.length > 1) {
             node._isElementArray = true;
             const dims = (rawVal._dimensions as number[]) || [1, elements.length];
-            const rows = dims[0];
-            const cols = dims[1];
-            const isMatrix = rows > 1 && cols > 1;
             elements.forEach((elem, ei) => {
                 // Each element is a SCALAR object of the same class. Route it back
                 // through NodeRegistry as a single-element value object so a KNOWN
@@ -193,9 +216,11 @@ export default class ObjectNode extends DataNode {
                     _elements: [{ _properties: (elem._properties as Record<string, unknown>) || {} }],
                 };
                 const elemNode = NodeRegistry.parseValue(elemRaw, String(ei), node) as DataNode;
-                elemNode._displayName = isMatrix
-                    ? name + '(' + (Math.floor(ei / cols) + 1) + ',' + ((ei % cols) + 1) + ')'
-                    : name + '(' + (ei + 1) + ')';
+                // The MCOS decoder and both SLDD paths deliver elements in MATLAB's
+                // own COLUMN-major order, so element ei is MATLAB's linear index
+                // ei+1. Reading it row-major named 4 of the 6 elements of a 2x3
+                // array after the wrong object.
+                elemNode._displayName = subscriptLabel(name, ei, dims, 'column-major', '()');
                 node.addChild(elemNode);
             });
         } else if (elements.length === 1) {
@@ -212,8 +237,24 @@ export default class ObjectNode extends DataNode {
     static _addPropertyChildren(node: ObjectNode, properties: Record<string, unknown> | undefined): void {
         if (!properties || typeof properties !== 'object') { return; }
         for (const propName of Object.keys(properties)) {
+            // A reserved key is not a property and gets no row. Today that is only
+            // SAVEOBJ_KEY, the bag key the reader has to invent for MATLAB's unnamed
+            // saveobj envelope (XmlUtils.SAVEOBJ_KEY): shown, it would put a `_saveobj`
+            // struct next to the real properties in the tree and offer it for editing.
+            // The '_' test rather than the constant because a MATLAB identifier cannot
+            // begin with '_', so no real property name can ever be hidden by this rule.
+            if (propName.charAt(0) === '_') { continue; }
             const child = NodeRegistry.parseValue(properties[propName], propName, node);
             node.addChild(child);
         }
+    }
+
+    /** The reserved keys of a stored bag — the ones _addPropertyChildren gave no child. */
+    static _reservedProps(bag: Record<string, unknown> | undefined): Record<string, unknown> {
+        const out: Record<string, unknown> = {};
+        for (const key of Object.keys(bag || {})) {
+            if (key.charAt(0) === '_') { out[key] = (bag as Record<string, unknown>)[key]; }
+        }
+        return out;
     }
 }

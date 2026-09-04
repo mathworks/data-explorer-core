@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import DataNode from '../DataNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
-import { formatMatlabNum } from '../../parser/XmlUtils.js';
+import { formatMatlabNum, formatMatrixSerial } from '../../parser/XmlUtils.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -9,7 +9,7 @@ import PropMin from '../../prop/PropMin.js';
 import PropMax from '../../prop/PropMax.js';
 import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
-import MatlabValueParser from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { collapseExact } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 const CLASS_NAME = 'Simulink.Parameter';
 export default class ParameterNode extends DataNode {
@@ -73,10 +73,30 @@ export default class ParameterNode extends DataNode {
     // Deliberately scoped to Simulink.Parameter: every other class, including a
     // custom object that happens to have a Value property, keeps the general
     // expansion rule and shows a row for whatever its value parses into.
-    _adoptValueNode(rawValue) {
+    // `edited` says the raw value was just BUILT from what the user typed rather than
+    // read from a file, and it matters because MatlabVariableNode.serializeValue
+    // replays an unmodified node's `_rawInput` verbatim. That replay is right for a
+    // value that came off disk — it is byte-for-byte round-trip fidelity — but for a
+    // value we synthesised it writes our own intermediate spelling straight back out
+    // without ever consulting the writer, and two of those spellings are ones MATLAB
+    // destroys:
+    //
+    //   setProperty('Value', '3+4i')      -> {_type: 'cdata', _value: '3+4i'}
+    //   setProperty('Value', '[1 2; 3 4]') -> {_type: 'double',
+    //                                          _value: 'Matrix(2,2)\n[1, 2]\n[3, 4]'}
+    //
+    // MATLAB reads the first back out of a text dictionary as an empty 1x0 double
+    // (defect 24) and the second likewise, because its body is newline-joined rather
+    // than '; '-joined (defect 19). The writer already emits the correct form for
+    // both; it simply was not being reached. So an edited value is marked Modified
+    // here, which is also just true of it.
+    _adoptValueNode(rawValue, edited) {
         const valueNode = NodeRegistry.parseValue(rawValue, 'Value', this);
         this.children = [];
         this._valueNode = valueNode;
+        if (edited) {
+            valueNode._markModified();
+        }
         if (valueNode.children.length > 0) {
             this.addChild(valueNode);
         }
@@ -108,10 +128,18 @@ export default class ParameterNode extends DataNode {
     // resolved by the inherited BaseNode.getPILayout via buildPILayout.
     setProperty(propName, stringValue) {
         if (propName === 'Value') {
-            const parsed = MatlabValueParser.parse(stringValue);
-            if (!parsed) {
+            const raw = MatlabValueParser.parse(stringValue);
+            if (!raw) {
                 return { error: true, reason: 'Invalid MATLAB expression', invalidValue: stringValue, validValue: this.displayValue };
             }
+            // collapseExact: a Simulink.Parameter's Value has no class of its own to
+            // consult — it is whatever its expression evaluates to, and a bare decimal
+            // literal evaluates to a DOUBLE in MATLAB, so `p.Value = 18446744073709551615`
+            // stores the nearest double there too. The parser's exact-integer token
+            // (defect 42) exists for a 64-bit ENTRY, which knows its class; carried in
+            // here it would be written to the dictionary as a JSON string and read back
+            // as the char '18446744073709551615'.
+            const parsed = collapseExact(raw);
             // MATLAB rejects cell arrays as Parameter.Value (R2027a probe).
             if (parsed.type === 'cell') {
                 return {
@@ -120,6 +148,43 @@ export default class ParameterNode extends DataNode {
                     invalidValue: stringValue,
                     validValue: this.displayValue,
                 };
+            }
+            // MATLAB also rejects a string ARRAY here — `p.Value = ["ab"; "cd"]` raises
+            // Simulink:Data:Param_Invalid_Value, the same error as the cell above,
+            // because the accepted set is a string SCALAR (R2027a probe). We accept it
+            // and write an _array_type:'String' wrapper. Recorded in DESIGN.md rather
+            // than fixed here: refusing it is a one-line change, but the corpus has no
+            // MATLAB-authored counter-example to pin the reader against, and defect 25's
+            // parser change means a user who types ['ab'; 'cd'] no longer reaches this
+            // arm at all — only the genuinely double-quoted spelling does.
+            // A logical ARRAY keeps its class AND its shape through the typed envelope —
+            // the same one an entry writes for the same value. Without this arm it fell
+            // through to the scalar tail below, which stores the parser's bare JS array,
+            // and the writer spells that as a plain JSON list: `p.Value = [true false;
+            // false true]` was written `"Value": [1, 0, 0, 1]` and reopened in MATLAB as a
+            // 1x4 DOUBLE — both the class and the shape gone. Newly reachable, because the
+            // literal was refused outright before defect 43.
+            if (parsed.type === 'logical' && Array.isArray(parsed.value)) {
+                const els = parsed.value;
+                if (els.length === 1) {
+                    // `[true]` is a 1x1, so it takes the same route as the bare `true`
+                    // literal: the boolean itself, which the writer emits as a JSON `true`.
+                    // Left as a one-element list it would be a JSON array, read back as a
+                    // 1x1 double.
+                    this.children = [];
+                    this._valueNode = null;
+                    this.Value = !!els[0];
+                }
+                else {
+                    // formatMatrixSerial rather than a spelling of our own: it is the one
+                    // MATLAB reads back (see its note in XmlUtils), and it already gives a
+                    // row the bare bracketed list and a column or matrix the Matrix(r,c)
+                    // header — the three shapes this arm has to cover.
+                    this._adoptValueNode({ _type: 'logical', _value: formatMatrixSerial(els, parsed.dims, 'logical') }, true);
+                    this.Value = els;
+                }
+                this._markModified();
+                return true;
             }
             if ((parsed.type === 'double' && Array.isArray(parsed.value)) || parsed.type === 'string-array') {
                 let rawValue;
@@ -146,17 +211,29 @@ export default class ParameterNode extends DataNode {
                 else {
                     rawValue = parsed.value;
                 }
-                this._adoptValueNode(rawValue);
+                this._adoptValueNode(rawValue, true);
                 this.Value = parsed.value;
                 this._markModified();
                 return true;
             }
             if (parsed.type === 'complex') {
-                this._adoptValueNode({ _type: 'cdata', _value: parsed.value });
+                this._adoptValueNode({ _type: 'cdata', _value: parsed.value }, true);
                 this.Value = parsed.value;
                 this._markModified();
                 return true;
             }
+            // Every remaining type — including a char, at any shape — is stored as the
+            // scalar the parser handed back, and a char MATRIX therefore keeps only the
+            // column-major text ('acbd' for ['ab'; 'cd']). That is not a shape lost
+            // here: MATLAB's own Value setter coerces ALL text to a 1x1 string, and it
+            // flattens the same way — `p.Value = ['ab'; 'cd']` measures as
+            // string("acbd"), size [1 1] (R2027a). So there is no shape to keep at this
+            // property, unlike at an entry (defect 25 / charShape.test.ts), and an
+            // mxchar literal here would write a value MATLAB never writes. What we do
+            // still differ on is the CLASS — we keep text as char where MATLAB makes it
+            // a string — which is a pre-existing divergence for every char Value, not
+            // one the matrix case introduces. Recorded in DESIGN.md rather than fixed,
+            // because coercing would retype every char Parameter in the corpus.
             this.children = [];
             this._valueNode = null;
             this.Value = parsed.value;

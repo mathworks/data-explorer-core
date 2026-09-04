@@ -168,3 +168,28 @@ describe('MatNode — getVariables', () => {
     expect(mat.getVariables().map((v: any) => v.name)).toEqual(['Kp', '']);
   });
 });
+
+// The whole rank-3 path, end to end on a MATLAB-authored file: MCOS decode ->
+// nested object-array property -> ObjectNode container -> one element row per
+// object. ndNested.mat is `h.Kids = reshape(arrayfun(@(k) Simulink.Parameter(k),
+// 1:12), [2 3 2])`, which MATLAB sizes [2 3 2] with h.Kids(:) holding Values 1..12
+// (see fixtures/mcos/NdHolder.m). Every extent had to survive three separate
+// truncation sites to get here (defect 9).
+describe('MatNode — a rank-3 object array held in a property', () => {
+  it('shows the container MATLAB\'s shape and one row per element', () => {
+    const mat = matSource('ndNested.mat');
+    const h = mat.children.find((c: any) => c.name === 'h');
+    expect(h.constructor.name).toBe('ObjectNode');
+    const kids = h.children.find((c: any) => c.name === 'Kids');
+    expect(kids.dims).toEqual([2, 3, 2]);
+    expect(kids.displayValue).toBe('<2x3x2 Simulink.Parameter>');
+    expect(kids.children).toHaveLength(12);
+    // Column-major subscripts over MATLAB's column-major element list, so the label
+    // names the object MATLAB puts at that subscript.
+    const pairs = kids.children.map((c: any) => [c.displayName, c.displayValue]);
+    expect(pairs[0]).toEqual(['Kids(1,1,1)', '1']);
+    expect(pairs[1]).toEqual(['Kids(2,1,1)', '2']);
+    expect(pairs[11]).toEqual(['Kids(2,3,2)', '12']);
+    expect(new Set(pairs.map((p: string[]) => p[0])).size).toBe(12);
+  });
+});

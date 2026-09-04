@@ -41,6 +41,7 @@ byte-identical.
 | cell array    | `cell`    | `double`           | `{1, 'two', [3 4]}`    |
 | string array  | `string`  | `string`           | `["a" "bb" "ccc"]`     |
 | struct        | `scalar`  | `struct`           | `<1x1 struct>`          |
+| struct array  | `scalar`  | `struct`           | `<2x3 struct>`          |
 | empty         | `array`   | `double`           | `[]`                    |
 
 ## Non-obvious behavior
@@ -134,16 +135,45 @@ data. Pinned in `test/matlabVariableNode.test.ts`.
 A struct (`_kind='scalar', _scalarType='struct'`) has `valueEditable = false`. Its
 fields are editable as individual children.
 
+### A struct ARRAY expands to one row per element, not one row per field
+`MatParser` reads a struct array as one `MatVariable` per element per field
+(`fields[f][ei]`), in MATLAB's own column-major order. A 1x1 struct keeps its
+fields as its direct children; a struct array gets one child per ELEMENT,
+subscript-labelled through `subscriptLabel(name, ei, dims, 'column-major', '()')`
+— `s(1,1) s(2,1) s(1,2) …` — with that element's fields beneath it. Keeping only
+`fields[f][0]` used to make every element after the first invisible, and forced
+`_buildVarObject` to replay elements 2..N from the parse snapshot, so an edit to
+any element but the first was discarded on save. The rebuild now reads the live
+tree: a field goes back out as one `MatVariable` per element, in the same order.
+Pinned in `test/matStructArray.test.ts` (against `truth.json` and the real
+`cases.mat`).
+
 ### Opaque objects are read-only
 An opaque MCOS object (e.g. a `Simulink.Parameter` stored as a raw variable rather
 than as a recognized catalog entry) has `valueEditable = false` and
 `canAddChild() = false`.
 
-### Complex values use cdata serialization
-Complex scalars and arrays are stored in the JSON format as `{ _type: "cdata",
-_value: <encoded> }`. The encoding may be a text representation
-(`"1+2i"` / `"1+2i 3+4i"` with column-major ordering) or a binary-encoded string.
-Both are supported by the parser.
+### cdata is the format's escape hatch, not "the complex encoding"
+A value the `.sldd` schema cannot spell is stored as `{ _type: "cdata", _value:
+<encoded> }`, in one of two encodings:
+
+- **Text**, for a complex value the writer could spell out: `"1+2i"` /
+  `"1+2i 3+4i"`, column-major, with `_dimensions` alongside. This is what the
+  binary (zipped-XML) dictionary emits, and `_parseCdataText` reads it.
+- **Uuencoded bytes** (six bits per printable character, offset by `0x20`), which
+  is what an *uncompressed-text* dictionary emits. The bytes are an 8-byte
+  preamble followed by ONE MAT-file `miMATRIX` element, so `parseCdata`
+  uudecodes, reads the tag at offset 8, and hands the payload at offset 16 to
+  `MatParser.parseMatrix` / `parseMatVariable` — the same reader the `.mat` path
+  uses. Real MATLAB puts far more than complex doubles here: the R2027a corpus
+  stores `cellNd` (2x3x2 cell), `nd2x3x2` (rank-3 real double) and `structNd`
+  (2x3x2 struct array) this way, alongside `cplxScalar` and `cplxVec`.
+
+An undecodable payload degrades to a `char` scalar rather than being dropped, and
+an untouched cdata entry writes back byte-identically by replaying `_rawInput`.
+
+Pinned in `test/cdataParse.test.ts` (against `truth.json` and the real
+`artifacts/text/cases.sldd`).
 
 ## Validation mirrored in code
 

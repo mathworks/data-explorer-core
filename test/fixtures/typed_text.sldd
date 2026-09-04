@@ -1,0 +1,213 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "cTyped",
+						"metadata": {
+							"uuid": "1e0719bc-b4cd-4d75-bc8b-55d55070ec69",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T181347.930842",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_array_type": "Cell",
+									"_dimensions": [
+										1,
+										4
+									],
+									"_elements": [
+										{
+											"_type": "int32",
+											"_value": "[1, 2]"
+										},
+										{
+											"_type": "single",
+											"_value": "1.5F"
+										},
+										true,
+										{
+											"_type": "mxchar",
+											"_value": "Matrix(2,2)\n[[97, 98]; [99, 100]]"
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "i32Col",
+						"metadata": {
+							"uuid": "a91047a5-efa8-4f58-bdac-9583f327add5",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T181347.929139",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int32",
+							"_value": "Matrix(3,1)\n[1, 2, 3]"
+						}
+					},
+					{
+						"name": "i32Mat",
+						"metadata": {
+							"uuid": "eb7eff34-b014-4ac1-9ed1-872bb8c2e960",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T181347.929418",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int32",
+							"_value": "Matrix(2,2)\n[[1, 2]; [3, 4]]"
+						}
+					},
+					{
+						"name": "i32Vec",
+						"metadata": {
+							"uuid": "518280b7-5cf8-4f83-a24c-8efc9a770591",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T181347.927726",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int32",
+							"_value": "[1, 2, 3]"
+						}
+					},
+					{
+						"name": "lglVec",
+						"metadata": {
+							"uuid": "92317ad3-b03a-4101-9eeb-ffdc15e344a4",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T181347.929926",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "logical",
+							"_value": "[1, 0, 1]"
+						}
+					},
+					{
+						"name": "sCharMat",
+						"metadata": {
+							"uuid": "3ff40f18-b906-4ec5-8627-b17dafacc5a8",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T181347.930652",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"m": {
+										"_type": "mxchar",
+										"_value": "Matrix(2,3)\n[[97, 99, 101]; [98, 100, 102]]"
+									},
+									"r": "row"
+								}
+							],
+							"_fields": [
+								"m",
+								"r"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "sTyped",
+						"metadata": {
+							"uuid": "907f2c52-fe81-4709-8c25-59d723038774",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T181347.930524",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"a": {
+										"_type": "int32",
+										"_value": "[1, 2]"
+									},
+									"b": {
+										"_type": "single",
+										"_value": "3.5F"
+									},
+									"c": true,
+									"d": {
+										"_type": "uint64",
+										"_value": "[7U, 8U]"
+									}
+								}
+							],
+							"_fields": [
+								"a",
+								"b",
+								"c",
+								"d"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "sglVec",
+						"metadata": {
+							"uuid": "beaa727f-4830-4a7b-8d45-2336a1d5ebcb",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T181347.929684",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "[1.5F, 2.5F]"
+						}
+					},
+					{
+						"name": "u64Vec2",
+						"metadata": {
+							"uuid": "6ab54a2e-d61c-4359-8e96-ff5e26473126",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T181347.930254",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint64",
+							"_value": "[1U, 2U]"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

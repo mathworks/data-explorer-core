@@ -7,6 +7,7 @@ export interface McosDecoded {
     properties: Record<string, unknown>;
     elements: Record<string, unknown>[];
     dimensions: number[];
+    stringElements?: (string | null)[] | null;
 }
 export declare function decodeMcosObjects(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): Map<string, McosDecoded> | null;
 export declare function modelOpaqueMcosVariable(variable: MatVariable, decoded: McosDecoded | undefined, parent: BaseNode): DataNode | null;

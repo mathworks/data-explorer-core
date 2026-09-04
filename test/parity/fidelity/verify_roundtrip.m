@@ -6,9 +6,34 @@ function verify_roundtrip(slddPath, entryName, specJson)
 % specJson: a JSON object mapping a property PATH to an expected value, e.g.
 %   {"Min":5, "Value":[1,2,3], "CoderInfo.StorageClass":"ExportedGlobal",
 %    "DataType":"int32", "__class__":"Simulink.Parameter", "__count__":3}
-% Special keys: "__class__" asserts class(v); "__count__" asserts numel(v.Elements).
+% Special keys: "__class__" asserts class(v); "__count__" asserts
+% numel(v.Elements); "__value__" asserts the entry's own value; "__size__"
+% asserts size(v).
 % A dotted path walks sub-objects (CoderInfo.StorageClass). String expecteds are
 % compared with isequal after char() coercion; numeric with isequal (exact).
+%
+% __value__ and __size__ together pin an entry's value COMPLETELY, and they are two
+% keys rather than one for two reasons that are both about what JSON cannot say:
+%
+%   - isequal ignores CLASS. isequal(int32(5), 5) is true, so a 5 that came back a
+%     double when we wrote an int32 passes __value__ and there is no expected class
+%     to compare against — jsondecode makes every JSON number a double. So a class
+%     claim must be spelled __class__, which is checked as its own assertion. Do not
+%     add a third spelling.
+%   - JSON has no row-vs-column. A flat [7,8,9] arrives from jsondecode as a 3x1
+%     COLUMN, while the entry may be a 1x3 row, and isequal would then fail on a
+%     correct value. So __value__ compares column-major linearized contents plus
+%     numel, and __size__ asserts the shape. Neither can be fooled: a transpose
+%     linearizes differently ([1 2 3;4 5 6] gives 1 4 2 5 3 6, its transpose gives
+%     1 2 3 4 5 6) and size() is exact.
+%
+% A __value__ given as a STRING is compared against MATLAB's own text for the value
+% instead, which is the escape hatch for the two things JSON cannot spell:
+%   - a 64-bit integer, exactly — the same limit that caused defect 1.
+%     "18446744073709551615" is how to assert intmax('uint64') survived.
+%   - a non-finite. Inf is not a JSON number, and mixing it with numbers makes
+%     jsondecode hand back a cell, so "[1 Inf -Inf NaN 5]" (mat2str's spelling) is
+%     the only way to assert nonFinVec at all.
 %
 % Prints one line per assertion: "PASS <path>" or "FAIL <path> expected=.. got=..",
 % then a final "RESULT PASS|FAIL n/m". Exit-style: the vitest caller greps RESULT.
@@ -44,9 +69,18 @@ for k = 1:numel(keys)
             report(origKey, ok, num2str(expected), num2str(got)); nPass = nPass + ok;
         elseif strcmp(origKey, '__value__')
             % Compare the entry value directly (for plain variables where v IS
-            % the value, not an object with properties).
-            ok = compareVal(v, expected);
+            % the value, not an object with properties). See the header for why
+            % this does not coerce to double and does not assert class or shape.
+            ok = compareValue(v, expected);
             report(origKey, ok, toStr(expected), toStr(v)); nPass = nPass + ok;
+        elseif strcmp(origKey, '__size__')
+            % size() is always a ROW, and jsondecode makes a flat JSON array a
+            % column, so the expected is reshaped to a row before comparing. That
+            % is a spelling fix, not a leniency: the extents themselves are
+            % compared exactly and in order.
+            got = size(v); want = reshape(double(expected), 1, []);
+            ok = isequal(got, want);
+            report(origKey, ok, toStr(want), toStr(got)); nPass = nPass + ok;
         else
             got = walkPath(v, origKey);
             ok = compareVal(got, expected);
@@ -78,6 +112,41 @@ for i = 1:numel(parts)
 end
 end
 
+function ok = compareValue(got, expected)
+% __value__'s comparison. Exact, no double() coercion — that coercion is what makes
+% compareVal unusable here: double(uint64(18446744073709551615)) rounds, so a 64-bit
+% value that came back WRONG would still compare equal, which is defect 1 all over
+% again in the very gate meant to catch it.
+if ischar(expected) || isstring(expected)
+    % A string expected is compared against MATLAB's OWN text for the value, and
+    % which text that is depends on the value, because no single spelling covers
+    % all three reasons to reach this branch:
+    %   char/string value -> the characters themselves
+    %   scalar            -> string(), which prints every digit of a 64-bit integer
+    %                        and adds no class wrapper ("18446744073709551615")
+    %   array             -> mat2str(), the only spelling that can carry a
+    %                        non-finite: [1 Inf -Inf NaN 5] has no JSON form at all
+    %                        (Inf is not a JSON number, and mixing it with numbers
+    %                        makes jsondecode return a cell), so without this an
+    %                        array of non-finites could not be asserted.
+    if ischar(got) || isstring(got)
+        actual = char(string(got));
+    elseif isscalar(got)
+        actual = char(string(got));
+    else
+        actual = mat2str(got);
+    end
+    ok = strcmp(actual, char(string(expected)));
+elseif isnumeric(expected) || islogical(expected)
+    % Column-major contents plus count. isequal across classes compares VALUES,
+    % so this is exact for anything a double can hold; class is __class__'s job
+    % and shape is __size__'s.
+    ok = numel(got) == numel(expected) && isequal(got(:), reshape(expected, [], 1));
+else
+    ok = isequal(got, expected);
+end
+end
+
 function ok = compareVal(got, expected)
 if ischar(expected) || isstring(expected)
     ok = strcmp(char(string(got)), char(string(expected)));
@@ -99,9 +168,23 @@ end
 end
 
 function s = toStr(v)
+% The printed form in a failure line, so it has to be legible for the values this
+% gate exists for: mat2str spells a 64-bit integer and a non-finite exactly, where
+% num2str rounds. It also REFUSES rank >= 3 ("Input matrix must be 2-D"), and a
+% failure whose diagnostic itself errors tells the reader nothing — so the shape
+% summary is the fallback rather than an exception.
 if ischar(v); s = ['''' v ''''];
 elseif isstring(v); s = char(v);
-elseif isnumeric(v) || islogical(v); if isempty(v); s='[]'; else; s = mat2str(v); end
+elseif isnumeric(v) || islogical(v)
+    if isempty(v)
+        s = '[]';
+    else
+        try
+            s = mat2str(v);
+        catch
+            s = ['<' regexprep(num2str(size(v)), '\s+', 'x') ' ' class(v) '>'];
+        end
+    end
 else; s = ['<' class(v) '>']; end
 end
 

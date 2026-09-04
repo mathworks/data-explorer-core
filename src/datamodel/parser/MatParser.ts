@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { unzlibSync } from 'fflate';
+import { exactInt } from './XmlUtils.js';
 
 const CLASS_NAMES: Record<number, string> = {
     1: 'cell', 2: 'struct', 3: 'object', 4: 'char',
@@ -100,8 +101,21 @@ const ELEMENT_WIDTH: Record<number, number> = {
     [MI_DOUBLE]: 8, [MI_INT64]: 8, [MI_UINT64]: 8
 };
 
-function readNumericArray(view: DataView, sub: SubElement, count: number): number[] {
-    const values: number[] = [];
+// One numeric payload, element by element. The return type is `(number | string)[]`
+// because MATLAB's 64-bit integers do not fit a double: the two arms below read them as
+// `bigint` and hand them to `exactInt`, which keeps a number where a double is lossless
+// and falls back to the canonical decimal TEXT where it is not — the same representation
+// the text and binary dictionary readers already carry (XmlUtils.parseExactNum, defects
+// 29 and 30) and the same one MatWriter already writes back.
+//
+// This used to be `number[]`, built with `Number(view.getBigUint64(...))`, and the cast
+// was not a nit: `maxU64` read back as 18446744073709552000, which is not merely rounded
+// but OUT of uint64 range. It also silently corrupted the `string` payload cell, where
+// four UTF-16 code units share one uint64 and the rounding lands in the LOW bits — that
+// is, on the FIRST character of every group of four ("café" -> "`afé"). See
+// test/parity/matlab/STRING_MCOS.md.
+function readNumericArray(view: DataView, sub: SubElement, count: number): (number | string)[] {
+    const values: (number | string)[] = [];
     const off = sub.dataOffset;
 
     // `count` comes from the array's DECLARED dimensions, which a truncated or
@@ -126,8 +140,8 @@ function readNumericArray(view: DataView, sub: SubElement, count: number): numbe
         case MI_UINT16: values.push(view.getUint16(off + i * 2, true)); break;
         case MI_INT32: values.push(view.getInt32(off + i * 4, true)); break;
         case MI_UINT32: values.push(view.getUint32(off + i * 4, true)); break;
-        case MI_INT64: values.push(Number(view.getBigInt64(off + i * 8, true))); break;
-        case MI_UINT64: values.push(Number(view.getBigUint64(off + i * 8, true))); break;
+        case MI_INT64: values.push(exactInt(view.getBigInt64(off + i * 8, true))); break;
+        case MI_UINT64: values.push(exactInt(view.getBigUint64(off + i * 8, true))); break;
         default: values.push(0);
         }
     }
@@ -231,7 +245,7 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
                 const colMajor = realValues.map((r, i) => ({ re: r, im: imagValues[i] }));
                 result.value = transposeFromColMajor(colMajor, dimensions);
             } else {
-                const rowMajor = transposeFromColMajor(realValues, dimensions) as number[];
+                const rowMajor = transposeFromColMajor(realValues, dimensions) as (number | string)[];
                 result.value = rowMajor.length === 1 ? rowMajor[0] : rowMajor;
             }
         }

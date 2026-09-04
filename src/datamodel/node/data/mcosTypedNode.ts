@@ -2,7 +2,7 @@
 
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
-import { decodeMcosBlob } from '../../parser/McosParser.js';
+import { decodeMcosBlob, STRING_CLASS_NAME } from '../../parser/McosParser.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
 import type { MatVariable } from '../../parser/MatParser.js';
@@ -36,9 +36,11 @@ const GENERIC_KEYS = new Set(['MatlabVariable', 'MatlabStruct', 'CustomObject'])
 //
 // `elements`/`dimensions` describe an object ARRAY (e.g. a 20x1
 // Simulink.VariableUsage): each entry is one element's decoded `_properties` bag,
-// in column-major order. When omitted, the object is treated as a scalar built from
-// `properties`. An array routes through ObjectNode, which expands one child row per
-// element (Name(1), Name(2), …), each itself expanding into its property rows.
+// in MATLAB's own column-major order. When omitted, the object is treated as a
+// scalar built from `properties`. An array routes through ObjectNode, which expands
+// one child row per element — Name(1,1), Name(2,1), … down the columns, or a single
+// linear Name(1), Name(2), … for a vector, matching MATLAB's own subscripts — each
+// itself expanding into its property rows.
 export function buildTypedNodeFromMcos(
   className: string,
   name: string,
@@ -52,7 +54,17 @@ export function buildTypedNodeFromMcos(
   }
   // Prefer the full element list (object arrays); fall back to the single scalar bag.
   const elems = elements && elements.length > 0 ? elements : [properties || {}];
-  const dims = dimensions && dimensions.length >= 2 ? [dimensions[0], dimensions[1]] : [1, 1];
+  // Every extent, not just the first two. Truncating to [d0, d1] reported MATLAB's
+  // 2x3x2 obj2x3x2 as a 2x3 — a shape it never had — and handed the subscript
+  // helper two extents for twelve elements, so elements 7..12 were labelled
+  // (1,1)..(2,3) a second time. A missing or single-extent `dimensions` is a scalar
+  // unless there are more elements than that, in which case it is a row vector.
+  const dims =
+    dimensions && dimensions.length >= 2
+      ? dimensions.slice()
+      : elems.length > 1
+        ? [1, elems.length]
+        : [1, 1];
   const isArray = elems.length > 1;
   // A class the data model KNOWS (Simulink.Parameter, …) routes to its own typed
   // node. A class it does NOT know is a customer-defined object: expand it as the
@@ -93,6 +105,9 @@ export interface McosDecoded {
   properties: Record<string, unknown>;
   elements: Record<string, unknown>[];
   dimensions: number[];
+  // A `string`'s text, column-major, `null` per element for a MATLAB `missing` and null
+  // for the whole array when the payload declared a shape without recoverable text.
+  stringElements?: (string | null)[] | null;
 }
 
 // Decode the MCOS blob that carries every opaque object's real property values.
@@ -125,11 +140,19 @@ export function decodeMcosObjects(
 //      resolve it -> the opaque MatlabVariableNode, enriched with those properties.
 //   3. Neither -> null; the caller falls back to its plain-variable path, which
 //      still shows the right class and icon from the variable's own metadata.
+//
+// A `string` short-circuits ahead of all three. It is the one opaque className that is a
+// MATLAB DATA TYPE rather than a class with properties, so case 1 would hand it to a
+// typed/object node and present a value-less property shell; the opaque node knows how to
+// render its decoded text as a string array.
 export function modelOpaqueMcosVariable(
   variable: MatVariable,
   decoded: McosDecoded | undefined,
   parent: BaseNode,
 ): DataNode | null {
+  if (variable.className === STRING_CLASS_NAME && decoded) {
+    return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent);
+  }
   const typed = buildTypedNodeFromMcos(
     variable.className,
     variable.name,

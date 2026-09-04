@@ -1,0 +1,1442 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "aBus",
+						"metadata": {
+							"uuid": "cab45d5e-fec3-4346-a93b-e0bdf9c9b382",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.014391",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Bus",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"DataScope": "Auto",
+										"Description": "a bus",
+										"Elements_internal": {
+											"_array_class": "Simulink.BusElement",
+											"_dimensions": [
+												2,
+												1
+											],
+											"_elements": [
+												{
+													"_id": "2",
+													"_properties": {
+														"Complexity": "real",
+														"Dimensions": 3,
+														"DimensionsMode": "Fixed",
+														"DocUnits": "",
+														"Name": "x"
+													}
+												},
+												{
+													"_id": "3",
+													"_properties": {
+														"Complexity": "real",
+														"DataType_internal": "int8",
+														"Dimensions": 1,
+														"DimensionsMode": "Fixed",
+														"DocUnits": "",
+														"Name": "y"
+													}
+												}
+											]
+										},
+										"HeaderFile": "",
+										"PreserveElementDimensions": false
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "aLookup",
+						"metadata": {
+							"uuid": "8c37a2fc-7916-438f-9f01-ef8ea1ff371f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.014972",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.LookupTable",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes": false,
+										"Breakpoints": {
+											"_id": "3",
+											"_object_class": "Simulink.lookuptable.Breakpoint",
+											"_properties": {
+												"DataType": "auto",
+												"Description": "",
+												"Dimensions": [
+													0,
+													0
+												],
+												"FieldName": "BP1",
+												"TunableSizeName": "N1",
+												"TunableSizeValue": -1,
+												"Unit": ""
+											}
+										},
+										"CoderInfo": {
+											"_id": "4",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "5",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"StructTypeInfo": {
+											"_id": "6",
+											"_object_class": "Simulink.lookuptable.StructTypeInfo",
+											"_properties": {
+												"DataScope": "Auto",
+												"HeaderFileName": "",
+												"Name": "LtType"
+											}
+										},
+										"SupportTunableSize": false,
+										"Table": {
+											"_id": "2",
+											"_object_class": "Simulink.lookuptable.Table",
+											"_properties": {
+												"DataType": "auto",
+												"Description": "",
+												"Dimensions": [
+													0,
+													0
+												],
+												"FieldName": "Table",
+												"Unit": ""
+											}
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "aParam",
+						"metadata": {
+							"uuid": "da8a1090-02b8-4e72-a5d9-47863cfe2740",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.013791",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "int16",
+										"Description": "a param",
+										"Dimensions": [
+											1,
+											1
+										],
+										"DocUnits": "m/s",
+										"Max": 10,
+										"Min": -10,
+										"Value": 5
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "aSignal",
+						"metadata": {
+							"uuid": "dba50659-c4b4-4892-93d5-8f4261a6a3e1",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.014039",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Signal",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "3",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "4",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Signal",
+												"StorageClass": "Auto"
+											}
+										},
+										"DataType": "single",
+										"Description": "a signal",
+										"DocUnits": "K",
+										"LoggingInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.LoggingInfo",
+											"_properties": {}
+										},
+										"Max": 100,
+										"Min": 0
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "aVariant",
+						"metadata": {
+							"uuid": "c11a8411-2877-4632-a8cb-8ee8d1a583a8",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.017518",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.VariantVariable",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Bank": "",
+										"Choices": {
+											"_id": "2",
+											"_object_class": "simulink.variant.Variable",
+											"_properties": {
+												"fChoices": {
+													"_array_class": "simulink.variant.Choice",
+													"_dimensions": [
+														1,
+														2
+													],
+													"_elements": [
+														{
+															"_id": "3",
+															"_properties": {
+																"fValue": 1,
+																"fVariantCondition": "V == 1"
+															}
+														},
+														{
+															"_id": "4",
+															"_properties": {
+																"fValue": 2,
+																"fVariantCondition": "V == 2"
+															}
+														}
+													]
+												}
+											}
+										},
+										"Specification": ""
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "bigD",
+						"metadata": {
+							"uuid": "a57609f1-64ca-4175-9576-7addd6c66f2d",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122401.999942",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": 1e300
+					},
+					{
+						"name": "boolF",
+						"metadata": {
+							"uuid": "49556c32-58cb-4204-90db-eb5e6e6366ba",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.000739",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": false
+					},
+					{
+						"name": "boolT",
+						"metadata": {
+							"uuid": "f132cc32-c8eb-4ef7-af13-427a72bab1e4",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.000541",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": true
+					},
+					{
+						"name": "boolVec",
+						"metadata": {
+							"uuid": "1d5b6e7e-be40-4af1-ade6-6cc84a216da9",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.009371",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "logical",
+							"_value": "[1, 0, 1]"
+						}
+					},
+					{
+						"name": "cell2x3",
+						"metadata": {
+							"uuid": "0291565d-5b25-4933-917c-4e7479cba105",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.012319",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								2,
+								3
+							],
+							"_elements": [
+								1,
+								4,
+								2,
+								5,
+								3,
+								6
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cellEmpty",
+						"metadata": {
+							"uuid": "3c6249bd-bd44-49b7-8837-cafd902932e5",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.012662",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								0,
+								0
+							],
+							"_elements": [],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cellFlat",
+						"metadata": {
+							"uuid": "b6dde319-35ae-41d5-a43b-0d2fc81c6793",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.012029",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								3
+							],
+							"_elements": [
+								1,
+								"two",
+								[
+									3,
+									4
+								]
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cellNd",
+						"metadata": {
+							"uuid": "b84572fe-2262-4bcf-a21f-e388d15b013a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.012490",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    , ,   8    (     0         %    #     (    #     @         !          X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 X    X    !@    @    &          4    (     0    $    !          D    (            $$ .    .     8    (    !@         %    \"     $    !     0         )    \"            !1 #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            80 X    X    !@    @    &          4    (     0    $    !          D    (            '$ .    .     8    (    !@         %    \"     $    !     0         )    \"            \"! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            B0 X    X    !@    @    &          4    (     0    $    !          D    (            )$ .    .     8    (    !@         %    \"     $    !     0         )    \"            \"9 #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            H0 \u0000\u0000\u0000"
+						}
+					},
+					{
+						"name": "cellNest",
+						"metadata": {
+							"uuid": "7d5b4f49-09aa-4d0d-b85f-75004b725bb1",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.012150",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								2
+							],
+							"_elements": [
+								1,
+								{
+									"_array_type": "Cell",
+									"_dimensions": [
+										1,
+										2
+									],
+									"_elements": [
+										2,
+										{
+											"_array_type": "Cell",
+											"_dimensions": [
+												1,
+												1
+											],
+											"_elements": [
+												3
+											]
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "charStr",
+						"metadata": {
+							"uuid": "4b522a26-9a4d-4fba-ab9c-57d77de10ae6",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.000916",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": "it's"
+					},
+					{
+						"name": "colVec",
+						"metadata": {
+							"uuid": "510d8927-0b1c-46bf-a6d2-e352d3473ad7",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.007848",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "double",
+							"_value": "Matrix(3,1)\n[1.0, 2.0, 3.0]"
+						}
+					},
+					{
+						"name": "cplxScalar",
+						"metadata": {
+							"uuid": "07a1d650-2feb-4426-86b7-80ada34492bd",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.001436",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    2     8    (    !@@        %    \"     $    !     0         )    \"             A \"0    @            00 \u0000\u0000\u0000"
+						}
+					},
+					{
+						"name": "cplxVec",
+						"metadata": {
+							"uuid": "19b138a3-c70a-4284-871e-666955b0f2e4",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.011017",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    6     8    (    !@@        %    \"     $    \"     0         )    $            / _        \"$ )    $             !         $, \u0000\u0000"
+						}
+					},
+					{
+						"name": "eleven",
+						"metadata": {
+							"uuid": "15d0806c-5c15-464a-9978-6f54fe2d781f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.009152",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": [
+							1,
+							2,
+							3,
+							4,
+							5,
+							6,
+							7,
+							8,
+							9,
+							10,
+							11
+						]
+					},
+					{
+						"name": "emptyD",
+						"metadata": {
+							"uuid": "ae6cb689-f26a-46bb-9d74-1be9fafe9752",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.008623",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": []
+					},
+					{
+						"name": "exactly10",
+						"metadata": {
+							"uuid": "9b3e39c3-08dc-46b3-be25-bc36629dd277",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.008991",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": [
+							1,
+							2,
+							3,
+							4,
+							5,
+							6,
+							7,
+							8,
+							9,
+							10
+						]
+					},
+					{
+						"name": "hugeChar",
+						"metadata": {
+							"uuid": "8442cf10-c72a-4cbc-af31-9e870d9fce1a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.011766",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+					},
+					{
+						"name": "i16Vec",
+						"metadata": {
+							"uuid": "37dfa392-4d51-46d7-8cdd-93a40870b50a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.009624",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int16",
+							"_value": "[1, 2, 3]"
+						}
+					},
+					{
+						"name": "i64Unsafe",
+						"metadata": {
+							"uuid": "264e6ac8-3196-4d3e-b4b0-9ba000fec9b6",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.010788",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int64",
+							"_value": "9007199254740993"
+						}
+					},
+					{
+						"name": "i64Vec",
+						"metadata": {
+							"uuid": "62b29406-b3fa-4b60-950f-ab3187a60daa",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.010576",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int64",
+							"_value": "[9223372036854775807, -9223372036854775808, -1]"
+						}
+					},
+					{
+						"name": "infN",
+						"metadata": {
+							"uuid": "4ba85e87-627d-42de-9b7f-9182a2c6daea",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.001794",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "double",
+							"_value": "-Inf"
+						}
+					},
+					{
+						"name": "infP",
+						"metadata": {
+							"uuid": "bcfab4c5-3b4d-4625-ba61-63c4bee0a6ff",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.001632",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "double",
+							"_value": "Inf"
+						}
+					},
+					{
+						"name": "kp",
+						"metadata": {
+							"uuid": "b8adfd0a-860b-41b8-9cfb-72a60400dd9c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122401.998178",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": 1.5
+					},
+					{
+						"name": "long30",
+						"metadata": {
+							"uuid": "891fcc6c-2453-4dcf-b5e0-a488591be296",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.008823",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": [
+							1,
+							2,
+							3,
+							4,
+							5,
+							6,
+							7,
+							8,
+							9,
+							10,
+							11,
+							12,
+							13,
+							14,
+							15,
+							16,
+							17,
+							18,
+							19,
+							20,
+							21,
+							22,
+							23,
+							24,
+							25,
+							26,
+							27,
+							28,
+							29,
+							30
+						]
+					},
+					{
+						"name": "longChar",
+						"metadata": {
+							"uuid": "e6524c62-b047-42d0-8200-54d929c5da02",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.011605",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+					},
+					{
+						"name": "mat2x3",
+						"metadata": {
+							"uuid": "a2e29b6d-c1b5-4c1d-9eb5-ebab010a3e4f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.008094",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "double",
+							"_value": "Matrix(2,3)\n[[1.0, 2.0, 3.0]; [4.0, 5.0, 6.0]]"
+						}
+					},
+					{
+						"name": "maxU64",
+						"metadata": {
+							"uuid": "f991a292-e50d-4817-a603-62de85a6bbb4",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.007307",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint64",
+							"_value": "18446744073709551615U"
+						}
+					},
+					{
+						"name": "max_int16",
+						"metadata": {
+							"uuid": "2919c4fb-4557-4ef0-817c-d71925d32f15",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.003647",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int16",
+							"_value": "32767"
+						}
+					},
+					{
+						"name": "max_int32",
+						"metadata": {
+							"uuid": "51d3b638-d2b3-4821-9615-4ac4684fb256",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.004318",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int32",
+							"_value": "2147483647"
+						}
+					},
+					{
+						"name": "max_int64",
+						"metadata": {
+							"uuid": "4857dd2a-0f8b-4be5-b127-7c0def1b7688",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.004964",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int64",
+							"_value": "9223372036854775807"
+						}
+					},
+					{
+						"name": "max_int8",
+						"metadata": {
+							"uuid": "cc6e38bc-bc76-4d93-8812-96ec5835a48a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.003052",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int8",
+							"_value": "127"
+						}
+					},
+					{
+						"name": "max_uint16",
+						"metadata": {
+							"uuid": "b1c7cb1e-c535-4e42-8739-6026c38ea0a0",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.006158",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint16",
+							"_value": "65535U"
+						}
+					},
+					{
+						"name": "max_uint32",
+						"metadata": {
+							"uuid": "ff543646-ceeb-4bb9-8421-5d66916396d4",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.006739",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint32",
+							"_value": "4294967295U"
+						}
+					},
+					{
+						"name": "max_uint8",
+						"metadata": {
+							"uuid": "fa152c59-b39a-40e3-a058-2516f2c798b4",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.005565",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint8",
+							"_value": "255U"
+						}
+					},
+					{
+						"name": "min_int16",
+						"metadata": {
+							"uuid": "6c1e49ec-e85b-489c-b992-9bb8a5b82ccb",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.003808",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int16",
+							"_value": "-32768"
+						}
+					},
+					{
+						"name": "min_int32",
+						"metadata": {
+							"uuid": "1c0a8de5-e1fe-48f2-ae15-928448714576",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.004515",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int32",
+							"_value": "-2147483648"
+						}
+					},
+					{
+						"name": "min_int64",
+						"metadata": {
+							"uuid": "39a2a465-66b8-418a-9f9c-8e2a7d31a5b2",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.005139",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int64",
+							"_value": "-9223372036854775808"
+						}
+					},
+					{
+						"name": "min_int8",
+						"metadata": {
+							"uuid": "016d29f1-4187-411d-b8c1-b82ac47ea868",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.003239",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int8",
+							"_value": "-128"
+						}
+					},
+					{
+						"name": "min_uint16",
+						"metadata": {
+							"uuid": "d1743d3e-835a-4853-9aed-a11e2d2c1483",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.006333",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint16",
+							"_value": "0U"
+						}
+					},
+					{
+						"name": "min_uint32",
+						"metadata": {
+							"uuid": "74b1bf25-8bd0-4b17-a00c-0f9b3a58d0e6",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.006912",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint32",
+							"_value": "0U"
+						}
+					},
+					{
+						"name": "min_uint64",
+						"metadata": {
+							"uuid": "bbd3320e-5d41-4986-9414-8f5040658691",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.007467",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint64",
+							"_value": "0U"
+						}
+					},
+					{
+						"name": "min_uint8",
+						"metadata": {
+							"uuid": "0b137f7c-3492-4a1a-85d2-e9438702a992",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.005731",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint8",
+							"_value": "0U"
+						}
+					},
+					{
+						"name": "nanV",
+						"metadata": {
+							"uuid": "7501e7b3-4811-4cd7-a12d-6a64f6ae0c8f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.001949",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "double",
+							"_value": "NaN"
+						}
+					},
+					{
+						"name": "nd2x3x2",
+						"metadata": {
+							"uuid": "4f9cd931-1de1-4e00-88ca-53f08caa4604",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.008338",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    F     8    (    !@         %    #     (    #     @         !          D   !@            \\#\\        00         !         %$         (0        !A         '$         D0        \"!         )D         B0        \"A \u0000"
+						}
+					},
+					{
+						"name": "negD",
+						"metadata": {
+							"uuid": "58d79cc4-f6af-4946-8a64-23e85c31d306",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122401.999748",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": -2.5
+					},
+					{
+						"name": "nonFinVec",
+						"metadata": {
+							"uuid": "55891efd-f6a5-4b57-84bb-242222ec8fd0",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.002184",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "double",
+							"_value": "[1.0, Inf, -Inf, NaN, 5.0]"
+						}
+					},
+					{
+						"name": "rowVec",
+						"metadata": {
+							"uuid": "c570cd92-cf9b-4f21-bef9-1c6eef94d196",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.007621",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": [
+							1,
+							2,
+							3
+						]
+					},
+					{
+						"name": "s_int16",
+						"metadata": {
+							"uuid": "7da6a325-4b5b-4811-b2f8-3f6213877bdd",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.003463",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int16",
+							"_value": "7"
+						}
+					},
+					{
+						"name": "s_int32",
+						"metadata": {
+							"uuid": "6f7415b5-4e15-451f-8385-d6c061ecbaad",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.004038",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int32",
+							"_value": "7"
+						}
+					},
+					{
+						"name": "s_int64",
+						"metadata": {
+							"uuid": "3d94994a-f446-4e85-8b8b-74f277ffb4a0",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.004757",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int64",
+							"_value": "7"
+						}
+					},
+					{
+						"name": "s_int8",
+						"metadata": {
+							"uuid": "2088c1ad-e63f-4212-aa87-b61f76759014",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.002791",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int8",
+							"_value": "7"
+						}
+					},
+					{
+						"name": "s_uint16",
+						"metadata": {
+							"uuid": "2f201a3e-45cc-48d7-83de-a0e4ecaa63eb",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.005960",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint16",
+							"_value": "7U"
+						}
+					},
+					{
+						"name": "s_uint32",
+						"metadata": {
+							"uuid": "59bc01eb-236b-4ab3-b4e8-765247fb4c84",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.006547",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint32",
+							"_value": "7U"
+						}
+					},
+					{
+						"name": "s_uint64",
+						"metadata": {
+							"uuid": "6efd84a6-00b5-4521-bac3-c0b4786b0218",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.007133",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint64",
+							"_value": "7U"
+						}
+					},
+					{
+						"name": "s_uint8",
+						"metadata": {
+							"uuid": "d85a290f-7998-48f7-9e5c-222d379892d0",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.005368",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint8",
+							"_value": "7U"
+						}
+					},
+					{
+						"name": "scalarD",
+						"metadata": {
+							"uuid": "ebe0640c-4a2a-4ecf-87c4-d091c74c2877",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122401.999547",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": 3.141592653589793
+					},
+					{
+						"name": "scalarS",
+						"metadata": {
+							"uuid": "48270657-91b2-400f-a503-0477d3ae056e",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.000341",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "3.14159274F"
+						}
+					},
+					{
+						"name": "strArray",
+						"metadata": {
+							"uuid": "19acd275-4a2f-456b-a8b9-d29f965a4f89",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.011254",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "String",
+							"_dimensions": [
+								1,
+								3
+							],
+							"_elements": [
+								"a",
+								"bb",
+								"ccc"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "strMat",
+						"metadata": {
+							"uuid": "62698333-e0db-4797-9b79-c22e418f878c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.011437",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "String",
+							"_dimensions": [
+								2,
+								3
+							],
+							"_elements": [
+								"a",
+								"d",
+								"bb",
+								"ee",
+								"ccc",
+								"fff"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "strScalar",
+						"metadata": {
+							"uuid": "4ad78b10-c0ef-46fb-b533-82ad04d0d388",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.001192",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": [
+							"world"
+						]
+					},
+					{
+						"name": "struct1x3",
+						"metadata": {
+							"uuid": "b1abb1af-d704-42a5-be55-5611fd46e88a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.013122",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								3
+							],
+							"_elements": [
+								{
+									"a": 1,
+									"b": 10
+								},
+								{
+									"a": 2,
+									"b": 20
+								},
+								{
+									"a": 3,
+									"b": 30
+								}
+							],
+							"_fields": [
+								"a",
+								"b"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "struct2x3",
+						"metadata": {
+							"uuid": "0e0b6a98-447e-4c6a-b5ed-85263f032688",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.013286",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								2,
+								3
+							],
+							"_elements": [
+								{
+									"a": 1
+								},
+								{
+									"a": 2
+								},
+								{
+									"a": 3
+								},
+								{
+									"a": 4
+								},
+								{
+									"a": 5
+								},
+								{
+									"a": 6
+								}
+							],
+							"_fields": [
+								"a"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "structEmpty",
+						"metadata": {
+							"uuid": "017c7aef-c4ed-4023-aba4-ce5ae88c1b79",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.013622",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "struct",
+							"_value": "[]"
+						}
+					},
+					{
+						"name": "structNd",
+						"metadata": {
+							"uuid": "a9891e31-aa3d-4eb8-82f8-b9bdfc7e46a7",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.013450",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    2 ,   8    (     @         %    #     (    #     @         !          4 !  %     0    4   !A          X    X    !@    @    &          4    (     0    $    !          D    (            \\#\\.    .     8    (    !@         %    \"     $    !     0         )    \"             ! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            (0 X    X    !@    @    &          4    (     0    $    !          D    (            $$ .    .     8    (    !@         %    \"     $    !     0         )    \"            !1 #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            80 X    X    !@    @    &          4    (     0    $    !          D    (            '$ .    .     8    (    !@         %    \"     $    !     0         )    \"            \"! #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            B0 X    X    !@    @    &          4    (     0    $    !          D    (            )$ .    .     8    (    !@         %    \"     $    !     0         )    \"            \"9 #@   #@    &    \"     8         !0    @    !     0    $         \"0    @            H0 \u0000\u0000\u0000"
+						}
+					},
+					{
+						"name": "structNest",
+						"metadata": {
+							"uuid": "6ca26872-5982-4843-abee-95ebcaa3e316",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.012947",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"a": {
+										"_array_type": "Struct",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"b": 2
+											}
+										],
+										"_fields": [
+											"b"
+										]
+									}
+								}
+							],
+							"_fields": [
+								"a"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "structScalar",
+						"metadata": {
+							"uuid": "b0fcd55c-25ef-4a0d-bdbd-5a0d84ecab02",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.012829",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"a": 1,
+									"b": "txt"
+								}
+							],
+							"_fields": [
+								"a",
+								"b"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "tinyD",
+						"metadata": {
+							"uuid": "a189e8bb-8845-4d11-b4d9-e71992652116",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.000104",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": 1e-300
+					},
+					{
+						"name": "u64Vec",
+						"metadata": {
+							"uuid": "5643273e-1e31-40c1-a2ca-a2dc8cf521ee",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T122402.010085",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "uint64",
+							"_value": "[18446744073709551615U, 1U, 0U]"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

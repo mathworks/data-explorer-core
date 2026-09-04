@@ -222,10 +222,35 @@ describe('decodeMcosBlob — custom class objects (multi-object graph, .mat)', (
     expect(tags._elements).toEqual(['suv', 'electric']);
   });
 
-  it('surfaces a MATLAB string-typed property value as the honest sentinel', () => {
-    // The value cannot be recovered, but the property NAME is still present.
+  it('decodes a MATLAB string-typed property value out of its own payload cell', () => {
+    // This used to be the honest sentinel: the property NAME was present and its value
+    // was '<not available>'. The payload layout is measured now (test/parity/matlab/
+    // STRING_MCOS.md), so a string PROPERTY decodes exactly as a string VARIABLE does —
+    // and this fixture is the corpus's only artifact that reaches it, because a Simulink
+    // class converts a string assigned to a property into a char.
+    //
+    // The value is the dimensioned envelope the dictionary formats use for a string
+    // array, so the node layer renders a property-held string through the same path.
     expect('Name' in v!.properties).toBe(true);
-    expect(v!.properties.Name).toBe(NOT_AVAILABLE);
+    expect(v!.properties.Name).toEqual({
+      _array_type: 'String',
+      _dimensions: [1, 1],
+      _elements: ['Model-X'],
+      _mw_element_type: 'MATLABArray',
+    });
+    expect(f!.properties.FleetName).toEqual({
+      _array_type: 'String',
+      _dimensions: [1, 1],
+      _elements: ['east'],
+      _mw_element_type: 'MATLABArray',
+    });
+  });
+
+  it('still has a sentinel to fall back on', () => {
+    // Kept as the answer for a payload whose words do not account for the text: a shape
+    // with no characters, never characters we invented. Nothing in the corpus produces
+    // one, so this is the contract, asserted at the unit it is defined at.
+    expect(NOT_AVAILABLE).toBe('<not available>');
   });
 
   it('merges class defaults so a default-valued property (Fleet.Notes) still appears', () => {
@@ -461,6 +486,27 @@ describe('decodeMcosBlob — nested object arrays (Elements_internal in a Bus)',
     expect(elems).toHaveLength(3);
     const names = elems.map((e) => e._properties.Name);
     expect(new Set(names).size).toBe(3);
+  });
+});
+
+// Defect 9's third site. resolveValue's object-array branch truncated a nested
+// property's shape to its first two extents exactly as the root-variable branch and
+// mcosTypedNode did. busArray cannot see it — a Bus's Elements_internal is always
+// Nx1 — so ndNested.mat exists for this: MATLAB R2027a wrote
+// `h.Kids = reshape(arrayfun(@(k) Simulink.Parameter(k), 1:12), [2 3 2])` and
+// reports size(h.Kids) as [2 3 2], h.Kids(:) as Values 1..12 (see NdHolder.m).
+describe('decodeMcosBlob — a RANK-3 nested object array property (ndNested.mat)', () => {
+  const decoded = decodeMat('ndNested').get('h');
+
+  it('keeps every extent the property handle declares', () => {
+    expect(decoded).toBeDefined();
+    const kids = decoded!.properties.Kids as Record<string, unknown>;
+    expect(kids._array_class).toBe('Simulink.Parameter');
+    expect(kids._dimensions).toEqual([2, 3, 2]);
+    const elems = kids._elements as { _properties: Record<string, unknown> }[];
+    expect(elems).toHaveLength(12);
+    // Column-major, as MATLAB stores it.
+    expect(elems.map((e) => e._properties.Value)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
 });
 

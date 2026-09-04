@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import { unzlibSync } from 'fflate';
+import { exactInt } from './XmlUtils.js';
 const CLASS_NAMES = {
     1: 'cell', 2: 'struct', 3: 'object', 4: 'char',
     5: 'sparse', 6: 'double', 7: 'single', 8: 'int8',
@@ -58,6 +59,19 @@ const ELEMENT_WIDTH = {
     [MI_INT32]: 4, [MI_UINT32]: 4, [MI_SINGLE]: 4,
     [MI_DOUBLE]: 8, [MI_INT64]: 8, [MI_UINT64]: 8
 };
+// One numeric payload, element by element. The return type is `(number | string)[]`
+// because MATLAB's 64-bit integers do not fit a double: the two arms below read them as
+// `bigint` and hand them to `exactInt`, which keeps a number where a double is lossless
+// and falls back to the canonical decimal TEXT where it is not — the same representation
+// the text and binary dictionary readers already carry (XmlUtils.parseExactNum, defects
+// 29 and 30) and the same one MatWriter already writes back.
+//
+// This used to be `number[]`, built with `Number(view.getBigUint64(...))`, and the cast
+// was not a nit: `maxU64` read back as 18446744073709552000, which is not merely rounded
+// but OUT of uint64 range. It also silently corrupted the `string` payload cell, where
+// four UTF-16 code units share one uint64 and the rounding lands in the LOW bits — that
+// is, on the FIRST character of every group of four ("café" -> "`afé"). See
+// test/parity/matlab/STRING_MCOS.md.
 function readNumericArray(view, sub, count) {
     const values = [];
     const off = sub.dataOffset;
@@ -99,10 +113,10 @@ function readNumericArray(view, sub, count) {
                 values.push(view.getUint32(off + i * 4, true));
                 break;
             case MI_INT64:
-                values.push(Number(view.getBigInt64(off + i * 8, true)));
+                values.push(exactInt(view.getBigInt64(off + i * 8, true)));
                 break;
             case MI_UINT64:
-                values.push(Number(view.getBigUint64(off + i * 8, true)));
+                values.push(exactInt(view.getBigUint64(off + i * 8, true)));
                 break;
             default: values.push(0);
         }

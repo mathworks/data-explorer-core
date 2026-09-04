@@ -11,7 +11,12 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
-import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, formatMatlabNum, parseMatlabNum, transposeToColumnMajor, pad as xmlPad, } from '../../parser/XmlUtils.js';
+import { parseMatrix } from '../../parser/MatParser.js';
+import { uudecode } from '../../parser/CdataCodec.js';
+import { encodeCdata } from '../../parser/MatWriter.js';
+import { EMPTY_CELL, EMPTY_NUMERIC, MISSING_STRING, effectiveDims, elementCount, needsSummary, overCharBudget, summaryForm, } from '../../display/DisplayConvention.js';
+import { subscriptLabel } from '../../display/Subscript.js';
+import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
 // ---- Pure value helpers ----
 // None of these read node state, which is why they are module-local functions and
 // not methods: staying off the class is what lets the display getters and the
@@ -33,10 +38,17 @@ const MCOS_ICON_MAP = {
     'Simulink.LookupTable': 'wsLookup',
     'Simulink.Breakpoint': 'wsSimulinkBreakpoint',
     'Simulink.ValueType': 'wsValue',
+    // Not a Simulink class: a `string` reaches the opaque path because MATLAB stores it as
+    // an MCOS object, and without this entry the same string array that shows a string icon
+    // out of a dictionary showed the default one out of a .mat.
+    string: 'wsString',
 };
-// Stands in for a cell slot the parser could not read (see _createFromMatCell).
+// An empty 0x0 double, MATLAB's own `[]`. Stands in for a cell slot the parser
+// could not read (see _createFromMatCell) and for a struct-array element that no
+// longer has one of the array's fields (see _buildVarObject): in both places a
+// hole must stay a hole, or every later element slides one slot early.
 // A fresh object per call, since the node built from it keeps a reference.
-function emptyCellSlot() {
+function emptyDouble() {
     return {
         name: '',
         className: 'double',
@@ -47,49 +59,30 @@ function emptyCellSlot() {
         fields: null,
     };
 }
-function decodeCdata(str) {
-    const bits = [];
-    for (let i = 0; i < str.length; i++) {
-        const v = str.charCodeAt(i) - 0x20;
-        for (let b = 5; b >= 0; b--) {
-            bits.push((v >> b) & 1);
-        }
-    }
-    const bytes = new Uint8Array(Math.floor(bits.length / 8));
-    for (let i = 0; i < bytes.length; i++) {
-        let byte = 0;
-        for (let b = 0; b < 8; b++) {
-            byte = (byte << 1) | bits[i * 8 + b];
-        }
-        bytes[i] = byte;
-    }
-    const dv = new DataView(bytes.buffer);
-    const rows = dv.getInt32(40, true);
-    const cols = dv.getInt32(44, true);
-    let offset = 48;
-    const nameWord = dv.getUint32(offset, true);
-    const nameHigh = (nameWord >> 16) & 0xffff;
-    if (nameHigh > 0 && nameHigh <= 4) {
-        offset += 8;
-    }
-    else {
-        const nSize = dv.getUint32(offset + 4, true);
-        offset += 8 + Math.ceil(nSize / 8) * 8;
-    }
-    offset += 8;
-    const numElements = rows * cols;
-    const realParts = [];
-    for (let i = 0; i < numElements; i++) {
-        realParts.push(dv.getFloat64(offset + i * 8, true));
-    }
-    offset += Math.ceil((numElements * 8) / 8) * 8;
-    offset += 8;
-    const imagParts = [];
-    for (let i = 0; i < numElements; i++) {
-        imagParts.push(dv.getFloat64(offset + i * 8, true));
-    }
-    return { rows, cols, realParts, imagParts };
+// One element of a string array as MATLAB displays it: quoted, or the unquoted
+// `<missing>` for a `missing`. `null` is the marker for a `missing` because the display
+// text cannot be — a real string whose characters are `<missing>` still has to print
+// quoted, and the two would be indistinguishable if the marker were the text.
+// `undefined` is a hole rather than a missing (a shorter `_elements` than `_dims`
+// claims), and prints as the empty string it always did.
+function formatStringElement(el) {
+    if (el === null)
+        return MISSING_STRING;
+    return formatMatlabString(el !== undefined ? String(el) : '');
 }
+// A text .sldd stores a value its JSON schema cannot spell as uuencoded bytes,
+// and what those bytes CONTAIN is an 8-byte preamble followed by one MAT-file
+// miMATRIX element — so decoding stops at the transport (parser/CdataCodec) and
+// MatParser reads the rest. parseCdata used to keep going itself and hand-read a
+// 2-D complex double at fixed offsets (rows at 40, cols at 44), which meant every
+// other class MATLAB puts in a cdata came back as garbage complex numbers or fell
+// through to a char.
+//
+// The encode direction lives beside the decode one in CdataCodec, with the MAT
+// element writer in parser/MatWriter — see _serializeCdata for why a rank >= 3
+// value, and a complex value at any rank, has to go out this way.
+// MAT-file element type miMATRIX: the one thing a cdata payload ever holds.
+const MI_MATRIX = 14;
 // The MATLAB numeric classes a bare JSON number cannot carry. JSON has ONE number
 // type, so an int32 or a single written as a plain number reads back as a double —
 // a silent class change, not a rounding nit. `double` needs no tag.
@@ -138,49 +131,93 @@ function needsTypedLiteral(type, value) {
     }
     return typeof value === 'number' && !isFinite(value);
 }
-function formatComplex(real, imag) {
-    const r = String(real);
-    const im = String(imag);
-    if (imag >= 0) {
-        return r + '+' + im + 'i';
-    }
-    return r + im + 'i';
-}
+// A MATLAB matrix literal: `[1 2 3; 4 5 6]`. Only ever called for rank <= 2 — the
+// caller summarizes anything higher, because mat2str itself refuses rank >= 3 and
+// there is no MATLAB one-line spelling to match.
+//
+// The row loop used to run the full rows x cols grid and print '?' for anything it
+// could not find, so an element list shorter than the declared shape filled the
+// display with question marks. It now formats the elements that exist.
 function formatMatrix(rows, cols, elements) {
     if (elements.length === 0) {
-        return '[]';
+        return EMPTY_NUMERIC;
     }
     const rowStrs = [];
     for (let r = 0; r < rows; r++) {
         const vals = [];
         for (let c = 0; c < cols; c++) {
-            const val = elements[r * cols + c];
-            vals.push(val !== undefined ? formatMatlabNum(val) : '?');
+            const i = r * cols + c;
+            if (i >= elements.length) {
+                break;
+            }
+            vals.push(formatMatlabNum(elements[i]));
         }
-        rowStrs.push(vals.join(' '));
+        if (vals.length > 0) {
+            rowStrs.push(vals.join(' '));
+        }
+    }
+    return '[' + rowStrs.join('; ') + ']';
+}
+// A char MATRIX as MATLAB prints one: `['ab'; 'cd']`, one quoted string per ROW.
+//
+// The stored text is column-major (see XmlUtils' char section), so row r is every
+// rows-th character starting at r — MATLAB's own 2x2 'acbd' is rows 'ab' and 'cd'.
+// Each row is quoted through formatMatlabChar, so an apostrophe inside one doubles
+// exactly as it does in the scalar spelling.
+//
+// Rank 2 only: the caller summarizes anything higher, for the same reason formatMatrix
+// does — MATLAB has no one-line print of a rank-3 array of any class.
+function formatCharMatrix(text, dims) {
+    const rows = dims[0];
+    const cols = dims[1];
+    const rowStrs = [];
+    for (let r = 0; r < rows; r++) {
+        let row = '';
+        for (let c = 0; c < cols; c++) {
+            row += text.charAt(c * rows + r);
+        }
+        rowStrs.push(formatMatlabChar(row));
     }
     return '[' + rowStrs.join('; ') + ']';
 }
 function parseMatrixValue(raw) {
     const lines = raw._value.split('\n');
     const header = lines[0];
-    const dimsMatch = header.match(/^Matrix\((\d+),(\d+)\)$/);
+    // Rank 3 and up appear as Matrix(2,3,2) — MATLAB's binary dictionary writes a
+    // 2x3x2 as Dimension="2*3*2", and BinarySlddParser now carries every extent
+    // through. Only the two-group form was matched, so an N-D entry fell through
+    // to the [0,0] empty node with all twelve of its elements gone.
+    const dimsMatch = header.match(/^Matrix\((\d+(?:,\d+)*)\)$/);
     if (!dimsMatch) {
         return null;
     }
-    const rows = parseInt(dimsMatch[1], 10);
-    const cols = parseInt(dimsMatch[2], 10);
+    const dims = dimsMatch[1].split(',').map(function (s) {
+        return parseInt(s, 10);
+    });
     const body = lines.slice(1).join('');
     const numbers = [];
     // Inf/-Inf/NaN are elements too, and a digits-only pattern would skip them —
     // shifting every later element one slot left and corrupting the whole matrix.
     const numMatches = body.match(/-?(?:[\d.]+(?:[eE][+-]?\d+)?|Inf|NaN)/g);
     if (numMatches) {
+        // An int64/uint64 element is kept as exact decimal TEXT: MATLAB's 64-bit range is
+        // wider than a double's exact one BY CONSTRUCTION, so parseMatlabNum turned
+        // maxU64 into 18446744073709552000 one step after the reader had it right
+        // (defect 29). The suffix never reaches here — the pattern above matches digits,
+        // so '18446744073709551615U' arrives already bare.
+        const exact = needsExactInt(raw._type);
         numMatches.forEach(function (s) {
-            numbers.push(parseMatlabNum(s));
+            numbers.push(exact ? parseExactNum(s) : parseMatlabNum(s));
         });
     }
-    return { rows, cols, elements: numbers, type: raw._type };
+    // A one-group header (Matrix(5)) has no MATLAB spelling but is cheap to accept
+    // as the row vector it must mean, rather than handing back a rank-1 dims array
+    // every downstream reader would have to special-case.
+    return {
+        dims: dims.length >= 2 ? dims : [1, dims[0] || 0],
+        elements: numbers,
+        type: raw._type,
+    };
 }
 export default class MatlabVariableNode extends DataNode {
     constructor(name, parent, serial) {
@@ -232,6 +269,22 @@ export default class MatlabVariableNode extends DataNode {
         return this._elements;
     }
     get dims() {
+        // An opaque MCOS object's shape is the one the decoder recovered, not _dims —
+        // which no opaque path ever sets, so it is the [1,1] the constructor left. That
+        // was the only shape available while the decoder had nothing better; a `string`
+        // now carries MATLAB's own size() from its payload, and a 1x3 reporting 1x1 here
+        // would contradict the summary the same node displays.
+        if (this._isOpaque) {
+            return this._mcosDimensions || this._dims;
+        }
+        // A char is measured in CHARACTERS, and the bare-JSON-string channel hands one
+        // over with no shape at all, so _dims is [1,1] there however long the text is.
+        // Reporting that made the accessor the only channel disagreeing with MATLAB's
+        // size(): the display, the writers and the .mat snapshot all read _textDims, and
+        // a consumer asking for the 1x4 'it''s' was told 1x1 (defect 25).
+        if (this._kind === 'scalar' && this._scalarType === 'char') {
+            return this._textDims(this._scalarValue === null || this._scalarValue === undefined ? '' : String(this._scalarValue));
+        }
         return this._dims;
     }
     get arrayType() {
@@ -293,7 +346,14 @@ export default class MatlabVariableNode extends DataNode {
     // className is a Class name (e.g. 'Simulink.Parameter'), which is Class, not a
     // data type — suppress it here so the column stays type-only.
     get dataType() {
-        return this._isOpaque ? '' : this.className;
+        if (this._isOpaque) {
+            // `string` is the one exception: it arrives as an opaque MCOS object because
+            // MATLAB implements it as one, but it IS a MATLAB data type, so a string
+            // variable out of a .mat belongs in the DataType column alongside the one out
+            // of a dictionary rather than showing a blank cell.
+            return this._opaqueClassName === 'string' ? 'string' : '';
+        }
+        return this.className;
     }
     // A plain MATLAB variable (scalar, array, cell, struct-like, or opaque MCOS
     // object) is a "MATLAB Variable" in Design Data. In Architectural Data the same
@@ -320,6 +380,13 @@ export default class MatlabVariableNode extends DataNode {
         if (this._isOpaque) {
             return false;
         }
+        // An ELEMENT of an opaque value is as read-only as the value: a decoded `string`
+        // array is the first opaque node with children at all, and its elements display real
+        // editable-looking text ("alpha"), so without this they would have offered an editor
+        // whose commit could not reach the file.
+        if (this.parent instanceof MatlabVariableNode && this.parent._isOpaque) {
+            return false;
+        }
         if (this._scalarType === 'struct') {
             return false;
         }
@@ -327,7 +394,12 @@ export default class MatlabVariableNode extends DataNode {
         if (this._scalarValue === NOT_AVAILABLE) {
             return false;
         }
-        return true;
+        // Then BaseNode's rule: a value that DISPLAYS as a <mxn class> summary gets no
+        // editor. It has to be consulted here too — returning a bare `true` shadowed
+        // it, so a summarized 2x3x2 offered an editor seeded with the text
+        // '<2x3x2 double>', and committing that cell unchanged replaced twelve
+        // elements with an unparseable string.
+        return super.valueEditable;
     }
     // True when this variable currently holds a SCALAR NUMERIC value — the shape a
     // Constant requires. A live-node counterpart to parsedIsScalarNumeric: it is a
@@ -346,17 +418,34 @@ export default class MatlabVariableNode extends DataNode {
     }
     get displayValue() {
         if (this._isOpaque) {
+            // A `string` whose payload decoded is an opaque node that nonetheless HAS a value:
+            // _adoptStringPayload gave it the same _kind/_dims/_elements a dictionary string
+            // array carries, so it renders through the one string formatter and matches the
+            // other three formats character for character. A payload that did not decode never
+            // adopts that kind, stays the scalar-kind shell the constructor made, and falls
+            // through to the summary below — which is still its true shape.
+            if (this._kind === 'string') {
+                return this._formatString();
+            }
             if (this._mcosValue !== undefined && this._mcosValue !== null) {
                 if (typeof this._mcosValue === 'number')
                     return String(this._mcosValue);
                 if (typeof this._mcosValue === 'string')
-                    return this._mcosValue ? formatMatlabChar(this._mcosValue) : '<1x1 ' + this._opaqueClassName + '>';
+                    return this._mcosValue
+                        ? formatMatlabChar(this._mcosValue)
+                        : summaryForm(this._mcosDimensions || [1, 1], this._opaqueClassName || 'double');
                 if (Array.isArray(this._mcosValue)) {
                     const dims = this._mcosDimensions || [1, this._mcosValue.length];
-                    return '[' + dims.join('x') + ' ' + (this._opaqueClassName || 'double') + ']';
+                    // Angle brackets, like every other summary: square brackets read as a
+                    // MATLAB literal, and the consumer table keys its gray/italic styling
+                    // (and its no-editor rule) on the angle-bracket form.
+                    return summaryForm(dims, this._opaqueClassName || 'double');
                 }
             }
-            return '<1x1 ' + this._opaqueClassName + '>';
+            // No value to print: the shape and the class are all there is. The shape used
+            // to be a hardcoded [1,1], which is right for every scalar object and wrong for
+            // a `string` array — one object holding a 1x3 displayed as <1x1 string>.
+            return summaryForm(this._mcosDimensions || [1, 1], this._opaqueClassName || 'double');
         }
         switch (this._kind) {
             case 'scalar':
@@ -377,19 +466,62 @@ export default class MatlabVariableNode extends DataNode {
         if (this._scalarValue === NOT_AVAILABLE) {
             return NOT_AVAILABLE;
         }
+        // char and a scalar string have no child rows, so the cell is the only place
+        // the value is ever visible and the char budget is the only rule that applies:
+        // a realistic description shows in full, a 1500-character blob does not take
+        // the row over. Summarized at the value's real 1xN size, which is what MATLAB's
+        // size() reports for a char row vector — the JS-string parse path stores [1,1]
+        // because it never knew the length, so derive it when _dims cannot account for
+        // the characters.
         if (this._scalarType === 'char') {
-            return formatMatlabChar(String(this._scalarValue));
+            const s = String(this._scalarValue);
+            const dims = this._textDims(s);
+            // Rank >= 3 gets the summary every other class gets there: there is no MATLAB
+            // one-line print of a 2x3x2, of chars or of anything else. It used to print as
+            // one quoted 12-character string, which is not the value — it is the storage.
+            if (dims.length > 2) {
+                return summaryForm(dims, 'char');
+            }
+            // A char with more than one ROW is a char MATRIX and prints as one. The old
+            // single-quoted spelling showed MATLAB's 2x2 ['ab'; 'cd'] as 'acbd' — the
+            // column-major storage read out as if it were text, so both the shape and the
+            // reading order were wrong on screen (defect 25).
+            const text = dims[0] > 1 ? formatCharMatrix(s, dims) : formatMatlabChar(s);
+            return overCharBudget(text) ? summaryForm(dims, 'char') : text;
         }
+        // A string scalar stays 1x1 however long its text is — a MATLAB string holds
+        // the text, it is not made of it — so no _textDims here.
         if (this._scalarType === 'string') {
-            return formatMatlabString(String(this._scalarValue));
+            const text = formatMatlabString(String(this._scalarValue));
+            return overCharBudget(text) ? summaryForm(this._dims, 'string') : text;
         }
         if (this._scalarType === 'struct') {
-            return '<' + this._dims.join('x') + ' struct>';
+            // Always a summary, at every size: MATLAB never prints a struct inline.
+            // summaryForm normalizes through effectiveDims, so a struct whose _dims was
+            // never set prints '<1x1 struct>' rather than the '< struct>' the raw join
+            // produced.
+            return summaryForm(this._dims, 'struct');
         }
         if (this._scalarType === 'logical') {
             return this._scalarValue ? 'true' : 'false';
         }
         return formatMatlabNum(this._scalarValue);
+    }
+    // The real extents of a char value. _dims wins when it accounts for every
+    // character (a 2x5 char array from a .mat file, MATLAB's mxchar literal, a
+    // Dimension= attribute), otherwise the value came in as a bare JSON string that
+    // never carried a shape — so it is a plain row vector and its length is its second
+    // extent. Empty text is 0x0, which is what MATLAB's '' is: numel 0 and isempty
+    // true, where the [1,1] the string path leaves behind would claim one character.
+    //
+    // Every channel that needs a char's shape reads it from here — the display, the
+    // `dims` accessor, both .sldd writers and the .mat writer — so there is one answer
+    // rather than five.
+    _textDims(text) {
+        if (text === '') {
+            return elementCount(this._dims) === 0 ? this._dims : [0, 0];
+        }
+        return elementCount(this._dims) === text.length ? this._dims : [1, text.length];
     }
     _formatArray() {
         const elems = this.children.length > 0
@@ -397,17 +529,34 @@ export default class MatlabVariableNode extends DataNode {
                 return c._scalarValue;
             })
             : this._elements;
-        if (this._scalarType === 'logical') {
-            const formatted = elems.map(function (v) {
-                return v ? 'true' : 'false';
-            });
-            return formatMatrix(this._dims[0], this._dims[1], formatted);
+        if (elems.length === 0) {
+            return EMPTY_NUMERIC;
         }
-        return formatMatrix(this._dims[0], this._dims[1], elems);
+        // Rank >= 3 (mat2str answers "Input matrix must be 2-D." — a bracketed string
+        // would be valid 2-D syntax describing only page 1), or more elements than a
+        // one-line literal should carry. The elements are expandable child rows, so
+        // the count rule applies and the user loses nothing: they are one click away.
+        if (needsSummary(this._dims)) {
+            return summaryForm(this._dims, this.className);
+        }
+        const formatted = this._scalarType === 'logical'
+            ? elems.map(function (v) {
+                return v ? 'true' : 'false';
+            })
+            : elems;
+        const text = formatMatrix(this._dims[0], this._dims[1], formatted);
+        // The count rule alone is not a bound on LENGTH: ten 200-character elements
+        // are still a 2000-character cell. The char budget is the runaway guard.
+        return overCharBudget(text) ? summaryForm(this._dims, this.className) : text;
     }
     _formatCell() {
         if (this.children.length === 0) {
-            return '{}';
+            return EMPTY_CELL;
+        }
+        // Rank >= 3 (the rows x cols walk below showed four of a 2x2x2's eight cells
+        // with nothing to say the other four existed), or past the element budget.
+        if (needsSummary(this._dims)) {
+            return summaryForm(this._dims, 'cell');
         }
         const rows = this._dims[0];
         const cols = this._dims[1];
@@ -415,21 +564,38 @@ export default class MatlabVariableNode extends DataNode {
         for (let r = 0; r < rows; r++) {
             const vals = [];
             for (let c = 0; c < cols; c++) {
-                const child = this.children[r * cols + c];
-                vals.push(child ? child.displayValue : '[]');
+                // A cell's element list is COLUMN-major -- MatParser's cell branch does
+                // not transpose, unlike its numeric branch -- so display position (r,c)
+                // is list index c*rows+r. Reading r*cols+c here transposed every
+                // non-square cell's literal: MATLAB's {1 2 3; 4 5 6} printed as
+                // {1, 4, 2; 5, 3, 6}. See test/cellElementOrder.test.ts.
+                const child = this.children[c * rows + r];
+                vals.push(child ? child.displayValue : EMPTY_NUMERIC);
             }
             rowStrs.push(vals.join(', '));
         }
-        const result = '{' + rowStrs.join('; ') + '}';
-        if (result.length > 50) {
-            return '{' + this._dims.join('x') + ' cell}';
-        }
-        return result;
+        const text = '{' + rowStrs.join('; ') + '}';
+        // Under the element budget but over the char budget: a 1x4 cell of 300-char
+        // strings is a 1200-character table cell. Angle brackets, not the old
+        // '{1x4 cell}' — only the angle form reads as a summary downstream.
+        return overCharBudget(text) ? summaryForm(this._dims, 'cell') : text;
     }
     _formatString() {
         const d = this._dims;
         if (d[0] === 1 && d[1] === 1 && this._elements.length === 1) {
-            return formatMatlabString(String(this._elements[0]));
+            // A scalar string has no child rows, so the char budget is the rule — same
+            // as the char arm of _formatScalar.
+            const text = formatStringElement(this._elements[0]);
+            return overCharBudget(text) ? summaryForm(d, 'string') : text;
+        }
+        if (needsSummary(d)) {
+            return summaryForm(d, 'string');
+        }
+        // strings(0,0) — the empty-value spelling, as _formatArray and _formatCell do for
+        // their own kinds. Without this the loops below produce a bare '[]', which is not the
+        // convention's spelling and is one character from a scalar that happens to be empty.
+        if (this._elements.length === 0) {
+            return EMPTY_NUMERIC;
         }
         const rows = d[0];
         const cols = d[1];
@@ -437,13 +603,14 @@ export default class MatlabVariableNode extends DataNode {
         for (let r = 0; r < rows; r++) {
             const vals = [];
             for (let c = 0; c < cols; c++) {
-                const el = this._elements[r * cols + c];
-                vals.push(formatMatlabString(el !== undefined ? String(el) : ''));
+                // COLUMN-major, exactly as in _formatCell above: a string array's element
+                // list is not transposed on the way in either.
+                vals.push(formatStringElement(this._elements[c * rows + r]));
             }
             rowStrs.push(vals.join(' '));
         }
-        const strStr = '[' + rowStrs.join('; ') + ']';
-        return strStr.length > 50 ? '<' + d.join('x') + ' string>' : strStr;
+        const text = '[' + rowStrs.join('; ') + ']';
+        return overCharBudget(text) ? summaryForm(d, 'string') : text;
     }
     // ---- Property set + Property Inspector layout ----
     getProperties() {
@@ -495,6 +662,19 @@ export default class MatlabVariableNode extends DataNode {
     // the two the branch below is exhaustive over, which is why it has no third arm.
     _setConstrainedValue(stringValue) {
         const parent = this.parent;
+        // An element of a decoded `string` out of a .mat/.slx MCOS subsystem. `valueEditable`
+        // already withholds the editor, so a consumer that honors it never gets here; this is
+        // the second gate for one that calls setProperty directly, because accepting the text
+        // would update the node and leave the file's own bytes — which is what gets written
+        // back — saying something else.
+        if (parent._isOpaque) {
+            return {
+                error: true,
+                reason: 'This value is read-only',
+                invalidValue: stringValue,
+                validValue: this.displayValue,
+            };
+        }
         const isArrayElement = parent._kind === 'array';
         // A logical element is the one array element that does not display as a number,
         // so it is the one with its own accept set: true/false, plus 1/0 for the user who
@@ -513,7 +693,10 @@ export default class MatlabVariableNode extends DataNode {
             accepted = parsed?.type === 'double' && !Array.isArray(parsed.value);
         }
         else {
-            accepted = parsed?.type === 'char' || parsed?.type === 'string';
+            // A char MATRIX is refused: one element of a string array holds one piece of
+            // text, and MATLAB errors on `s(1) = ['ab'; 'cd']` for the size. `dims` is
+            // present on exactly the multi-row chars (charFromRows), so it is the test.
+            accepted = (parsed?.type === 'char' && !parsed.dims) || parsed?.type === 'string';
         }
         if (!parsed || !accepted) {
             return {
@@ -527,15 +710,23 @@ export default class MatlabVariableNode extends DataNode {
                 validValue: this.displayValue,
             };
         }
-        // 1/0, never the boolean: _elements is the one representation the container's
-        // display, its _var snapshot, and the typed literal all read, and the parsers
-        // store a logical ARRAY as 1/0 (see parseTypedVector). An edited element must not
-        // become the only boolean in it.
-        this._scalarValue = isLogicalElement ? (parsed.value ? 1 : 0) : parsed.value;
         // elementClass, not 'double': the container fixes the element's class (this
         // method exists because of that), so re-stating 'double' here flipped an int32
         // element's Data Type column to double the moment its cell was committed.
         this._scalarType = isArrayElement ? elementClass(parent._scalarType) : 'string';
+        // 1/0, never the boolean: _elements is the one representation the container's
+        // display, its _var snapshot, and the typed literal all read, and the parsers
+        // store a logical ARRAY as 1/0 (see parseTypedVector). An edited element must not
+        // become the only boolean in it.
+        //
+        // exactForClass on the numeric arm for the same reason as _applyParsed: a uint64
+        // array's element is the one element that can be an integer no double holds, and
+        // the container's class — read one line above — is what says so.
+        this._scalarValue = isLogicalElement
+            ? (parsed.value ? 1 : 0)
+            : isArrayElement
+                ? exactForClass(parsed.value, this._scalarType)
+                : parsed.value;
         if (!isArrayElement) {
             // A string-array element is a string-KIND node (see _makeStringElement), and
             // its own display and serialize paths read the text from _elements.
@@ -580,20 +771,50 @@ export default class MatlabVariableNode extends DataNode {
         // class, so classAfterEdit lets it survive the parser's 'double' default — see
         // its comment. Read before any arm overwrites it.
         const prevType = this._scalarType;
+        // exactForClass, not the parser's token as-is: MatlabValueParser hands back exact
+        // decimal TEXT for an integer a double cannot hold (defect 42 — typing intmax('uint64')
+        // used to store 18446744073709552000), and this is the one edit path that knows the
+        // class the value is about to have, so it is the one that can say whether the text
+        // form is meaningful. Under int64/uint64 it is kept and the writers spell it
+        // untouched; under any other class it collapses to the double, which is what MATLAB
+        // itself stores for a bare decimal literal. Hence _scalarType is computed FIRST here.
         if (parsed.type === 'double' && Array.isArray(parsed.value) && parsed.value.length === 1) {
             this._kind = 'scalar';
-            this._scalarValue = parsed.value[0];
             this._scalarType = classAfterEdit(prevType, 'double');
+            this._scalarValue = exactForClass(parsed.value[0], this._scalarType);
             this._dims = [1, 1];
             this.serial = {};
         }
         else if (parsed.type === 'double' && Array.isArray(parsed.value)) {
             this._kind = 'array';
-            this._elements = parsed.value;
-            this._dims = parsed.dims;
             this._scalarType = classAfterEdit(prevType, 'double');
+            this._elements = parsed.value.map((v) => exactForClass(v, this._scalarType));
+            this._dims = parsed.dims;
             this._syncArraySerial();
             this._buildArrayChildren();
+        }
+        else if (parsed.type === 'logical' && Array.isArray(parsed.value)) {
+            // `[true false true]` — the literal MATLAB's own mat2str prints for a logical array,
+            // and the text this entry's Value cell displays. classAfterEdit is deliberately not
+            // consulted: it exists to let a class the parser cannot see survive a bare numeric
+            // edit, and here the literal states the class itself. The 1-element case collapses to
+            // a scalar for the same reason the double arm above does — `[true]` is 1x1 — and
+            // _scalarValue is a boolean there because that is what a logical scalar stores and
+            // what the JSON writer emits (a bare `true`, as boolT is written).
+            this._scalarType = 'logical';
+            this._dims = parsed.dims;
+            if (parsed.value.length === 1) {
+                this._kind = 'scalar';
+                this._scalarValue = !!parsed.value[0];
+                this._dims = [1, 1];
+                this.serial = {};
+            }
+            else {
+                this._kind = 'array';
+                this._elements = parsed.value;
+                this._syncArraySerial();
+                this._buildArrayChildren();
+            }
         }
         else if (parsed.type === 'string-array') {
             this._kind = 'string';
@@ -612,24 +833,34 @@ export default class MatlabVariableNode extends DataNode {
         }
         else {
             this._kind = 'scalar';
-            this._scalarValue = parsed.value;
             this._scalarType = classAfterEdit(prevType, parsed.type);
-            this._dims = [1, 1];
+            // The bare-scalar arm (`5`, `18446744073709551615`) shares this branch with char,
+            // string, logical and complex, so the exact-token narrowing is gated on the parsed
+            // TYPE: a char value can be all digits ('123'), and exactForClass would turn it
+            // into a number.
+            this._scalarValue = parsed.type === 'double' ? exactForClass(parsed.value, this._scalarType) : parsed.value;
+            // A char is the one scalar-KIND value that can be bigger than 1x1: it is stored
+            // as one string, so ['ab'; 'cd'] arrives here as the 4-character 'acbd' with
+            // dims [2,2] beside it (see charFromRows). Forcing [1, 1] made committing a char
+            // matrix's OWN displayed value reshape it — the display, both writers and the
+            // subscripts all read _dims, so the 2x2 came back as a 1x1 holding four
+            // characters in column-major order, which is text nobody typed (defect 25).
+            this._dims = parsed.dims ? parsed.dims.slice() : [1, 1];
             this.serial = {};
         }
     }
-    _buildMatrixString(dims, elements) {
-        const rows = dims[0];
-        const cols = dims[1];
-        const rowStrs = [];
-        for (let r = 0; r < rows; r++) {
-            const vals = [];
-            for (let c = 0; c < cols; c++) {
-                vals.push(formatMatlabNum(elements[r * cols + c]));
-            }
-            rowStrs.push('[' + vals.join(', ') + ']');
-        }
-        return 'Matrix(' + rows + ',' + cols + ')\n' + rowStrs.join('\n');
+    // The write-side twin of parseMatrixValue. This used to be its own loop, and it
+    // spelled the body differently from BinarySlddParser's copy — newline-joined rows
+    // rather than bracketed groups, and formatMatlabNum for every class rather than
+    // MATLAB's typed literals. MATLAB reads the newline form as a 1x0 EMPTY matrix, so
+    // editing any multi-row matrix in an uncompressed-text dictionary silently threw
+    // the value away. Both writers now go through XmlUtils.formatMatrixSerial, which
+    // carries the MATLAB evidence for each spelling.
+    // `elements` is widened to admit a string because an int64/uint64 element is exact
+    // decimal TEXT (parseTypedVector); formatNumLiteral, under formatMatrixSerial, carries
+    // one through untouched and appends the class's own suffix.
+    _buildMatrixString(dims, elements, type) {
+        return formatMatrixSerial(elements, dims, type || this._scalarType || 'double');
     }
     _buildArrayChildren() {
         if (this._elements.length <= 1) {
@@ -670,6 +901,14 @@ export default class MatlabVariableNode extends DataNode {
         }
     }
     canAddChild() {
+        // An opaque MCOS value is read-only in both directions: its bytes go back out
+        // verbatim because nothing here writes a .mat MCOS subsystem. Before a `string`
+        // decoded, no opaque node had a _kind that reached the vector case below, so this
+        // gate was never exercised — a decoded 1x3 string would have offered Add Child and
+        // then dropped the added element on save.
+        if (this._isOpaque) {
+            return false;
+        }
         if (this._kind === 'scalar' && this._scalarType === 'struct') {
             return true;
         }
@@ -770,6 +1009,10 @@ export default class MatlabVariableNode extends DataNode {
         return child;
     }
     canRemoveChild() {
+        // Read-only in both directions, as in canAddChild.
+        if (this._isOpaque) {
+            return false;
+        }
         if (this._kind === 'scalar') {
             return false;
         }
@@ -973,9 +1216,12 @@ export default class MatlabVariableNode extends DataNode {
     _syncArraySerial() {
         const typed = TYPED_NUMERIC_CLASS.test(this._scalarType) || this._scalarType === 'logical';
         if (this._dims[0] > 1 || typed) {
+            const serialType = typed ? this._scalarType : 'double';
             this.serial = {
-                _type: typed ? this._scalarType : 'double',
-                _value: this._buildMatrixString(this._dims, this._elements),
+                _type: serialType,
+                // The literal's own suffixes have to agree with the tag: MATLAB reads a
+                // suffixless body as double whatever _type says.
+                _value: this._buildMatrixString(this._dims, this._elements, serialType),
             };
         }
         else {
@@ -1000,6 +1246,34 @@ export default class MatlabVariableNode extends DataNode {
             !this._rawInput?._emptyDims) {
             return this._rawInput;
         }
+        // Rank >= 3 leaves the literal grammar behind entirely: there is no spelling
+        // for it. Every `Matrix(d1,d2,d3)` candidate reads back as an empty 1x0 and
+        // the two constructor expressions read back as the scalar 0, while MATLAB's
+        // own dictionary stores every N-D value of every kind as a cdata byte stream
+        // (defect 22, evidence in parser/MatWriter). So this is not an alternative to
+        // the branches below — it is the only form that survives, and they are
+        // rank-2-only by construction.
+        //
+        // Complex has no literal spelling either, and unlike rank it has none at ANY
+        // shape. MATLAB's own text dictionary stores a complex SCALAR and a complex
+        // VECTOR as cdata byte streams exactly as it does a rank-3 array — cases.sldd's
+        // own bytes for cplxScalar and cplxVec are both streams. What we emitted
+        // instead, `{_type: 'cdata', _value: '3+4i'}`, is the form the BINARY dictionary
+        // uses for the same property, and MATLAB reads it back out of a TEXT dictionary
+        // as an empty 1x0 double — the same signature defects 19 and 22 had. So this was
+        // data loss on the first save of any edited complex value, not churn (defect 24,
+        // measured by probe_writeback).
+        //
+        // The stream is right for the XML channel too: _serializeTypedPropertyXml
+        // discriminates on isMatCdata and hands a stream back to the node to write its
+        // own `Class="double" IsComplex="1"` property, which is exactly the plain-text
+        // form the binary dictionary wants. One serialization, both formats.
+        if (effectiveDims(this._dims).length > 2 || this._isComplexValue()) {
+            const cdata = this._serializeCdata();
+            if (cdata) {
+                return cdata;
+            }
+        }
         switch (this._kind) {
             case 'scalar':
                 return this._serializeScalar();
@@ -1011,18 +1285,103 @@ export default class MatlabVariableNode extends DataNode {
                 return this._serializeString();
         }
     }
+    /**
+     * Is this a complex value? The two tests are the two shapes complexity arrives
+     * in: a complex SCALAR carries `_scalarType === 'complex'`, while a complex ARRAY
+     * is a plain `double` whose per-element values are the literal text `'1+2i'` —
+     * the element nodes are the complex ones, not the parent. `_buildVarObject` has
+     * always had to make the same distinction to set `isComplex`, and it asks here so
+     * the projection and the serialization cannot disagree about what is complex; a
+     * disagreement would mean writing a cdata stream built from a non-complex `_var`.
+     */
+    _isComplexValue() {
+        if (this._scalarType === 'complex') {
+            return true;
+        }
+        if (this._kind !== 'array') {
+            return false;
+        }
+        const elems = this.children.length > 0
+            ? this.children.map(function (c) {
+                return c._scalarValue;
+            })
+            : this._elements;
+        return elems.length > 0 && typeof elems[0] === 'string' && String(elems[0]).includes('i');
+    }
+    // A value with no literal spelling — rank >= 3, or complex at any rank — as the
+    // `{_type: 'cdata'}` byte stream MATLAB uses for it. `_var` is the same live-tree
+    // rebuild the .mat and .slx writers use, so an edit anywhere below this node is
+    // already in it (_markModified marks the whole chain stale).
+    //
+    // Returns null for a value MatWriter refuses — an MCOS opaque, a class it has no
+    // MAT code for. Those have no stream spelling in this format at ALL, so the choice
+    // is between the rank-2 form the branches below produce, which at least leaves a
+    // readable file, and failing the whole save. It falls through.
+    _serializeCdata() {
+        try {
+            return { _type: 'cdata', _value: encodeCdata(this._var) };
+        }
+        catch (_e) {
+            return null;
+        }
+    }
     _serializeScalar() {
         if (this._scalarType === 'string') {
             return [this._scalarValue];
         }
+        if (this._scalarType === 'char') {
+            // A bare JSON string is a 1xN char and nothing else, so a char that is not a row
+            // takes MATLAB's `mxchar` envelope — the character CODES under a Matrix() header,
+            // which is exactly how MATLAB's own char_text.sldd spells charCol, charMat and
+            // charMat23, and how typed_text.sldd spells the char field of sCharMat.
+            //
+            // Without this arm a 2x2 went out as the bare string "acbd": MATLAB reopened it
+            // as a 1x4 char whose characters were in column-major order, so the shape was
+            // gone and the text itself was scrambled (defect 25). Rank >= 3 never reaches
+            // here — serializeValue takes the cdata branch first, which is what MATLAB writes
+            // for an N-D char too.
+            const text = this._scalarValue === null || this._scalarValue === undefined ? '' : String(this._scalarValue);
+            const dims = this._textDims(text);
+            if (text !== '' && charNeedsShape(dims)) {
+                return { _type: 'mxchar', _value: formatMxCharSerial(text, dims) };
+            }
+            return text;
+        }
+        if (this._scalarType === 'struct') {
+            // Without this arm a struct falls through to `return this._scalarValue`,
+            // which is null for a struct — the entry serializes to null and its
+            // contents are gone, silently, on the first save. The .sldd path only
+            // escapes because it takes the _rawInput early return; a MODIFIED .sldd
+            // struct lands here too. Measured on cases.mat: all five struct entries.
+            return this._serializeStructValue();
+        }
         if (this._scalarType === 'complex') {
+            // Unreachable for a complex value MatWriter can encode — serializeValue takes
+            // the byte-stream branch above first, because MATLAB reads THIS spelling back
+            // out of a text dictionary as an empty 1x0 (defect 24). It stays as the
+            // fallback for the value the writer refuses, where a readable-but-lossy
+            // property still beats failing the save, and as the form the binary
+            // dictionary's XML ultimately carries.
             return { _type: 'cdata', _value: this._scalarValue };
         }
         // The typed form is the format's own escape hatch for a value a bare JSON
         // scalar cannot carry — an integer/single class, or an Inf/NaN. See
         // needsTypedLiteral for why each one loses data written bare.
+        //
+        // formatNumLiteral, not formatMatlabNum: the suffix belongs to the literal.
+        // MATLAB's own thirty-odd typed scalars in cases.sldd spell it exactly the way
+        // formatNumLiteral does — unsigned takes 'U' (`7U`, `255U`, `0U`), single takes
+        // 'F' (`3.14159274F`), a signed integer takes neither (`7`, `-128`), and a
+        // non-finite double is `Inf`/`-Inf`/`NaN`. We were writing formatMatlabNum's bare
+        // number for all of them, so a modified single scalar went out as
+        // `{"_type": "single", "_value": "3.5"}` where MATLAB writes `"3.5F"`. That one
+        // is churn rather than loss — asked directly, MATLAB reads the suffix-less form
+        // back as a single, because the `_type` tag carries the class (probe_writeback,
+        // deepsig on typed/sTyped reports `b:single[1 1]`) — but the array path already
+        // went through formatNumLiteral, so the same value spelled itself two ways
+        // depending only on whether it had siblings.
         if (needsTypedLiteral(this._scalarType, this._scalarValue)) {
-            return { _type: this._scalarType, _value: formatMatlabNum(this._scalarValue) };
+            return { _type: this._scalarType, _value: formatNumLiteral(this._scalarValue, this._scalarType) };
         }
         return this._scalarValue;
     }
@@ -1038,16 +1397,82 @@ export default class MatlabVariableNode extends DataNode {
         });
         const serialType = this.serial?._type;
         if (serialType) {
-            return { _type: serialType, _value: this._buildMatrixString(this._dims, elems) };
+            return {
+                _type: serialType,
+                _value: this._buildMatrixString(this._dims, elems, serialType),
+            };
         }
         // A bare JSON array cannot carry Inf/NaN (JSON.stringify writes `null`), so
         // fall back to the typed-vector literal, which spells them out as text.
         if (elems.some((v) => typeof v === 'number' && !isFinite(v))) {
             return { _type: 'double', _value: '[' + elems.map(formatMatlabNum).join(', ') + ']' };
         }
-        return this.children.map(function (c) {
-            return c.serializeValue();
-        });
+        // A bare JSON array has nowhere to carry [2,3] or [2,3,2] either, so a matrix
+        // written that way read back as a 1xN — and because the children are row-major
+        // even the element order was wrong against MATLAB's column-major
+        // linearization. Only a true vector may serialize bare; anything with two
+        // spread extents takes the typed Matrix() literal, which is the shaped form
+        // both readers already accept (there is no `_array_type: 'Matrix'`).
+        //
+        // A vector of a class the bare form cannot carry is NOT one of those vectors.
+        // MATLAB spells such a vector as ONE typed literal for the whole array —
+        // `{"_type": "int32", "_value": "[1, 2]"}` — at the top level, in a struct
+        // field and in a cell element alike (probe_typed_shapes.m), never as a JSON
+        // list of per-element literals. The list is what mapping serializeValue over
+        // the children produces, since each child needs its own tag, and it is not
+        // merely an unusual spelling: serializeValue is shared with the XML channel,
+        // where DataNode.serializePropertyXml String()-joined the objects and wrote
+        // `Class="double" Dimension="1*2">[object Object] [object Object]` for an
+        // int32 struct field. That is a corrupt property, not a lossy one. The rule is
+        // _syncArraySerial's, which has always had it right for the edit path; only the
+        // no-serial path (a value that reached us from a .mat or .slx rather than from a
+        // text dictionary) fell through to the children.
+        const d = effectiveDims(this._dims);
+        const typed = TYPED_NUMERIC_CLASS.test(this._scalarType) || this._scalarType === 'logical';
+        if (!typed && d.length <= 2 && (d[0] === 1 || d[1] === 1)) {
+            return this.children.map(function (c) {
+                return c.serializeValue();
+            });
+        }
+        // A typed ROW vector comes out of formatMatrixSerial bare, `[1, 2]`, which is
+        // MATLAB's own spelling for it and the one BinarySlddParser's read path has always
+        // produced; only a column or a matrix states its shape (defect 21).
+        const matrixType = this._scalarType || 'double';
+        return { _type: matrixType, _value: this._buildMatrixString(d, elems, matrixType) };
+    }
+    // The `_array_type: 'Struct'` form, rebuilt from the tree. Deliberately the same
+    // shape BinarySlddParser.structValue produces and a text .sldd carries in
+    // _rawInput, so a struct read from a .mat and written to a dictionary
+    // round-trips through the existing reader (NodeClassMap -> StructNode.parse)
+    // unchanged.
+    _serializeStructValue() {
+        const dims = effectiveDims(this._dims);
+        // A .mat struct ARRAY hangs its ELEMENTS off this node (named 1..N, each a
+        // struct-kind node whose own children are the fields); a 1x1 hangs the fields
+        // directly. StructNode owns neither case on the .mat path, so both are here —
+        // reading this node's children as fields unconditionally would have named a
+        // 2x3's six elements '1'..'6' and written six garbage fields.
+        const elementNodes = elementCount(dims) > 1 ? this.children : [this];
+        const fields = [];
+        const elements = [];
+        for (const el of elementNodes) {
+            const bag = {};
+            for (const child of el.children) {
+                const c = child;
+                bag[c.name] = c.serializeValue();
+                if (!fields.includes(c.name)) {
+                    fields.push(c.name);
+                }
+            }
+            elements.push(bag);
+        }
+        return {
+            _array_type: 'Struct',
+            _dimensions: dims,
+            _elements: elements,
+            _fields: fields,
+            _mw_element_type: 'MATLABArray',
+        };
     }
     _serializeCell() {
         const elements = this.children.map(function (child) {
@@ -1084,7 +1509,7 @@ export default class MatlabVariableNode extends DataNode {
     // because the two formats disagree on essentials: XML is explicitly typed by a
     // Class= attribute, carries dimensions as "rows*cols", and — the reason these
     // can't share the JSON traversal — stores matrix elements in COLUMN-major order,
-    // hence transposeToColumnMajor on the way out.
+    // hence transposeToColumnMajorND on the way out.
     serializeXml(tagName, attrs, indent) {
         switch (this._kind) {
             case 'scalar':
@@ -1113,11 +1538,39 @@ export default class MatlabVariableNode extends DataNode {
             this._kind = 'scalar';
             return result;
         }
+        if (type === 'struct') {
+            // Without this arm a struct falls through to the numeric tail below and the
+            // WHOLE entry writes as `Class="struct">0` — every field and every element
+            // gone. This is the XML twin of the _serializeScalar hole Phase 6 closed for
+            // JSON, and it is the worse half: the binary dictionary writer goes through
+            // serializeXml, and MATLAB does not merely read the result as an empty
+            // struct, it refuses the file. Substituting that byte sequence for
+            // struct2x3's value in MATLAB's own binary cases.sldd makes
+            // Simulink.data.dictionary.open answer "Failed to open file".
+            //
+            // StructNode already writes MATLAB's own spelling for this exact value bag
+            // (Class="struct" Dimension="2*3*2" with one <Element> per element), so route
+            // through it rather than growing a second struct-XML writer that could drift
+            // from the first. _serializeStructValue produces the `_array_type: 'Struct'`
+            // form NodeClassMap maps to StructNode.
+            const bag = this._serializeStructValue();
+            return NodeRegistry.parseValue(bag, this.name, null).serializeXml(tagName, attrs, indent);
+        }
         if (type === 'char') {
             if (val === '' || val === null || val === undefined) {
+                // MATLAB writes the empty char with neither a body nor a Dimension, whatever
+                // its 0x0/1x0 extents say — char_binary.sldd's charEmpty.
                 return p + '<' + tagName + attrStr + ' Class="char"/>';
             }
-            return p + '<' + tagName + attrStr + ' Class="char">' + escapeXml(String(val)) + '</' + tagName + '>';
+            // The text is already MATLAB's column-major storage order, which is the order
+            // this body wants: its own 2x2 ['ab'; 'cd'] is `Dimension="2*2">acbd`. Only the
+            // Dimension was missing, so every char BUT a row went out claiming 1xN — a 3x1
+            // came back transposed and a 2x3x2 came back flat (defect 25). A row and an
+            // empty char carry no attribute, exactly as MATLAB leaves them.
+            const text = String(val);
+            const dims = this._textDims(text);
+            const dimAttr = charNeedsShape(dims) ? ' Dimension="' + dims.join('*') + '"' : '';
+            return p + '<' + tagName + attrStr + ' Class="char"' + dimAttr + '>' + escapeXml(text) + '</' + tagName + '>';
         }
         if (type === 'logical') {
             return p + '<' + tagName + attrStr + ' Class="logical">' + (val ? '1' : '0') + '</' + tagName + '>';
@@ -1136,6 +1589,8 @@ export default class MatlabVariableNode extends DataNode {
         if (type === 'double') {
             return p + '<' + tagName + attrStr + ' Class="double">' + formatDoubleXml(val) + '</' + tagName + '>';
         }
+        // No `as number`: an int64/uint64 scalar holds exact decimal TEXT (parseTypedScalar),
+        // and formatNumericXml writes one verbatim instead of rounding it through a double.
         return (p +
             '<' +
             tagName +
@@ -1154,12 +1609,17 @@ export default class MatlabVariableNode extends DataNode {
         const dims = this._dims;
         const rows = dims[0];
         const cols = dims[1];
+        // Every extent, not just the first two: an N-D array written as Dimension="2*3"
+        // claimed a shape it does not have AND, because the rank-2 transpose fills only
+        // rows x cols slots of its result, emitted the remaining pages as empty text —
+        // half a 2x3x2 gone from the .slx on save.
+        const dimAttr = dims.join('*');
         let attrStr = '';
         if (attrs && attrs.Name) {
             attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
         }
         if (rows === 0 || cols === 0 || (this._elements.length === 0 && this.children.length === 0)) {
-            return (p + '<' + tagName + attrStr + ' Class="' + (type || 'double') + '" Dimension="' + rows + '*' + cols + '"/>');
+            return (p + '<' + tagName + attrStr + ' Class="' + (type || 'double') + '" Dimension="' + dimAttr + '"/>');
         }
         const elems = this.children.length > 0
             ? this.children.map(function (c) {
@@ -1168,7 +1628,7 @@ export default class MatlabVariableNode extends DataNode {
             : this._elements;
         if (type === 'complex' ||
             (elems.length > 0 && typeof elems[0] === 'string' && elems[0].includes('i'))) {
-            const colMajor = transposeToColumnMajor(elems, rows, cols);
+            const colMajor = transposeToColumnMajorND(elems, dims);
             const formatted = colMajor.map(function (v) {
                 return formatComplexXml(String(v));
             });
@@ -1177,16 +1637,17 @@ export default class MatlabVariableNode extends DataNode {
                 tagName +
                 attrStr +
                 ' Class="double" IsComplex="1" Dimension="' +
-                rows +
-                '*' +
-                cols +
+                dimAttr +
                 '">' +
                 formatted.join(' ') +
                 '</' +
                 tagName +
                 '>');
         }
-        const colMajor = transposeToColumnMajor(elems, rows, cols);
+        // No `as number` on the element: an int64/uint64 element is an exact decimal
+        // STRING (parseTypedVector), and formatNumericXml passes one through verbatim
+        // rather than rounding it back into a double (defect 29).
+        const colMajor = transposeToColumnMajorND(elems, dims);
         const formatted = colMajor.map(function (v) {
             return formatNumericXml(v, type || 'double');
         });
@@ -1198,9 +1659,7 @@ export default class MatlabVariableNode extends DataNode {
             ' Class="' +
             classAttr +
             '" Dimension="' +
-            rows +
-            '*' +
-            cols +
+            dimAttr +
             '">' +
             formatted.join(' ') +
             '</' +
@@ -1217,7 +1676,9 @@ export default class MatlabVariableNode extends DataNode {
         if (this.children.length === 0) {
             return p + '<' + tagName + attrStr + ' Class="cell" Dimension="0*0"/>';
         }
-        let xml = p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + dims[0] + '*' + dims[1] + '">\n';
+        // dims.join, so a 2x3x2 cell keeps its third extent here as it does in
+        // _serializeCellPropertyXml and in what MATLAB itself writes.
+        let xml = p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + dims.join('*') + '">\n';
         for (const child of this.children) {
             xml += child.serializeXml('Element', {}, indent + 1) + '\n';
         }
@@ -1244,8 +1705,8 @@ export default class MatlabVariableNode extends DataNode {
         let xml = p + '<' + tagName + attrStr + '>\n';
         xml += ip + '<Element Class="string">\n';
         xml += ip2 + '<P Source="saveobj" PropertyType="any" Class="cell"';
-        if (!(dims[0] === 1 && dims[1] === 1)) {
-            xml += ' Dimension="' + dims[0] + '*' + dims[1] + '"';
+        if (!(dims.length <= 2 && dims[0] === 1 && dims[1] === 1)) {
+            xml += ' Dimension="' + dims.join('*') + '"';
         }
         xml += '>\n';
         for (const str of elements) {
@@ -1305,17 +1766,38 @@ export default class MatlabVariableNode extends DataNode {
         if (this._scalarType === 'struct') {
             v.className = 'struct';
             const fields = {};
-            // A struct ARRAY parses each field as one MatVariable PER ELEMENT, but the
-            // tree models only element 1 (_createFromMatStruct takes fieldVar[0]), so a
-            // rebuild can speak for that element alone. Replaying the remaining elements
-            // from the parsed snapshot keeps them; rebuilding the field as a lone
-            // MatVariable would drop every element after the first — turning a 1x2
-            // struct into a 1x1 on the first edit anywhere in the file.
-            const parsedFields = this._matVar?.fields;
-            for (const child of this.children) {
-                const rebuilt = child._var;
-                const parsed = parsedFields?.[child.name];
-                fields[child.name] = Array.isArray(parsed) ? [rebuilt, ...parsed.slice(1)] : rebuilt;
+            if (elementCount(this._dims) > 1) {
+                // A struct ARRAY models one child per ELEMENT, each holding that
+                // element's fields, so a field rebuilds as one MatVariable per element
+                // in the same column-major order MatParser read. This replaces a
+                // replay-from-snapshot compensation that could only ever speak for
+                // element 1 — an edit to element 2 was silently discarded on save.
+                const fieldNames = [];
+                for (const elem of this.children) {
+                    for (const f of elem.children) {
+                        if (fieldNames.indexOf(f.name) < 0) {
+                            fieldNames.push(f.name);
+                        }
+                    }
+                }
+                for (const fname of fieldNames) {
+                    fields[fname] = this.children.map(function (elem) {
+                        const f = elem.children.find(function (c) {
+                            return c.name === fname;
+                        });
+                        // A MATLAB struct array is homogeneous, so every element has every
+                        // field — but a whole-value edit ON an element node clears its
+                        // children (_applyParsed), and a save must not throw on the way to
+                        // the writer. An empty [] holds the element's slot; dropping it would
+                        // slide every later element one position early.
+                        return f ? f._var : emptyDouble();
+                    });
+                }
+            }
+            else {
+                for (const child of this.children) {
+                    fields[child.name] = child._var;
+                }
             }
             v.fields = fields;
         }
@@ -1323,7 +1805,14 @@ export default class MatlabVariableNode extends DataNode {
             v.value = this._scalarValue;
             if (this._scalarType === 'char') {
                 v.className = 'char';
-                v.dimensions = [1, typeof this._scalarValue === 'string' ? this._scalarValue.length : 0];
+                // A char array's shape is NOT its text length. `[1, len]` flattened every
+                // char matrix the moment it was modified: MATLAB's own
+                // reshape('abcdefghijkl', [2 3 2]) went back into a dictionary as a 1x12
+                // row, which MATLAB then read back as one — the value survived, its shape
+                // did not. _textDims is the same rule the display uses: _dims wins when it
+                // accounts for every character, otherwise the value really is a row vector
+                // (the JS-string parse path never knew a length to put in _dims).
+                v.dimensions = this._textDims(typeof this._scalarValue === 'string' ? this._scalarValue : '');
             }
             if (this._scalarType === 'complex') {
                 v.className = 'double';
@@ -1340,8 +1829,7 @@ export default class MatlabVariableNode extends DataNode {
                     return c._scalarValue;
                 })
                 : this._elements;
-            if (this._scalarType === 'complex' ||
-                (elems.length > 0 && typeof elems[0] === 'string' && String(elems[0]).includes('i'))) {
+            if (this._isComplexValue()) {
                 v.className = 'double';
                 v.isComplex = true;
                 v.value = elems.map(function (s) {
@@ -1406,7 +1894,33 @@ export default class MatlabVariableNode extends DataNode {
         node._mcosProperties = decoded.properties;
         node._mcosValue = decoded.value;
         node._mcosDimensions = decoded.dimensions;
+        if (decoded.stringElements) {
+            node._adoptStringPayload(decoded.dimensions, decoded.stringElements);
+        }
         return node;
+    }
+    // Give a decoded `string` the state a string array carries on every other path, so one
+    // formatter, one child-label rule and one serializer cover all four formats. STAYS
+    // OPAQUE: `_isOpaque` is what withholds the editor and the add/remove-child actions, and
+    // what keeps `_var` handing back the variable's own bytes verbatim on save. Nothing in
+    // this package writes a .mat MCOS subsystem, so a writable string here would be a value
+    // typed into a node whose bytes go out unchanged — silent data loss, not an edit.
+    _adoptStringPayload(dims, elements) {
+        this._kind = 'string';
+        this._scalarType = 'string';
+        // COLUMN-major, which is the order the payload stores and the order _formatString and
+        // BaseNode.displayName both read a string-kind node's elements in. No transpose.
+        this._elements = elements.slice();
+        this._dims = dims.slice();
+        // The dimensioned envelope a text/binary .sldd uses for a string array. Set so that a
+        // string COPIED out of a .mat into a dictionary carries its shape with it rather than
+        // flattening to a bare element list (_serializeString reads _array_type to choose).
+        this.serial = {
+            _array_type: 'String',
+            _dimensions: dims.slice(),
+            _mw_element_type: 'MATLABArray',
+        };
+        this._buildStringChildren();
     }
     static _createFromMatNumeric(variable, name, parent) {
         const node = new MatlabVariableNode(name, parent, {});
@@ -1484,12 +1998,42 @@ export default class MatlabVariableNode extends DataNode {
         node._scalarType = 'struct';
         node._scalarValue = null;
         node._dims = variable.dimensions.slice();
-        if (variable.fields) {
-            for (const [fieldName, fieldVar] of Object.entries(variable.fields)) {
+        if (!variable.fields) {
+            return node;
+        }
+        const fieldNames = Object.keys(variable.fields);
+        const count = elementCount(node._dims);
+        if (count <= 1) {
+            for (const fieldName of fieldNames) {
+                const fieldVar = variable.fields[fieldName];
+                // A 1x1 struct stores the field directly, but tolerate the array form.
                 const childVar = Array.isArray(fieldVar) ? fieldVar[0] : fieldVar;
-                const child = MatlabVariableNode.parseMatVariable(childVar, fieldName, node);
-                node.addChild(child);
+                if (childVar) {
+                    node.addChild(MatlabVariableNode.parseMatVariable(childVar, fieldName, node));
+                }
             }
+            return node;
+        }
+        // A struct ARRAY gets one child per element, each holding that element's own
+        // fields. Keeping only fields[f][0] used to make every element after the
+        // first invisible, and forced _buildVarObject to replay them from the parse
+        // snapshot on save. MatParser fills fields[f] in MATLAB's column-major
+        // order, so element ei is MATLAB's linear index ei+1.
+        for (let ei = 0; ei < count; ei++) {
+            const elemNode = new MatlabVariableNode(String(ei + 1), node, {});
+            elemNode._kind = 'scalar';
+            elemNode._scalarType = 'struct';
+            elemNode._scalarValue = null;
+            elemNode._dims = [1, 1];
+            elemNode._displayName = subscriptLabel(name, ei, node._dims, 'column-major', '()');
+            for (const fieldName of fieldNames) {
+                const fieldVar = variable.fields[fieldName];
+                const childVar = Array.isArray(fieldVar) ? fieldVar[ei] : fieldVar;
+                if (childVar) {
+                    elemNode.addChild(MatlabVariableNode.parseMatVariable(childVar, fieldName, elemNode));
+                }
+            }
+            node.addChild(elemNode);
         }
         return node;
     }
@@ -1509,7 +2053,7 @@ export default class MatlabVariableNode extends DataNode {
             // cell rebuilt for the save path put 2 and 3 one position early. A hole
             // becomes an explicit empty 0x0 double instead, which is both what MATLAB
             // itself shows for an empty cell slot and a value that writes back cleanly.
-            const child = MatlabVariableNode.parseMatVariable(cell ?? emptyCellSlot(), String(i + 1), node);
+            const child = MatlabVariableNode.parseMatVariable(cell ?? emptyDouble(), String(i + 1), node);
             node.addChild(child);
         });
         return node;
@@ -1556,6 +2100,23 @@ export default class MatlabVariableNode extends DataNode {
             rawVal._value !== undefined &&
             typeof rawVal._value === 'string') {
             const rv = rawVal;
+            // Before the shape dispatch, because 'mxchar' wears the Matrix() header but is
+            // not a numeric array: its numbers are character CODES, and read as numbers they
+            // produced a matrix of 97s and 98s typed with a class MATLAB has no such thing as
+            // (defect 25).
+            if (rv._type === 'mxchar') {
+                return MatlabVariableNode.parseMxChar(rv, name, parent);
+            }
+            // Also before the shape dispatch, and for the same reason. `{_type: 'struct',
+            // _value: '[]'}` is MATLAB's only text spelling for struct([]) — the sole
+            // _type:'struct' in the whole corpus. Read on its leading '[' it went to
+            // parseTypedVector, which took the empty literal for one element of 0 and
+            // showed the 0x0 struct as `[0]` with dims 1x1. A struct with FIELDS never
+            // arrives this way: MATLAB writes `_array_type: 'Struct'` for rank <= 2 and a
+            // cdata byte stream for rank >= 3.
+            if (rv._type === 'struct' && /^\[\s*\]$/.test(rv._value)) {
+                return MatlabVariableNode.parseEmptyStruct(rv, name, parent);
+            }
             if (rv._value.indexOf('Matrix(') === 0) {
                 return MatlabVariableNode.parseTypedArray(rv, name, parent);
             }
@@ -1603,6 +2164,21 @@ export default class MatlabVariableNode extends DataNode {
         }
         return node;
     }
+    /**
+     * struct([]) out of a text dictionary. Deliberately the same node
+     * `_createFromMatStruct` builds for the same value — scalar kind, 'struct' class,
+     * a null scalar value and the real extents — so `<0x0 struct>` is what all four
+     * channels show and `displayValue`'s struct arm needs no empty case of its own.
+     */
+    static parseEmptyStruct(rawVal, name, parent) {
+        const node = new MatlabVariableNode(name, parent, rawVal);
+        node._rawInput = rawVal;
+        node._kind = 'scalar';
+        node._scalarType = 'struct';
+        node._scalarValue = null;
+        node._dims = [0, 0];
+        return node;
+    }
     static parseTypedScalar(rawVal, name, parent) {
         if (rawVal._type === 'cdata') {
             return MatlabVariableNode.parseCdata(rawVal, name, parent);
@@ -1612,12 +2188,20 @@ export default class MatlabVariableNode extends DataNode {
         node._kind = 'scalar';
         node._dims = [1, 1];
         node._scalarType = rawVal._type;
+        const bare = rawVal._value.replace(/[FU]$/, '');
         if (rawVal._type === 'logical') {
-            const valStr = rawVal._value.replace(/[FU]$/, '');
-            node._scalarValue = valStr === '1' || valStr === 'true';
+            node._scalarValue = bare === '1' || bare === 'true';
+        }
+        else if (needsExactInt(node._scalarType)) {
+            // Exact decimal TEXT, not a number: cases.sldd's maxU64 is 18446744073709551615,
+            // which parseMatlabNum rounds to 18446744073709552000 — a value now OUT of uint64
+            // range, which MATLAB refuses on read (defect 29). _scalarValue is `unknown` and
+            // needsTypedLiteral keys off the CLASS, so the writer still spells it
+            // `Class="uint64"` with the 'U' suffix, from the digits MATLAB itself wrote.
+            node._scalarValue = parseExactNum(bare);
         }
         else {
-            node._scalarValue = parseMatlabNum(rawVal._value.replace(/[FU]$/, ''));
+            node._scalarValue = parseMatlabNum(bare);
         }
         return node;
     }
@@ -1627,33 +2211,21 @@ export default class MatlabVariableNode extends DataNode {
             return MatlabVariableNode._parseCdataText(rawVal, name, parent);
         }
         try {
-            const { rows, cols, realParts, imagParts } = decodeCdata(valStr);
-            const numElements = rows * cols;
-            if (numElements === 1) {
-                const node = new MatlabVariableNode(name, parent, rawVal);
-                node._rawInput = rawVal;
-                node._kind = 'scalar';
-                node._dims = [1, 1];
-                node._scalarType = 'complex';
-                node._scalarValue = formatComplex(realParts[0], imagParts[0]);
-                return node;
+            const bytes = uudecode(valStr);
+            const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            // 8-byte preamble, then one miMATRIX element: tag (type, byte count) at 8,
+            // payload at 16.
+            const tagType = dv.getUint32(8, true);
+            const tagSize = dv.getUint32(12, true);
+            if (tagType !== MI_MATRIX) {
+                throw new Error('cdata is not a MAT matrix element');
             }
-            const rowMajor = [];
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    rowMajor.push(formatComplex(realParts[c * rows + r], imagParts[c * rows + r]));
-                }
-            }
-            const node = new MatlabVariableNode(name, parent, rawVal);
+            const variable = parseMatrix(dv, 16, tagSize);
+            const node = MatlabVariableNode.parseMatVariable(variable, name, parent);
+            // parseMatVariable's factories set _matVar/_rawBytes but not _rawInput, and
+            // an untouched node writes itself back by replaying _rawInput verbatim. Set
+            // it so a cdata entry nobody edited still round-trips byte-identical.
             node._rawInput = rawVal;
-            node._kind = 'array';
-            node._scalarType = 'double';
-            node._dims = [rows, cols];
-            node._elements = rowMajor;
-            rowMajor.forEach(function (el, i) {
-                const child = MatlabVariableNode._createScalar(el, 'complex', String(i + 1), node);
-                node.addChild(child);
-            });
             return node;
         }
         catch (_e) {
@@ -1682,20 +2254,18 @@ export default class MatlabVariableNode extends DataNode {
             node._scalarValue = colMajorParts[0];
             return node;
         }
-        const dims = rawVal._dimensions || [1, colMajorParts.length];
-        const rows = dims[0];
-        const cols = dims[1];
-        const parts = [];
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                parts.push(colMajorParts[c * rows + r]);
-            }
-        }
+        // Every extent, and every page. MATLAB writes a complex 2x3x2 as
+        // `IsComplex="1" Dimension="2*3*2"` with twelve column-major values, and
+        // BinarySlddParser hands all three extents through; a loop over dims[0] x dims[1]
+        // consumed six of the twelve and set _dims = [2,3], so a plain open-and-save
+        // wrote MATLAB's own file back with its entire second page missing.
+        const dims = effectiveDims(rawVal._dimensions || [1, colMajorParts.length]);
+        const parts = transposeFromColumnMajorND(colMajorParts, dims);
         const node = new MatlabVariableNode(name, parent, rawVal);
         node._rawInput = rawVal;
         node._kind = 'array';
         node._scalarType = 'double';
-        node._dims = [rows, cols];
+        node._dims = dims;
         node._elements = parts;
         parts.forEach(function (el, i) {
             const child = MatlabVariableNode._createScalar(el, 'complex', String(i + 1), node);
@@ -1717,6 +2287,13 @@ export default class MatlabVariableNode extends DataNode {
                 return s === '1' || s === 'true' ? 1 : 0;
             });
         }
+        else if (needsExactInt(node._scalarType)) {
+            // See parseTypedScalar: a 64-bit element is exact decimal TEXT. This is the arm
+            // typed_text.sldd's u64Vec2 takes, and rounding it here cost more than the one
+            // element — MATLAB abandons the REST of an array's body at the first out-of-range
+            // token, so a perfectly representable neighbour came back zero too (defect 30).
+            node._elements = parts.map(parseExactNum);
+        }
         else {
             node._elements = parts.map(parseMatlabNum);
         }
@@ -1729,12 +2306,52 @@ export default class MatlabVariableNode extends DataNode {
         }
         return node;
     }
+    /**
+     * MATLAB's `mxchar` literal: a char array of rank >= 2, spelled as character CODES
+     * under a `Matrix(r,c)` header with one bracketed group per ROW.
+     *
+     * It becomes the same node a .mat or a binary dictionary produces for the same value
+     * — one char-KIND scalar holding the whole text in MATLAB's column-major storage
+     * order, with the real extents on _dims. So `['ab'; 'cd']` reads identically out of
+     * all three channels, and the writers (_serializeScalar, _serializeScalarXml,
+     * _buildVarObject) each spell it their own way from that single representation.
+     *
+     * Read as a numeric array instead — which is what the Matrix() dispatch did before
+     * this arm existed — the value came back as a 2x2 of 97/98/99/100 with dataType
+     * 'mxchar', displayed `[97 98; 99 100]`, and had no char anything about it.
+     */
+    static parseMxChar(rawVal, name, parent) {
+        const node = new MatlabVariableNode(name, parent, rawVal);
+        node._rawInput = rawVal;
+        node._kind = 'scalar';
+        node._scalarType = 'char';
+        const parsed = parseMatrixValue(rawVal);
+        if (!parsed) {
+            // No header to read. MATLAB never writes this — it spells a row as a bare JSON
+            // string, never as a headerless mxchar — but a value with no shape to honour is
+            // the row it must mean, and the text is its own body.
+            const text = String(rawVal._value ?? '');
+            node._scalarValue = text;
+            node._dims = [1, text.length];
+            return node;
+        }
+        node._dims = parsed.dims.slice();
+        // .map(Number) because parseMatrixValue is typed for the 64-bit case now; a char
+        // code is never one, so every element here is already a number.
+        node._scalarValue = charTextFromCodes(parsed.elements.map(Number), parsed.dims);
+        return node;
+    }
     static parseFlatArray(rawVal, name, parent) {
         const node = new MatlabVariableNode(name, parent, rawVal);
         node._rawInput = rawVal;
         node._kind = 'array';
         node._elements = rawVal;
-        node._dims = [1, rawVal.length];
+        // 0x0 for an empty, not [1, 0]: a bare `[]` is what MATLAB writes for `[]`,
+        // whose `size` is 0x0, and the binary dictionary, the .slx and the .mat all
+        // report 0x0 for the same value — only the text path said 1x0. 1x0 is the
+        // shape of `x=1; x(1)=[]`, which is what _updateArrayAfterRemove produces and
+        // is a different value; nothing was removed from a stored `[]`.
+        node._dims = rawVal.length === 0 ? [0, 0] : [1, rawVal.length];
         node._scalarType = 'double';
         if (rawVal.length > 1) {
             rawVal.forEach(function (el, i) {
@@ -1762,7 +2379,7 @@ export default class MatlabVariableNode extends DataNode {
         node._rawInput = rawVal;
         node._kind = 'array';
         node._elements = parsed.elements;
-        node._dims = [parsed.rows, parsed.cols];
+        node._dims = parsed.dims.slice();
         node._scalarType = parsed.type;
         if (parsed.elements.length > 1) {
             parsed.elements.forEach(function (el, i) {

@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import { unzipSync } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
-import { formatDoubleXml, formatMatlabNum, parseMatlabNum } from './XmlUtils.js';
+import { charNeedsShape, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, SAVEOBJ_KEY, } from './XmlUtils.js';
 const xmlParser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
@@ -10,37 +10,46 @@ const xmlParser = new XMLParser({
     trimValues: false,
 });
 /**
- * Read a `Dimension="R*C"` attribute into exactly two dimensions.
+ * Read a `Dimension="d1*d2*...*dn"` attribute into every extent it declares.
  *
- * Every shape this parser can represent downstream is 2-D: a numeric array becomes
- * the `Matrix(rows,cols)` serial string, which is the same form the text .sldd uses
- * and the only one the save path (DataNode._serializeTypedPropertyXml) and the row
- * builders read back. So the two off-nominal extent counts have to be folded into
- * that here — and every caller has to fold them the SAME way. They used to each
- * `split('*')` for themselves, and both cases went wrong:
+ * All of them are kept: MATLAB's own binary dictionary writes a 2x3x2 as
+ * `"2*3*2"` with a flat column-major body, so folding the trailing extents into
+ * the column count (2x6) reported a shape MATLAB never had, mislabelled every
+ * element, and wrote `Matrix(2,6)` back on save. The serial string carries the
+ * full rank now — `Matrix(2,3,2)` — so there is nothing left to fold into.
+ *
+ * A trailing singleton is dropped because MATLAB's `size()` drops it too: a
+ * 2x3x1 IS a 2x3.
+ *
+ * The two off-nominal extent counts still have to be normalized here so every
+ * caller folds them the SAME way — they used to each `split('*')` for
+ * themselves, and both cases went wrong:
  *
  *   - Fewer than two extents (`Dimension="3"`) left `cols` undefined, so the value
  *     formatted as `Matrix(3,undefined)` with an EMPTY body — every element
- *     dropped on load, and re-saved as the scalar 0.
- *   - More than two (`Dimension="2*2*2"`, e.g. a 3-D lookup-table breakpoint set)
- *     read only rows*cols elements, so a 2x2x2 displayed as a 2x2 holding just the
- *     first page and re-saved with six of its eight values gone.
- *
- * Collapsing the trailing extents into the column count keeps every element in
- * order: the data is column-major, so this is exactly MATLAB's own
- * `reshape(A, R, [])`. The page structure is not preserved — a 2x2x2 reads as 2x4 —
- * but nothing is lost, which the previous behaviour could not say.
+ *     dropped on load, and re-saved as the scalar 0. A lone extent N is a row
+ *     vector of N.
+ *   - An unparseable Dimension has to become SOMETHING; a scalar is the least
+ *     destructive guess.
  */
-function parseDims(dimension) {
+export function parseDims(dimension) {
+    // `''.split('*')` is `['']` and `Number('')` is 0, which is finite — without
+    // this guard an absent Dimension would read as the empty 1x0.
+    if (!dimension) {
+        return [1, 1];
+    }
     const parts = dimension.split('*').map(Number);
-    if (parts.length === 2) {
-        return parts;
+    if (parts.some((n) => !Number.isFinite(n) || n < 0)) {
+        return [1, 1];
     }
-    if (parts.length < 2) {
-        // A lone extent N describes a row vector of N; an unparseable one, a scalar.
-        return Number.isFinite(parts[0]) ? [1, parts[0]] : [1, 1];
+    if (parts.length === 1) {
+        return [1, parts[0]];
     }
-    return [parts[0], parts.slice(1).reduce((a, b) => a * b, 1)];
+    const dims = parts.slice();
+    while (dims.length > 2 && dims[dims.length - 1] === 1) {
+        dims.pop();
+    }
+    return dims;
 }
 export function parseBinarySldd(arrayBuffer) {
     const uint8 = new Uint8Array(arrayBuffer);
@@ -243,9 +252,10 @@ function parseEntryValue(prop) {
         }
         return objectArrayValue(elements, dimension ? parseDims(dimension) : [elements.length, 1]);
     }
-    // Char scalar (no elements, Class="char")
+    // Char (no elements, Class="char") — a row is its bare text, a shaped one carries
+    // its extents; see charValue.
     if (className === 'char') {
-        return getTextContent(prop) || '';
+        return charValue(getTextContent(prop), dimension);
     }
     // Logical scalar (no dimension)
     if (className === 'logical' && !dimension) {
@@ -268,16 +278,18 @@ function parseEntryValue(prop) {
         if (total === 0) {
             return { _type: type, _emptyDims: dimParts };
         }
-        // Logical vector
+        // Logical vector, matrix or N-D — shaped, and transposed out of column-major
+        // order, exactly as the numeric branch below is (defect 44).
         if (type === 'logical') {
-            const parts = text.trim().split(/\s+/);
-            return { _type: 'logical', _value: '[' + parts.join(', ') + ']' };
+            return logicalValue(text, dimParts);
         }
-        const parts = text.trim().split(/\s+/).map(Number);
+        const parts = numericBody(text, type);
         // Column-major to row-major transpose
         const rowMajor = transposeColumnMajor(parts, dimParts);
         // Row vector (1*N)
-        if (dimParts[0] === 1) {
+        // Only a true rank-2 row vector may drop its shape: a 1x2x2 spelled as the
+        // flat 4-vector [1, 2, 3, 4] reads back as a 1x4 MATLAB never had.
+        if (dimParts.length <= 2 && dimParts[0] === 1) {
             return formatTypedVector(rowMajor, type);
         }
         // Column or matrix
@@ -289,23 +301,18 @@ function parseCellElement(el) {
     const elClass = el['@_Class'] || '';
     const dimension = el['@_Dimension'] || null;
     const text = getTextContent(el);
-    if (elClass === 'double' ||
-        elClass === 'single' ||
-        elClass === 'int32' ||
-        elClass === 'uint32' ||
-        elClass === 'int16' ||
-        elClass === 'uint16' ||
-        elClass === 'int8' ||
-        elClass === 'uint8') {
+    if (isNumericClass(elClass)) {
         if (dimension) {
             const dimParts = parseDims(dimension);
             const total = dimParts.reduce((a, b) => a * b, 1);
             if (total === 0) {
-                return { _type: elClass, _value: 'Matrix(' + dimParts[0] + ',' + dimParts[1] + ')' };
+                // Every extent, so an empty N-D cell element agrees with what
+                // parseMatrixValue reads back.
+                return { _type: elClass, _value: 'Matrix(' + dimParts.join(',') + ')' };
             }
-            const parts = text.trim().split(/\s+/).map(Number);
+            const parts = numericBody(text, elClass);
             const rowMajor = transposeColumnMajor(parts, dimParts);
-            if (dimParts[0] === 1) {
+            if (dimParts.length <= 2 && dimParts[0] === 1) {
                 return formatTypedVector(rowMajor, elClass);
             }
             return formatMatrix(rowMajor, dimParts, elClass);
@@ -322,13 +329,12 @@ function parseCellElement(el) {
             if (total === 0) {
                 return { _type: 'logical', _value: '[]' };
             }
-            const parts = text.trim().split(/\s+/);
-            return { _type: 'logical', _value: '[' + parts.join(', ') + ']' };
+            return logicalValue(text, dimParts);
         }
         return text === '1' || text === 'true';
     }
     if (elClass === 'char') {
-        return text || '';
+        return charValue(text, dimension);
     }
     if (elClass === 'struct') {
         return structValue(el.Element || [], [1, 1]);
@@ -370,73 +376,117 @@ function parseStringValue(el, _outerDimension) {
     }
     return strings;
 }
-function transposeColumnMajor(values, dims) {
-    const rows = dims[0];
-    const cols = dims[1];
-    if (rows <= 1) {
-        return values;
-    }
-    const result = new Array(values.length);
-    for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-            result[r * cols + c] = values[c * rows + r];
-        }
-    }
-    return result;
+// Column-major (MATLAB) to row-major-within-page (what the display layer reads).
+// An N-D array is a stack of rows x cols pages, each stored column-major in turn,
+// so every page is transposed and the page order is untouched — the same rule
+// MatParser.transposeFromColMajor applies to .mat data. Handling only dims[0] and
+// dims[1] left every page after the first in column order, so a rank-3 array's
+// later pages displayed transposed.
+// The loop itself lives in XmlUtils, shared with the complex/cdata reader in
+// MatlabVariableNode, which carried its own rank-2-only copy of it. A vector is the
+// same list in both orders and a body whose element count disagrees with the
+// declared Dimension keeps its extra values rather than coming back full of holes;
+// both are properties of the shared helper now.
+// Generic over T because a 64-bit body's elements are exact decimal STRINGS, not
+// numbers (see numericBody): the reorder is a permutation and never looks at a value.
+export function transposeColumnMajor(values, dims) {
+    return transposeFromColumnMajorND(values, dims);
 }
 function formatTypedScalar(text, type) {
     if (type === 'double') {
         return parseMatlabNum(text);
     }
-    const num = parseMatlabNum(text);
     if (type === 'single') {
-        return { _type: 'single', _value: formatNumLiteral(num, 'single') };
+        return { _type: 'single', _value: formatNumLiteral(parseMatlabNum(text), 'single') };
     }
     if (type === 'uint8' || type === 'uint16' || type === 'uint32') {
         return { _type: type, _value: formatNumLiteral(parseInt(text, 10), type) };
     }
-    return { _type: type, _value: text };
+    // uint64 lands here rather than in the unsigned arm above deliberately: parseInt
+    // would put maxU64 through a double and write 18446744073709552000U back. The stored
+    // text is already MATLAB's own exact decimal, so it is kept verbatim — and a uint64
+    // scalar keeps its 'U' from the body it came with rather than from formatNumLiteral.
+    return { _type: type, _value: text.trim() };
 }
 function formatTypedVector(values, type) {
     if (type === 'double') {
+        // A bare JSON array cannot carry a non-finite — JSON.stringify writes `null` —
+        // so an Inf read correctly above would still be destroyed the moment the entry
+        // was saved to an uncompressed-text dictionary. The typed literal is the
+        // spelling MATLAB itself uses there: its own text artifact carries nonFinVec as
+        // {"_type":"double","_value":"[1.0, Inf, -Inf, NaN, 5.0]"}.
+        if (values.some((v) => typeof v === 'number' && !isFinite(v))) {
+            return {
+                _type: 'double',
+                _value: '[' + values.map((v) => formatNumLiteral(v, 'double')).join(', ') + ']',
+            };
+        }
         return values;
     }
     const formatted = values.map((v) => formatNumLiteral(v, type));
     return { _type: type, _value: '[' + formatted.join(', ') + ']' };
 }
-function formatNumLiteral(num, type) {
-    if (type === 'single') {
-        return formatMatlabNum(num) + 'F';
+/**
+ * A `Class="char"` body, with the shape its Dimension declares (defect 25).
+ *
+ * The text is MATLAB's stored, COLUMN-MAJOR string: `['ab'; 'cd']` reaches us as
+ * `Dimension="2*2">acbd`. The Dimension used to be ignored at all three of the sites
+ * that call this — entry value, cell element, object/struct property — so every char
+ * that was not a row came back as a 1x1 scalar holding the flat text: MATLAB's own 2x2
+ * displayed as 'acbd' with its shape gone AND its characters in an order no one had
+ * typed, and the next save wrote that 1x4 back. A 2x3x2 lost eleven of its twelve
+ * characters' positions the same way.
+ *
+ * The mxchar envelope is MATLAB's own spelling for the shaped char in a TEXT
+ * dictionary, so handing it back here means both dictionary flavours decode to the
+ * identical value and one node parser serves both.
+ */
+function charValue(text, dimension) {
+    if (!dimension) {
+        return text || '';
     }
-    if (type === 'uint8' || type === 'uint16' || type === 'uint32') {
-        return formatMatlabNum(num) + 'U';
+    const dimParts = parseDims(dimension);
+    if (dimParts.reduce((a, b) => a * b, 1) === 0) {
+        return '';
     }
-    if (type === 'double') {
-        return formatDoubleXml(num);
+    if (!charNeedsShape(dimParts)) {
+        return text || '';
     }
-    return formatMatlabNum(num);
+    return { _type: 'mxchar', _value: formatMxCharSerial(text, dimParts) };
 }
+// The serial string every downstream reader consumes. The body itself is
+// XmlUtils.formatMatrixSerial, shared with the node's write-back path: the two used
+// to be separate copies that disagreed at rank 2, and only this one's spelling is
+// one MATLAB reads back.
 function formatMatrix(values, dims, type) {
-    const rows = dims[0];
-    const cols = dims[1];
     type = type || 'double';
-    // Column vector: single bracketed list
-    if (cols === 1) {
-        const formatted = values.map((v) => formatNumLiteral(v, type));
-        return { _type: type, _value: 'Matrix(' + rows + ',' + cols + ')\n[' + formatted.join(', ') + ']' };
+    return { _type: type, _value: formatMatrixSerial(values, dims, type) };
+}
+/**
+ * A `Class="logical"` body with a Dimension, shaped as that Dimension declares
+ * (defect 44).
+ *
+ * All three sites that read one — entry value, cell element, object/struct property —
+ * used to split the body and join it straight back into a flat `[1, 0, 0, 1]`,
+ * ignoring the extents entirely. So the logical class alone missed BOTH halves of
+ * what its numeric neighbour two lines below has always done: MATLAB's own 2x2
+ * `[true false; false true]` came back a 1x4, and because the body is stored
+ * COLUMN-major its four values came back in an order no one had typed. A 3x1 came
+ * back a 1x3, and an N-D came back flat — the logical twin of defect 25 (char) and
+ * of Phase 6 (numeric N-D), the last class still carrying it.
+ *
+ * The tokens are kept as the TEXT the body carried rather than converted to numbers:
+ * the transpose is a permutation that never looks at a value, formatNumLiteral passes
+ * a string through verbatim, and a spelling MATLAB chose is one we can write back.
+ */
+function logicalValue(text, dimParts) {
+    const rowMajor = transposeColumnMajor(text.trim().split(/\s+/), dimParts);
+    // Same split as the numeric branch, for the same reason: only a true rank-2 row
+    // vector may go out shapeless, because a bare bracketed list reads back as a row.
+    if (dimParts.length <= 2 && dimParts[0] === 1) {
+        return formatTypedVector(rowMajor, 'logical');
     }
-    const rowStrs = [];
-    for (let r = 0; r < rows; r++) {
-        const row = [];
-        for (let c = 0; c < cols; c++) {
-            row.push(formatNumLiteral(values[r * cols + c], type));
-        }
-        rowStrs.push('[' + row.join(', ') + ']');
-    }
-    return {
-        _type: type,
-        _value: 'Matrix(' + rows + ',' + cols + ')\n[' + rowStrs.join('; ') + ']',
-    };
+    return formatMatrix(rowMajor, dimParts, 'logical');
 }
 function parsePropContent(prop) {
     const propClass = prop['@_Class'] || null;
@@ -505,6 +555,28 @@ function parseElement(el) {
 function parseStructElement(el) {
     const result = {};
     for (const prop of el.P || []) {
+        // MATLAB's saveobj envelope. A class that serializes through saveobj writes its
+        // WHOLE state as one UNNAMED <P Source="saveobj" PropertyType="any" Class="struct">,
+        // so `prop['@_Name']` is undefined and `result[prop['@_Name']!]` keyed it under the
+        // literal string 'undefined' — which the writer then emitted as
+        // `<P Name="undefined" Class="struct">`. MATLAB's loadobj finds no envelope in that
+        // and rebuilds an EMPTY object: cases.sldd's aVariant reopened as a
+        // Simulink.VariantVariable with 0 choices where MATLAB wrote 2, its whole condition
+        // table gone (defect 28, measured by probe_writeback_bin — the property-based
+        // signature could not see it, because both of VariantVariable's public properties
+        // throw MATLAB:class:ObjectMustBeScalar on get).
+        //
+        // The payload is kept whole under a reserved key rather than lifted into the bag:
+        // the envelope's fields are the object's own state in MATLAB's saveobj spelling,
+        // which is not the spelling the same class uses in a TEXT dictionary (there a
+        // VariantVariable is a flat Bank/Choices/Specification bag whose Choices is a
+        // simulink.variant.Variable, not a 2x1 Condition/Value struct). Preserving it
+        // verbatim is what makes MATLAB read back what MATLAB wrote; translating between the
+        // two spellings is a question no artifact in the corpus answers.
+        if (prop['@_Source'] === 'saveobj') {
+            result[SAVEOBJ_KEY] = parsePropContent(prop);
+            continue;
+        }
         // A complex scalar carries its value as text with IsComplex="1" rather than
         // as child elements, so it never reaches the generic content decoder.
         if (!prop.Element?.length && prop['@_IsComplex'] === '1') {
@@ -539,13 +611,12 @@ function parseTypedValue(text, className, dimension) {
             return '';
         }
         if (className === 'logical') {
-            const parts = text.trim().split(/\s+/);
-            return { _type: 'logical', _value: '[' + parts.join(', ') + ']' };
+            return logicalValue(text, dimParts);
         }
         if (isNumericClass(className)) {
-            const parts = text.trim().split(/\s+/).map(parseMatlabNum);
+            const parts = numericBody(text, className);
             const rowMajor = transposeColumnMajor(parts, dimParts);
-            if (dimParts[0] === 1) {
+            if (dimParts.length <= 2 && dimParts[0] === 1) {
                 return formatTypedVector(rowMajor, className);
             }
             return formatMatrix(rowMajor, dimParts, className);
@@ -561,15 +632,31 @@ function parseTypedValue(text, className, dimension) {
         case 'uint16':
         case 'int8':
         case 'uint8':
+        // int64/uint64 belong here and not in the `default` arm: the default returns the
+        // bare body text, which the writer can only spell `Class="char"`. The value itself
+        // survived — a 64-bit scalar's stored text IS its exact decimal — so this half of
+        // defect 27 lost the CLASS rather than the digits.
+        case 'int64':
+        case 'uint64':
             return formatTypedScalar(text, className);
         case 'logical':
             return text === '1' || text === 'true';
         case 'char':
-            return text || '';
+            // The property twin of the entry-value and cell-element arms: a `Class="char"
+            // Dimension="2*2"` PROPERTY (a struct field, an object property) states its
+            // shape too, and the numeric branch above never claimed it.
+            return charValue(text, dimension);
         default:
             return text || '';
     }
 }
+// int64 and uint64 were missing from this list AND from parseCellElement's copy of it,
+// which is what made a 64-bit struct FIELD come back as text: parseTypedValue fell
+// through the numeric branch to the `default: return text`, so sTyped's uint64 [7 8]
+// decoded as the string '7 8' and the writer, seeing a bare string, wrote
+// `<P Name="d" Class="char">7 8</P>` — MATLAB reopened the field as a 1x3 char (defect
+// 27). The entry-level path never had the gap, so the same value was right at the top
+// level and wrong one level down.
 function isNumericClass(className) {
     return (className === 'double' ||
         className === 'single' ||
@@ -578,7 +665,16 @@ function isNumericClass(className) {
         className === 'int16' ||
         className === 'uint16' ||
         className === 'int8' ||
-        className === 'uint8');
+        className === 'uint8' ||
+        className === 'int64' ||
+        className === 'uint64');
+}
+// One numeric body, as the CLASS requires: exact decimal text for the tokens a 64-bit
+// integer cannot round-trip through a double, plain numbers for everything else. The
+// three call sites below (entry value, cell element, property) each used to call
+// parseNumericBody directly, so a 64-bit value was rounded before any writer saw it.
+function numericBody(text, type) {
+    return needsExactInt(type) ? parseExactBody(text) : parseNumericBody(text);
 }
 function getTextContent(node) {
     if (node['#text'] !== undefined) {

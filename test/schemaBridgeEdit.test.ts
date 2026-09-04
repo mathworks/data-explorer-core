@@ -165,7 +165,9 @@ describe('a schema PropClass formats values the same way it reads them', () => {
     const dims = schemaColumns('Simulink.Parameter').find((c) => c.key === 'dimensions')!;
     expect(dims.format!(undefined)).toBe('');
     expect(dims.format!(null)).toBe('');
-    expect(dims.format!([2, 3])).toBe('[2, 3]');
+    // Space-separated, as MATLAB's mat2str spells a row and as every other
+    // surface in the product spells the same value — see formatSchemaValue.
+    expect(dims.format!([2, 3])).toBe('[2 3]');
     expect(dims.format!(5)).toBe('5');
     expect(dims.format!('inherit')).toBe('inherit');
   });

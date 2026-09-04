@@ -7,8 +7,10 @@ export interface McosObjectData {
     elements: Record<string, unknown>[];
     dimensions: number[];
     value: unknown;
+    stringElements?: (string | null)[] | null;
 }
 export declare const NOT_AVAILABLE = "<not available>";
+export declare const STRING_CLASS_NAME = "string";
 export interface OpaqueVarRef {
     name: string;
     className: string;

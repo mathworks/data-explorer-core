@@ -98,9 +98,10 @@ describe('ObjectNode — object array', () => {
     expect(n.children.map((c: any) => c.isElementName)).toEqual([true, true]);
   });
 
-  it('uses row,column subscripts for a matrix', () => {
+  it('uses row,column subscripts for a matrix, in MATLAB column-major order', () => {
+    // The element list arrives in MATLAB's own order, so element 2 is m(2,1).
     const n = parse(valueObject('My.Thing', [{ N: 1 }, { N: 2 }, { N: 3 }, { N: 4 }], [2, 2]), 'm');
-    expect(n.children.map((c: any) => c.displayName)).toEqual(['m(1,1)', 'm(1,2)', 'm(2,1)', 'm(2,2)']);
+    expect(n.children.map((c: any) => c.displayName)).toEqual(['m(1,1)', 'm(2,1)', 'm(1,2)', 'm(2,2)']);
   });
 
   it('routes each element back through the registry, so a known class stays typed', () => {

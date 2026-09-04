@@ -22,6 +22,7 @@ import { describe, it, expect } from 'vitest';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { NOT_AVAILABLE } from '../src/datamodel/parser/McosParser.js';
 import * as NodeClassMap from '../src/datamodel/node/NodeClassMap.js';
+import { CLASS, MI, arrayFlags, dims, matrix, numericData, varName } from './tools/matBytes.js';
 
 // These tests reach into the node's internal state (_kind, _elements, _dims) on
 // purpose: that state is the contract each mutation path has to keep consistent,
@@ -99,6 +100,29 @@ describe('MatlabVariableNode.parse — raw shape to _kind', () => {
     expect([n._kind, n._elements]).toEqual(['string', ['a', 'b']]);
     expect(n.children.map((c: Any) => c._kind)).toEqual(['string', 'string']);
   });
+
+  // MATLAB writes `[]` for an empty numeric into a text dictionary, and
+  // `size([])` is 0x0 — the binary dictionary, the .slx and the .mat all report
+  // 0x0 for the same value. 1x0 would be the shape of `x=1; x(1)=[]`, which is a
+  // different value and is what the REMOVAL path produces (see
+  // _updateArrayAfterRemove). A stored bare `[]` has no removal behind it.
+  it('reads a bare empty array as 0x0, the shape MATLAB reports for []', () => {
+    const n = parse([]);
+    expect([n._kind, n._elements, n._dims, n.displayValue]).toEqual(['array', [], [0, 0], '[ ]']);
+  });
+
+  // `{_type: 'struct', _value: '[]'}` is how MATLAB spells struct([]) in a text
+  // dictionary — the only _type:'struct' in the whole corpus, and its value is
+  // always the empty literal. Routed on the leading '[' it went to
+  // parseTypedVector, which read `[]` as one element of 0 and displayed the
+  // 0x0 struct as `[0]` with dims 1x1.
+  it('reads the typed struct literal as an empty struct, not a numeric vector', () => {
+    const n = parse({ _type: 'struct', _value: '[]' });
+    expect([n._kind, n._scalarType, n._dims, n.children.length]).toEqual([
+      'scalar', 'struct', [0, 0], 0,
+    ]);
+    expect(n.displayValue).toBe('<0x0 struct>');
+  });
 });
 
 describe('MatlabVariableNode — displayValue per kind', () => {
@@ -121,29 +145,165 @@ describe('MatlabVariableNode — displayValue per kind', () => {
     expect(parse({ _type: 'logical', _value: '[1, 0]' }).displayValue).toBe('[true false]');
   });
 
-  it('shows an empty array as [] and an empty cell as {}', () => {
-    expect(parse({ _type: 'double', _emptyDims: [0, 0] }).displayValue).toBe('[]');
-    expect(parse({ _array_type: 'Cell', _dimensions: [0, 0], _elements: [] }).displayValue).toBe('{}');
+  it('shows an empty array as [ ] and an empty cell as { }', () => {
+    // '[ ]' and '{ }', with the space, are the display convention's spellings
+    // (DESIGN.md's normative table) and what the object-property path has always
+    // emitted. They deviate from mat2str's '[]' on purpose: the old '[]'/'{}' here
+    // made the same empty value read two ways depending on which parser produced it.
+    expect(parse({ _type: 'double', _emptyDims: [0, 0] }).displayValue).toBe('[ ]');
+    expect(parse({ _array_type: 'Cell', _dimensions: [0, 0], _elements: [] }).displayValue).toBe('{ }');
   });
 
-  it('summarizes a long cell or string array by its dimensions', () => {
-    // A cell that would render longer than the column can show becomes a
-    // {RxC cell} summary rather than truncated garbage.
+  it('spells an empty numeric as the convention does', () => {
+    const node = MatlabVariableNode.parseTypedArray({ _type: 'double', _value: 'nope' }, 'e', null);
+    expect(node.displayValue).toBe('[ ]');
+  });
+
+  it('renders a 10-element array in full and summarizes at 11', () => {
+    // The element budget (SUMMARY_MAX_ELEMENTS = 10) replaces "print whatever
+    // you have": the variable path used to render a 10000-element array inline
+    // while the identical value on the object-property path summarized at 50
+    // characters.
+    const ten = { _type: 'double', _value: 'Matrix(1,10)\n[' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].join(', ') + ']' };
+    expect(MatlabVariableNode.parseTypedArray(ten, 'a', null).displayValue).toBe('[1 2 3 4 5 6 7 8 9 10]');
+    const eleven = {
+      _type: 'double',
+      _value: 'Matrix(1,11)\n[' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].join(', ') + ']',
+    };
+    expect(MatlabVariableNode.parseTypedArray(eleven, 'a', null).displayValue).toBe('<1x11 double>');
+  });
+
+  it('summarizes a rank-3 array whatever its element count', () => {
+    const raw = { _type: 'double', _value: 'Matrix(2,3,2)\n[[1, 3, 5]; [2, 4, 6]; [7, 9, 11]; [8, 10, 12]]' };
+    expect(MatlabVariableNode.parseTypedArray(raw, 'A', null).displayValue).toBe('<2x3x2 double>');
+  });
+
+  it('renders a 2x3 as a MATLAB matrix literal', () => {
+    const raw = { _type: 'double', _value: 'Matrix(2,3)\n[[1, 2, 3]; [4, 5, 6]]' };
+    expect(MatlabVariableNode.parseTypedArray(raw, 'B', null).displayValue).toBe('[1 2 3; 4 5 6]');
+  });
+
+  it('renders an 8-element cell or string array in full — under the element budget', () => {
+    // This used to expect '{1x8 cell}' and '<1x8 string>': the old rule was 50
+    // display characters, and eight 'element_N' entries pass it. The rule is now
+    // the ELEMENT count for anything with expandable child rows, and 8 <= 10, so
+    // both render their literal. Two spellings ('{…}' vs '<…>') for one concept
+    // is what the old code got wrong — only the angle form reads as a summary.
     const longs = Array.from({ length: 8 }, (_, i) => 'element_' + i);
-    expect(parse({ _array_type: 'Cell', _dimensions: [1, 8], _elements: longs }).displayValue).toBe('{1x8 cell}');
-    expect(parse({ _array_type: 'String', _dimensions: [1, 8], _elements: longs }).displayValue).toBe('<1x8 string>');
+    expect(parse({ _array_type: 'Cell', _dimensions: [1, 8], _elements: longs }).displayValue).toBe(
+      "{'element_0', 'element_1', 'element_2', 'element_3', 'element_4', 'element_5', 'element_6', 'element_7'}",
+    );
+    expect(parse({ _array_type: 'String', _dimensions: [1, 8], _elements: longs }).displayValue).toBe(
+      '["element_0" "element_1" "element_2" "element_3" "element_4" "element_5" "element_6" "element_7"]',
+    );
   });
 
-  it('shows a struct by its dimensions, since it has no inline value', () => {
-    const n = parse(0);
-    n._scalarType = 'struct';
-    expect(n.displayValue).toBe('<1x1 struct>');
+  it('summarizes an 11-element cell or string array in angle brackets', () => {
+    const many = Array.from({ length: 11 }, (_, i) => String.fromCharCode(97 + i));
+    expect(parse({ _array_type: 'Cell', _dimensions: [1, 11], _elements: many }).displayValue).toBe('<1x11 cell>');
+    expect(parse({ _array_type: 'String', _dimensions: [1, 11], _elements: many }).displayValue).toBe(
+      '<1x11 string>',
+    );
+  });
+
+  it('summarizes a short cell or string array whose CONTENTS are huge', () => {
+    // The element rule alone is not a bound on LENGTH. SUMMARY_MAX_CHARS is the
+    // runaway guard: four 300-character entries are a 1200-character table cell.
+    const long = 'x'.repeat(300);
+    const four = [long, long, long, long];
+    expect(parse({ _array_type: 'Cell', _dimensions: [1, 4], _elements: four }).displayValue).toBe('<1x4 cell>');
+    expect(parse({ _array_type: 'String', _dimensions: [1, 4], _elements: four }).displayValue).toBe(
+      '<1x4 string>',
+    );
+  });
+
+  it('summarizes a char scalar past the char budget, at its real 1xN size', () => {
+    // char has no child rows, so the char budget is the only rule that applies —
+    // and MATLAB's size() for a char row vector is 1xN, not 1x1.
+    const n = parse('x'.repeat(1500));
+    expect(n.displayValue).toBe('<1x1500 char>');
+    // One character under the budget (1000 chars + 2 quotes = 1002 > 1000, so
+    // 998 characters is the last inline length) still shows in full.
+    expect(parse('y'.repeat(998)).displayValue).toBe("'" + 'y'.repeat(998) + "'");
+  });
+
+  it('always summarizes a struct, at every size', () => {
+    const scalar = parse(0);
+    scalar._scalarType = 'struct';
+    expect(scalar.displayValue).toBe('<1x1 struct>');
+    const arr = parse(0);
+    arr._scalarType = 'struct';
+    arr._dims = [2, 3];
+    expect(arr.displayValue).toBe('<2x3 struct>');
+    // _dims never set: summaryForm normalizes through effectiveDims, so this is
+    // '<1x1 struct>' rather than the '<... struct>' a raw join produced.
+    const bare = parse(0);
+    bare._scalarType = 'struct';
+    bare._dims = [];
+    expect(bare.displayValue).toBe('<1x1 struct>');
   });
 
   it('prefers the live children over _elements, so an edit is visible', () => {
     const n = parse([1, 2, 3]);
     n.children[1]._scalarValue = 99;
     expect(n.displayValue).toBe('[1 99 3]');
+  });
+
+  it('summarizes an opaque array in angle brackets, not square ones', () => {
+    // '[1x2 string]' read as a MATLAB literal and the consumer table styled it as
+    // ordinary editable text. Angle brackets are what keys the gray/italic form
+    // and the no-editor rule.
+    const node: Any = new MatlabVariableNode('o', null, {});
+    node._isOpaque = true;
+    node._opaqueClassName = 'string';
+    node._mcosValue = ['a', 'b'];
+    node._mcosDimensions = [1, 2];
+    expect(node.displayValue).toBe('<1x2 string>');
+  });
+
+  it('keeps the opaque 1x1 placeholders on the shared summary form', () => {
+    // Nothing in displayValue spells a summary by hand any more, so an empty
+    // opaque string and an opaque value we could not read agree with everything
+    // else in the tree.
+    const empty: Any = new MatlabVariableNode('o', null, {});
+    empty._isOpaque = true;
+    empty._opaqueClassName = 'string';
+    empty._mcosValue = '';
+    expect(empty.displayValue).toBe('<1x1 string>');
+    const unread: Any = new MatlabVariableNode('o', null, {});
+    unread._isOpaque = true;
+    unread._opaqueClassName = 'Simulink.Parameter';
+    expect(unread.displayValue).toBe('<1x1 Simulink.Parameter>');
+  });
+
+  it('summarizes an unreadable opaque value at the shape the decoder recovered', () => {
+    // A MATLAB `string` array is ONE MCOS object, so its object handle says [1,1]
+    // however big the array is and the shape has to come from the decoded payload.
+    // A hardcoded [1,1] here printed MATLAB's 1x3 as <1x1 string> — and there is no
+    // value to print, so the summary is the whole answer.
+    const arr: Any = new MatlabVariableNode('o', null, {});
+    arr._isOpaque = true;
+    arr._opaqueClassName = 'string';
+    arr._mcosDimensions = [1, 3];
+    expect(arr.displayValue).toBe('<1x3 string>');
+    // …and the accessor agrees with the summary, rather than reporting the [1,1] the
+    // constructor left on _dims (which no opaque path ever sets).
+    expect(arr.dims).toEqual([1, 3]);
+  });
+
+  it('calls `string` a data type and every other opaque class not one', () => {
+    // An opaque className is normally a CLASS name — 'Simulink.Parameter' is not a
+    // type, so the DataType column stays blank for it. `string` is the exception:
+    // MATLAB implements it as an MCOS object but it is a genuine data type, and a
+    // string out of a .mat belongs in that column next to one out of a dictionary.
+    const str: Any = new MatlabVariableNode('o', null, {});
+    str._isOpaque = true;
+    str._opaqueClassName = 'string';
+    expect(str.dataType).toBe('string');
+    const obj: Any = new MatlabVariableNode('o', null, {});
+    obj._isOpaque = true;
+    obj._opaqueClassName = 'Simulink.Parameter';
+    expect(obj.dataType).toBe('');
   });
 
   it("REGRESSION: escapes a quote inside a char/string by doubling it", () => {
@@ -244,12 +404,21 @@ describe('MatlabVariableNode — non-finite values survive display and save', ()
   });
 });
 
-// A complex value reaches the reader as `_type: 'cdata'` in one of two spellings:
-// plain text ('1+2i') for values the writer could spell out, or a base-64-ish
-// 6-bit packing of the raw MAT byte stream for the rest. The binary form carries
-// its real and imaginary parts in separate blocks at offsets that depend on how
-// the variable name was stored, so a misread offset silently returns the wrong
-// number rather than failing.
+// A value reaches the reader as `_type: 'cdata'` in one of two spellings: plain
+// text ('1+2i') for a complex value the writer could spell out, or a 6-bit
+// packing (uuencode) of raw MAT bytes for the rest. The binary form is an 8-byte
+// preamble followed by ONE miMATRIX element, which MatParser reads — see
+// test/cdataParse.test.ts for the MATLAB-authored proof of that layout and for
+// the classes other than complex double that appear there.
+//
+// The fixture below builds a real miMATRIX with test/tools/matBytes.ts. It used
+// to hand-place rows at byte 40 and cols at 44 with offsets 0-39 left zero,
+// which is not a MAT element at all — it was reverse-engineered from the reader
+// this suite was testing. MATLAB's own bytes for `cplxScalar` are
+// `00 01 49 4d 00 00 00 00` then `0e 00 00 00 48 00 00 00` (miMATRIX, 72 bytes)
+// then array flags, dims, name, real, imag. Dims data happens to land at 40/44
+// in that layout, which is exactly why the old reader worked for a 2-D complex
+// double and for nothing else.
 describe('MatlabVariableNode — complex values from cdata', () => {
   // Inverse of the reader's 6-bit unpacking, so a test can hand it real bytes.
   function encodeCdata(bytes: Uint8Array): string {
@@ -278,34 +447,45 @@ describe('MatlabVariableNode — complex values from cdata', () => {
     expect([n._kind, n._scalarType, n._scalarValue]).toEqual(['scalar', 'complex', '1.5-2i']);
   });
 
+  // MATLAB's preamble ahead of the element: two version bytes then 'IM'.
+  const PREAMBLE = [0x00, 0x01, 0x49, 0x4d, 0x00, 0x00, 0x00, 0x00];
+
+  /** The 8-byte preamble plus one complex-double miMATRIX, as a cdata payload. */
+  function cdataOf(nameSub: Uint8Array, re: number, im: number): Uint8Array {
+    const el = matrix([
+      arrayFlags(CLASS.DOUBLE, { complex: true }),
+      dims([1, 1]),
+      nameSub,
+      numericData(MI.DOUBLE, [re]),
+      numericData(MI.DOUBLE, [im]),
+    ]);
+    const out = new Uint8Array(8 + el.length);
+    out.set(PREAMBLE, 0);
+    out.set(el, 8);
+    return out;
+  }
+
+  /**
+   * A name subelement in the SMALL-element form: byte count in the tag word's
+   * high half, type in its low half, payload in the tag word's own upper 4 bytes.
+   * matBytes only writes the long form, and both forms shift every later
+   * subelement by a different amount.
+   */
+  function smallName(s: string): Uint8Array {
+    const out = new Uint8Array(8);
+    new DataView(out.buffer).setUint32(0, (s.length << 16) | MI.INT8, true);
+    out.set(new TextEncoder().encode(s), 4);
+    return out;
+  }
+
   it('reads the binary spelling, whichever way the name was stored', () => {
-    // The name is either packed into the tag word (small-data form) or written as
-    // a sized, 8-byte-padded block; each shifts the data blocks by a different
+    // The name is either packed into the tag word (small-element form) or written
+    // as a sized, 8-byte-padded block; each shifts the data blocks by a different
     // amount. Reading the wrong one lands mid-double and yields garbage.
-    const scalarBytes = (nameInline: boolean, re: number, im: number): Uint8Array => {
-      const bytes = new Uint8Array(nameInline ? 88 : 96);
-      const dv = new DataView(bytes.buffer);
-      dv.setInt32(40, 1, true);
-      dv.setInt32(44, 1, true);
-      let off = 48;
-      if (nameInline) {
-        dv.setUint32(off, 0x0002_0001, true);
-        off += 8;
-      } else {
-        dv.setUint32(off, 1, true);
-        dv.setUint32(off + 4, 3, true);
-        off += 16;
-      }
-      dv.setUint32(off, 9, true);
-      dv.setUint32(off + 4, 8, true);
-      dv.setFloat64(off + 8, re, true);
-      dv.setUint32(off + 16, 9, true);
-      dv.setUint32(off + 20, 8, true);
-      dv.setFloat64(off + 24, im, true);
-      return bytes;
-    };
-    expect(parse({ _type: 'cdata', _value: encodeCdata(scalarBytes(true, 1.5, -2.5)) })._scalarValue).toBe('1.5-2.5i');
-    expect(parse({ _type: 'cdata', _value: encodeCdata(scalarBytes(false, 3, 4)) })._scalarValue).toBe('3+4i');
+    // MATLAB itself writes the long form with a zero-length name here.
+    expect(parse({ _type: 'cdata', _value: encodeCdata(cdataOf(varName(''), 1.5, -2.5)) })._scalarValue).toBe('1.5-2.5i');
+    expect(parse({ _type: 'cdata', _value: encodeCdata(cdataOf(varName('abc'), 3, 4)) })._scalarValue).toBe('3+4i');
+    expect(parse({ _type: 'cdata', _value: encodeCdata(cdataOf(smallName('ab'), 3, 4)) })._scalarValue).toBe('3+4i');
   });
 
   it('keeps an undecodable payload as text instead of losing it', () => {
@@ -444,7 +624,8 @@ describe('MatlabVariableNode — add and remove children', () => {
     // the command would run against a node with no removable element.
     const empty = parse([1, 2, 3]);
     empty.setProperty('Value', '[]');
-    expect([empty._kind, empty._elements, empty.displayValue]).toEqual(['array', [], '[]']);
+    // Typed '[]' still parses; it DISPLAYS as the convention's '[ ]'.
+    expect([empty._kind, empty._elements, empty.displayValue]).toEqual(['array', [], '[ ]']);
     expect([empty.canAddChild(), empty.canRemoveChild()]).toEqual([true, false]);
     empty.addChildNode();
     expect([empty.canAddChild(), empty.canRemoveChild()]).toEqual([true, false]);
@@ -515,10 +696,25 @@ describe('MatlabVariableNode — a typed numeric class survives every edit', () 
   const typed = (t: string, v: string): Any => parse({ _type: t, _value: v });
 
   it('keeps the class when a Value edit re-states the number', () => {
-    for (const t of ['int32', 'uint8', 'int8', 'single']) {
+    // The number inside a `_value` body is a MATLAB LITERAL, so it wears the suffix
+    // MATLAB gives that class there: 'U' on an unsigned integer, 'F' on a single,
+    // nothing on a signed one. Read off MATLAB's own cases.sldd, which writes `7U` for
+    // a uint8, `255U`, `3.14159274F` for a single, and a bare `7`/`-128` for the signed
+    // classes. The array path already spelled it this way (formatNumLiteral, and the
+    // append test below); the scalar path used the bare number, so the same value
+    // spelled itself two ways depending only on whether it had siblings.
+    //
+    // XML is a different grammar and is unaffected: there the class lives in the Class
+    // attribute, so the body is a plain number — with the '.0' a single/double gets.
+    for (const [t, literal] of [
+      ['int32', '7'],
+      ['uint8', '7U'],
+      ['int8', '7'],
+      ['single', '7F'],
+    ]) {
       const n = typed(t, '5');
       expect(n.setProperty('Value', '7')).toBe(true);
-      expect([t, n._scalarType, n.serializeValue()]).toEqual([t, t, { _type: t, _value: '7' }]);
+      expect([t, n._scalarType, n.serializeValue()]).toEqual([t, t, { _type: t, _value: literal }]);
       expect(n.serializeXml('P', {}, 0)).toBe('<P Class="' + t + '">' + (t === 'single' ? '7.0' : '7') + '</P>');
     }
   });
@@ -543,22 +739,34 @@ describe('MatlabVariableNode — a typed numeric class survives every edit', () 
   });
 
   it('keeps the class when an element is appended', () => {
+    // The body is bare — a 1xN typed array states no shape, which is MATLAB's own
+    // spelling for it (defect 21). Only a column or a matrix carries the Matrix()
+    // header, because there the shape is the only thing the reader could not infer.
     for (const t of ['int32', 'logical']) {
       const n = typed(t, t === 'logical' ? '[1, 0]' : '[5, 6]');
       n.addChildNode();
       expect([t, n._scalarType, n.serializeValue()]).toEqual([
         t,
         t,
-        { _type: t, _value: 'Matrix(1,3)\n[' + (t === 'logical' ? '1, 0, 0' : '5, 6, 0') + ']' },
+        { _type: t, _value: '[' + (t === 'logical' ? '1, 0, 0' : '5, 6, 0') + ']' },
       ]);
     }
   });
 
   it('keeps the class when a removal collapses the array to a scalar, and on undo', () => {
+    // `serial` is spelled per class rather than reused from `v` because MATLAB spells
+    // the literal's numbers with a class suffix: its own uncompressed-text dictionary
+    // writes a single as '3.14159274F' and a uint64 as '18446744073709551615U', while
+    // int32 and logical are bare. The old expectation reused `v` for every class and
+    // so read as correct — but a suffixless body is one MATLAB reads back as DOUBLE,
+    // silently retyping the entry the test claims keeps its class.
     for (const spec of [
-      { t: 'int32', v: '[5, 6]', collapsed: '5', display: '[5 6]' },
-      { t: 'logical', v: '[1, 0]', collapsed: '1', display: '[true false]' },
-      { t: 'single', v: '[5, 6]', collapsed: '5', display: '[5 6]' },
+      { t: 'int32', v: '[5, 6]', serial: '[5, 6]', collapsed: '5', display: '[5 6]' },
+      { t: 'logical', v: '[1, 0]', serial: '[1, 0]', collapsed: '1', display: '[true false]' },
+      // The collapsed scalar keeps the suffix too: it is the same literal grammar with
+      // one number in it, and a collapse that dropped the 'F' would retype the entry to
+      // double on the way out — the very thing this test is about.
+      { t: 'single', v: '[5, 6]', serial: '[5F, 6F]', collapsed: '5F', display: '[5 6]' },
     ]) {
       const n = typed(spec.t, spec.v);
       const op: Any = n.execRemoveChild(n.children[1]);
@@ -569,7 +777,8 @@ describe('MatlabVariableNode — a typed numeric class survives every edit', () 
       ]);
       op.undo();
       expect([spec.t, n._scalarType, n.displayValue]).toEqual([spec.t, spec.t, spec.display]);
-      expect(n.serializeValue()).toEqual({ _type: spec.t, _value: 'Matrix(1,2)\n' + spec.v });
+      // Bare again after the undo: the restored value is a 1x2 row (defect 21).
+      expect(n.serializeValue()).toEqual({ _type: spec.t, _value: spec.serial });
     }
   });
 
@@ -607,6 +816,14 @@ describe("MatlabVariableNode — an array element's data type follows the array"
   // 'logical' is the same rule and has its own describe (its rows also change text
   // and icon); 'double' is the identity case, asserted separately below.
   const CLASSES = ['int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32', 'uint64', 'single'];
+
+  // MATLAB's own suffix for a number inside a typed `_value` literal, read off its
+  // uncompressed-text dictionary in test/parity/artifacts/text/cases.sldd: the
+  // unsigned classes take 'U' ('[18446744073709551615U, 1U, 0U]'), single takes 'F'
+  // ('3.14159274F'), the signed integers are bare ('[1, 2, 3]' for int16). Spelled
+  // out here rather than imported from XmlUtils so the expectation does not merely
+  // restate the implementation.
+  const suffixOf = (t: string): string => (t === 'single' ? 'F' : t.startsWith('u') ? 'U' : '');
 
   it('gives every element of a typed vector the array class', () => {
     for (const t of CLASSES) {
@@ -649,7 +866,10 @@ describe("MatlabVariableNode — an array element's data type follows the array"
       expect([t, n.children.map((c: Any) => c.dataType), n.serializeValue()]).toEqual([
         t,
         [t, t],
-        { _type: t, _value: 'Matrix(1,2)\n[150, 200]' },
+        // Suffixed per class: a suffixless body is one MATLAB reads back as double,
+        // which would undo the very class this test is about. Bare of a Matrix()
+        // header, because a 1xN row states no shape (defect 21).
+        { _type: t, _value: '[150' + suffixOf(t) + ', 200' + suffixOf(t) + ']' },
       ]);
     }
   });
@@ -745,7 +965,7 @@ describe("MatlabVariableNode — a logical array's elements are logicals", () =>
     expect(n.children[0].setProperty('Value', 'false')).toBe(true);
     expect([n.children[0].displayValue, n.children[0].dataType]).toEqual(['false', 'logical']);
     expect([n._elements, n.displayValue]).toEqual([[0, 0, 1], '[false false true]']);
-    expect(n.serializeValue()).toEqual({ _type: 'logical', _value: 'Matrix(1,3)\n[0, 0, 1]' });
+    expect(n.serializeValue()).toEqual({ _type: 'logical', _value: '[0, 0, 1]' });
   });
 
   it('accepts 1 and 0 as shorthand for true and false', () => {
@@ -754,7 +974,7 @@ describe("MatlabVariableNode — a logical array's elements are logicals", () =>
     const n = logicals();
     expect(n.children[1].setProperty('Value', '1')).toBe(true);
     expect([n.children[1].dataType, n.children[1].displayValue]).toEqual(['logical', 'true']);
-    expect(n.serializeValue()).toEqual({ _type: 'logical', _value: 'Matrix(1,3)\n[1, 1, 1]' });
+    expect(n.serializeValue()).toEqual({ _type: 'logical', _value: '[1, 1, 1]' });
   });
 
   it('rejects a number a logical cannot hold, instead of writing it into the array', () => {
@@ -914,7 +1134,11 @@ describe('MatlabVariableNode — string-array children', () => {
   it('refuses add/remove on a 2-D string matrix, which cannot stay rectangular', () => {
     const n = strArray(['a', 'b', 'c', 'd'], [2, 2]);
     expect([n.canAddChild(), n.canRemoveChild()]).toEqual([false, false]);
-    expect(n.displayValue).toBe('["a" "b"; "c" "d"]');
+    // COLUMN-major element list, as MATLAB writes it: ['a','b','c','d'] at 2x2 is
+    // (1,1)=a (2,1)=b (1,2)=c (2,2)=d. Was ["a" "b"; "c" "d"], a row-major
+    // reading -- see test/cellElementOrder.test.ts, where MATLAB's own 2x3 strMat
+    // pins the order. The add/remove refusal this test exists for is unaffected.
+    expect(n.displayValue).toBe('["a" "c"; "b" "d"]');
   });
 
   it('removes an element from the middle, keeping text and numbering aligned', () => {
@@ -1051,13 +1275,14 @@ describe('MatlabVariableNode — cell-array children', () => {
     expect([n.children.length, n._dims]).toEqual([1, [1, 1]]);
   });
 
-  it('goes to 0x0 and {} when the last element is removed', () => {
+  it('goes to 0x0 and { } when the last element is removed', () => {
     // Not [1,0]: an emptied cell is 0x0 in MATLAB, and displayValue reads the
     // child count rather than the dims, so the two must not disagree.
+    // '{ }', with the space, is the convention's empty-cell spelling.
     const n = cellArray([1]);
     n.removeChildNode(n.children[0]);
     expect([n._dims, n.children.length]).toEqual([[0, 0], 0]);
-    expect(n.displayValue).toBe('{}');
+    expect(n.displayValue).toBe('{ }');
   });
 
   it('REGRESSION: a cell holding a quote survives its own displayed form', () => {
@@ -1094,21 +1319,43 @@ describe('MatlabVariableNode — serializeValue', () => {
     expect(n.serializeValue()).toEqual([9, 2, 3]);
   });
 
-  it('writes a scalar string as a one-element array and a complex as cdata', () => {
+  it('writes a scalar string as a one-element array and a complex as a cdata byte stream', () => {
     const s = parse(0);
     s._scalarType = 'string';
     s._scalarValue = 'hi';
     s._rawInput = undefined;
     expect(s.serializeValue()).toEqual(['hi']);
+    // A complex scalar goes out as the MAT byte stream, not as the plain text
+    // '1+2i'. Both wear the `_type: 'cdata'` tag, and the difference is the whole
+    // value: the plain text is what a BINARY dictionary carries for the property,
+    // and MATLAB reads it back out of a TEXT dictionary as an empty 1x0 double —
+    // measured, not inferred (probe_writeback, defect 24). MATLAB's own text
+    // dictionary stores a complex scalar as a stream, and our stream for
+    // cases.sldd's cplxScalar is byte-identical to the one MATLAB wrote there.
     s._scalarType = 'complex';
     s._scalarValue = '1+2i';
-    expect(s.serializeValue()).toEqual({ _type: 'cdata', _value: '1+2i' });
+    const out = s.serializeValue() as { _type: string; _value: string };
+    expect(out._type).toBe('cdata');
+    expect(out._value.startsWith('  %)')).toBe(true);
+    // The stream is the value: read it back and the number has to survive whole.
+    expect(parse(out)._scalarValue).toBe('1+2i');
   });
 
   it('writes a matrix back as a Matrix(r,c) literal', () => {
+    // Input keeps the newline-joined spelling on purpose — our own older writer
+    // emitted it, so files in the wild carry it and the reader must still take it.
+    // The OUTPUT is MATLAB's spelling: bracketed groups joined '; ', with each double
+    // carrying the '.0' MATLAB writes. The old expectation echoed the input form and
+    // so looked symmetrical, but MATLAB reads a newline-joined body as a 1x0 EMPTY
+    // matrix (probed in test/parity/matlab/probe_matrix_serial.m:
+    // 'Matrix(2,3)\n[1, 2, 3]\n[4, 5, 6]' -> double [1 0]), so every matrix we wrote
+    // back into an uncompressed-text dictionary was destroyed on the next open.
     const n = parse({ _type: 'double', _value: 'Matrix(2,2)\n[1, 2]\n[3, 4]' });
     n.children[0].setProperty('Value', '9');
-    expect(n.serializeValue()).toEqual({ _type: 'double', _value: 'Matrix(2,2)\n[9, 2]\n[3, 4]' });
+    expect(n.serializeValue()).toEqual({
+      _type: 'double',
+      _value: 'Matrix(2,2)\n[[9.0, 2.0]; [3.0, 4.0]]',
+    });
   });
 
   it('writes an empty array as []', () => {
@@ -1284,6 +1531,38 @@ describe('MatlabVariableNode — presentation and editability', () => {
     expect(n.valueEditable).toBe(false);
   });
 
+  it('offers no editor for a summarized value, and does for an inline one', () => {
+    // valueEditable keys on the angle-bracket form, so moving summaries onto
+    // <mxn class> deliberately makes summarized cells read-only: a 2x3x2 cannot
+    // be typed into a one-line box, and the box would be seeded with the summary
+    // text — committing it unchanged would replace the value with garbage.
+    // Assert it rather than let it drift.
+    const inline = MatlabVariableNode.parseTypedArray(
+      { _type: 'double', _value: 'Matrix(1,3)\n[1, 2, 3]' },
+      'a',
+      null,
+    );
+    expect(inline.displayValue).toBe('[1 2 3]');
+    expect(inline.valueEditable).toBe(true);
+
+    const summarized = MatlabVariableNode.parseTypedArray(
+      { _type: 'double', _value: 'Matrix(2,3,2)\n[[1, 3, 5]; [2, 4, 6]; [7, 9, 11]; [8, 10, 12]]' },
+      'A',
+      null,
+    );
+    expect(summarized.displayValue).toBe('<2x3x2 double>');
+    expect(summarized.valueEditable).toBe(false);
+
+    // The element budget has the same consequence: an 11-element vector is a
+    // summary, so it loses its editor too.
+    const eleven = MatlabVariableNode.parseTypedArray(
+      { _type: 'double', _value: 'Matrix(1,11)\n[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]' },
+      'b',
+      null,
+    );
+    expect([eleven.displayValue, eleven.valueEditable]).toEqual(['<1x11 double>', false]);
+  });
+
   it('treats only a non-opaque numeric 1x1 as scalar-numeric', () => {
     // The shape a Constant requires; the Variable-to-Constant paste gate uses it.
     expect(parse(1).isScalarNumeric).toBe(true);
@@ -1391,8 +1670,12 @@ describe('MatlabVariableNode — opaque MCOS objects', () => {
     expect(opaque('Simulink.Parameter', { value: 'txt', properties: {}, dimensions: [1, 1] }).displayValue).toBe(
       "'txt'",
     );
+    // '<1x3 …>', not the old '[1x3 …]'. Square brackets looked right because they
+    // are how MATLAB spells a literal — which is the problem: the consumer table
+    // reads a bracketed string as ordinary editable text, so only the summaries
+    // that happened to use angle brackets rendered gray/italic and read-only.
     expect(opaque('Simulink.Parameter', { value: [1, 2, 3], properties: {}, dimensions: [1, 3] }).displayValue).toBe(
-      '[1x3 Simulink.Parameter]',
+      '<1x3 Simulink.Parameter>',
     );
     expect(opaque('Some.Unknown', { value: null, properties: {}, dimensions: [1, 1] }).displayValue).toBe(
       '<1x1 Some.Unknown>',

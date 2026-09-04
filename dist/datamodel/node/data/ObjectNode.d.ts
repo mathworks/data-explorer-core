@@ -8,6 +8,7 @@ export default class ObjectNode extends DataNode {
     get icon(): string;
     get className(): string;
     get isObjectPropertyBag(): boolean;
+    get dims(): number[];
     get displayValue(): string;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];
@@ -16,5 +17,7 @@ export default class ObjectNode extends DataNode {
     _getSerializedProperties(): Record<string, unknown>;
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): ObjectNode;
     static _addPropertyChildren(node: ObjectNode, properties: Record<string, unknown> | undefined): void;
+    /** The reserved keys of a stored bag — the ones _addPropertyChildren gave no child. */
+    static _reservedProps(bag: Record<string, unknown> | undefined): Record<string, unknown>;
 }
 //# sourceMappingURL=ObjectNode.d.ts.map

@@ -1,0 +1,107 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "charCol",
+						"metadata": {
+							"uuid": "ac434e26-dde3-43e0-9551-1c0fd9042e8d",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180558.179951",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "mxchar",
+							"_value": "Matrix(3,1)\n[97, 98, 99]"
+						}
+					},
+					{
+						"name": "charEmpty",
+						"metadata": {
+							"uuid": "6b6839ca-ebe3-41c8-9f08-aa2024058ef9",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180558.180172",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": ""
+					},
+					{
+						"name": "charMat",
+						"metadata": {
+							"uuid": "7861f94b-215d-4ab3-a541-9f331d8999e2",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180558.179529",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "mxchar",
+							"_value": "Matrix(2,2)\n[[97, 98]; [99, 100]]"
+						}
+					},
+					{
+						"name": "charMat23",
+						"metadata": {
+							"uuid": "dd62852c-4da0-4c1a-b767-0f386efeaf40",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180558.179747",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "mxchar",
+							"_value": "Matrix(2,3)\n[[97, 99, 101]; [98, 100, 102]]"
+						}
+					},
+					{
+						"name": "charRow",
+						"metadata": {
+							"uuid": "927161b5-3b88-4a42-8381-7288d6d73cdf",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180558.178249",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": "it's"
+					},
+					{
+						"name": "ndChar",
+						"metadata": {
+							"uuid": "76e6da6e-ee7f-49bc-b622-3daebf668a7a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180558.180391",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    2     8    (    !          %    #     (    #     @         !         !     ,    86)C9&5F9VAI:FML      \u0000\u0000\u0000"
+						}
+					},
+					{
+						"name": "ndDouble",
+						"metadata": {
+							"uuid": "e800f7d8-09b1-49f3-a24e-91edd414ffe4",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20260903T180558.180603",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    F     8    (    !@         %    #     (    #     @         !          D   !@            \\#\\         0         A         $$         40        !A         '$         @0        \")         )$         F0        \"A \u0000"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

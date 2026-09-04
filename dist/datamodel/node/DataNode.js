@@ -1,8 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 import BaseNode from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
+import NodeRegistry from './NodeRegistry.js';
+import { isMatCdata } from '../parser/CdataCodec.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
-import { escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, parseMatlabNum, transposeToColumnMajor, matlabTimestampNow, pad as xmlPad, } from '../parser/XmlUtils.js';
+import { charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -56,6 +58,46 @@ function validateMatlabName(name) {
         return "'" + name + "' is a reserved MATLAB keyword";
     }
     return null;
+}
+/**
+ * One field of MATLAB's saveobj envelope, replaced — the write MATLAB actually reads
+ * (defect 46; see `_mergeProps` for why the sibling property alone was not enough).
+ *
+ * The envelope is a parsed struct: `_fields` names its fields and `_elements` holds one
+ * property bag per element. A field is written only if the envelope ALREADY declares it,
+ * so an edit can never invent a field in a struct MATLAB's loadobj is about to destructure;
+ * an unknown name leaves the envelope untouched and the sibling stands alone, which is the
+ * old behaviour.
+ *
+ * Only a 1x1 envelope is written. A multi-element one is an object array, and a single
+ * property bag — which is all `_getSerializedProperties` returns — cannot say which element
+ * an edit belongs to. (A dictionary cannot hold an object array at all: MATLAB rejects it
+ * outright, as `truth.notes.slddRejected` records.)
+ *
+ * Copies rather than mutates: this runs inside serialization, and `serial._properties` is
+ * parse state shared with `_rawVal`. Writing through it would make serializing a model
+ * change the model.
+ */
+function writeIntoSaveobj(envelope, key, val) {
+    if (!envelope || typeof envelope !== 'object') {
+        return envelope;
+    }
+    const env = envelope;
+    const fields = env._fields;
+    const elements = env._elements;
+    if (!Array.isArray(fields) || !fields.includes(key)) {
+        return envelope;
+    }
+    if (!Array.isArray(elements) || elements.length !== 1) {
+        return envelope;
+    }
+    const el = elements[0];
+    if (!el || typeof el !== 'object') {
+        return envelope;
+    }
+    return Object.assign({}, env, {
+        _elements: [Object.assign({}, el, { [key]: val })],
+    });
 }
 export default class DataNode extends BaseNode {
     constructor(name, parent, serial) {
@@ -350,11 +392,58 @@ export default class DataNode extends BaseNode {
         return this.serializeValue();
     }
     _serializeSimulinkObject(propOverrides) {
-        const props = Object.assign({}, this.serial._properties, propOverrides);
+        const props = this._mergeProps(propOverrides);
         const result = Object.assign({}, this.serial._rawVal);
         const rawElements = result._elements || [];
         result._elements = [Object.assign({}, rawElements[0], { _properties: props })];
         return result;
+    }
+    /**
+     * The stored property bag with this node's live values written over it.
+     *
+     * The subtlety is the saveobj envelope. When a class serializes through `saveobj`,
+     * MATLAB stores its whole state inside one unnamed `<P Source="saveobj">` and the
+     * individual properties are NOT siblings of it — so a node that reads such a property
+     * finds nothing, substitutes its own default (VariantVariableNode's
+     * `(props.Specification as string) || ''`), and then writes that default back as a
+     * sibling. cases.sldd's aVariant grew a `<P Name="Specification" Class="char"/>` next
+     * to its envelope for exactly that reason: an empty string MATLAB had never written,
+     * standing in for an empty 0x0 double it could not see.
+     *
+     * So under an envelope an EMPTY override is dropped: it is a default rather than an
+     * edit, and the envelope is already the authority on that property.
+     *
+     * A non-empty override goes to BOTH places, and the reason it is both is defect 46.
+     * The sibling used to be the only place it went, on the reasoning that silently
+     * discarding a real edit is worse than writing a property MATLAB's loadobj *may*
+     * ignore. The live gate settled the "may": MATLAB does ignore it. Editing a
+     * VariantVariable's Specification to 'myNewVar' in a binary dictionary produced a file
+     * MATLAB reopened with Specification '' — the edit was written, and written somewhere
+     * nothing reads. Our own reader agreed with us because it reads the sibling too, which
+     * is exactly the shape of failure this tier exists to catch: a value written wrongly
+     * and read back with the same wrong assumption looks fine from inside.
+     *
+     * So the value is now also written INTO the envelope, which is what MATLAB actually
+     * loads. The sibling is KEPT rather than replaced, because it is the only copy this
+     * package's own reader can see — decoding the envelope back into node properties is
+     * the other half of defect 40 and is not done here. Writing both keeps every consumer
+     * correct and is strictly additive over the old behaviour.
+     */
+    _mergeProps(propOverrides) {
+        const stored = Object.assign({}, this.serial._properties);
+        if (!(SAVEOBJ_KEY in stored)) {
+            return Object.assign(stored, propOverrides);
+        }
+        let envelope = stored[SAVEOBJ_KEY];
+        for (const [key, val] of Object.entries(propOverrides)) {
+            if (val === '' || val === null || val === undefined) {
+                continue;
+            }
+            stored[key] = val;
+            envelope = writeIntoSaveobj(envelope, key, val);
+        }
+        stored[SAVEOBJ_KEY] = envelope;
+        return stored;
     }
     serializeValue() {
         return null;
@@ -387,34 +476,51 @@ export default class DataNode extends BaseNode {
     _getSerializedProperties() {
         return Object.assign({}, this.serial._properties);
     }
+    /**
+     * The identifying attributes of a `<P>`.
+     *
+     * Almost always `Name="x"`. The exception is MATLAB's saveobj envelope, which a class
+     * that serializes through `saveobj` uses to carry its whole state: MATLAB writes
+     * `<P Source="saveobj" PropertyType="any" Class="struct">` with NO Name at all, and the
+     * reader files it under SAVEOBJ_KEY because a property bag needs a key. Written back as
+     * `Name="undefined"` — what an absent @_Name used to produce — MATLAB's loadobj finds
+     * no envelope and builds an EMPTY object: cases.sldd's aVariant reopened as a
+     * Simulink.VariantVariable with 0 choices where MATLAB wrote 2 (defect 28).
+     *
+     * Every `<P>` in this file goes through here, so the envelope survives whichever arm of
+     * serializePropertyXml its payload takes.
+     */
+    static pxAttrs(name) {
+        return name === SAVEOBJ_KEY ? ' Source="saveobj" PropertyType="any"' : ' Name="' + escapeXml(name) + '"';
+    }
     static serializePropertyXml(name, value, indent, ownerNode) {
         const p = xmlPad(indent);
         if (value === null || value === undefined) {
-            return p + '<P Name="' + escapeXml(name) + '" Class="char"/>';
+            return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"/>';
         }
         if (typeof value === 'number') {
-            return p + '<P Name="' + escapeXml(name) + '" Class="double">' + formatDoubleXml(value) + '</P>';
+            return p + '<P' + DataNode.pxAttrs(name) + ' Class="double">' + formatDoubleXml(value) + '</P>';
         }
         if (typeof value === 'boolean') {
-            return p + '<P Name="' + escapeXml(name) + '" Class="logical">' + (value ? '1' : '0') + '</P>';
+            return p + '<P' + DataNode.pxAttrs(name) + ' Class="logical">' + (value ? '1' : '0') + '</P>';
         }
         if (typeof value === 'string') {
             if (value === '') {
-                return p + '<P Name="' + escapeXml(name) + '" Class="char"/>';
+                return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"/>';
             }
-            return p + '<P Name="' + escapeXml(name) + '" Class="char">' + escapeXml(value) + '</P>';
+            return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(value) + '</P>';
         }
         if (Array.isArray(value)) {
             if (value.length === 0) {
-                return p + '<P Name="' + escapeXml(name) + '" Class="double" Dimension="0*0"/>';
+                return p + '<P' + DataNode.pxAttrs(name) + ' Class="double" Dimension="0*0"/>';
             }
             const formatted = value.map(function (v) {
                 return formatDoubleXml(v);
             });
             return (p +
-                '<P Name="' +
-                escapeXml(name) +
-                '" Class="double" Dimension="1*' +
+                '<P' +
+                DataNode.pxAttrs(name) +
+                ' Class="double" Dimension="1*' +
                 value.length +
                 '">' +
                 formatted.join(' ') +
@@ -443,34 +549,87 @@ export default class DataNode extends BaseNode {
                 return DataNode._serializeCellPropertyXml(name, obj, indent);
             }
         }
-        return p + '<P Name="' + escapeXml(name) + '" Class="char">' + escapeXml(String(value)) + '</P>';
+        return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(String(value)) + '</P>';
+    }
+    /**
+     * The `Class="char" Dimension="r*c"` attributes and body of an mxchar literal, or
+     * null for anything else — shared by the property and cell-element writers below.
+     *
+     * mxchar is MATLAB's TEXT-dictionary spelling of a shaped char (character codes, one
+     * bracketed group per row); XML wants the plain column-major text under a Dimension
+     * (defect 25). Written through the generic typed-value path instead, a char field of
+     * a struct went out as `Class="mxchar" Dimension="2*2">97 99 98 100` — a class MATLAB
+     * does not have, holding numbers where its characters were.
+     */
+    static _mxCharXml(value) {
+        if (value._type !== 'mxchar') {
+            return null;
+        }
+        const m = String(value._value).match(/^Matrix\((\d+(?:,\d+)*)\)\n(.+)$/s);
+        if (!m) {
+            // No header: nothing to state, and the body is already the text (see
+            // MatlabVariableNode.parseMxChar, which reads the same shape back as a row).
+            return { dimAttr: '', body: escapeXml(String(value._value)) };
+        }
+        const dims = m[1].split(',').map(function (s) {
+            return parseInt(s, 10);
+        });
+        return {
+            dimAttr: ' Dimension="' + dims.join('*') + '"',
+            // Number() rather than a cast: _parseMatrixNums is typed for the 64-bit case now,
+            // and a char code is never one — mxchar is not an integer class.
+            body: escapeXml(charTextFromCodes(DataNode._parseMatrixNums(m[2]).map(Number), dims)),
+        };
     }
     static _serializeTypedPropertyXml(name, value, indent) {
         const p = xmlPad(indent);
         const type = value._type;
         const raw = String(value._value);
-        if (type === 'cdata') {
-            const formatted = formatComplexXml(raw);
-            return p + '<P Name="' + escapeXml(name) + '" Class="double" IsComplex="1">' + formatted + '</P>';
+        const mxChar = DataNode._mxCharXml(value);
+        if (mxChar) {
+            return (p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + mxChar.dimAttr + '>' + mxChar.body + '</P>');
         }
-        const matrixMatch = raw.match(/^Matrix\((\d+),(\d+)\)\n(.+)$/s);
+        if (type === 'cdata') {
+            // Two different values wear this tag. A MAT byte stream — what a TEXT
+            // dictionary carries for every rank >= 3 value and every complex one — has
+            // no text XML form: its class, extents and elements are inside the bytes,
+            // and the complex spelling below would write six-bit characters as the body
+            // of a `Class="double" IsComplex="1"` property. Read it back into a node and
+            // let that node write its own XML, which is the same writer the .slx path
+            // uses for the value in the first place.
+            //
+            // The reader has to be reached through NodeRegistry: MatlabVariableNode
+            // extends this class, so importing it here would be a load-order cycle. That
+            // is the registry's whole purpose, and it is populated by NodeClassMap for
+            // anyone who can have parsed a cdata at all.
+            if (isMatCdata(value)) {
+                return NodeRegistry.parseValue(value, name, null).serializeXml('P', { Name: name }, indent);
+            }
+            const formatted = formatComplexXml(raw);
+            return p + '<P' + DataNode.pxAttrs(name) + ' Class="double" IsComplex="1">' + formatted + '</P>';
+        }
+        // Rank 3 and up spells its header Matrix(2,3,2) — MATLAB's own binary
+        // dictionary writes such an entry as Dimension="2*3*2" with a flat
+        // column-major body, so every extent has to survive the round trip. The
+        // two-group form was the only one matched, so an N-D literal fell through to
+        // the scalar branch below and was written out as the single number 0.
+        const matrixMatch = raw.match(/^Matrix\((\d+(?:,\d+)*)\)\n(.+)$/s);
         if (matrixMatch) {
-            const rows = parseInt(matrixMatch[1], 10);
-            const cols = parseInt(matrixMatch[2], 10);
-            const nums = DataNode._parseMatrixNums(matrixMatch[3]);
-            const colMajor = transposeToColumnMajor(nums, rows, cols);
+            const dims = matrixMatch[1].split(',').map(function (s) {
+                return parseInt(s, 10);
+            });
+            const nums = DataNode._parseMatrixNums(matrixMatch[2], type);
+            const colMajor = transposeToColumnMajorND(nums, dims);
             const formatted = colMajor.map(function (v) {
                 return formatNumericXml(v, type);
             });
             return (p +
-                '<P Name="' +
-                escapeXml(name) +
-                '" Class="' +
+                '<P' +
+                DataNode.pxAttrs(name) +
+                ' Class="' +
                 type +
                 '" Dimension="' +
-                rows +
-                '*' +
-                cols +
+                dims.join('*') +
                 '">' +
                 formatted.join(' ') +
                 '</P>');
@@ -478,15 +637,15 @@ export default class DataNode extends BaseNode {
         const vecMatch = raw.match(/^\[(.+)\]$/);
         if (vecMatch) {
             const parts = vecMatch[1].split(',').map(function (s) {
-                return parseMatlabNum(s.replace(/[FU]$/, ''));
+                return DataNode._numToken(s, type);
             });
             const formatted = parts.map(function (v) {
                 return formatNumericXml(v, type);
             });
             return (p +
-                '<P Name="' +
-                escapeXml(name) +
-                '" Class="' +
+                '<P' +
+                DataNode.pxAttrs(name) +
+                ' Class="' +
                 type +
                 '" Dimension="1*' +
                 parts.length +
@@ -494,8 +653,8 @@ export default class DataNode extends BaseNode {
                 formatted.join(' ') +
                 '</P>');
         }
-        const num = parseMatlabNum(raw.replace(/[FU]$/, ''));
-        return p + '<P Name="' + escapeXml(name) + '" Class="' + type + '">' + formatNumericXml(num, type) + '</P>';
+        const num = DataNode._numToken(raw, type);
+        return p + '<P' + DataNode.pxAttrs(name) + ' Class="' + type + '">' + formatNumericXml(num, type) + '</P>';
     }
     static _serializeObjectPropertyXml(name, value, indent, ownerNode) {
         const p = xmlPad(indent);
@@ -507,9 +666,9 @@ export default class DataNode extends BaseNode {
             (elements.length === 1 &&
                 (!elements[0]._properties || Object.keys(elements[0]._properties).length === 0))) {
             return (p +
-                '<P Name="' +
-                escapeXml(name) +
-                '">\n' +
+                '<P' +
+                DataNode.pxAttrs(name) +
+                '>\n' +
                 ip +
                 '<Element Class="' +
                 escapeXml(className) +
@@ -517,8 +676,16 @@ export default class DataNode extends BaseNode {
                 p +
                 '</P>');
         }
-        const dimAttr = dims[0] === 1 && dims[1] === 1 && elements.length === 1 ? '' : ' Dimension="' + dims[0] + '*' + dims[1] + '"';
-        let xml = p + '<P Name="' + escapeXml(name) + '"' + dimAttr + '>\n';
+        // Every extent, exactly as the struct sibling below does and for the same
+        // reason — see ObjectNode.serializeXml for why a Dimension= that contradicts
+        // the body beneath it is wrong even though MATLAB stores no object array for
+        // us to compare against. The 1x1 shortcut has to check rank too: dims[0] === 1
+        // && dims[1] === 1 is also true of a 1x1x3, so testing only the first two
+        // extents would drop that shape's attribute entirely.
+        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1
+            ? ''
+            : ' Dimension="' + dims.join('*') + '"';
+        let xml = p + '<P' + DataNode.pxAttrs(name) + dimAttr + '>\n';
         for (const elem of elements) {
             const props = elem._properties || {};
             xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
@@ -535,8 +702,11 @@ export default class DataNode extends BaseNode {
         const ip = xmlPad(indent + 1);
         const dims = value._dimensions || [1, 1];
         const elements = value._elements || [];
-        const dimAttr = dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims[0] + '*' + dims[1] + '"';
-        let xml = p + '<P Name="' + escapeXml(name) + '" Class="struct"' + dimAttr + '>\n';
+        // Every extent, not the first two: MATLAB's own binary dictionary writes
+        // `Class="struct" Dimension="2*3*2"` for a 2x3x2 struct array, and twelve
+        // <Element>s under a `2*3` would read back as a six-element array.
+        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims.join('*') + '"';
+        let xml = p + '<P' + DataNode.pxAttrs(name) + ' Class="struct"' + dimAttr + '>\n';
         for (const elem of elements) {
             xml += ip + '<Element>\n';
             for (const [field, fieldVal] of Object.entries(elem)) {
@@ -551,7 +721,7 @@ export default class DataNode extends BaseNode {
         const p = xmlPad(indent);
         const dims = value._dimensions || [1, 1];
         const elements = value._elements || [];
-        let xml = p + '<P Name="' + escapeXml(name) + '" Class="cell" Dimension="' + dims[0] + '*' + dims[1] + '">\n';
+        let xml = p + '<P' + DataNode.pxAttrs(name) + ' Class="cell" Dimension="' + dims.join('*') + '">\n';
         for (const elem of elements) {
             xml += DataNode._serializeCellElementXml(elem, indent + 1) + '\n';
         }
@@ -582,10 +752,14 @@ export default class DataNode extends BaseNode {
             const obj = elem;
             const type = obj._type;
             const raw = String(obj._value);
+            const mxChar = DataNode._mxCharXml(obj);
+            if (mxChar) {
+                return p + '<Element Class="char"' + mxChar.dimAttr + '>' + mxChar.body + '</Element>';
+            }
             const vecMatch = raw.match(/^\[(.+)\]$/);
             if (vecMatch) {
                 const parts = vecMatch[1].split(',').map(function (s) {
-                    return parseMatlabNum(s.replace(/[FU]$/, ''));
+                    return DataNode._numToken(s, type);
                 });
                 return (p +
                     '<Element Class="' +
@@ -600,10 +774,26 @@ export default class DataNode extends BaseNode {
                         .join(' ') +
                     '</Element>');
             }
-            const num = parseMatlabNum(raw.replace(/[FU]$/, ''));
+            const num = DataNode._numToken(raw, type);
             return p + '<Element Class="' + type + '">' + formatNumericXml(num, type) + '</Element>';
         }
         return p + '<Element Class="char">' + escapeXml(String(elem)) + '</Element>';
+    }
+    /**
+     * One number out of a typed literal: '3.14159274F', '18446744073709551615U', '-1'.
+     *
+     * A 64-bit integer comes back as exact decimal TEXT rather than a number, because
+     * every value MATLAB's int64/uint64 range holds past 2^53 is one a double does not
+     * (XmlUtils.parseExactNum). This routine is the single re-parse point of the XML write
+     * path, and it used to be `parseMatlabNum` at four separate call sites: a uint64 read
+     * losslessly by BinarySlddParser was still rounded here, one step before the file, so
+     * maxU64 went out as 18446744073709552000U — a token now OUT of uint64 range, at which
+     * MATLAB's reader abandons the rest of the body and zeroes the value's remaining
+     * elements (defects 29 and 30).
+     */
+    static _numToken(text, type) {
+        const bare = text.replace(/[FU]$/, '');
+        return needsExactInt(type) ? parseExactNum(bare) : parseMatlabNum(bare);
     }
     // Flatten the body of a Matrix(r,c) literal to row-major numbers. Rows are
     // separated by ';' or by a newline depending on which writer produced the
@@ -611,7 +801,10 @@ export default class DataNode extends BaseNode {
     // McosParser, and ParameterNode join with '\n'. Splitting on only one of the
     // two silently merges every row into one, dropping an element per row break
     // and shifting the rest, so both have to be accepted here.
-    static _parseMatrixNums(body) {
+    //
+    // `type` selects the exactness of each token (_numToken); it defaults to double, so
+    // the char-code caller — whose codes are all far inside a double — reads plain numbers.
+    static _parseMatrixNums(body, type = 'double') {
         const cleaned = body.replace(/^\[/, '').replace(/\]$/, '');
         const nums = [];
         for (const row of cleaned.split(/[;\n]/)) {
@@ -620,7 +813,7 @@ export default class DataNode extends BaseNode {
                 continue;
             }
             for (const part of inner.split(',')) {
-                nums.push(parseMatlabNum(part.replace(/[FU]$/, '')));
+                nums.push(DataNode._numToken(part, type));
             }
         }
         return nums;

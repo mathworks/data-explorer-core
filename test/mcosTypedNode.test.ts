@@ -1,7 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 import { describe, it, expect, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 // Importing the class map registers the NodeRegistry the adapter routes through.
 import '../src/datamodel/node/NodeClassMap.js';
+import { loadFile, findEntry } from './parity/loadFile.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import {
   buildTypedNodeFromMcos,
@@ -172,6 +175,78 @@ describe('buildTypedNodeFromMcos — object ARRAYS (the .slx/.mat entry point)',
     expect(node).toBeInstanceOf(ParameterNode);
     expect((node as ParameterNode).Value).toBe(7);
   });
+
+  // Defect 9. The adapter used to keep only `[dimensions[0], dimensions[1]]`, so a
+  // 2x3x2 object array (MATLAB: `size(obj2x3x2)` is `[2 3 2]`, twelve elements)
+  // announced itself as a 2x3 and then handed those two extents to the subscript
+  // helper, which labelled elements 7..12 `(1,1)`..`(2,3)` a second time. The
+  // helper has handled rank >= 3 since Phase 3; this was the site withholding the
+  // extents from it.
+  it('keeps every extent of a rank-3 object array', () => {
+    const elems = Array.from({ length: 12 }, (_, i) => ({ Value: i + 1 }));
+    const node = buildTypedNodeFromMcos('Simulink.Parameter', 'v', null, null, elems, [2, 3, 2])!;
+    expect((node as any).dims).toEqual([2, 3, 2]);
+    expect(node.displayValue).toBe('<2x3x2 Simulink.Parameter>');
+    expect(node.children).toHaveLength(12);
+    const labels = node.children.map((c: any) => c.displayName);
+    // MATLAB's own linearSubs for obj2x3x2 (test/parity/artifacts/truth.json):
+    // column-major, so element 12 is (2,3,2) and no label repeats.
+    expect(labels[0]).toBe('v(1,1,1)');
+    expect(labels[11]).toBe('v(2,3,2)');
+    expect(new Set(labels).size).toBe(12);
+  });
+
+  it('is unchanged for a rank-2 array', () => {
+    const elems = Array.from({ length: 6 }, (_, i) => ({ Value: i + 1 }));
+    const node = buildTypedNodeFromMcos('Simulink.Parameter', 'w', null, null, elems, [2, 3])!;
+    expect(node.displayValue).toBe('<2x3 Simulink.Parameter>');
+    expect(node.children.map((c: any) => c.displayName)).toEqual([
+      'w(1,1)', 'w(2,1)', 'w(1,2)', 'w(2,2)', 'w(1,3)', 'w(2,3)',
+    ]);
+  });
+
+  // A decode that recovered the elements but no usable `dimensions` (absent, or the
+  // single extent a vector can be written with) used to fall all the way back to
+  // [1, 1]: three elements under a `<1x1 …>` label. N elements of unknown shape are
+  // a row vector — the shape MATLAB gives any list it cannot place otherwise.
+  it('treats elements with no usable dimensions as a row vector', () => {
+    const elems = [{ Value: 1 }, { Value: 2 }, { Value: 3 }];
+    const node = buildTypedNodeFromMcos('Simulink.Parameter', 'v', null, null, elems, null)!;
+    expect(node.displayValue).toBe('<1x3 Simulink.Parameter>');
+    expect(node.children.map((c: any) => c.displayName)).toEqual(['v(1)', 'v(2)', 'v(3)']);
+    const fromSingleExtent = buildTypedNodeFromMcos('Simulink.Parameter', 'v', null, null, elems, [3])!;
+    expect(fromSingleExtent.displayValue).toBe('<1x3 Simulink.Parameter>');
+  });
+});
+
+// The end-to-end proof for defect 9, on MATLAB's own file: cases.mat holds all
+// four Simulink.Parameter arrays (they are the only artifact that can — neither a
+// .sldd nor an .slx model workspace accepts an object array at all), and the
+// container/element rows here come out of the real MCOS decoder rather than
+// hand-supplied dimensions. truth.json is `size`/`linearSubs`/`linearValues` from
+// MATLAB itself.
+describe('object arrays out of the real MCOS decoder (cases.mat vs MATLAB truth)', () => {
+  // loadFile resolves relative to test/parity/, the directory it lives in.
+  const root = loadFile('./artifacts/mat/cases.mat', 'cases.mat');
+  const truth = JSON.parse(
+    readFileSync(fileURLToPath(new URL('./parity/artifacts/truth.json', import.meta.url)), 'utf8'),
+  );
+
+  for (const name of ['objRow', 'objCol', 'obj2x3', 'obj2x3x2']) {
+    it(name + ' reports MATLAB\'s shape, subscripts and values', () => {
+      const t = truth.objArr[name];
+      const node = findEntry(root, name);
+      // The shape as data, so this assertion does not depend on the display string
+      // it sits next to (defect 13).
+      expect(node.dims).toEqual(t.size);
+      expect(node.displayValue).toBe('<' + t.size.join('x') + ' ' + t.class + '>');
+      expect(node.children).toHaveLength(t.numel);
+      expect(node.children.map((c: any) => c.displayName)).toEqual(t.linearSubs);
+      // Each element is a ParameterNode showing its OWN Value — a known class does
+      // not render its elements as `<1x1 Simulink.Parameter>` shells.
+      expect(node.children.map((c: any) => c.displayValue)).toEqual(t.linearValues);
+    });
+  }
 });
 
 // The two helpers MatNode (.mat) and ModelNode (.slx model workspace) share, so the

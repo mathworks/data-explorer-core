@@ -128,18 +128,25 @@ describe('MatlabVariable round-trip fidelity', () => {
       }, MATLAB_TIMEOUT);
 
       // --- Typed integer: int16 ---
-      // NOTE: MatlabValueParser.parse('500') produces type='double' — our editor
-      // does NOT preserve the int16 type when the user types a new value. This is
-      // a known limitation: the parser has no int16(...) cast syntax. After edit,
-      // the entry becomes a double. The in-process round-trip verifies the numeric
-      // value is preserved; the MATLAB gate confirms the value reads back (as double).
-      it('i16Scalar: edit to new value, round-trips (type becomes double)', () => {
+      // MatlabValueParser.parse('500') produces type='double' — there is no int16(...)
+      // cast syntax — so the ENTRY's existing class decides, not the parser's default
+      // (MatlabVariableNode.classAfterEdit). Editing an int16 entry to 500 keeps int16,
+      // matching MATLAB's own `v(:) = 500`, and only the integer and single classes
+      // qualify: they hold any number the editor accepts. See MatlabVariable.md,
+      // "A typed integer/single class survives an edit".
+      //
+      // This expectation used to say the entry became a double, and its name said so too.
+      // That was this test's own note of a limitation that classAfterEdit had already
+      // lifted; the live assertion was never run against MATLAB after it landed, so the
+      // stale claim sat green in CI, where the gate skips. MATLAB says int16 with the
+      // value intact — the file is right and the expectation was wrong.
+      it('i16Scalar: edit to new value, round-trips (int16 survives)', () => {
         const { fresh, bytes } = editAndRoundTrip(format, 'i16Scalar', '500');
         expect(fresh._kind).toBe('scalar');
+        expect(fresh._scalarType).toBe('int16');
         expect(fresh.displayValue).toBe('500');
         if (matlabAvailable()) {
-          // After edit, the stored type becomes double (parser limitation).
-          matlabAssertRoundTrip(bytes, 'i16Scalar', { __value__: 500, __class__: 'double' });
+          matlabAssertRoundTrip(bytes, 'i16Scalar', { __value__: 500, __class__: 'int16' });
         }
       }, MATLAB_TIMEOUT);
 

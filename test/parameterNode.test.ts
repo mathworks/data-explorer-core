@@ -7,6 +7,8 @@
 // serializeValue result is silent data corruption in the user's .sldd.
 import { describe, it, expect } from 'vitest';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
+import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
+import { isMatCdata } from '../src/datamodel/parser/CdataCodec.js';
 import * as NodeClassMap from '../src/datamodel/node/NodeClassMap.js';
 
 // The raw shape the sldd parsers hand ParameterNode.parse: a 1x1
@@ -27,6 +29,25 @@ function parseParamValue(value: unknown): ParameterNode {
 
 function serializedValue(p: ParameterNode): unknown {
   return ((p as any).serializeValue() as any)._elements[0]._properties.Value;
+}
+
+/**
+ * The complex number inside a serialized Value, read back out of the MAT byte
+ * stream it now goes out as.
+ *
+ * `_type: 'cdata'` is worn by two different things, and for a complex value the
+ * difference is the whole value: the byte stream is what MATLAB's own TEXT
+ * dictionary carries, while the plain text '3+4i' is what a BINARY dictionary
+ * carries for the same property — and MATLAB reads that plain text back out of a
+ * text dictionary as an empty 1x0 double (probe_writeback, defect 24). isMatCdata is
+ * the discriminator the writers themselves use. The assertions read the stream
+ * rather than pinning its characters, because it is the number that has to survive.
+ */
+function complexFromStream(v: unknown): string {
+  const w = v as { _type: string; _value: string };
+  expect(w._type).toBe('cdata');
+  expect(isMatCdata(w), 'expected a MAT byte stream, got ' + JSON.stringify(w._value)).toBe(true);
+  return String((NodeRegistry.parseValue(w, 'Value', null) as any)._scalarValue);
 }
 
 // A Parameter's Value gets a child row only when the value has internal
@@ -63,6 +84,12 @@ describe('ParameterNode.parse — Value child row', () => {
     const p = parseParamValue({ _type: 'cdata', _value: '3+4i' });
     expect(p.children.length).toBe(0);
     expect(p.displayValue).toBe('3+4i');
+    // The plain text comes back out unchanged, and here that is right: this is the
+    // spelling a BINARY dictionary carries for the property, it arrived that way, and
+    // an untouched value is round-tripped byte for byte rather than re-rendered. Only
+    // a value the USER typed is re-serialized — see the setProperty suite below,
+    // where the same complex number has to become a MAT byte stream because it is
+    // bound for a text dictionary that reads the plain text as an empty 1x0.
     expect(serializedValue(p)).toEqual({ _type: 'cdata', _value: '3+4i' });
   });
 
@@ -230,19 +257,37 @@ describe('ParameterNode — Value row follows a structural edit', () => {
 
 describe('ParameterNode.setProperty — complex value', () => {
   it('accepts a complex literal, shows it inline, and serializes it back', () => {
-    // A complex Parameter value (e.g. impedance) must round-trip: the user
-    // types "3+4i", the display shows "3+4i", and the saved .sldd carries
-    // { _type: 'cdata', _value: '3+4i' } under .Value. A complex SCALAR is one
-    // element, so it gets no child row — the cdata wrapper still has to survive.
+    // A complex Parameter value (e.g. impedance) must round-trip: the user types
+    // "3+4i", the display shows "3+4i", and the saved .sldd carries a value MATLAB
+    // reads back as 3+4i. A complex SCALAR is one element, so it gets no child row —
+    // the wrapper still has to survive.
+    //
+    // This used to save the plain text { _type: 'cdata', _value: '3+4i' }, and
+    // MATLAB read it back as an empty 1x0 double: the most ordinary edit there is,
+    // destroyed on the first save. The cause was not the writer — the writer had the
+    // stream — but that _adoptValueNode left the value node unmodified, so
+    // serializeValue replayed the raw value we had just synthesised and the writer
+    // was never reached. MATLAB confirms the stream: probe_writeback's
+    // paramedit/aParam[cplx] reopens as a 1x1 double equal to 3+4i.
     const p = ParameterNode.createDefault('p', null);
     expect(p.setProperty('Value', '3+4i')).toBe(true);
     expect(p.displayValue).toBe('3+4i');
     expect(p.children.length).toBe(0);
 
-    expect(serializedValue(p)).toEqual({
-      _type: 'cdata',
-      _value: '3+4i',
-    });
+    expect(complexFromStream(serializedValue(p))).toBe('3+4i');
+  });
+
+  it('writes a typed matrix value with the body MATLAB reads, not the newline one', () => {
+    // The same defect as the complex value above, in the branch next door, and the
+    // reason to fix _adoptValueNode rather than the complex arm alone: setProperty
+    // builds `Matrix(2,2)\n[1, 2]\n[3, 4]` as its intermediate, and MATLAB reads a
+    // newline-joined body back as an empty 1x0 double (defect 19). The writer's
+    // spelling joins the rows with '; ' and writes each double as MATLAB does, and
+    // reaching it is the whole fix. probe_writeback's paramedit/aParam[mat] reopens
+    // as a 2x2 double, column-major [1 3 2 4].
+    const p = ParameterNode.createDefault('p', null);
+    expect(p.setProperty('Value', '[1 2; 3 4]')).toBe(true);
+    expect(serializedValue(p)).toEqual({ _type: 'double', _value: 'Matrix(2,2)\n[[1.0, 2.0]; [3.0, 4.0]]' });
   });
 
   it('drops a previous child node when switching to a complex value', () => {
@@ -254,7 +299,7 @@ describe('ParameterNode.setProperty — complex value', () => {
     // and a serializeValue that writes the wrong type.
     expect(p.children.length).toBe(0);
     expect(p.displayValue).toBe('5+6i');
-    expect(serializedValue(p)).toEqual({ _type: 'cdata', _value: '5+6i' });
+    expect(complexFromStream(serializedValue(p))).toBe('5+6i');
   });
 
   it('drops the child row when switching from a vector to a scalar', () => {
@@ -280,6 +325,13 @@ describe('ParameterNode.setProperty — string-array value', () => {
     // String arrays are used in Simulink for multi-valued string parameters
     // (e.g. variant condition labels). The child carries the _array_type String
     // wrapper that both the JSON and binary serializers rely on.
+    //
+    // `_mw_element_type` is part of that wrapper, and it appears here because the
+    // typed value now reaches the writer instead of replaying the raw object
+    // setProperty synthesised. It is MATLAB's own key, not ours: cases.sldd's
+    // strArray and strMat, both written by MATLAB, carry
+    // `"_mw_element_type": "MATLABArray"` on exactly this wrapper. The old
+    // expectation pinned its ABSENCE.
     const p = ParameterNode.createDefault('p', null);
     expect(p.setProperty('Value', '["hello" "world"]')).toBe(true);
     expect(p.displayValue).toBe('["hello" "world"]');
@@ -289,6 +341,7 @@ describe('ParameterNode.setProperty — string-array value', () => {
       _array_type: 'String',
       _dimensions: [1, 2],
       _elements: ['hello', 'world'],
+      _mw_element_type: 'MATLABArray',
     });
   });
 });

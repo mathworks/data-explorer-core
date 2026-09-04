@@ -10,11 +10,13 @@ import PropMin from '../../prop/PropMin.js';
 import PropMax from '../../prop/PropMax.js';
 import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
+import { withSourceKeys } from './BaseBusNode.js';
 import { schemaColumns } from '../schemaBridge.js';
 
 const CLASS_NAME = 'Simulink.Signal';
 
 export default class SignalNode extends DataNode {
+    DataType: string;
     Min: number | undefined;
     Max: number | undefined;
     Unit: string;
@@ -22,6 +24,14 @@ export default class SignalNode extends DataNode {
 
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) {
         super(name, parent, serial);
+        // A Signal's declared data type, on the same terms as ParameterNode's:
+        // 'auto' when the key is absent, because that is MATLAB's default and not a
+        // missing value. Both `DataType_internal` and `DataType` are read for the
+        // same reason BusNode reads both — a .sldd may store either spelling.
+        // Display-only; _getSerializedProperties copies the on-disk bag, so this
+        // default is never written back into a file that did not have it.
+        const rawDataType = props.DataType_internal !== undefined ? props.DataType_internal : props.DataType;
+        this.DataType = (rawDataType as string) || 'auto';
         this.Min = props.Min as number | undefined;
         this.Max = props.Max as number | undefined;
         this.Unit = (props.DocUnits as string) || (props.Unit as string) || '';
@@ -34,7 +44,13 @@ export default class SignalNode extends DataNode {
     get displayValue(): string { return ''; }
     get valueEditable(): boolean { return false; }
 
-    getProperties(): PropClass[] { return [PropName, PropDataType, PropMin, PropMax, PropUnit, PropDescription, ...schemaColumns(this.className)]; }
+    // Same argument as ParameterNode.dataType: a Signal's DataType IS a real data
+    // type ('single', 'boolean', 'auto', an AliasType name), so it belongs in the
+    // Data Type column. Without this the column and the PI row were blank for
+    // every Signal in every channel even though all four carry the key.
+    get dataType(): string { return this.DataType; }
+
+    getProperties(): PropClass[] { return [PropName, withSourceKeys(PropDataType, ['DataType', 'DataType_internal']), PropMin, PropMax, PropUnit, PropDescription, ...schemaColumns(this.className)]; }
     // PI layout is now declarative — see schema/classes/signal.json `layout`,
     // resolved by the inherited BaseNode.getPILayout via buildPILayout.
 

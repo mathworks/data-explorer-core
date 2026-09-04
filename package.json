@@ -1,6 +1,6 @@
 {
   "name": "data-explorer-core",
-  "version": "0.1.7",
+  "version": "1.0.0",
   "description": "Parser, data model, and node schema for Simulink data-dictionary, model, MAT-file, and project files. Presentation-independent; embeddable in-process.",
   "license": "BSD-3-Clause",
   "type": "module",
@@ -52,6 +52,7 @@
     "smoke": "node scripts/smoke.mjs",
     "check:pack": "node scripts/check-pack.mjs",
     "check:leak": "node scripts/leak-check.mjs",
+    "parity:drift": "node test/parity/matlab/drift.mjs",
     "verify": "npm run typecheck && npm run build && npm run smoke && npm run test && npm run check:pack && npm run check:leak",
     "prepublishOnly": "npm run verify",
     "clean": "rm -rf dist"

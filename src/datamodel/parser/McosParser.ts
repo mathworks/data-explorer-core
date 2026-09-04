@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { parseMatrix, MatVariable } from './MatParser.js';
-import { formatMatlabNum } from './XmlUtils.js';
+import { formatMatlabNum, isExactToken } from './XmlUtils.js';
 
 // Decodes the binary MCOS (MATLAB Class Object System) blob embedded in .slx and
 // .mat files into per-variable property bags shaped EXACTLY like the SLDD (JSON)
@@ -13,15 +13,23 @@ import { formatMatlabNum } from './XmlUtils.js';
 //   • Header: 10 uint32 words at [0,40); w[2..] are segment END offsets.
 //   • String table: null-terminated ASCII [40, w[2]); index 0 is the empty string.
 //   • Class table: [w[2], w[3]) 16-byte rows [pkgStrIdx, clsStrIdx, 0, 0], 0-based.
-//   • Object table: [w[4], w[5]) 24-byte rows; word0 = classId (0-based), word4 =
-//     the 1-based index of this object's property block (0 = the empty block).
-//     Row 0 is the synthetic null object. Multiple objects of the same class that
-//     were never mutated share block 0; a mutated instance points to its own block.
-//   • Property blocks: [w[5], w[6)); each [nProps, (nameStrIdx, flag, value)*nProps]
-//     then padded to an 8-byte boundary. Blocks are addressed by object word4, NOT
-//     positionally — obj[i] does not necessarily own block[i]. A block holds only
-//     the properties MUTATED away from the class default on that instance; props
-//     left at their class default live in the per-class defaults cell (below).
+//   • Object table: [w[4], w[5]) 24-byte rows; word0 = classId (0-based), word3 =
+//     the index of this object's TYPE-1 block, word4 = the index of its TYPE-2
+//     block (0 = the empty block, in both segments). Row 0 is the synthetic null
+//     object. Multiple objects of the same class that were never mutated share
+//     block 0; a mutated instance points to its own block. An object uses one
+//     segment or the other: a Simulink object has word3 = 0 and word4 != 0, and a
+//     `string` is the mirror image — word4 = 0, word3 set.
+//   • Property blocks, TWO segments with the same encoding: type 1 at [w[3], w[4])
+//     and type 2 at [w[5], w[6)). Each is [nProps, (nameStrIdx, flag, value)*nProps]
+//     then padded to an 8-byte boundary. Blocks are addressed by the object row's
+//     word3/word4, NOT positionally — obj[i] does not necessarily own block[i]. A
+//     type-2 block holds only the properties MUTATED away from the class default on
+//     that instance; props left at their class default live in the per-class
+//     defaults cell (below). A type-1 block is how a class that serializes its
+//     whole state as one opaque blob stores it — the text-dictionary `saveobj`
+//     mechanism (defect 28) in binary form. A `string` is exactly that: one type-1
+//     property, named "any", flag 1, pointing at its packed payload cell.
 //   • Per-class defaults: the LAST heap cell is a cell array indexed by classId;
 //     each entry is a struct of that class's default property values. Merged UNDER
 //     the instance block so a default-valued property still surfaces (by name and
@@ -55,6 +63,11 @@ export interface McosObjectData {
   dimensions: number[];
   // Convenience mirror of properties.Value for the opaque-fallback display path.
   value: unknown;
+  // Set only for a `string`: its text, column-major like `dimensions`, one entry per
+  // element with `null` for a MATLAB `missing`. Null when the payload declared a shape
+  // whose text the words did not account for — a summary is still correct then, a
+  // character we invented would not be. Absent for every other class.
+  stringElements?: (string | null)[] | null;
 }
 
 interface SubElement {
@@ -70,9 +83,13 @@ interface ClassRow {
 
 interface ObjectRow {
   classId: number;
-  // 1-based property-block index (0 = the empty/default block). Addressed via
-  // word4 of the 24-byte object row; the block set is NOT positional per object.
+  // Property-block index (0 = the empty/default block). Addressed via word4 of the
+  // 24-byte object row; the block set is NOT positional per object.
   blockIdx: number;
+  // Index into the TYPE-1 block segment, from word3 of the same row. Nonzero only
+  // for a class that stores its state as one opaque blob — a `string`, or a
+  // Simulink.VariantVariable's saveobj payload.
+  type1Idx: number;
 }
 
 type Triple = [nameIdx: number, flag: number, value: number];
@@ -82,6 +99,10 @@ interface MetaTable {
   classes: ClassRow[];
   objects: ObjectRow[];
   blocks: Triple[][];
+  // The type-1 segment, addressed by ObjectRow.type1Idx. Read for a `string`'s
+  // payload only; its other user is a saveobj blob the data model deliberately
+  // preserves without lifting its fields (DESIGN.md, defect 28).
+  type1Blocks: Triple[][];
 }
 
 interface DecodeContext {
@@ -96,13 +117,17 @@ const MI_MATRIX = 14;
 const MCOS_HANDLE_MAGIC = 3707764736; // 0xDD000000
 const MAX_RECURSION_DEPTH = 32;
 
-// A MATLAB `string`-typed property is stored as its own MCOS object whose text
-// lives in a packed uint64 heap cell using an internal, undocumented encoding we
-// cannot reverse with confidence. Rather than surface corrupted text, such a value
-// resolves to this honest sentinel. (char arrays — 'like this' — are ordinary and
-// decode correctly; only the double-quoted string type is affected.)
+// A MATLAB `string`-typed value is stored as its own MCOS object whose text lives in
+// a packed uint64 heap cell. That cell IS decoded now (see the payload section below,
+// and test/parity/matlab/STRING_MCOS.md for the dumps it was read off); this sentinel
+// is what remains for a payload whose words do not account for the text — a shape
+// without characters, never characters we guessed.
 export const NOT_AVAILABLE = '<not available>';
-const STRING_CLASS_NAME = 'string';
+// A `string` is an MCOS object, so it arrives on this path — but unlike every other
+// class here it is a MATLAB DATA TYPE, and the node layer treats it as one. Exported
+// because the caller that routes a named variable to its node has to make the same
+// distinction, and two spellings of the class name could drift apart.
+export const STRING_CLASS_NAME = 'string';
 
 function align8(n: number): number {
   return n + ((8 - (n % 8)) % 8);
@@ -254,33 +279,43 @@ function parseMetaTable(cells: (MatVariable | null)[]): MetaTable | null {
     classes.push({ fullName: pkg ? pkg + '.' + cls : cls });
   }
 
-  // Object table: 0-based rows; word0 = classId, word4 = property-block index.
-  // Row 0 is the null object.
+  // Object table: 0-based rows; word0 = classId, word3 = type-1 block index,
+  // word4 = type-2 property-block index. Row 0 is the null object.
   const objects: ObjectRow[] = [];
   for (let p = w[4]; p + 24 <= w[5]; p += 24) {
-    objects.push({ classId: u32(p), blockIdx: u32(p + 16) });
+    objects.push({ classId: u32(p), blockIdx: u32(p + 16), type1Idx: u32(p + 12) });
   }
 
-  // Property blocks: each 8-byte aligned, addressed by object word4 (not
-  // positionally). block[0] is the empty/default block.
-  const blocks: Triple[][] = [];
-  for (let p = w[5]; p < w[6]; ) {
-    const start = p;
-    const nProps = u32(p);
-    p += 4;
-    // Defensive: a wildly large count means we lost alignment — stop rather than
-    // fabricate. Empty (nProps == 0) blocks are real per-object placeholders.
-    if (nProps > 1000 || p + nProps * 12 > w[6]) break;
-    const triples: Triple[] = [];
-    for (let k = 0; k < nProps; k++) {
-      triples.push([u32(p), u32(p + 4), u32(p + 8)]);
-      p += 12;
+  // Both block segments have the same encoding, so one reader serves both. Each
+  // block is 8-byte aligned and addressed by the object row's own index word (not
+  // positionally); block[0] is the empty/default block.
+  const readBlocks = (from: number, to: number): Triple[][] => {
+    const out: Triple[][] = [];
+    for (let p = from; p < to; ) {
+      const start = p;
+      const nProps = u32(p);
+      p += 4;
+      // Defensive: a wildly large count means we lost alignment — stop rather than
+      // fabricate. Empty (nProps == 0) blocks are real per-object placeholders.
+      if (nProps > 1000 || p + nProps * 12 > to) break;
+      const triples: Triple[] = [];
+      for (let k = 0; k < nProps; k++) {
+        triples.push([u32(p), u32(p + 4), u32(p + 8)]);
+        p += 12;
+      }
+      out.push(triples);
+      p = start + align8(p - start);
     }
-    blocks.push(triples);
-    p = start + align8(p - start);
-  }
+    return out;
+  };
 
-  return { strings, classes, objects, blocks };
+  return {
+    strings,
+    classes,
+    objects,
+    blocks: readBlocks(w[5], w[6]),
+    type1Blocks: readBlocks(w[3], w[4]),
+  };
 }
 
 // ---- Value resolution ---------------------------------------------------------
@@ -320,7 +355,7 @@ function objectHandleFromValue(v: number[]): { dims: number[]; ids: number[] } |
   return { dims, ids };
 }
 
-function buildMatrixValue(dims: number[], elements: number[]): unknown {
+function buildMatrixValue(dims: number[], elements: (number | string)[]): unknown {
   const rows = dims[0];
   const cols = dims[1];
   const rowStrs: string[] = [];
@@ -358,7 +393,12 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
     // value-object array shape the SLDD path emits so the data model builds one
     // child node per element instead of dropping all but the first.
     const cls = ctx.meta.classes[ctx.meta.objects[handle.ids[0]]?.classId];
-    const dims = handle.dims.length >= 2 ? [handle.dims[0], handle.dims[1]] : [1, handle.ids.length];
+    // Every extent, as at the root-variable site below: a property holding a 2x3x2
+    // object array (ndNested.mat's h.Kids) reported [2, 3] over twelve elements, so
+    // the container printed a shape MATLAB never had and the element subscripts ran
+    // (1,1)..(2,3) twice. Identical to the old expression for the Nx1 property a Bus
+    // holds, which is why nothing here noticed.
+    const dims = handle.dims.length >= 2 ? handle.dims.slice() : [1, handle.ids.length];
     return {
       _array_class: cls ? cls.fullName : '',
       _array_type: 'MATLABArray',
@@ -390,15 +430,18 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
     if (Array.isArray(val)) return val.map((x) => !!x);
     return !!val;
   }
-  // Numeric classes (double, single, intN, uintN).
-  if (typeof val === 'number') {
+  // Numeric classes (double, single, intN, uintN). An int64/uint64 whose magnitude a
+  // double cannot hold arrives as its own decimal TEXT (MatParser via XmlUtils.exactInt),
+  // so a scalar one is a string here — accepting only `typeof 'number'` would drop such a
+  // property out of the object entirely rather than merely rounding it.
+  if (typeof val === 'number' || isExactToken(val)) {
     return val;
   }
   if (Array.isArray(val)) {
     if (val.length === 0) return [];
     const dims = cell.dimensions || [1, val.length];
     if (dims.length >= 2 && dims[0] > 1 && dims[1] > 1) {
-      return buildMatrixValue(dims, val as number[]);
+      return buildMatrixValue(dims, val as (number | string)[]);
     }
     return val;
   }
@@ -477,13 +520,211 @@ function buildObjectValue(objId: number, ctx: DecodeContext, path: Set<number>, 
   const obj = ctx.meta.objects[objId];
   if (!obj) return undefined;
   const cls = ctx.meta.classes[obj.classId];
-  // A `string`-typed value object's text cannot be recovered — surface the honest
-  // sentinel rather than an empty object shell or corrupted characters.
+  // A `string` is a data type, not a class with properties: its whole state is the
+  // payload cell, and an object shell built from its (empty) property block would
+  // present as a value-less row. Decode the payload instead.
   if (cls && cls.fullName === STRING_CLASS_NAME) {
-    return NOT_AVAILABLE;
+    return stringObjectValue(objId, ctx);
   }
   const properties = buildProperties(objId, ctx, path, depth);
   return { _object_class: cls ? cls.fullName : '', _properties: properties };
+}
+
+// ---- MATLAB `string`: the shape inside the payload cell ------------------------
+//
+// A `string` array is ONE MCOS object however many elements it holds — unlike a 1x3
+// Simulink.Parameter, which is three objects — so the handle a named variable
+// carries says [1,1] for a 1x3 and for a 2x2x2 alike. The real extents are inside
+// the object's own payload cell, and this is the only channel that has them.
+//
+// The route to that cell, measured rather than guessed (test/parity/matlab/
+// STRING_MCOS.md records the dump each step came from):
+//
+//   object row word3 -> a TYPE-1 block -> exactly one triple, named "any", flag 1
+//   -> heap index -> cells[index + 2], a 1xN uint64.
+//
+// `payload cell = objId + 1` fits every file whose only objects are strings and is
+// NOT the rule: in strings_mixed.mat the string is object 4 with its payload at
+// cells[9], because the Simulink.Parameter ahead of it took the first seven heap
+// slots. The type-1 block is the only link.
+//
+// The payload's own words:
+//
+//   word 0            version — 1 in every case measured
+//   word 1            ndims
+//   words 2..2+ndims  the extents, MATLAB's own size()
+//   next numel words  per-element UTF-16 code unit count, column-major;
+//                     0xFFFFFFFFFFFFFFFF marks a `missing`
+//   the rest          every element's code units concatenated, 4 per uint64,
+//                     unit j of a group in bits 16*j..16*j+15, zero-padded at the end
+//
+// Two properties of that last row are what a decoder has to get right:
+//
+//   - The units are ONE CONTINUOUS STREAM. An element does not start a fresh word:
+//     "alpha" "beta" "gamma" packs as  alph | abet | agam | ma__ .
+//   - The count is CODE UNITS, not characters. "a😀b" counts 4, because the emoji is a
+//     surrogate pair — and MATLAB's own strlength says 4 too. Walking characters would
+//     desynchronize the whole stream after the first astral one.
+//
+// `""` and `missing` are told apart by the count word — 0 versus all ones — not by
+// absence. A `missing` contributes no units and still occupies its count slot.
+//
+// The count and data words are routinely outside a double's exact range (a word packing
+// four code units almost always is), so they arrive as exact decimal TOKENS rather than
+// numbers, from MatParser via XmlUtils.exactInt. Every read of them here goes through
+// `payloadWord`, which takes either. The extents never do: they are small integers.
+const STRING_PAYLOAD_PROP = 'any';
+const STRING_PAYLOAD_VERSION = 1;
+// 0xFFFFFFFFFFFFFFFF in the count slot — MATLAB's `missing`.
+const STRING_MISSING_COUNT = 18446744073709551615n;
+const UNITS_PER_WORD = 4;
+// A sanity ceiling on one element's code-unit count, so a count word from a payload that
+// is not the one measured cannot ask for a billion-element array before failing.
+const MAX_STRING_UNITS = 0x7fffffff;
+// String.fromCharCode is applied to a slice of the unit array; a long enough element
+// would overflow the call stack if the whole thing went in as arguments at once.
+const FROM_CHAR_CODE_CHUNK = 4096;
+
+// The payload words of a `string` object, or null if this object does not carry one
+// in the exact shape measured. Never a partial answer: a type-1 block with anything
+// other than the single "any" triple is a layout we have not seen, and a guessed
+// shape is as wrong as a guessed character.
+function stringPayloadWords(objId: number, ctx: DecodeContext): (number | string)[] | null {
+  const obj = ctx.meta.objects[objId];
+  if (!obj || obj.type1Idx === 0) return null;
+  const block = ctx.meta.type1Blocks[obj.type1Idx];
+  if (!block || block.length !== 1) return null;
+  const [nameIdx, flag, value] = block[0];
+  // flag 1 is "value is a heap index", as in the type-2 segment.
+  if (flag !== 1 || ctx.meta.strings[nameIdx] !== STRING_PAYLOAD_PROP) return null;
+  const cell = ctx.cells[value + 2];
+  if (!cell || cell.className !== 'uint64') return null;
+  const v = cell.value;
+  if (Array.isArray(v)) return v as (number | string)[];
+  return typeof v === 'number' || isExactToken(v) ? [v as number | string] : null;
+}
+
+// One payload word as an exact integer, whether it arrived as a number or as the decimal
+// token a word too large for a double is carried in. Null for anything else, which is a
+// payload that is not the one measured rather than a word to work around.
+function payloadWord(word: number | string | undefined): bigint | null {
+  if (typeof word === 'number') {
+    return Number.isSafeInteger(word) && word >= 0 ? BigInt(word) : null;
+  }
+  if (typeof word === 'string' && isExactToken(word)) {
+    const n = BigInt(word);
+    return n >= 0n ? n : null;
+  }
+  return null;
+}
+
+function textFromUnits(units: number[]): string {
+  if (units.length <= FROM_CHAR_CODE_CHUNK) return String.fromCharCode(...units);
+  let out = '';
+  for (let i = 0; i < units.length; i += FROM_CHAR_CODE_CHUNK) {
+    out += String.fromCharCode(...units.slice(i, i + FROM_CHAR_CODE_CHUNK));
+  }
+  return out;
+}
+
+// The `numel` elements of a payload, column-major, starting at the first count word.
+// `null` FOR THE WHOLE ARRAY means the words do not account for the text — a shape we can
+// still report without characters we would have had to invent. `null` for ONE element is
+// MATLAB's `missing`, which is a value, not a failure.
+function decodeStringElements(
+  words: (number | string)[],
+  countStart: number,
+  numel: number,
+): (string | null)[] | null {
+  const counts: (number | null)[] = [];
+  let totalUnits = 0;
+  for (let i = 0; i < numel; i++) {
+    const w = payloadWord(words[countStart + i]);
+    if (w === null) return null;
+    if (w === STRING_MISSING_COUNT) {
+      counts.push(null);
+      continue;
+    }
+    if (w > BigInt(MAX_STRING_UNITS)) return null;
+    const n = Number(w);
+    counts.push(n);
+    totalUnits += n;
+  }
+  const dataStart = countStart + numel;
+  const wordsNeeded = Math.ceil(totalUnits / UNITS_PER_WORD);
+  if (dataStart + wordsNeeded > words.length) return null;
+  // Unpack the whole stream first: an element does not begin on a word boundary, so the
+  // units cannot be read per element without tracking a bit offset into a shared word.
+  const units: number[] = [];
+  for (let i = 0; i < wordsNeeded; i++) {
+    const packed = payloadWord(words[dataStart + i]);
+    if (packed === null) return null;
+    for (let j = 0; j < UNITS_PER_WORD; j++) {
+      units.push(Number((packed >> BigInt(16 * j)) & 0xffffn));
+    }
+  }
+  const elements: (string | null)[] = [];
+  let at = 0;
+  for (const count of counts) {
+    if (count === null) {
+      elements.push(null);
+      continue;
+    }
+    elements.push(textFromUnits(units.slice(at, at + count)));
+    at += count;
+  }
+  return elements;
+}
+
+// MATLAB's own size() and text for a `string` object, or null when the payload is not
+// reachable in the exact shape measured.
+//
+// `dims` and `elements` fail independently on purpose. The extents are small integers and
+// survive conditions the packed code-unit words do not, so a payload whose text cannot be
+// accounted for still reports its shape — `elements: null` — and the caller falls back to
+// a summary rather than to a wrong size or a wrong character.
+function stringPayload(
+  objId: number,
+  ctx: DecodeContext,
+): { dims: number[]; elements: (string | null)[] | null } | null {
+  const words = stringPayloadWords(objId, ctx);
+  if (!words || words.length < 3) return null;
+  // A version word we have never seen means a layout we cannot claim to know, so the
+  // extents are not read from a position that may have moved.
+  if (words[0] !== STRING_PAYLOAD_VERSION) return null;
+  const ndims = words[1];
+  // size() is never rank-1 in MATLAB; 8 is the same ceiling the object handles use. A
+  // rank this small is a plain number, so an exact TOKEN in this slot is not a huge rank
+  // — it is a payload that is not the one measured, and comparing it numerically would
+  // coerce it and read extents from a position that may have moved.
+  if (typeof ndims !== 'number' || ndims < 2 || ndims > 8 || 2 + ndims > words.length) return null;
+  const raw = words.slice(2, 2 + ndims);
+  if (!raw.every((d) => typeof d === 'number' && Number.isInteger(d) && d >= 0)) return null;
+  const dims = raw as number[];
+  const numel = dims.reduce((a, b) => a * b, 1);
+  // strings(0,0) writes its extents and stops — no count words at all, and no text to
+  // recover. An empty array of elements is the right answer, not a failed decode.
+  const elements = numel === 0 ? [] : decodeStringElements(words, 2 + ndims, numel);
+  return { dims, elements };
+}
+
+// The value a `string` object contributes when it is somebody's property: the same
+// dimensioned envelope the dictionary formats use for a string array, so one node-layer
+// path renders a string wherever it came from. NOT_AVAILABLE when the payload is not
+// there in the measured form — a sentinel, never a guessed character.
+//
+// No SIMULINK class reaches this — assigning a string to one of their properties converts
+// it to a char (STRING_MCOS.md, "What is NOT reachable"). A user-written class does:
+// object_props.mat's `Vehicle.Name` is a string property, and it is what pinned this.
+function stringObjectValue(objId: number, ctx: DecodeContext): unknown {
+  const payload = stringPayload(objId, ctx);
+  if (!payload || !payload.elements) return NOT_AVAILABLE;
+  return {
+    _array_type: 'String',
+    _dimensions: payload.dims.slice(),
+    _elements: payload.elements.slice(),
+    _mw_element_type: 'MATLABArray',
+  };
 }
 
 // ---- Named-variable -> root object id -----------------------------------------
@@ -560,10 +801,20 @@ export function decodeMcosBlob(anonRawBytes: Uint8Array, opaqueVars: OpaqueVarRe
     if (!classesMatch) continue;
 
     const elements = handle.ids.map((id) => buildProperties(id, ctx, new Set<number>(), 0));
-    // Normalize to a 2-D [rows, cols] shape the display path expects (a bare
-    // MATLAB column vector arrives as [N, 1]; a scalar as [1, 1]).
+    // EVERY extent the handle declares. Keeping only the first two turned MATLAB's
+    // 2x3x2 obj2x3x2 into a 2x3 — a shape it never had, over twelve elements whose
+    // subscripts then repeated (1,1)..(2,3) twice. The handle's own ndims is the
+    // authority; a 1-extent handle is a vector, which MATLAB reports as [1, N].
+    //
+    // Except for a `string`, where the handle is NOT the authority: one object holds
+    // the whole array, so its handle says [1,1] whatever the shape, and the extents
+    // have to come out of the payload. Falls back to the handle when the payload
+    // cannot be read, which is the old [1,1] — wrong for an array, but no more wrong
+    // than it was, and it is the only shape available.
+    const payload = v.className === STRING_CLASS_NAME ? stringPayload(handle.ids[0], ctx) : null;
     const dimensions =
-      handle.dims.length >= 2 ? [handle.dims[0], handle.dims[1]] : [1, handle.dims[0] ?? elements.length];
+      payload?.dims ??
+      (handle.dims.length >= 2 ? handle.dims.slice() : [1, handle.dims[0] ?? elements.length]);
     const { packageName, shortClassName } = splitClassName(v.className);
     result.set(v.name, {
       name: v.name,
@@ -574,6 +825,7 @@ export function decodeMcosBlob(anonRawBytes: Uint8Array, opaqueVars: OpaqueVarRe
       elements,
       dimensions,
       value: (elements[0] ?? {}).Value,
+      ...(v.className === STRING_CLASS_NAME ? { stringElements: payload?.elements ?? null } : {}),
     });
   }
 
