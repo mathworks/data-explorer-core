@@ -62,6 +62,21 @@ export declare function isExactToken(x: unknown): x is string;
  * float paths do on purpose.
  */
 export declare function needsExactInt(type: string | null | undefined): boolean;
+/**
+ * One EDITED numeric token, narrowed to what its class can actually hold: the exact
+ * decimal text for an int64/uint64, the double for everything else.
+ *
+ * The read paths know a token's class from the file, so they never need this. The edit
+ * path does: MatlabValueParser is class-blind and hands back the exact text for any
+ * integer a double cannot hold (defect 42), but only the two 64-bit classes can carry
+ * one. Under any other class the double IS the value — MATLAB agrees, because a bare
+ * decimal literal is a double there, so `x = 18446744073709551615` stores the nearest
+ * double exactly as this does — and keeping the text instead wrote a JSON STRING into
+ * the dictionary, which reads back as the CHAR '18446744073709551615'.
+ *
+ * Numbers pass through untouched, so this is safe to map over a whole element list.
+ */
+export declare function exactForClass(value: unknown, type: string | null | undefined): unknown;
 export declare function formatDoubleXml(num: unknown): string;
 export declare function formatNumericXml(num: unknown, type: string): string;
 export declare function formatNumLiteral(num: unknown, type: string): string;

@@ -278,10 +278,10 @@ function parseEntryValue(prop) {
         if (total === 0) {
             return { _type: type, _emptyDims: dimParts };
         }
-        // Logical vector
+        // Logical vector, matrix or N-D — shaped, and transposed out of column-major
+        // order, exactly as the numeric branch below is (defect 44).
         if (type === 'logical') {
-            const parts = text.trim().split(/\s+/);
-            return { _type: 'logical', _value: '[' + parts.join(', ') + ']' };
+            return logicalValue(text, dimParts);
         }
         const parts = numericBody(text, type);
         // Column-major to row-major transpose
@@ -329,8 +329,7 @@ function parseCellElement(el) {
             if (total === 0) {
                 return { _type: 'logical', _value: '[]' };
             }
-            const parts = text.trim().split(/\s+/);
-            return { _type: 'logical', _value: '[' + parts.join(', ') + ']' };
+            return logicalValue(text, dimParts);
         }
         return text === '1' || text === 'true';
     }
@@ -463,6 +462,32 @@ function formatMatrix(values, dims, type) {
     type = type || 'double';
     return { _type: type, _value: formatMatrixSerial(values, dims, type) };
 }
+/**
+ * A `Class="logical"` body with a Dimension, shaped as that Dimension declares
+ * (defect 44).
+ *
+ * All three sites that read one — entry value, cell element, object/struct property —
+ * used to split the body and join it straight back into a flat `[1, 0, 0, 1]`,
+ * ignoring the extents entirely. So the logical class alone missed BOTH halves of
+ * what its numeric neighbour two lines below has always done: MATLAB's own 2x2
+ * `[true false; false true]` came back a 1x4, and because the body is stored
+ * COLUMN-major its four values came back in an order no one had typed. A 3x1 came
+ * back a 1x3, and an N-D came back flat — the logical twin of defect 25 (char) and
+ * of Phase 6 (numeric N-D), the last class still carrying it.
+ *
+ * The tokens are kept as the TEXT the body carried rather than converted to numbers:
+ * the transpose is a permutation that never looks at a value, formatNumLiteral passes
+ * a string through verbatim, and a spelling MATLAB chose is one we can write back.
+ */
+function logicalValue(text, dimParts) {
+    const rowMajor = transposeColumnMajor(text.trim().split(/\s+/), dimParts);
+    // Same split as the numeric branch, for the same reason: only a true rank-2 row
+    // vector may go out shapeless, because a bare bracketed list reads back as a row.
+    if (dimParts.length <= 2 && dimParts[0] === 1) {
+        return formatTypedVector(rowMajor, 'logical');
+    }
+    return formatMatrix(rowMajor, dimParts, 'logical');
+}
 function parsePropContent(prop) {
     const propClass = prop['@_Class'] || null;
     const dimension = prop['@_Dimension'] || null;
@@ -586,8 +611,7 @@ function parseTypedValue(text, className, dimension) {
             return '';
         }
         if (className === 'logical') {
-            const parts = text.trim().split(/\s+/);
-            return { _type: 'logical', _value: '[' + parts.join(', ') + ']' };
+            return logicalValue(text, dimParts);
         }
         if (isNumericClass(className)) {
             const parts = numericBody(text, className);

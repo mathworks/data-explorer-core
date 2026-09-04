@@ -60,11 +60,9 @@ function deepMark(n: any): void {
   }
 }
 
-// The rebuilt data/chunk0.xml of a MATLAB-authored binary dictionary, every entry of it
-// marked modified so nothing is replayed. This is the byte stream probe_writeback_bin
-// hands MATLAB, minus the zip around it.
 let seq = 0;
-function rebuildXml(fixture: string): string {
+/** A MATLAB-authored binary dictionary, parsed into a model. */
+function loadBinaryModel(fixture: string): any {
   // `fixture` is relative to test/, so the two corpora — the hand-checked fixtures and
   // the MATLAB-authored parity artifacts — are named the same way.
   const p = fileURLToPath(new URL('./' + fixture, import.meta.url));
@@ -78,9 +76,35 @@ function rebuildXml(fixture: string): string {
   }
   const uri = 'mem://wbgate' + ++seq;
   DataModel.removeDataSource(uri);
-  const model = DataModel.addDataSource(uri, parseBinarySlddParts(xml, meta), { path: fixture });
+  return DataModel.addDataSource(uri, parseBinarySlddParts(xml, meta), { path: fixture });
+}
+
+// The rebuilt data/chunk0.xml of a MATLAB-authored binary dictionary, every entry of it
+// marked modified so nothing is replayed. This is the byte stream probe_writeback_bin
+// hands MATLAB, minus the zip around it.
+// `mutate` runs on the loaded model before the rebuild, for the cases that assert what an
+// EDIT writes rather than what a replay preserves.
+function rebuildXml(fixture: string, mutate?: (model: any) => void): string {
+  const model = loadBinaryModel(fixture);
+  if (mutate) {
+    mutate(model);
+  }
   deepMark(model);
   return buildDataChunkXml(model);
+}
+
+/** The node named `name` anywhere under `n` — the model rebuildXml built, not a loadFile tree. */
+function findByName(n: any, name: string): any {
+  if (n.name === name) {
+    return n;
+  }
+  for (const c of n.children ?? []) {
+    const found = findByName(c, name);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
 }
 
 /** The one `<P ...>` or `<Entry ...>` tag whose text names `name`, for an eyeball assert. */
@@ -146,6 +170,77 @@ describe('defect 28: a saveobj envelope survives the round trip', () => {
     const v: any = findEntry(sldd, 'aVariant');
     expect(v.className).toBe('Simulink.VariantVariable');
     expect((v.children ?? []).map((c: any) => c.name)).not.toContain(SAVEOBJ_KEY);
+  });
+});
+
+describe('defect 46: an edit under a saveobj envelope goes where MATLAB reads it', () => {
+  // The other half of 28. Once the envelope survived, an EDIT still did not reach it: the
+  // new Specification was written only as a sibling <P>, and MATLAB's loadobj reads the
+  // envelope, so a binary dictionary reopened with Specification '' after an edit to
+  // 'myNewVar'. Our own reader reads the sibling too, so the in-process round trip agreed
+  // with itself and only live MATLAB disagreed — writeback.live's variant case.
+  //
+  // aVariant's envelope wraps ONE <Element> whose fields are Choices, Specification, Bank,
+  // in MATLAB's own order. "Inside the envelope" is asserted as "between Choices and Bank",
+  // which pins the placement and that order together.
+  function variantBlock(xml: string): string {
+    const at = xml.indexOf('<Element Class="Simulink.VariantVariable">');
+    expect(at).toBeGreaterThan(-1);
+    return xml.slice(at, xml.indexOf('</Object>', at));
+  }
+
+  function edited(): string {
+    return variantBlock(
+      rebuildXml('parity/artifacts/binary/cases.sldd', (model) => {
+        expect(findByName(model, 'aVariant').setProperty('Specification', 'myNewVar')).toBe(true);
+      }),
+    );
+  }
+
+  it('the new value is written INSIDE the envelope', () => {
+    expect(edited()).toMatch(
+      /<P Source="saveobj"[\s\S]*<P Name="Choices"[\s\S]*<P Name="Specification" Class="char">myNewVar<\/P>[\s\S]*<P Name="Bank"/,
+    );
+  });
+
+  it('and the sibling stays, because it is the copy this reader can see', () => {
+    // A CONTROL on what the fix must not change, not a regression test for 46 — the sibling
+    // was always written, which was the whole problem. It is kept deliberately: nothing here
+    // decodes the envelope back into a node property, so dropping it would make our own
+    // round trip lose the edit that MATLAB now keeps. The envelope is for MATLAB, the
+    // sibling is for us.
+    //
+    // Positional, not counted: a count of 2 is green either way, since the envelope declares
+    // a Specification field whether or not anything wrote to it. The sibling is the one that
+    // closes the <Element>, after the envelope's own </P>.
+    expect(edited()).toMatch(/<\/P>\s*<P Name="Specification" Class="char">myNewVar<\/P>\s*<\/Element>/);
+  });
+
+  it('an UNedited entry writes neither, and MATLAB\'s own empty stays a 0x0 double', () => {
+    // The control, and the reason the empty override is dropped rather than written: read
+    // through the sibling that is not there, Specification is '' — a default, not a value.
+    // Written back it would replace MATLAB's 0x0 double with an empty char.
+    const block = variantBlock(rebuildXml('parity/artifacts/binary/cases.sldd'));
+    expect(tagsNaming(block, 'Specification')).toHaveLength(1);
+    expect(block).toContain('<P Name="Specification" Class="double" Dimension="0*0"/>');
+  });
+
+  it('a field the envelope does not declare leaves it untouched, and copies never mutate', () => {
+    // On _mergeProps directly, not on the rebuilt XML: _getSerializedProperties offers
+    // nothing but Specification, so an XML assertion about an undeclared field would be
+    // green no matter what the guard did.
+    const v: any = findByName(loadBinaryModel('parity/artifacts/binary/cases.sldd'), 'aVariant');
+    const stored = (v.serial._properties as Record<string, unknown>)[SAVEOBJ_KEY] as any;
+
+    // A declared field goes in — and into a COPY, since this runs during serialization and
+    // the envelope is parse state shared with _rawVal.
+    const written = v._mergeProps({ Specification: 'myNewVar' })[SAVEOBJ_KEY] as any;
+    expect(written).not.toBe(stored);
+    expect(written._elements[0].Specification).toBe('myNewVar');
+    expect(stored._elements[0].Specification).toEqual([]);
+
+    // An undeclared one does not: the same object back, so nothing was rebuilt or reached.
+    expect(v._mergeProps({ NotAField: 'x' })[SAVEOBJ_KEY]).toBe(stored);
   });
 });
 

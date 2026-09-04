@@ -44,6 +44,7 @@ import {
   parseMatlabNum,
   parseExactNum,
   needsExactInt,
+  exactForClass,
   transposeToColumnMajorND,
   transposeFromColumnMajorND,
   pad as xmlPad,
@@ -819,15 +820,23 @@ export default class MatlabVariableNode extends DataNode {
         validValue: this.displayValue,
       };
     }
-    // 1/0, never the boolean: _elements is the one representation the container's
-    // display, its _var snapshot, and the typed literal all read, and the parsers
-    // store a logical ARRAY as 1/0 (see parseTypedVector). An edited element must not
-    // become the only boolean in it.
-    this._scalarValue = isLogicalElement ? (parsed.value ? 1 : 0) : parsed.value;
     // elementClass, not 'double': the container fixes the element's class (this
     // method exists because of that), so re-stating 'double' here flipped an int32
     // element's Data Type column to double the moment its cell was committed.
     this._scalarType = isArrayElement ? elementClass(parent._scalarType) : 'string';
+    // 1/0, never the boolean: _elements is the one representation the container's
+    // display, its _var snapshot, and the typed literal all read, and the parsers
+    // store a logical ARRAY as 1/0 (see parseTypedVector). An edited element must not
+    // become the only boolean in it.
+    //
+    // exactForClass on the numeric arm for the same reason as _applyParsed: a uint64
+    // array's element is the one element that can be an integer no double holds, and
+    // the container's class — read one line above — is what says so.
+    this._scalarValue = isLogicalElement
+      ? (parsed.value ? 1 : 0)
+      : isArrayElement
+        ? exactForClass(parsed.value, this._scalarType)
+        : parsed.value;
     if (!isArrayElement) {
       // A string-array element is a string-KIND node (see _makeStringElement), and
       // its own display and serialize paths read the text from _elements.
@@ -875,19 +884,47 @@ export default class MatlabVariableNode extends DataNode {
     // class, so classAfterEdit lets it survive the parser's 'double' default — see
     // its comment. Read before any arm overwrites it.
     const prevType = this._scalarType;
+    // exactForClass, not the parser's token as-is: MatlabValueParser hands back exact
+    // decimal TEXT for an integer a double cannot hold (defect 42 — typing intmax('uint64')
+    // used to store 18446744073709552000), and this is the one edit path that knows the
+    // class the value is about to have, so it is the one that can say whether the text
+    // form is meaningful. Under int64/uint64 it is kept and the writers spell it
+    // untouched; under any other class it collapses to the double, which is what MATLAB
+    // itself stores for a bare decimal literal. Hence _scalarType is computed FIRST here.
     if (parsed.type === 'double' && Array.isArray(parsed.value) && parsed.value.length === 1) {
       this._kind = 'scalar';
-      this._scalarValue = parsed.value[0];
       this._scalarType = classAfterEdit(prevType, 'double');
+      this._scalarValue = exactForClass(parsed.value[0], this._scalarType);
       this._dims = [1, 1];
       this.serial = {};
     } else if (parsed.type === 'double' && Array.isArray(parsed.value)) {
       this._kind = 'array';
-      this._elements = parsed.value;
-      this._dims = parsed.dims!;
       this._scalarType = classAfterEdit(prevType, 'double');
+      this._elements = parsed.value.map((v) => exactForClass(v, this._scalarType));
+      this._dims = parsed.dims!;
       this._syncArraySerial();
       this._buildArrayChildren();
+    } else if (parsed.type === 'logical' && Array.isArray(parsed.value)) {
+      // `[true false true]` — the literal MATLAB's own mat2str prints for a logical array,
+      // and the text this entry's Value cell displays. classAfterEdit is deliberately not
+      // consulted: it exists to let a class the parser cannot see survive a bare numeric
+      // edit, and here the literal states the class itself. The 1-element case collapses to
+      // a scalar for the same reason the double arm above does — `[true]` is 1x1 — and
+      // _scalarValue is a boolean there because that is what a logical scalar stores and
+      // what the JSON writer emits (a bare `true`, as boolT is written).
+      this._scalarType = 'logical';
+      this._dims = parsed.dims!;
+      if (parsed.value.length === 1) {
+        this._kind = 'scalar';
+        this._scalarValue = !!parsed.value[0];
+        this._dims = [1, 1];
+        this.serial = {};
+      } else {
+        this._kind = 'array';
+        this._elements = parsed.value;
+        this._syncArraySerial();
+        this._buildArrayChildren();
+      }
     } else if (parsed.type === 'string-array') {
       this._kind = 'string';
       this._elements = parsed.value as unknown[];
@@ -903,8 +940,12 @@ export default class MatlabVariableNode extends DataNode {
       this._buildCellChildren(parsed.value as unknown[]);
     } else {
       this._kind = 'scalar';
-      this._scalarValue = parsed.value;
       this._scalarType = classAfterEdit(prevType, parsed.type);
+      // The bare-scalar arm (`5`, `18446744073709551615`) shares this branch with char,
+      // string, logical and complex, so the exact-token narrowing is gated on the parsed
+      // TYPE: a char value can be all digits ('123'), and exactForClass would turn it
+      // into a number.
+      this._scalarValue = parsed.type === 'double' ? exactForClass(parsed.value, this._scalarType) : parsed.value;
       // A char is the one scalar-KIND value that can be bigger than 1x1: it is stored
       // as one string, so ['ab'; 'cd'] arrives here as the 4-character 'acbd' with
       // dims [2,2] beside it (see charFromRows). Forcing [1, 1] made committing a char

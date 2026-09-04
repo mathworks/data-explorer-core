@@ -5,7 +5,7 @@ import type { SetPropertyResult } from '../DataNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
-import { formatMatlabNum } from '../../parser/XmlUtils.js';
+import { formatMatlabNum, formatMatrixSerial } from '../../parser/XmlUtils.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -13,7 +13,7 @@ import PropMin from '../../prop/PropMin.js';
 import PropMax from '../../prop/PropMax.js';
 import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
-import MatlabValueParser from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { collapseExact } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
 
 const CLASS_NAME = 'Simulink.Parameter';
@@ -157,10 +157,18 @@ export default class ParameterNode extends DataNode {
 
     setProperty(propName: string, stringValue: string): true | SetPropertyResult {
         if (propName === 'Value') {
-            const parsed = MatlabValueParser.parse(stringValue);
-            if (!parsed) {
+            const raw = MatlabValueParser.parse(stringValue);
+            if (!raw) {
                 return { error: true, reason: 'Invalid MATLAB expression', invalidValue: stringValue, validValue: this.displayValue };
             }
+            // collapseExact: a Simulink.Parameter's Value has no class of its own to
+            // consult — it is whatever its expression evaluates to, and a bare decimal
+            // literal evaluates to a DOUBLE in MATLAB, so `p.Value = 18446744073709551615`
+            // stores the nearest double there too. The parser's exact-integer token
+            // (defect 42) exists for a 64-bit ENTRY, which knows its class; carried in
+            // here it would be written to the dictionary as a JSON string and read back
+            // as the char '18446744073709551615'.
+            const parsed = collapseExact(raw);
             // MATLAB rejects cell arrays as Parameter.Value (R2027a probe).
             if (parsed.type === 'cell') {
                 return {
@@ -178,6 +186,37 @@ export default class ParameterNode extends DataNode {
             // MATLAB-authored counter-example to pin the reader against, and defect 25's
             // parser change means a user who types ['ab'; 'cd'] no longer reaches this
             // arm at all — only the genuinely double-quoted spelling does.
+            // A logical ARRAY keeps its class AND its shape through the typed envelope —
+            // the same one an entry writes for the same value. Without this arm it fell
+            // through to the scalar tail below, which stores the parser's bare JS array,
+            // and the writer spells that as a plain JSON list: `p.Value = [true false;
+            // false true]` was written `"Value": [1, 0, 0, 1]` and reopened in MATLAB as a
+            // 1x4 DOUBLE — both the class and the shape gone. Newly reachable, because the
+            // literal was refused outright before defect 43.
+            if (parsed.type === 'logical' && Array.isArray(parsed.value)) {
+                const els = parsed.value as unknown[];
+                if (els.length === 1) {
+                    // `[true]` is a 1x1, so it takes the same route as the bare `true`
+                    // literal: the boolean itself, which the writer emits as a JSON `true`.
+                    // Left as a one-element list it would be a JSON array, read back as a
+                    // 1x1 double.
+                    this.children = [];
+                    this._valueNode = null;
+                    this.Value = !!els[0];
+                } else {
+                    // formatMatrixSerial rather than a spelling of our own: it is the one
+                    // MATLAB reads back (see its note in XmlUtils), and it already gives a
+                    // row the bare bracketed list and a column or matrix the Matrix(r,c)
+                    // header — the three shapes this arm has to cover.
+                    this._adoptValueNode(
+                        { _type: 'logical', _value: formatMatrixSerial(els, parsed.dims!, 'logical') },
+                        true,
+                    );
+                    this.Value = els;
+                }
+                this._markModified();
+                return true;
+            }
             if ((parsed.type === 'double' && Array.isArray(parsed.value)) || parsed.type === 'string-array') {
                 let rawValue: unknown;
                 if (parsed.type === 'string-array') {

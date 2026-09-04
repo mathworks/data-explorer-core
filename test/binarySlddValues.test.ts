@@ -99,12 +99,27 @@ describe('parseBinarySlddParts — Dimension attributes that are not R*C', () =>
       _type: 'int16',
       _value: 'Matrix(1,2,2)\n[[1, 2]; [3, 4]]',
     });
-    // Logical is the one class that carries no shape at all in this format's
-    // literal, at any rank -- a 2x2 logical is spelled flat too. Out of scope here;
-    // pinned so a later change to the logical spelling is a deliberate one.
+    // Logical used to be the one class that carried no shape at all here, at any rank:
+    // this line pinned the flat spelling and said a change to it should be a deliberate
+    // one. Defect 44 is that change. The flat form was not merely shapeless -- it also
+    // skipped the column-major transpose the line above performs, so MATLAB's own eight
+    // values came back in an order nobody had typed. Same helper, same answer as int16
+    // now.
     expect(value('<P Name="Value" Class="logical" Dimension="2*2*2">1 0 1 0 1 0 1 0</P>')).toEqual({
       _type: 'logical',
-      _value: '[1, 0, 1, 0, 1, 0, 1, 0]',
+      _value: 'Matrix(2,2,2)\n[[1, 1]; [0, 0]; [1, 1]; [0, 0]]',
+    });
+    // Rank 2 as well, where the loss was visible in the UI: a 2x2 read back a 1x4.
+    // The values are asymmetric under transpose, so this pins the ORDER too.
+    expect(value('<P Name="Value" Class="logical" Dimension="2*2">1 0 1 0</P>')).toEqual({
+      _type: 'logical',
+      _value: 'Matrix(2,2)\n[[1, 1]; [0, 0]]',
+    });
+    // And a logical row keeps the bare, headerless spelling MATLAB writes for it --
+    // unchanged by the fix, which is the point of asserting it beside the other two.
+    expect(value('<P Name="Value" Class="logical" Dimension="1*3">1 0 1</P>')).toEqual({
+      _type: 'logical',
+      _value: '[1, 0, 1]',
     });
     // An empty 3-D keeps every extent, so it still reads as empty AND reports the
     // 0x2x2 that MATLAB's size() reports, not a folded 0x4.

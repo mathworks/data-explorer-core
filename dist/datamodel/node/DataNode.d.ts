@@ -47,9 +47,23 @@ export default class DataNode extends BaseNode {
      * standing in for an empty 0x0 double it could not see.
      *
      * So under an envelope an EMPTY override is dropped: it is a default rather than an
-     * edit, and the envelope is already the authority on that property. A non-empty
-     * override is still written, because silently discarding a real edit is worse than
-     * writing a property MATLAB's loadobj may ignore.
+     * edit, and the envelope is already the authority on that property.
+     *
+     * A non-empty override goes to BOTH places, and the reason it is both is defect 46.
+     * The sibling used to be the only place it went, on the reasoning that silently
+     * discarding a real edit is worse than writing a property MATLAB's loadobj *may*
+     * ignore. The live gate settled the "may": MATLAB does ignore it. Editing a
+     * VariantVariable's Specification to 'myNewVar' in a binary dictionary produced a file
+     * MATLAB reopened with Specification '' — the edit was written, and written somewhere
+     * nothing reads. Our own reader agreed with us because it reads the sibling too, which
+     * is exactly the shape of failure this tier exists to catch: a value written wrongly
+     * and read back with the same wrong assumption looks fine from inside.
+     *
+     * So the value is now also written INTO the envelope, which is what MATLAB actually
+     * loads. The sibling is KEPT rather than replaced, because it is the only copy this
+     * package's own reader can see — decoding the envelope back into node properties is
+     * the other half of defect 40 and is not done here. Writing both keeps every consumer
+     * correct and is strictly additive over the old behaviour.
      */
     _mergeProps(propOverrides: Record<string, unknown>): Record<string, unknown>;
     serializeValue(): unknown;

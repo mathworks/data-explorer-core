@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { parseExactNum } from './XmlUtils.js';
 function parse(str) {
     str = str.trim();
     if (str === '') {
@@ -38,6 +39,15 @@ function parse(str) {
 // not ('Infinity', '0x10', '1_000') while rejecting MATLAB's own 'Inf'/'NaN'.
 // Accepting a non-MATLAB literal is the harmful direction — it would be written
 // back into a .sldd as a value MATLAB cannot evaluate.
+//
+// The return is `number | string` because a double cannot hold every int64/uint64,
+// and this is the EDIT path: `Number('18446744073709551615')` is 18446744073709552000,
+// so typing intmax('uint64') into the cell wrote a different number back to the file
+// (defect 42). parseExactNum is the same decision the READ path makes — a number when
+// the double is lossless, canonical decimal TEXT when it is not — and it must be the
+// same one, because the two ends store into the same slots (_scalarValue/_elements)
+// and the writers spell whatever they find there. Only a pure-integer token can take
+// the text form; a real or an exponent is a double in MATLAB too, so it stays a number.
 function parseMatlabNumber(str) {
     // MATLAB spells the non-finite values Inf/NaN, optionally signed.
     const nonFinite = /^([+-]?)(Inf|NaN)$/.exec(str);
@@ -51,8 +61,33 @@ function parseMatlabNumber(str) {
     if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(str)) {
         return null;
     }
-    const n = Number(str);
-    return isNaN(n) ? null : n;
+    const n = parseExactNum(str);
+    return typeof n === 'number' && isNaN(n) ? null : n;
+}
+/**
+ * The same parse with every exact-integer token collapsed back to its double — the
+ * reading every consumer got before defect 42.
+ *
+ * The token exists for the one caller that can hold it: a MATLAB variable whose own class
+ * is int64/uint64, which is the only place a class is known at edit time (see
+ * XmlUtils.exactForClass). Every other consumer's value is a double by construction, and
+ * MATLAB agrees with them: a bare decimal literal is a double there, so
+ * `p.Value = 18446744073709551615` stores the nearest double. Such a consumer calls this
+ * once, next to its parse, rather than testing for a token at each use — one that slipped
+ * through would be written to the dictionary as a JSON STRING and read back as char.
+ *
+ * `type === 'double'` is the gate, not the value's JavaScript type: a char value can be
+ * all digits ('123'), and a string array's elements are strings.
+ */
+export function collapseExact(parsed) {
+    if (parsed.type !== 'double') {
+        return parsed;
+    }
+    const collapse = (v) => (typeof v === 'string' ? Number(v) : v);
+    return {
+        ...parsed,
+        value: Array.isArray(parsed.value) ? parsed.value.map(collapse) : collapse(parsed.value),
+    };
 }
 // ---- Quoted-literal scanning ----
 // MATLAB escapes the quote character by DOUBLING it, so 'it''s' is one char value
@@ -164,14 +199,19 @@ function parseArray(str) {
     // displayed value — the text the table seeds its editor with — silently retyped the
     // entry from char to string and reshaped it 2x2 -> 2x1 (defect 25).
     let anyDoubleQuoted = false;
+    // Every numeric row so far held nothing but true/false, which makes the whole array
+    // logical. MATLAB promotes a MIXED literal to double — `[true 1]` is a double there —
+    // so one ordinary number anywhere in the value is enough to clear this.
+    let allLogical = true;
     const charRows = [];
     for (let r = 0; r < rows.length; r++) {
         const rowStr = rows[r].trim();
         if (rowStr === '') {
             continue;
         }
-        const nums = tokenizeNumbers(rowStr);
-        if (nums === null) {
+        const scannedNums = tokenizeNumbers(rowStr);
+        const nums = scannedNums && scannedNums.nums;
+        if (scannedNums === null) {
             const scanned = tokenizeStrings(rowStr);
             if (scanned === null) {
                 return null;
@@ -211,6 +251,7 @@ function parseArray(str) {
             else if (nums.length !== cols) {
                 return null;
             }
+            allLogical = allLogical && scannedNums.allLogical;
             matrix.push(nums);
         }
     }
@@ -235,6 +276,15 @@ function parseArray(str) {
     }
     if (isStringArray) {
         return { type: 'string-array', value: elements, dims: [matrix.length, cols] };
+    }
+    // 'logical' with an ARRAY value, not a type of its own: the two are told apart by
+    // Array.isArray at every consumer that cares (see _applyParsed and
+    // parsedIsScalarNumeric), the same way 'double' already carries both a scalar and an
+    // array. A third type name would have to be added to each of those dispatches
+    // instead, and a consumer that missed it would silently treat a logical array as
+    // unparseable.
+    if (allLogical) {
+        return { type: 'logical', value: elements, dims: [matrix.length, cols] };
     }
     return { type: 'double', value: elements, dims: [matrix.length, cols] };
 }
@@ -369,11 +419,33 @@ function splitRows(inner) {
     rows.push(inner.slice(start));
     return rows;
 }
+// One row of a numeric or LOGICAL array literal, plus whether every token in it was
+// true/false — which is the only thing in the text that says logical rather than double.
+//
+// `true` and `false` used to be refused here, so `[true false true]` was not a literal
+// this parser knew at all. That is MATLAB's OWN spelling of a logical array (mat2str
+// prints `[true false true]`, and the corpus's boolVec displays exactly that), so a user
+// who committed the text their cell was showing got "Invalid MATLAB expression", and the
+// only spelling that WAS accepted — [1 0 1] — retyped the entry from logical to double
+// (defect 43). MATLAB agrees with both readings: [true false true] is logical there and
+// [1 0 1] is double, so accepting the first is what makes the second correct rather than
+// the only option.
+//
+// An element is `number | string` for the same reason a scalar is — see
+// parseMatlabNumber. [18446744073709551615 2 3] keeps its first element as text.
 function tokenizeNumbers(rowStr) {
     const parts = rowStr.trim().split(/[,\s]+/);
     const nums = [];
+    let allLogical = true;
     for (let i = 0; i < parts.length; i++) {
         if (parts[i] === '') {
+            continue;
+        }
+        // 1/0, never the boolean: _elements is the form the container's display, its _var
+        // snapshot and the typed literal all read, and the readers store a logical array
+        // that way too (parseTypedVector).
+        if (parts[i] === 'true' || parts[i] === 'false') {
+            nums.push(parts[i] === 'true' ? 1 : 0);
             continue;
         }
         // Same literal rule as a scalar, so `[1 Inf]` parses and `[1 0x10]` does
@@ -382,9 +454,10 @@ function tokenizeNumbers(rowStr) {
         if (n === null) {
             return null;
         }
+        allLogical = false;
         nums.push(n);
     }
-    return nums.length > 0 ? nums : null;
+    return nums.length > 0 ? { nums, allLogical } : null;
 }
 function tokenizeCellElements(rowStr) {
     const elements = [];
@@ -415,7 +488,11 @@ function tokenizeCellElements(rowStr) {
             if (nested === null) {
                 return null;
             }
-            elements.push(nested.value);
+            // Same reason as parseLiteral: a numeric array inside a cell is a double
+            // array, so no exact-integer token leaves parseCell. `type === 'double'` is
+            // the gate rather than the value's shape, because a string array's elements
+            // are strings too and {["12" "ab"]} must keep "12" as text.
+            elements.push(collapseExact(nested).value);
             i = end + 1;
         }
         else if (ch === '{') {
@@ -455,6 +532,15 @@ function parseLiteral(token) {
         return false;
     }
     const n = parseMatlabNumber(token);
+    // A CELL element's class comes from its own literal, and a bare decimal literal is a
+    // double in MATLAB — {18446744073709551615} holds a double, not a uint64 — so the
+    // exact-integer token collapses here rather than being carried out of the parser.
+    // A cell element has no class beside it to consult later, and a bare string in one
+    // IS text (see the `return token` below), so a token that escaped would come back
+    // as the char '18446744073709551615'.
+    if (typeof n === 'string') {
+        return Number(n);
+    }
     if (n !== null) {
         return n;
     }
@@ -502,13 +588,17 @@ function parsedIsScalarNumeric(parsed) {
     if (!parsed) {
         return false;
     }
-    if (parsed.type === 'double') {
+    // 'logical' shares the double arm because it too carries either a scalar (`true`) or an
+    // array (`[true false true]`, defect 43). Testing only the type would have called a
+    // three-element logical array scalar-numeric, which is the one thing this predicate
+    // exists to refuse.
+    if (parsed.type === 'double' || parsed.type === 'logical') {
         if (Array.isArray(parsed.value)) {
             return parsed.value.length === 1;
         }
         return true;
     }
-    return parsed.type === 'logical' || parsed.type === 'complex';
+    return parsed.type === 'complex';
 }
 export { parsedIsScalarNumeric };
 export default {

@@ -79,6 +79,47 @@ function validateMatlabName(name: string): string | null {
   return null;
 }
 
+/**
+ * One field of MATLAB's saveobj envelope, replaced — the write MATLAB actually reads
+ * (defect 46; see `_mergeProps` for why the sibling property alone was not enough).
+ *
+ * The envelope is a parsed struct: `_fields` names its fields and `_elements` holds one
+ * property bag per element. A field is written only if the envelope ALREADY declares it,
+ * so an edit can never invent a field in a struct MATLAB's loadobj is about to destructure;
+ * an unknown name leaves the envelope untouched and the sibling stands alone, which is the
+ * old behaviour.
+ *
+ * Only a 1x1 envelope is written. A multi-element one is an object array, and a single
+ * property bag — which is all `_getSerializedProperties` returns — cannot say which element
+ * an edit belongs to. (A dictionary cannot hold an object array at all: MATLAB rejects it
+ * outright, as `truth.notes.slddRejected` records.)
+ *
+ * Copies rather than mutates: this runs inside serialization, and `serial._properties` is
+ * parse state shared with `_rawVal`. Writing through it would make serializing a model
+ * change the model.
+ */
+function writeIntoSaveobj(envelope: unknown, key: string, val: unknown): unknown {
+  if (!envelope || typeof envelope !== 'object') {
+    return envelope;
+  }
+  const env = envelope as Record<string, unknown>;
+  const fields = env._fields;
+  const elements = env._elements;
+  if (!Array.isArray(fields) || !fields.includes(key)) {
+    return envelope;
+  }
+  if (!Array.isArray(elements) || elements.length !== 1) {
+    return envelope;
+  }
+  const el = elements[0];
+  if (!el || typeof el !== 'object') {
+    return envelope;
+  }
+  return Object.assign({}, env, {
+    _elements: [Object.assign({}, el as Record<string, unknown>, { [key]: val })],
+  });
+}
+
 export interface SetPropertyResult {
   error: boolean;
   reason: string;
@@ -433,21 +474,38 @@ export default class DataNode extends BaseNode {
    * standing in for an empty 0x0 double it could not see.
    *
    * So under an envelope an EMPTY override is dropped: it is a default rather than an
-   * edit, and the envelope is already the authority on that property. A non-empty
-   * override is still written, because silently discarding a real edit is worse than
-   * writing a property MATLAB's loadobj may ignore.
+   * edit, and the envelope is already the authority on that property.
+   *
+   * A non-empty override goes to BOTH places, and the reason it is both is defect 46.
+   * The sibling used to be the only place it went, on the reasoning that silently
+   * discarding a real edit is worse than writing a property MATLAB's loadobj *may*
+   * ignore. The live gate settled the "may": MATLAB does ignore it. Editing a
+   * VariantVariable's Specification to 'myNewVar' in a binary dictionary produced a file
+   * MATLAB reopened with Specification '' — the edit was written, and written somewhere
+   * nothing reads. Our own reader agreed with us because it reads the sibling too, which
+   * is exactly the shape of failure this tier exists to catch: a value written wrongly
+   * and read back with the same wrong assumption looks fine from inside.
+   *
+   * So the value is now also written INTO the envelope, which is what MATLAB actually
+   * loads. The sibling is KEPT rather than replaced, because it is the only copy this
+   * package's own reader can see — decoding the envelope back into node properties is
+   * the other half of defect 40 and is not done here. Writing both keeps every consumer
+   * correct and is strictly additive over the old behaviour.
    */
   _mergeProps(propOverrides: Record<string, unknown>): Record<string, unknown> {
     const stored = Object.assign({}, this.serial._properties as Record<string, unknown>);
     if (!(SAVEOBJ_KEY in stored)) {
       return Object.assign(stored, propOverrides);
     }
+    let envelope = stored[SAVEOBJ_KEY];
     for (const [key, val] of Object.entries(propOverrides)) {
       if (val === '' || val === null || val === undefined) {
         continue;
       }
       stored[key] = val;
+      envelope = writeIntoSaveobj(envelope, key, val);
     }
+    stored[SAVEOBJ_KEY] = envelope;
     return stored;
   }
 

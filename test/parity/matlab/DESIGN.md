@@ -306,7 +306,16 @@ Each gets a failing test first, then the fix.
    families are affected: `readNumericArray` in `MatParser` and `parseFloat` via
    `parseMatlabNum` (`XmlUtils.ts:24`) for `.sldd`. Needs an exact
    representation (`BigInt` or the source decimal string) carried through
-   storage, display, and serialization.
+   storage, display, and serialization. **Fixed across four phases, one channel
+   at a time**, and it took that long because there are six paths, not one: the
+   two `.sldd` readers in Phase 8 (defects 29 and 30 — the second survived the
+   first, which is the lesson), the `.mat` reader in Task 10.2, and the EDIT path
+   in Phase 12 (defect 42), which no in-process round trip could see. The
+   representation is the **source decimal string**, not `BigInt`: it survives
+   `JSON.stringify`, it is what MATLAB itself writes, and it needs no arithmetic —
+   `XmlUtils.parseExactNum` hands back a number where a double is lossless and
+   canonical decimal text where it is not, so every path that was already correct
+   stayed on numbers.
 2. **`string` in `.mat` / `.slx` renders `<1x1 string>` with blank Data Type —
    wrong output.** Root cause is deeper than a missing class-table entry: a MAT
    `string` array is stored as an **opaque MCOS object**, not one of
@@ -314,6 +323,13 @@ Each gets a failing test first, then the fix.
    and reports 1x1 regardless of real size. A 1x2 string array displays
    identically to a scalar. The fix is MCOS `string` payload decoding in
    `McosParser`. Works correctly in `.sldd`, which is why this was not caught.
+   **Fixed in Phases 9 and 10.** The shape and the Data Type came first (Task 9.2,
+   defect 31), and the decoding did **not** stop at the probe: Task 9.3 reversed
+   the payload and reads the text itself (defect 33), with what could and could not
+   be determined written up in `STRING_MCOS.md`. What moved to Known limitations is
+   narrower than "strings" — a `string` **nested inside a struct field or a cell**
+   in a `.mat`, which is a nested-MCOS gap shared with every class rather than
+   anything about strings.
 3. **Summary form inconsistent, so italic is inconsistent.** `_formatCell`
    emits `{1x3 cell}` (braces, `MatlabVariableNode.ts:508`) and the opaque array
    path emits `[1x2 MyClass]` (square brackets, `:435`). Neither renders italic.
@@ -369,7 +385,14 @@ MATLAB's own `ind2sub` labels and values.
    in *both* `.sldd` formats (`s2(1,2)` shows 21, MATLAB says 12). Vectors are
    correct, because there the two orders coincide — which is exactly why every
    existing fixture (all N x 1) missed it. One shared subscript helper, fed
-   column-major, fixes both call sites.
+   column-major, fixes both call sites. Fixed in Phase 3, together with defect 8:
+   `src/datamodel/display/Subscript.ts` owns `ind2sub`, the row-major to
+   column-major remap and `subscriptLabel`, and the three call sites pass their
+   bracket style and their element order rather than each deriving both. Defect 14
+   is the correction this fix earned — the order is uniform by **kind**, not by
+   rank — and `test/cellElementOrder.test.ts` pins the pairing against MATLAB's own
+   `linearSubs`/`linearValues` in all four formats, with a numeric control so a
+   future "make everything column-major" cannot pass either.
 
 7. **N-D arrays display only their first page.** `formatMatrix`
    (`MatlabVariableNode.ts:173`) loops `rows x cols`. A 2x3x2 double shows
@@ -401,7 +424,8 @@ MATLAB's own `ind2sub` labels and values.
    `s(2,6)`. MATLAB's are `A(1,1,1)` … `A(2,3,2)`. One shared helper emitting a
    full subscript tuple, parameterized by bracket style, replaces all three.
    Fixing only the object/struct pair leaves the numeric path — the common one —
-   broken.
+   broken. Fixed in Phase 3 by the same `Subscript.ts` as defect 6; all three
+   copies are gone, so a rank the helper learns is a rank every label knows.
 
    Rank 2 is correct on the **numeric** path only: `Kp` labels `Kp(1,1)` …
    `Kp(2,3)` and its element list really is row-major, so labels and data agree.
@@ -431,7 +455,8 @@ MATLAB's own `ind2sub` labels and values.
     including a 1x3: `s1` displays `<1x3 struct>` correctly but the tree holds a
     single `a` child, so 2 of 3 elements are simply absent. A 2x3 shows 1 of 6.
     The `.sldd` paths expand all elements (transposed — defect 6), so this is
-    `.mat`-specific and is tree-level data loss, not a display issue.
+    `.mat`-specific and is tree-level data loss, not a display issue. Fixed in
+    Phase 4.
 
 11. **`_type: 'cdata'` is assumed to be complex double; R2027a also uses it as
     a uuencoded MAT-byte escape.** `parseCdata` (`MatlabVariableNode.ts:1793`)
@@ -446,7 +471,11 @@ MATLAB's own `ind2sub` labels and values.
     preserves the `cdata` entry byte-identically, so this is display/model
     corruption, **not** save-back data loss. Needs the payload sniffed and
     either decoded as a MAT stream or reported as unsupported — silently
-    rendering it as complex is the defect.
+    rendering it as complex is the defect. Fixed in Phase 5: the payload is
+    sniffed and the MAT stream decoded, so the rank-3 double, cell and struct
+    array each read as themselves instead of as six garbage complex numbers.
+    Silently rendering it as complex was the worst available outcome — the value
+    looked plausible — which is why the sniff, not a widened decoder, is the fix.
 
 12. **`.sldd` flattens rank >= 3 on read, and cannot spell it on write.**
     `parseDims` (`BinarySlddParser.ts:52-62`) explicitly folds any rank >= 3 into
@@ -1535,6 +1564,157 @@ Adding `bank` and `breakpointsSpecification` inside each class's `General` group
 one), so that the first thing a user sees is the same five things for every class. A new
 property goes in a group AFTER General — here a `Value Properties` group in each class
 JSON — and the test that says so is doing its job.
+
+## Defects found by asking MATLAB to reopen an edit
+
+Phase 12 adds the one tier that can prove a write is *correct*. Every other tier reads a
+file MATLAB authored; `writeback.live.test.ts` edits a value, serializes, and asks MATLAB
+to reopen the result and report the value, its `size()` and its `class()`. The asymmetry
+is the point: a value we write wrongly and then read back with the same wrong assumption
+looks fine from inside, and four of the five defects below were invisible to every
+in-process round trip in this repo.
+
+Defect 46 came from the older `test/parity/fidelity/*` live assertions rather than from the
+new file — they had existed for phases without ever being run against MATLAB, because the
+gate skips when `DEX_MATLAB_CMD` is unset and CI never sets it. Running the whole suite with
+MATLAB configured is therefore its own act, and belongs in the Phase 12 checklist beside the
+new tier: `env DEX_MATLAB_CMD="..." npm test`. The same run surfaced two test-level faults
+worth recording so they are not rediscovered as defects:
+
+- `fidelitySmoke.test.ts` had no explicit timeout, so with MATLAB configured it reported
+  vitest's 5s default as a failure instead of a verdict. Every live `it` needs its own
+  timeout; there is no global one.
+- `variable.fidelity.test.ts`'s `i16Scalar` case asserted `__class__: 'double'`, carrying a
+  note that the editor could not preserve an integer class. `classAfterEdit` had lifted that
+  limitation, and `MatlabVariable.md` documents the replacement rule — an int16 entry edited
+  to `500` stays int16, matching MATLAB's own `v(:) = 500`. The stale expectation sat green
+  in CI because the assertion it contradicted only runs with MATLAB. Triaged as category 2
+  (the expectation mis-stated the convention) and corrected to `int16`.
+
+42. **The 64-bit integer WRITE path rounded, so typing back the digits a cell was
+    already showing stored a different number.** Defects 29/30 and Task 10.2 fixed the
+    four *readers* — an integer no double can hold is carried as its own decimal text
+    from the file to the display — and the write path never went through that machinery.
+    A committed cell re-enters the model through `MatlabValueParser`, whose
+    `Number(str)` put every literal back through a double:
+
+    | entry | typed | stored |
+    |---|---|---|
+    | `maxU64` | `18446744073709551615` | `18446744073709552000U` |
+    | `i64Unsafe` | `9007199254740993` | `9007199254740992` |
+    | `u64Vec` | `[18446744073709551615 2 3]` | `[18446744073709552000U, 2U, 3U]` |
+
+    And `18446744073709552000` is not merely rounded, it is **out of uint64 range** —
+    MATLAB's reader abandons the rest of a body when it hits one, so `u64Vec`'s
+    perfectly representable neighbours were destroyed by their neighbour's overflow.
+
+    Fixed by routing `parseMatlabNumber` through the existing `XmlUtils.parseExactNum`
+    *after* the strict literal gate, so the accept set cannot have widened, and by
+    making the narrowing **class-aware**. That second half is the whole subtlety: the
+    parser is class-BLIND (a bare `7` is always `'double'`), and only `int64`/`uint64`
+    can carry an exact token. Under any other class the double IS the value, and MATLAB
+    agrees — a bare decimal literal is a double in MATLAB, so `x = 18446744073709551615`
+    stores the nearest double there too. Keeping the text under a double class would
+    write a JSON **string** that reads back as the CHAR `'18446744073709551615'`. Hence
+    `XmlUtils.exactForClass` on the entry path (whose class the node knows) and
+    `MatlabValueParser.collapseExact` for the two class-blind consumers — a cell
+    element, whose class comes from its own literal, and a `Simulink.Parameter.Value`,
+    which has no class beside it to consult.
+
+43. **`[true false true]` — MATLAB's own spelling of a logical array — was refused as an
+    invalid expression, and the only accepted spelling silently retyped the entry.**
+    `mat2str` prints a logical array that way and the corpus's `boolVec` cell displays
+    exactly that, so a user who committed the text they were being shown got "Invalid
+    MATLAB expression". The one literal that *was* accepted, `[1 0 1]`, changed the
+    entry's class from logical to double and wrote a bare JSON array. This is the same
+    invariant defects 25 and 42 broke: **a value's own displayed text must be acceptable
+    input.**
+
+    Fixed in `tokenizeNumbers`, which now takes `true`/`false` as elements and reports
+    whether *every* element was one. Our behaviour now matches MATLAB in both spellings
+    and in the mixed case, which is the part that makes the rule non-obvious:
+
+    | literal | MATLAB | us |
+    |---|---|---|
+    | `[true false true]` | logical | logical |
+    | `[1 0 1]` | double | double |
+    | `[true 1 false]` | double (one numeric element promotes the lot) | double |
+
+    `classAfterEdit` is deliberately *not* consulted on the logical arm — it exists to
+    let a class the parser cannot see survive a bare numeric edit, and here the literal
+    states the class itself. It also still excludes `'logical'` for the numeric arm,
+    because keeping logical there would render a typed `7` as `true`, which MATLAB
+    rejects.
+
+44. **The binary `.sldd` reader dropped a logical array's shape and its element order,
+    at every rank.** All three sites that decode a `Class="logical" Dimension="..."`
+    body — entry value, cell element, object/struct property — split the body and joined
+    it straight back into a flat list, so the logical class alone skipped BOTH halves of
+    what the numeric branch beside it has always done. A 2x2 came back a 1x4 *with its
+    four values in column-major order*, a 3x1 came back a 1x3, and an N-D came back
+    flat. The json channel was correct the whole time, which is how the gap survived: it
+    is the same class of split that let defect 30 outlive the fix for 29.
+
+    This one was **only reachable once 43 was fixed** — before it no logical matrix
+    could be typed at all — and there is no logical matrix in the MATLAB corpus to have
+    caught it on read. `binarySlddValues.test.ts` had pinned the flat spelling with the
+    note *"pinned so a later change to the logical spelling is a deliberate one"*; this
+    is that change. Fixed by one `logicalValue` helper at all three sites, mirroring the
+    numeric branch exactly: transpose out of column-major, bare bracketed list for a
+    rank-2 row, `Matrix(r,c,...)` for anything else.
+
+45. **A `Simulink.Parameter`'s logical Value lost both its class and its shape.**
+    `ParameterNode.setProperty` had an arm for a double array and none for a logical
+    one, so a logical array fell through to the scalar tail and was stored as the
+    parser's bare JS list: `p.Value = [true false; false true]` was written
+    `"Value": [1, 0, 0, 1]` and reopened in MATLAB as a **1x4 double**. Found by asking
+    the same question of the other write path once 43 made the literal typeable. Fixed
+    with a logical arm that goes through the shared `formatMatrixSerial`, which already
+    spells a row bare and a column or matrix with a `Matrix(r,c)` header; `[true]`
+    collapses to a bare `true`, so both spellings of the same 1x1 land on the same
+    bytes.
+
+46. **An edit under a `saveobj` envelope was written only where nothing reads it.**
+    The other half of defect 28. A class that serializes through `saveobj` has its whole
+    state inside one unnamed `<P Source="saveobj">`, and its individual properties are
+    NOT siblings of that envelope. Defect 28 fixed the envelope's *survival*; an edit
+    still never reached it. `DataNode._mergeProps` wrote a non-empty override as a
+    sibling `<P>` only, on the stated reasoning that discarding a real edit is worse than
+    writing a property MATLAB's loadobj *may* ignore. MATLAB settled the "may": it does
+    ignore it. Editing `aVariant`'s `Specification` to `'myNewVar'` in a **binary**
+    dictionary produced a file MATLAB reopened with `Specification` `''` — the edit was
+    written, and written somewhere nothing loads.
+
+    Invisible from inside for the sharpest possible reason: our own reader reads the
+    sibling too. `fresh.Specification` was `'myNewVar'`, the in-process round trip agreed
+    with itself, and the two disagreed only about the file. The json channel has no
+    envelope, so it was correct throughout — the writer-split again.
+
+    Fixed by also writing the value INTO the envelope, via a `writeIntoSaveobj` helper
+    that only touches a field the envelope **already declares** (an edit must not invent
+    a field in a struct `loadobj` is about to destructure), only a 1x1 envelope (a single
+    property bag cannot say which element of an object array an edit belongs to, and a
+    dictionary cannot hold one anyway), and only on a copy (this runs during
+    serialization, and the envelope is parse state shared with `_rawVal` — writing
+    through it would make serializing a model change the model).
+
+    The sibling is **kept** rather than replaced: nothing in this package decodes an
+    envelope back into a node property, so dropping it would make our own round trip
+    lose the edit MATLAB now keeps. Writing both leaves every consumer correct and is
+    strictly additive over the old behaviour. Decoding the envelope — which would make
+    the sibling unnecessary, and would also fix the VariantVariable choices that display
+    in no format — is the remaining half of defect 40 and is not done here.
+
+    An EMPTY override is still dropped, unchanged: read through a sibling that is not
+    there, `Specification` is `''` — a default, not a value — and writing it back would
+    replace MATLAB's own empty 0x0 double with an empty char.
+
+**Why 44, 45 and 46 are numbered separately from 43 and 28.** They are different code
+paths that each would have shipped a file MATLAB reads differently. 44 and 45 became
+reachable at once when 43 opened an input gate; 46 was reachable all along and simply
+unasked. Keeping them apart records both lessons: fixing an *input* gate opens output
+paths that were never exercised, and a live assertion that never runs is not a gate. It
+is also why the live tier's failures are triaged as defects rather than as test problems.
 
 ## Known limitations, to verify and document
 

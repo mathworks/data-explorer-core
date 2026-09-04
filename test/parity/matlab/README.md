@@ -53,7 +53,8 @@ MATLAB changed its own answer — that is a finding, not a test to fix.
 | `gen_truth.m` | the only entry point for the corpus: one case catalog, every format emitted from it |
 | `probe_*.m`, `probe_writeback*.mjs` | one-question probes — see the table below. None of them writes to `artifacts/` |
 | `wbcompare.m` | the comparison both write-back gates share: `fullsig`, which walks a value to every leaf spelling class, size, complexity and exact value |
-| `DESIGN.md` | the display convention, the coverage matrix, and the 30 defects this suite exists to pin |
+| `DESIGN.md` | the display convention, the coverage matrix, and the numbered defects this suite exists to pin |
+| `drift.mjs` | regenerate the corpus into a temp directory and diff `truth.json` against what is committed — the check for MATLAB-release drift |
 | `STRING_MCOS.md` | how MATLAB stores a `string` in a `.mat`: the metadata segment the parser skipped, the packed `uint64` payload, and what could not be determined |
 | `../artifacts/truth.json` | the expectations, for every format at once |
 | `../artifacts/meta.json` | `version` and `release` of the MATLAB that wrote the corpus |
@@ -167,8 +168,15 @@ as `vars` and `objArr`:
 
 **Every array case is 2x3, never 2x2, and has a 2x3x2 sibling.** A square fixture
 cannot distinguish row-major from column-major and a rank-2 fixture cannot expose
-page handling; between them those two gaps hid six of the thirteen defects in
-`DESIGN.md`.
+page handling; between them those two gaps hid six of the defects recorded in
+`DESIGN.md` — a count deliberately left un-tallied here, because it only ever
+grows and a stale number reads as a claim.
+
+The one place a square fixture is used on purpose is the live write-back gate,
+where the logical matrix is `[true true; false false]`: 2x2, so the *shape* alone
+cannot catch a transpose, but its element order can — column-major it is
+`1 0 1 0`, transposed `1 1 0 0`. That is how defect 44 was distinguished from a
+shape-only bug.
 
 Per entry, `truth.json` records `class`, `size`, `numel`, `iscomplex`,
 `islogical`, `isobject`, `isempty`, MATLAB's own `disp`
@@ -230,9 +238,44 @@ summary, a threshold), storage must not be, and only a storage-level assertion
 catches a value written back in its truncated display form.
 
 **Tier 2 — live MATLAB, dev-only, never in CI.** `writeback.live.test.ts` (edit
--> serialize -> MATLAB reopens -> assert value and class, for both `.sldd`
-formats) and `drift.mjs`. A fixture cannot stand in for these: proving MATLAB
-reads what *we* wrote requires MATLAB.
+-> serialize -> MATLAB reopens -> assert value, `size()` and `class()`, for both
+`.sldd` formats), `drift.mjs`, and the older per-node assertions in
+`test/parity/fidelity/*` and `test/fidelitySmoke.test.ts`. A fixture cannot stand
+in for any of them: proving MATLAB reads what *we* wrote requires MATLAB.
+
+It is the only tier that can prove a write is *correct*, and the asymmetry is the
+point — a value written wrongly and then read back with the same wrong assumption
+looks fine from inside. Five defects were found this way and could not have been
+found any other way (42-46 in `DESIGN.md`): the 64-bit write path rounding, the
+logical-array literal MATLAB itself prints being refused as invalid input, the two
+output paths that only became reachable once that literal was accepted, and an edit
+under a `saveobj` envelope written only to a sibling property MATLAB's `loadobj`
+ignores. In `writeback.live.test.ts` there is one case per thing a *write* can get
+wrong rather than one per data type — the exact 64-bit integers, shape, element
+order, the non-finites, char, and logical — and each carries its own `why` string,
+which is what the test name reports.
+
+**Run the whole suite with MATLAB configured, not just the new file.** Defect 46
+came from a `test/parity/fidelity` assertion that had existed for phases without
+ever executing, because the gate skips when `DEX_MATLAB_CMD` is unset and CI never
+sets it. A live assertion that never runs is not a gate. The same first run also
+turned up two test-level faults — a live `it` with no explicit timeout, reporting
+the 5s default instead of a verdict, and an expectation still asserting a
+limitation the code had since fixed. Both are recorded in `DESIGN.md` beside 46 so
+they are not rediscovered as defects.
+
+**A `RESULT FAIL` here is the highest-value failure this project can produce: it
+means we write something MATLAB reads differently.** Triage it as a defect, not as
+a test problem.
+
+Every live `it` needs its own explicit timeout — there is no global one, and the 5s
+default reports a timeout instead of whatever MATLAB was about to say.
+`writeback.live.test.ts` uses `120_000` and the older suites `60_000`: a launch is
+~21s in the steady state, but the FIRST of a session took over 65s because a cold
+start pays the licence checkout and MATLAB's startup on top of the work, and that
+file makes two dozen launches where the others make one or two. So a timeout on the
+first case only is a cold start, not a defect. Expect `writeback.live` to take 8-10
+minutes and a full MATLAB-configured `npm test` around 10.
 
 Tier 2 is gated on `DEX_MATLAB_CMD` — launcher plus fixed args, e.g.
 `mw -using Bmain matlab` — with optional `DEX_MATLAB_CWD`, exactly the convention
@@ -276,6 +319,7 @@ in `expect.ts` takes `truth.json` fields — class, size, complexity, `mat2str`,
 
 ---
 
-Tier 1's four suites, `loadTruth.ts`, `expect.ts`, `writeback.live.test.ts` and
-`drift.mjs` land in Phases 11 and 12 of `PLAN.md`; until then the corpus is
-exercised only by `test/parity/loadFile.test.ts`.
+Tier 1's four suites, `loadTruth.ts` and `expect.ts` landed in Phase 11 of
+`PLAN.md`; `writeback.live.test.ts` and `drift.mjs` in Phase 12. The corpus is
+also still read by `test/parity/loadFile.test.ts`, which is what proves the
+format sniffing every tier-1 suite relies on.
