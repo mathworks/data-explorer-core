@@ -15,7 +15,7 @@ import { ingest } from '../core/ingest.js';
 import type { Session } from '../core/DataModel.js';
 import type { ISourceNode } from '../core/NodeInterfaces.js';
 
-const SUPPORTED = new Set(['.sldd', '.slx', '.mat', '.prj']);
+const SUPPORTED = new Set(['.sldd', '.slx', '.mdl', '.mat', '.prj']);
 
 // Re-export createSession so Node consumers can import everything from one place.
 export const createSession = _createSession;

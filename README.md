@@ -1,8 +1,8 @@
 # data-explorer-core
 
 Core data model for Data Explorer: the parser, data model, and node schema for
-Simulink data-dictionary (`.sldd`), model (`.slx`), MAT-file (`.mat`), and
-project (`.prj`) files.
+Simulink data-dictionary (`.sldd`), model (`.slx`, `.mdl`), MAT-file (`.mat`),
+and project (`.prj`) files.
 
 Presentation-independent and embeddable in-process. Used by the Simulink Data
 Explorer VS Code extension, and shared across other Data Explorer front-ends.
@@ -27,9 +27,14 @@ session.undo();
 
 Each `createSession()` returns an independent instance with its own data
 sources, node index, undo stacks, and event bus, so multiple sessions never
-share state. Stateless parsers (`parseSlx`, `parseMat`, `parseProject`,
-`parseBinarySldd`) are also exported for consumers that only need to parse a
-buffer.
+share state. Stateless parsers (`parseSlx`, `parseMdl`, `parseModel`, `parseMat`,
+`parseProject`, `parseBinarySldd`) are also exported for consumers that only need
+to parse a buffer.
+
+Both model containers open to the same tree. A `.slx` is a zip of parts; a `.mdl`
+is either the modern OPC *text* package carrying that same part set, or the
+pre-R2012 nested-brace text that a model which was never migrated still has.
+`parseModel` takes either one and picks the reader from the bytes.
 
 ### Universal ingest
 
@@ -56,7 +61,7 @@ the package that touches `fs`; fenced out of browser bundles by `exports`):
 import { createSession, loadFromPath, loadDirectory } from 'data-explorer-core/node';
 const s = createSession();
 loadFromPath(s, 'params.sldd');
-loadDirectory(s, 'some_dir/');   // all .sldd/.slx/.mat/.prj into one session
+loadDirectory(s, 'some_dir/');   // all .sldd/.slx/.mdl/.mat/.prj into one session
 ```
 
 ## License

@@ -6,7 +6,7 @@ import SlddNode from '../datamodel/node/container/SlddNode.js';
 import ModelNode from '../datamodel/node/container/ModelNode.js';
 import MatNode from '../datamodel/node/container/MatNode.js';
 import ProjectNode from '../datamodel/node/container/ProjectNode.js';
-import { parseSlx } from '../datamodel/parser/SlxParser.js';
+import { parseModel } from '../datamodel/parser/ModelParser.js';
 import type { ParsedSlx } from '../datamodel/parser/SlxParser.js';
 import { parseMat } from '../datamodel/parser/MatParser.js';
 import type { ParsedMat } from '../datamodel/parser/MatParser.js';
@@ -157,7 +157,8 @@ function addParsedSource(srcId: string, slddNode: ISourceNode, meta?: Partial<So
 }
 
 function addModelSource(srcId: string, buffer: ArrayBuffer, meta?: Partial<SourceMeta>): ISourceNode {
-  const modelNode = ModelNode.fromParsed(parseSlx(buffer, srcId), srcId);
+  // `.slx` or `.mdl` — parseModel reads whichever these bytes are.
+  const modelNode = ModelNode.fromParsed(parseModel(buffer, srcId), srcId);
   return registerSource(srcId, modelNode as unknown as ISourceNode, meta);
 }
 

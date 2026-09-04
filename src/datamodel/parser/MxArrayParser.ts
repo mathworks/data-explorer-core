@@ -21,23 +21,29 @@ function ru32(buf: Uint8Array, offset: number): number {
 }
 
 /**
- * Parse an .mxarray buffer and extract workspace variables.
- * Returns an array of variable objects (same shape as MatParser's parseMatrix output).
- * Each variable may have _rawBytes for pass-through serialization.
- * The returned array also has a `_trailingElements` property containing any
- * additional data elements (MCOS metadata) that must be preserved on round-trip.
+ * The record framing of an mxarray stream: the one outer MI_MATRIX, plus whatever
+ * data elements follow it (MCOS metadata for opaque objects).
+ *
+ * Split out from `parseMxArray` because a `.slx` and a `.mdl` disagree on what the
+ * outer matrix CONTAINS while agreeing on the framing around it. In a `.slx`'s
+ * `simulink/modelWorkspace.mxarray` the outer matrix is a struct whose fields are
+ * the workspace variables; in a classic `.mdl`'s uuencoded `MatData` record it is
+ * a 1xN struct ARRAY of Name/Value pairs. Only the interpretation differs, so only
+ * that part lives in the callers — see MdlParser.
  */
-export function parseMxArray(buffer: ArrayBuffer): MatVariable[] & { _trailingElements: Uint8Array[] } {
+export function readMxArrayRecords(buffer: ArrayBufferLike): {
+    outer: ReturnType<typeof parseMatrix> | null;
+    trailingElements: Uint8Array[];
+} {
     const buf = new Uint8Array(buffer);
-    const result: MatVariable[] & { _trailingElements: Uint8Array[] } = [] as unknown as MatVariable[] & { _trailingElements: Uint8Array[] };
-    result._trailingElements = [];
+    const trailingElements: Uint8Array[] = [];
 
-    if (buf.length < 16) { return result; }
+    if (buf.length < 16) { return { outer: null, trailingElements }; }
 
     // Verify magic: 00 01 49 4D
     if (buf[0] !== MXARRAY_MAGIC[0] || buf[1] !== MXARRAY_MAGIC[1] ||
         buf[2] !== MXARRAY_MAGIC[2] || buf[3] !== MXARRAY_MAGIC[3]) {
-        return result;
+        return { outer: null, trailingElements };
     }
 
     // First record starts at offset 8: outer MI_MATRIX containing all variables.
@@ -45,19 +51,10 @@ export function parseMxArray(buffer: ArrayBuffer): MatVariable[] & { _trailingEl
     // file would otherwise send parseMatrix reading past the end of the buffer.
     const outerTag = ru32(buf, 8);
     const outerSize = Math.min(ru32(buf, 12), buf.length - 16);
-    if (outerTag !== MI_MATRIX || outerSize <= 0) { return result; }
+    if (outerTag !== MI_MATRIX || outerSize <= 0) { return { outer: null, trailingElements }; }
 
     const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-
-    // Parse the outer struct — it's a struct whose fields are the workspace variables
     const outer = parseMatrix(view, 16, outerSize);
-    if (!outer || !outer.fields) { return result; }
-
-    for (const [name, fieldVar] of Object.entries(outer.fields)) {
-        const variable = (Array.isArray(fieldVar) ? fieldVar[0] : fieldVar) as MatVariable;
-        variable.name = name;
-        result.push(variable);
-    }
 
     // Capture any trailing elements (MCOS metadata for opaque objects). `size` is
     // self-declared, so a truncated file can name more bytes than remain — taking
@@ -72,9 +69,32 @@ export function parseMxArray(buffer: ArrayBuffer): MatVariable[] & { _trailingEl
         if (tag === 0 && size === 0) { break; }
         const available = buf.length - offset;
         const take = Math.min(8 + size, available);
-        result._trailingElements.push(new Uint8Array(buf.buffer, buf.byteOffset + offset, take));
+        trailingElements.push(new Uint8Array(buf.buffer, buf.byteOffset + offset, take));
         if (take < 8 + size) { break; }
         offset += 8 + size;
+    }
+
+    return { outer, trailingElements };
+}
+
+/**
+ * Parse an .mxarray buffer and extract workspace variables.
+ * Returns an array of variable objects (same shape as MatParser's parseMatrix output).
+ * Each variable may have _rawBytes for pass-through serialization.
+ * The returned array also has a `_trailingElements` property containing any
+ * additional data elements (MCOS metadata) that must be preserved on round-trip.
+ */
+export function parseMxArray(buffer: ArrayBufferLike): MatVariable[] & { _trailingElements: Uint8Array[] } {
+    const result: MatVariable[] & { _trailingElements: Uint8Array[] } = [] as unknown as MatVariable[] & { _trailingElements: Uint8Array[] };
+    const { outer, trailingElements } = readMxArrayRecords(buffer);
+    result._trailingElements = trailingElements;
+
+    if (!outer || !outer.fields) { return result; }
+
+    for (const [name, fieldVar] of Object.entries(outer.fields)) {
+        const variable = (Array.isArray(fieldVar) ? fieldVar[0] : fieldVar) as MatVariable;
+        variable.name = name;
+        result.push(variable);
     }
 
     return result;

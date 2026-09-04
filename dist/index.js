@@ -17,6 +17,10 @@ export { createUndoManager } from './core/UndoManager.js';
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
 export { serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';
+export { parseMdl } from './datamodel/parser/MdlParser.js';
+// The format-agnostic reader: `.slx` or either flavour of `.mdl`, decided by the
+// bytes. Prefer it over parseSlx/parseMdl unless the format is already known.
+export { parseModel } from './datamodel/parser/ModelParser.js';
 export { parseMat } from './datamodel/parser/MatParser.js';
 export { parseProject } from './datamodel/parser/ProjectParser.js';
 // Universal ingest (sniff + dispatch) — superset entry over addXSource.

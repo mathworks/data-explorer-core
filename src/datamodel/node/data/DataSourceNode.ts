@@ -22,7 +22,9 @@ export default class DataSourceNode extends BaseNode {
 
     get icon(): string {
         if (this.name.endsWith('.sldd')) { return 'simulinkDataDictionary_FT'; }
-        if (this.name.endsWith('.slx')) { return 'simulinkModel_FT'; }
+        // A `.mdl` is a Simulink model too — the same thing in an older container —
+        // so it gets the model icon rather than falling through to the MAT default.
+        if (this.name.endsWith('.slx') || this.name.endsWith('.mdl')) { return 'simulinkModel_FT'; }
         return 'matlabWorkspaceFile';
     }
 
@@ -36,7 +38,7 @@ export default class DataSourceNode extends BaseNode {
 
     get className(): string {
         if (this.name.endsWith('.sldd')) { return 'Data Dictionary'; }
-        if (this.name.endsWith('.slx')) { return 'Simulink Model'; }
+        if (this.name.endsWith('.slx') || this.name.endsWith('.mdl')) { return 'Simulink Model'; }
         return 'MAT File';
     }
 

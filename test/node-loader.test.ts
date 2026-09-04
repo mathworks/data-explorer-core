@@ -92,9 +92,12 @@ describe('node loader', () => {
     expect(errors.join('\n')).not.toContain('notes.txt');
   });
 
-  it('loadDirectory takes only the four supported extensions, case-insensitively', () => {
+  it('loadDirectory takes only the supported extensions, case-insensitively', () => {
     const dir = mkdtempSync(join(tmpdir(), 'dex-exts-'));
     copyFileSync(fixturesDir + 'object_array_text.sldd', join(dir, 'upper.SLDD'));
+    // `.mdl` is in the set too — a legacy model in a folder of models is exactly the
+    // case a directory scan exists for.
+    writeFileSync(join(dir, 'legacy.MDL'), 'Model {\n  Name                    "legacy"\n}\n');
     writeFileSync(join(dir, 'readme.md'), '# ignored');
     writeFileSync(join(dir, 'noext'), 'ignored');
 
@@ -105,7 +108,7 @@ describe('node loader', () => {
     const loaded = loadDirectory(createSession(), dir);
     spy.mockRestore();
 
-    expect(loaded.map((n) => n.name)).toEqual(['upper.SLDD']);
+    expect(loaded.map((n) => n.name)).toEqual(['legacy.MDL', 'upper.SLDD']);
     expect(errors).toEqual([]);
   });
 });

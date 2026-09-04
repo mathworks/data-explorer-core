@@ -16,6 +16,7 @@
     "simulink",
     "sldd",
     "slx",
+    "mdl",
     "mat-file",
     "data-dictionary",
     "parser",
