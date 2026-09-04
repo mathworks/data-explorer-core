@@ -1724,7 +1724,15 @@ is also why the live tier's failures are triaged as defects rather than as test 
   recoverable — so it is treated as an unknown class and takes the general
   expansion path. The suite verifies this degrades gracefully: no crash, no data
   loss, every property visible, values correct. It does not attempt a heuristic.
-- **`.mat` / `.slx` / `.prj` are read-only.** No write-back verification.
+- **`.mat` / `.slx` / `.mdl` / `.prj` are read-only.** No write-back verification.
+- **A classic (pre-R2012) `.mdl` cannot answer four questions a `.slx` can.** It records
+  no release and no UUID, so both come back `''`; its `lastModified` is MATLAB's
+  `Fri Sep 04 10:15:29 2026` spelling rather than ISO 8601; and there is no zip, so
+  `rawContents` and `zipEntries` are `null`. A fifth is MATLAB's own limit rather than the
+  format's: exporting to R2011b **drops the linked data dictionary**, so the block row that
+  links into it is a plain string there and a link target in every other flavour (R2017b
+  keeps it). All five are asserted in `mdl.parity.test.ts` rather than assumed — an
+  unasserted divergence is indistinguishable from a parse bug.
 - **An MCOS object NESTED in a struct field or a cell element shows a summary, not its
   contents.** `test/fixtures/strings_nested.mat` (MATLAB-authored, `probe_string.m`) has a
   struct with a `Simulink.Parameter` field and a string field, and a cell holding both:
@@ -1750,7 +1758,8 @@ is also why the live tier's failures are triaged as defects rather than as test 
   the raw bags, because MATLAB does not call `Choices` a property and parity therefore
   passes.
 - **Truth can go stale** against a future MATLAB release. `drift.mjs` is the
-  mitigation; it is a developer action, not a CI gate.
+  mitigation (both corpora: `truth.json` and `mdl_truth.json`); it is a developer
+  action, not a CI gate.
 
 ## Risks
 

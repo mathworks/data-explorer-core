@@ -24,6 +24,16 @@ export function loadFile(rel: string, filename?: string): any {
   return ingest(createSession(), bytesOf(rel), { filename: name }) as any;
 }
 
+/**
+ * Ingest bytes that no file on disk holds, under a name that carries the extension
+ * to dispatch on. For a VARIANT built out of an artifact — a container assembled
+ * around a real part, say — which is still an artifact-derived test and still has to
+ * go in through `ingest` rather than a parser.
+ */
+export function loadBytes(buffer: ArrayBuffer, filename: string): any {
+  return ingest(createSession(), buffer, { filename }) as any;
+}
+
 /** Every node under `root`, breadth-first. */
 export function flatten(root: any): any[] {
   const out: any[] = [];

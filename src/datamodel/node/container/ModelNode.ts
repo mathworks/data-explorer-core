@@ -201,8 +201,9 @@ export default class ModelNode extends ContainerNode {
 
     // Populate model references section
     const refSection = node.getSection('references')!;
+    const refExt = /\.mdl$/i.test(filename) ? '.mdl' : '.slx';
     for (const ref of parsed.modelReferences) {
-      refSection.addReferenceEntry(ref);
+      refSection.addReferenceEntry(ref, refExt);
     }
 
     // Populate external data sources section

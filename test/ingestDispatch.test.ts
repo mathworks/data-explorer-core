@@ -114,6 +114,16 @@ describe('ingest — other formats', () => {
     ingest(s, fixtureBytes('model_with_refs.slx'), { filename: 'model_with_refs.slx' });
     expect(s.hasDataSource('model_with_refs.slx')).toBe(true);
   });
+
+  it('routes .mdl bytes to the same model source adder', () => {
+    // A `.mdl` is a Simulink model like a `.slx` is; only the container differs, and
+    // WHICH container is decided on the bytes further in (see MdlParser). The classic
+    // nested-brace flavour is used here because it is the one that shares no framing
+    // at all with a `.slx`, so it proves the dispatch is not zip-shaped.
+    const s = createSession();
+    ingest(s, strToU8('Model {\n  Name                    "legacy"\n}\n'), { filename: 'legacy.mdl' });
+    expect(s.hasDataSource('legacy.mdl')).toBe(true);
+  });
 });
 
 describe('ingest — rejections', () => {
@@ -121,6 +131,10 @@ describe('ingest — rejections', () => {
     const s = createSession();
     expect(() => ingest(s, DESIGN_JSON, { filename: 'notes.txt' }))
       .toThrow(/unsupported extension "\.txt"/);
+    // The list in the message is what a host shows the user, so it has to name every
+    // extension that is actually accepted.
+    expect(() => ingest(s, DESIGN_JSON, { filename: 'notes.txt' }))
+      .toThrow(/expected \.sldd\/\.slx\/\.mdl\/\.mat\/\.prj/);
   });
 
   it('rejects a filename with no extension', () => {
@@ -132,6 +146,10 @@ describe('ingest — rejections', () => {
   it('rejects non-binary content for a binary-only format', () => {
     const s = createSession();
     expect(() => ingest(s, DESIGN_JSON, { filename: 'model.slx' }))
+      .toThrow(/requires binary content/);
+    // A classic `.mdl` is text, but it still arrives as BYTES: the parser sniffs the
+    // container itself, and a caller handing over a decoded string has skipped that.
+    expect(() => ingest(s, DESIGN_JSON, { filename: 'model.mdl' }))
       .toThrow(/requires binary content/);
     expect(() => ingest(s, DESIGN_JSON, { filename: 'data.mat' }))
       .toThrow(/requires binary content/);

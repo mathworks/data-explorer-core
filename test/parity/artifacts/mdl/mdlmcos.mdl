@@ -1,0 +1,389 @@
+# MathWorks OPC Text Package
+Model {
+  Version  27.1
+  Description "Simulink model saved in R2027a"
+}
+__MWOPC_PACKAGE_BEGIN__ R2027a
+__MWOPC_PART_BEGIN__ /[Content_Types].xml
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default ContentType="application/vnd.mathworks.simulink.configSetInfo+json" Extension="json"/>
+  <Default ContentType="application/vnd.mathworks.matlab.mxarray+binary" Extension="mxarray"/>
+  <Default ContentType="application/vnd.openxmlformats-package.relationships+xml" Extension="rels"/>
+  <Default ContentType="application/vnd.mathworks.simulink.mf0+xml" Extension="xml"/>
+  <Override ContentType="application/vnd.openxmlformats-package.core-properties+xml" PartName="/metadata/coreProperties.xml"/>
+  <Override ContentType="application/vnd.mathworks.package.coreProperties+xml" PartName="/metadata/mwcoreProperties.xml"/>
+  <Override ContentType="application/vnd.mathworks.package.corePropertiesExtension+xml" PartName="/metadata/mwcorePropertiesExtension.xml"/>
+  <Override ContentType="application/vnd.mathworks.package.corePropertiesReleaseInfo+xml" PartName="/metadata/mwcorePropertiesReleaseInfo.xml"/>
+  <Override ContentType="application/vnd.mathworks.simulink.mdl+json" PartName="/simulink/blockDiagram.json"/>
+  <Override ContentType="application/vnd.mathworks.simulink.configSet+json" PartName="/simulink/configSet0.json"/>
+  <Override ContentType="application/vnd.mathworks.simulink.graphicalInterface+json" PartName="/simulink/graphicalInterface.json"/>
+  <Override ContentType="application/vnd.mathworks.simulink.hdlparams+xml" PartName="/simulink/hdlParams.xml"/>
+  <Override ContentType="application/vnd.mathworks.simulink.mdl+xml" PartName="/simulink/systems/system_root.xml"/>
+</Types>
+
+__MWOPC_PART_BEGIN__ /_rels/.rels
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="blockDiagram" Target="simulink/blockDiagram.json" Type="http://schemas.mathworks.com/simulink/2010/relationships/blockDiagram"/>
+  <Relationship Id="configSetInfo" Target="simulink/configSetInfo.json" Type="http://schemas.mathworks.com/simulink/2014/relationships/configSetInfo"/>
+  <Relationship Id="modelDictionary" Target="simulink/modelDictionary.xml" Type="http://schemas.mathworks.com/simulinkModel/2016/relationships/modelDictionary"/>
+  <Relationship Id="modelWorkspace" Target="simulink/modelWorkspace.mxarray" Type="http://schemas.mathworks.com/simulinkModel/2010/relationships/modelWorkspaceData"/>
+  <Relationship Id="rId1" Target="metadata/mwcoreProperties.xml" Type="http://schemas.mathworks.com/package/2012/relationships/coreProperties"/>
+  <Relationship Id="rId2" Target="metadata/mwcorePropertiesExtension.xml" Type="http://schemas.mathworks.com/package/2014/relationships/corePropertiesExtension"/>
+  <Relationship Id="rId3" Target="metadata/mwcorePropertiesReleaseInfo.xml" Type="http://schemas.mathworks.com/package/2019/relationships/corePropertiesReleaseInfo"/>
+  <Relationship Id="rId4" Target="metadata/coreProperties.xml" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties"/>
+</Relationships>
+
+__MWOPC_PART_BEGIN__ /metadata/coreProperties.xml
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <cp:category>model</cp:category>
+  <dcterms:created xsi:type="dcterms:W3CDTF">2026-09-04T14:42:12Z</dcterms:created>
+  <dc:creator>weiwang</dc:creator>
+  <cp:lastModifiedBy>weiwang</cp:lastModifiedBy>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">2026-09-04T14:42:12Z</dcterms:modified>
+  <cp:revision>1.1</cp:revision>
+  <cp:version>R2027a</cp:version>
+</cp:coreProperties>
+
+__MWOPC_PART_BEGIN__ /metadata/mwcoreProperties.xml
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<mwcoreProperties xmlns="http://schemas.mathworks.com/package/2012/coreProperties">
+  <contentType>application/vnd.mathworks.simulink.model</contentType>
+  <contentTypeFriendlyName>Simulink Model</contentTypeFriendlyName>
+  <matlabRelease>R2027a</matlabRelease>
+</mwcoreProperties>
+
+__MWOPC_PART_BEGIN__ /metadata/mwcorePropertiesExtension.xml
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<mwcoreProperties xmlns="http://schemas.mathworks.com/package/2014/corePropertiesExtension">
+  <uuid>8708f24b-38ed-4a3c-8b92-c960a164191e</uuid>
+</mwcoreProperties>
+
+__MWOPC_PART_BEGIN__ /metadata/mwcorePropertiesReleaseInfo.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Version information for MathWorks R2027a Release -->
+<MathWorks_version_info>
+  <version>27.1.0.3353139</version>
+  <release>R2027a</release>
+  <description>Prerelease</description>
+  <date>Aug 07 2026</date>
+  <checksum>1354432729</checksum>
+</MathWorks_version_info>
+
+__MWOPC_PART_BEGIN__ /simulink/_rels/blockDiagram.json.rels
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="graphicalInterface" Target="graphicalInterface.json" Type="http://schemas.mathworks.com/simulinkModel/2014/relationships/graphicalInterface"/>
+  <Relationship Id="hdlParams" Target="hdlParams.xml" Type="http://schemas.mathworks.com/simulink/2021/relationships/hdlParams"/>
+  <Relationship Id="system_root" Target="systems/system_root.xml" Type="http://schemas.mathworks.com/simulink/2010/relationships/system"/>
+</Relationships>
+
+__MWOPC_PART_BEGIN__ /simulink/_rels/configSetInfo.json.rels
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="configSet0" Target="configSet0.json" Type="http://schemas.mathworks.com/simulink/2014/relationships/configSet"/>
+</Relationships>
+
+__MWOPC_PART_BEGIN__ /simulink/blockDiagram.json
+{
+  "BlockDiagram":{
+    "ConcurrentExecutionSettings":{
+      "DataTransfer":{
+        "_id":"2",
+        "_object_class":"Simulink.GlobalDataTransfer",
+        "_properties":{}
+      }
+    },
+    "ConfigManagerSettings":{
+      "ModelVersionFormat":"%<AutoIncrement:1.1>",
+      "ModifiedByFormat":"%<Auto>",
+      "ModifiedDateFormat":"%<Auto>"
+    },
+    "EngineSettings":{
+      "IsSoftwareComponent":false
+    },
+    "LastSavedArchitecture":"maca64",
+    "ModelUUID":"5c8909ba-cdaf-440e-bd0e-1eb7eb26ddd7",
+    "SimulationSettings":{
+      "DataLoggingOverride":{
+        "_id":"1",
+        "_mw_element_type":"COSObject",
+        "_object_class":"Simulink.SimulationData.ModelLoggingInfo",
+        "_properties":{
+          "logAsSpecifiedByModelsSSIDs_":{
+            "_array_type":"Cell",
+            "_dimensions":[1,  1],
+            "_elements":[[]]
+          },
+          "logAsSpecifiedByModels_":{
+            "_array_type":"Cell",
+            "_dimensions":[1,  1],
+            "_elements":["$bdroot"]
+          },
+          "model_":"$bdroot",
+          "overrideMode_":{
+            "_type":"uint32",
+            "_value":"0U"
+          }
+        }
+      },
+      "SimulationMode":"normal"
+    },
+    "System":{
+      "Ref":"system_root"
+    }
+  }
+}
+__MWOPC_PART_BEGIN__ /simulink/configSet0.json
+{
+  "_id":"1",
+  "_mw_element_name":"ConfigSet",
+  "_mw_element_type":"COSObject",
+  "_object_class":"Simulink.ConfigSet",
+  "_properties":{
+    "Components":{
+      "_array_class":"Simulink.ConfigComponent",
+      "_dimensions":[10,  1],
+      "_elements":[
+        {
+          "_id":"2",
+          "_object_class":"Simulink.SolverCC",
+          "_properties":{
+            "SolverName":"VariableStepAuto",
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"3",
+          "_object_class":"Simulink.DataIOCC",
+          "_properties":{
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"4",
+          "_object_class":"Simulink.OptimizationCC",
+          "_properties":{
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"5",
+          "_object_class":"Simulink.DebuggingCC",
+          "_properties":{
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"6",
+          "_object_class":"Simulink.HardwareCC",
+          "_properties":{
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"7",
+          "_object_class":"Simulink.ModelReferenceCC",
+          "_properties":{
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"8",
+          "_object_class":"Simulink.SFSimCC",
+          "_properties":{
+            "CustomCodeFunctionArrayLayout":[],
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"9",
+          "_object_class":"Simulink.RTWCC",
+          "_properties":{
+            "BuildConfiguration":"Faster Builds",
+            "Components":{
+              "_array_class":"Simulink.ConfigComponent",
+              "_dimensions":[2,  1],
+              "_elements":[
+                {
+                  "_id":"10",
+                  "_object_class":"Simulink.CodeAppCC",
+                  "_properties":{
+                    "Version":"27.0.0"
+                  }
+                },
+                {
+                  "_id":"11",
+                  "_object_class":"Simulink.GRTTargetCC",
+                  "_properties":{
+                    "CPPClassGenCompliant":"on",
+                    "CombineOutputUpdateFcns":"on",
+                    "CompOptLevelCompliant":"on",
+                    "ConcurrentExecutionCompliant":"on",
+                    "ERTCustomFileBanners":"off",
+                    "GRTInterface":"off",
+                    "GenerateAllocFcn":"off",
+                    "GenerateSampleERTMain":"off",
+                    "MATLABClassNameForMDSCustomization":"Simulink.SoftwareTarget.GRTCustomization",
+                    "MatFileLogging":"on",
+                    "ModelReferenceCompliant":"on",
+                    "ModelStepFunctionPrototypeControlCompliant":"off",
+                    "MultiwordLength":2048,
+                    "ParMdlRefBuildCompliant":"on",
+                    "SupportContinuousTime":"on",
+                    "SupportNonFinite":"on",
+                    "SupportNonInlinedSFcns":"on",
+                    "UseToolchainInfoCompliant":"on",
+                    "Version":"27.0.0"
+                  }
+                }
+              ]
+            },
+            "Description":"Generic Real-Time Target",
+            "SystemTargetFile":"grt.tlc",
+            "Toolchain":"Automatically locate an installed toolchain",
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"12",
+          "_object_class":"SlCovCC.ConfigComp",
+          "_properties":{
+            "CovEnable":"off",
+            "CovIncludeTopModel":"on",
+            "CovModelRefEnable":"off",
+            "CovScope":"EntireSystem",
+            "Description":"Simulink Coverage Configuration Component",
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"13",
+          "_object_class":"hdlcoderui.hdlcc",
+          "_properties":{
+            "Description":"HDL Coder custom configuration component",
+            "Version":"27.0.0"
+          }
+        }
+      ]
+    },
+    "ConfigPrmDlgPosition":[0,  0,  0,  0],
+    "CurrentDlgPage":"",
+    "ExtraOptions":"",
+    "Name":"Configuration",
+    "Version":"27.0.0"
+  }
+}
+__MWOPC_PART_BEGIN__ /simulink/configSetInfo.json
+{
+  "ConfigSetInfo":[{
+      "Active":true,
+      "ConfigSetName":"Configuration",
+      "PartName":"\/simulink\/configSet0.json"
+    }]
+}
+__MWOPC_PART_BEGIN__ /simulink/graphicalInterface.json
+{
+  "PreCompExecutionDomainType":"Unset",
+  "SimulinkSubDomainType":"Simulink",
+  "SolverName":"VariableStepAuto",
+  "_mw_element_name":"GraphicalInterface"
+}
+__MWOPC_PART_BEGIN__ /simulink/hdlParams.xml
+<?xml version="1.0" encoding="utf-8"?>
+<HDLParams>
+  <Object PropName="HDLParams" ObjectID="1" ClassName="slprops.hdlmdlprops">
+    <Array PropName="mdlProps" Type="Cell" Dimension="1*2">
+      <Cell Class="char">HDLSubsystem</Cell>
+      <Cell Class="char">$bdroot</Cell>
+    </Array>
+  </Object>
+</HDLParams>
+
+__MWOPC_PART_BEGIN__ /simulink/modelDictionary.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<MF0 version="1.1" defaultPackage="slid" packageUris="http://schema.mathworks.com/mf0/slid/R2025a_20251111">
+  <System type="System" uuid="63c9c2d2-1f3e-4e8e-9e28-87a71c046377">
+    <Parameter type="Parameter" uuid="a8db43e1-d810-44ff-9677-2a334e11a546">
+      <Identifier>obj</Identifier>
+      <Name>obj</Name>
+    </Parameter>
+    <Parameter type="Parameter" uuid="d96b972b-89fe-4264-b235-943e7144bbf5">
+      <Identifier>plain</Identifier>
+      <Name>plain</Name>
+    </Parameter>
+    <Interface type="Interface" uuid="e47b6c52-44f4-487f-9f7b-91e419262f75"/>
+  </System>
+</MF0>
+__MWOPC_PART_BEGIN__ /simulink/modelWorkspace.mxarray BASE64
+AAFJTQAAAAAOAAAAIAEAAAYAAAAIAAAAAgAAAAAAAAAFAAAACAAAAAEAAAABAAAAAQAAAAAAAAAF
+AAQABgAAAAEAAAAMAAAAb2JqAAAAcGxhaW4AAAAAAA4AAACQAAAABgAAAAgAAAARAAAAAAAAAAEA
+AAAAAAAAAQAEAE1DT1MBAAAAEgAAAFNpbXVsaW5rLlBhcmFtZXRlcgAAAAAAAA4AAABIAAAABgAA
+AAgAAAANAAAAAAAAAAUAAAAIAAAABgAAAAEAAAABAAAAAAAAAAYAAAAYAAAAAAAA3QIAAAABAAAA
+AQAAAAEAAAACAAAADgAAADgAAAAGAAAACAAAAAYAAAAAAAAABQAAAAgAAAABAAAAAQAAAAEAAAAA
+AAAACQAAAAgAAAAAAAAAAAAQQA4AAABICwAABgAAAAgAAAAJAAAAAAAAAAUAAAAIAAAAAQAAABgL
+AAABAAAAAAAAAAIAAAAYCwAAAAFJTQAAAAAOAAAAeAoAAAYAAAAIAAAAAgAAAAAAAAAFAAAACAAA
+AAEAAAABAAAAAQAAAAAAAAAFAAQABQAAAAEAAAAFAAAATUNPUwAAAAAOAAAAMAoAAAYAAAAIAAAA
+EQAAAAAAAAABAAAAAAAAAAEABABNQ09TAQAAAA0AAABGaWxlV3JhcHBlcl9fAAAADgAAAPAJAAAG
+AAAACAAAAAEAAAAAAAAABQAAAAgAAAAMAAAAAQAAAAEAAAAAAAAADgAAAJACAAAGAAAACAAAAAkA
+AAAAAAAABQAAAAgAAABgAgAAAQAAAAEAAAAAAAAAAgAAAGACAAAEAAAAFwAAACgBAABYAQAAWAEA
+AKABAAAwAgAASAIAAEgCAABQAgAAVmFsdWUAQ29tcGxleGl0eQByZWFsAERpbWVuc2lvbnMAQ29k
+ZXJJbmZvAEhhc0NvZGVySW5mbwBTdG9yYWdlQ2xhc3MAQXV0bwBDU0NQYWNrYWdlTmFtZQBQYXJh
+bWV0ZXJPclNpZ25hbABDdXN0b21TdG9yYWdlQ2xhc3MAQ3VzdG9tQXR0cmlidXRlcwBTaW11bGlu
+awBUeXBlUXVhbGlmaWVyAEFsaWFzAEFsaWdubWVudABJc0NTQ1BhY2thZ2VPdmVycmlkZGVuAFBh
+cmFtZXRlcgBEZXNjcmlwdGlvbgBEYXRhVHlwZQBNaW4ATWF4AERvY1VuaXRzAAAAAAAAAAAAAAAA
+AAAAAAAAAAANAAAABQAAAAAAAAAAAAAADQAAABIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAIAAAAAAAAAAAAAAAAAAAABAAAAAgAAAAEAAAAAAAAAAAAAAAAAAAACAAAAAQAAAAAA
+AAAAAAAABAAAAAEAAAABAAAAAAAAAAIAAAAAAAAAAwAAAAQAAAABAAAAAQAAAAUAAAABAAAABgAA
+AAAAAAAGAAAABgAAAAIAAAAAAAAABwAAAAAAAAAIAAAACQAAAAEAAAACAAAACgAAAAEAAAADAAAA
+CwAAAAEAAAAEAAAADAAAAAEAAAAFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAQAAAFgCAAAAAAAAAAAAAA4AAAAAAAAADgAAADgAAAAGAAAACAAAAAYAAAAAAAAABQAAAAgA
+AAABAAAAAQAAAAEAAAAAAAAACQAAAAgAAAAAAAAAAAAjQA4AAABAAAAABgAAAAgAAAAGAAAAAAAA
+AAUAAAAIAAAAAQAAAAIAAAABAAAAAAAAAAkAAAAQAAAAAAAAAAAA8D8AAAAAAADwPw4AAAA4AAAA
+BgAAAAgAAAAEAAAAAAAAAAUAAAAIAAAAAQAAAAgAAAABAAAAAAAAABAAAAAIAAAAU2ltdWxpbmsO
+AAAAQAAAAAYAAAAIAAAABAAAAAAAAAAFAAAACAAAAAEAAAAJAAAAAQAAAAAAAAAQAAAACQAAAFBh
+cmFtZXRlcgAAAAAAAAAOAAAAOAAAAAYAAAAIAAAABAAAAAAAAAAFAAAACAAAAAEAAAAHAAAAAQAA
+AAAAAAAQAAAABwAAAERlZmF1bHQADgAAADAAAAAGAAAACAAAAAYAAAAAAAAABQAAAAgAAAAAAAAA
+AAAAAAEAAAAAAAAACQAAAAAAAAAOAAAASAAAAAYAAAAIAAAADQAAAAAAAAAFAAAACAAAAAYAAAAB
+AAAAAQAAAAAAAAAGAAAAGAAAAAAAAN0CAAAAAQAAAAEAAAACAAAAAQAAAA4AAADoAAAABgAAAAgA
+AAABAAAAAAAAAAUAAAAIAAAAAwAAAAEAAAABAAAAAAAAAA4AAAA4AAAABgAAAAgAAAACAAAAAAAA
+AAUAAAAIAAAAAQAAAAAAAAABAAAAAAAAAAUABAABAAAAAQAAAAAAAAAOAAAAOAAAAAYAAAAIAAAA
+AgAAAAAAAAAFAAAACAAAAAEAAAAAAAAAAQAAAAAAAAAFAAQAAQAAAAEAAAAAAAAADgAAADgAAAAG
+AAAACAAAAAIAAAAAAAAABQAAAAgAAAABAAAAAAAAAAEAAAAAAAAABQAEAAEAAAABAAAAAAAAAA4A
+AABAAAAABgAAAAgAAAAMAAAAAAAAAAUAAAAIAAAAAwAAAAEAAAABAAAAAAAAAAUAAAAMAAAAAAAA
+AAAAAAAAAAAAAAAAAA4AAAAQBAAABgAAAAgAAAABAAAAAAAAAAUAAAAIAAAAAwAAAAEAAAABAAAA
+AAAAAA4AAAA4AAAABgAAAAgAAAACAAAAAAAAAAUAAAAIAAAAAQAAAAAAAAABAAAAAAAAAAUABAAB
+AAAAAQAAAAAAAAAOAAAAyAEAAAYAAAAIAAAAAgAAAAAAAAAFAAAACAAAAAEAAAABAAAAAQAAAAAA
+AAAFAAQAFwAAAAEAAABzAAAASGFzQ29kZXJJbmZvAAAAAAAAAAAAAABUeXBlUXVhbGlmaWVyAAAA
+AAAAAAAAAEFsaWFzAAAAAAAAAAAAAAAAAAAAAAAAQWxpZ25tZW50AAAAAAAAAAAAAAAAAABJc0NT
+Q1BhY2thZ2VPdmVycmlkZGVuAAAAAAAADgAAADAAAAAGAAAACAAAAAkCAAAAAAAABQAAAAgAAAAB
+AAAAAQAAAAEAAAAAAAAAAgABAAEAAAAOAAAAMAAAAAYAAAAIAAAABAAAAAAAAAAFAAAACAAAAAAA
+AAAAAAAAAQAAAAAAAAAQAAAAAAAAAA4AAAAwAAAABgAAAAgAAAAEAAAAAAAAAAUAAAAIAAAAAAAA
+AAAAAAABAAAAAAAAABAAAAAAAAAADgAAADAAAAAGAAAACAAAAAwAAAAAAAAABQAAAAgAAAABAAAA
+AQAAAAEAAAAAAAAABQAEAP////8OAAAAMAAAAAYAAAAIAAAACQIAAAAAAAAFAAAACAAAAAEAAAAB
+AAAAAQAAAAAAAAACAAEAAAAAAA4AAADQAQAABgAAAAgAAAACAAAAAAAAAAUAAAAIAAAAAQAAAAEA
+AAABAAAAAAAAAAUABAAMAAAAAQAAAEgAAABWYWx1ZQAAAAAAAABEZXNjcmlwdGlvbgBEYXRhVHlw
+ZQAAAABNaW4AAAAAAAAAAABNYXgAAAAAAAAAAABEb2NVbml0cwAAAAAOAAAAMAAAAAYAAAAIAAAA
+BgAAAAAAAAAFAAAACAAAAAAAAAAAAAAAAQAAAAAAAAAJAAAAAAAAAA4AAAAwAAAABgAAAAgAAAAE
+AAAAAAAAAAUAAAAIAAAAAAAAAAAAAAABAAAAAAAAABAAAAAAAAAADgAAADAAAAAGAAAACAAAAAQA
+AAAAAAAABQAAAAgAAAABAAAABAAAAAEAAAAAAAAAEAAEAGF1dG8OAAAAMAAAAAYAAAAIAAAABgAA
+AAAAAAAFAAAACAAAAAAAAAAAAAAAAQAAAAAAAAAJAAAAAAAAAA4AAAAwAAAABgAAAAgAAAAGAAAA
+AAAAAAUAAAAIAAAAAAAAAAAAAAABAAAAAAAAAAkAAAAAAAAADgAAADAAAAAGAAAACAAAAAQAAAAA
+AAAABQAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAEAAAAAAAAAAOAAAAiAAAAAYAAAAIAAAACQAAAAAA
+AAAFAAAACAAAAAEAAABYAAAAAQAAAAAAAAACAAAAWAAAAAABSU0AAAAADgAAAEgAAAAGAAAACAAA
+AAIAAAAAAAAABQAAAAgAAAABAAAAAQAAAAEAAAAAAAAABQAEAAUAAAABAAAABQAAAE1DT1MAAAAA
+DgAAAAAAAAA=
+__MWOPC_PART_BEGIN__ /simulink/systems/system_root.xml
+<?xml version="1.0" encoding="utf-8"?>
+<System>
+  <P Name="ReportName">simulink-default.rpt</P>
+  <P Name="SIDHighWatermark">1</P>
+  <Block BlockType="Gain" Name="Gain" SID="1">
+    <P Name="Position">[25, 125, 55, 155]</P>
+    <P Name="Gain">obj</P>
+  </Block>
+</System>
+
+__MWOPC_PACKAGE_END__

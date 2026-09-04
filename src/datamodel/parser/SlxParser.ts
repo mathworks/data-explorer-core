@@ -30,8 +30,11 @@ export interface ParsedSlx {
   configSets: { name: string; active: boolean; data: unknown }[];
   workspace: MatVariable[] & { _trailingElements: Uint8Array[] };
   blockParamUsages: BlockParamUsage[];
-  rawContents: Record<string, string>;
-  zipEntries: Record<string, Uint8Array>;
+  // Null for a model that is not an OPC package at all: the classic `.mdl` is one
+  // flat text file, with no parts to expose and no archive to write back. ModelNode
+  // has always treated both as nullable.
+  rawContents: Record<string, string> | null;
+  zipEntries: Record<string, Uint8Array> | null;
 }
 
 function decodeText(buf: Uint8Array): string {
@@ -176,6 +179,11 @@ const NON_PARAM_PROPS = new Set([
   'MinAlgLoopOccurrences',
   'TreatAsAtomicUnit',
   'RequestExecContextInheritance',
+  // Bookkeeping a ModelReference block carries in the CLASSIC .mdl only: the name
+  // the referenced model had when the block was last copied. It is not a parameter
+  // expression, and leaving it in gave the classic flavour of a file an extra
+  // `Child / CopyOfModelName` row the .slx flavour of the SAME model did not have.
+  'CopyOfModelName',
 ]);
 
 // Simulink stores a block's line breaks as the numeric char reference `&#xA;`
@@ -184,12 +192,30 @@ const NON_PARAM_PROPS = new Set([
 // the literal `&#xA;`. Decode CR/LF numeric refs and collapse any run of
 // whitespace to a single space so a multi-line label reads as one flat cell
 // (e.g. "Alpha-sensor&#xA;Low-pass Filter" -> "Alpha-sensor Low-pass Filter").
-function normalizeBlockName(name: string): string {
+export function normalizeBlockName(name: string): string {
   return name
     .replace(/&#x0*(a|d);/gi, ' ') // hex: &#xA; &#x0A; &#xD; (LF, CR)
     .replace(/&#0*(10|13);/g, ' ') // decimal: &#10; &#13; (LF, CR)
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Does `propName = value` on a block count as a reference to named data?
+ *
+ * The one gate both model formats go through, so a `.mdl` and the `.slx` of the
+ * SAME diagram surface the same rows. Exported for MdlParser, which reads the
+ * classic nested-brace flavour and has no `<P>` elements to work from.
+ */
+export function isParamReference(propName: string, value: string): boolean {
+  if (!propName || NON_PARAM_PROPS.has(propName)) return false;
+  if (!value || NUMERIC_RE.test(value)) return false;
+  if (NON_FINITE_RE.test(value)) return false;
+  if (value === 'on' || value === 'off') return false;
+  // Must contain an identifier that could name a variable. This excludes
+  // operator-only sign patterns (Sum `Inputs=|++`) and enum-ish tokens
+  // handled above, while keeping expressions like `[Tal,1]` or `1/Uo`.
+  return IDENT_RE.test(value);
 }
 
 function extractBlockParamUsages(entries: Record<string, Uint8Array>): BlockParamUsage[] {
@@ -208,15 +234,8 @@ function extractBlockParamUsages(entries: Record<string, Uint8Array>): BlockPara
       for (const p of propList) {
         const pObj = p as Record<string, unknown>;
         const propName = pObj['@_Name'] as string;
-        if (!propName || NON_PARAM_PROPS.has(propName)) continue;
         const val = (pObj['#text'] as string) || '';
-        if (!val || NUMERIC_RE.test(val)) continue;
-        if (NON_FINITE_RE.test(val)) continue;
-        if (val === 'on' || val === 'off') continue;
-        // Must contain an identifier that could name a variable. This excludes
-        // operator-only sign patterns (Sum `Inputs=|++`) and enum-ish tokens
-        // handled above, while keeping expressions like `[Tal,1]` or `1/Uo`.
-        if (!IDENT_RE.test(val)) continue;
+        if (!isParamReference(propName, val)) continue;
         usages.push({ blockName, blockType, paramProperty: propName, paramValue: val });
       }
     }
@@ -236,8 +255,19 @@ function extractModelReferences(
 }
 
 export function parseSlx(buffer: ArrayBuffer, filename: string): ParsedSlx {
-  const entries = unzipSync(new Uint8Array(buffer));
+  return parseModelParts(unzipSync(new Uint8Array(buffer)), filename);
+}
 
+/**
+ * The model behind an OPC part map — everything `parseSlx` does except unzipping.
+ *
+ * A `.slx` is a ZIP OPC package; the modern `.mdl` is the SAME part set written as
+ * a TEXT OPC package (`__MWOPC_PART_BEGIN__` delimiters, binary parts base64'd).
+ * The two formats differ only in how the bytes of each part are framed, so the
+ * reading of those parts belongs in one place — see MdlParser, which decodes the
+ * text framing and calls straight in here.
+ */
+export function parseModelParts(entries: Record<string, Uint8Array>, filename: string): ParsedSlx {
   // Core metadata
   let release = '';
   let creator = '';

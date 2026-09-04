@@ -5,7 +5,7 @@ import SlddNode from '../datamodel/node/container/SlddNode.js';
 import ModelNode from '../datamodel/node/container/ModelNode.js';
 import MatNode from '../datamodel/node/container/MatNode.js';
 import ProjectNode from '../datamodel/node/container/ProjectNode.js';
-import { parseSlx } from '../datamodel/parser/SlxParser.js';
+import { parseModel } from '../datamodel/parser/ModelParser.js';
 import { parseMat } from '../datamodel/parser/MatParser.js';
 import { parseProject } from '../datamodel/parser/ProjectParser.js';
 export function createSession(opts = {}) {
@@ -131,7 +131,8 @@ export function createSession(opts = {}) {
         return registerSource(srcId, slddNode, meta);
     }
     function addModelSource(srcId, buffer, meta) {
-        const modelNode = ModelNode.fromParsed(parseSlx(buffer, srcId), srcId);
+        // `.slx` or `.mdl` — parseModel reads whichever these bytes are.
+        const modelNode = ModelNode.fromParsed(parseModel(buffer, srcId), srcId);
         return registerSource(srcId, modelNode, meta);
     }
     function addMatSource(srcId, buffer, meta) {

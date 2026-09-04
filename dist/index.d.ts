@@ -14,6 +14,8 @@ export type { UndoManagerInstance } from './core/UndoManager.js';
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
 export { serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';
+export { parseMdl } from './datamodel/parser/MdlParser.js';
+export { parseModel } from './datamodel/parser/ModelParser.js';
 export { parseMat } from './datamodel/parser/MatParser.js';
 export { parseProject } from './datamodel/parser/ProjectParser.js';
 export { ingest } from './core/ingest.js';

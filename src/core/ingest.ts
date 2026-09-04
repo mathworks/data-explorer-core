@@ -79,7 +79,10 @@ export function ingest(session: Session, content: IngestContent, opts: IngestOpt
     return session.addDataSource(id, parseBinarySldd(buf), meta);
   }
 
-  if (ext === '.slx') {
+  // Both model extensions go to the same adder: a `.mdl` is a Simulink model like a
+  // `.slx` is, and which generation of content the bytes hold is decided there, not
+  // by the name (see parseModel).
+  if (ext === '.slx' || ext === '.mdl') {
     return session.addModelSource(id, requireBinary(content, ext), meta);
   }
 
@@ -94,5 +97,5 @@ export function ingest(session: Session, content: IngestContent, opts: IngestOpt
     return session.addProjectSource(id, files, meta);
   }
 
-  throw new Error(`ingest: unsupported extension "${ext}" for "${filename}" (expected .sldd/.slx/.mat/.prj)`);
+  throw new Error(`ingest: unsupported extension "${ext}" for "${filename}" (expected .sldd/.slx/.mdl/.mat/.prj)`);
 }

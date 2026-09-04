@@ -14,6 +14,10 @@ a stale corpus is identifiable without rerunning anything.
 Everything under `../artifacts/` is **generated**. Do not hand-edit it, and never
 write an expected value by hand when MATLAB can be asked for it.
 
+There is a second corpus alongside this one, with its own generator and its own
+question: [The `.mdl` corpus](#the-mdl-corpus), which is about containers rather
+than values.
+
 MATLAB is a fixture generator, not a test dependency. It cannot run in GitHub CI,
 so a fully MATLAB-gated suite would never actually run for this repo: MATLAB
 emits truth once, the truth is committed, and the tests read it.
@@ -45,16 +49,18 @@ MATLAB changed its own answer — that is a finding, not a test to fix.
 
 ## Layout
 
-`gen_truth.m` lives here and writes to `../artifacts/`. Nothing writes to
+`gen_truth.m` lives here and writes to `../artifacts/`; `gen_mdl.m` lives here too
+and writes to `../artifacts/mdl/` and nowhere else. Nothing writes to
 `test/parity/matlab/artifacts/`.
 
 | path | what |
 |---|---|
 | `gen_truth.m` | the only entry point for the corpus: one case catalog, every format emitted from it |
+| `gen_mdl.m` | the entry point for the SECOND, separate corpus: the `.mdl` flavours and their `.slx` twins — see [The `.mdl` corpus](#the-mdl-corpus) |
 | `probe_*.m`, `probe_writeback*.mjs` | one-question probes — see the table below. None of them writes to `artifacts/` |
 | `wbcompare.m` | the comparison both write-back gates share: `fullsig`, which walks a value to every leaf spelling class, size, complexity and exact value |
 | `DESIGN.md` | the display convention, the coverage matrix, and the numbered defects this suite exists to pin |
-| `drift.mjs` | regenerate the corpus into a temp directory and diff `truth.json` against what is committed — the check for MATLAB-release drift |
+| `drift.mjs` | regenerate BOTH corpora into a temp directory and diff `truth.json` and `mdl_truth.json` against what is committed — the check for MATLAB-release drift |
 | `STRING_MCOS.md` | how MATLAB stores a `string` in a `.mat`: the metadata segment the parser skipped, the packed `uint64` payload, and what could not be determined |
 | `../artifacts/truth.json` | the expectations, for every format at once |
 | `../artifacts/meta.json` | `version` and `release` of the MATLAB that wrote the corpus |
@@ -62,6 +68,7 @@ MATLAB changed its own answer — that is a finding, not a test to fix.
 | `../artifacts/slx/cases.slx` | model `cases`, 73 cases in its model workspace |
 | `../artifacts/text/cases.sldd` | 73 entries in Design Data, `FileFormat = 'uncompressed-text'` |
 | `../artifacts/binary/cases.sldd` | the same 73, `FileFormat = 'compressed-binary'` |
+| `../artifacts/mdl/` | the `.mdl` corpus — six model files and `mdl_truth.json`, all written by `gen_mdl.m` |
 
 **`text/params.sldd` and `binary/params.sldd` are not part of this corpus.** They
 are the older, hand-made fidelity fixtures used by `test/parity/fidelity/*.test.ts`,
@@ -220,6 +227,81 @@ answer for rank >= 3** — for `nd2x3x2` it fails with
 which is why the convention summarizes an N-D array as `<2x3x2 double>` instead
 of printing a 2-D-looking lie.
 
+## The `.mdl` corpus
+
+A second, separate corpus, written by `gen_mdl.m` into `../artifacts/mdl/`. It
+answers a different question from `cases.*`: not "what is this value", but "does
+the same block diagram open to the same data model out of every container it can
+be stored in". `.mdl` comes in **two on-disk flavours**, both of which real users
+still have, and the test holds each of them to the `.slx` written from the very
+same in-memory model.
+
+| file | flavour |
+|---|---|
+| `mdlcases.mdl` | **modern** — an OPC *text* package: the exact part set a `.slx` zips, delimited by `__MWOPC_PART_BEGIN__` lines instead, binary parts base64'd. What `save_system` writes for a `.mdl` today |
+| `mdlcases_R2011b.mdl` | **classic** — the pre-R2012 nested-brace text, via `'ExportToVersion'`. The model workspace lives in a top-level `MatData` section, uuencoded |
+| `mdlcases_R2017b.mdl` | classic again, from the LAST release that wrote one: same grammar, but it keeps the linked data dictionary and records model references a second way (`ExternalFileReference`) |
+| `mdlcases.slx` | the twin every flavour above is compared against |
+| `mdlmcos.mdl` / `mdlmcos.slx` | the modern-only pair, one `Simulink.Parameter` in the model workspace |
+| `mdl_truth.json` | what MATLAB says about each *model* — recorded from the model, not from any one file, so it is the shared expectation all flavours are held to |
+
+`mdlcases` is a catalog of what a *model file* can get wrong, not of data types:
+`Const`/`Gain` for the ordinary bare-identifier parameter, `TF` for coefficients
+hiding in `Numerator`/`Denominator` (no allowlist could have known to look there),
+`Sat` with `UpperLimit = Inf` and `Sum` with `Inputs = |++` for the values that
+must *not* be reported as references to a variable, a two-line block name (`\n`
+in `.mdl`, `&#xA;` in `.slx`), a nested subsystem so the walk must recurse, a
+`ModelReference` to `mdl_child`, a linked `mdlparams.sldd`, two config sets, and a
+model workspace holding one of every primitive container.
+
+**`mdlcases`' workspace is plain values only, on purpose.** A Simulink data object
+in it makes the R2011b export give up on the workspace entirely and repoint it at
+a `.m` file, leaving the classic `MatData` path nothing to parse. MCOS in a `.mdl`
+is therefore covered by `mdlmcos`, which has no classic flavour.
+
+### Regenerate
+
+```bash
+mw -using Bmain matlab -nodesktop -batch "run('$PWD/test/parity/matlab/gen_mdl.m')"
+```
+
+Prints `GEN_MDL OK` and rewrites all seven files. It honours `outdir` exactly as
+`gen_truth.m` does, which is how `drift.mjs` regenerates it somewhere harmless and
+diffs it. **Only `mdl_truth.json` is byte-reproducible** — it records no UUID and no
+timestamp; the six model files differ every run, because
+`metadata/coreProperties.xml` and `simulink/blockDiagram.json` carry a per-save
+timestamp and UUID. That is also the *only* difference between the modern `.mdl`
+and its `.slx` twin, which is what makes the byte-level part comparison below
+possible at all.
+
+Two things about the generator worth not rediscovering: `save_system` to
+`<name>.slx` beside an existing `<name>.mdl` is an **in-place format upgrade** —
+Simulink writes the `.slx` and deletes the `.mdl` — so the twins are written to a
+scratch directory and moved in afterwards; and `'ExportToVersion'` **renames the
+block diagram** to the target file name, so the classic files carry
+`mdlcases_R2011b` as the model name and as the prefix of every block path, which
+the test normalises away.
+
+### What `mdl.parity.test.ts` asserts
+
+Two kinds of claim, and the distinction matters:
+
+- **against MATLAB truth** — the block list, the parameter usages, the config sets
+  and which is active, the referenced model names, the workspace variables and each
+  one's display and class. `mdl_truth.json` only, never our own parse.
+- **across flavours** — every `.mdl`'s row shape must equal the `.slx`'s, and for
+  the modern flavour the claim is stronger still: the two containers must hold the
+  same part keys with byte-identical contents, `simulink/modelWorkspace.mxarray`
+  included, excepting only the two per-save parts above. That one assertion is what
+  proves the base64 decode, not a sampled value from it.
+
+Four divergences are **expected**, and asserted rather than assumed. In a classic
+file `release` and `uuid` are `''` (the format records neither), `lastModified` is
+MATLAB's own `Fri Sep 04 10:15:29 2026` spelling rather than ISO 8601,
+`rawContents` and `zipEntries` are `null` (there is no zip), and **R2011b drops the
+linked data dictionary** — so the block row that links into it is a plain string
+there and a link target in every other flavour. R2017b keeps it.
+
 ## Tiers, and which need `DEX_MATLAB_CMD`
 
 **Tier 1 — committed truth, no MATLAB, runs in CI on every PR.** Reads
@@ -232,6 +314,7 @@ format sniffing is exercised too) and `loadTruth.ts`:
 | `structure.test.ts` | child counts, MATLAB's own index labels, and the value at each label |
 | `schemaProps.test.ts` | every property MATLAB reports on a known class is surfaced, with MATLAB's value |
 | `lossless.test.ts` | the stored value is MATLAB's exact value, and serialize -> reparse is a fixed point |
+| `mdl.parity.test.ts` | the `.mdl` corpus: each flavour against MATLAB's truth, and each against its `.slx` twin |
 
 `lossless` is deliberately separate from `display`: display is lossy by design (a
 summary, a threshold), storage must not be, and only a storage-level assertion

@@ -11,10 +11,15 @@
 // printing a per-variable diff. A non-zero exit is NOT necessarily a bug in our code — it
 // may be a MATLAB behaviour change, which is exactly the thing worth knowing about.
 //
-// It compares truth.json, never container bytes. Only truth.json and meta.json are
-// byte-reproducible; cases.mat, cases.slx and both cases.sldd differ on EVERY run,
-// because MATLAB stamps each entry with a fresh uuid and lastmod. Comparing containers
-// would report drift every single time and train the reader to ignore it.
+// It compares truth.json and mdl_truth.json, never container bytes. Only the JSON is
+// byte-reproducible; cases.mat, cases.slx, both cases.sldd and every file in mdl/ differ
+// on EVERY run, because MATLAB stamps each entry — and each model save — with a fresh
+// uuid and timestamp. Comparing containers would report drift every single time and train
+// the reader to ignore it.
+//
+// Both corpora are regenerated, because both can go stale independently: gen_truth.m for
+// the value corpus and gen_mdl.m for the `.mdl` container corpus. That is two MATLAB
+// launches, and the second one loads Simulink, so expect this to take minutes.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const ARTIFACTS = join(HERE, '..', 'artifacts');
 const COMMITTED = join(ARTIFACTS, 'truth.json');
+const COMMITTED_MDL = join(ARTIFACTS, 'mdl', 'mdl_truth.json');
 const LAUNCH = process.env.DEX_MATLAB_CMD || '';
 
 if (!LAUNCH) {
@@ -38,16 +44,23 @@ if (!existsSync(COMMITTED)) {
 
 const out = mkdtempSync(join(tmpdir(), 'dexdrift-'));
 const [bin, ...args] = LAUNCH.split(' ');
-const script = join(HERE, 'gen_truth.m');
 console.log('regenerating into ' + out);
-// gen_truth.m honours an outdir set by the caller before run(...), so this never
+
+// Both generators honour an outdir set by the caller before run(...), so this never
 // disturbs the committed copy — the regenerated corpus stays in the temp directory and
 // is copied over by hand only if the new behaviour is judged correct.
-execFileSync(
-  bin,
-  [...args, '-nodesktop', '-batch', `outdir='${out}'; run('${script}')`],
-  { stdio: 'inherit', maxBuffer: 64 * 1024 * 1024 },
-);
+function regenerate(name) {
+  const script = join(HERE, name);
+  console.log('\n--- ' + name + ' ---');
+  execFileSync(
+    bin,
+    [...args, '-nodesktop', '-batch', `outdir='${out}'; run('${script}')`],
+    { stdio: 'inherit', maxBuffer: 64 * 1024 * 1024 },
+  );
+}
+
+regenerate('gen_truth.m');
+regenerate('gen_mdl.m');
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const fresh = readJson(join(out, 'truth.json'));
@@ -95,11 +108,47 @@ for (const key of ['slddRejected', 'slxRejected']) {
   }
 }
 
+// The `.mdl` corpus. Its truth is recorded from the MODEL rather than from any one file,
+// so drift here means MATLAB now describes the diagram itself differently — which is a
+// finding about every flavour at once, not about one container.
+if (!existsSync(COMMITTED_MDL)) {
+  console.log('\n(no committed mdl_truth.json; skipping the .mdl corpus)');
+} else {
+  const freshMdl = readJson(join(out, 'mdl', 'mdl_truth.json'));
+  const oldMdl = readJson(COMMITTED_MDL);
+  // `matlab` and each model's `release` record which MATLAB wrote the corpus. Reported
+  // above, never counted: a release change is the reason for the run, not a finding.
+  const models = new Set([...Object.keys(oldMdl), ...Object.keys(freshMdl)].filter((k) => k !== 'matlab'));
+  for (const model of models) {
+    const a = oldMdl[model] ?? {};
+    const b = freshMdl[model] ?? {};
+    const sections = new Set([...Object.keys(a), ...Object.keys(b)].filter((k) => k !== 'release'));
+    for (const section of sections) {
+      // The workspace is compared per VARIABLE so the diff names the one that moved;
+      // every other section is small enough to read whole.
+      const parts = section === 'workspace'
+        ? [...new Set([...Object.keys(a.workspace ?? {}), ...Object.keys(b.workspace ?? {})])]
+            .map((n) => ['workspace.' + n, a.workspace?.[n], b.workspace?.[n]])
+        : [[section, a[section], b[section]]];
+      for (const [label, va, vb] of parts) {
+        const sa = JSON.stringify(va ?? null);
+        const sb = JSON.stringify(vb ?? null);
+        if (sa !== sb) {
+          drift++;
+          console.log('\nDRIFT mdl.' + model + '.' + label);
+          console.log('  committed:   ' + sa);
+          console.log('  regenerated: ' + sb);
+        }
+      }
+    }
+  }
+}
+
 if (drift === 0) {
   console.log('\nno drift: the committed corpus matches this MATLAB.');
   process.exit(0);
 }
-console.log('\n' + drift + ' variable(s) drifted. Review each, then re-copy the artifacts from');
+console.log('\n' + drift + ' item(s) drifted. Review each, then re-copy the artifacts from');
 console.log(out + ' if the new behaviour is correct —');
 console.log('and update DESIGN.md if the CONVENTION changed, not just the value.');
 process.exit(1);

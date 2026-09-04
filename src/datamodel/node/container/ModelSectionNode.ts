@@ -73,9 +73,15 @@ export default class ModelSectionNode extends ContainerNode {
     return node;
   }
 
-  addReferenceEntry(ref: { blockPath: string; modelName: string }): BaseNode {
-    const name = ref.modelName.endsWith('.slx') ? ref.modelName : ref.modelName + '.slx';
-    const node = new ModelReferenceNode(name, this, ref.blockPath);
+  // A model file names its references WITHOUT an extension, but the entry has to be
+  // a filename: it doubles as the link target used to jump to that model once it is
+  // loaded. `defaultExt` is the parent model's own extension, because a reference is
+  // far likelier to be the same generation of file as the model referencing it — a
+  // legacy `.mdl` hierarchy is legacy throughout — and a `.mdl` model whose children
+  // were all labelled `.slx` would link to nothing.
+  addReferenceEntry(ref: { blockPath: string; modelName: string }, defaultExt = '.slx'): BaseNode {
+    const named = /\.(slx|mdl)$/i.test(ref.modelName);
+    const node = new ModelReferenceNode(named ? ref.modelName : ref.modelName + defaultExt, this, ref.blockPath);
     this.addChild(node);
     return node;
   }
