@@ -33,106 +33,23 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadBytes, loadFile } from './loadFile.js';
 import { expectedDisplay, literalMatches } from './matlab/expect.js';
-import type { VarTruth } from './matlab/loadTruth.js';
+import { asArray, asVarTruth } from './matlab/loadTruth.js';
+import type { ModelTruth } from './matlab/loadTruth.js';
+import { expectedUsages as usagesOf } from './paramPolicy.js';
 
 const MDL_DIR = fileURLToPath(new URL('./artifacts/mdl/', import.meta.url));
 
-// What gen_mdl.m records per model. A subset of gen_truth.m's VarTruth for the
-// workspace, so expect.ts can be reused — see asVarTruth.
-interface MdlVarTruth {
-  class: string;
-  size: number[];
-  isobject: boolean;
-  disp: string;
-  mat2str?: string;
-  mat2str_error?: string;
-}
-
-interface MdlModelTruth {
-  name: string;
-  release: string;
-  dataDictionary: string;
-  wsDataSource: string;
-  configSets: { name: string; active: boolean }[];
-  modelReferences: string[];
-  blocks: { name: string; type: string; params: Record<string, string> }[];
-  workspace: Record<string, MdlVarTruth>;
-  files: { modern: string; classic: string[] };
-}
-
-/**
- * MATLAB's `jsonencode` writes a 1x1 struct ARRAY as an object, not as a
- * one-element array — so `configSets` and `blocks` arrive as arrays for a model
- * with several and as a bare object for a model with one. Normalising on this side
- * beats contorting the generator into emitting cell arrays nobody would read.
- */
-function asArray<T>(value: T | T[] | undefined): T[] {
-  if (value === undefined) { return []; }
-  return Array.isArray(value) ? value : [value];
-}
+// gen_mdl.m records the shared modelTruth shape plus its own `files` list, so this
+// alias is the shared interface with `files` made mandatory.
+type MdlModelTruth = ModelTruth & { files: { modern: string; classic: string[] } };
 
 const TRUTH_FILE = MDL_DIR + 'mdl_truth.json';
 const HAVE_TRUTH = existsSync(TRUTH_FILE);
 const TRUTH: Record<string, MdlModelTruth> = HAVE_TRUTH ? JSON.parse(readFileSync(TRUTH_FILE, 'utf8')) : {};
 
-/** Fill out the fields expect.ts needs from what gen_mdl.m recorded. */
-function asVarTruth(name: string, v: MdlVarTruth): VarTruth {
-  const numel = v.size.reduce((a, b) => a * b, 1);
-  return {
-    name,
-    class: v.class,
-    size: v.size,
-    numel,
-    isempty: numel === 0,
-    iscomplex: false,
-    islogical: v.class === 'logical',
-    isobject: v.isobject,
-    disp: v.disp,
-    mat2str: v.mat2str,
-    mat2str_error: v.mat2str_error,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// the parser's own policy, restated
-// ---------------------------------------------------------------------------
-//
-// Which of MATLAB's block parameters become rows is OUR rule, not MATLAB's: a
-// parameter surfaces when its value could name workspace data. It is restated here
-// — deliberately, the way expect.ts restates the display constants — so the
-// expectation is an independent statement of the rule rather than a reading of the
-// implementation. If the two ever disagree, that disagreement is the finding.
-const NUMERIC = /^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
-const NON_FINITE = /^[+-]?(inf|nan)$/i;
-const IDENTIFIER = /[A-Za-z_]\w*/;
-// Cosmetic/structural properties never count. Only the ones this corpus sets are
-// listed; the full blocklist lives in the parser.
-const COSMETIC = new Set(['Position', 'ShowName', 'ZOrder']);
-
-function referencesData(prop: string, value: string): boolean {
-  if (COSMETIC.has(prop)) { return false; }
-  if (!value || NUMERIC.test(value) || NON_FINITE.test(value)) { return false; }
-  if (value === 'on' || value === 'off') { return false; }
-  return IDENTIFIER.test(value);
-}
-
-// A block label MATLAB wrapped across lines is one flat cell. MATLAB reports the
-// name with its real newline; a `.mdl` writes `\n` and a `.slx` writes `&#xA;`.
-function flatLabel(name: string): string {
-  return name.replace(/\s+/g, ' ').trim();
-}
-
 /** `Name|Type|Prop=Value` for every parameter row MATLAB's own model implies. */
 function expectedUsages(t: MdlModelTruth): string[] {
-  const out: string[] = [];
-  for (const block of asArray(t.blocks)) {
-    for (const [prop, value] of Object.entries(block.params || {})) {
-      if (referencesData(prop, value)) {
-        out.push(flatLabel(block.name) + '|' + block.type + '|' + prop + '=' + value);
-      }
-    }
-  }
-  return out.sort();
+  return usagesOf(asArray(t.blocks));
 }
 
 // ---------------------------------------------------------------------------

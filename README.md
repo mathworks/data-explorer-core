@@ -36,6 +36,17 @@ is either the modern OPC *text* package carrying that same part set, or the
 pre-R2012 nested-brace text that a model which was never migrated still has.
 `parseModel` takes either one and picks the reader from the bytes.
 
+Neither container has one fixed part layout, and the reader covers both eras of
+each. A `.slx` written by R2026b or later stores its block diagram, config set
+index and graphical interface as JSON; every earlier release wrote XML, kept its
+blocks inside the block diagram before R2020a, and its model workspace in a plain
+MAT-file part before R2019b. All of those read back to the same tree, down to the
+values in the model workspace. Two things a pre-R2020a file simply does not record
+are reported as absent rather than guessed: the model UUID (new in R2020a) and, for
+a pre-R2014a file, a linked data dictionary. See
+`test/parity/matlab/README.md` for the full layout matrix and what the parity suite
+holds each era to.
+
 ### Universal ingest
 
 Instead of choosing an `addXSource` by type, hand core the content plus a

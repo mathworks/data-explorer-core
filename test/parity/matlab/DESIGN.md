@@ -1716,6 +1716,67 @@ unasked. Keeping them apart records both lessons: fixing an *input* gate opens o
 paths that were never exercised, and a live assertion that never runs is not a gate. It
 is also why the live tier's failures are triaged as defects rather than as test problems.
 
+## Defects found by asking MATLAB for four earlier `.slx` layouts
+
+Phase 13 adds `slxLayouts.parity.test.ts` and the `artifacts/slx_layouts/` corpus:
+`gen_slx.m` builds one diagram, saves it at the current release, and then asks
+`save_system(..., 'ExportToVersion', R)` for R2025a, R2021a, R2018a and R2013b. That
+one call spans **five** part layouts, because the `.slx` package has been rearranged
+four times: the block diagram and the config set index moved to JSON in R2026b, the
+graphical interface in R2024b, the blocks moved out of the block diagram into
+`systems/*.xml` in R2020a, and the model workspace stopped being a MAT-file part in
+R2019b. The corpus is the cheapest possible way to hold all five at once — five files
+and one truth JSON, no MATLAB at test time.
+
+The point worth recording is that only ONE of the two defects it found is in the new
+code. The corpus was built to exercise a fallback path, and it caught a live bug in the
+path it was falling back FROM.
+
+47. **Every model reference vanished from an R2024b-R2026a file, in the JSON reader
+    that predates this phase.** `graphicalInterface.json` has two shapes. The three
+    releases that moved this part to JSON while the block diagram was still XML wrap
+    their content in a `"GraphicalInterface"` object; R2026b flattened it and marks the
+    element with `_mw_element_name` instead. `extractModelReferences` read only the flat
+    shape, found no `ModelReferences` key, and returned `[]` — no error, no empty-state
+    difference a caller could see, just a model hierarchy silently reported as flat.
+
+    This is the same wrapping `parseModelParts` was ALREADY unwrapping one call earlier
+    for the block diagram (`bd.BlockDiagram || bd`), which is what makes it a defect
+    rather than a gap: the convention was known and applied in one place out of two.
+    Fixed with the same `gi.GraphicalInterface || gi`.
+
+    Why no existing test caught it: every `.slx` in every other corpus is written by the
+    current release, so the flat shape is the only one they contain. A reader can be
+    wrong about a three-release window for as long as no fixture is older than the
+    window.
+
+48. **A block nested inside a subsystem was invisible in a pre-R2020a file.** In that
+    layout every system lives inside `blockdiagram.xml`, and a subsystem's `<System>` is
+    a child of its `<Block>`. `findAll(system, 'Block')` does not descend into an element
+    it has already matched, so scanning the root system returned its direct blocks only,
+    and `InnerGain`'s `Gain=inner` — a real parameter reference into the dictionary — was
+    dropped. Six expected rows, five delivered.
+
+    Fixed by walking the systems explicitly (`legacySystems`): push the root, and for
+    every `Block` found, push whatever `System` hangs off it. The same walk is why block
+    scanning is scoped to `Model.System` rather than `Model`: a legacy block diagram
+    carries `<BlockDefaults>` and `<BlockParameterDefaults>` as siblings of `<System>`,
+    both full of template blocks that are not in the diagram at all.
+
+**Why the new layouts are read as fallbacks, in that order, and never as a mode.** The
+user constraint for this phase was "do not break the current version file parsing," and
+the structure enforces it rather than testing for it: each part is looked for in JSON
+first, then XML, then inline, and the JSON branches are the untouched originals. A
+current-release file therefore never evaluates a legacy branch — `legacyModel` returns
+`null` for it, since `blockDiagram.json` and `blockdiagram.xml` are different part names.
+That casing pair is itself a trap the suite pins: capital `D` in the JSON name, lowercase
+in the XML one, so a case-insensitive part lookup would read a current file down the
+legacy path. One test asserts the corpus contains both spellings, so the pair cannot
+quietly become one.
+
+The suite is also checked for teeth the same way every other tier is: with
+`SlxParser.ts` reverted to its pre-phase version, 66 of its 193 tests fail.
+
 ## Known limitations, to verify and document
 
 - **Derived MCOS classes.** A customer class `MyParam < Simulink.Parameter`
@@ -1733,6 +1794,21 @@ is also why the live tier's failures are triaged as defects rather than as test 
   links into it is a plain string there and a link target in every other flavour (R2017b
   keeps it). All five are asserted in `mdl.parity.test.ts` rather than assumed — an
   unasserted divergence is indistinguishable from a parse bug.
+- **Three things an earlier `.slx` layout cannot answer, and one we chose not to guess.**
+  A pre-R2020a file records no `ModelUUID`, so it comes back `''`; R2013b predates data
+  dictionaries and MATLAB drops the link on export, so there is nothing to link (the
+  suite's expectation there is MATLAB's own `lastwarn`, recorded by the generator, not a
+  sentence we wrote); and R2013b roots a reference block path at the model's literal name
+  rather than `$bdroot`, which an export has just renamed, so the recorded name is the
+  only safe prefix to strip. The fourth is a deliberate omission rather than a format
+  limit: **a `Simulink.ConfigSetRef` in a legacy file reads as a plain
+  `Simulink.ConfigSet`**, because the modern path tells them apart by an `_object_class`
+  field that no MATLAB-authored fixture in this corpus shows an XML counterpart for.
+  Guessing one would put a branch in the parser that no failing test closes, which is the
+  rule this corpus exists to keep. Filed in `docs/TODO.md`. The first three are asserted
+  in `slxLayouts.parity.test.ts`; everything else — blocks including nested ones, all
+  eight workspace values, both config sets with the right one active, the reference, the
+  dictionary, and the external-`.mat` pointer — reads identically out of all five layouts.
 - **An MCOS object NESTED in a struct field or a cell element shows a summary, not its
   contents.** `test/fixtures/strings_nested.mat` (MATLAB-authored, `probe_string.m`) has a
   struct with a `Simulink.Parameter` field and a string field, and a cell holding both:

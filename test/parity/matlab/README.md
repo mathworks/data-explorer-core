@@ -302,6 +302,114 @@ MATLAB's own `Fri Sep 04 10:15:29 2026` spelling rather than ISO 8601,
 linked data dictionary** — so the block row that links into it is a plain string
 there and a link target in every other flavour. R2017b keeps it.
 
+## The `.slx` layout corpus
+
+A third corpus, written by `gen_slx.m` into `../artifacts/slx_layouts/`. Where the
+`.mdl` corpus asks whether one diagram survives every **container**, this one asks
+whether it survives every **part layout** — because `.slx` is not one format.
+
+A `.slx` is an OPC zip, and its part set has changed five times. The JSON parts
+this parser was first written against arrived in **R2026b**; every release before
+that wrote XML. So the layouts below are not a nicety for museum pieces, they are
+the layout of essentially every `.slx` in existence.
+
+Measured rather than assumed — `save_system(..., 'ExportToVersion', R)` for
+R = R2012a … R2026b, then reading the zip directory of each:
+
+| Release | block diagram | config set index | graphical interface | model workspace | blocks |
+|---|---|---|---|---|---|
+| R2012a-R2014a | `blockdiagram.xml` | *inline* | *inline* | `modelworkspace.mat` | in `blockdiagram.xml` |
+| R2014b | `blockdiagram.xml` | *inline* | `graphicalInterface.xml` | `modelworkspace.mat` | in `blockdiagram.xml` |
+| R2015a-R2019a | `blockdiagram.xml` | `configSetInfo.xml` | `graphicalInterface.xml` | `modelworkspace.mat` | in `blockdiagram.xml` |
+| R2019b | `blockdiagram.xml` | `configSetInfo.xml` | `graphicalInterface.xml` | **`modelWorkspace.mxarray`** | in `blockdiagram.xml` |
+| R2020a-R2024a | `blockdiagram.xml` | `configSetInfo.xml` | `graphicalInterface.xml` | `modelWorkspace.mxarray` | **`systems/*.xml`** |
+| R2024b-R2026a | `blockdiagram.xml` | `configSetInfo.xml` | **`graphicalInterface.json`** | `modelWorkspace.mxarray` | `systems/*.xml` |
+| R2026b+ | **`blockDiagram.json`** | **`configSetInfo.json`** | `graphicalInterface.json` | `modelWorkspace.mxarray` | `systems/*.xml` |
+
+Note the casing change at the flip: `blockdiagram.xml` has a lowercase `d`,
+`blockDiagram.json` a capital `D`. Both are real part names, so a case-insensitive
+lookup would be a bug rather than a shortcut — the suite asserts the corpus
+contains both spellings.
+
+One file per row that a single export can reach:
+
+| file | layout |
+|---|---|
+| `slxcases.slx` | the current release; the reference every other file is compared against |
+| `slxcases_R2025a.slx` | graphical interface JSON, block diagram and config set index still XML — the R2024b-R2026a era |
+| `slxcases_R2021a.slx` | all three XML — the R2020a-R2024a era, five years long and so the file most likely to turn up |
+| `slxcases_R2018a.slx` | blocks *inside* `blockdiagram.xml`, workspace in `modelworkspace.mat` — the R2015a-R2019a era |
+| `slxcases_R2013b.slx` | no config set index and no graphical interface part at all: both inline in the block diagram |
+| `slxws.slx` / `slxws_R2021a.slx` / `slxws_R2018a.slx` | the same question for a different *storage* choice: a model workspace backed by an external `.mat` |
+| `slxws_data.mat` | that external workspace, which is where `slxws`' variables actually live |
+| `slx_truth.json` | what MATLAB says about each *model*, plus the `lastwarn` from every export |
+
+`slxcases` is deliberately the **same diagram** `gen_mdl.m` builds, for the same
+reasons — see the `.mdl` catalog above — so a finding in either suite is directly
+comparable to the other. Its workspace is plain values only, for the same reason
+`mdlcases`' is: a Simulink data object makes the oldest exports give up on the
+workspace and repoint it at a `.m` file, leaving the `modelworkspace.mat` path
+nothing to parse.
+
+### Regenerate
+
+```bash
+mw -using Bmain matlab -nodesktop -batch "run('$PWD/test/parity/matlab/gen_slx.m')"
+```
+
+Prints `GEN_SLX OK` and rewrites all ten files. It honours `outdir` exactly as
+`gen_truth.m` does. As with the `.mdl` corpus, only `slx_truth.json` is
+byte-reproducible; the model files carry a per-save timestamp and UUID.
+
+Two things about the generator worth not rediscovering. `'ExportToVersion'`
+**renames the block diagram** to the target file name, so every legacy file carries
+`slxcases_R20xxy` as the model name and as the prefix of every block path — which
+the test normalises away. And `slxws`' `.mat` is named **relatively**, the way a
+real model names it, so it only resolves once the model itself is on disk in the
+same directory: saving the model *before* setting `DataSource`/`FileName` and
+calling `reload()` is the required order, not a preference.
+
+### What `slxLayouts.parity.test.ts` asserts
+
+Three kinds of claim:
+
+- **the layout is real** — each fixture is asserted to carry the parts its era
+  wrote, and *not* the other flavours of those same parts. Without this the parity
+  comparison could pass vacuously: a corpus accidentally regenerated from one
+  release would be comparing a file to itself.
+- **against MATLAB truth** — the block list, the parameter usages, the config sets
+  and which is active, the referenced model names, the workspace variables and each
+  one's display and class. `slx_truth.json` only, never our own parse.
+- **across layouts** — every legacy file's row shape must equal the current
+  release's. This is the claim legacy support makes, and a wrong-but-consistent
+  reader cannot satisfy it, because the reference side is read by code that predates
+  the legacy readers entirely.
+
+### Where it degrades, and why that is the file's limit rather than ours
+
+Every one of these is asserted, so it stays deliberate rather than becoming
+folklore:
+
+- **no model UUID before R2020a.** `ModelUUID` does not exist in the file. Nothing
+  invents one; hashing the bytes would produce a value that looks like MATLAB's and
+  is not, which is worse than an empty column.
+- **no data dictionary in R2013b.** Dictionaries arrived in R2014a, and MATLAB drops
+  the link on export — the suite's expectation here is MATLAB's *own warning*,
+  recorded verbatim by the generator, rather than a sentence we wrote.
+- **R2013b writes no `$bdroot`.** A reference block path is rooted at the model's
+  literal name, which an export has just renamed; the recorded name is the only safe
+  prefix to strip.
+- **a `Simulink.ConfigSetRef` in a legacy file reads as a plain `Simulink.ConfigSet`.**
+  The modern path distinguishes them by an `_object_class` field that the XML layout
+  has no counterpart for in this corpus. Left alone on purpose: no fixture proves
+  what MATLAB writes there, and guessing would put an untested branch in the parser.
+  Recorded in `docs/TODO.md` instead.
+
+Everything else — blocks including those nested inside a subsystem, all eight
+workspace variables with their exact values, both config sets with the right one
+active, the model reference, the linked dictionary, and the external-`.mat` pointer
+— reads identically out of all five layouts.
+
 ## Tiers, and which need `DEX_MATLAB_CMD`
 
 **Tier 1 — committed truth, no MATLAB, runs in CI on every PR.** Reads
@@ -315,6 +423,7 @@ format sniffing is exercised too) and `loadTruth.ts`:
 | `schemaProps.test.ts` | every property MATLAB reports on a known class is surfaced, with MATLAB's value |
 | `lossless.test.ts` | the stored value is MATLAB's exact value, and serialize -> reparse is a fixed point |
 | `mdl.parity.test.ts` | the `.mdl` corpus: each flavour against MATLAB's truth, and each against its `.slx` twin |
+| `slxLayouts.parity.test.ts` | the `.slx` layout corpus: each era's part layout is real, each file against MATLAB's truth, and each against the current release's rows |
 
 `lossless` is deliberately separate from `display`: display is lossy by design (a
 summary, a threshold), storage must not be, and only a storage-level assertion
