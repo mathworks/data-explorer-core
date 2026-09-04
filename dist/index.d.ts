@@ -18,6 +18,8 @@ export { parseMdl } from './datamodel/parser/MdlParser.js';
 export { parseModel } from './datamodel/parser/ModelParser.js';
 export { parseMat } from './datamodel/parser/MatParser.js';
 export { parseProject } from './datamodel/parser/ProjectParser.js';
+export type { ParsedProject, ProjectFile, ProjectLabel, ProjectReference } from './datamodel/parser/ProjectParser.js';
+export type { ParseWarning, ParseWarningCode } from './datamodel/parser/ParseWarning.js';
 export { ingest } from './core/ingest.js';
 export type { IngestContent, IngestOptions } from './core/ingest.js';
 export { toDTO } from './core/dto.js';

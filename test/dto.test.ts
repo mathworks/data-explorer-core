@@ -82,4 +82,18 @@ describe('toDTO() — serializable snapshot', () => {
     expect(dto.path).toBe('/work/src.sldd');
     expect(dto.sourceFormat).toBe('json');
   });
+
+  it('source DTO carries parse warnings, and omits them for a clean read', () => {
+    // The --json / RPC boundary is the one consumer that CANNOT inspect the live
+    // node, so a warning absent from the DTO is a warning that does not exist as
+    // far as an out-of-process host is concerned.
+    const s = createSession();
+    const junk = s.addProjectSource('/w/Junk.prj', { 'nothing/relevant.txt': 'not xml' });
+    const dto = toDTO(junk) as SourceDTO;
+    expect(dto.warnings?.map((w) => w.code)).toEqual(['source-empty']);
+    expect(() => JSON.stringify(dto)).not.toThrow();
+
+    const clean = ingest(s, text('object_array_text.sldd'), { filename: 'src.sldd' });
+    expect((toDTO(clean) as SourceDTO).warnings).toBeUndefined();
+  });
 });

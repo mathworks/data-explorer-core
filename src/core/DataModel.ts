@@ -12,6 +12,7 @@ import { parseMat } from '../datamodel/parser/MatParser.js';
 import type { ParsedMat } from '../datamodel/parser/MatParser.js';
 import { parseProject } from '../datamodel/parser/ProjectParser.js';
 import type { INode, IContainerNode, ISourceNode, IAllNode, SourceMeta } from './NodeInterfaces.js';
+import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 
 export type { IAllNode as AllNode, SourceMeta };
 
@@ -50,8 +51,19 @@ function buildMeta(meta?: Partial<SourceMeta>): SourceMeta {
   };
 }
 
-function registerSource(srcId: string, sourceNode: ISourceNode, meta?: Partial<SourceMeta>): ISourceNode {
+function registerSource(
+  srcId: string,
+  sourceNode: ISourceNode,
+  meta?: Partial<SourceMeta>,
+  warnings?: ParseWarning[],
+): ISourceNode {
   (sourceNode as unknown as { meta: SourceMeta }).meta = buildMeta(meta);
+  // Only when there IS something to report: absence is what tells a host the read
+  // was clean, so an empty array here would be a false reassurance for the readers
+  // that do not yet have a diagnostics channel at all. See ParseWarning.
+  if (warnings && warnings.length > 0) {
+    (sourceNode as unknown as { warnings: ParseWarning[] }).warnings = warnings;
+  }
   // Re-registering a srcId REPLACES its tree, so the outgoing tree's nodes have to
   // leave nodeIndex first. `dataSources.set` drops the only reference to the old
   // source, but its node ids stay in nodeIndex forever otherwise — and findNodeById
@@ -181,7 +193,7 @@ function addProjectSource(
   const basename = ((meta && meta.path) || srcId).split(/[\\/]/).pop() || srcId;
   const parsed = parseProject(files, basename.replace(/\.prj$/i, ''));
   const projectNode = ProjectNode.fromParsed(parsed, basename);
-  return registerSource(srcId, projectNode as unknown as ISourceNode, meta);
+  return registerSource(srcId, projectNode as unknown as ISourceNode, meta, parsed.warnings);
 }
 
 // The *Parsed entry points take `unknown` because the host parsed the file itself

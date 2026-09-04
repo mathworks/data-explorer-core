@@ -32,6 +32,12 @@ export { parseMdl } from './datamodel/parser/MdlParser.js';
 export { parseModel } from './datamodel/parser/ModelParser.js';
 export { parseMat } from './datamodel/parser/MatParser.js';
 export { parseProject } from './datamodel/parser/ProjectParser.js';
+export type { ParsedProject, ProjectFile, ProjectLabel, ProjectReference } from './datamodel/parser/ProjectParser.js';
+
+// The diagnostics channel for a parse that succeeded but is short. A consumer has
+// to be able to NAME this type to render "opened with 2 warnings", so it is public
+// surface, not an internal detail.
+export type { ParseWarning, ParseWarningCode } from './datamodel/parser/ParseWarning.js';
 
 // Universal ingest (sniff + dispatch) — superset entry over addXSource.
 export { ingest } from './core/ingest.js';

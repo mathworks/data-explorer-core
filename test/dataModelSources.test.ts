@@ -176,4 +176,21 @@ describe('createSession() — addProjectSource names the project from its file',
     expect(prj.name).toBe('Junk.prj');
     expect(prj.NumberOfEntries).toBe(0);
   });
+
+  it('carries the parse warnings onto the source node it registers', () => {
+    // The empty project above is the failure this asserts against: without the
+    // warnings reaching the node, a host holding only the tree cannot tell a store
+    // it failed to read from a project with nothing in it.
+    const s = createSession();
+    const prj = s.addProjectSource('/w/Junk.prj', { 'nothing/relevant.txt': 'not xml' });
+    expect(prj.warnings?.map((w) => w.code)).toEqual(['source-empty']);
+  });
+
+  it('leaves warnings off a source it read completely', () => {
+    // An always-present empty array would read as "this format reports warnings"
+    // for formats that do not yet, so absence is the signal for a clean read.
+    const s = createSession();
+    const prj = s.addProjectSource('/w/MyProj.prj', PRJ_STORE);
+    expect(prj.warnings).toBeUndefined();
+  });
 });

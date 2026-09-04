@@ -35,8 +35,14 @@ export function createSession(opts = {}) {
             fileHandle: (meta && meta.fileHandle) || null,
         };
     }
-    function registerSource(srcId, sourceNode, meta) {
+    function registerSource(srcId, sourceNode, meta, warnings) {
         sourceNode.meta = buildMeta(meta);
+        // Only when there IS something to report: absence is what tells a host the read
+        // was clean, so an empty array here would be a false reassurance for the readers
+        // that do not yet have a diagnostics channel at all. See ParseWarning.
+        if (warnings && warnings.length > 0) {
+            sourceNode.warnings = warnings;
+        }
         // Re-registering a srcId REPLACES its tree, so the outgoing tree's nodes have to
         // leave nodeIndex first. `dataSources.set` drops the only reference to the old
         // source, but its node ids stay in nodeIndex forever otherwise — and findNodeById
@@ -149,7 +155,7 @@ export function createSession(opts = {}) {
         const basename = ((meta && meta.path) || srcId).split(/[\\/]/).pop() || srcId;
         const parsed = parseProject(files, basename.replace(/\.prj$/i, ''));
         const projectNode = ProjectNode.fromParsed(parsed, basename);
-        return registerSource(srcId, projectNode, meta);
+        return registerSource(srcId, projectNode, meta, parsed.warnings);
     }
     // The *Parsed entry points take `unknown` because the host parsed the file itself
     // (on a worker, say) and hands the result back across a boundary that erased its

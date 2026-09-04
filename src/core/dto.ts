@@ -7,6 +7,7 @@
 // live parent/child object links. `toDTO` is that projection, used only at the edge.
 
 import type { INode, ISourceNode } from './NodeInterfaces.js';
+import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 
 export interface PropDTO {
   key: string;
@@ -36,6 +37,13 @@ export interface SourceDTO extends NodeDTO {
   path?: string;
   dirty: boolean;
   sourceFormat?: string;
+  /**
+   * What the reader could not read, omitted when it read everything. An
+   * out-of-process consumer has only this projection to go on, so a warning the
+   * live node carries and the DTO drops does not exist as far as that host is
+   * concerned — which is the whole failure the channel was added to fix.
+   */
+  warnings?: ParseWarning[];
 }
 
 export interface ToDTOOptions {
@@ -78,6 +86,14 @@ export function toDTO(node: INode, opts: ToDTOOptions = {}): NodeDTO {
     sdto.dirty = asSource.dirty;
     if (asSource.meta?.path) sdto.path = asSource.meta.path;
     if (asSource.sourceFormat) sdto.sourceFormat = asSource.sourceFormat;
+  }
+  // Warnings are NOT part of the block above, because `dirty` is the wrong gate for
+  // them: a read-only source node (ProjectNode has no dirty flag at all) never
+  // enters it, and a read-only format is exactly one whose read can come up short.
+  // Copied rather than aliased — a DTO is a snapshot, so a consumer that sorts or
+  // mutates this list must not be reaching into the live node to do it.
+  if (asSource.warnings && asSource.warnings.length > 0) {
+    (dto as SourceDTO).warnings = asSource.warnings.map((w) => ({ ...w }));
   }
   if (depth > 0) {
     dto.children = kids.map((c) => toDTO(c, { depth: depth - 1 }));
