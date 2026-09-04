@@ -438,12 +438,74 @@ describe('parseMdl — classic .mdl grammar edge cases', () => {
     expect(parsed.modelReferences).toEqual([{ blockPath: 'other/Child', modelName: 'child_model' }]);
   });
 
-  it('reports nothing rather than throwing for an empty file', () => {
-    const parsed = parseMdl(bytes(''), 'empty.mdl');
+  it('reads a model that holds nothing but its own name', () => {
+    // The tolerance the grammar reader is built on, and where its limit is: a model
+    // with no diagram, no config sets and no workspace is a legal model, so every
+    // section comes back empty and nothing is reported wrong. What makes it a model
+    // is the `Model` node — see the rejections below.
+    const parsed = parseMdl(bytes('Model {\n  Name "bare"\n}\n'), 'bare.mdl');
     expect(parsed.blockParamUsages).toEqual([]);
     expect(parsed.configSets).toEqual([]);
     expect(parsed.modelReferences).toEqual([]);
     expect(parsed.workspace).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// what is NOT a model
+// ---------------------------------------------------------------------------
+
+// This reader is the last one in the dispatch: anything that is not a zip and not a
+// text package arrives here, so it is also where a file nobody can read is finally
+// named as such. That matters because the grammar tolerates ANY text — no `Model`
+// node just means no properties — so a reader without this guard answers a corrupt
+// file with an empty model, and a host has no way to tell that from a model that is
+// genuinely empty. It shows a table of empty sections, reading "this model is empty"
+// where it should say the file could not be read.
+describe('parseMdl — rejects text that is not a model at all', () => {
+  const notAModel = /Not a Simulink model/;
+
+  it('rejects an empty file', () => {
+    expect(() => parseMdl(bytes(''), 'empty.mdl')).toThrow(notAModel);
+  });
+
+  it('rejects bytes that are not text in any encoding', () => {
+    // The shape a truncated or corrupt `.slx` takes: it fails the zip sniff, so it
+    // comes here as mojibake.
+    const junk = new Uint8Array([0x50, 0x4b, 0x07, 0x08, 0xff, 0xfe, 0x00, 0x42]);
+    expect(() => parseMdl(detach(junk), 'corrupt.slx')).toThrow(notAModel);
+  });
+
+  it('rejects text in a brace grammar that is not this one', () => {
+    // Well-formed braces, parsed happily into a tree, with no diagram anywhere in it.
+    expect(() => parseMdl(bytes('server {\n  listen 80;\n}\n'), 'nginx.mdl')).toThrow(notAModel);
+  });
+
+  it('names the file in the message, since a host reports it to a person', () => {
+    expect(() => parseMdl(bytes('nothing'), 'engine_R2011b.mdl')).toThrow(/engine_R2011b\.mdl/);
+  });
+
+  it('rejects a text package cut off before its first part', () => {
+    // A package marker with nothing after it is a truncated file, not a package. It
+    // falls through to the grammar reader, which finds no Model — the banner alone is
+    // not one — and rejects it, rather than opening a model with no parts in it.
+    expect(() => parseMdl(bytes(BANNER + '__MWOPC_PACKAGE_BEGIN__ R2027a\n'), 'cut.mdl')).toThrow(notAModel);
+  });
+
+  it('accepts a truncated package that still carries its legacy stub', () => {
+    // The same truncation, on a file whose stub survived: the stub IS a Model node, so
+    // this opens as the (nearly empty) model the readable half describes. Tolerated
+    // rather than rejected because the file does say what it is.
+    const parsed = parseMdl(bytes(BANNER + STUB + '__MWOPC_PACKAGE_BEGIN__ R2027a\n'), 'cut.mdl');
+    expect(parsed.zipEntries).toBeNull();
+    expect(parsed.blockParamUsages).toEqual([]);
+  });
+
+  it('still reads a Library, which is a model in every way that matters here', () => {
+    // The guard accepts two node names, and a library file has only the second one.
+    // Rejecting it would make every legacy library unopenable — the exact failure the
+    // guard is meant to prevent, inverted.
+    expect(parseMdl(bytes('Library {\n  Name "lib"\n}\n'), 'lib.mdl').name).toBe('lib.mdl');
   });
 });
 
@@ -506,5 +568,19 @@ describe('parseModel — sniffing on bytes', () => {
     const parsed = parseModel(bytes(CLASSIC), 'unit.slx');
     expect(parsed.creator).toBe('someone');
     expect(parsed.zipEntries).toBeNull();
+  });
+
+  it('rejects bytes that are none of the three forms', () => {
+    // The host-facing half of the guard in the classic reader. Sniffing on bytes made
+    // every reader reachable from every extension, and the reader of last resort
+    // tolerates any text — so this entry point, which a host calls for anything named
+    // `.slx` or `.mdl`, needs to still fail on a file that is neither. A host shows a
+    // "could not read this file" banner from the exception; with no exception it shows
+    // an empty table instead, and the user is told the model is empty.
+    expect(() => parseModel(bytes('not a model'), 'corrupt.slx')).toThrow(/Not a Simulink model/);
+    // A truncated zip keeps its magic, so it goes to the .slx reader and fails there —
+    // unchanged, and named here so both halves of the dispatch are pinned as throwing.
+    const truncatedZip = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]);
+    expect(() => parseModel(detach(truncatedZip), 'cut.slx')).toThrow();
   });
 });
