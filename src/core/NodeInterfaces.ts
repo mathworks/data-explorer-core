@@ -13,9 +13,11 @@
  */
 
 import type { PropClass, PropInfo, RowData, PIGroupDef, PIObject } from '../datamodel/node/BaseNode.js';
+import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 
 export type { PropClass, PropInfo, RowData, PIGroupDef };
 export type { PIObject as NodePIObject };
+export type { ParseWarning };
 
 /** Minimal interface any node exposes to the core layer */
 export interface INode {
@@ -92,6 +94,7 @@ export interface IContainerNode extends INode {
     dirty?: boolean;
     readOnly?: boolean;
     meta?: SourceMeta;
+    warnings?: ParseWarning[];
     NumberOfEntries?: number;
     dictionaryReferences?: unknown[];
     dataDictionary?: string | null;
@@ -112,6 +115,14 @@ export interface IContainerNode extends INode {
 export interface ISourceNode extends IContainerNode {
     dirty: boolean;
     meta?: SourceMeta;
+    /**
+     * What the reader could not read, when it could not read something. ABSENT for
+     * a clean read, and absent for a format whose reader has no diagnostics channel
+     * yet — an always-present empty array would promise every source reports
+     * warnings, and a host would read a clean `[]` from a reader that simply cannot
+     * speak as proof the file was whole. See ParseWarning.
+     */
+    warnings?: ParseWarning[];
     getSection(key: string): IContainerNode | null;
 }
 

@@ -44,6 +44,14 @@ export function toDTO(node, opts = {}) {
         if (asSource.sourceFormat)
             sdto.sourceFormat = asSource.sourceFormat;
     }
+    // Warnings are NOT part of the block above, because `dirty` is the wrong gate for
+    // them: a read-only source node (ProjectNode has no dirty flag at all) never
+    // enters it, and a read-only format is exactly one whose read can come up short.
+    // Copied rather than aliased — a DTO is a snapshot, so a consumer that sorts or
+    // mutates this list must not be reaching into the live node to do it.
+    if (asSource.warnings && asSource.warnings.length > 0) {
+        dto.warnings = asSource.warnings.map((w) => ({ ...w }));
+    }
     if (depth > 0) {
         dto.children = kids.map((c) => toDTO(c, { depth: depth - 1 }));
     }

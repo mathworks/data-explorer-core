@@ -17,6 +17,10 @@
 import { describe, it, expect } from 'vitest';
 import { parseProject, type ParsedProject } from '../src/datamodel/parser/ProjectParser.js';
 
+/** The store path of the helper.m pointer — the doc the malformed cases corrupt. */
+const HELPER_POINTER =
+  'resources/project/-V17xoKMQuak4-chxc1ixTLv0tA/8AEHllJDJXphBkrgA4Qqq-Hbo_sp.xml';
+
 const DECL = '<?xml version="1.0" encoding="UTF-8"?>';
 
 function info(body: string): string {
@@ -172,8 +176,7 @@ describe('parseProject', () => {
   it('skips a malformed XML file and parses the rest (no throw)', () => {
     const store = myProjStore();
     // Corrupt the helper.m pointer; the rest of the store should survive.
-    store['resources/project/-V17xoKMQuak4-chxc1ixTLv0tA/8AEHllJDJXphBkrgA4Qqq-Hbo_sp.xml'] =
-      '<Info location="helper.m" type=BROKEN <<<';
+    store[HELPER_POINTER] = '<Info location="helper.m" type=BROKEN <<<';
 
     const parsed = parseProject(store, 'fallback');
     expect(parsed.name).toBe('MyProj');
@@ -229,6 +232,79 @@ describe('parseProject', () => {
     expect(ref?.name).toBe('LibProj.prj');
     // The ProjectPath 'Reference' entries must NOT be misread as project refs.
     expect(parsed.references.some((r) => r.name === 'utils')).toBe(false);
+  });
+});
+
+// A .prj has no fallback view, so parseProject is documented never to throw — and
+// that contract is exactly what makes a failed read indistinguishable from a real
+// but empty project. Every case below already returned a well-formed result before
+// the warnings channel existed; what they lacked was any way to say the result is
+// short. The distinction the channel has to hold is between a document we could not
+// READ (corrupt, truncated) and one we merely do not MODEL (a sidecar from a newer
+// release) — warning on the second would make every newer .prj noisy, which trains
+// a host to ignore the count.
+describe('parseProject — the warnings channel', () => {
+  it('reports no warnings for a store it read completely', () => {
+    // The clean store also carries two non-store files (MyProj.prj, a .slx) that are
+    // skipped before any XML parse, so neither may register as unreadable.
+    expect(parseProject(myProjStore(), 'fallback').warnings).toEqual([]);
+  });
+
+  it('warns about the one document it could not parse, naming it', () => {
+    const store = myProjStore();
+    store[HELPER_POINTER] = '<Info location="helper.m" type=BROKEN <<<';
+
+    const parsed = parseProject(store, 'fallback');
+    expect(parsed.warnings).toHaveLength(1);
+    expect(parsed.warnings[0].code).toBe('part-unreadable');
+    // The relpath is the actionable part: it is what a user can go and look at.
+    expect(parsed.warnings[0].part).toBe(HELPER_POINTER);
+  });
+
+  it('warns about a document that is not XML at all, not just one that fails to parse', () => {
+    // A truncated or wrongly-encoded write can leave a .xml file the parser accepts
+    // without producing a single element. That is unreadable, not unmodelled.
+    const store = myProjStore();
+    store[HELPER_POINTER] = 'plain text, no elements';
+
+    const parsed = parseProject(store, 'fallback');
+    expect(parsed.warnings.map((w) => w.part)).toEqual([HELPER_POINTER]);
+    expect(parsed.warnings[0].code).toBe('part-unreadable');
+  });
+
+  it('stays silent about a well-formed document it does not model', () => {
+    // The sidecar case from the indexing suite: valid XML, root element we do not
+    // read. A newer release adding documents is not a defect in the file.
+    const store = myProjStore();
+    store['resources/project/root/sidecar.xml'] =
+      '<?xml version="1.0" encoding="UTF-8"?>\n<SomethingElse Name="NotTheProject"/>';
+
+    expect(parseProject(store, 'fallback').warnings).toEqual([]);
+  });
+
+  it('warns that a store with nothing readable in it yielded an empty project', () => {
+    // This is the shape the channel exists for: name resolved, every collection
+    // empty, and before now no way at all to tell that from a genuinely empty project.
+    const parsed = parseProject({ 'nothing/relevant.txt': 'not xml' }, 'Junk');
+    expect(parsed.files).toEqual([]);
+    expect(parsed.warnings.map((w) => w.code)).toEqual(['source-empty']);
+  });
+
+  it('warns when the walk threw, so the empty result is not read as an empty project', () => {
+    const parsed = parseProject(null as unknown as Record<string, string>, 'F');
+    expect(parsed.name).toBe('F');
+    expect(parsed.warnings.map((w) => w.code)).toEqual(['source-unreadable']);
+    // The thrown message is carried through: it is the only clue to what broke.
+    expect(parsed.warnings[0].message).toContain('null');
+  });
+
+  it('keeps the warnings JSON-safe, so they survive a worker boundary', () => {
+    // Hosts parse off-thread and hand the result back through structured clone /
+    // JSON, so a warning may not carry an Error object.
+    const store = myProjStore();
+    store[HELPER_POINTER] = '<Info type=BROKEN <<<';
+    const parsed = parseProject(store, 'fallback');
+    expect(JSON.parse(JSON.stringify(parsed.warnings))).toEqual(parsed.warnings);
   });
 });
 
@@ -330,13 +406,16 @@ describe('parseProject — indexing the content store', () => {
     // The documented contract. The host has no fallback view for a .prj, so an
     // exception here is a failed open.
     expect(() => parseProject(null as unknown as Record<string, string>, 'F')).not.toThrow();
-    expect(parseProject(null as unknown as Record<string, string>, 'F')).toEqual({
+    const parsed = parseProject(null as unknown as Record<string, string>, 'F');
+    expect(parsed).toMatchObject({
       name: 'F',
       files: [],
       pathFolders: [],
       labels: [],
       references: [],
     });
+    // What it could not read is reported rather than swallowed — see the warnings suite.
+    expect(parsed.warnings.length).toBeGreaterThan(0);
   });
 });
 

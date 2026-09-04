@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { XMLParser } from 'fast-xml-parser';
+import { reasonOf, type ParseWarning } from './ParseWarning.js';
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -36,6 +37,12 @@ export interface ParsedProject {
   /** The catalog of labels defined in the project. */
   labels: ProjectLabel[];
   references: ProjectReference[];
+  /**
+   * What could not be read, empty when everything could. ALWAYS an array: this
+   * reader has the channel, so a caller may read `.length` without guarding, and
+   * an empty one is a positive statement that the store was read whole.
+   */
+  warnings: ParseWarning[];
 }
 
 const PROJECT_PREFIX = 'resources/project/';
@@ -82,15 +89,19 @@ function toArray<T>(v: T | T[] | undefined): T[] {
  *
  * `files` maps POSIX relpaths (relative to the project root) to file text.
  * Only entries under `resources/project/` are read. Never throws: on any
- * failure it returns a minimally-populated result with the fallback name.
+ * failure it returns a minimally-populated result with the fallback name — and
+ * says so in `result.warnings`, which is the only thing separating that result
+ * from a project which genuinely holds nothing.
  */
 export function parseProject(files: Record<string, string>, projectName: string): ParsedProject {
+  const warnings: ParseWarning[] = [];
   const result: ParsedProject = {
     name: projectName,
     files: [],
     pathFolders: [],
     labels: [],
     references: [],
+    warnings,
   };
 
   try {
@@ -103,7 +114,7 @@ export function parseProject(files: Record<string, string>, projectName: string)
       if (!relPath.endsWith('.xml')) {
         continue;
       }
-      const info = parseInfo(content);
+      const info = parseInfo(content, relPath, warnings);
       if (info) {
         // Store keyed relative to resources/project/ for simpler dir math.
         index.set(relPath.slice(PROJECT_PREFIX.length), info);
@@ -111,6 +122,15 @@ export function parseProject(files: Record<string, string>, projectName: string)
     }
 
     if (index.size === 0) {
+      // Every collection below reads out of this index, so an empty one means the
+      // whole result is empty — and a `.prj` always has a store, so reaching here
+      // is either the wrong kind of file or a store that did not survive its trip.
+      warnings.push({
+        code: 'source-empty',
+        message:
+          'No readable project entries were found under resources/project/, ' +
+          'so this project reads as empty.',
+      });
       return result;
     }
 
@@ -177,32 +197,72 @@ export function parseProject(files: Record<string, string>, projectName: string)
     result.pathFolders.sort((a, b) => a.localeCompare(b));
 
     return result;
-  } catch {
+  } catch (err) {
+    // Still every collection empty rather than however far the walk got: a store is
+    // read by convention with no schema to validate against, so a tree abandoned
+    // mid-walk is a plausible-looking project missing arbitrary parts of itself,
+    // which is harder for a host to present honestly than nothing at all. The
+    // warnings survive — they are what says this is that case.
+    warnings.push({
+      code: 'source-unreadable',
+      message: `The project store could not be read (${reasonOf(err)}), so this project reads as empty.`,
+    });
     return {
       name: projectName,
       files: [],
       pathFolders: [],
       labels: [],
       references: [],
+      warnings,
     };
   }
 }
 
-function parseInfo(content: string): XmlInfo | null {
+/**
+ * One `<Info>` document, or null when there is nothing here to index.
+ *
+ * Null covers two cases that must NOT be reported alike. A document that fails to
+ * parse, or that yields no elements at all, is CORRUPT — truncated, wrongly
+ * encoded, half-written — and the entity it described is lost, so it warns. A
+ * document that parses into elements but has no `<Info>` root is a sidecar this
+ * version does not model; newer releases add them, and warning on one would put a
+ * count on every project written by a release newer than this reader.
+ */
+function parseInfo(content: string, relPath: string, warnings: ParseWarning[]): XmlInfo | null {
+  let doc: Record<string, unknown>;
   try {
-    const doc = xmlParser.parse(content);
-    const info = doc?.Info;
-    if (info === undefined || info === null) {
-      return null;
-    }
-    // An empty element parses to '' — normalize to an empty object.
-    if (typeof info !== 'object') {
-      return {};
-    }
-    return info as XmlInfo;
-  } catch {
+    doc = xmlParser.parse(content) as Record<string, unknown>;
+  } catch (err) {
+    warnings.push({
+      code: 'part-unreadable',
+      message: `Skipped an unreadable project entry (${reasonOf(err)}).`,
+      part: relPath,
+    });
     return null;
   }
+
+  // The parser is lenient and answers with an EMPTY object for input carrying no
+  // markup at all (plain text, an empty file, binary). That is the same loss as a
+  // throw — an entity the store said was here and is not — and it is the shape a
+  // truncated or mis-encoded write actually takes, so it cannot be silent.
+  if (doc === null || typeof doc !== 'object' || Object.keys(doc).length === 0) {
+    warnings.push({
+      code: 'part-unreadable',
+      message: 'Skipped a project entry that contains no XML.',
+      part: relPath,
+    });
+    return null;
+  }
+
+  const info = doc.Info;
+  if (info === undefined || info === null) {
+    return null;
+  }
+  // An empty element parses to '' — normalize to an empty object.
+  if (typeof info !== 'object') {
+    return {};
+  }
+  return info as XmlInfo;
 }
 
 /**
