@@ -134,6 +134,15 @@ sAstral   1 2 1 1 4 27828642926887009                 "a😀b"
 does not read that container at all, so how a string is laid out inside it was not
 investigated and no fixture in this corpus is one.
 
+It is now *refused* rather than read as empty. The first 128 bytes of a v7.3 file are a
+level-5 header of exactly the ordinary shape — right length, endian indicator a genuine
+`IM` — so every framing guard passed it and the first record tag was read out of the
+zero padding between the header and the offset above, which is the format's
+end-of-variables marker. The file parsed successfully with no variables in it.
+`MatParser.ts:356-369` now throws on the `MATLAB 7.3 MAT-file` header prefix. The offset
+recorded above is the standing fallback if that prefix ever turns out to be wrong: it is
+fixed by HDF5's own spec, while the header text is MATLAB's to choose.
+
 ## Which paths reach a string, and which do not
 
 A `Simulink` object's property cannot hold a string. Assigning one converts it:

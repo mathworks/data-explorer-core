@@ -326,6 +326,20 @@ export function parseMat(arrayBuffer) {
     }
     const headerBytes = new Uint8Array(buf.buffer, buf.byteOffset, 116);
     const header = new TextDecoder().decode(headerBytes).trim();
+    // A `-v7.3` file is HDF5, and it carries this same 128-byte header in its HDF5
+    // userblock — so nothing below rejects it. Its endian indicator is a genuine
+    // little-endian 'IM', and the first record tag is read out of the zero padding that
+    // follows the header, which is exactly the format's end-of-variables marker. The
+    // result was `variables: []`: a successful parse of an empty file, indistinguishable
+    // from a real .mat holding no variables. `-v7.3` is what MATLAB requires above 2 GB.
+    //
+    // Matched on the version prefix, because the rest of the header is per-file platform
+    // and date text. Checked before the endian indicator so the message names the format
+    // we do not implement rather than blaming the byte order of one we do. Actually
+    // READING HDF5 is a separate and far larger question; see docs/TODO.md.
+    if (header.startsWith('MATLAB 7.3 MAT-file')) {
+        throw new Error('MAT-file version 7.3 (HDF5) is not supported');
+    }
     const endianIndicator = String.fromCharCode(buf[126]) + String.fromCharCode(buf[127]);
     if (endianIndicator !== 'IM') {
         throw new Error('Big-endian MAT files not supported');

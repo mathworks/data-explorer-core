@@ -32,6 +32,7 @@ import {
   charVar,
   dims,
   element,
+  hdf5MatFile,
   matFile,
   matrix,
   mxArrayFile,
@@ -97,6 +98,29 @@ describe('parseMat — file-level framing', () => {
     const empty = parseMat(matFile([]));
     expect(empty.variables).toEqual([]);
     expect(empty.header).toContain('MATLAB 5.0 MAT-file');
+  });
+
+  it('refuses a -v7.3 file rather than reporting it as an empty one', () => {
+    // A -v7.3 file is HDF5 behind a 128-byte header of exactly the Level-5 shape, so
+    // every framing guard above passes it: it is longer than 128 bytes, and its endian
+    // indicator is a real little-endian 'IM'. The record loop then reads its first tag
+    // out of HDF5 userblock padding, gets 0/0, and takes the legitimate "no more
+    // variables" exit — so the file parsed successfully with nothing in it, which is
+    // indistinguishable from the header-only file the test above says is legal. -v7.3
+    // is what MATLAB requires above 2 GB and what many users set by habit.
+    //
+    // Matched on the header's version prefix, not on the whole string: the platform and
+    // date text varies per file, and the fixture's copy of it is synthesized (see
+    // V73_HEADER_TEXT). Two headers differing in everything but the version prove the
+    // check does not depend on the invented part.
+    for (const headerText of [
+      undefined,
+      'MATLAB 7.3 MAT-file, Platform: GLNXA64, Created on: Tue Jan 07 23:59:59 2014 HDF5 schema 1.00',
+    ]) {
+      expect(() => parseMat(hdf5MatFile({ headerText })), String(headerText)).toThrow(
+        'MAT-file version 7.3 (HDF5) is not supported',
+      );
+    }
   });
 
   it('reads every variable in a multi-variable file, in order', () => {
