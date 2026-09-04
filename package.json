@@ -1,6 +1,6 @@
 {
   "name": "data-explorer-core",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Parser, data model, and node schema for Simulink data-dictionary, model, MAT-file, and project files. Presentation-independent; embeddable in-process.",
   "license": "BSD-3-Clause",
   "type": "module",

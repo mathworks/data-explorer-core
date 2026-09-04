@@ -3,6 +3,7 @@
 import { unzipSync } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
 import { parseMxArray } from './MxArrayParser.js';
+import { parseMat } from './MatParser.js';
 import type { MatVariable } from './MatParser.js';
 
 const xmlParser = new XMLParser({
@@ -58,11 +59,14 @@ function extractConfigSets(
     const partPath = info.PartName.replace(/^\//, '');
     const buf = entries[partPath];
     if (buf) {
-      const json = parseJSON(buf);
+      // The referenced part is `configSetN.json` from R2026b and `configSetN.xml`
+      // before it. The info part names it either way, so the extension it points
+      // at — not the release — decides how to read it.
+      const data = partPath.endsWith('.json') ? parseJSON(buf) : parseXml(buf);
       configs.push({
         name: info.ConfigSetName,
         active: !!info.Active,
-        data: json,
+        data: data,
       });
     }
   }
@@ -120,6 +124,152 @@ function findText(obj: unknown, tagName: string): string | null {
     }
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// The legacy XML layout.
+//
+// A `.slx` is not one part layout. The JSON parts this file was first written
+// against arrived in R2026b; every earlier release wrote XML, and the part set
+// moved four more times before that — see the matrix in
+// test/parity/matlab/README.md. So the XML readers below are not a nicety for
+// museum pieces, they are the layout of essentially every `.slx` in existence.
+//
+// Every one of them is strictly a FALLBACK. `parseModelParts` tries the JSON part
+// first and takes the XML path only when the JSON part is absent, so a
+// current-release file cannot reach this code and its behaviour is unchanged by
+// any of it.
+//
+// Where a release genuinely cannot express something the reader returns nothing
+// rather than a guess: R2019b and earlier have no `ModelUUID` at all, and R2013b
+// predates data dictionaries. Those are limits of the file, and the parity suite
+// asserts them as such.
+// ---------------------------------------------------------------------------
+
+// The DIRECT `<P Name="x">v</P>` children of one element, as a map.
+//
+// Direct children only, deliberately: `findAll` recurses, and a `<Model>` carries
+// hundreds of nested `<P>` elements under EditorSettings, ConfigManagerSettings
+// and friends. A recursive lookup for `DataDictionary` would eventually match
+// something else's property of the same name.
+function directProps(el: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!el || typeof el !== 'object') return out;
+  const p = (el as Record<string, unknown>).P;
+  if (!p) return out;
+  for (const entry of Array.isArray(p) ? p : [p]) {
+    if (!entry || typeof entry !== 'object') continue;
+    const rec = entry as Record<string, unknown>;
+    const name = rec['@_Name'];
+    if (typeof name !== 'string') continue;
+    out[name] = String(rec['#text'] ?? '');
+  }
+  return out;
+}
+
+// The `<Model>` element of a legacy `blockdiagram.xml`, or null.
+function legacyModel(entries: Record<string, Uint8Array>): Record<string, unknown> | null {
+  const buf = entries['simulink/blockdiagram.xml'];
+  if (!buf) return null;
+  const doc = parseXml(buf) as Record<string, unknown>;
+  const info = doc.ModelInformation as Record<string, unknown> | undefined;
+  const model = (info?.Model ?? null) as Record<string, unknown> | null;
+  return model && typeof model === 'object' ? model : null;
+}
+
+// `configSetInfo.xml` in the shape the JSON reader already produces. The name is
+// the element's TEXT here (it is a JSON field in the modern part) and `Active` is
+// an attribute that is present only on the active one.
+function legacyConfigSetInfo(buf: Uint8Array): { PartName: string; ConfigSetName: string; Active: boolean }[] {
+  const doc = parseXml(buf);
+  const out: { PartName: string; ConfigSetName: string; Active: boolean }[] = [];
+  for (const el of findAll(doc, 'ConfigSet')) {
+    if (!el || typeof el !== 'object') continue;
+    const rec = el as Record<string, unknown>;
+    const partName = rec['@_PartName'];
+    if (typeof partName !== 'string') continue;
+    out.push({
+      PartName: partName,
+      ConfigSetName: String(rec['#text'] ?? ''),
+      Active: String(rec['@_Active'] ?? '') === 'true',
+    });
+  }
+  return out;
+}
+
+// Config sets for the oldest era, which has no `configSetInfo` part and no
+// `configSetN` parts: R2014b and earlier carry them inline, as
+// `<ConfigurationSet><Array PropName="ConfigurationSets"><Object ClassName=
+// "Simulink.ConfigSet">`. Which one is active is recoverable rather than guessed —
+// a sibling `<Object PropName="ActiveConfigurationSet">` points at one by
+// ObjectID.
+function inlineConfigSets(model: Record<string, unknown>): { name: string; active: boolean; data: unknown }[] {
+  const container = model.ConfigurationSet;
+  if (!container) return [];
+
+  let activeId = '';
+  for (const ref of findAll(model, 'Object')) {
+    if (!ref || typeof ref !== 'object') continue;
+    const rec = ref as Record<string, unknown>;
+    if (rec['@_PropName'] === 'ActiveConfigurationSet') {
+      activeId = String(rec['@_ObjectID'] ?? '');
+      break;
+    }
+  }
+
+  const out: { name: string; active: boolean; data: unknown }[] = [];
+  for (const obj of findAll(container, 'Object')) {
+    if (!obj || typeof obj !== 'object') continue;
+    const rec = obj as Record<string, unknown>;
+    if (rec['@_ClassName'] !== 'Simulink.ConfigSet') continue;
+    const name = directProps(rec).Name;
+    if (!name) continue;
+    const id = String(rec['@_ObjectID'] ?? '');
+    out.push({ name, active: !!id && id === activeId, data: rec });
+  }
+  return out;
+}
+
+// Every `<System>` reachable from one, the outermost included.
+//
+// A subsystem's blocks live in a `<System>` nested INSIDE the `<Block
+// BlockType="SubSystem">` that owns it; from R2020a each system got a
+// `systems/system_N.xml` part of its own instead, so the parts loop already sees
+// them all and never needs this. `findAll` deliberately does not descend into an
+// element it has already matched, so one `findAll(system, 'Block')` returns that
+// system's own blocks and stops — walking the systems first is what makes an inner
+// block reachable at all. Without it a legacy file dropped every nested block, which
+// for a model organised into subsystems is most of the model.
+function legacySystems(system: unknown): unknown[] {
+  const out: unknown[] = [];
+  const stack: unknown[] = [system];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object') continue;
+    out.push(current);
+    for (const block of findAll(current, 'Block')) {
+      if (!block || typeof block !== 'object') continue;
+      const inner = (block as Record<string, unknown>).System;
+      if (inner) stack.push(...(Array.isArray(inner) ? inner : [inner]));
+    }
+  }
+  return out;
+}
+
+// Model references from a legacy `graphicalInterface`, which packs both facts into
+// ONE string: `<P Name="ModelRefBlockPath">$bdroot/Child|slx_child</P>`. The
+// modern part splits them into `BlockPath` and `ModelName`, so this splits on the
+// last `|` — a model name cannot contain one, a block path conceivably could.
+function legacyModelReferences(root: unknown): { blockPath: string; modelName: string }[] {
+  const out: { blockPath: string; modelName: string }[] = [];
+  for (const ref of findAll(root, 'ModelReference')) {
+    const path = directProps(ref).ModelRefBlockPath;
+    if (!path) continue;
+    const cut = path.lastIndexOf('|');
+    if (cut < 0) continue;
+    out.push({ blockPath: path.slice(0, cut), modelName: path.slice(cut + 1) });
+  }
+  return out;
 }
 
 const NUMERIC_RE = /^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
@@ -218,12 +368,35 @@ export function isParamReference(propName: string, value: string): boolean {
   return IDENT_RE.test(value);
 }
 
-function extractBlockParamUsages(entries: Record<string, Uint8Array>): BlockParamUsage[] {
-  const usages: BlockParamUsage[] = [];
+// `legacy` is the `<Model>` element of a legacy blockdiagram.xml, already parsed by
+// the caller — that part is the largest in the package and every legacy branch
+// wants something from it, so it is read once and passed around.
+function extractBlockParamUsages(
+  entries: Record<string, Uint8Array>,
+  legacy: Record<string, unknown> | null,
+): BlockParamUsage[] {
+  // `simulink/systems/*.xml` from R2020a on. Before that the block tree lived
+  // inside blockdiagram.xml, so when there are no systems parts the diagram's own
+  // `<System>` is the root to walk instead.
+  //
+  // Scoping to `<System>` rather than to the whole document is what keeps this
+  // honest: a legacy blockdiagram.xml also carries `<BlockDefaults>` and
+  // `<BlockParameterDefaults>`, which are TEMPLATE blocks — every block type
+  // Simulink knows, with placeholder values like `<Enter Model Name>`. Walking the
+  // document would report every one of them as a real block using real parameters.
+  const roots: unknown[] = [];
   for (const key in entries) {
-    if (!key.startsWith('simulink/systems/') || !key.endsWith('.xml')) continue;
-    const doc = parseXml(entries[key]);
-    const blocks = findAll(doc, 'Block');
+    if (key.startsWith('simulink/systems/') && key.endsWith('.xml')) {
+      roots.push(parseXml(entries[key]));
+    }
+  }
+  if (roots.length === 0 && legacy && legacy.System) {
+    roots.push(...legacySystems(legacy.System));
+  }
+
+  const usages: BlockParamUsage[] = [];
+  for (const root of roots) {
+    const blocks = findAll(root, 'Block');
     for (const block of blocks) {
       const b = block as Record<string, unknown>;
       const blockName = normalizeBlockName((b['@_Name'] as string) || '');
@@ -246,10 +419,21 @@ function extractBlockParamUsages(entries: Record<string, Uint8Array>): BlockPara
 function extractModelReferences(
   graphicalInterface: Record<string, unknown> | null,
 ): { blockPath: string; modelName: string }[] {
-  if (!graphicalInterface || !graphicalInterface.ModelReferences) {
+  if (!graphicalInterface) {
     return [];
   }
-  return (graphicalInterface.ModelReferences as { BlockPath: string; ModelName: string }[]).map(function (ref) {
+  // Two JSON shapes. R2024b-R2026a — the releases that moved this part to JSON while
+  // the block diagram was still XML — WRAP the content in a `GraphicalInterface`
+  // object; R2026b flattened it and marks the element with `_mw_element_name`
+  // instead. Reading only the flat shape silently lost every model reference from a
+  // three-release window, which is the same wrapping `blockDiagram.json` is already
+  // unwrapped for above.
+  const gi = (graphicalInterface.GraphicalInterface as Record<string, unknown>) || graphicalInterface;
+  const refs = gi.ModelReferences;
+  if (!refs) {
+    return [];
+  }
+  return (refs as { BlockPath: string; ModelName: string }[]).map(function (ref) {
     return { blockPath: ref.BlockPath, modelName: ref.ModelName };
   });
 }
@@ -279,6 +463,11 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
     lastModified = findText(doc, 'dcterms:modified') || findText(doc, 'modified') || '';
   }
 
+  // The legacy block diagram part, read once: several branches below need it, and
+  // it is the largest part in the package. Null for a current-release file, which
+  // has `blockDiagram.json` instead and never touches the legacy paths.
+  const legacy = legacyModel(entries);
+
   // Block diagram (linked dictionary, UUID, model-workspace data source)
   let dataDictionary: string | null = null;
   let uuid = '';
@@ -294,9 +483,22 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
     if (ws && ws.WSDataSource === 'MAT-File' && typeof ws.WSSourceFileName === 'string') {
       workspaceMatFile = ws.WSSourceFileName;
     }
+  } else if (legacy) {
+    // The same three facts, as `<P Name="...">` children of `<Model>`. `ModelUUID`
+    // arrived in R2020a, so it stays '' for anything older — the file does not
+    // have one to read.
+    const props = directProps(legacy);
+    dataDictionary = props.DataDictionary || null;
+    uuid = props.ModelUUID || '';
+    const wsProps = directProps(legacy.ModelWorkspace);
+    if (wsProps.WSDataSource === 'MAT-File' && wsProps.WSSourceFileName) {
+      workspaceMatFile = wsProps.WSSourceFileName;
+    }
   }
 
-  // Config sets
+  // Config sets. Three layouts: a JSON index (R2026b+), an XML index (R2015a-R2026a)
+  // — both of which point at one `configSetN` part each — and, before R2015a, no
+  // index part at all because the sets are inline in the block diagram.
   let configSets: { name: string; active: boolean; data: unknown }[] = [];
   if (entries['simulink/configSetInfo.json']) {
     const info = parseJSON(entries['simulink/configSetInfo.json']) as Record<string, unknown>;
@@ -304,13 +506,22 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
       entries,
       (info.ConfigSetInfo as { PartName: string; ConfigSetName: string; Active: boolean }[]) || [],
     );
+  } else if (entries['simulink/configSetInfo.xml']) {
+    configSets = extractConfigSets(entries, legacyConfigSetInfo(entries['simulink/configSetInfo.xml']));
+  } else if (legacy) {
+    configSets = inlineConfigSets(legacy);
   }
 
-  // Graphical interface (model references)
+  // Graphical interface (model references). JSON from R2024b, XML from R2014b, and
+  // inline in the block diagram before that.
   let modelReferences: { blockPath: string; modelName: string }[] = [];
   if (entries['simulink/graphicalInterface.json']) {
     const gi = parseJSON(entries['simulink/graphicalInterface.json']) as Record<string, unknown>;
     modelReferences = extractModelReferences(gi);
+  } else if (entries['simulink/graphicalInterface.xml']) {
+    modelReferences = legacyModelReferences(parseXml(entries['simulink/graphicalInterface.xml']));
+  } else if (legacy && legacy.GraphicalInterface) {
+    modelReferences = legacyModelReferences(legacy.GraphicalInterface);
   }
 
   // External data sources (.mat files)
@@ -331,10 +542,23 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
   (workspace as unknown as { _trailingElements: Uint8Array[] })._trailingElements = [];
   if (entries['simulink/modelWorkspace.mxarray']) {
     workspace = parseMxArray(entries['simulink/modelWorkspace.mxarray'].buffer);
+  } else if (entries['simulink/modelworkspace.mat']) {
+    // Before R2019b the workspace part is a whole `MATLAB 5.0 MAT-file` — same
+    // record framing `parseMat` already reads for a standalone `.mat`, one top-level
+    // variable per workspace variable, rather than the mxarray's single struct whose
+    // FIELDS are the variables. So this is routing, not a second decoder.
+    const buf = entries['simulink/modelworkspace.mat'];
+    // Slice rather than hand over `.buffer`: the entry may be a view into a larger
+    // allocation, and parseMat reads its header from offset 0.
+    const mat = parseMat(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
+    workspace = mat.variables as MatVariable[] & { _trailingElements: Uint8Array[] };
+    // No mxarray framing here, so there is nothing trailing to preserve. The field
+    // is still set because every consumer reads it unconditionally.
+    (workspace as unknown as { _trailingElements: Uint8Array[] })._trailingElements = [];
   }
 
   // Block parameter usages (which blocks reference which params by name)
-  const blockParamUsages = extractBlockParamUsages(entries);
+  const blockParamUsages = extractBlockParamUsages(entries, legacy);
 
   const rawContents: Record<string, string> = {};
   for (const key in entries) {

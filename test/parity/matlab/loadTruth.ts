@@ -74,6 +74,75 @@ export function truth(): Truth {
   return JSON.parse(readFileSync(ARTIFACTS + 'truth.json', 'utf8')) as Truth;
 }
 
+// ---------------------------------------------------------------------------
+// A MODEL's truth, as gen_mdl.m and gen_slx.m both record it.
+//
+// The two generators share one `modelTruth` shape on purpose: gen_mdl.m saves one
+// diagram into four CONTAINERS and gen_slx.m saves one diagram into five part
+// LAYOUTS, and both suites then ask the same question — does this file open to the
+// model MATLAB says it holds. One set of field names means the two corpora stay
+// directly comparable, and neither suite has to invent its own reading of a
+// `configSets` or a `blocks` entry.
+// ---------------------------------------------------------------------------
+
+/** A subset of VarTruth: what modelTruth records per workspace variable. */
+export interface MdlVarTruth {
+  class: string;
+  size: number[];
+  isobject: boolean;
+  disp: string;
+  mat2str?: string;
+  mat2str_error?: string;
+}
+
+export interface MdlBlockTruth {
+  name: string;
+  type: string;
+  params: Record<string, string>;
+}
+
+export interface ModelTruth {
+  name: string;
+  release: string;
+  dataDictionary: string;
+  wsDataSource: string;
+  configSets: { name: string; active: boolean }[];
+  modelReferences: string[];
+  blocks: MdlBlockTruth[];
+  workspace: Record<string, MdlVarTruth>;
+  /** gen_mdl.m only — gen_slx.m names its files through its own `exports` list. */
+  files?: { modern: string; classic: string[] };
+}
+
+/**
+ * MATLAB's `jsonencode` writes a 1x1 struct ARRAY as an object, not as a
+ * one-element array — so `configSets` and `blocks` arrive as arrays for a model
+ * with several and as a bare object for a model with one. Normalising on this side
+ * beats contorting the generators into emitting cell arrays nobody would read.
+ */
+export function asArray<T>(value: T | T[] | undefined): T[] {
+  if (value === undefined) { return []; }
+  return Array.isArray(value) ? value : [value];
+}
+
+/** Fill out the fields expect.ts needs from what a modelTruth recorded. */
+export function asVarTruth(name: string, v: MdlVarTruth): VarTruth {
+  const numel = v.size.reduce((a, b) => a * b, 1);
+  return {
+    name,
+    class: v.class,
+    size: v.size,
+    numel,
+    isempty: numel === 0,
+    iscomplex: false,
+    islogical: v.class === 'logical',
+    isobject: v.isobject,
+    disp: v.disp,
+    mat2str: v.mat2str,
+    mat2str_error: v.mat2str_error,
+  };
+}
+
 export type Artifact = 'sldd-text' | 'sldd-binary' | 'slx' | 'mat';
 
 const FILES: Record<Artifact, string> = {
