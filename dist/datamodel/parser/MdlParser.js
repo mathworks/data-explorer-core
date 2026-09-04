@@ -31,7 +31,12 @@ export function parseMdl(buffer, filename) {
     // Sniffing is folded into the decode: one scan decides, so there is no way for a
     // separate "is it a package?" test to disagree with the reader that follows.
     const parts = decodeOpcTextPackage(bytes);
-    if (parts) {
+    // A package marker with no readable part after it is a truncated file, not a
+    // package, so it falls through to the grammar reader rather than opening as a model
+    // with nothing in it. That reader finds the legacy `Model { Version ... }` stub a
+    // modern `.mdl` always opens with — and if the file was cut before even that, it
+    // rejects it, which is the whole point of the guard down there.
+    if (parts && Object.keys(parts).length > 0) {
         return parseModelParts(parts, filename);
     }
     return parseClassicMdl(bytes, filename);
@@ -369,7 +374,20 @@ function flatProps(node) {
 function parseClassicMdl(bytes, filename) {
     const root = parseClassicTree(decodeText(bytes));
     // A `.mdl` holds either a model or a library, and the body is the same either way.
-    const model = childNamed(root, 'Model') || childNamed(root, 'Library') || emptyNode();
+    const model = childNamed(root, 'Model') || childNamed(root, 'Library');
+    // Neither means this text is not a model, and saying so is the parser's job. This
+    // is the LAST reader in the dispatch — bytes that are not a zip and not a text
+    // package land here — so whatever a caller hands in that no reader understands
+    // (a truncated `.slx`, a `.txt` renamed, random bytes) arrives as brace text with
+    // no diagram in it. The grammar reader tolerates anything by design, so without
+    // this guard every one of those cases returned a model with no blocks, no
+    // references and no workspace: a host cannot tell that apart from a genuinely
+    // empty model, and shows a table of empty sections reading "this model is empty"
+    // where it should report a file it could not read.
+    if (!model) {
+        throw new Error(`Not a Simulink model: "${filename}" is not a zip package, not an OPC text ` +
+            'package, and has no Model or Library block');
+    }
     // The model's own name, needed to rewrite block paths — and read from the FILE
     // rather than the filename because an ExportToVersion renames the diagram after
     // its target (`engine.slx` exports to `engine_R2011b.mdl`, whose block paths all
@@ -408,9 +426,6 @@ function parseClassicMdl(bytes, filename) {
         rawContents: null,
         zipEntries: null,
     };
-}
-function emptyNode() {
-    return { name: '', props: [], children: [] };
 }
 /**
  * The referenced models, as the `.slx` path reports them.
