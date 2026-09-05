@@ -3,7 +3,8 @@ import type { TableColumnConfig } from '../ContainerNode.js';
 import ModelSectionNode from './ModelSectionNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
-import type { BlockParamUsage } from '../../parser/SlxParser.js';
+import type { BlockParamUsage, ParsedConfigSet } from '../../parser/SlxParser.js';
+import type { ParseWarning } from '../../parser/ParseWarning.js';
 export interface ParsedSlx {
     name: string;
     release: string;
@@ -16,15 +17,12 @@ export interface ParsedSlx {
         modelName: string;
     }[];
     externalDataSources: string[];
-    configSets: {
-        name: string;
-        active: boolean;
-        data: unknown;
-    }[];
+    configSets: ParsedConfigSet[];
     workspace: MatVariable[];
     blockParamUsages?: BlockParamUsage[];
     rawContents: Record<string, string> | null;
     zipEntries: Record<string, Uint8Array> | null;
+    warnings?: ParseWarning[];
 }
 export default class ModelNode extends ContainerNode {
     release: string;
@@ -41,6 +39,7 @@ export default class ModelNode extends ContainerNode {
     get tableColumnConfig(): TableColumnConfig;
     get displayName(): string;
     get readOnly(): boolean;
+    get sourceFormat(): string;
     get icon(): string;
     get Release(): string;
     get NumberOfEntries(): number;

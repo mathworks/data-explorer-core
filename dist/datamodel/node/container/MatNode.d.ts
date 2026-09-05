@@ -2,6 +2,7 @@ import ContainerNode from '../ContainerNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
+import type { ParseWarning } from '../../parser/ParseWarning.js';
 export default class MatNode extends ContainerNode {
     header: string;
     dirty: boolean;
@@ -9,6 +10,7 @@ export default class MatNode extends ContainerNode {
     constructor(name: string);
     get displayName(): string;
     get readOnly(): boolean;
+    get sourceFormat(): string;
     get icon(): string;
     get NumberOfEntries(): number;
     getProperties(): PropClass[];
@@ -28,6 +30,7 @@ export default class MatNode extends ContainerNode {
     static fromParsed(parsed: {
         header: string;
         variables: MatVariable[];
+        warnings?: ParseWarning[];
     }, filename: string): MatNode;
 }
 //# sourceMappingURL=MatNode.d.ts.map

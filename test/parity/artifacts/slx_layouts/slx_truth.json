@@ -7,11 +7,15 @@
     "configSets": [
       {
         "name": "Configuration",
-        "active": true
+        "active": true,
+        "class": "Simulink.ConfigSet",
+        "sourceName": ""
       },
       {
         "name": "Fast",
-        "active": false
+        "active": false,
+        "class": "Simulink.ConfigSet",
+        "sourceName": ""
       }
     ],
     "modelReferences": [
@@ -194,7 +198,9 @@
     "wsDataSource": "MAT-File",
     "configSets": {
       "name": "Configuration",
-      "active": true
+      "active": true,
+      "class": "Simulink.ConfigSet",
+      "sourceName": ""
     },
     "modelReferences": [],
     "blocks": [
@@ -246,6 +252,57 @@
       "version": "R2018a",
       "file": "slxws_R2018a.slx",
       "lastWarning": ""
+    }
+  ],
+  "slxcfgref": {
+    "name": "slxcfgref",
+    "release": "2027a",
+    "dataDictionary": "slxcfgref_dict.sldd",
+    "wsDataSource": "Model File",
+    "configSets": [
+      {
+        "name": "Configuration",
+        "active": true,
+        "class": "Simulink.ConfigSet",
+        "sourceName": ""
+      },
+      {
+        "name": "RefFromDict",
+        "active": false,
+        "class": "Simulink.ConfigSetRef",
+        "sourceName": "dictCfg"
+      }
+    ],
+    "modelReferences": [],
+    "blocks": {
+      "name": "CfgConst",
+      "type": "Constant",
+      "params": {
+        "Value": "1"
+      }
+    },
+    "workspace": {}
+  },
+  "cfgExports": [
+    {
+      "version": "R2025a",
+      "file": "slxcfgref_R2025a.slx",
+      "lastWarning": ""
+    },
+    {
+      "version": "R2021a",
+      "file": "slxcfgref_R2021a.slx",
+      "lastWarning": ""
+    },
+    {
+      "version": "R2018a",
+      "file": "slxcfgref_R2018a.slx",
+      "lastWarning": ""
+    },
+    {
+      "version": "R2013b",
+      "file": "slxcfgref_R2013b.slx",
+      "lastWarning": "Model \"slxcfgref_R2013b\" uses a data dictionary, \"slxcfgref_dict.sldd\". Data dictionaries cannot be used in R2013b. To export the data to a MATLAB file for use in R2013b use <a href=\"matlab:doc Simulink.data.dictionary.Section/exportToFile\">Simulink.data.dictionary.Section.exportToFile</a>."
     }
   ],
   "matlab": {

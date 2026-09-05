@@ -51,9 +51,33 @@ export interface RowData {
   Class?: string;
   Kind?: string;
   Description?: string;
+  // The reverse projection: which blocks reference this definition. Filled by
+  // toRow through the session's stamped resolver — see UsageResolver and
+  // _usedByCell for the cell shape produced, the text chosen, and why a
+  // definition nothing references gets no key here at all.
   UsedBy?: string | { text: string; linkTarget?: string } | { links: { text: string; linkTarget: string }[] };
   [key: string]: unknown;
 }
+
+/**
+ * How a node reaches the reverse-usage index, which lives on the SESSION.
+ *
+ * A node has no reference to a session and must not acquire one: this package is
+ * consumed by a VS Code extension, a CLI and an RPC server, and a node reaching for a
+ * session would be reaching for whichever of them happened to build it. So the session
+ * stamps this callback onto each source ROOT as it registers it — the same place, and in
+ * the same way, registerSource already stamps `meta` and `warnings` — and a node walks
+ * up to its root to find one, the walk `_markSourceDirty` already makes for the `dirty`
+ * flag. Injection, not a dependency: nothing here imports the session, and a tree no
+ * session registered simply has no resolver (see _usedByCell).
+ *
+ * Deliberately NARROWER than the session's own `NodeUsage`: the two fields a link cell
+ * can hold, and nothing else. Naming NodeUsage here would have BaseNode import a type
+ * from core for two thirds of it, and the narrow shape records at the seam exactly how
+ * much of a usage a row is allowed to know. `NodeUsage[]` satisfies this, and stops
+ * satisfying it the day either field is renamed — which is where that check belongs.
+ */
+export type UsageResolver = (nodeId: string) => { blockName: string; linkTarget: string }[];
 
 export interface PIGroupDef {
   group: string;
@@ -241,6 +265,57 @@ export default class BaseNode {
     }
   }
 
+  // The `UsedBy` cell for this node, or undefined when there is nothing to say.
+  //
+  // ABSENT, rather than `{ links: [] }` or `''`, for a definition nothing references —
+  // and absent for every node the column means nothing for, a struct field, a bus
+  // element, a block or an external-data file row among them (findUsages answers all of
+  // those with nothing, deliberately: the file-level reverse direction is not part of
+  // it). The two absences are NOT distinguished, because a row cannot honestly
+  // distinguish them: with no model open, every definition in a dictionary has zero
+  // usages, so an empty list would render an emphatic "nothing uses this" over a file
+  // whose users are merely not open yet. Absence is not a claim. It is the same rule
+  // registerSource applies to `warnings` — say something only when there is something to
+  // say — and it is why a host must not read a missing cell as "unused".
+  //
+  // The text is the block's NAME and nothing else. Of the four facts a usage carries it
+  // is the only one that is a display name at all: `blockType` is a Simulink class token,
+  // `paramProperty` and `paramValue` are code, and `modelSrcId` is the HOST's key for a
+  // file, which may be a full path or a URI with credentials in it and has no business in
+  // a table cell. This is the data model's DEFAULT, not an opinion about what the column
+  // should read: a host that wants 'Const (Constant)', 'mdlcases.mdl: Const' or '3
+  // blocks' calls session.findUsages(nodeId) and builds its own cell from the four facts,
+  // which is why NodeUsage pre-bakes no text. The cost is accepted and worth naming: two
+  // blocks of the same name in two models render the same text and differ only in their
+  // linkTarget.
+  //
+  // `linkTarget` is the usage's own, verbatim — resolveLink() turns it back into the
+  // block node, so the cell is clickable with no second target grammar and nothing for
+  // the host to assemble.
+  _usedByCell(): RowData['UsedBy'] | undefined {
+    let root: BaseNode = this;
+    while (root.parent) {
+      root = root.parent;
+    }
+    const resolve = (root as unknown as { _usageResolver?: UsageResolver })._usageResolver;
+    // No resolver for a tree no session registered: a bare subtree in a test, or a node
+    // detached mid-edit. Silent, for the reason _markSourceDirty is silent about a root
+    // that is not a source — a projection with no session behind it has nothing to
+    // report, and throwing here would take a whole row down over an empty column.
+    if (typeof resolve !== 'function') {
+      return undefined;
+    }
+    const usages = resolve(this.id);
+    if (!usages || usages.length === 0) {
+      return undefined;
+    }
+    // Always the multi-link arm, never the single `{ text, linkTarget }` one, even for a
+    // single usage. The declared type permits three shapes; producing more than one makes
+    // every host test for each, and the branch it forgets is the one-usage case, which is
+    // the common one. One shape, one render path.
+    return { links: usages.map((u) => ({ text: u.blockName, linkTarget: u.linkTarget })) };
+  }
+
   flatten(): BaseNode[] {
     const result: BaseNode[] = [];
     const stack: BaseNode[] = [this];
@@ -380,6 +455,20 @@ export default class BaseNode {
     }
     if (!('Description' in row)) {
       row.Description = (this as unknown as { Description?: string }).Description || '';
+    }
+
+    // The reverse projection, reached through the resolver the session stamped on this
+    // node's source root rather than through a session reference a node must not hold.
+    // This is the seam that makes the column non-blank in a host that changed nothing:
+    // `toRow` is called from nowhere inside this package, so a session-level row builder
+    // alone would leave every existing caller with the blank column item 4 is about. The
+    // two subclasses that override toRow reach this through super.toRow()
+    // (DataSourceNode, ModelReferenceNode); ModelBlockNode builds its row from scratch
+    // and is the one that must NOT have it, a block being the subject of a usage rather
+    // than its object. Assigned only when there IS a usage — see _usedByCell.
+    const usedBy = this._usedByCell();
+    if (usedBy !== undefined) {
+      row.UsedBy = usedBy;
     }
 
     return row;

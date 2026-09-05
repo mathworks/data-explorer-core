@@ -2,6 +2,7 @@ import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type BaseNode from '../BaseNode.js';
+import type { ParsedConfigSet } from '../../parser/SlxParser.js';
 export default class ModelSectionNode extends ContainerNode {
     label: string;
     iconId: string;
@@ -10,11 +11,7 @@ export default class ModelSectionNode extends ContainerNode {
     get displayName(): string;
     get tableColumnConfig(): TableColumnConfig;
     addWorkspaceEntry(entry: MatVariable): BaseNode;
-    addConfigSetEntry(cfg: {
-        name: string;
-        active: boolean;
-        data: unknown;
-    }): BaseNode;
+    addConfigSetEntry(cfg: ParsedConfigSet): BaseNode;
     addReferenceEntry(ref: {
         blockPath: string;
         modelName: string;

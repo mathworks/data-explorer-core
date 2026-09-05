@@ -17,6 +17,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSession } from '../src/index.js';
 import { loadFromPath, loadDirectory, createSession as nodeCreateSession } from '../src/node/index.js';
+import type { ParseWarning } from '../src/index.js';
 
 const fixturesDir = fileURLToPath(new URL('./fixtures/', import.meta.url));
 
@@ -72,24 +73,59 @@ describe('node loader', () => {
     // different failure from a parse error and must be swallowed the same way.
     mkdirSync(join(dir, 'sub.slx'));
 
+    // The library must not write to the console at all now (item 19): a consumer
+    // cannot capture, route or silence that channel. The spy is here to assert the
+    // SILENCE, and the skips are read from the sink instead.
     const errors: string[] = [];
     const spy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
       errors.push(args.join(' '));
     });
     const s = createSession();
-    const loaded = loadDirectory(s, dir);
+    const skipped: ParseWarning[] = [];
+    const loaded = loadDirectory(s, dir, skipped);
     spy.mockRestore();
 
     expect(loaded).toHaveLength(1);
     expect(s.getDataSourceCount()).toBe(1);
-    // Each skip is reported by name on stderr — silence would make a CLI look as
-    // though the folder simply held fewer files.
-    expect(errors).toHaveLength(2);
-    expect(errors.join('\n')).toContain('loadDirectory: skipped bad.mat:');
-    expect(errors.join('\n')).toContain('loadDirectory: skipped sub.slx:');
-    // The unsupported extension is filtered out before any read, so it produces
-    // no error line at all.
-    expect(errors.join('\n')).not.toContain('notes.txt');
+    expect(errors).toEqual([]);
+    // Each skip is reported by name — silence would make a CLI look as though the
+    // folder simply held fewer files. `part` is the file, so a host can point at it
+    // without parsing the message.
+    expect(skipped).toHaveLength(2);
+    expect(skipped.map((w) => w.part).sort()).toEqual(['bad.mat', 'sub.slx']);
+    expect(skipped.every((w) => w.code === 'source-unreadable')).toBe(true);
+    // The reason survives, because "skipped" without it is not actionable: a parse
+    // failure and an EISDIR on a directory named like a model are different problems.
+    expect(skipped.find((w) => w.part === 'bad.mat')!.message).toMatch(/bad\.mat.*skipped/);
+    expect(skipped.find((w) => w.part === 'sub.slx')!.message).toContain('sub.slx');
+    // The unsupported extension is filtered out before any read, so it produces no
+    // entry at all.
+    expect(skipped.map((w) => w.part)).not.toContain('notes.txt');
+  });
+
+  it('loadDirectory called WITHOUT a sink still skips, and still says nothing', () => {
+    // The sink is optional, so the old two-argument call must keep working — and must
+    // not fall back to the console when nobody is listening. A library that printed
+    // "just in case" is the thing item 19 removed.
+    const dir = mkdtempSync(join(tmpdir(), 'dex-nosink-'));
+    copyFileSync(fixturesDir + 'object_array_text.sldd', join(dir, 'good.sldd'));
+    writeFileSync(join(dir, 'bad.mat'), 'not a mat file');
+
+    const errors: string[] = [];
+    const errSpy = vi.spyOn(console, 'error').mockImplementation((...a: unknown[]) => {
+      errors.push(a.join(' '));
+    });
+    const logs: string[] = [];
+    const logSpy = vi.spyOn(console, 'log').mockImplementation((...a: unknown[]) => {
+      logs.push(a.join(' '));
+    });
+    const loaded = loadDirectory(createSession(), dir);
+    errSpy.mockRestore();
+    logSpy.mockRestore();
+
+    expect(loaded).toHaveLength(1);
+    expect(errors).toEqual([]);
+    expect(logs).toEqual([]);
   });
 
   it('loadDirectory takes only the supported extensions, case-insensitively', () => {

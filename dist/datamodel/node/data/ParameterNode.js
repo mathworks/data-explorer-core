@@ -34,8 +34,15 @@ export default class ParameterNode extends DataNode {
     get icon() {
         return this.isDerived ? 'typeConstant' : 'wsParameters';
     }
+    // Report the class the FILE actually holds, not the one this node is declared
+    // for: the Embedded Coder subclass mpt.Parameter is parsed by this node too, and
+    // a user must keep seeing `mpt.Parameter` in the Class column. Only the
+    // treatment — typed columns, Kind, PI layout — is inherited from the
+    // superclass. Falls back to CLASS_NAME for a node with no parsed value behind
+    // it (a directly constructed one), so the Class column is never blank.
     get className() {
-        return CLASS_NAME;
+        const raw = this.serial._rawVal;
+        return (raw && raw._array_class) || CLASS_NAME;
     }
     // A Parameter's declared data type IS a real data type ('int16', 'boolean',
     // 'auto', an AliasType/enum/typedef name), so it belongs in the Data Type

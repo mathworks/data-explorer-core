@@ -26,7 +26,11 @@ export default class SignalNode extends DataNode {
         this.Description = props.Description || '';
     }
     get icon() { return this.isDerived ? 'serviceInterfaces' : 'wsSignal'; }
-    get className() { return CLASS_NAME; }
+    // Report the class the FILE actually holds — same reason as ParameterNode's:
+    // mpt.Signal is parsed by this node and must still show as mpt.Signal in the
+    // Class column, inheriting only the treatment. CLASS_NAME is the fallback for a
+    // node with no parsed value behind it.
+    get className() { const raw = this.serial._rawVal; return (raw && raw._array_class) || CLASS_NAME; }
     // A Signal has no scalar "value" — the Value column is empty and not editable.
     get displayValue() { return ''; }
     get valueEditable() { return false; }

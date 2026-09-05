@@ -10,6 +10,7 @@ import ConfigSetRefNode from '../data/ConfigSetRefNode.js';
 import ModelReferenceNode from '../data/ModelReferenceNode.js';
 import DataSourceNode from '../data/DataSourceNode.js';
 import type BaseNode from '../BaseNode.js';
+import type { ParsedConfigSet } from '../../parser/SlxParser.js';
 
 export default class ModelSectionNode extends ContainerNode {
   label: string;
@@ -48,21 +49,32 @@ export default class ModelSectionNode extends ContainerNode {
     return node;
   }
 
-  addConfigSetEntry(cfg: { name: string; active: boolean; data: unknown }): BaseNode {
+  addConfigSetEntry(cfg: ParsedConfigSet): BaseNode {
     // The SLX config section uses the SAME node classes as the SLDD path
     // (ConfigSetNode / ConfigSetRefNode) so presentation is identical — empty,
     // non-editable Value and Data Type. The SLX-only "active" state is carried
     // on the shared node and surfaces through the icon, not a Value suffix.
+    //
+    // `cfg.objectClass` is already normalized by the parser, which is the point: this
+    // used to read `data._object_class` itself and so only ever recognised a reference
+    // in the R2026b+ JSON layout, silently calling one a plain `Simulink.ConfigSet` in
+    // all four XML eras (where the class is an ATTRIBUTE) and in the classic `.mdl`.
+    // Anything other than a positive `Simulink.ConfigSetRef` stays an ordinary set.
     const objectClass =
-      (cfg.data && (cfg.data as Record<string, unknown>)._object_class) === 'Simulink.ConfigSetRef'
-        ? 'Simulink.ConfigSetRef'
-        : 'Simulink.ConfigSet';
+      cfg.objectClass === 'Simulink.ConfigSetRef' ? 'Simulink.ConfigSetRef' : 'Simulink.ConfigSet';
+    // A reference's whole content is what it points AT, and `ConfigSetRefNode` reads
+    // that from `SourceName`. Passing only `Name` left every SLX-sourced reference
+    // showing an empty source — including in the one layout whose class was recognised.
+    const props: Record<string, unknown> = { Name: cfg.name };
+    if (objectClass === 'Simulink.ConfigSetRef' && cfg.sourceName) {
+      props.SourceName = cfg.sourceName;
+    }
     const rawVal = {
       _array_class: objectClass,
       _array_type: 'MATLABArray',
       _dimensions: [1, 1],
       _mw_element_type: 'MATLABArray',
-      _elements: [{ _properties: { Name: cfg.name } }],
+      _elements: [{ _properties: props }],
     };
     const node =
       objectClass === 'Simulink.ConfigSetRef'

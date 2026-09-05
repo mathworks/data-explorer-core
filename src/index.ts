@@ -17,6 +17,20 @@ export * as UndoManager from './core/UndoManager.js';
 // Session/bus/undo factories (milestone 2 — per-instance state).
 export { createSession } from './core/DataModel.js';
 export type { Session, CreateSessionOptions } from './core/DataModel.js';
+// What session.serializeSource() hands back. Public because a consumer writing the
+// result to a file has to be able to name the discriminated shape it switches on.
+export type { SerializedSource } from './core/DataModel.js';
+// What session.findNodes()/findNode() take. Public for the same reason: a host builds
+// one of these from its own search UI, holds it in a field, and passes it around —
+// none of which it can write down while the type has no name.
+export type { FindNodesQuery } from './core/DataModel.js';
+// What the link resolver hands back. LinkResolution is a discriminated union a host
+// switches on — the 'source-not-open' arm is the one it acts on, by offering to open the
+// file — so it has to be nameable to be switched on in a helper of the host's own.
+// NodeUsage is what session.findUsages() returns and what a `UsedBy` cell is built from,
+// and DictionaryReference the same for a `.sldd`'s referenced sub-dictionaries: both end
+// up in a host's own arrays and function signatures.
+export type { LinkResolution, NodeUsage, DictionaryReference } from './core/DataModel.js';
 export { createEventBus } from './core/EventBus.js';
 export type { EventBusInstance } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';
@@ -24,7 +38,14 @@ export type { UndoManagerInstance } from './core/UndoManager.js';
 
 // Parsers + serializer (datamodel).
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
-export { serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
+// The whole write path for a compressed-binary `.sldd`: serializeBinarySldd rebuilds
+// the package, serializeEntryToXml one entry's fragment for the splice edit path.
+// Both are what the live MATLAB write-back gate proves, and neither was reachable
+// from outside this repo — the exports map publishes no deep import, so a consumer
+// could read a dictionary the package had verified it could write, and then not
+// write it. Prefer session.serializeSource() when a session already holds the file:
+// it picks the flavour the file arrived in, which this cannot know.
+export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';
 export { parseMdl } from './datamodel/parser/MdlParser.js';
 // The format-agnostic reader: `.slx` or either flavour of `.mdl`, decided by the
@@ -33,6 +54,18 @@ export { parseModel } from './datamodel/parser/ModelParser.js';
 export { parseMat } from './datamodel/parser/MatParser.js';
 export { parseProject } from './datamodel/parser/ProjectParser.js';
 export type { ParsedProject, ProjectFile, ProjectLabel, ProjectReference } from './datamodel/parser/ProjectParser.js';
+
+// What the model and MAT readers return. A consumer has to be able to NAME a parse
+// result to hold one in a field, annotate a variable, or write a function that takes
+// one — exporting parseSlx while hiding ParsedSlx leaves it able to call the reader
+// and unable to say what came back. These go all the way down: BlockParamUsage and
+// MatVariable are the named types the two result shapes are BUILT from, and an
+// exported function whose return type mentions an unexported interface is the same
+// defect one level lower. ParsedMdl is `ParsedSlx` under the name parseMdl declares,
+// because a classic `.mdl` and a `.slx` are the same model to this package.
+export type { ParsedSlx, BlockParamUsage } from './datamodel/parser/SlxParser.js';
+export type { ParsedMdl } from './datamodel/parser/MdlParser.js';
+export type { ParsedMat, MatVariable } from './datamodel/parser/MatParser.js';
 
 // The diagnostics channel for a parse that succeeded but is short. A consumer has
 // to be able to NAME this type to render "opened with 2 warnings", so it is public

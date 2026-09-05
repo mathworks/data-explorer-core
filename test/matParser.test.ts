@@ -20,6 +20,8 @@
 // Four real defects were found here and are pinned below, each marked REGRESSION.
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { createSession } from '../src/index.js';
@@ -37,6 +39,8 @@ import {
   matrix,
   mxArrayFile,
   numericVar,
+  objectVar,
+  sparseVar,
   structVar,
   u32le,
   varName,
@@ -52,6 +56,19 @@ function only(buffer: ArrayBuffer) {
   const parsed = parseMat(buffer);
   expect(parsed.variables).toHaveLength(1);
   return parsed.variables[0];
+}
+
+/**
+ * A MATLAB-authored fixture from test/fixtures, as a detached ArrayBuffer.
+ *
+ * Everything else in this file is synthesized, on purpose (see the header). The two
+ * fixtures read through here are the exceptions: both were harvested by
+ * `probe_string.m` specifically so a synthesized claim could be checked against
+ * MATLAB's own bytes.
+ */
+function fixtureBytes(name: string): ArrayBuffer {
+  const u8 = new Uint8Array(readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url))));
+  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
 }
 
 /** An unnamed 1x1 double, for use as a struct field or cell element. */
@@ -110,9 +127,10 @@ describe('parseMat — file-level framing', () => {
     // is what MATLAB requires above 2 GB and what many users set by habit.
     //
     // Matched on the header's version prefix, not on the whole string: the platform and
-    // date text varies per file, and the fixture's copy of it is synthesized (see
-    // V73_HEADER_TEXT). Two headers differing in everything but the version prove the
-    // check does not depend on the invented part.
+    // date text varies per file. Two synthesized headers differing in everything but
+    // the version prove the check does not depend on either one's text — and the third
+    // case is the file MATLAB itself wrote, which is what says the synthesized two are
+    // shaped like anything real.
     for (const headerText of [
       undefined,
       'MATLAB 7.3 MAT-file, Platform: GLNXA64, Created on: Tue Jan 07 23:59:59 2014 HDF5 schema 1.00',
@@ -121,6 +139,34 @@ describe('parseMat — file-level framing', () => {
         'MAT-file version 7.3 (HDF5) is not supported',
       );
     }
+    // `save('strings_v73.mat', '-v7.3', 'sRow')` — probe_string.m:80, harvested. 8 KB
+    // of HDF5 for one 1x3 string array, which is itself the reason the refusal has to
+    // be by header and not by content: there is nothing in here a Level-5 reader can
+    // make sense of.
+    expect(() => parseMat(fixtureBytes('strings_v73.mat')), 'MATLAB-authored').toThrow(
+      'MAT-file version 7.3 (HDF5) is not supported',
+    );
+  });
+
+  it('is refused by the same header text MATLAB actually writes', () => {
+    // The guard on the guard. The refusal above is a string match against a header
+    // whose text was invented for years (matBytes.V73_HEADER_TEXT), so it could have
+    // been matching a prefix MATLAB never writes and no test would have noticed. This
+    // reads the first 116 bytes of MATLAB's own -v7.3 file and pins the shape.
+    const header = Buffer.from(fixtureBytes('strings_v73.mat'), 0, 116).toString('latin1');
+    expect(header).toMatch(/^MATLAB 7\.3 MAT-file, Platform: \w+, Created on: .+ HDF5 schema 1\.00 \.\s*$/);
+    // Byte 124-125 is the version field, and it is the one place a v7.3 file differs
+    // from a Level-5 one structurally rather than in prose: 0x0200 against 0x0100.
+    // Recorded, not relied on — the reader reads the text — but it is what a future
+    // reader that wants to stop trusting prose would use.
+    const bytes = new Uint8Array(fixtureBytes('strings_v73.mat'));
+    expect([bytes[124], bytes[125]]).toEqual([0x00, 0x02]);
+    expect([bytes[126], bytes[127]]).toEqual([0x49, 0x4d]);
+    // And the endian indicator really is the little-endian one, which is why every
+    // framing guard in the test above passes the file through to the version check.
+    const level5 = new Uint8Array(matFile([]));
+    expect([level5[126], level5[127]]).toEqual([bytes[126], bytes[127]]);
+    expect([level5[124], level5[125]]).toEqual([0x00, 0x01]);
   });
 
   it('reads every variable in a multi-variable file, in order', () => {
@@ -449,6 +495,451 @@ describe('parseMat — cell arrays', () => {
     const cell0 = (v.value as Array<{ fields: Record<string, { value: unknown }> }>)[0];
     const innerCell = cell0.fields.f as unknown as { value: Array<{ value: unknown }> };
     expect(innerCell.value[0].value).toBe(3);
+  });
+});
+
+// Every buffer below is synthesized by `sparseVar`, whose byte layout is written out
+// field by field in test/tools/matBytes.ts and taken from the MAT-file format spec.
+// That layout is no longer a claim about MATLAB: `probe_string.m` saved every one of
+// these matrices and the file is checked in as test/fixtures/sparse_cases.mat, which
+// the describe block AFTER this one reads. Each case there is the same matrix as one
+// here, and the two are asserted to decode identically — so what these tests add is
+// the shapes MATLAB cannot be asked for (a truncated file, a 2000x2000, a reserved
+// but unused nzmax) on a byte layout that has been checked against MATLAB's own.
+//
+// The MATLAB call each fixture stands for stays quoted in the test that uses it.
+describe('parseMat — sparse arrays (class 5)', () => {
+  // S = sparse([1 2 3 2], [1 1 2 4], [10 11 20 30], 3, 4)
+  //
+  //        c1   c2   c3   c4
+  //   r1   10    .    .    .
+  //   r2   11    .    .   30
+  //   r3    .   20    .    .
+  //
+  // Non-zeros in column-major order: (1,1)=10, (2,1)=11, (3,2)=20, (2,4)=30, which is
+  // what `[i, j, s] = find(S)` returns. So ir (0-based rows) is [0 1 2 1]; jc holds
+  // one start per column plus the total, [0 2 3 3 4] — column 1 owns ir[0..1],
+  // column 2 owns ir[2], column 3 owns NOTHING (jc[2] === jc[3]), column 4 owns ir[3].
+  //
+  // Deliberately non-square, with a two-entry column, an empty column, a non-zero in
+  // the last column and a first row that is all but empty: a transposed read, an
+  // off-by-one in the column walk and a dropped empty column each change the answer.
+  const worked = {
+    name: 'S',
+    dimensions: [3, 4],
+    ir: [0, 1, 2, 1],
+    jc: [0, 2, 3, 3, 4],
+    real: [10, 11, 20, 30],
+  };
+  const workedDense = [10, 0, 0, 0, 11, 0, 0, 30, 0, 20, 0, 0];
+
+  it('materializes the dense matrix from the ir/jc index arrays', () => {
+    const v = only(matFile([sparseVar(worked)]));
+    // The class stays 'sparse' — that the file stored it sparse is the one fact the
+    // dense value cannot carry, and it is what keeps MatWriter refusing to write it.
+    expect(v.className).toBe('sparse');
+    expect(v.dimensions).toEqual([3, 4]);
+    // Row-major, like every other numeric class: the node layer reads values in the
+    // order it renders them.
+    expect(v.value).toEqual(workedDense);
+    expect(v.undecoded).toBeUndefined();
+  });
+
+  it('reads only the non-zeros jc accounts for, not the capacity nzmax reserved', () => {
+    // nzmax is CAPACITY: the field says how many non-zeros the arrays have ROOM for,
+    // and jc is the only subelement that says how many are real. A reader that zips ir
+    // with pr, or takes ir.length for the count, puts eight fabricated values in this
+    // matrix — modelled here as row 1 / value 99, both in range and both wrong.
+    //
+    // DEFENSIVE, and knowingly so. This was written as `S = spalloc(3, 4, 10);
+    // S(1,1) = 7; S(3,2) = 8;` on the assumption that a spalloc'ed matrix reaches the
+    // file with its reserved space in it. It does not: `save` TRIMS. MATLAB's own
+    // bytes for that exact matrix (spAlloc in sparse_cases.mat, measured) declare
+    // `nzmax=2`, with an ir of two entries and a pr of two values — the padding never
+    // leaves memory. So no MATLAB-written file is believed to reach the reader in this
+    // shape; what is asserted here is that the reader would survive one, because
+    // nothing in the format forbids it and jc is authoritative either way.
+    const v = only(
+      matFile([
+        sparseVar({
+          name: 'S',
+          dimensions: [3, 4],
+          nzmax: 10,
+          ir: [0, 2, 1, 1, 1, 1, 1, 1, 1, 1],
+          jc: [0, 1, 2, 2, 2],
+          real: [7, 8, 99, 99, 99, 99, 99, 99, 99, 99],
+        }),
+      ]),
+    );
+    expect(v.value).toEqual([7, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0]);
+  });
+
+  it('pairs real and imaginary parts of a complex sparse matrix', () => {
+    // Z = sparse([1 2], [1 2], [1+2i, 3-4i], 2, 2) — the two non-zeros on the diagonal.
+    const v = only(
+      matFile([
+        sparseVar({ name: 'Z', dimensions: [2, 2], ir: [0, 1], jc: [0, 1, 2], real: [1, 3], imag: [2, -4] }),
+      ]),
+    );
+    expect(v.isComplex).toBe(true);
+    // Every zero is a complex zero, not a bare 0: the complex arm downstream reads
+    // `.re`/`.im` off every element it is handed.
+    expect(v.value).toEqual([
+      { re: 1, im: 2 },
+      { re: 0, im: 0 },
+      { re: 0, im: 0 },
+      { re: 3, im: -4 },
+    ]);
+  });
+
+  it('keeps the logical flag and reads the payload at its own declared width', () => {
+    // sparse(logical([1 0; 0 1])). The element type here was a GUESS when this was
+    // written — nothing in the corpus said which one MATLAB uses for a logical sparse —
+    // and the guess was right: MATLAB writes miUINT8, two bytes for two non-zeros, with
+    // 0x02 set in the array flags (measured off spLogical in sparse_cases.mat). What
+    // the test pins is width-independent regardless: the payload is read at the type
+    // its own tag declares, not at the class's natural width, which for class 5 would
+    // be 8 bytes and would read two values as one — and isLogical survives for the node
+    // layer to render as true/false.
+    const v = only(
+      matFile([
+        sparseVar({
+          name: 'L',
+          dimensions: [2, 2],
+          ir: [0, 1],
+          jc: [0, 1, 2],
+          real: [1, 1],
+          logical: true,
+          dataType: MI.UINT8,
+        }),
+      ]),
+    );
+    expect(v.isLogical).toBe(true);
+    expect(v.value).toEqual([1, 0, 0, 1]);
+  });
+
+  it('reads an all-zero sparse matrix as zeros rather than as an empty value', () => {
+    // sparse(3, 4): no non-zeros at all. ir is a zero-length element and jc is cols+1
+    // zeros — which was the reading of the format doc this fixture was built on, and is
+    // now measured: MATLAB writes ir and pr as elements with a real tag and a length of
+    // 0, rather than omitting them, and declares `nzmax=1` where nnz is 0. A sparse
+    // matrix holding nothing is still a 3x4 of zeros, which is a different value from
+    // the `[]` the empty-double test above asserts.
+    const v = only(matFile([sparseVar({ name: 'Z34', dimensions: [3, 4], ir: [], jc: [0, 0, 0, 0, 0], real: [] })]));
+    expect(v.value).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    // sparse([]) — 0x0, which really does hold nothing.
+    const e = only(matFile([sparseVar({ name: 'E', dimensions: [0, 0], ir: [], jc: [0], real: [] })]));
+    expect(e.value).toEqual([]);
+  });
+
+  it('records a sparse matrix too large to materialize instead of throwing or truncating', () => {
+    // sparse(2000, 2000) with one non-zero: 30 bytes of index arrays declaring four
+    // million elements. This is the shape a real sparse matrix has — its declared
+    // size says nothing about how much data is present — and `sparse(1e6, 1e6)` would
+    // ask for `new Array(1e12)`, a RangeError out of a reader no caller catches, so
+    // one variable would fail the whole file open. Refused by name and by reason
+    // instead, through the same channel class 3 uses.
+    const v = only(matFile([sparseVar({ name: 'big', dimensions: [2000, 2000], ir: [0], jc: [0, 1, 1], real: [5] })]));
+    expect(v.className).toBe('sparse');
+    expect(v.value).toBe('<2000x2000 sparse, not decoded>');
+    expect(v.undecoded).toContain('larger than this reader materializes');
+    // Under the limit, the same shape of file decodes: the refusal is about size only.
+    expect(only(matFile([sparseVar({ name: 'ok', dimensions: [1000, 1000], ir: [0], jc: [0, 1, 1], real: [5] })])).undecoded)
+      .toBeUndefined();
+  });
+
+  it('survives a sparse file truncated at every offset past the header', () => {
+    // The same blunt sweep the numeric shapes get: a caller cannot tell "corrupt
+    // file" from "bug in the reader" when a truncation throws. The two index arrays
+    // are two more self-declared lengths per variable, all of them feeding loop
+    // bounds and DataView indices.
+    const full = new Uint8Array(matFile([sparseVar(worked)]));
+    for (let cut = 128; cut <= full.length; cut++) {
+      const sliced = full.slice(0, cut);
+      const buffer = sliced.buffer.slice(sliced.byteOffset, sliced.byteOffset + sliced.byteLength) as ArrayBuffer;
+      expect(() => parseMat(buffer), `truncated to ${cut}`).not.toThrow();
+    }
+    // Truncated right after the indices, with no pr at all: no values to place, and
+    // the reader must not fabricate any.
+    const noData = only(matFile([sparseVar({ ...worked, omitData: true })]));
+    expect(noData.value).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it('reaches the node layer as the matrix it is, one child row per element', () => {
+    // The user-visible half of this item: before the sparse branch existed, this
+    // variable arrived with `value: null` and the node layer built ONE child holding
+    // null for a twelve-element matrix.
+    const session = createSession();
+    const mat = session.addMatSource('sp.mat', matFile([sparseVar(worked)])) as any;
+    const node = mat.children[0];
+    expect(node.children).toHaveLength(12);
+    expect(node.children.map((c: any) => c._scalarValue)).toEqual(workedDense);
+    // Twelve elements is over the ten-element display budget, so the cell summarizes —
+    // and the summary names 'sparse', which is where the storage class survives.
+    expect(node.displayValue).toBe('<3x4 sparse>');
+    expect(node.className).toBe('sparse');
+    // A 2x3 is under the budget and prints as the matrix literal.
+    const small = session.addMatSource(
+      'sp2.mat',
+      matFile([sparseVar({ name: 's', dimensions: [2, 3], ir: [0, 1], jc: [0, 1, 1, 2], real: [4, 6] })]),
+    ) as any;
+    expect(small.children[0].displayValue).toBe('[4 0 0; 0 0 6]');
+  });
+});
+
+// The same six matrices, as MATLAB wrote them. `probe_string.m:150-158` saves them and
+// test/fixtures/sparse_cases.mat is that file: 578 bytes, six variables, one
+// miCOMPRESSED element each.
+//
+// This block is what turns the layout above from a reading of the format document into
+// an observation. It is also the only sparse test here that would catch a MATLAB
+// release changing what it writes — every fixture above would keep passing, because
+// they are written by the same understanding they check.
+describe('parseMat — sparse arrays, on MATLAB-authored bytes', () => {
+  const parsed = parseMat(fixtureBytes('sparse_cases.mat'));
+  const named = (name: string) => {
+    const v = parsed.variables.find((each) => each.name === name);
+    if (!v) throw new Error(`sparse_cases.mat has no ${name}`);
+    return v;
+  };
+
+  // The MATLAB source line, then MATLAB's own `full()` answer for it — printed by the
+  // probe, transposed to the row-major order this reader returns (MATLAB's mat2str is
+  // column-major, so these are not copy-pasted).
+  const CASES = [
+    {
+      name: 'spWorked', // sparse([1 2 3 2], [1 1 2 4], [10 11 20 30], 3, 4)
+      dimensions: [3, 4],
+      value: [10, 0, 0, 0, 11, 0, 0, 30, 0, 20, 0, 0],
+      // nnz, and the nzmax MATLAB declared for it: equal, for every saved matrix that
+      // has any non-zeros at all.
+      twin: { nzmax: 4, ir: [0, 1, 2, 1], jc: [0, 2, 3, 3, 4], real: [10, 11, 20, 30] },
+    },
+    {
+      name: 'spComplex', // sparse([1 2], [1 2], [1+2i, 3-4i], 2, 2)
+      dimensions: [2, 2],
+      value: [
+        { re: 1, im: 2 },
+        { re: 0, im: 0 },
+        { re: 0, im: 0 },
+        { re: 3, im: -4 },
+      ],
+      isComplex: true,
+      twin: { nzmax: 2, ir: [0, 1], jc: [0, 1, 2], real: [1, 3], imag: [2, -4] },
+    },
+    {
+      name: 'spLogical', // sparse(logical([1 0; 0 1]))
+      dimensions: [2, 2],
+      value: [1, 0, 0, 1],
+      isLogical: true,
+      // miUINT8, measured — which is the question the logical test above could not
+      // answer for itself.
+      twin: { nzmax: 2, ir: [0, 1], jc: [0, 1, 2], real: [1, 1], logical: true, dataType: MI.UINT8 },
+    },
+    {
+      name: 'spNoneZero', // sparse(3, 4) — a 3x4 with no non-zeros at all
+      dimensions: [3, 4],
+      value: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      // ir and pr are present with a length of 0, and nzmax is 1 where nnz is 0.
+      twin: { nzmax: 1, ir: [], jc: [0, 0, 0, 0, 0], real: [] },
+    },
+    {
+      name: 'spEmpty', // sparse([]) — 0x0
+      dimensions: [0, 0],
+      value: [],
+      // jc is a single 0: cols + 1 with cols = 0, not an empty element.
+      twin: { nzmax: 1, ir: [], jc: [0], real: [] },
+    },
+    {
+      name: 'spAlloc', // spalloc(3, 4, 10); S(1,1) = 7; S(3,2) = 8
+      dimensions: [3, 4],
+      value: [7, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0],
+      // THE finding of this harvest: nzmax is 2, not the 10 spalloc reserved, and ir
+      // and pr are two entries long. `save` trims. The capacity case above therefore
+      // models a file MATLAB is not believed to write.
+      twin: { nzmax: 2, ir: [0, 2], jc: [0, 1, 2, 2, 2], real: [7, 8] },
+    },
+  ];
+
+  it('decodes every variable to the matrix MATLAB says it is', () => {
+    // Alphabetical, which is the order `save` writes a variable list in regardless of
+    // the order it was given them (SPVARS starts with spWorked).
+    expect(parsed.variables.map((v) => v.name)).toEqual([
+      'spAlloc',
+      'spComplex',
+      'spEmpty',
+      'spLogical',
+      'spNoneZero',
+      'spWorked',
+    ]);
+    expect(parsed.warnings).toEqual([]);
+    for (const c of CASES) {
+      const v = named(c.name);
+      expect(v.className, c.name).toBe('sparse');
+      expect(v.dimensions, c.name).toEqual(c.dimensions);
+      expect(v.value, c.name).toEqual(c.value);
+      expect(!!v.isComplex, c.name).toBe(!!c.isComplex);
+      expect(!!v.isLogical, c.name).toBe(!!c.isLogical);
+      expect(v.undecoded, c.name).toBeUndefined();
+    }
+  });
+
+  it('decodes each of them identically to the synthesized fixture that stands for it', () => {
+    // The byte diff probe_string.m asked for, done at the decode. Each `twin` is
+    // `sparseVar` fed the ir/jc/pr/nzmax MEASURED off MATLAB's element for that
+    // variable, so a disagreement here means the two byte layouts are not the same
+    // layout — and every synthesized sparse test above is then testing a shape MATLAB
+    // does not write.
+    //
+    // It is deliberately BLIND to a decode bug, since one would hit both sides equally;
+    // checked by inverting the reader's index expression, which fails the test above and
+    // not this one. The two are a pair: that one says the values are right, this one says
+    // the synthesized bytes are the bytes MATLAB writes.
+    const projected = (v: (typeof parsed.variables)[number]) => ({
+      className: v.className,
+      dimensions: v.dimensions,
+      value: v.value,
+      isComplex: !!v.isComplex,
+      isLogical: !!v.isLogical,
+      undecoded: v.undecoded,
+    });
+    for (const c of CASES) {
+      const synthesized = only(matFile([sparseVar({ name: c.name, dimensions: c.dimensions, ...c.twin })]));
+      expect(projected(synthesized), c.name).toEqual(projected(named(c.name)));
+    }
+  });
+
+  it('reaches the node layer as six sparse matrices', () => {
+    // End to end, through the public entry point, on a file MATLAB wrote: this is the
+    // shape the host actually sees, and before the sparse branch existed each of these
+    // six was one child holding null.
+    const session = createSession();
+    const mat = session.addMatSource('sparse_cases.mat', fixtureBytes('sparse_cases.mat')) as any;
+    //
+    // Two rows here are worth reading rather than skimming:
+    //
+    //   * spLogical's class column says `logical`, not `sparse`. Every other row keeps
+    //     the storage class, which is the deliberate choice the first sparse test above
+    //     explains — but a logical sparse is rendered by its logical-ness instead. That
+    //     is not a bug so much as a coincidence: it is exactly what MATLAB's own
+    //     `class()` answers for it. (It answers `double` for the other five, where this
+    //     column says `sparse`. Pinned as measured, not endorsed.)
+    //   * the 2x2s print as literals and the 3x4s summarize, because the display budget
+    //     is ten elements — so this list covers both arms of that on real bytes, plus
+    //     the empty one, which prints as neither.
+    expect(mat.children.map((c: any) => [c.name, c.className, c.displayValue])).toEqual([
+      ['spAlloc', 'sparse', '<3x4 sparse>'],
+      ['spComplex', 'sparse', '[1+2i 0+0i; 0+0i 3-4i]'],
+      ['spEmpty', 'sparse', '[ ]'],
+      ['spLogical', 'logical', '[true false; false true]'],
+      ['spNoneZero', 'sparse', '<3x4 sparse>'],
+      ['spWorked', 'sparse', '<3x4 sparse>'],
+    ]);
+  });
+});
+
+describe('parseMat — old-style (class 3) objects', () => {
+  it('reports a class-3 object as recorded-but-not-decoded, not as an empty variable', () => {
+    // The pre-MCOS object. Its layout is not something this corpus pins — there is no
+    // MATLAB-authored class-3 fixture anywhere in it — so the reader records the
+    // variable and says, in the value itself, that it did not read it. What it must
+    // not do is what it did before: report `value: null`, which is indistinguishable
+    // from a variable that is genuinely empty, and which the node layer rendered as
+    // the JS word "null" in the Value column.
+    const v = only(matFile([objectVar('o', [1, 1])]));
+    expect(v.className).toBe('object');
+    expect(v.value).toBe('<1x1 object, not decoded>');
+    expect(v.undecoded).toContain('pre-MCOS object');
+    // NOT isOpaque: that flag means "an MCOS reference the McosParser can resolve",
+    // and a class-3 object is exactly the object that is not one. Claiming it would
+    // route the variable to a decoder that cannot help it.
+    expect(v.isOpaque).toBeUndefined();
+    expect(v.fields).toBeNull();
+    // The shape is the file's own, so an object ARRAY says so rather than claiming 1x1.
+    expect(only(matFile([objectVar('oa', [1, 3])])).value).toBe('<1x3 object, not decoded>');
+  });
+
+  it('does not interpret the bytes after the array name', () => {
+    // The spec describes a class-3 body as a struct array's with a class-name
+    // subelement inserted; nothing here confirms that, so the payload is passed as
+    // opaque bytes shaped LIKE that description. Reading it on the strength of the
+    // document would produce plausible-looking field names out of a layout no
+    // fixture pins, which is worse than not reading it.
+    const strideData = new Uint8Array(4);
+    new DataView(strideData.buffer).setInt32(0, 32, true);
+    const names = new Uint8Array(32);
+    names.set(new TextEncoder().encode('Prop'), 0);
+    const structLike = new Uint8Array([
+      ...element(MI.INT8, new TextEncoder().encode('mylegacyclass')),
+      ...element(MI.INT32, strideData),
+      ...element(MI.INT8, names),
+      ...scalarField(7),
+    ]);
+    const v = only(matFile([objectVar('o', [1, 1], structLike)]));
+    expect(v.fields).toBeNull();
+    expect(v.value).toBe('<1x1 object, not decoded>');
+  });
+
+  it('leaves the variables and struct fields around it intact', () => {
+    // The reader stops reading the object's body but the CONTAINER still has to walk
+    // past it, in both places a variable can sit: the file's record loop, and the
+    // field loop of a struct. Both advance by the element's own declared length, so a
+    // field after an undecoded one must still read — otherwise not decoding one
+    // variable would cost the ones after it too.
+    const parsed = parseMat(
+      matFile([
+        objectVar('o', [1, 1], new Uint8Array([...element(MI.INT8, new TextEncoder().encode('cls'))])),
+        numericVar({ name: 'after', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [42] }),
+      ]),
+    );
+    expect(parsed.variables.map((x) => [x.name, x.value])).toEqual([
+      ['o', '<1x1 object, not decoded>'],
+      ['after', 42],
+    ]);
+
+    const s = only(
+      matFile([structVar('s', ['obj', 'n'], [{ obj: objectVar('', [1, 1]), n: scalarField(5) }])]),
+    );
+    expect(Object.keys(s.fields!)).toEqual(['obj', 'n']);
+    expect((s.fields!.obj as { value: unknown; undecoded?: string }).value).toBe('<1x1 object, not decoded>');
+    expect((s.fields!.n as { value: unknown }).value).toBe(5);
+  });
+
+  it('renders in the node layer as an uneditable placeholder with no child rows', () => {
+    const session = createSession();
+    const mat = session.addMatSource('obj.mat', matFile([objectVar('o', [1, 1]), objectVar('oa', [1, 3])])) as any;
+    const [scalar, array] = mat.children;
+    // Before the branch existed this cell read `null`.
+    expect(scalar.displayValue).toBe('<1x1 object, not decoded>');
+    expect(scalar.children).toEqual([]);
+    // Angle brackets are also the convention's no-editor signal, so the placeholder
+    // cannot be typed over — there is no value here to commit.
+    expect(scalar.valueEditable).toBe(false);
+    // An object ARRAY is the case that needed its own arm in parseMatVariable: routed
+    // through the numeric one it printed the MATLAB matrix literal
+    // `[<1x3 object, not decoded>]`, which is a decoded one-element matrix, offered an
+    // editor because the angle brackets were no longer the outermost characters, and
+    // built a child row for element 1 of a value with no elements.
+    expect(array.displayValue).toBe('<1x3 object, not decoded>');
+    expect(array.children).toEqual([]);
+    expect(array.valueEditable).toBe(false);
+    // The class the file recorded still reaches the DataType column.
+    expect([array.className, array.dataType]).toEqual(['object', 'object']);
+  });
+
+  it('renders an unmaterializable sparse matrix the same way', () => {
+    // The other user of the same channel, so the two agree: one row, the reason in the
+    // cell, no fabricated elements, no editor.
+    const session = createSession();
+    const mat = session.addMatSource(
+      'big.mat',
+      matFile([sparseVar({ name: 'big', dimensions: [2000, 2000], ir: [0], jc: [0, 1, 1], real: [5] })]),
+    ) as any;
+    const node = mat.children[0];
+    expect(node.displayValue).toBe('<2000x2000 sparse, not decoded>');
+    expect(node.children).toEqual([]);
+    expect(node.valueEditable).toBe(false);
+    expect(node.dataType).toBe('sparse');
   });
 });
 

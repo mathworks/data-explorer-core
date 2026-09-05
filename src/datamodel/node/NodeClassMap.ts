@@ -36,9 +36,27 @@ const CLASS_MAP: Record<string, NodeClassType> = {
     'Constant': ConstantNode,
     'MatlabStruct': StructNode,
     'Simulink.Parameter': ParameterNode,
+    // mpt.Parameter and mpt.Signal are the Embedded Coder subclasses of the two
+    // classes above, and they are everywhere in production dictionaries: MPT
+    // ("module packaging tool") is what a project switches to the moment it needs
+    // custom storage classes and memory sections for code generation. A subclass
+    // presents every property its superclass does, so it needs the superclass's
+    // node and not one of its own — sharing the class rather than copying it is
+    // also what keeps the two from drifting apart as the Parameter/Signal nodes
+    // grow. The node reports the class it actually read (see ParameterNode's
+    // className), so a user still sees `mpt.Parameter` in the Class column; only
+    // the TREATMENT is inherited.
+    //
+    // Deliberately NOT added to any section's ALLOWED_TYPES: these are classes we
+    // READ, not classes we offer to create. Nothing in the read path consults that
+    // list — a parsed entry lands in a section by its metadata namespace — while
+    // offering "Add mpt.Parameter" would mean claiming we write a well-formed
+    // mpt object from scratch, which the MATLAB round-trip gate has never checked.
+    'mpt.Parameter': ParameterNode,
     'Simulink.LookupTable': LookupTableNode,
     'Simulink.Breakpoint': BreakpointNode,
     'Simulink.Signal': SignalNode,
+    'mpt.Signal': SignalNode,
     'Simulink.Bus': BusNode,
     'Simulink.ConnectionBus': ConnectionBusNode,
     'Simulink.ServiceBus': ServiceBusNode,

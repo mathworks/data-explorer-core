@@ -6,7 +6,8 @@ import ModelSectionNode from './ModelSectionNode.js';
 import { decodeMcosObjects, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
-import type { BlockParamUsage } from '../../parser/SlxParser.js';
+import type { BlockParamUsage, ParsedConfigSet } from '../../parser/SlxParser.js';
+import type { ParseWarning } from '../../parser/ParseWarning.js';
 import PropName from '../../prop/PropName.js';
 import PropRelease from '../../prop/PropRelease.js';
 
@@ -32,11 +33,16 @@ export interface ParsedSlx {
   dataDictionary: string | null;
   modelReferences: { blockPath: string; modelName: string }[];
   externalDataSources: string[];
-  configSets: { name: string; active: boolean; data: unknown }[];
+  configSets: ParsedConfigSet[];
   workspace: MatVariable[];
   blockParamUsages?: BlockParamUsage[];
   rawContents: Record<string, string> | null;
   zipEntries: Record<string, Uint8Array> | null;
+  // Optional here and required on SlxParser's, which keeps that one assignable to this:
+  // a host reconstructing part of a model has no warnings array, and a degrade found
+  // during construction then has nowhere to go and is dropped, exactly as before. What
+  // it must NOT do is make such a caller invent one.
+  warnings?: ParseWarning[];
 }
 
 export default class ModelNode extends ContainerNode {
@@ -79,6 +85,41 @@ export default class ModelNode extends ContainerNode {
 
   get readOnly(): boolean {
     return true;
+  }
+
+  // The format an out-of-process host is told this source is, since SourceDTO carries
+  // this field and nothing else in the projection names the format. Three values rather
+  // than one per extension, because a Simulink model on disk really comes in three
+  // shapes and `.mdl` covers two of them: the classic single flat text file, and the
+  // modern OPC package which is a zip of parts exactly as a `.slx` is. Derived, not
+  // stored, for the reason ProjectNode gives: this cannot change once the file is read,
+  // and a field could drift from the parse that set it.
+  //
+  // Read off the CONTENT first and the name only to separate the two package cases.
+  // `_zipEntries` is non-null exactly when the file yielded OPC PARTS — a real zip's
+  // entries for a `.slx`, or the parts decodeOpcTextPackage recovered from a modern
+  // `.mdl`'s text framing, which MdlParser hands to the same parseModelParts — and null
+  // only for the classic single flat text file. It is NOT "which parser ran": both
+  // flavours of `.mdl` go through parseMdl. This is the same test `serialize()` below
+  // already makes to decide whether it has an archive to summarize. A srcId with no
+  // recognisable extension (an opaque host URI) therefore still answers 'slx' for a
+  // package and 'mdl' for flat text rather than guessing from a name it lacks.
+  //
+  // One wrinkle, reported as what was READ rather than what the file was: a package
+  // truncated before its first part survives falls through to the classic grammar
+  // reader, which finds the compatibility stub a modern `.mdl` opens with, so this
+  // answers 'mdl'. Nothing on the node distinguishes that case — both fields are null
+  // on that path — and the `source-unreadable` warning the reader files is what tells a
+  // host the file was more than the stub. Deriving a format from a warning would be
+  // worse than understating one.
+  // Note 'xml' is deliberately NOT used for the package cases even though the parts are
+  // XML in older releases: that token means a compressed-binary dictionary elsewhere,
+  // and a consumer switching on this field must not mistake a model for one.
+  get sourceFormat(): string {
+    if (!this._zipEntries) {
+      return 'mdl';
+    }
+    return /\.mdl$/i.test(this.name) ? 'mdl-package' : 'slx';
   }
 
   get icon(): string {
@@ -184,7 +225,11 @@ export default class ModelNode extends ContainerNode {
 
     for (const entry of wsVars) {
       if (entry.isOpaque) {
-        const mcosNode = modelOpaqueMcosVariable(entry, mcosData?.get(entry.name), wsSection);
+        // `parsed.warnings` is the very array addModelSource hands to registerSource
+        // after this returns, so a degrade appended here reaches the source node. It is
+        // the same list the part readers wrote into: one list per file, whichever layer
+        // the loss was found in.
+        const mcosNode = modelOpaqueMcosVariable(entry, mcosData?.get(entry.name), wsSection, parsed.warnings);
         if (mcosNode) {
           wsSection.addChild(mcosNode);
           continue;

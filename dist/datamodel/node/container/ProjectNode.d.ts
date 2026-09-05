@@ -8,6 +8,7 @@ export default class ProjectNode extends ContainerNode {
     get tableColumnConfig(): TableColumnConfig;
     get displayName(): string;
     get readOnly(): boolean;
+    get sourceFormat(): string;
     get icon(): string;
     get NumberOfEntries(): number;
     getProperties(): PropClass[];

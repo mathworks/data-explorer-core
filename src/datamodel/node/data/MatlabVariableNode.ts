@@ -2029,6 +2029,22 @@ export default class MatlabVariableNode extends DataNode {
     if (variable.isOpaque) {
       return MatlabVariableNode._createOpaque(variable, name, parent);
     }
+    // A variable the parser RECORDED WITHOUT DECODING (MatParser's `undecoded`): a
+    // pre-MCOS class-3 object, or a sparse matrix whose declared size is past what the
+    // reader materializes. Its value is one placeholder string standing for the whole
+    // variable rather than an element list, so it takes the scalar shape at every
+    // declared size — checked before the class dispatch because the class name is a
+    // real one ('object', 'sparse') and would otherwise route to the numeric arm.
+    //
+    // It has to be its own arm rather than a fall-through: the numeric arm read the
+    // placeholder as a one-element list, so a 1x3 object printed as the MATLAB matrix
+    // literal `[<1x3 object, not decoded>]`, OFFERED AN EDITOR (the no-editor rule
+    // keys on the angle brackets, which a matrix literal wraps out of position), and
+    // grew one child row claiming to be element 1 of 3 — three claims about a value
+    // nothing read, and an editor whose commit could not reach the file.
+    if (variable.undecoded) {
+      return MatlabVariableNode._createUndecoded(variable, name, parent);
+    }
     if (variable.className === 'struct') {
       return MatlabVariableNode._createFromMatStruct(variable, name, parent);
     }
@@ -2047,6 +2063,22 @@ export default class MatlabVariableNode extends DataNode {
     node._opaqueClassName = variable.className;
     node._rawBytes = variable._rawBytes || null;
     node._matVar = variable;
+    return node;
+  }
+
+  // A recorded-but-not-decoded variable: one row, the parser's placeholder as its
+  // whole value, no children, and no editor (the placeholder is angle-bracketed, which
+  // is what BaseNode.valueEditable withholds the editor for). `_scalarType` is the
+  // parser's class name, so the DataType column still says what the FILE says the
+  // variable is — 'object' or 'sparse' — which is the part that was read.
+  static _createUndecoded(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode {
+    const node = new MatlabVariableNode(name, parent, {});
+    node._rawBytes = variable._rawBytes || null;
+    node._matVar = variable;
+    node._kind = 'scalar';
+    node._scalarType = variable.className;
+    node._scalarValue = variable.value;
+    node._dims = variable.dimensions.slice();
     return node;
   }
 

@@ -103,24 +103,96 @@ directory, because `Simulink.data.dictionary.open` rejects a relative one with
 | `probe_nd_nested.m` | at which LEVEL does the cdata go when the N-D value is nested? (defect 22's placement rule) | `$ND_NESTED_OUT` or `tempdir/ndnested` | `nd_nested.sldd` |
 | `probe_typed_shapes.m` | how is a typed array spelled at the top level, in a struct field, in a cell? (defects 21, 23) | `$TYPED_SHAPES_OUT` or `tempdir/typedshapes` | `typed_text.sldd`, `typed_binary.sldd` |
 | `probe_char_shape.m` | what does a dictionary do with a char array that is not 1xN, and which literals does MATLAB accept for one? (defect 25) | `$CHAR_SHAPE_OUT` or `tempdir/charshape` | `char_text.sldd`, `char_binary.sldd` |
-| `probe_string.m` | how does MATLAB store a `string` in a `.mat`, and which heap cell holds the text? (`STRING_MCOS.md`) | `$STRING_OUT` or `tempdir/strprobe` | `strings.mat`, `strings_truth.json`, `strings_mixed.mat`; also writes `strings_v73.mat`, **never harvested** — see below |
+| `probe_string.m` | how does MATLAB store a `string` in a `.mat`, and which heap cell holds the text? (`STRING_MCOS.md`); also: what does it write for a `sparse` matrix? (TODO item 10) | `$STRING_OUT` or `tempdir/strprobe` | `strings.mat`, `strings_truth.json`, `strings_mixed.mat`, `strings_v73.mat`, `sparse_cases.mat` |
+| `probe_mdl_encoding.m` | what does a classic `.mdl` saved under a non-UTF-8 `slCharacterEncoding` look like, and what does MATLAB read back out of it? (TODO item 11) | `$MDL_ENCODING_OUT` or `tempdir/mdlenc` | `mdlenc_shift_jis_R2011b.mdl`, `mdlenc_windows_1252_R2011b.mdl`, `mdlenc_shift_jis.mdl` |
 | `probe_writeback.mjs` + `.m` | **the acceptance gate for the TEXT dictionary**: does MATLAB read back the JSON `_value` our writer emits? | `$PROBE_OUT` | — |
 | `probe_writeback_bin.mjs` + `.m` | **the acceptance gate for the BINARY dictionary**: does MATLAB read back the XML chunk our writer emits? (defects 27-30) | `$PROBE_OUT` | — |
 
-**The one fixture this table lists that is not in `test/fixtures/`** is
-`strings_v73.mat` (`probe_string.m:80`). It was written only so `STRING_MCOS.md` could
-say whether the corpus *could* contain a `-v7.3` file, and it was left in `/tmp`. It has
-since acquired a use: `parseMat` now refuses a v7.3 file by its header text
-(`MatParser.ts:356-369`), and the only fixture behind that check is a synthesized one
-(`hdf5MatFile()` in `test/tools/matBytes.ts`), which makes the expected header string
-hand-written — exactly what the rule at the top of this file forbids. Next time this
-probe is run, copy that file in and assert against it:
+**`probe_string.m` has been re-run for its two unharvested files**, and every fixture
+this table lists is now in `test/fixtures/`:
+
+| fixture | what it settled |
+|---|---|
+| `strings_v73.mat` | the `-v7.3` refusal (`MatParser.ts:604-616`) matched a header string nobody had ever compared to MATLAB's. It matches — and the synthesized copy of that header was one character short: MATLAB ends the line with a space and a **period**. Also measured: the version field is `0x0200` against Level 5's `0x0100`, and the HDF5 superblock starts at byte 512. |
+| `sparse_cases.mat` | the class-5 layout, which had been synthesized from the format document alone. It held, and `save` **trims** a `spalloc`ed matrix's reserved capacity — see below. |
 
 ```bash
 env STRING_OUT=/tmp/strprobe mw -using Bmain matlab -nodesktop \
     -batch "run('$PWD/test/parity/matlab/probe_string.m')"
-cp /tmp/strprobe/strings_v73.mat test/fixtures/
+cp /tmp/strprobe/strings_v73.mat /tmp/strprobe/sparse_cases.mat test/fixtures/
 ```
+
+**Three things the sparse harvest settled**, each of which one synthesized fixture had
+had to assume, and all three now asserted in `test/matParser.test.ts` — which reads the
+harvested file, checks all six variables against MATLAB's own `full()`, and then checks
+that each synthesized twin decodes *identically*, so a MATLAB release that changes the
+layout fails a test instead of going unnoticed:
+
+- **`nzmax` is capacity, but `save` trims it.** `spalloc(3,4,10)` with two non-zeros
+  reaches the file declaring `nzmax=2`, with an `ir` of two and a `pr` of two. So `ir`
+  and `pr` are `4*nnz` and `8*nnz`, never `4*nzmax`, and the reader's
+  reserved-capacity case is **defensive** — a shape no MATLAB-written file is believed
+  to have — rather than the realistic one it was written as.
+- **An all-zero sparse writes both payload elements, empty.** `ir` and `pr` carry a real
+  tag and a length of 0 rather than being omitted, `jc` is `cols+1` zeros, and `nzmax`
+  is 1 where `nnz` is 0.
+- **A logical sparse writes `miUINT8`**, one byte per non-zero. The guess was right.
+
+Plus one nobody asked: MATLAB sets **bit `0x10`** of the array-flags byte on every sparse
+array (`0x10` plain, `0x18` complex, `0x12` logical), and `0x00` on the non-sparse classes
+in this corpus. Undocumented, and harmless — the reader masks the two bits it reads — but
+worth knowing before the next fixture that writes that byte by hand.
+
+**`probe_mdl_encoding.m` has now been run**, and `test/mdlEncoding.test.ts` no longer
+synthesizes anything it could harvest. A classic `.mdl` records the character set it was
+saved in as `SavedCharacterEncoding`, and both `mdlcases` classic files say `"UTF-8"` —
+so nothing in the main corpus can show the reader honouring the parameter. Three files
+now do:
+
+| fixture | what it is |
+|---|---|
+| `mdlenc_shift_jis_R2011b.mdl` | classic, `SavedCharacterEncoding "Shift_JIS"`, block named `日本語表` |
+| `mdlenc_windows_1252_R2011b.mdl` | classic, `"windows-1252"`, block named `Größe` |
+| `mdlenc_shift_jis.mdl` | the same model at the current release: a modern package, the control |
+
+To regenerate all three:
+
+```bash
+env MDL_ENCODING_OUT=/tmp/mdlenc mw -using Bmain matlab -nodesktop \
+    -batch "run('$PWD/test/parity/matlab/probe_mdl_encoding.m')"
+cp /tmp/mdlenc/mdlenc_shift_jis_R2011b.mdl /tmp/mdlenc/mdlenc_windows_1252_R2011b.mdl \
+   /tmp/mdlenc/mdlenc_shift_jis.mdl test/parity/artifacts/mdl/
+```
+
+**Four things the harvest settled**, three of which the synthesized bytes had only
+assumed:
+
+- **Which label MATLAB writes.** Exactly the WHATWG spellings a `TextDecoder` takes
+  (`Shift_JIS`, `windows-1252`) and not `SJIS`, `ibm-943_P15A-2003` or an unregistered
+  platform name — and exactly the byte pairs the test's hand-written table claimed
+  (`93 fa 96 7b 8c ea 95 5c`, `47 72 f6 df 65`). The invented bytes were right.
+- **The whole file is in it.** No ASCII islands, no escaping of non-ASCII characters.
+- **The export survives, and carries the model workspace.** An `ExportToVersion R2011b`
+  writes its `MatData` stream in a Shift_JIS file as readably as in a UTF-8 one, which is
+  what makes the "the encoded workspace is byte-identical through the re-decode" claim
+  measured rather than reasoned.
+- **A modern `.mdl` records no encoding at all** — R2027a writes no
+  `SavedCharacterEncoding` into the compatibility stub, in either flavour. So the one
+  case in that suite that stays hand-built (a stub whose label must not reach the parts)
+  is hypothetical by necessity, and the suite asserts the absence so that stops being
+  true loudly if a release ever changes it.
+
+**One trap** worth not rediscovering: MATLAB **refuses** to save a `.mdl` holding a
+character the session encoding cannot represent —
+
+```
+Unable to save model 'mdlenc_windows_1252' in the MDL file format because it contains
+characters that are not valid in the current character encoding, 'windows-1252'.
+```
+
+— so the two files cannot share a block name, and the probe carries one name per
+encoding. Its first run used a Japanese name for both and silently harvested half of
+what it came for.
 
 The two `probe_writeback` probes are the only two-part probes and the only ones with a
 pass/fail verdict. Both read the BUILT package, so a stale `dist/` is a stale verdict, and
@@ -357,7 +429,29 @@ One file per row that a single export can reach:
 | `slxcases_R2013b.slx` | no config set index and no graphical interface part at all: both inline in the block diagram |
 | `slxws.slx` / `slxws_R2021a.slx` / `slxws_R2018a.slx` | the same question for a different *storage* choice: a model workspace backed by an external `.mat` |
 | `slxws_data.mat` | that external workspace, which is where `slxws`' variables actually live |
+| `slxcfgref.slx` + one per era | a different *kind of entry*: a `Simulink.ConfigSetRef`, in all five layouts |
 | `slx_truth.json` | what MATLAB says about each *model*, plus the `lastwarn` from every export |
+
+#### Where a config set records what it *is*
+
+`slxcfgref` exists because the `Configurations` section can hold two different
+things — a `Simulink.ConfigSet` and a `Simulink.ConfigSetRef` pointing at one kept
+in a data dictionary — and the name alone cannot tell them apart. Measured with
+`probe_configsetref.m`, then read back out of every export:
+
+| era | where the ref lives | the class | what it points at |
+|---|---|---|---|
+| R2026b+ | `configSetN.json` | `"_object_class"` — a **field** | `SourceName` |
+| R2021a-R2026a | `configSetN.xml` | `ClassName=` — an **attribute** | `SourceName` |
+| R2015a-R2019a | `configSetN.xml` | `ClassName=` | **`WSVarName`** |
+| R2014b and earlier | *inline* in `blockdiagram.xml` | `ClassName=` | `WSVarName` |
+
+The rename between R2018a and R2021a is the fact that could not have been guessed,
+and the reason all four eras are exported rather than two. `SourceLocation` is
+**not** read: exported XML says the literal `Base Workspace` even for a set that
+really came from a dictionary, so on a file this reader might be handed it is not a
+fact about the model. The ref itself survives every era — nothing here needs a
+"dropped on export" branch, unlike the dictionary *link*, which R2013b does drop.
 
 `slxcases` is deliberately the **same diagram** `gen_mdl.m` builds, for the same
 reasons — see the `.mdl` catalog above — so a finding in either suite is directly
@@ -372,17 +466,21 @@ nothing to parse.
 mw -using Bmain matlab -nodesktop -batch "run('$PWD/test/parity/matlab/gen_slx.m')"
 ```
 
-Prints `GEN_SLX OK` and rewrites all ten files. It honours `outdir` exactly as
+Prints `GEN_SLX OK` and rewrites all fifteen files. It honours `outdir` exactly as
 `gen_truth.m` does. As with the `.mdl` corpus, only `slx_truth.json` is
 byte-reproducible; the model files carry a per-save timestamp and UUID.
 
-Two things about the generator worth not rediscovering. `'ExportToVersion'`
+Three things about the generator worth not rediscovering. `'ExportToVersion'`
 **renames the block diagram** to the target file name, so every legacy file carries
 `slxcases_R20xxy` as the model name and as the prefix of every block path — which
 the test normalises away. And `slxws`' `.mat` is named **relatively**, the way a
 real model names it, so it only resolves once the model itself is on disk in the
 same directory: saving the model *before* setting `DataSource`/`FileName` and
-calling `reload()` is the required order, not a preference.
+calling `reload()` is the required order, not a preference. And an entry in a
+dictionary's `Configurations` section does **not** get a free name — it must equal
+the `Name` of the `Simulink.ConfigSet` stored in it, or `addEntry` refuses; a ref
+whose target then cannot be resolved makes every later export fail with
+`Unable to find configuration`, several steps away from the actual cause.
 
 ### What `slxLayouts.parity.test.ts` asserts
 

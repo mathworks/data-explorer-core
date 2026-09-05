@@ -15,7 +15,14 @@ export { createEventBus } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';
 // Parsers + serializer (datamodel).
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
-export { serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
+// The whole write path for a compressed-binary `.sldd`: serializeBinarySldd rebuilds
+// the package, serializeEntryToXml one entry's fragment for the splice edit path.
+// Both are what the live MATLAB write-back gate proves, and neither was reachable
+// from outside this repo — the exports map publishes no deep import, so a consumer
+// could read a dictionary the package had verified it could write, and then not
+// write it. Prefer session.serializeSource() when a session already holds the file:
+// it picks the flavour the file arrived in, which this cannot know.
+export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';
 export { parseMdl } from './datamodel/parser/MdlParser.js';
 // The format-agnostic reader: `.slx` or either flavour of `.mdl`, decided by the

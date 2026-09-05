@@ -6,6 +6,7 @@ import { decodeMcosObjects, modelOpaqueMcosVariable } from '../data/mcosTypedNod
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
+import type { ParseWarning } from '../../parser/ParseWarning.js';
 import PropName from '../../prop/PropName.js';
 
 export default class MatNode extends ContainerNode {
@@ -26,6 +27,19 @@ export default class MatNode extends ContainerNode {
 
   get readOnly(): boolean {
     return true;
+  }
+
+  // The format an out-of-process host is told this source is, since SourceDTO carries
+  // this field and nothing else in the projection names the format. One value, unlike
+  // ModelNode's three: a MAT-file has on-disk levels (4, 5, 7, 7.3) but only one of them
+  // ever reaches this class — MatParser reads the Level-5 framing that `-v7` also uses,
+  // and refuses `-v7.3` with a throw because it is HDF5, so no MatNode exists for one.
+  // A level would therefore describe the reader's single supported case rather than
+  // distinguish anything a consumer could act on. `header` keeps the file's own claim
+  // for anyone who wants the detail. A getter, as ProjectNode's is: this cannot change
+  // once the file is read.
+  get sourceFormat(): string {
+    return 'mat';
   }
 
   get icon(): string {
@@ -113,7 +127,15 @@ export default class MatNode extends ContainerNode {
     return variables;
   }
 
-  static fromParsed(parsed: { header: string; variables: MatVariable[] }, filename: string): MatNode {
+  // `warnings` is optional in the parameter type rather than required because a host
+  // that hands over an older parse has none — the same reason addMatSourceParsed reads
+  // `result.warnings` defensively. When it IS there it is the array addMatSource passes
+  // to registerSource after this returns, so a degrade appended during construction
+  // reaches the source node.
+  static fromParsed(
+    parsed: { header: string; variables: MatVariable[]; warnings?: ParseWarning[] },
+    filename: string,
+  ): MatNode {
     const node = new MatNode(filename);
     node.header = parsed.header;
 
@@ -127,7 +149,7 @@ export default class MatNode extends ContainerNode {
         continue;
       }
       if (variable.isOpaque) {
-        const mcosNode = modelOpaqueMcosVariable(variable, mcosData?.get(variable.name), node);
+        const mcosNode = modelOpaqueMcosVariable(variable, mcosData?.get(variable.name), node, parsed.warnings);
         if (mcosNode) {
           node.addChild(mcosNode);
           continue;

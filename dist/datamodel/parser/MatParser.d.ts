@@ -1,3 +1,4 @@
+import type { ParseWarning } from './ParseWarning.js';
 export interface MatVariable {
     name: string;
     className: string;
@@ -10,10 +11,12 @@ export interface MatVariable {
     _modified?: boolean;
     _anonymous?: boolean;
     isOpaque?: boolean;
+    undecoded?: string;
 }
 export interface ParsedMat {
     header: string;
     variables: MatVariable[];
+    warnings: ParseWarning[];
 }
 export declare function parseMatrix(view: DataView, baseOffset: number, length: number): MatVariable;
 export declare function parseMat(arrayBuffer: ArrayBuffer): ParsedMat;

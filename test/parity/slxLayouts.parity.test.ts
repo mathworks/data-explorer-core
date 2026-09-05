@@ -21,8 +21,15 @@
 //   slxcases_R2013b.slx   no configSetInfo part and no graphicalInterface part at
 //                         all: both are inline in the block diagram.
 //
-// plus `slxws`, the same question asked of a different STORAGE choice — a model
-// workspace backed by an external `.mat` — in three of those layouts.
+// plus two more models, each asking the same question of a different KIND of content
+// rather than a different diagram:
+//   slxws       a model workspace backed by an external `.mat`, in three layouts.
+//   slxcfgref   a `Simulink.ConfigSetRef` — a REFERENCE to a configuration set kept in
+//               a data dictionary — in all five. Its point is that the class is a JSON
+//               field in one layout and an XML `ClassName=` attribute in four, and that
+//               the property naming what it points at was renamed between R2018a
+//               (`WSVarName`) and R2021a (`SourceName`). A reader that misses either
+//               reports a plain set with no source, which is what this repo did.
 //
 // All of it is written by test/parity/matlab/gen_slx.m; nothing here launches
 // MATLAB, and slx_truth.json is the only source of expected values that did not
@@ -70,6 +77,8 @@ interface SlxTruth {
   exports: ExportTruth[];
   slxws: ModelTruth;
   wsExports: ExportTruth[];
+  slxcfgref: ModelTruth;
+  cfgExports: ExportTruth[];
   matlab: { version: string; release: string };
 }
 
@@ -77,7 +86,7 @@ const TRUTH_FILE = SLX_DIR + 'slx_truth.json';
 const HAVE_TRUTH = existsSync(TRUTH_FILE);
 const TRUTH: SlxTruth = HAVE_TRUTH
   ? JSON.parse(readFileSync(TRUTH_FILE, 'utf8'))
-  : ({ exports: [], wsExports: [] } as unknown as SlxTruth);
+  : ({ exports: [], wsExports: [], cfgExports: [] } as unknown as SlxTruth);
 
 // ---------------------------------------------------------------------------
 // the layout matrix
@@ -89,7 +98,11 @@ const TRUTH: SlxTruth = HAVE_TRUTH
 // that happen to agree.
 
 type PartFlavour = 'json' | 'xml' | 'inline';
-type WorkspacePart = 'mxarray' | 'mat' | 'external';
+// `external` = backed by a `.mat` beside the model; `none` = the model workspace is
+// EMPTY, so no release writes a part for it. Both name no part, and the difference
+// between them is why they are not one token: one is a storage choice the parser has
+// to read out of the block diagram, the other is nothing to read.
+type WorkspacePart = 'mxarray' | 'mat' | 'external' | 'none';
 
 interface Era {
   file: string;
@@ -139,6 +152,31 @@ const WS_CASES: Era[] = [
     workspace: 'external', systemParts: false, uuid: false, dictionary: true, bdroot: true },
 ];
 
+// A configuration set REFERENCE, in every layout. Its own family because it is a
+// different kind of ENTRY in a section the other two already fill, and because the
+// place it is recorded moves twice across these five files — docs/TODO.md item 15,
+// measured by test/parity/matlab/probe_configsetref.m before any of it was written.
+//
+// The workspace is empty in all five, which is the point of the `none` flavour: this
+// model exists to say something about the config section and nothing else.
+const CFGREF_CASES: Era[] = [
+  { file: 'slxcfgref.slx', version: null,
+    blockDiagram: 'json', configSetInfo: 'json', graphicalInterface: 'json',
+    workspace: 'none', systemParts: true, uuid: true, dictionary: true, bdroot: true },
+  { file: 'slxcfgref_R2025a.slx', version: 'R2025a',
+    blockDiagram: 'xml', configSetInfo: 'xml', graphicalInterface: 'json',
+    workspace: 'none', systemParts: true, uuid: true, dictionary: true, bdroot: true },
+  { file: 'slxcfgref_R2021a.slx', version: 'R2021a',
+    blockDiagram: 'xml', configSetInfo: 'xml', graphicalInterface: 'xml',
+    workspace: 'none', systemParts: true, uuid: true, dictionary: true, bdroot: true },
+  { file: 'slxcfgref_R2018a.slx', version: 'R2018a',
+    blockDiagram: 'xml', configSetInfo: 'xml', graphicalInterface: 'xml',
+    workspace: 'none', systemParts: false, uuid: false, dictionary: true, bdroot: true },
+  { file: 'slxcfgref_R2013b.slx', version: 'R2013b',
+    blockDiagram: 'xml', configSetInfo: 'inline', graphicalInterface: 'inline',
+    workspace: 'none', systemParts: false, uuid: false, dictionary: false, bdroot: false },
+];
+
 /** The part each flavour of a named part lives in. `inline` means: no part at all. */
 const PART_OF: Record<string, Record<string, string | null>> = {
   blockDiagram: { json: 'simulink/blockDiagram.json', xml: 'simulink/blockdiagram.xml' },
@@ -152,6 +190,7 @@ const PART_OF: Record<string, Record<string, string | null>> = {
     mxarray: 'simulink/modelWorkspace.mxarray',
     mat: 'simulink/modelworkspace.mat',
     external: null,
+    none: null,
   },
 };
 
@@ -207,8 +246,13 @@ function shape(file: string, model: any): Record<string, string[]> {
     workspace: rows(model, 'workspace')
       .map((n: any) => [n.displayName, n.dataType, n.className, n.displayValue].join(' :: '))
       .sort(),
+    // The className is in here because an entry in this section may be a REFERENCE to
+    // a config set rather than a set, and the across-layouts claim is worth nothing if
+    // one layout can quietly downgrade one to the other. `SourceName` rides along for
+    // the same reason: it is the whole content of a reference.
     config: rows(model, 'config')
-      .map((n: any) => n.displayName + ' :: ' + (n.active ? 'active' : 'inactive'))
+      .map((n: any) => [n.displayName, n.active ? 'active' : 'inactive', n.className,
+                        n.SourceName ?? ''].join(' :: '))
       .sort(),
     references: rows(model, 'references')
       .map((n: any) => n.displayName + ' :: ' + atBdroot(file, n.blockPath))
@@ -222,13 +266,17 @@ function have(files: string[]): boolean {
 
 /** MATLAB's own `lastwarn` from the export that wrote `file`, or ''. */
 function exportWarning(file: string): string {
-  const all = [...asArray(TRUTH.exports), ...asArray(TRUTH.wsExports)];
+  const all = [
+    ...asArray(TRUTH.exports), ...asArray(TRUTH.wsExports), ...asArray(TRUTH.cfgExports),
+  ];
   return all.find((e) => e.file === file)?.lastWarning ?? '';
 }
 
 // ---------------------------------------------------------------------------
 
-for (const [key, eras] of [['slxcases', CASES], ['slxws', WS_CASES]] as [string, Era[]][]) {
+for (const [key, eras] of [
+  ['slxcases', CASES], ['slxws', WS_CASES], ['slxcfgref', CFGREF_CASES],
+] as [string, Era[]][]) {
   const t: ModelTruth | undefined = (TRUTH as unknown as Record<string, ModelTruth>)[key];
   const files = eras.map((e) => e.file);
 
@@ -359,7 +407,8 @@ for (const [key, eras] of [['slxcases', CASES], ['slxws', WS_CASES]] as [string,
           // active is recoverable there rather than guessed: an
           // `<Object PropName="ActiveConfigurationSet" ObjectID="N">` points at one.
           const wanted = asArray(t.configSets)
-            .map((c) => c.name + ' :: ' + (c.active ? 'active' : 'inactive'))
+            .map((c) => [c.name, c.active ? 'active' : 'inactive', c.class,
+                         c.sourceName ?? ''].join(' :: '))
             .sort();
           expect(shape(era.file, model).config).toEqual(wanted);
         });

@@ -195,7 +195,14 @@ export function startRepl(session, sources) {
       return null;
     }
     try {
-      const loaded = isDir ? loadDirectory(session, path) : [loadFromPath(session, path)];
+      // The skips loadDirectory used to print itself. It reports them instead of
+      // writing to the console, so the REPL says it — on stdout, like its other
+      // messages, since here the terminal IS the consumer.
+      const skipped = [];
+      const loaded = isDir ? loadDirectory(session, path, skipped) : [loadFromPath(session, path)];
+      for (const w of skipped) {
+        console.log(`skipped ${w.message}`);
+      }
       // loadFromPath/loadDirectory add to the session; mirror them into `sources`
       // (which backs '/') so the new mounts show up under the session root.
       for (const src of loaded) if (!sources.includes(src)) sources.push(src);

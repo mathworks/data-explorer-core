@@ -1,7 +1,51 @@
+// src/datamodel/parser/BinarySlddParser.ts
 // Copyright 2026 The MathWorks, Inc.
+//
+// THE WARNINGS CHANNEL FOR A DICTIONARY, AND WHY IT IS AN OUT-PARAMETER
+//
+// Every other reader in this package hands back a result OBJECT with a `warnings`
+// field on it: `parseSlx`, `parseMdl`, `parseMat` and `parseProject` all return a
+// `Parsed*` shape, so adding diagnostics to them was adding a field. This reader has
+// no such shape. `parseBinarySldd` returns the dictionary CONTENT itself — the
+// `__MW_TEXT_PARTS__` bag that `SlddNode.parse` consumes and that
+// `serializeBinarySldd` writes back — and there is no `ParsedSldd` interface anywhere
+// in the repo to put a field on.
+//
+// So the choice was between wrapping the return value, `{ content, warnings }`, and
+// taking a sink the caller owns, `parse(..., warnings?)`. The sink won, on the code
+// rather than on taste:
+//
+//   - The return value IS the content. A wrapper does not add a field to a result, it
+//     puts the result one level down, so EVERY caller has to be rewritten to unwrap
+//     before it can do the thing it was already doing. That is not an internal
+//     refactor: `parseBinarySldd` and `parseBinarySlddParts` are both exported from
+//     src/index.ts, this package is consumed as a git dependency, and a consumer that
+//     upgrades gets a content object where it used to get one only at runtime, with
+//     no compiler error at the call site if it passes the wrapper straight on as
+//     `Record<string, unknown>`. An optional trailing parameter is additive: a caller
+//     that passes one argument gets exactly what it got before, which
+//     test/parseWarnings.test.ts asserts by comparing the two calls.
+//   - There are far more call sites than the one in `ingest`. Inside the repo the two
+//     functions are called from the ingest path, the writable-binary editor's rebuild,
+//     the save gate's re-validation, the round-trip harness and a dozen test files. A
+//     wrapper is a mechanical edit at every one of them and a behavioural change at
+//     none, which is the worst trade a public signature can make.
+//   - It matches where the warnings have to END UP anyway. A dictionary's diagnostics
+//     are not finished when the XML is read: the textual flavour has no parser at all
+//     (its JSON goes straight into `SlddNode.parse`), so the node layer has to be able
+//     to append to the SAME list the parser filled in. One array, threaded
+//     parser -> node -> `registerSource`, is what makes the two flavours report
+//     through one channel; two wrappers would have to be merged by hand in
+//     `addDataSource`.
+//
+// The cost of a sink is that it is invisible in the return type, so a caller that
+// wants diagnostics has to know to ask. That is the same bargain `SlxParser`'s
+// internal helpers already make, and the reason the parameter is documented on both
+// exported functions rather than left to be discovered.
 
 import { unzipSync } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
+import { reasonOf, type ParseWarning } from './ParseWarning.js';
 import {
   charNeedsShape,
   formatDoubleXml,
@@ -83,7 +127,23 @@ export function parseDims(dimension: string): number[] {
   return dims;
 }
 
-export function parseBinarySldd(arrayBuffer: ArrayBuffer): Record<string, unknown> {
+/**
+ * Read a compressed-binary `.sldd` package into dictionary content.
+ *
+ * `warnings`, when given, is appended to for anything the package CLAIMED to hold and
+ * this reader could not read — see the header of this file for why the diagnostics
+ * arrive through a parameter instead of the return value. Omitting it is supported and
+ * unchanged: nothing is thrown, nothing is logged, and the content is identical.
+ *
+ * A package with no `data/chunk0.xml` at all still throws, because that is not a
+ * dictionary this reader can answer for at all — there is no content to hand back and
+ * warn beside. The line between the throw and a warning is whether the part is there:
+ * present-and-unreadable is a short read, absent is not a `.sldd`.
+ */
+export function parseBinarySldd(
+  arrayBuffer: ArrayBuffer,
+  warnings?: ParseWarning[],
+): Record<string, unknown> {
   const uint8 = new Uint8Array(arrayBuffer);
   const entries = unzipSync(uint8);
   const decoder = new TextDecoder();
@@ -101,15 +161,19 @@ export function parseBinarySldd(arrayBuffer: ArrayBuffer): Record<string, unknow
     }
   }
 
-  return parseBinarySlddParts(xmlString, zipMetadata);
+  return parseBinarySlddParts(xmlString, zipMetadata, warnings);
 }
 
 // Build the model content from a live data/chunk0.xml string plus the pass-through
 // zip parts, without a zip/unzip round-trip. Used by the writable binary editor to
 // rebuild the model after each in-memory edit, and by the save gate to re-validate.
+//
+// `warnings` is the same optional sink `parseBinarySldd` takes and forwards here; this
+// is where every dictionary warning about the bytes is actually raised.
 export function parseBinarySlddParts(
   xmlString: string,
   zipMetadata: Record<string, Uint8Array>,
+  warnings?: ParseWarning[],
 ): Record<string, unknown> {
   const decoder = new TextDecoder();
 
@@ -122,8 +186,62 @@ export function parseBinarySlddParts(
     }
   }
 
-  const doc = xmlParser.parse(xmlString);
-  const dataSource = doc.DataSource as XmlNode;
+  // The one part this reader reads anything out of, so losing it loses the dictionary
+  // rather than a piece of it: `source-unreadable`, and no `part`, because the warning
+  // is about the source as a whole. The part is PRESENT whichever way this function was
+  // reached — `parseBinarySldd` threw already if the package did not contain it, and a
+  // direct caller is handing over a chunk it holds — so the file is claiming to be a
+  // dictionary, and every entry in it is now missing from what the user sees.
+  //
+  // Two ways it goes wrong, and both used to be silent or worse:
+  //
+  //   - fast-xml-parser refuses the document outright for a few malformations (an
+  //     unclosed CDATA is one), and that throw used to escape `parseBinarySldd` and take
+  //     the whole open down, naming no file. A host with four dictionaries open could
+  //     not tell which one it was.
+  //   - Far more often it is LENIENT and answers with a document that has no
+  //     `DataSource` key: an empty object for a part carrying no markup at all (plain
+  //     text, an empty part, raw binary — the shape a truncated or mis-encoded write
+  //     takes), and a one-key document under the wrong name for a part whose root
+  //     element is something else. That reached `dataSource['@_FormatVersion']` on
+  //     `undefined` and threw a TypeError, or — for the wrong-root case — read as a
+  //     perfectly well-formed dictionary with zero entries and reported success. The
+  //     second is the failure this item exists to remove: indistinguishable from a
+  //     dictionary the user had just created and not filled in.
+  //
+  // The test is the KEY, not its value. `<DataSource/>` parses to the empty string,
+  // and so does a root tag with a malformed attribute list; there is nothing left in
+  // the parsed document to tell those two apart, and a dictionary a user just created
+  // really is `<DataSource/>` with no entries. Warning on a falsy value would put a
+  // warning on every empty dictionary in existence, which is the "count on every
+  // legacy file" failure — so a present key is taken at its word and read as empty.
+  let doc: Record<string, unknown> = {};
+  let refused = false;
+  try {
+    doc = xmlParser.parse(xmlString) as Record<string, unknown>;
+  } catch (err) {
+    refused = true;
+    warnings?.push({
+      code: 'source-unreadable',
+      message: `The dictionary part "data/chunk0.xml" could not be read (${reasonOf(err)}), `
+        + 'so this dictionary reads as empty.',
+    });
+  }
+  // One warning per loss, not two: a document the reader refused outright has already
+  // been reported, and saying "and it has no <DataSource>" about it as well would report
+  // the same lost dictionary twice.
+  if (!refused && !Object.prototype.hasOwnProperty.call(doc, 'DataSource')) {
+    warnings?.push({
+      code: 'source-unreadable',
+      message: 'The dictionary part "data/chunk0.xml" holds no <DataSource> element, '
+        + 'so this dictionary reads as empty.',
+    });
+  }
+  // Normalized rather than trusted: the key can be present carrying a string (a root
+  // element with text in it, or one whose attributes did not parse), and the code below
+  // reads attributes and children off it.
+  const raw = doc.DataSource;
+  const dataSource = (typeof raw === 'object' && raw !== null ? raw : {}) as XmlNode;
   const dataSourceAttrs = {
     FormatVersion: dataSource['@_FormatVersion'] || '1',
     MinRelease: dataSource['@_MinRelease'] || 'R2014a',
@@ -158,6 +276,20 @@ export function parseBinarySlddParts(
       const sub = getProperty(obj, 'Subdictionary');
       if (sub) {
         dictionaryReferences.push(sub);
+      } else {
+        // The object IS the file saying this dictionary inherits from another one. With
+        // no readable Subdictionary the inheritance cannot be resolved, so it was
+        // dropped here and every entry the referenced dictionary contributes is missing
+        // from what the user sees — with nothing anywhere to say so. `part-unreadable`
+        // rather than `source-unreadable` because the dictionary's own entries are all
+        // fine; this is one piece of it. No `part`: the whole point is that nothing in
+        // the bytes names the dictionary that is missing, and inventing a name for it
+        // would be worse than leaving the field off.
+        warnings?.push({
+          code: 'part-unreadable',
+          message: 'This dictionary references another dictionary whose name could not be read, '
+            + 'so the entries it inherits from that dictionary were not read.',
+        });
       }
     }
   }

@@ -22,6 +22,12 @@ Its `className` is computed from the file extension: `'Data Dictionary'` for
 returns the `fullPath`. `toRow()` adds a `linkTarget` on the Value cell for
 navigation.
 
+That target is the bare file name (`this.name`), not a `name@source` pair, so it
+names a FILE. `session.resolveLink(target)` follows it: it returns that source's ROOT
+node when the file is open in the session — matching the name against each open
+source's srcId, its basename and its recorded `meta.path` — and a `'source-not-open'`
+status naming the file when it is not, which is what lets a host offer to open it.
+
 ## Property table
 
 | Property   | Editor | Notes                                           |

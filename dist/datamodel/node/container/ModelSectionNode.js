@@ -40,15 +40,26 @@ export default class ModelSectionNode extends ContainerNode {
         // (ConfigSetNode / ConfigSetRefNode) so presentation is identical — empty,
         // non-editable Value and Data Type. The SLX-only "active" state is carried
         // on the shared node and surfaces through the icon, not a Value suffix.
-        const objectClass = (cfg.data && cfg.data._object_class) === 'Simulink.ConfigSetRef'
-            ? 'Simulink.ConfigSetRef'
-            : 'Simulink.ConfigSet';
+        //
+        // `cfg.objectClass` is already normalized by the parser, which is the point: this
+        // used to read `data._object_class` itself and so only ever recognised a reference
+        // in the R2026b+ JSON layout, silently calling one a plain `Simulink.ConfigSet` in
+        // all four XML eras (where the class is an ATTRIBUTE) and in the classic `.mdl`.
+        // Anything other than a positive `Simulink.ConfigSetRef` stays an ordinary set.
+        const objectClass = cfg.objectClass === 'Simulink.ConfigSetRef' ? 'Simulink.ConfigSetRef' : 'Simulink.ConfigSet';
+        // A reference's whole content is what it points AT, and `ConfigSetRefNode` reads
+        // that from `SourceName`. Passing only `Name` left every SLX-sourced reference
+        // showing an empty source — including in the one layout whose class was recognised.
+        const props = { Name: cfg.name };
+        if (objectClass === 'Simulink.ConfigSetRef' && cfg.sourceName) {
+            props.SourceName = cfg.sourceName;
+        }
         const rawVal = {
             _array_class: objectClass,
             _array_type: 'MATLABArray',
             _dimensions: [1, 1],
             _mw_element_type: 'MATLABArray',
-            _elements: [{ _properties: { Name: cfg.name } }],
+            _elements: [{ _properties: props }],
         };
         const node = objectClass === 'Simulink.ConfigSetRef'
             ? ConfigSetRefNode.parse(rawVal, cfg.name, this)

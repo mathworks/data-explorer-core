@@ -6,6 +6,7 @@ import { decodeMcosBlob, STRING_CLASS_NAME } from '../../parser/McosParser.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
 import type { MatVariable } from '../../parser/MatParser.js';
+import { reasonOf, type ParseWarning } from '../../parser/ParseWarning.js';
 
 // Bridges the binary (MCOS) decode path to the same typed data-model nodes the
 // SLDD (JSON) path builds, so a Simulink object resolves to the SAME node class
@@ -48,6 +49,11 @@ export function buildTypedNodeFromMcos(
   properties?: Record<string, unknown> | null,
   elements?: Record<string, unknown>[] | null,
   dimensions?: number[] | null,
+  // Where a degrade goes, when the caller kept somewhere for it to go. Optional and
+  // trailing, the shape SlddNode.parse established: whoever owns the array passes it
+  // and this appends. Node construction is downstream of the parse that produced that
+  // array, which is why this had to be threaded rather than returned.
+  warnings?: ParseWarning[],
 ): DataNode | null {
   if (!className || GENERIC_KEYS.has(className)) {
     return null;
@@ -91,9 +97,24 @@ export function buildTypedNodeFromMcos(
   };
   try {
     return NodeRegistry.parseValue(rawVal, name, parent);
-  } catch {
+  } catch (err) {
     // Any class whose parse() unexpectedly rejects the value degrades to the
-    // opaque node rather than breaking the whole file.
+    // opaque node rather than breaking the whole file — and now says so, because
+    // the degraded node is indistinguishable from a variable this reader simply
+    // models that way. What is lost is the TYPED view: the property rows the class
+    // would have expanded into, which is the whole reason this bridge exists.
+    //
+    // Only this path warns. The two earlier `return null`s above are not losses —
+    // a generic key, or an unknown class the decoder recovered nothing for, is this
+    // reader meeting the limit of the DATA, and ParseWarning's header is explicit
+    // that warning about those would put a count on ordinary files.
+    warnings?.push({
+      code: 'part-unreadable',
+      message:
+        `the MATLAB object "${name}" was decoded but its ${className} view could not be built, ` +
+        `so it is shown as an opaque variable without its property rows (${reasonOf(err)})`,
+      part: name,
+    });
     return null;
   }
 }
@@ -149,6 +170,9 @@ export function modelOpaqueMcosVariable(
   variable: MatVariable,
   decoded: McosDecoded | undefined,
   parent: BaseNode,
+  // Forwarded, not consumed: the only loss on this path is the one buildTypedNodeFromMcos
+  // can report, and cases 2 and 3 below are fallbacks that show the class correctly.
+  warnings?: ParseWarning[],
 ): DataNode | null {
   if (variable.className === STRING_CLASS_NAME && decoded) {
     return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent);
@@ -160,6 +184,7 @@ export function modelOpaqueMcosVariable(
     decoded?.properties,
     decoded?.elements,
     decoded?.dimensions,
+    warnings,
   );
   if (typed) {
     return typed;

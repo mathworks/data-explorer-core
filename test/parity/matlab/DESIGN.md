@@ -1794,21 +1794,28 @@ The suite is also checked for teeth the same way every other tier is: with
   links into it is a plain string there and a link target in every other flavour (R2017b
   keeps it). All five are asserted in `mdl.parity.test.ts` rather than assumed — an
   unasserted divergence is indistinguishable from a parse bug.
-- **Three things an earlier `.slx` layout cannot answer, and one we chose not to guess.**
+- **Three things an earlier `.slx` layout cannot answer.**
   A pre-R2020a file records no `ModelUUID`, so it comes back `''`; R2013b predates data
   dictionaries and MATLAB drops the link on export, so there is nothing to link (the
   suite's expectation there is MATLAB's own `lastwarn`, recorded by the generator, not a
   sentence we wrote); and R2013b roots a reference block path at the model's literal name
   rather than `$bdroot`, which an export has just renamed, so the recorded name is the
-  only safe prefix to strip. The fourth is a deliberate omission rather than a format
-  limit: **a `Simulink.ConfigSetRef` in a legacy file reads as a plain
-  `Simulink.ConfigSet`**, because the modern path tells them apart by an `_object_class`
-  field that no MATLAB-authored fixture in this corpus shows an XML counterpart for.
-  Guessing one would put a branch in the parser that no failing test closes, which is the
-  rule this corpus exists to keep. Filed in `docs/TODO.md`. The first three are asserted
-  in `slxLayouts.parity.test.ts`; everything else — blocks including nested ones, all
-  eight workspace values, both config sets with the right one active, the reference, the
-  dictionary, and the external-`.mat` pointer — reads identically out of all five layouts.
+  only safe prefix to strip. All three are asserted in `slxLayouts.parity.test.ts`;
+  everything else — blocks including nested ones, all eight workspace values, both config
+  sets with the right one active, the reference, the dictionary, and the external-`.mat`
+  pointer — reads identically out of all five layouts.
+
+  A fourth entry here used to be a deliberate omission: a `Simulink.ConfigSetRef` in a
+  legacy file read as a plain `Simulink.ConfigSet`, because the modern path told the two
+  apart by an `_object_class` field that no fixture in this corpus showed an XML
+  counterpart for, and guessing one would have put a branch in the parser that no failing
+  test closes. **Now measured and closed** — `probe_configsetref.m` asked MATLAB, and the
+  answer was not the single guessable fact: the class is the `ClassName=` attribute in
+  every XML era, but the property naming what the ref points at is `SourceName` from
+  R2021a and `WSVarName` in R2018a and earlier. `slxcfgref.slx` plus one export per era
+  now hold the parser to it, and the layout suite's config assertion compares class and
+  source rather than name alone. See "Where a config set records what it *is*" in
+  `README.md`.
 - **An MCOS object NESTED in a struct field or a cell element shows a summary, not its
   contents.** `test/fixtures/strings_nested.mat` (MATLAB-authored, `probe_string.m`) has a
   struct with a `Simulink.Parameter` field and a string field, and a cell holding both:

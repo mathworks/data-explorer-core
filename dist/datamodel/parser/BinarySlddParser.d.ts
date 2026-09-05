@@ -1,3 +1,4 @@
+import { type ParseWarning } from './ParseWarning.js';
 /**
  * Read a `Dimension="d1*d2*...*dn"` attribute into every extent it declares.
  *
@@ -22,7 +23,20 @@
  *     destructive guess.
  */
 export declare function parseDims(dimension: string): number[];
-export declare function parseBinarySldd(arrayBuffer: ArrayBuffer): Record<string, unknown>;
-export declare function parseBinarySlddParts(xmlString: string, zipMetadata: Record<string, Uint8Array>): Record<string, unknown>;
+/**
+ * Read a compressed-binary `.sldd` package into dictionary content.
+ *
+ * `warnings`, when given, is appended to for anything the package CLAIMED to hold and
+ * this reader could not read — see the header of this file for why the diagnostics
+ * arrive through a parameter instead of the return value. Omitting it is supported and
+ * unchanged: nothing is thrown, nothing is logged, and the content is identical.
+ *
+ * A package with no `data/chunk0.xml` at all still throws, because that is not a
+ * dictionary this reader can answer for at all — there is no content to hand back and
+ * warn beside. The line between the throw and a warning is whether the part is there:
+ * present-and-unreadable is a short read, absent is not a `.sldd`.
+ */
+export declare function parseBinarySldd(arrayBuffer: ArrayBuffer, warnings?: ParseWarning[]): Record<string, unknown>;
+export declare function parseBinarySlddParts(xmlString: string, zipMetadata: Record<string, Uint8Array>, warnings?: ParseWarning[]): Record<string, unknown>;
 export declare function transposeColumnMajor<T>(values: T[], dims: number[]): T[];
 //# sourceMappingURL=BinarySlddParser.d.ts.map
