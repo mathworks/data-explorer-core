@@ -167,6 +167,15 @@ function splitLinkTarget(target) {
 // target from the raw parameter VALUE, so `[tau 1]@mdlparams.sldd` is a target this
 // package really produces).
 //
+// EXPORTED, and the barrel publishes it, because a host can have a second resolver this
+// package cannot be: data-explorer-vscode resolves usages across a whole WORKSPACE of
+// files on disk, most of them never registered in a session, with MATLAB's
+// workspace→sldd→mat shadowing over them. That resolver is legitimately its own — but
+// "which names does this expression refer to" is not, and while it had its own copy the
+// two answers differed: the host credited `mode` in `cfg.mode` and `e5` in `1e5` as
+// definitions, so a dictionary entry named `mode` acquired a usage that does not exist.
+// A phantom usage is worse than a missing one, because a user acts on it.
+//
 // A token is skipped when the character before it is `.` or a digit. `.` is a field or
 // property reference — `cfg.mode` refers to `cfg`, and the model resolves `cfg`, so the
 // base name is the one credited and `mode` is not a definition of its own. A digit
@@ -181,7 +190,7 @@ function splitLinkTarget(target) {
 // so a variable shadowed by a function of the same name is reported as a usage; MATLAB
 // itself decides that at run time from the workspace, which is not something a file
 // reader has.
-function identifiersIn(expression) {
+export function identifiersIn(expression) {
     // Constructed per call rather than hoisted: a `/g` RegExp carries lastIndex, and a
     // shared one would resume mid-string on the next call — the same reentrancy hazard
     // compileTextTest rewrites `g` away for.
