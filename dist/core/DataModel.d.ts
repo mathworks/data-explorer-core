@@ -162,6 +162,7 @@ export interface FindNodesQuery {
     /** Cap on the number of matches. Omitted means uncapped. */
     limit?: number;
 }
+export declare function identifiersIn(expression: string): string[];
 export declare function createSession(opts?: CreateSessionOptions): {
     allNode: IAllNode;
     addDataSource: (srcId: string, content: Record<string, unknown>, meta?: Partial<SourceMeta>, warnings?: ParseWarning[]) => ISourceNode;

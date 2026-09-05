@@ -31,6 +31,14 @@ export type { FindNodesQuery } from './core/DataModel.js';
 // and DictionaryReference the same for a `.sldd`'s referenced sub-dictionaries: both end
 // up in a host's own arrays and function signatures.
 export type { LinkResolution, NodeUsage, DictionaryReference } from './core/DataModel.js';
+// How this package reads a block-parameter expression: the names in `2*Kp`, `[tau 1]`,
+// `cfg.mode`. Public because a host can have a resolver of its own that this package
+// cannot be — data-explorer-vscode scans a whole workspace of files on disk, with
+// MATLAB's shadowing over them — and that resolver has to read an expression the SAME
+// way, or the same file yields two different usage answers depending on which asked.
+// It did: the host's own copy credited `mode` in `cfg.mode`, inventing a usage for any
+// entry named `mode`. The rule is the shared thing; the scope is not.
+export { identifiersIn } from './core/DataModel.js';
 export { createEventBus } from './core/EventBus.js';
 export type { EventBusInstance } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';
