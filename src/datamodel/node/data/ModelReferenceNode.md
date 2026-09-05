@@ -20,6 +20,13 @@ The node carries:
 Its `displayValue` shows the `blockPath`, `className` returns `'Model Reference'`,
 and `toRow()` adds a `linkTarget` on the Value cell for navigation.
 
+That target is the bare reference name (`this.name`), which names a FILE and carries
+the extension `ModelNode.addReferenceEntry` guessed from the PARENT model — so the
+same child is `mdl_child.mdl` from a `.mdl` parent and `mdl_child.slx` from a `.slx`
+one. `session.resolveLink(target)` follows it and, because that extension is a guess,
+falls back to matching an open model with the other model extension once no exact or
+basename match is found.
+
 ## Property table
 
 | Property   | Editor | Notes                                           |

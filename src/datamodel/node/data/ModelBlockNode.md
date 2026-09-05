@@ -24,6 +24,15 @@ The node carries:
 Its `toRow()` emits a specialized row with a `_graphTarget` for model navigation
 and optional `linkTarget` in the DataType column for parameter cross-referencing.
 
+The target is `` `${firstParamValue}@${paramSourceId}` `` — e.g. `Kp@mdlparams.sldd`.
+A host follows it with `session.resolveLink(target)`, which parses the shape, finds
+the named source among the open ones and returns the entry node (or says whether the
+file is simply not open). Note the name part is the parameter's raw VALUE and so may
+be an expression: `[tau 1]@mdlparams.sldd` is a target this node really produces, and
+`resolveLink` reads the identifiers out of it rather than treating the whole string as
+a name. The reverse direction — which blocks reference a given definition — is
+`session.findUsages(nodeId)`.
+
 ## Property table
 
 | Property   | Editor | Notes                                           |

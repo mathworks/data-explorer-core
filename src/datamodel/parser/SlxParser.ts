@@ -2,9 +2,11 @@
 
 import { unzipSync } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
-import { parseMxArray } from './MxArrayParser.js';
+import { parseMxArray, readMxArrayRecords } from './MxArrayParser.js';
 import { parseMat } from './MatParser.js';
 import type { MatVariable } from './MatParser.js';
+import { reasonOf } from './ParseWarning.js';
+import type { ParseWarning } from './ParseWarning.js';
 
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
@@ -19,6 +21,40 @@ export interface BlockParamUsage {
   paramValue: string;
 }
 
+/**
+ * One configuration set, or a REFERENCE to one, normalized across all five layouts.
+ *
+ * `objectClass` and `sourceName` are here rather than left for the node layer to dig
+ * out of `data` because *where* they are recorded is era-specific, and hiding that is
+ * this parser's job. Measured against R2027a, then exported to each era
+ * (`test/parity/matlab/probe_configsetref.m` — item 15):
+ *
+ *   - R2026b+ JSON  `configSetN.json`  `"_object_class":"Simulink.ConfigSetRef"`
+ *                                      `"SourceName":"dictCfg"`
+ *   - R2015a–R2026a `configSetN.xml`   `<Object ClassName="Simulink.ConfigSetRef">`
+ *                                      `<P Name="SourceName">` (R2021a and later)
+ *                                      `<P Name="WSVarName">`  (R2018a and earlier)
+ *   - R2014b and earlier               inline in `blockdiagram.xml`, same
+ *                                      `ClassName=` attribute, `WSVarName`
+ *
+ * So the class is an ATTRIBUTE in every XML era and a FIELD in JSON, always spelled
+ * with the full `Simulink.ConfigSetRef` — but the property naming what it points at
+ * was renamed between R2018a and R2021a, which is the one fact here that could not
+ * have been guessed. `sourceName` is `''` for an ordinary set, which has no source.
+ *
+ * NOT read: `SourceLocation`. It survives the export as the literal `Base Workspace`
+ * in every XML era even when the set really came from a data dictionary (the JSON
+ * layout says `Data Dictionary` for the same model), so on a file this reader might
+ * be handed it is not a fact about the model.
+ */
+export interface ParsedConfigSet {
+  name: string;
+  active: boolean;
+  data: unknown;
+  objectClass: string;
+  sourceName: string;
+}
+
 export interface ParsedSlx {
   name: string;
   release: string;
@@ -28,7 +64,7 @@ export interface ParsedSlx {
   dataDictionary: string | null;
   modelReferences: { blockPath: string; modelName: string }[];
   externalDataSources: string[];
-  configSets: { name: string; active: boolean; data: unknown }[];
+  configSets: ParsedConfigSet[];
   workspace: MatVariable[] & { _trailingElements: Uint8Array[] };
   blockParamUsages: BlockParamUsage[];
   // Null for a model that is not an OPC package at all: the classic `.mdl` is one
@@ -36,6 +72,18 @@ export interface ParsedSlx {
   // has always treated both as nullable.
   rawContents: Record<string, string> | null;
   zipEntries: Record<string, Uint8Array> | null;
+  // What this file CLAIMED and this reader could not read. ALWAYS an array, empty for
+  // a package read completely — never undefined, following ParsedProject.warnings so
+  // that a caller never has to tell "clean" apart from "this reader does not report".
+  //
+  // A part a release never wrote is NOT in here, and that distinction is the whole
+  // value of the field. An `.slx` from R2013b has no configSetInfo part, no
+  // graphicalInterface part and no systems/ parts; a classic `.mdl` has no release
+  // string and no UUID. Those files are complete and are read correctly, so they warn
+  // about nothing. What warns is a part the package HOLDS and this reader could not
+  // read, or one the package's own index NAMES and the package does not hold — see
+  // test/parseWarnings.test.ts, which pins the silent cases as firmly as the loud ones.
+  warnings: ParseWarning[];
 }
 
 function decodeText(buf: Uint8Array): string {
@@ -50,25 +98,134 @@ function parseXml(buf: Uint8Array): unknown {
   return xmlParser.parse(decodeText(buf));
 }
 
+/**
+ * One part, read or reported — every part read below goes through this.
+ *
+ * A part the package holds is a claim that it can be read, so a throw out of the XML
+ * or JSON reader is a warning naming the part and what the model lost, after which the
+ * caller carries on with whatever the other parts say. That is the difference between
+ * a model that opens short and a file that does not open: before this, one corrupt part
+ * threw out of parseSlx and took the other fifteen with it.
+ *
+ * Returns null both for a part that is ABSENT — which is how the reader asks which
+ * layout it is looking at, and is silent — and for one that failed, which is not. The
+ * caller branches on part presence, so the two never need telling apart.
+ *
+ * `lost` completes the sentence "…, so <lost>", and is the part of the message that
+ * says what a user is now missing rather than which file offended.
+ */
+function readPart(
+  entries: Record<string, Uint8Array>,
+  path: string,
+  lost: string,
+  warnings: ParseWarning[],
+): unknown | null {
+  const buf = entries[path];
+  if (!buf) {
+    return null;
+  }
+  let doc: unknown;
+  try {
+    doc = path.endsWith('.json') ? parseJSON(buf) : parseXml(buf);
+  } catch (err) {
+    warnings.push({
+      code: 'part-unreadable',
+      message: `The model part "${path}" could not be read (${reasonOf(err)}), so ${lost}.`,
+      part: path,
+    });
+    return null;
+  }
+  // fast-xml-parser is lenient and answers with an EMPTY object for input carrying no
+  // markup at all — plain text, an empty part, binary — and that is the shape a
+  // truncated or mis-encoded write actually takes. Same loss as a throw, so the same
+  // report; ProjectParser.parseInfo already draws this line for the `.prj` store.
+  if (doc === null || typeof doc !== 'object' || Object.keys(doc).length === 0) {
+    warnings.push({
+      code: 'part-unreadable',
+      message: `The model part "${path}" holds nothing readable, so ${lost}.`,
+      part: path,
+    });
+    return null;
+  }
+  return doc;
+}
+
+// The class of one configuration set, and what a reference points at — see
+// `ParsedConfigSet` for the per-era evidence this encodes.
+//
+// Blank `objectClass` is not a failure: it means "this layout did not say", and every
+// caller treats that as an ordinary `Simulink.ConfigSet`, which is what a file whose
+// index lists a set and whose part records no class is. Only a POSITIVE
+// `Simulink.ConfigSetRef` promotes a node to a reference, so no unreadable part can
+// silently turn a set into one.
+export function configSetIdentity(data: unknown): { objectClass: string; sourceName: string } {
+  const blank = { objectClass: '', sourceName: '' };
+  if (!data || typeof data !== 'object') return blank;
+  const rec = data as Record<string, unknown>;
+
+  // R2026b+ JSON: the class is a FIELD on the part's root object.
+  if (typeof rec._object_class === 'string') {
+    const props = (rec._properties || {}) as Record<string, unknown>;
+    return {
+      objectClass: rec._object_class,
+      sourceName: String(props.SourceName ?? props.WSVarName ?? ''),
+    };
+  }
+
+  // Every XML era: the class is an ATTRIBUTE of an `<Object>`. That element is the
+  // record itself when `inlineConfigSets` hands over the `<Object>` it matched, and one
+  // level down under `<ConfigSet>` in a `configSetN.xml` part — so take the first
+  // `<Object>` at or below the root rather than assuming which. findAll does not
+  // descend into an element it has already matched, so the component objects nested
+  // inside a full set (`Simulink.SolverCC` and the rest) cannot be picked up by mistake.
+  const obj =
+    typeof rec['@_ClassName'] === 'string'
+      ? rec
+      : (findAll(rec, 'Object')[0] as Record<string, unknown> | undefined);
+  if (!obj || typeof obj['@_ClassName'] !== 'string') return blank;
+  const props = directProps(obj);
+  // `SourceName` from R2021a, `WSVarName` in R2018a and earlier: one value, renamed.
+  // Both are read in both directions, because a name is cheap to accept and a file
+  // from a release this corpus does not sample is the case that would otherwise lose it.
+  return { objectClass: obj['@_ClassName'], sourceName: props.SourceName ?? props.WSVarName ?? '' };
+}
+
 function extractConfigSets(
   entries: Record<string, Uint8Array>,
   configSetInfo: { PartName: string; ConfigSetName: string; Active: boolean }[],
-): { name: string; active: boolean; data: unknown }[] {
-  const configs: { name: string; active: boolean; data: unknown }[] = [];
+  warnings: ParseWarning[],
+): ParsedConfigSet[] {
+  const configs: ParsedConfigSet[] = [];
   for (const info of configSetInfo) {
     const partPath = info.PartName.replace(/^\//, '');
-    const buf = entries[partPath];
-    if (buf) {
-      // The referenced part is `configSetN.json` from R2026b and `configSetN.xml`
-      // before it. The info part names it either way, so the extension it points
-      // at — not the release — decides how to read it.
-      const data = partPath.endsWith('.json') ? parseJSON(buf) : parseXml(buf);
-      configs.push({
-        name: info.ConfigSetName,
-        active: !!info.Active,
-        data: data,
+    if (!entries[partPath]) {
+      // The index part in THIS file names the part, so the package contradicts
+      // itself and one configuration set is gone. That makes it the one absent part
+      // in this reader that IS a warning: nothing about a release decides whether a
+      // part its own index lists is present.
+      warnings.push({
+        code: 'part-unreadable',
+        message: `The configuration set "${info.ConfigSetName}" is listed as part "${partPath}", `
+          + 'which this package does not contain, so that set was not read.',
+        part: partPath,
       });
+      continue;
     }
+    // The referenced part is `configSetN.json` from R2026b and `configSetN.xml`
+    // before it. The info part names it either way, so the extension it points
+    // at — not the release — decides how to read it.
+    const data = readPart(entries, partPath, `the configuration set "${info.ConfigSetName}" was not read`, warnings);
+    if (data === null) {
+      // Dropped rather than kept with a null `data`, which is what an absent part has
+      // always done here; the warning is what carries the name of what is missing.
+      continue;
+    }
+    configs.push({
+      name: info.ConfigSetName,
+      active: !!info.Active,
+      data: data,
+      ...configSetIdentity(data),
+    });
   }
   return configs;
 }
@@ -168,10 +325,25 @@ function directProps(el: unknown): Record<string, string> {
 }
 
 // The `<Model>` element of a legacy `blockdiagram.xml`, or null.
-function legacyModel(entries: Record<string, Uint8Array>): Record<string, unknown> | null {
-  const buf = entries['simulink/blockdiagram.xml'];
-  if (!buf) return null;
-  const doc = parseXml(buf) as Record<string, unknown>;
+//
+// Null for three different reasons, only ONE of which is a warning. No part at all is
+// a modern package, and a well-formed part with no `<Model>` in it is a LIBRARY —
+// `blockdiagram.xml` carries `<Library>` there for a `.slx` library, which is a
+// complete file this reader has never claimed to open as a model. Both stay silent.
+// A part that is present and unreadable is the warning, and it is the biggest single
+// loss in this file: before R2020a this one part carries the block diagram, the
+// configuration sets, the model references and every block.
+function legacyModel(
+  entries: Record<string, Uint8Array>,
+  warnings: ParseWarning[],
+): Record<string, unknown> | null {
+  const doc = readPart(
+    entries,
+    'simulink/blockdiagram.xml',
+    "this model's blocks, configuration sets and model references are all missing",
+    warnings,
+  ) as Record<string, unknown> | null;
+  if (!doc) return null;
   const info = doc.ModelInformation as Record<string, unknown> | undefined;
   const model = (info?.Model ?? null) as Record<string, unknown> | null;
   return model && typeof model === 'object' ? model : null;
@@ -180,8 +352,7 @@ function legacyModel(entries: Record<string, Uint8Array>): Record<string, unknow
 // `configSetInfo.xml` in the shape the JSON reader already produces. The name is
 // the element's TEXT here (it is a JSON field in the modern part) and `Active` is
 // an attribute that is present only on the active one.
-function legacyConfigSetInfo(buf: Uint8Array): { PartName: string; ConfigSetName: string; Active: boolean }[] {
-  const doc = parseXml(buf);
+function legacyConfigSetInfo(doc: unknown): { PartName: string; ConfigSetName: string; Active: boolean }[] {
   const out: { PartName: string; ConfigSetName: string; Active: boolean }[] = [];
   for (const el of findAll(doc, 'ConfigSet')) {
     if (!el || typeof el !== 'object') continue;
@@ -203,7 +374,16 @@ function legacyConfigSetInfo(buf: Uint8Array): { PartName: string; ConfigSetName
 // "Simulink.ConfigSet">`. Which one is active is recoverable rather than guessed —
 // a sibling `<Object PropName="ActiveConfigurationSet">` points at one by
 // ObjectID.
-function inlineConfigSets(model: Record<string, unknown>): { name: string; active: boolean; data: unknown }[] {
+//
+// A `Simulink.ConfigSetRef` sits in that same array, and this filter used to require
+// exactly `Simulink.ConfigSet` and so DROPPED one — the entry vanished from the model's
+// Configurations section with nothing said. Verified present in an R2013b export
+// (`probe_configsetref.m`, item 15): a ref survives even into the era that cannot keep
+// the data dictionary it points into, and it is recognisable there by the same
+// `ClassName=` attribute a full set carries. The two classes are matched by name rather
+// than by "anything with a Name property" because this array is also where
+// `ActiveConfigurationSet` and the component objects live.
+function inlineConfigSets(model: Record<string, unknown>): ParsedConfigSet[] {
   const container = model.ConfigurationSet;
   if (!container) return [];
 
@@ -217,15 +397,16 @@ function inlineConfigSets(model: Record<string, unknown>): { name: string; activ
     }
   }
 
-  const out: { name: string; active: boolean; data: unknown }[] = [];
+  const out: ParsedConfigSet[] = [];
   for (const obj of findAll(container, 'Object')) {
     if (!obj || typeof obj !== 'object') continue;
     const rec = obj as Record<string, unknown>;
-    if (rec['@_ClassName'] !== 'Simulink.ConfigSet') continue;
+    const cls = rec['@_ClassName'];
+    if (cls !== 'Simulink.ConfigSet' && cls !== 'Simulink.ConfigSetRef') continue;
     const name = directProps(rec).Name;
     if (!name) continue;
     const id = String(rec['@_ObjectID'] ?? '');
-    out.push({ name, active: !!id && id === activeId, data: rec });
+    out.push({ name, active: !!id && id === activeId, data: rec, ...configSetIdentity(rec) });
   }
   return out;
 }
@@ -374,6 +555,7 @@ export function isParamReference(propName: string, value: string): boolean {
 function extractBlockParamUsages(
   entries: Record<string, Uint8Array>,
   legacy: Record<string, unknown> | null,
+  warnings: ParseWarning[],
 ): BlockParamUsage[] {
   // `simulink/systems/*.xml` from R2020a on. Before that the block tree lived
   // inside blockdiagram.xml, so when there are no systems parts the diagram's own
@@ -384,10 +566,19 @@ function extractBlockParamUsages(
   // `<BlockParameterDefaults>`, which are TEMPLATE blocks — every block type
   // Simulink knows, with placeholder values like `<Enter Model Name>`. Walking the
   // document would report every one of them as a real block using real parameters.
+  //
+  // One unreadable systems part is one subsystem's blocks, not the model, so the loop
+  // reports it and carries on through the rest — a model organised into ten subsystems
+  // should not lose nine of them to the tenth. Note that having NO systems parts at all
+  // is not a loss and not reported: that is every release before R2020a, and the legacy
+  // branch below is how those files are read.
   const roots: unknown[] = [];
   for (const key in entries) {
     if (key.startsWith('simulink/systems/') && key.endsWith('.xml')) {
-      roots.push(parseXml(entries[key]));
+      const root = readPart(entries, key, 'the blocks it holds are missing', warnings);
+      if (root !== null) {
+        roots.push(root);
+      }
     }
   }
   if (roots.length === 0 && legacy && legacy.System) {
@@ -452,29 +643,48 @@ export function parseSlx(buffer: ArrayBuffer, filename: string): ParsedSlx {
  * text framing and calls straight in here.
  */
 export function parseModelParts(entries: Record<string, Uint8Array>, filename: string): ParsedSlx {
+  // Everything this package claimed and could not hand over. Built here and returned
+  // whatever happens below, because a short parse is still a parse: a host has to be
+  // able to open the model AND say what is missing from it.
+  const warnings: ParseWarning[] = [];
+
   // Core metadata
   let release = '';
   let creator = '';
   let lastModified = '';
-  if (entries['metadata/coreProperties.xml']) {
-    const doc = parseXml(entries['metadata/coreProperties.xml']);
-    release = findText(doc, 'cp:version') || findText(doc, 'version') || '';
-    creator = findText(doc, 'dc:creator') || findText(doc, 'creator') || '';
-    lastModified = findText(doc, 'dcterms:modified') || findText(doc, 'modified') || '';
+  const core = readPart(
+    entries,
+    'metadata/coreProperties.xml',
+    "this model's release, creator and last-modified date are missing",
+    warnings,
+  );
+  if (core) {
+    release = findText(core, 'cp:version') || findText(core, 'version') || '';
+    creator = findText(core, 'dc:creator') || findText(core, 'creator') || '';
+    lastModified = findText(core, 'dcterms:modified') || findText(core, 'modified') || '';
   }
 
   // The legacy block diagram part, read once: several branches below need it, and
   // it is the largest part in the package. Null for a current-release file, which
   // has `blockDiagram.json` instead and never touches the legacy paths.
-  const legacy = legacyModel(entries);
+  const legacy = legacyModel(entries, warnings);
 
   // Block diagram (linked dictionary, UUID, model-workspace data source)
   let dataDictionary: string | null = null;
   let uuid = '';
   let workspaceMatFile: string | null = null;
   if (entries['simulink/blockDiagram.json']) {
-    const bd = parseJSON(entries['simulink/blockDiagram.json']) as Record<string, unknown>;
-    const diagram = (bd.BlockDiagram as Record<string, unknown>) || bd;
+    // Branching on the part being PRESENT rather than on the read succeeding, so that
+    // an unreadable modern part is reported as itself and does not fall through to the
+    // legacy reader, which would report a second, misleading loss for a part that a
+    // current-release package was never going to contain.
+    const bd = readPart(
+      entries,
+      'simulink/blockDiagram.json',
+      "this model's dictionary link, its UUID and its model-workspace source are missing",
+      warnings,
+    ) as Record<string, unknown> | null;
+    const diagram = bd ? ((bd.BlockDiagram as Record<string, unknown>) || bd) : {};
     dataDictionary = (diagram.DataDictionary as string) || null;
     uuid = (diagram.ModelUUID as string) || '';
     // Model workspace sourced from a MAT file (model -> mat relationship). MATLAB
@@ -499,15 +709,26 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
   // Config sets. Three layouts: a JSON index (R2026b+), an XML index (R2015a-R2026a)
   // — both of which point at one `configSetN` part each — and, before R2015a, no
   // index part at all because the sets are inline in the block diagram.
-  let configSets: { name: string; active: boolean; data: unknown }[] = [];
+  let configSets: ParsedConfigSet[] = [];
   if (entries['simulink/configSetInfo.json']) {
-    const info = parseJSON(entries['simulink/configSetInfo.json']) as Record<string, unknown>;
+    // One warning for an unreadable index, not one per set: the index is what names the
+    // sets, so when it is gone their number and their names are gone with it and there
+    // is nothing left to count. `extractConfigSets` is still called with an empty list
+    // so the rest of the model is read normally.
+    const info = readPart(
+      entries,
+      'simulink/configSetInfo.json',
+      'no configuration sets were read',
+      warnings,
+    ) as Record<string, unknown> | null;
     configSets = extractConfigSets(
       entries,
-      (info.ConfigSetInfo as { PartName: string; ConfigSetName: string; Active: boolean }[]) || [],
+      (info?.ConfigSetInfo as { PartName: string; ConfigSetName: string; Active: boolean }[]) || [],
+      warnings,
     );
   } else if (entries['simulink/configSetInfo.xml']) {
-    configSets = extractConfigSets(entries, legacyConfigSetInfo(entries['simulink/configSetInfo.xml']));
+    const info = readPart(entries, 'simulink/configSetInfo.xml', 'no configuration sets were read', warnings);
+    configSets = extractConfigSets(entries, legacyConfigSetInfo(info), warnings);
   } else if (legacy) {
     configSets = inlineConfigSets(legacy);
   }
@@ -515,20 +736,33 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
   // Graphical interface (model references). JSON from R2024b, XML from R2014b, and
   // inline in the block diagram before that.
   let modelReferences: { blockPath: string; modelName: string }[] = [];
+  const REFS_LOST = "this model's references to other models are missing";
   if (entries['simulink/graphicalInterface.json']) {
-    const gi = parseJSON(entries['simulink/graphicalInterface.json']) as Record<string, unknown>;
-    modelReferences = extractModelReferences(gi);
+    const gi = readPart(entries, 'simulink/graphicalInterface.json', REFS_LOST, warnings) as Record<
+      string,
+      unknown
+    > | null;
+    modelReferences = gi ? extractModelReferences(gi) : [];
   } else if (entries['simulink/graphicalInterface.xml']) {
-    modelReferences = legacyModelReferences(parseXml(entries['simulink/graphicalInterface.xml']));
+    modelReferences = legacyModelReferences(
+      readPart(entries, 'simulink/graphicalInterface.xml', REFS_LOST, warnings),
+    );
   } else if (legacy && legacy.GraphicalInterface) {
+    // Read out of the block diagram, which has already been reported if it failed —
+    // reaching here at all means it parsed. Nothing to warn about a second time.
     modelReferences = legacyModelReferences(legacy.GraphicalInterface);
   }
 
   // External data sources (.mat files)
   let externalDataSources: string[] = [];
-  if (entries['simulink/ExternalDataSourceSettings.xml']) {
-    const doc = parseXml(entries['simulink/ExternalDataSourceSettings.xml']);
-    externalDataSources = extractExternalDataSources(doc);
+  const eds = readPart(
+    entries,
+    'simulink/ExternalDataSourceSettings.xml',
+    "this model's external data sources are missing",
+    warnings,
+  );
+  if (eds) {
+    externalDataSources = extractExternalDataSources(eds);
   }
   // Model-workspace MAT source (from blockDiagram.json) is also external data.
   if (workspaceMatFile && !externalDataSources.includes(workspaceMatFile)) {
@@ -541,24 +775,73 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
   };
   (workspace as unknown as { _trailingElements: Uint8Array[] })._trailingElements = [];
   if (entries['simulink/modelWorkspace.mxarray']) {
-    workspace = parseMxArray(entries['simulink/modelWorkspace.mxarray'].buffer);
+    const part = entries['simulink/modelWorkspace.mxarray'];
+    workspace = parseMxArray(part.buffer);
+    if (workspace.length === 0) {
+      // An mxarray that decodes to no variables is the ordinary shape of an EMPTY model
+      // workspace — a `1x1 struct` with zero fields — and a model whose workspace is
+      // empty has lost nothing. So zero variables on its own must not warn, or every
+      // model without a workspace would carry a count.
+      //
+      // What separates the two is the FRAMING: re-reading the records tells whether this
+      // part holds a struct at all. No outer element, or one with no field table, means
+      // the bytes are not an mxarray, and then a workspace that may well have had
+      // variables in it was not read. `parseMxArray` cannot report this itself — it
+      // answers with an empty array either way, which is exactly the ambiguity item 3 is
+      // about — so the distinction is drawn here, at the one call site that knows the
+      // part was present.
+      const { outer } = readMxArrayRecords(part.buffer);
+      if (!outer || !outer.fields) {
+        warnings.push({
+          code: 'part-unreadable',
+          message:
+            'The model part "simulink/modelWorkspace.mxarray" does not hold a decodable '
+            + "workspace, so this model's workspace variables were not read.",
+          part: 'simulink/modelWorkspace.mxarray',
+        });
+      }
+    }
   } else if (entries['simulink/modelworkspace.mat']) {
     // Before R2019b the workspace part is a whole `MATLAB 5.0 MAT-file` — same
     // record framing `parseMat` already reads for a standalone `.mat`, one top-level
     // variable per workspace variable, rather than the mxarray's single struct whose
     // FIELDS are the variables. So this is routing, not a second decoder.
     const buf = entries['simulink/modelworkspace.mat'];
-    // Slice rather than hand over `.buffer`: the entry may be a view into a larger
-    // allocation, and parseMat reads its header from offset 0.
-    const mat = parseMat(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
-    workspace = mat.variables as MatVariable[] & { _trailingElements: Uint8Array[] };
+    try {
+      // Slice rather than hand over `.buffer`: the entry may be a view into a larger
+      // allocation, and parseMat reads its header from offset 0.
+      const mat = parseMat(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
+      workspace = mat.variables as MatVariable[] & { _trailingElements: Uint8Array[] };
+      // `parseMat` refuses a file that is not a MAT-file at all and reports everything
+      // short of that in its own warnings. Those are about a part of THIS package, so
+      // they are re-parted onto the path the package knows: a host showing them next to
+      // the model has to be able to say which of its parts they came from, and
+      // "legacyObj" alone does not say that. The inner name is kept after a `#`, the way
+      // a fragment names something inside a document, so nothing is lost in the move.
+      for (const inner of mat.warnings) {
+        warnings.push({
+          ...inner,
+          part: inner.part
+            ? `simulink/modelworkspace.mat#${inner.part}`
+            : 'simulink/modelworkspace.mat',
+        });
+      }
+    } catch (err) {
+      warnings.push({
+        code: 'part-unreadable',
+        message:
+          `The model part "simulink/modelworkspace.mat" could not be read (${reasonOf(err)}), `
+          + "so this model's workspace variables were not read.",
+        part: 'simulink/modelworkspace.mat',
+      });
+    }
     // No mxarray framing here, so there is nothing trailing to preserve. The field
     // is still set because every consumer reads it unconditionally.
     (workspace as unknown as { _trailingElements: Uint8Array[] })._trailingElements = [];
   }
 
   // Block parameter usages (which blocks reference which params by name)
-  const blockParamUsages = extractBlockParamUsages(entries, legacy);
+  const blockParamUsages = extractBlockParamUsages(entries, legacy, warnings);
 
   const rawContents: Record<string, string> = {};
   for (const key in entries) {
@@ -581,5 +864,6 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
     blockParamUsages,
     rawContents,
     zipEntries: entries,
+    warnings,
   };
 }

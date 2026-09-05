@@ -165,8 +165,15 @@ if (ONE_SHOT.has(argv[0])) {
   if (!arg) {
     // empty session
   } else if (isDir(arg)) {
-    sources = loadDirectory(session, arg);
+    // loadDirectory no longer writes to stderr itself — a library has no business
+    // doing that — so the CLI collects the skips and prints them. Without this a
+    // folder with one corrupt file would just look smaller than it is.
+    const skipped = [];
+    sources = loadDirectory(session, arg, skipped);
     console.log(`Loaded ${sources.length} source(s) from ${arg}`);
+    for (const w of skipped) {
+      console.error(`dex: ${w.message}`);
+    }
   } else {
     try {
       sources = [loadFromPath(session, arg)];

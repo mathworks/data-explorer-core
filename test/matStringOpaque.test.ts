@@ -409,8 +409,9 @@ describe('the -v7 .mat flavour', () => {
   // probe_string.m line 77 writes). One decoder has to cover both flavours, and
   // STRING_MCOS.md's claim that it does was made from a raw dump — this is the same claim
   // made through the reader, which also has to inflate the miCOMPRESSED wrapper -v7 puts
-  // every variable in. (-v7.3 is HDF5, a container MatParser does not read at all, so
-  // there is no fixture for it.)
+  // every variable in. (-v7.3 is HDF5, a container MatParser does not read at all: its
+  // fixture is test/fixtures/strings_v73.mat, and the only thing asserted about it is
+  // the refusal, in test/matParser.test.ts.)
   const v7 = loadFile('../fixtures/strings_v7.mat');
 
   it('decodes each case identically to the default flavour', () => {

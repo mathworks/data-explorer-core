@@ -2,6 +2,7 @@
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { decodeMcosBlob, STRING_CLASS_NAME } from '../../parser/McosParser.js';
+import { reasonOf } from '../../parser/ParseWarning.js';
 // Bridges the binary (MCOS) decode path to the same typed data-model nodes the
 // SLDD (JSON) path builds, so a Simulink object resolves to the SAME node class
 // with the SAME property values regardless of source format — one class per entry
@@ -34,7 +35,12 @@ const GENERIC_KEYS = new Set(['MatlabVariable', 'MatlabStruct', 'CustomObject'])
 // one child row per element — Name(1,1), Name(2,1), … down the columns, or a single
 // linear Name(1), Name(2), … for a vector, matching MATLAB's own subscripts — each
 // itself expanding into its property rows.
-export function buildTypedNodeFromMcos(className, name, parent, properties, elements, dimensions) {
+export function buildTypedNodeFromMcos(className, name, parent, properties, elements, dimensions, 
+// Where a degrade goes, when the caller kept somewhere for it to go. Optional and
+// trailing, the shape SlddNode.parse established: whoever owns the array passes it
+// and this appends. Node construction is downstream of the parse that produced that
+// array, which is why this had to be threaded rather than returned.
+warnings) {
     if (!className || GENERIC_KEYS.has(className)) {
         return null;
     }
@@ -77,9 +83,23 @@ export function buildTypedNodeFromMcos(className, name, parent, properties, elem
     try {
         return NodeRegistry.parseValue(rawVal, name, parent);
     }
-    catch {
+    catch (err) {
         // Any class whose parse() unexpectedly rejects the value degrades to the
-        // opaque node rather than breaking the whole file.
+        // opaque node rather than breaking the whole file — and now says so, because
+        // the degraded node is indistinguishable from a variable this reader simply
+        // models that way. What is lost is the TYPED view: the property rows the class
+        // would have expanded into, which is the whole reason this bridge exists.
+        //
+        // Only this path warns. The two earlier `return null`s above are not losses —
+        // a generic key, or an unknown class the decoder recovered nothing for, is this
+        // reader meeting the limit of the DATA, and ParseWarning's header is explicit
+        // that warning about those would put a count on ordinary files.
+        warnings?.push({
+            code: 'part-unreadable',
+            message: `the MATLAB object "${name}" was decoded but its ${className} view could not be built, ` +
+                `so it is shown as an opaque variable without its property rows (${reasonOf(err)})`,
+            part: name,
+        });
         return null;
     }
 }
@@ -111,11 +131,14 @@ export function decodeMcosObjects(blobBytes, variables) {
 // MATLAB DATA TYPE rather than a class with properties, so case 1 would hand it to a
 // typed/object node and present a value-less property shell; the opaque node knows how to
 // render its decoded text as a string array.
-export function modelOpaqueMcosVariable(variable, decoded, parent) {
+export function modelOpaqueMcosVariable(variable, decoded, parent, 
+// Forwarded, not consumed: the only loss on this path is the one buildTypedNodeFromMcos
+// can report, and cases 2 and 3 below are fallbacks that show the class correctly.
+warnings) {
     if (variable.className === STRING_CLASS_NAME && decoded) {
         return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent);
     }
-    const typed = buildTypedNodeFromMcos(variable.className, variable.name, parent, decoded?.properties, decoded?.elements, decoded?.dimensions);
+    const typed = buildTypedNodeFromMcos(variable.className, variable.name, parent, decoded?.properties, decoded?.elements, decoded?.dimensions, warnings);
     if (typed) {
         return typed;
     }

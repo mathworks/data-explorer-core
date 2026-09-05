@@ -189,6 +189,68 @@ end
 truth.wsExports = wsExports;
 bdclose('all');
 
+%% ---- slxcfgref: a configuration set REFERENCE, in every era ----------------
+% A separate model for the same reason slxws is one: it is a different KIND of entry
+% in a section the other models already fill, and mixing it into slxcases would make
+% every config-set expectation there depend on it.
+%
+% What it exists to pin (docs/TODO.md item 15, measured first by
+% probe_configsetref.m): a `Simulink.ConfigSetRef` is recorded as
+% `_object_class` in R2026b+ JSON and as the `ClassName=` ATTRIBUTE of `<Object>` in
+% every XML era -- and the property naming what it points AT was renamed between
+% releases, `WSVarName` in R2018a and earlier, `SourceName` from R2021a. All four eras
+% are exported, not two, because that rename splits them and the oldest era carries
+% the ref INLINE in blockdiagram.xml where a reader has to pick it out of the same
+% array the full set and ActiveConfigurationSet live in.
+cfgmdl = 'slxcfgref';
+if bdIsLoaded(cfgmdl), close_system(cfgmdl, 0); end
+
+% The dictionary the ref points into. In `scratch` and NOT committed, for the reason
+% the slxparams dictionary above is not: only its NAME reaches the model file. A
+% Configurations entry's name is not free -- it must equal the Name of the ConfigSet
+% stored in it, so the set is renamed BEFORE it is added.
+cfgdictfile = fullfile(scratch, 'slxcfgref_dict.sldd');
+cfgdd = Simulink.data.dictionary.create(cfgdictfile);
+cfgSec = getSection(cfgdd, 'Configurations');
+dictCfg = Simulink.ConfigSet;
+dictCfg.Name = 'dictCfg';
+addEntry(cfgSec, 'dictCfg', dictCfg);
+saveChanges(cfgdd);
+clear cfgSec; cfgdd.close();
+
+new_system(cfgmdl);
+add_block('simulink/Sources/Constant', [cfgmdl '/CfgConst'], 'Value', '1');
+cfgModern = fullfile(slxdir, [cfgmdl '.slx']);
+save_system(cfgmdl, cfgModern, 'OverwriteIfChangedOnDisk', true);
+
+% Dictionary link first, then the ref: attachConfigSet resolves SourceName against
+% it, and a ref whose target cannot be found makes every later export fail with
+% "Unable to find configuration".
+set_param(cfgmdl, 'DataDictionary', 'slxcfgref_dict.sldd');
+csr = Simulink.ConfigSetRef;
+csr.Name = 'RefFromDict';
+csr.SourceName = 'dictCfg';
+attachConfigSet(cfgmdl, csr);
+save_system(cfgmdl, cfgModern, 'OverwriteIfChangedOnDisk', true);
+truth.slxcfgref = modelTruth(cfgmdl, cfgModern);
+
+cfgExports = struct('version', {}, 'file', {}, 'lastWarning', {});
+for i = 1:numel(eras)
+    ver = eras{i};
+    target = fullfile(slxdir, sprintf('%s_%s.slx', cfgmdl, ver));
+    bdclose('all');
+    open_system(cfgModern);
+    lastwarn('');
+    save_system(cfgmdl, target, 'ExportToVersion', ver, 'OverwriteIfChangedOnDisk', true);
+    [wmsg, ~] = lastwarn;
+    cfgExports(i).version     = ver;
+    cfgExports(i).file        = sprintf('%s_%s.slx', cfgmdl, ver);
+    cfgExports(i).lastWarning = strtrim(wmsg);
+    fprintf('exported %s\n', cfgExports(i).file);
+end
+truth.cfgExports = cfgExports;
+bdclose('all');
+
 %% ---- what MATLAB itself is -----------------------------------------------
 truth.matlab = struct('version', version, 'release', version('-release'));
 
@@ -214,10 +276,22 @@ function t = modelTruth(mdl, modernFile)
 
     csNames = getConfigSets(mdl);
     active  = getActiveConfigSet(mdl).Name;
-    cfgs = struct('name', {}, 'active', {});
+    % `class` and `sourceName` are recorded because an entry in this section can be a
+    % REFERENCE to a set rather than a set, and the name alone cannot say which -- see
+    % the slxcfgref section. `sourceName` is '' for an ordinary set, which has no
+    % source, so the field is present for every model rather than only for the one.
+    cfgs = struct('name', {}, 'active', {}, 'class', {}, 'sourceName', {});
     for i = 1:numel(csNames)
+        c = getConfigSet(mdl, csNames{i});
         cfgs(i).name   = csNames{i};
         cfgs(i).active = strcmp(csNames{i}, active);
+        cfgs(i).class  = class(c);
+        src = '';
+        try
+            if isprop(c, 'SourceName'), src = c.SourceName; end
+        catch
+        end
+        cfgs(i).sourceName = src;
     end
     t.configSets = cfgs;
 

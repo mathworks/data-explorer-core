@@ -22,9 +22,12 @@ export class BusElementNode extends BaseBusElementNode {
     DataType: string;
     // Verified against MATLAB (Simulink.BusElement): these are real element
     // properties that were not surfaced before, so their columns read empty.
-    // Complexity {real|complex} and DimensionsMode {Fixed|Variable} are enums;
-    // Dimensions is a positive double vector. All three are surfaced read-only
-    // (conservative — see the Prop* classes for the rationale).
+    // Complexity {real|complex} and DimensionsMode {Fixed|Variable} are closed
+    // enums and are now EDITABLE selects — validated against the enum below and
+    // written back in _applyElementOverrides. Dimensions is a positive double
+    // vector with a symbolic-char alternative and stays read-only: nothing in the
+    // source claims its constraint was worked out, and an unlock is worth only as
+    // much as the rule that refuses a bad value.
     Complexity: string;
     Dimensions: unknown;
     DimensionsMode: string;
@@ -96,7 +99,59 @@ export class BusElementNode extends BaseBusElementNode {
         if (propName === 'Min' || propName === 'Max') {
             return this._setMinMax(propName, stringValue);
         }
+        const notAnEnumeral = this._rejectUnknownEnumeral(propName, stringValue);
+        if (notAnEnumeral) {
+            return notAnEnumeral;
+        }
         return super.setProperty(propName, stringValue);
+    }
+
+    // Refuse a value MATLAB's enum does not contain, for either element property
+    // surfaced as a dropdown (Complexity, DimensionsMode). Without this the edit
+    // reaches DataNode's generic branch for a string field, which stores whatever
+    // text arrived: the table's own combobox can only offer legal choices, but the
+    // Property Inspector has no combobox and seeds a plain text box, so 'Real' or
+    // 'fixed' would be written into a file MATLAB then refuses to load — the
+    // failure an unlock has to rule out before it is an unlock at all.
+    //
+    // The legal set is read off the prop atom's readOptions — the SAME call the
+    // cell's dropdown is built from (BaseNode.getPropInfo) — rather than restated
+    // here. Two copies of an enum is how a UI ends up offering two choices and
+    // accepting three.
+    //
+    // The wording is MATLAB's own, from a probe of the live object (recorded in
+    // Simulink.BusElement.md): assigning anything else raises "There is no
+    // enumerated value named 'X'." Note this is MATLAB's message for a rejected
+    // ASSIGNMENT; that the values we do accept produce a file MATLAB reopens with
+    // the same values is the live tier's claim to make, and it has not been run
+    // here (test/parity/matlab/writeback.live.test.ts, gated on DEX_MATLAB_CMD).
+    _rejectUnknownEnumeral(propName: string, stringValue: string): SetPropertyResult | null {
+        const prop = this._propFor(propName);
+        if (!prop || prop.editor !== 'select' || !prop.readOptions) {
+            return null;
+        }
+        // The empty string is a CLEAR, not an illegal enumeral — the same licence
+        // _setMinMax takes for '' and '[]'. It has to be, because it is what UNDO
+        // submits: an element that never carried the property reads as '' (see the
+        // constructor's `|| ''`), DataModel.editProperty captures that as the prior
+        // value, and refusing it would leave the undo of a perfectly good edit
+        // silently unapplied. Storing '' restores absence rather than writing an
+        // illegal value — _applyElementOverrides then omits the key entirely, so the
+        // element goes back out exactly as it came in.
+        if (stringValue === '') {
+            return null;
+        }
+        const options = prop.readOptions(this);
+        if (options.length === 0 || options.indexOf(stringValue) >= 0) {
+            return null;
+        }
+        const current = (this as unknown as Record<string, unknown>)[prop.nodeProperty || prop.key];
+        return {
+            error: true,
+            reason: "There is no enumerated value named '" + stringValue + "'.",
+            invalidValue: stringValue,
+            validValue: typeof current === 'string' ? current : '',
+        };
     }
 
     _applyElementOverrides(props: Record<string, unknown>): void {
@@ -111,6 +166,18 @@ export class BusElementNode extends BaseBusElementNode {
         // Only write the data type back when the source had it or it differs from
         // the implicit 'double' default, so untyped elements stay untouched.
         if (dtKey in sp || this.DataType !== 'double') { props[dtKey] = this.DataType; }
+        // The two enum props are editable, so their edited value has to reach the
+        // property bag both writers serialize FROM — the JSON path dumps that bag
+        // and serializeEntryToXml walks it — or the edit is silently dropped on
+        // save while the live tree keeps showing it. Neither writer needed teaching
+        // about these keys (a string property in the bag already goes out as
+        // `<P Name="Complexity" Class="char">complex</P>` or as its JSON member);
+        // what was missing was the copy from the node field into the bag, so the
+        // serializer faithfully re-emitted the value parsed from the file.
+        // Guarded the same way as Description above so an element that never
+        // carried the key does not gain one on a clean round trip.
+        if ('Complexity' in sp || this.Complexity) { props.Complexity = this.Complexity; }
+        if ('DimensionsMode' in sp || this.DimensionsMode) { props.DimensionsMode = this.DimensionsMode; }
         if ('Description' in sp || this.Description) { props.Description = this.Description; }
     }
 }

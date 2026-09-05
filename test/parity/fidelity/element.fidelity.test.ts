@@ -7,7 +7,10 @@
 //
 // Verifies that property edits round-trip through both sldd formats and that
 // MATLAB-mirroring rejects fire correctly. Also locks the read-only contract on
-// non-editable props (DataType, Dimensions, Complexity, DimensionsMode, Unit).
+// the props that are still non-editable (DataType, Dimensions, Unit) — Complexity
+// and DimensionsMode were among them until item 13 unlocked them, and their editor
+// contract is asserted here while the edits themselves live in
+// test/busElementEnumEdit.test.ts.
 import { describe, it, expect } from 'vitest';
 import {
   loadModel,
@@ -237,22 +240,30 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
       expect(dtProp.editor).toBe('label');
     });
 
-    it('Complexity prop has editor=label (read-only)', () => {
+    // Complexity and DimensionsMode were asserted read-only here until item 13
+    // unlocked them; they are editable selects now, and their edit/reject/round-trip
+    // behaviour is covered in test/busElementEnumEdit.test.ts. What stays here is
+    // the surface claim this block is about — that each is a DROPDOWN over MATLAB's
+    // own enum, not a free text box, which is the whole difference between these two
+    // and the three props below that remain labels.
+    it('Complexity prop has editor=select over MATLAB real|complex', () => {
       const { entry } = freshBusEntry();
       const elem = entry.children[0];
       const props = elem.getProperties();
       const cxProp = props.find((p: any) => p.key === 'complexity');
       expect(cxProp).toBeDefined();
-      expect(cxProp.editor).toBe('label');
+      expect(cxProp.editor).toBe('select');
+      expect(cxProp.readOptions(elem)).toEqual(['real', 'complex']);
     });
 
-    it('DimensionsMode prop has editor=label (read-only)', () => {
+    it('DimensionsMode prop has editor=select over MATLAB Fixed|Variable', () => {
       const { entry } = freshBusEntry();
       const elem = entry.children[0];
       const props = elem.getProperties();
       const dmProp = props.find((p: any) => p.key === 'dimensionsMode');
       expect(dmProp).toBeDefined();
-      expect(dmProp.editor).toBe('label');
+      expect(dmProp.editor).toBe('select');
+      expect(dmProp.readOptions(elem)).toEqual(['Fixed', 'Variable']);
     });
 
     it('Dimensions prop has editor=label (read-only)', () => {

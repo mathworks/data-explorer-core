@@ -15,6 +15,13 @@
 // are the ones whose write path this project changed: the exact 64-bit integers (defects
 // 29/30/42), shape (defect 25 and Phase 6), element order (Phase 11), and the non-finites.
 //
+// The second array, ELEMENT_ENUM_CASES, covers the two bus-element enum properties item 13
+// made editable. Those cases have NEVER BEEN RUN: they were written on a machine with no
+// MATLAB, so their expectations state what the write is supposed to produce, not what MATLAB
+// was observed to produce. Whoever first runs this file with DEX_MATLAB_CMD set is the one
+// who finds out — and if MATLAB disagrees, the case is right and the writer is wrong until
+// proven otherwise.
+//
 // Skipped wholesale when DEX_MATLAB_CMD is unset, so CI and external contributors stay
 // green. Set it to the launcher plus its fixed args, e.g.
 //   env DEX_MATLAB_CMD="mw -using Bmain matlab" npx vitest run test/parity/matlab/writeback.live.test.ts
@@ -109,6 +116,36 @@ const CASES: Array<{ entry: string; set: string; expect: Record<string, unknown>
   },
 ];
 
+// The bus-element properties item 13 unlocked. Kept out of CASES above for the same reason
+// the element case at the foot of each describe is kept out: a different mutation, not a
+// different value. Different fixture, too — cases.sldd is a corpus of VALUES, and a bus
+// element lives only in params.sldd's MyBus, whose first element `x` MATLAB itself wrote as
+// Complexity 'real' / DimensionsMode 'Fixed'.
+//
+// Each case sets the OTHER member of the enum, so a write that silently keeps the parsed
+// value cannot pass. The casing is MATLAB's own and is deliberately not uniform between the
+// two ('complex' lower, 'Variable' capitalised); a writer that normalised it would produce a
+// file MATLAB refuses to load, and this is the only tier that can say so.
+//
+// UNVERIFIED — see the header. The in-process half of each case below (edit stores,
+// serialize + re-parse keeps it, in both formats) is proven and runs unconditionally in
+// test/busElementEnumEdit.test.ts; what waits on MATLAB is the last two lines, that MATLAB
+// reopens our file and reads the enumeral back.
+const ELEMENT_ENUM_CASES: Array<{ prop: string; field: string; set: string; why: string }> = [
+  {
+    prop: 'complexity',
+    field: 'Complexity',
+    set: 'complex',
+    why: 'item 13: an editable select over real|complex',
+  },
+  {
+    prop: 'dimensionsMode',
+    field: 'DimensionsMode',
+    set: 'Variable',
+    why: 'item 13: an editable select over Fixed|Variable',
+  },
+];
+
 // Each case launches MATLAB, so every `it` below needs an explicit timeout: vitest's
 // default is 5s and reports the whole tier as timeouts, which hides whatever MATLAB was
 // about to say. Measured over a full run of this file, 24 launches took 516s — ~21s each
@@ -161,6 +198,30 @@ for (const format of ['json', 'binary'] as const) {
         __class__: 'uint64',
       });
       expect(out).toMatch(/RESULT PASS/);
+    });
+
+    ELEMENT_ENUM_CASES.forEach((c) => {
+      it(`MATLAB reads back our edit to element ${c.field} — ${c.why}`, { timeout: MATLAB_TIMEOUT }, () => {
+        const uri = 'test://wb-enum-' + format + '-' + c.prop + '.sldd';
+        const model = loadModel(format, 'params.sldd', uri);
+        const node = entryByName(model, uri, 'MyBus');
+        const elem = node.children[0];
+        expect(elem.name, c.prop).toBe('x');
+        expect(elem.setProperty(c.prop, c.set), c.prop).toBe(true);
+        const bytes = serializeModel(model, format);
+        // In-process first: a failure here is ours, not MATLAB's, and says so. Asserting
+        // the property rather than displayValue because that is the whole claim — an
+        // element's displayValue would be just as truthy with the edit dropped.
+        const reparsed = reparseEntry(bytes, format, 'params.sldd', 'MyBus');
+        expect(reparsed.children[0][c.field], c.prop).toBe(c.set);
+        // walkPath in verify_roundtrip.m already indexes into Elements, so no .m change was
+        // needed for these; __class__ is the CONTAINER's, since an element has none.
+        const out = matlabAssertRoundTrip(bytes, 'MyBus', {
+          ['Elements(1).' + c.field]: c.set,
+          __class__: 'Simulink.Bus',
+        });
+        expect(out).toMatch(/RESULT PASS/);
+      });
     });
   });
 }

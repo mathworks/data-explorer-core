@@ -362,6 +362,48 @@ describe('PropEnumValue', () => {
   });
 });
 
+describe('unlocked enum atoms', () => {
+  // The two atoms item 13 unlocked. Each carries a closed MATLAB enum, so each is a
+  // dropdown rather than a text box, and each must name the node field an edit is
+  // written to — the display key is lowercase while the field and the raw
+  // `_properties` key are capitalised, so without nodeProperty an edit resolves to a
+  // stray lowercase field and the real property never changes.
+  it('PropComplexity offers MATLAB real|complex and writes to Complexity', () => {
+    expect(PropComplexity.editor).toBe('select');
+    expect(PropComplexity.readOptions()).toEqual(['real', 'complex']);
+    expect(PropComplexity.nodeProperty).toBe('Complexity');
+  });
+
+  it('PropDimensionsMode offers MATLAB Fixed|Variable and writes to DimensionsMode', () => {
+    expect(PropDimensionsMode.editor).toBe('select');
+    expect(PropDimensionsMode.readOptions()).toEqual(['Fixed', 'Variable']);
+    expect(PropDimensionsMode.nodeProperty).toBe('DimensionsMode');
+  });
+
+  it('keeps the casing MATLAB itself wrote, which is not uniform between them', () => {
+    // 'real'/'complex' are lower case and 'Fixed'/'Variable' are capitalised — as
+    // MATLAB wrote them into test/parity/artifacts/text/params.sldd, which is the
+    // only authority here. Normalising either set for tidiness would produce a
+    // value MATLAB refuses ("There is no enumerated value named 'fixed'"), and a
+    // rejected assignment on load is not visible from inside this package.
+    for (const option of PropComplexity.readOptions()) {
+      expect(option, option).toBe(option.toLowerCase());
+    }
+    for (const option of PropDimensionsMode.readOptions()) {
+      expect(option[0], option).toBe(option[0].toUpperCase());
+    }
+  });
+
+  it('neither set was widened past the enum the source recorded', () => {
+    // 'auto' is a legal Complexity/DimensionsMode for Simulink.Signal, and these
+    // atoms belong to Simulink.BusElement, which does not have it. The two surfaces
+    // share a column name and nothing else; the Signal one is schema-driven and
+    // still read-only.
+    expect(PropComplexity.readOptions()).not.toContain('auto');
+    expect(PropDimensionsMode.readOptions()).not.toContain('auto');
+  });
+});
+
 describe('read-only atoms surfaced deliberately as labels', () => {
   it('PropUnit is read-only and consumes both the modern and legacy raw keys', () => {
     // Simulink parses Unit through a unit-expression grammar we do not
@@ -370,10 +412,11 @@ describe('read-only atoms surfaced deliberately as labels', () => {
     expect(PropUnit.sourceKeys).toEqual(['DocUnits', 'Unit']);
   });
 
-  it('PropDataType, PropComplexity, and PropDimensionsMode are labels', () => {
+  it('PropDataType is a label', () => {
+    // PropComplexity and PropDimensionsMode used to be asserted here too. They are
+    // editable selects now — see the "unlocked enum atoms" block below, and
+    // Simulink.BusElement.md for what is and is not verified about that.
     expect(PropDataType.editor).toBe('label');
-    expect(PropComplexity.editor).toBe('label');
-    expect(PropDimensionsMode.editor).toBe('label');
   });
 
   it('PropBaseType stays editable but renders in the Data Type column', () => {

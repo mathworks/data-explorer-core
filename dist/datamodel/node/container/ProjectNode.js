@@ -24,6 +24,19 @@ export default class ProjectNode extends ContainerNode {
     get readOnly() {
         return true;
     }
+    // The format an out-of-process host is told this source is, since SourceDTO
+    // carries this field and nothing else in the projection names the format. It is
+    // the format rather than the encoding on purpose: SlddNode's `sourceFormat` is
+    // 'json' or 'xml' because a .sldd really comes in two encodings and it keys its
+    // own icon and FileFormat off which, whereas a .prj comes in exactly one — a zip
+    // of XML documents — so 'xml' would say nothing here while handing a project the
+    // token a dictionary uses for a different meaning. Anything later switching on
+    // this field (a serializer choosing a writer, say) must not mistake a project for
+    // an XML-flavoured dictionary. A getter, not a field: unlike a .sldd's, this
+    // cannot change once the file is read.
+    get sourceFormat() {
+        return 'prj';
+    }
     get icon() {
         // A dedicated project icon ships in media/icons/simulink_project.svg.
         return 'simulink_project';

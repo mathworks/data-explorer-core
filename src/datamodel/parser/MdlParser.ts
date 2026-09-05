@@ -26,10 +26,11 @@
 // Both flavours are held to the .slx of the same diagram by the parity suite —
 // see test/parity/mdl.parity.test.ts and test/parity/matlab/gen_mdl.m.
 
-import { isParamReference, normalizeBlockName, parseModelParts } from './SlxParser.js';
-import type { BlockParamUsage, ParsedSlx } from './SlxParser.js';
+import { configSetIdentity, isParamReference, normalizeBlockName, parseModelParts } from './SlxParser.js';
+import type { BlockParamUsage, ParsedConfigSet, ParsedSlx } from './SlxParser.js';
 import { parseMxArray, readMxArrayRecords } from './MxArrayParser.js';
 import type { MatVariable } from './MatParser.js';
+import type { ParseWarning } from './ParseWarning.js';
 
 /**
  * A `.mdl` parses to exactly the shape a `.slx` does. The alias exists so callers
@@ -41,18 +42,54 @@ type WorkspaceVars = MatVariable[] & { _trailingElements: Uint8Array[] };
 
 export function parseMdl(buffer: ArrayBuffer, filename: string): ParsedMdl {
   const bytes = new Uint8Array(buffer);
+  // What the OPC text framing itself claimed and could not deliver, which is a
+  // different kind of loss from an unreadable part: here the part is not even
+  // recoverable from the file, so the part readers below never see it and cannot
+  // report it. Only the framing scan can.
+  const framing: ParseWarning[] = [];
   // Sniffing is folded into the decode: one scan decides, so there is no way for a
   // separate "is it a package?" test to disagree with the reader that follows.
-  const parts = decodeOpcTextPackage(bytes);
+  const parts = decodeOpcTextPackage(bytes, framing);
   // A package marker with no readable part after it is a truncated file, not a
   // package, so it falls through to the grammar reader rather than opening as a model
   // with nothing in it. That reader finds the legacy `Model { Version ... }` stub a
   // modern `.mdl` always opens with — and if the file was cut before even that, it
   // rejects it, which is the whole point of the guard down there.
   if (parts && Object.keys(parts).length > 0) {
-    return parseModelParts(parts, filename);
+    const parsed = parseModelParts(parts, filename);
+    // Framing losses first: a part that never made it out of the text stream is a
+    // larger loss than anything the part readers went on to report about the parts
+    // that did, and a host that shows only the first line should show that one.
+    parsed.warnings = [...framing, ...parsed.warnings];
+    return parsed;
   }
-  return parseClassicMdl(bytes, filename);
+
+  const parsed = parseClassicMdl(bytes, filename);
+  if (parts !== null) {
+    // A package marker WAS found, and not one part survived the scan. What
+    // `parseClassicMdl` just read is the compatibility stub at the top of a modern
+    // `.mdl` — a Version number and a few properties, deliberately there so old tools
+    // do not choke — and not the model. So this is the one place in these readers
+    // where the whole SOURCE is the thing that could not be read, and the only place
+    // `source-unreadable` is right for a `.mdl`.
+    //
+    // The framing warnings collected above are DISCARDED rather than added to, on
+    // purpose: they describe the same single loss in more detail, and two or three
+    // warnings for one unreadable file teaches a host's user that the count is
+    // noise. Whatever the classic reader itself reported goes too — those are facts
+    // about the stub, and the stub is not this model. A genuine classic `.mdl`
+    // (`parts === null`) never reaches here, so nothing legitimate is being
+    // silenced: its own warnings are returned untouched below.
+    parsed.warnings = [
+      {
+        code: 'source-unreadable',
+        message:
+          `"${filename}" begins an OPC text package that holds no readable part, `
+          + 'so none of this model was read.',
+      },
+    ];
+  }
+  return parsed;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,10 +125,21 @@ function indexOfAscii(bytes: Uint8Array, text: string, from: number, limit?: num
 /**
  * Split a modern `.mdl` into the OPC part map a `.slx` unzips to, or return null if
  * this is not a text package (i.e. it is a classic `.mdl`).
+ *
+ * Reports, in `warnings`, the part markers this scan could not turn into a part.
+ * Those are the only losses the caller cannot see for itself: a part that makes it
+ * into the map is handed to the same readers a `.slx` uses and reported by them,
+ * whereas a header the scan gave up on leaves nothing behind at all.
  */
-function decodeOpcTextPackage(bytes: Uint8Array): Record<string, Uint8Array> | null {
+function decodeOpcTextPackage(
+  bytes: Uint8Array,
+  warnings: ParseWarning[],
+): Record<string, Uint8Array> | null {
   const begin = indexOfAscii(bytes, PACKAGE_BEGIN, 0, SNIFF_BYTES);
   if (begin < 0) {
+    // Not a text package, so there is nothing here to be missing: a classic `.mdl`
+    // has no part markers and is a complete file. Silent, and the caller's fall-back
+    // to the grammar reader is a routing decision, not a failure.
     return null;
   }
 
@@ -99,7 +147,19 @@ function decodeOpcTextPackage(bytes: Uint8Array): Record<string, Uint8Array> | n
   let at = indexOfAscii(bytes, NL_PART_BEGIN, begin);
   while (at >= 0) {
     const headerEnd = indexOfByte(bytes, LF, at + 1);
-    if (headerEnd < 0) break; // truncated mid-header: nothing further is readable
+    if (headerEnd < 0) {
+      // Truncated mid-header: the file ends inside the line that names the part, so
+      // neither the part's path nor its bytes exist and nothing after this point can
+      // be read either. No `part` on the warning because there is no name to give —
+      // that is precisely what was lost.
+      warnings.push({
+        code: 'part-unreadable',
+        message:
+          `A part header at byte ${at + 1} of this OPC text package is cut off before its `
+          + 'path, so that part and anything after it were not read.',
+      });
+      break;
+    }
     // `__MWOPC_PART_BEGIN__ /simulink/blockDiagram.json` — plus a trailing
     // ` BASE64` when the part is binary and was encoded to survive a text file.
     const header = decodeText(bytes.subarray(at + 1 + PART_BEGIN_LEN, headerEnd)).trim();
@@ -123,6 +183,17 @@ function decodeOpcTextPackage(bytes: Uint8Array): Record<string, Uint8Array> | n
     // give it the entire file to parse instead of the one part.
     if (path) {
       parts[path] = base64 ? decodeBase64(raw) : raw.slice();
+    } else {
+      // A header line that names no path. The bytes after it are a part of this
+      // package — the marker says so — and there is no way to say which, so they are
+      // dropped rather than stored under an invented key. Reported for the same reason
+      // as the truncated header above: nothing downstream will ever see this part.
+      warnings.push({
+        code: 'part-unreadable',
+        message:
+          `A part header at byte ${at + 1} of this OPC text package names no path, `
+          + 'so the part that follows it was not read.',
+      });
     }
 
     at = next < 0 ? -1 : indexOfAscii(bytes, NL_PART_BEGIN, next);
@@ -433,11 +504,128 @@ function flatProps(node: MdlNode): Record<string, string> {
 }
 
 // ---------------------------------------------------------------------------
+// The classic `.mdl`: which encoding its bytes are in
+// ---------------------------------------------------------------------------
+//
+// A classic `.mdl` RECORDS the character encoding it was saved in, as an ordinary
+// property of its Model block:
+//
+//   Model {
+//     Name                    "engine"
+//     Version                 7.8
+//     SavedCharacterEncoding  "Shift_JIS"
+//
+// and it has to be honoured, because before R2012 there was no expectation that a
+// model file be UTF-8: `save_system` wrote block names, descriptions and creator
+// names in whatever character set the platform was configured for. Decoding those
+// bytes as UTF-8 regardless does not FAIL — UTF-8 decoding is lenient by default —
+// it quietly substitutes U+FFFD for every byte it cannot make sense of, so a model
+// from a Japanese or a Western European locale opens with mojibake where its labels
+// should be. Shift_JIS costs more than legibility: its trail bytes reach down into
+// ASCII, and `表` is 0x95 0x5C, whose second byte read as ASCII is a BACKSLASH. A
+// name ending in that character therefore escapes its own closing quote, the quoted
+// value runs on into the properties that follow it, and the file loses whole rows
+// rather than just the spelling of a name.
+//
+// Only THIS flavour of file needs this, and the other places in the package that
+// decode bytes were each examined rather than changed on the strength of the same
+// headline:
+//
+//   - the modern `.mdl` above, the `.slx`, the binary `.sldd` and the `.prj` are OPC
+//     packages of XML and JSON parts (the `.prj` reaches its XML through fflate's
+//     strFromU8 rather than a TextDecoder, but that is UTF-8 too). An XML part
+//     declares its own encoding in its declaration and JSON is UTF-8 by definition
+//     (RFC 8259 s8.1); every part in this repo's corpus is UTF-8, so a re-decode path
+//     for them would be a branch no fixture reaches, on a container already right.
+//   - `.mat` char data names its encoding in the SUBELEMENT type, and miUTF16 /
+//     miUINT16 are already decoded as UTF-16 rather than as UTF-8 (MatParser.ts).
+//     Level 5 has no file-level encoding field to consult for the miINT8 case, so
+//     there is nothing to read even if we wanted to.
+//   - the MCOS metadata table holds property NAMES, which are MATLAB identifiers, but
+//     also string-valued property values (McosParser resolves a flag-0 override out
+//     of the same table) — so it is not ASCII by construction the way the names are.
+//     What it has no trace of is an encoding: not in the payload, and not in either
+//     container it is lifted out of. There is nothing to honour, so it stays UTF-8,
+//     and the evidence that it should not be will be a fixture rather than an
+//     argument.
+//
+// The awkward part is that the encoding cannot be read before the file is decoded,
+// and the file cannot be decoded before the encoding is read. It comes out because
+// every encoding a `.mdl` is realistically saved in — windows-125x, Shift_JIS,
+// EUC-JP, GBK, Big5, ISO-8859-x, UTF-8 — agrees with ASCII on the bytes that spell
+// `SavedCharacterEncoding "..."`. So the head of the file is decoded once as latin1,
+// which maps every single byte to some character and can therefore neither throw nor
+// lose the parameter, the label is read out of that, and only then is the whole
+// buffer decoded for real.
+//
+// That same ASCII agreement is what makes re-decoding safe for the MODEL WORKSPACE,
+// which travels through here as text: the uuencode alphabet is the bytes 0x20-0x5F,
+// a range every candidate encoding leaves alone (Shift_JIS lead bytes start at 0x81),
+// so the mxarray stream comes out of a re-decoded file identical to before. A label
+// that does not agree with ASCII would silently corrupt it instead, which is the
+// second thing the check at the end of decodeClassicText is there for.
+
+// How far into the file to look for the parameter. It is a property of the Model
+// block itself and sits within the first handful of lines of every file MATLAB
+// writes, so this is generous rather than tight; a file that pushes it beyond the
+// window reads as UTF-8, which is what it did before any of this existed.
+const ENCODING_SNIFF_BYTES = 8192;
+
+// Anchored at the start of a line, which is safe in this format in a way it would not
+// be in free-form text: MATLAB escapes a newline inside a quoted value as the two
+// characters `\n`, so nothing inside a Description can present itself as a property
+// at the start of a line. The quotes are optional and the value runs to the end of
+// the line, because a bare token is a legal value for any property in this grammar.
+const SAVED_ENCODING_RE = /^[ \t]*SavedCharacterEncoding[ \t]+"?([^"\r\n]*)"?/m;
+
+/**
+ * Decode a classic `.mdl` under the encoding it says it was saved in, falling back to
+ * UTF-8 whenever the file does not say, or says something that cannot be honoured.
+ *
+ * Falling back rather than failing is the contract this rests on. `SavedCharacterEncoding`
+ * holds whatever string the saving platform called its character set, and a label
+ * `TextDecoder` does not know is a RangeError out of the constructor — letting that
+ * escape would turn "I cannot name this encoding" into "this file cannot be opened",
+ * which is a strictly worse answer than reading the file the way we always did.
+ */
+function decodeClassicText(bytes: Uint8Array): string {
+  const head = new TextDecoder('latin1').decode(bytes.subarray(0, ENCODING_SNIFF_BYTES));
+  const label = (SAVED_ENCODING_RE.exec(head)?.[1] ?? '').trim();
+  // Short-circuited rather than merely handled, so the file every fixture in this
+  // repo is takes byte for byte the path it took before this function existed.
+  if (!label || /^utf-?8$/i.test(label)) return decodeText(bytes);
+
+  let decoded: string;
+  try {
+    decoded = new TextDecoder(label).decode(bytes);
+  } catch {
+    return decodeText(bytes);
+  }
+  // The re-decode has to AGREE with the sniff about the ASCII the sniff was based on.
+  // It does for every ASCII-compatible encoding, which is all of the ones a `.mdl` is
+  // written in; it does not for a label naming a wide encoding (`UTF-16LE`), nor for
+  // the handful the WHATWG encoding standard maps to its "replacement" decoder
+  // (`ISO-2022-CN`, `HZ-GB-2312`), either of which turns the entire file into one
+  // unreadable run — no braces, no Model node, and a file that used to open reported
+  // as not a model at all. Checking that the parameter is still legible is what stops
+  // honouring the file's own claim from being able to make it LESS readable than
+  // ignoring that claim would have been.
+  if (!SAVED_ENCODING_RE.test(decoded.slice(0, ENCODING_SNIFF_BYTES))) return decodeText(bytes);
+  return decoded;
+}
+
+// ---------------------------------------------------------------------------
 // The classic `.mdl`: from brace tree to the same model a `.slx` gives
 // ---------------------------------------------------------------------------
 
 function parseClassicMdl(bytes: Uint8Array, filename: string): ParsedMdl {
-  const root = parseClassicTree(decodeText(bytes));
+  // Only one reader in this flavour can lose anything: the brace grammar has no
+  // self-declared lengths and no encodings inside it, so a property either is there or
+  // is not, and a property a release could not write is a limit of the file. The model
+  // workspace is the exception — it is an encoded binary stream inside the text — and
+  // it is the only thing that fills this in.
+  const warnings: ParseWarning[] = [];
+  const root = parseClassicTree(decodeClassicText(bytes));
   // A `.mdl` holds either a model or a library, and the body is the same either way.
   const model = childNamed(root, 'Model') || childNamed(root, 'Library');
   // Neither means this text is not a model, and saying so is the parser's job. This
@@ -488,12 +676,13 @@ function parseClassicMdl(bytes: Uint8Array, filename: string): ParsedMdl {
     modelReferences: classicModelReferences(model, modelName),
     externalDataSources,
     configSets: classicConfigSets(model),
-    workspace: classicWorkspace(root, model),
+    workspace: classicWorkspace(root, model, warnings),
     blockParamUsages: classicBlockParamUsages(model),
     // There are no OPC parts to hand back: this flavour is one flat text file, not
     // an archive. ModelNode treats both as nullable and falls back to a summary.
     rawContents: null,
     zipEntries: null,
+    warnings,
   };
 }
 
@@ -548,7 +737,7 @@ function rootRelativePath(path: string, modelName: string): string {
  *           PropName "ConfigurationSets" }
  *   Simulink.ConfigSet { $PropName "ActiveConfigurationSet" $ObjectID 3 }
  */
-function classicConfigSets(model: MdlNode): { name: string; active: boolean; data: unknown }[] {
+function classicConfigSets(model: MdlNode): ParsedConfigSet[] {
   let activeId: string | null = null;
   for (const node of model.children) {
     if (prop(node, '$PropName') === 'ActiveConfigurationSet') {
@@ -556,20 +745,28 @@ function classicConfigSets(model: MdlNode): { name: string; active: boolean; dat
     }
   }
 
-  const configs: { name: string; active: boolean; data: unknown }[] = [];
+  const configs: ParsedConfigSet[] = [];
   for (const array of childrenNamed(model, 'Array')) {
     if (prop(array, 'PropName') !== 'ConfigurationSets') continue;
     for (const cs of array.children) {
       const name = prop(cs, 'Name');
       if (!name) continue;
+      // The class is the node's own name — `Simulink.ConfigSet`, or
+      // `Simulink.ConfigSetRef` for a set that lives elsewhere. The properties come
+      // along because the `.slx` path hands over the whole config set too.
+      //
+      // Shaped as the JSON layout deliberately, so that `configSetIdentity` reads this
+      // era with the branch it already has rather than gaining a fourth: in the classic
+      // grammar the class is neither an attribute nor a field but the NODE NAME, and
+      // this is the one place that difference has to be absorbed. The source property
+      // is `WSVarName` in every release that wrote this format, which that helper
+      // accepts alongside `SourceName`.
+      const data = { _object_class: cs.name, _properties: flatProps(cs) };
       configs.push({
         name,
         active: activeId !== null && prop(cs, '$ObjectID') === activeId,
-        // The class is the node's own name — `Simulink.ConfigSet`, or
-        // `Simulink.ConfigSetRef` for a set that lives in a dictionary. That is the
-        // one field the config section reads off `data`; the properties come along
-        // because the `.slx` path hands over the whole config set too.
-        data: { _object_class: cs.name, _properties: flatProps(cs) },
+        data,
+        ...configSetIdentity(data),
       });
     }
   }
@@ -615,33 +812,87 @@ function classicBlockParamUsages(model: MdlNode): BlockParamUsage[] {
  *
  *   Model   { ... WSMdlFileData "DataTag0" ... }
  *   MatData { NumRecords 1 DataRecord { Tag DataTag0 Data "<uuencoded>" } }
+ *
+ * `WSMdlFileData` is what makes the losses here reportable. A model with no such
+ * property has no workspace stored in the file and has lost nothing; once the property
+ * is there, the file has NAMED a record it holds, and every way of not arriving at that
+ * record's variables is the file contradicting itself. Each of those warnings carries
+ * the tag as its `part`, because the tag is how this format names that piece — there is
+ * no path to give.
  */
-function classicWorkspace(root: MdlNode, model: MdlNode): WorkspaceVars {
+function classicWorkspace(root: MdlNode, model: MdlNode, warnings: ParseWarning[]): WorkspaceVars {
   const empty = [] as unknown as WorkspaceVars;
   empty._trailingElements = [];
 
   const tag = prop(model, 'WSMdlFileData');
+  // No property, no claim: a model whose workspace was never populated simply does not
+  // write one, and that is the common case rather than an error. Silent.
   if (!tag) return empty;
+
   const matData = childNamed(root, 'MatData');
-  if (!matData) return empty;
+  if (!matData) {
+    warnings.push({
+      code: 'part-unreadable',
+      message:
+        `This model's workspace is stored as record "${tag}", but the file has no MatData `
+        + 'section, so its workspace variables were not read.',
+      part: tag,
+    });
+    return empty;
+  }
 
   let encoded: string | null = null;
+  let found = false;
   for (const record of childrenNamed(matData, 'DataRecord')) {
     if (prop(record, 'Tag') === tag) {
+      found = true;
       encoded = prop(record, 'Data');
       break;
     }
   }
-  if (!encoded) return empty;
+  if (!encoded) {
+    // Two shapes, one loss, so one message: no record carries the tag the model named,
+    // or the record is there and its Data is empty. Both mean the named workspace is
+    // not in the file, and neither is something a release ever wrote deliberately.
+    warnings.push({
+      code: 'part-unreadable',
+      message: found
+        ? `This model's workspace record "${tag}" holds no data, so its workspace `
+          + 'variables were not read.'
+        : `This model's workspace is stored as record "${tag}", which the file's MatData `
+          + 'section does not contain, so its workspace variables were not read.',
+      part: tag,
+    });
+    return empty;
+  }
 
   const stream = uudecode(encoded);
   const { outer, trailingElements } = readMxArrayRecords(stream.buffer);
-  if (!outer || !outer.fields) return empty;
+  if (!outer || !outer.fields) {
+    // The record is present and decodes to something that is not an mxarray: wrong
+    // magic, too short, or an outer element that is not a matrix. Unlike the `.slx`
+    // mxarray part, an EMPTY workspace cannot land here — MATLAB writes no
+    // `WSMdlFileData` at all in that case, so reaching this line means the uuencoded
+    // stream itself did not survive.
+    warnings.push({
+      code: 'part-unreadable',
+      message:
+        `This model's workspace record "${tag}" does not decode to a workspace, so its `
+        + 'variables were not read.',
+      part: tag,
+    });
+    return empty;
+  }
 
   // The classic record is NOT the struct-of-variables a `.slx` keeps: it is a 1xN
   // struct ARRAY of Name/Value pairs, one element per workspace variable. Same
   // bytes, same framing, different shape — so read the pairs off it instead of
   // mistaking the two field names for the two variables.
+  //
+  // A stream WITHOUT that pair is not a failure and does not warn: it is the `.slx`
+  // struct-of-variables shape, which some files carry here, and `parseMxArray` reads it
+  // correctly. A careless reader would warn on "the fields I expected are not there";
+  // the fields being different is the format having two spellings, not a loss.
   if (!outer.fields.Name || !outer.fields.Value) {
     return parseMxArray(stream.buffer);
   }

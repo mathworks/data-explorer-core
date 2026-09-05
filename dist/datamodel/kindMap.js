@@ -11,6 +11,14 @@
 export const KIND_BY_CLASS = {
     'Simulink.Parameter': 'Simulink Parameter',
     'Simulink.Signal': 'Simulink Signal',
+    // The Embedded Coder subclasses take their superclass's Kind rather than a
+    // label of their own, on the same terms as Simulink.VariantConfigurations
+    // below: the Kind column answers "what sort of thing is this", and an
+    // mpt.Parameter is a Simulink Parameter with extra code-generation properties.
+    // Nothing is hidden by sharing the label — the Class column still carries the
+    // true identity, which is where a user looks to tell the two apart.
+    'mpt.Parameter': 'Simulink Parameter',
+    'mpt.Signal': 'Simulink Signal',
     'Simulink.LookupTable': 'Lookup Table',
     'Simulink.Breakpoint': 'Breakpoint',
     'Simulink.Bus': 'Bus',

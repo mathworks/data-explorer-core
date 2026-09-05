@@ -50,6 +50,28 @@ export interface RowData {
     };
     [key: string]: unknown;
 }
+/**
+ * How a node reaches the reverse-usage index, which lives on the SESSION.
+ *
+ * A node has no reference to a session and must not acquire one: this package is
+ * consumed by a VS Code extension, a CLI and an RPC server, and a node reaching for a
+ * session would be reaching for whichever of them happened to build it. So the session
+ * stamps this callback onto each source ROOT as it registers it — the same place, and in
+ * the same way, registerSource already stamps `meta` and `warnings` — and a node walks
+ * up to its root to find one, the walk `_markSourceDirty` already makes for the `dirty`
+ * flag. Injection, not a dependency: nothing here imports the session, and a tree no
+ * session registered simply has no resolver (see _usedByCell).
+ *
+ * Deliberately NARROWER than the session's own `NodeUsage`: the two fields a link cell
+ * can hold, and nothing else. Naming NodeUsage here would have BaseNode import a type
+ * from core for two thirds of it, and the narrow shape records at the seam exactly how
+ * much of a usage a row is allowed to know. `NodeUsage[]` satisfies this, and stops
+ * satisfying it the day either field is renamed — which is where that check belongs.
+ */
+export type UsageResolver = (nodeId: string) => {
+    blockName: string;
+    linkTarget: string;
+}[];
 export interface PIGroupDef {
     group: string;
     items: PropClass[];
@@ -90,6 +112,7 @@ export default class BaseNode {
     removeChild(child: BaseNode): void;
     _replaceWith(newNode: BaseNode): boolean;
     _markSourceDirty(): void;
+    _usedByCell(): RowData['UsedBy'] | undefined;
     flatten(): BaseNode[];
     get displayName(): string;
     get valueEditable(): boolean;

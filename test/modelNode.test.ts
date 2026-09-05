@@ -159,24 +159,35 @@ describe('ModelNode — workspace section', () => {
 });
 
 describe('ModelNode — config section', () => {
+  // The class comes from `objectClass`, which the parser has already normalized across
+  // the five .slx layouts and the classic .mdl grammar — the node layer does not sniff
+  // the raw `data` for it. See configSetIdentity in SlxParser and its tests.
   it('builds a ConfigSetNode or a ConfigSetRefNode from the parsed class', () => {
     const cfg = model({
       configSets: [
-        { name: 'Active', active: true, data: {} },
-        { name: 'Ref', active: false, data: { _object_class: 'Simulink.ConfigSetRef' } },
+        { name: 'Active', active: true, data: {}, objectClass: 'Simulink.ConfigSet', sourceName: '' },
+        {
+          name: 'Ref',
+          active: false,
+          data: {},
+          objectClass: 'Simulink.ConfigSetRef',
+          sourceName: 'fromDict',
+        },
       ],
     }).getSection('config');
     expect(cfg.children.map((c: any) => [c.name, c.constructor.name, c.className])).toEqual([
       ['Active', 'ConfigSetNode', 'Simulink.ConfigSet'],
       ['Ref', 'ConfigSetRefNode', 'Simulink.ConfigSetRef'],
     ]);
+    // A reference's content IS what it points at, so the source has to reach the node.
+    expect(cfg.children[1].SourceName).toBe('fromDict');
   });
 
   it('carries the SLX-only active state onto the shared node', () => {
     const cfg = model({
       configSets: [
-        { name: 'Active', active: true, data: {} },
-        { name: 'Idle', active: false, data: {} },
+        { name: 'Active', active: true, data: {}, objectClass: 'Simulink.ConfigSet', sourceName: '' },
+        { name: 'Idle', active: false, data: {}, objectClass: 'Simulink.ConfigSet', sourceName: '' },
       ],
     }).getSection('config');
     expect(cfg.children.map((c: any) => [c.active, c.icon])).toEqual([
@@ -333,7 +344,7 @@ describe('ModelNode.serialize', () => {
       dataDictionary: 'params.sldd',
       modelReferences: [{ blockPath: 'a/b', modelName: 'plant' }],
       externalDataSources: ['signals.mat'],
-      configSets: [{ name: 'Active', active: true, data: {} }],
+      configSets: [{ name: 'Active', active: true, data: {}, objectClass: 'Simulink.ConfigSet', sourceName: '' }],
       rawContents: { 'simulink/blockDiagram.json': '{}' },
     });
     expect(m.serialize()).toEqual({

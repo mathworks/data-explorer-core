@@ -80,11 +80,21 @@ export function element(type: number, data: Uint8Array): Uint8Array {
   return concat([u32le(type), u32le(data.length), data, new Uint8Array(padded)]);
 }
 
-/** The array-flags subelement: class in byte 0, the complex/logical bits in byte 1. */
-export function arrayFlags(cls: number, opts: { complex?: boolean; logical?: boolean } = {}): Uint8Array {
+/**
+ * The array-flags subelement: class in byte 0, the complex/logical bits in byte 1,
+ * and — for a sparse array only — nzmax as a uint32 in bytes 4-7. Those four bytes
+ * are zero for every other class, which is why nothing needed them until now.
+ */
+export function arrayFlags(
+  cls: number,
+  opts: { complex?: boolean; logical?: boolean; nzmax?: number } = {},
+): Uint8Array {
   const data = new Uint8Array(8);
   data[0] = cls;
   data[1] = (opts.complex ? 0x08 : 0) | (opts.logical ? 0x02 : 0);
+  if (opts.nzmax) {
+    new DataView(data.buffer).setUint32(4, opts.nzmax, true);
+  }
   return element(MI.UINT32, data);
 }
 
@@ -249,6 +259,120 @@ export function structVar(
   return matrix(subs);
 }
 
+export interface SparseVarSpec {
+  name: string;
+  /** [rows, cols]. MATLAB has no sparse array above rank 2. */
+  dimensions: number[];
+  /** 0-based ROW index of each non-zero, in column-major order. */
+  ir: number[];
+  /** cols + 1 column-start offsets into ir/real; the last entry is the non-zero count. */
+  jc: number[];
+  /** The non-zeros themselves, in the same order as `ir`. */
+  real: number[];
+  /** The imaginary parts, one per non-zero; sets the complex flag. */
+  imag?: number[];
+  logical?: boolean;
+  /** Element type of the pr/pi payloads. Defaults to miDOUBLE, as MATLAB writes. */
+  dataType?: number;
+  /**
+   * The nzmax word in the array flags. Defaults to `ir.length`, which is what a
+   * `save`d matrix carries with one exception: MATLAB writes `nzmax=1`, not 0, for a
+   * matrix with no non-zeros at all (measured, sparse_cases.mat). Set it higher to
+   * model a `spalloc`ed matrix whose reserved capacity reached the file — which
+   * `save` is now known NOT to do, since it trims; see the test that uses it.
+   */
+  nzmax?: number;
+  /** Emit no pr payload at all (a variable truncated after its indices). */
+  omitData?: boolean;
+}
+
+/**
+ * A sparse variable. THE BYTE LAYOUT IS THE THING UNDER TEST, so it is written out
+ * here in full, from the MAT-file format spec (Level 5, sparse arrays), for a
+ * reviewer with MATLAB to check against a real file field by field:
+ *
+ *   | # | subelement    | element type | length          | contents                    |
+ *   |---|---------------|--------------|-----------------|-----------------------------|
+ *   | 1 | array flags   | miUINT32     | 8 bytes         | byte 0 = class 5; byte 1 =  |
+ *   |   |               |              |                 | flags (0x08 complex, 0x02   |
+ *   |   |               |              |                 | logical); bytes 4-7 = nzmax |
+ *   | 2 | dimensions    | miINT32      | 4 * 2 bytes     | rows, cols                  |
+ *   | 3 | array name    | miINT8       | len(name)       | the variable name           |
+ *   | 4 | ir            | miINT32      | 4 * nnz         | 0-based row index of each   |
+ *   |   |               |              |                 | non-zero, column-major      |
+ *   | 5 | jc            | miINT32      | 4 * (cols + 1)  | ir/pr index where each      |
+ *   |   |               |              |                 | column starts; jc[cols]=nnz |
+ *   | 6 | pr            | miDOUBLE     | 8 * nnz         | the non-zeros               |
+ *   | 7 | pi            | miDOUBLE     | 8 * nnz         | imaginary parts, iff complex|
+ *
+ * Every element is written in the long tag form and padded to 8 bytes, exactly as
+ * `element` does for every other builder here.
+ *
+ * `ir`, `jc` and `real` are passed in EXPLICITLY rather than compressed out of a
+ * dense matrix by this file. Deriving them would mean the fixture and the reader
+ * share one author's understanding of the compressed-column form, and a mistake in
+ * it would cancel out and the test would pass; spelled out, the correspondence
+ * between these arrays and the definitions above is something a reviewer can check
+ * by eye against MATLAB's `[i, j, s] = find(S)`.
+ *
+ * SYNTHESIZED, but no longer unchecked: `probe_string.m` saved every matrix these
+ * fixtures stand for and test/fixtures/sparse_cases.mat is the result, so the table
+ * above is now an observation. Three of its rows were guesses when it was written and
+ * all three held — ir/jc/pr in that order, miDOUBLE payloads, miUINT8 for a logical
+ * one — and the measured layout differs from the table in exactly one way: ir and pr
+ * are 4 * nnz and 8 * nnz, never 4 * nzmax, because `save` trims a spalloc'ed
+ * matrix's reserved capacity before writing it.
+ *
+ * One byte the table does not model, deliberately: MATLAB sets bit 0x10 of the flags
+ * byte on every sparse array (0x10 plain, 0x18 complex, 0x12 logical), where the
+ * non-sparse variables in the same corpus — an MCOS opaque (class 17) and a uint8
+ * array (class 9), measured — carry 0x00. Nothing documents it
+ * and the reader masks the two bits it cares about, so `arrayFlags` does not write it
+ * and no test depends on its absence.
+ */
+export function sparseVar(spec: SparseVarSpec): Uint8Array {
+  const type = spec.dataType ?? MI.DOUBLE;
+  const int32s = (values: number[]) => {
+    const data = new Uint8Array(values.length * 4);
+    const view = new DataView(data.buffer);
+    values.forEach((n, i) => view.setInt32(i * 4, n, true));
+    return element(MI.INT32, data);
+  };
+  const subs = [
+    arrayFlags(CLASS.SPARSE, {
+      complex: !!spec.imag,
+      logical: spec.logical,
+      nzmax: spec.nzmax ?? spec.ir.length,
+    }),
+    dims(spec.dimensions),
+    varName(spec.name),
+    int32s(spec.ir),
+    int32s(spec.jc),
+  ];
+  if (!spec.omitData) {
+    subs.push(numericData(type, spec.real));
+    if (spec.imag) {
+      subs.push(numericData(type, spec.imag));
+    }
+  }
+  return matrix(subs);
+}
+
+/**
+ * An old-style (pre-MCOS) class-3 object variable: array flags, dimensions, array
+ * name, then `payload` verbatim.
+ *
+ * `payload` is deliberately opaque bytes rather than a modelled body. The MAT-file
+ * spec describes a class-3 object as a struct array with a class-name subelement
+ * inserted after the name, but no MATLAB-authored class-3 fixture exists here to
+ * confirm it, so this builder claims no layout for what follows the name — which is
+ * the point: the reader must report the variable without interpreting those bytes,
+ * whatever they turn out to be.
+ */
+export function objectVar(name: string, dimensions: number[], payload: Uint8Array = new Uint8Array(0)): Uint8Array {
+  return matrix([arrayFlags(CLASS.OBJECT), dims(dimensions), varName(name), payload]);
+}
+
 /** A cell variable; each entry is the raw element bytes for that cell. */
 export function cellVar(name: string, cells: Uint8Array[], dimensions?: number[]): Uint8Array {
   return matrix([
@@ -291,14 +415,15 @@ export function matFile(elements: Uint8Array[], opts: MatFileOptions = {}): Arra
  * uses, with `7.3` where a Level-5 file says `5.0`, and the HDF5 schema version
  * appended.
  *
- * SYNTHESIZED, not recorded. No MATLAB-authored `-v7.3` file has ever been read
- * into this corpus — `probe_string.m:80` writes one to /tmp and it was never
- * harvested — so the platform and date text here is invented and only the `MATLAB
- * 7.3 MAT-file` prefix is load-bearing. That is why the reader matches on the
- * prefix rather than on this whole string; see the test that pins it.
+ * MEASURED, off `test/fixtures/strings_v73.mat` — the file `probe_string.m:80`
+ * writes, now harvested. It was invented text until then, and the harvest found one
+ * thing the invention got wrong: MATLAB ends the line with a SPACE and a PERIOD.
+ * Nothing reads that far (the reader matches on the `MATLAB 7.3 MAT-file` prefix,
+ * because platform and date are per-file), but a fixture that claims to be what
+ * MATLAB writes should be what MATLAB writes.
  */
 export const V73_HEADER_TEXT =
-  'MATLAB 7.3 MAT-file, Platform: MACA64, Created on: Thu Sep 04 09:41:00 2025 HDF5 schema 1.00';
+  'MATLAB 7.3 MAT-file, Platform: MACA64, Created on: Sat Sep  5 09:36:52 2026 HDF5 schema 1.00 .';
 
 /** The HDF5 superblock signature: \x89 H D F \r \n \x1a \n. */
 export const HDF5_SIGNATURE = new Uint8Array([0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -307,8 +432,9 @@ export interface Hdf5MatOptions {
   headerText?: string;
   /**
    * HDF5 userblock size, i.e. where the superblock signature starts. MATLAB uses
-   * 512, read off a real file (`test/parity/matlab/STRING_MCOS.md:132`); HDF5
-   * itself requires a power of two >= 512.
+   * 512 — recorded in `test/parity/matlab/STRING_MCOS.md:132` and confirmed against
+   * `test/fixtures/strings_v73.mat`, whose signature starts at byte 512 exactly;
+   * HDF5 itself requires a power of two >= 512.
    */
   userblock?: number;
 }
@@ -328,10 +454,19 @@ export function hdf5MatFile(opts: Hdf5MatOptions = {}): ArrayBuffer {
   const out = new Uint8Array(userblock + HDF5_SIGNATURE.length + 64);
   out.fill(0x20, 0, 116);
   out.set(new TextEncoder().encode(opts.headerText ?? V73_HEADER_TEXT), 0);
-  // Bytes 116-125 — the subsystem-data offset and the version field — are left zero.
-  // A Level-5 file writes 0x0100 as its version and a v7.3 file is believed to write
-  // something else, but nothing here has read one, so no test relies on that field
-  // and this fixture does not pretend to know it.
+  // Bytes 116-123, the subsystem-data offset, are zero — measured. That is also what
+  // a Level-5 file with no MCOS subsystem carries (sparse_cases.mat: all zero; the
+  // string fixtures, which do have one: 0x043d and 0x0180), so the field says nothing
+  // about the flavour.
+  //
+  // Bytes 124-125 are the version field, and this is where a v7.3 file is separable
+  // from a Level-5 one WITHOUT reading its text: `matFile` writes 0x0100, and a real
+  // -v7.3 file writes 0x0200 (measured off test/fixtures/strings_v73.mat, which was
+  // the first one ever read here — this fixture used to leave the field zero and say
+  // so). The reader does not look at it; it matches the header prefix instead, which
+  // is the check the harvested file is asserted against.
+  out[124] = 0x00;
+  out[125] = 0x02;
   out[126] = 0x49; // 'I'
   out[127] = 0x4d; // 'M'
   out.set(HDF5_SIGNATURE, userblock);

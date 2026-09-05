@@ -101,7 +101,20 @@ export interface IContainerNode extends INode {
 }
 /** The root source node — a top-level loaded file */
 export interface ISourceNode extends IContainerNode {
-    dirty: boolean;
+    /**
+     * Whether this source has unsaved changes — and ABSENT on a source that cannot
+     * have them. Optional because a `.prj` has no writer and so has no flag to offer:
+     * `editableOwnerOf` reads a missing `dirty` as "not an editable document", which is
+     * what keeps a project out of the edit path, so the absence is load-bearing rather
+     * than an omission for ProjectNode to fill in. Required here (as it was) made the
+     * interface state something false about a project, which only the double cast at
+     * every registerSource call site kept from being a diagnostic.
+     *
+     * Contrast SourceDTO.dirty, which is required and reads `false` for such a source:
+     * a projection crossing a process boundary has to answer the question, whereas a
+     * node in this layer may decline it and be asked with `!== undefined`.
+     */
+    dirty?: boolean;
     meta?: SourceMeta;
     /**
      * What the reader could not read, when it could not read something. ABSENT for

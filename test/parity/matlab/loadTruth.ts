@@ -106,7 +106,11 @@ export interface ModelTruth {
   release: string;
   dataDictionary: string;
   wsDataSource: string;
-  configSets: { name: string; active: boolean }[];
+  // `class` tells a config set from a REFERENCE to one, which the name cannot, and
+  // `sourceName` is what a reference points at — '' for an ordinary set, which has no
+  // source. Both are recorded for every model, not only the one that has a reference,
+  // so an assertion never has to ask whether the field applies.
+  configSets: { name: string; active: boolean; class: string; sourceName: string }[];
   modelReferences: string[];
   blocks: MdlBlockTruth[];
   workspace: Record<string, MdlVarTruth>;

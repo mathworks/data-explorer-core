@@ -65,8 +65,20 @@ const CLASS_DEFS = {
 // store either name for the same object, and both are routed to the same node
 // class, so both must resolve to the same schema — otherwise the alias silently
 // gets no PI layout at all (a blank Property Inspector).
+//
+// A SUBCLASS is an alias here for the same reason a spelling is: mpt.Parameter
+// and mpt.Signal (Embedded Coder) present every property their Simulink.*
+// superclass does, share its node class, and so must resolve to its schema. They
+// are aliases rather than definitions of their own precisely so they cannot drift
+// from the superclass they inherit, and so getSchemaClasses() keeps enumerating
+// the DEFINED classes — the set this package can be asked to describe — rather
+// than growing an entry that adds no properties. What the alias does NOT claim is
+// the mpt-only code-generation properties: they will show as generic rows until
+// a MATLAB-authored fixture says what they look like on disk.
 const CLASS_ALIASES = {
     'Simulink.VariantConfigurations': 'Simulink.VariantConfigurationData',
+    'mpt.Parameter': 'Simulink.Parameter',
+    'mpt.Signal': 'Simulink.Signal',
 };
 function classDef(className) {
     return CLASS_DEFS[className] ?? CLASS_DEFS[CLASS_ALIASES[className]];

@@ -62,7 +62,17 @@ export function ingest(session, content, opts) {
         if (isJsonText(bytes)) {
             return session.addDataSource(id, JSON.parse(strFromU8(bytes)), meta);
         }
-        return session.addDataSource(id, parseBinarySldd(buf), meta);
+        // The one branch of this function that parses anything itself, and therefore the one
+        // that has to carry a parser's diagnostics onward by hand: every other dispatch hands
+        // raw content to a session adder that does its own parsing and collects its own
+        // warnings inside. The sink is created here, filled in by the reader, and handed to
+        // `addDataSource`, which appends the node layer's warnings to the SAME list before
+        // attaching it to the source — so a host sees one list per file, whichever layer the
+        // loss happened in. The textual branches above need nothing: they have no parse step
+        // of their own beyond `JSON.parse`, and `addDataSource` makes its own sink.
+        const warnings = [];
+        const parsed = parseBinarySldd(buf, warnings);
+        return session.addDataSource(id, parsed, meta, warnings);
     }
     // Both model extensions go to the same adder: a `.mdl` is a Simulink model like a
     // `.slx` is, and which generation of content the bytes hold is decided there, not

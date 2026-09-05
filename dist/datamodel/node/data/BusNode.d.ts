@@ -27,6 +27,7 @@ export declare class BusElementNode extends BaseBusElementNode {
         items: (PropClass | typeof PropUnit | typeof PropDescription)[];
     })[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _rejectUnknownEnumeral(propName: string, stringValue: string): SetPropertyResult | null;
     _applyElementOverrides(props: Record<string, unknown>): void;
 }
 export declare class BusNode extends BaseBusNode {
