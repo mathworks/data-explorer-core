@@ -64,7 +64,9 @@ describe('ObjectNode — scalar object', () => {
 
   it('uses the generic object icon, and the service-interface icon when derived', () => {
     const n = parse(valueObject('Simulink.ServiceBus', [{}]));
-    expect(n.icon).toBe('wsDefault');
+    // ws3d, the class-instance glyph — not wsDefault, which is the plain-variable
+    // one and made an object of a customer class look like a double.
+    expect(n.icon).toBe('ws3d');
     // A derived Simulink.ServiceBus is Architectural Data, not a plain object.
     n.metadata = { isderived: '1' };
     expect(n.icon).toBe('serviceInterfaces');

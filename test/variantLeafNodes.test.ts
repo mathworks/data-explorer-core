@@ -35,7 +35,9 @@ const LEAVES = [
   { cls: 'Simulink.VariantExpression', Node: VariantExpressionNode, prop: 'Condition', icon: 'wsVariant', kind: 'Variant Expression' },
   { cls: 'Simulink.VariantVariable', Node: VariantVariableNode, prop: 'Specification', icon: 'variant_wsParameters', kind: 'Variant Variable' },
   { cls: 'Simulink.VariantConfigurationData', Node: VariantConfigurationDataNode, prop: 'Value', icon: 'variantSettings', kind: 'Variant Configuration' },
-  { cls: 'CustomObject', Node: CustomObjectNode, prop: 'Description', icon: 'object', kind: 'CustomObject' },
+  // ws3d, the object glyph. The id used to be 'object', which no repository ships an
+  // SVG for, so the one entry meant to READ as an object rendered as a broken image.
+  { cls: 'CustomObject', Node: CustomObjectNode, prop: 'Description', icon: 'ws3d', kind: 'CustomObject' },
 ] as const;
 
 describe('single-property leaf nodes — shared contract', () => {

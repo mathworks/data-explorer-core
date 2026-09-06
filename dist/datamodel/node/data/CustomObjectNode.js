@@ -4,10 +4,11 @@ import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
+import { OBJECT_ICON } from '../icons.js';
 const CLASS_NAME = 'CustomObject';
 export default class CustomObjectNode extends DataNode {
     constructor(name, parent, props, serial) { super(name, parent, serial); this.Description = props.Description || ''; }
-    get icon() { return 'object'; }
+    get icon() { return OBJECT_ICON; }
     get className() { return CLASS_NAME; }
     get displayValue() { return '<1x1 ' + CLASS_NAME + '>'; }
     getProperties() { return [PropName, PropValue, PropDataType, PropDescription]; }
