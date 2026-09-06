@@ -925,6 +925,10 @@ describe('parseMat — old-style (class 3) objects', () => {
     expect(array.valueEditable).toBe(false);
     // The class the file recorded still reaches the DataType column.
     expect([array.className, array.dataType]).toEqual(['object', 'object']);
+    // And it carries the OBJECT glyph, not the plain-variable one. Failing to decode
+    // the payload is a limit of this reader; the row still knows the file called this
+    // an object, and the tree is where a user reads that first.
+    expect([scalar.icon, array.icon]).toEqual(['ws3d', 'ws3d']);
   });
 
   it('renders an unmaterializable sparse matrix the same way', () => {

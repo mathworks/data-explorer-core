@@ -1660,9 +1660,9 @@ describe('MatlabVariableNode — opaque MCOS objects', () => {
     expect([n.className, n.dataType]).toEqual(['Simulink.Parameter', '']);
   });
 
-  it('brands a known Simulink class and falls back for an unknown one', () => {
+  it('brands a known Simulink class and falls back to the object icon for an unknown one', () => {
     expect(opaque('Simulink.Parameter', { value: null, properties: {}, dimensions: [1, 1] }).icon).toBe('wsParameters');
-    expect(opaque('Some.Unknown', { value: null, properties: {}, dimensions: [1, 1] }).icon).toBe('wsDefault');
+    expect(opaque('Some.Unknown', { value: null, properties: {}, dimensions: [1, 1] }).icon).toBe('ws3d');
   });
 
   it('summarizes the decoded value by type, or by class when there is none', () => {

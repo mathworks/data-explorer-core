@@ -1,0 +1,111 @@
+// Copyright 2026 The MathWorks, Inc.
+//
+// One rule, five paths: an OBJECT whose class this data model has no icon of its
+// own for presents with the object glyph, whoever built the node.
+//
+// The paths reach that conclusion in five different files, and before OBJECT_ICON
+// existed they had drifted — four returned `wsDefault`, which is the PLAIN-VARIABLE
+// icon, so a customer class was indistinguishable in the tree from a double; the
+// fifth named an `object` icon no repository ships an SVG for, so the one entry
+// whose whole job was to read as an object rendered as a broken image. Each of the
+// five has its own unit test for its own icon rule; none of them could catch a
+// divergence BETWEEN the five, because each asserted a literal of its own. This
+// file asserts the agreement, so adding a sixth path (or rebranding the glyph)
+// cannot quietly leave one behind.
+
+import { describe, it, expect } from 'vitest';
+// Importing the class map registers the NodeRegistry these paths dispatch through.
+import '../src/datamodel/node/NodeClassMap.js';
+import { OBJECT_ICON } from '../src/datamodel/node/icons.js';
+import ObjectNode from '../src/datamodel/node/data/ObjectNode.js';
+import CustomObjectNode from '../src/datamodel/node/data/CustomObjectNode.js';
+import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
+import type { MatVariable } from '../src/datamodel/node/data/MatlabVariableNode.js';
+import { buildTypedNodeFromMcos } from '../src/datamodel/node/data/mcosTypedNode.js';
+
+// A class no entry in CLASS_MAP and no entry in MCOS_ICON_MAP claims — which is
+// what "unknown class" means to every path below.
+const UNKNOWN = 'Acme.Thing';
+
+function matVar(over: Partial<MatVariable>): MatVariable {
+  return {
+    name: 'v',
+    className: UNKNOWN,
+    dimensions: [1, 1],
+    isComplex: false,
+    isLogical: false,
+    value: null,
+    fields: null,
+    ...over,
+  };
+}
+
+// Each entry names the channel a user would have opened to reach that node.
+const PATHS: [string, () => string][] = [
+  [
+    'a dictionary value object of an unknown class',
+    () => (ObjectNode.parse(
+      {
+        _array_class: UNKNOWN,
+        _array_type: 'MATLABArray',
+        _dimensions: [1, 1],
+        _mw_element_type: 'MATLABArray',
+        _elements: [{ _properties: { A: 1 } }],
+      },
+      'obj',
+      null,
+    ) as unknown as { icon: string }).icon,
+  ],
+  [
+    'a nested object property, which carries no _elements wrapper',
+    () => (ObjectNode.parse(
+      { _object_class: UNKNOWN, _properties: { A: 1 } },
+      'obj',
+      null,
+    ) as unknown as { icon: string }).icon,
+  ],
+  [
+    'an MCOS object out of a .mat the decoder recovered properties for',
+    () => (buildTypedNodeFromMcos(UNKNOWN, 'obj', null, { A: 1 }) as unknown as { icon: string }).icon,
+  ],
+  [
+    'an MCOS object out of a .mat the decoder recovered nothing for',
+    () => MatlabVariableNode.parseMatVariable(matVar({ isOpaque: true }), 'obj', null).icon,
+  ],
+  [
+    'a pre-MCOS class-3 object, recorded without being decoded',
+    () =>
+      MatlabVariableNode.parseMatVariable(
+        matVar({ className: 'object', value: '<1x1 object, not decoded>', undecoded: 'no fixture pins its layout' }),
+        'obj',
+        null,
+      ).icon,
+  ],
+  ['the generic CustomObject entry', () => CustomObjectNode.createDefault('co', null).icon],
+];
+
+describe('the object icon is one answer across every path that builds an object', () => {
+  it.each(PATHS)('%s', (_label, iconOf) => {
+    expect(iconOf()).toBe(OBJECT_ICON);
+  });
+
+  it('is ws3d, the workspace-browser glyph for a class instance', () => {
+    // Spelled out rather than compared to itself: the consuming host resolves this
+    // id to `media/icons/<id>.svg`, so the literal is the contract with the asset
+    // and a rename that ships no matching file must fail here.
+    expect(OBJECT_ICON).toBe('ws3d');
+  });
+
+  it('does not displace an icon a class HAS earned', () => {
+    // The rule is a fallback, not a takeover: a branded Simulink class keeps its own
+    // glyph on the same paths, and a derived ServiceBus stays Architectural Data.
+    expect(MatlabVariableNode.parseMatVariable(
+      matVar({ className: 'Simulink.Parameter', isOpaque: true }), 'p', null,
+    ).icon).toBe('wsParameters');
+    const bus = ObjectNode.parse(
+      { _object_class: 'Simulink.ServiceBus', _properties: {} }, 'b', null,
+    ) as unknown as { icon: string; metadata: unknown };
+    bus.metadata = { isderived: '1' };
+    expect(bus.icon).toBe('serviceInterfaces');
+  });
+});

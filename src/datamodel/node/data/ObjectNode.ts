@@ -10,6 +10,7 @@ import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
+import { OBJECT_ICON } from '../icons.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import { effectiveDims, summaryForm } from '../../display/DisplayConvention.js';
@@ -33,7 +34,7 @@ export default class ObjectNode extends DataNode {
         if (this.isDerived && this.arrayClass === 'Simulink.ServiceBus') {
             return 'serviceInterfaces';
         }
-        return 'wsDefault';
+        return OBJECT_ICON;
     }
 
     get className(): string {

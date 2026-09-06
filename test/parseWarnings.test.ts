@@ -1024,7 +1024,9 @@ describe('SlddNode.parse — the warnings channel', () => {
 
   it('stays silent for an entry of a class it has no typed node for', () => {
     // The near-miss this item exists to adjudicate, decided against a warning. An entry
-    // whose class no node models falls to CustomObjectNode: the entry is THERE, with its
+    // whose class no node models falls to ObjectNode — the structural catch-all, not the
+    // CustomObjectNode this comment used to name, which is the registered `CustomObject`
+    // class and is reached only by that literal name. The entry is THERE, with its
     // name, its metadata and its properties, typed generically. Nothing was lost, so
     // there is nothing to report — SectionNode.parseEntry is written to always return a
     // node for exactly this reason. A warning here would fire for every class a newer

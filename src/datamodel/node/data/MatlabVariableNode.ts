@@ -8,6 +8,7 @@ import type BaseNode from '../BaseNode.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import * as NodeRegistry from '../NodeRegistry.js';
+import { OBJECT_ICON } from '../icons.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -389,7 +390,10 @@ export default class MatlabVariableNode extends DataNode {
       return 'typeConstant';
     }
     if (this._isOpaque) {
-      return MCOS_ICON_MAP[this._opaqueClassName!] || 'wsDefault';
+      // An MCOS object of a class with no branded icon is still an OBJECT, so it
+      // gets the object glyph rather than the plain-variable one — the same answer
+      // the dictionary path's ObjectNode gives for the same class.
+      return MCOS_ICON_MAP[this._opaqueClassName!] || OBJECT_ICON;
     }
     switch (this._kind) {
       case 'scalar':
@@ -404,6 +408,14 @@ export default class MatlabVariableNode extends DataNode {
         }
         if (this._scalarType === 'struct') {
           return 'wsTree';
+        }
+        // The pre-MCOS class-3 object, which reaches the scalar arm as a recorded-
+        // but-undecoded placeholder whose `_scalarType` is the class MATLAB wrote
+        // ('object' — see MatParser's CLASS_NAMES). Not decoding it is a limit of
+        // the reader; calling it a plain variable in the tree would be a claim
+        // about the DATA, and the placeholder in its Value cell already says so.
+        if (this._scalarType === 'object') {
+          return OBJECT_ICON;
         }
         return 'wsDefault';
       case 'array':

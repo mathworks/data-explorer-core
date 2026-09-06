@@ -225,8 +225,10 @@ describe('MatlabVariableNode from an opaque MCOS variable', () => {
     expect(node.isScalarNumeric).toBe(false);
   });
 
-  it('falls back to the default icon for a class it does not know', () => {
-    expect(parse({ isOpaque: true, className: 'Some.Other.Class' }).icon).toBe('wsDefault');
+  it('falls back to the generic OBJECT icon for a class it does not know', () => {
+    // Not wsDefault: an unbranded class is still an object, and the dictionary path
+    // says ws3d for the very same class.
+    expect(parse({ isOpaque: true, className: 'Some.Other.Class' }).icon).toBe('ws3d');
   });
 
   it('shows a dimension summary when the object has no decoded value', () => {
