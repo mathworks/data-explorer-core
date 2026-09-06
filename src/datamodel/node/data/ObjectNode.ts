@@ -34,6 +34,17 @@ export default class ObjectNode extends DataNode {
         if (this.isDerived && this.arrayClass === 'Simulink.ServiceBus') {
             return 'serviceInterfaces';
         }
+        // An object ARRAY is an array OF something, and this node is the only row
+        // that stands for the whole of it, so it reads as what its elements are: a
+        // 1x3 Simulink.Parameter is parameters down the whole column, not a generic
+        // object sitting above three parameter rows. Ask the ELEMENT rather than map
+        // the class name here — the element node is what decides how that class
+        // looks, so the two can never come to disagree, and an array of a class this
+        // data model has no icon for still lands on OBJECT_ICON because its elements
+        // are ObjectNodes that answer exactly that.
+        if (this._isElementArray && this.children.length > 0) {
+            return (this.children[0] as DataNode).icon;
+        }
         return OBJECT_ICON;
     }
 

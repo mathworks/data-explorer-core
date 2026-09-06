@@ -145,6 +145,42 @@ describe('object array container — shape as data', () => {
   });
 });
 
+// The icon the container row presents with. An object ARRAY is an array OF
+// something, and the container is the only row that stands for the whole of it — so
+// it reads as what its elements are. It used to return the generic object glyph
+// unconditionally, which put a `ws3d` above three `wsParameters` rows for one 3x1
+// Simulink.Parameter: the same array, drawn as two different things.
+describe('object array container — the icon it presents with', () => {
+  it('takes its ELEMENTS icon for a known class, so the column reads as one array', () => {
+    const node = NodeRegistry.parseValue(arrayValue('Simulink.Parameter', [3, 1], [
+      { Value: 10 }, { Value: 20 }, { Value: 30 },
+    ]), 'p', null) as any;
+    // The container and every element row: one answer.
+    expect([node.icon, ...node.children.map((c: any) => c.icon)])
+      .toEqual(['wsParameters', 'wsParameters', 'wsParameters', 'wsParameters']);
+  });
+
+  it('still shows the object glyph for an array of a class with no icon of its own', () => {
+    // The rule is "ask the element", not "brand the container": an array of an
+    // unmodelled class has ObjectNode elements, which answer ws3d — so the generic
+    // case falls out of the same code path rather than needing its own branch.
+    const node = NodeRegistry.parseValue(arrayValue('Acme.Thing', [2, 1], [
+      { A: 1 }, { A: 2 },
+    ]), 'objs', null) as any;
+    expect([node.icon, ...node.children.map((c: any) => c.icon)])
+      .toEqual(['ws3d', 'ws3d', 'ws3d']);
+  });
+
+  it('agrees with the icon the SCALAR of that class presents with', () => {
+    // A 1x1 of a known class IS the typed node, so its icon is the reference answer
+    // the array container has to match — nothing may make a 3x1 Parameter look like
+    // a different kind of thing from a 1x1 one.
+    const scalar = NodeRegistry.parseValue(arrayValue('Simulink.Signal', [1, 1], [{ Min: 0 }]), 's', null) as any;
+    const array = NodeRegistry.parseValue(arrayValue('Simulink.Signal', [2, 1], [{ Min: 0 }, { Min: 1 }]), 's', null) as any;
+    expect(array.icon).toBe(scalar.icon);
+  });
+});
+
 // The columns those element rows fill in. A NUMERIC array hands its class down to
 // its elements (one MATLAB array is one class — see matlabVariableNode.test.ts), and
 // the question these pin is what the same two levels look like when the elements are

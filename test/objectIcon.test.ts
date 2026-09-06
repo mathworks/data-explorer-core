@@ -14,10 +14,14 @@
 // cannot quietly leave one behind.
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 // Importing the class map registers the NodeRegistry these paths dispatch through.
 import '../src/datamodel/node/NodeClassMap.js';
 import { OBJECT_ICON } from '../src/datamodel/node/icons.js';
 import ObjectNode from '../src/datamodel/node/data/ObjectNode.js';
+import MatNode from '../src/datamodel/node/container/MatNode.js';
+import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import CustomObjectNode from '../src/datamodel/node/data/CustomObjectNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import type { MatVariable } from '../src/datamodel/node/data/MatlabVariableNode.js';
@@ -107,5 +111,43 @@ describe('the object icon is one answer across every path that builds an object'
     ) as unknown as { icon: string; metadata: unknown };
     bus.metadata = { isderived: '1' };
     expect(bus.icon).toBe('serviceInterfaces');
+  });
+
+  it('does not claim an ARRAY of a branded class either', () => {
+    // The array container is an ObjectNode whatever the class, so the fallback used
+    // to swallow the class here even though every element row below it showed the
+    // class icon. An array of a branded class is still that class.
+    const arr = ObjectNode.parse(
+      {
+        _array_class: 'Simulink.Parameter',
+        _array_type: 'MATLABArray',
+        _dimensions: [3, 1],
+        _mw_element_type: 'MATLABArray',
+        _elements: [{ _properties: { Value: 1 } }, { _properties: { Value: 2 } }, { _properties: { Value: 3 } }],
+      },
+      'p',
+      null,
+    ) as unknown as { icon: string };
+    expect(arr.icon).toBe('wsParameters');
+  });
+});
+
+// The .mat/MCOS path, on a file MATLAB wrote. The synthetic cases above pin the
+// rule on the value-object shape; this pins that a real file actually reaches it,
+// since the binary decoder builds its array container through a different entry
+// point (buildTypedNodeFromMcos) than the dictionary JSON does.
+describe('an object array out of a real .mat', () => {
+  it('draws the container and its element rows with one icon', () => {
+    const path = fileURLToPath(new URL('./fixtures/mcos/paramArray.mat', import.meta.url));
+    const buf = readFileSync(path);
+    const bytes = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+    const root = MatNode.fromParsed(parseMat(bytes), 'paramArray.mat') as unknown as {
+      children: { icon: string; className: string; displayValue: string; children: { icon: string }[] }[];
+    };
+    // `arr` is a 1x3 Simulink.Parameter — the container row plus three element rows.
+    const arr = root.children[0];
+    expect([arr.className, arr.displayValue]).toEqual(['Simulink.Parameter', '<1x3 Simulink.Parameter>']);
+    expect([arr.icon, ...arr.children.map((c) => c.icon)])
+      .toEqual(['wsParameters', 'wsParameters', 'wsParameters', 'wsParameters']);
   });
 });
