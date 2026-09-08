@@ -10,10 +10,12 @@ export default class ModelBlockNode extends BaseNode {
     paramSourceId: string | null;
     /** Simulink's own identity for this block; '' for a file that records none. */
     sid: string;
+    /** The systems this block is inside, model-relative; '' for one in the root system. */
+    systemPath: string;
     constructor(name: string, parent: BaseNode | null, blockType: string, paramUsages: Array<{
         property: string;
         value: string;
-    }>, modelSrcId: string, paramSourceId: string | null, sid?: string);
+    }>, modelSrcId: string, paramSourceId: string | null, sid?: string, systemPath?: string);
     /**
      * `…/blocks/65` — the SID, not the name.
      *
@@ -33,6 +35,14 @@ export default class ModelBlockNode extends BaseNode {
     get icon(): string;
     get displayName(): string;
     get displayValue(): string;
+    /**
+     * WHERE this block is — `Controller/Gain`, and just `Gain` for one in the root system.
+     *
+     * Read by PropBlockPath (which ModelReferenceNode already uses, for the same fact about
+     * a different node), so the Property Inspector answers the question a row of same-named
+     * blocks raises. Model-relative and escaped by joinBlockPath — see blockIdentity.
+     */
+    get blockPath(): string;
     get className(): string;
     get nameEditable(): boolean;
     get valueEditable(): boolean;

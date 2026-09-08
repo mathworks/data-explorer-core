@@ -98,7 +98,43 @@ describe('a consumer can name what a parser returned', () => {
           return parsed.name + vars.length + ref.modelName + cfg.name;
         }
 
-        export const out = summarize(model, [workspaceVar, matVar]) + usage.blockName;
+        export const out =
+          summarize(model, [workspaceVar, matVar]) + usage.blockName + usage.sid + usage.systemPath;
+      `),
+    ).toEqual([]);
+  });
+
+  it('names the three identity rules a host joins a block on', () => {
+    // The rules are value exports, not types, so the suite above says nothing about
+    // them — but a host cannot key, label or place a block without them, and it reads
+    // their inputs off a parse result. That is the loop this checks: a
+    // `BlockParamUsage` in, an id/label/path out, in a helper the host can declare.
+    //
+    // Worth compiling rather than trusting, because the fields and the functions are
+    // exported from different modules: `blockParamUsages` losing `sid`/`systemPath`
+    // and `blockIdentity` falling off the entry point are two separate regressions
+    // that both land here as "the host can no longer tell two `Gain` rows apart".
+    expect(
+      diagnose(`
+        import { parseSlx, blockKey, blockLabel, joinBlockPath } from '../src/index.js';
+        import type { BlockParamUsage } from '../src/index.js';
+
+        declare const buf: ArrayBuffer;
+
+        // data-explorer-vscode's name index, in miniature: one searchable record per
+        // block, identified by its key, shown by its label, told apart by its path.
+        interface Found { id: string; label: string; path: string }
+
+        function place(usage: BlockParamUsage): Found {
+          const label = blockLabel(usage.blockName, usage.sid);
+          return {
+            id: blockKey(usage.blockName, usage.sid),
+            label,
+            path: joinBlockPath(usage.systemPath, label),
+          };
+        }
+
+        export const out: Found[] = parseSlx(buf, 'm.slx').blockParamUsages.map(place);
       `),
     ).toEqual([]);
   });
@@ -302,7 +338,10 @@ describe('a consumer can name what a parser returned', () => {
           describeLink(resolution) +
           JSON.stringify(cell) +
           subdictionaries(session, 'mdlparams.sldd').length +
-          usages.map((u) => u.paramProperty + u.paramValue + u.modelSrcId).join();
+          // \`blockPath\` among them because a cell can hold two links reading \`Gain\`, and
+          // the tooltip that tells them apart is text the HOST composes — so it has to
+          // be able to reach the field off the type it declared.
+          usages.map((u) => u.paramProperty + u.paramValue + u.modelSrcId + u.blockPath).join();
       `),
     ).toEqual([]);
   });

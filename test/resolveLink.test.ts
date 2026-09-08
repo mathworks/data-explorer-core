@@ -381,6 +381,8 @@ describe('findUsages() — which blocks reference a definition', () => {
     expect(s.findUsages('mdlcases.mdl/workspace/tau')).toEqual([
       {
         blockName: 'TF',
+        // Where the block is, which for a root-level block is its label and nothing more.
+        blockPath: 'TF',
         blockType: 'TransferFcn',
         paramProperty: 'Denominator',
         paramValue: '[tau 1]',
@@ -392,8 +394,11 @@ describe('findUsages() — which blocks reference a definition', () => {
       },
     ]);
     // A variable a nested subsystem's block references is found too — usages are the
-    // model's, not one system's.
-    expect(s.findUsages('mdlcases.mdl/workspace/inner').map((u: any) => u.blockName)).toEqual(['InnerGain']);
+    // model's, not one system's. And the path SAYS which system, which is the difference
+    // between this row and a root-level block that happened to share its name.
+    expect(s.findUsages('mdlcases.mdl/workspace/inner').map((u: any) => [u.blockName, u.blockPath])).toEqual([
+      ['InnerGain', 'Sub/InnerGain'],
+    ]);
   });
 
   it('round-trips: resolveLink(usage.linkTarget) is the block that holds the usage', () => {
@@ -476,6 +481,7 @@ describe('findUsages() — which blocks reference a definition', () => {
     expect(s.findUsages('signals.mat/kp')).toEqual([
       {
         blockName: 'K',
+        blockPath: 'K',
         blockType: 'Constant',
         paramProperty: 'Value',
         paramValue: 'kp',

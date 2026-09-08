@@ -84,8 +84,12 @@ function stem(name: string): string {
  */
 function shape(model: any): Record<string, string[]> {
   return {
+    // `blockPath` rides along with the name because WHERE a block is has to survive the
+    // container flip too, and the two containers reach a nested block by different
+    // routes: a `.slx` (and a modern `.mdl`) follows a `<System Ref>` to another part,
+    // while a classic `.mdl` nests `System { }` inside the `Block { }` braces.
     blocks: rows(model, 'blocks')
-      .map((n: any) => n.displayName + ' :: ' + n.displayValue + ' :: ' + n.className)
+      .map((n: any) => n.displayName + ' :: ' + n.blockPath + ' :: ' + n.displayValue + ' :: ' + n.className)
       .sort(),
     workspace: rows(model, 'workspace')
       .map((n: any) => [n.displayName, n.dataType, n.className, n.displayValue].join(' :: '))
@@ -154,6 +158,21 @@ for (const key of ['mdlcases', 'mdlmcos']) {
           const wanted = new Set(expectedUsages(t).map((u) => u.split('|')[0]));
           expect(rows(model, 'blocks').map((n: any) => n.name).sort()).toEqual([...wanted].sort());
         });
+
+        const nested = asArray(t.blocks).find((b) => b.type === 'SubSystem');
+        if (nested) {
+          it('says which subsystem a nested block is in', () => {
+            // The claim the classic grammar can lose on its own: its subsystems are
+            // `System { }` blocks nested inside `Block { }` braces, walked by a worklist
+            // rather than by following a part reference, and a worklist that forgot where
+            // it had been would report every block at the root. The parent name is
+            // MATLAB's, so this is not the reader agreeing with itself.
+            const inner = rows(model, 'blocks').find((n: any) => n.name === 'InnerGain');
+            expect(inner.blockPath).toBe(nested.name + '/InnerGain');
+            const root = rows(model, 'blocks').find((n: any) => n.name === 'Gain');
+            expect(root.blockPath).toBe('Gain');
+          });
+        }
 
         it('holds the config sets MATLAB reports, with the same one active', () => {
           const wanted = asArray(t.configSets)

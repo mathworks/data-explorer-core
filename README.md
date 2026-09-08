@@ -100,6 +100,14 @@ gain. A row projected by the data model publishes it as `_blockKey`, and a usage
 `linkTarget` is `` `${sid}@${srcId}` ``. What a cell *shows* is the block's name, or
 `<SID: 15>` for a block whose label the file leaves blank.
 
+Because those four `Gain` blocks are now four rows reading the same word, each also
+carries **where it is**: the model-relative path through the subsystems that hold it,
+as `_systemPath` (the enclosing systems) and `_blockPath` (those plus the block) on a
+row, and as `blockPath` on a `NodeUsage` from either resolver. A `/` inside a name is
+doubled, as `getfullname` writes it. The three rules are exported for a host that
+indexes parse results itself — `blockKey(name, sid)`, `blockLabel(name, sid)` and
+`joinBlockPath(parentPath, label)`.
+
 A `srcId` is the caller's own key for a file and is never parsed; the `filename`
 is what decides the kind. Resolution follows MATLAB: the model workspace shadows
 a linked dictionary, which shadows a linked MAT-file, dictionary references are

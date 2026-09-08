@@ -14,7 +14,7 @@ import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js
 // the same three, and a rule stated twice is a rule that drifts (see fileKinds).
 import { basenameOf, isMatFile, isSlddFile, modelNameOf, refBasename } from '../datamodel/fileKinds.js';
 import { identifiersIn } from '../datamodel/expressions.js';
-import { blockKey, blockLabel } from '../datamodel/blockIdentity.js';
+import { blockKey, blockLabel, joinBlockPath } from '../datamodel/blockIdentity.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 // Whether a query field was actually asked about.
 //
@@ -1090,8 +1090,11 @@ export function createSession(opts = {}) {
                 if (!usage || typeof usage.paramValue !== 'string' || typeof usage.blockName !== 'string') {
                     continue;
                 }
-                // Defensive like every other read here: a host-supplied source may predate the field.
+                // Defensive like every other read here: a host-supplied source may predate either
+                // field, and then the block is identified by its name and sits at the root — which
+                // is what every block in this package looked like before the two arrived.
                 const sid = typeof usage.sid === 'string' ? usage.sid : '';
+                const systemPath = typeof usage.systemPath === 'string' ? usage.systemPath : '';
                 // A Set of the identifiers, because an expression can name one definition twice
                 // (`gravity + gravity`) and that is ONE place it is referenced, not two — which is
                 // what the single-definition form's `includes()` said by construction.
@@ -1106,6 +1109,10 @@ export function createSession(opts = {}) {
                             // `<SID: 65>` and not '' — a cell with a link in it has to have text. See
                             // blockIdentity.
                             blockName: blockLabel(usage.blockName, sid),
+                            // The same join UsageIndex makes, from the same two fields, so the two
+                            // engines that fill this cell agree about where a block is as well as about
+                            // which blocks there are — see test/usageEngines.test.ts.
+                            blockPath: joinBlockPath(systemPath, blockLabel(usage.blockName, sid)),
                             blockType: typeof usage.blockType === 'string' ? usage.blockType : '',
                             paramProperty: typeof usage.paramProperty === 'string' ? usage.paramProperty : '',
                             paramValue: usage.paramValue,

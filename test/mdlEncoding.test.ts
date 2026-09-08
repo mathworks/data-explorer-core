@@ -128,7 +128,9 @@ function relabelled(file: string, label: string): ArrayBuffer {
  * its SID as well as its name; see the run-past-the-quote case.
  */
 function oneRow(blockName: string, sid = '1') {
-  return [{ blockName, blockType: 'Constant', paramProperty: 'Value', paramValue: 'Kp', sid }];
+  // `systemPath` is '' throughout: every one of these files holds a single block in the
+  // ROOT system, so there is no enclosing subsystem for a path to name.
+  return [{ blockName, blockType: 'Constant', paramProperty: 'Value', paramValue: 'Kp', sid, systemPath: '' }];
 }
 
 /** The workspace, less the raw mxarray bytes — those are asserted by their decode. */

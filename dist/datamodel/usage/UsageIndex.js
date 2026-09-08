@@ -37,7 +37,7 @@
 // the time a summary is built. MATLAB would resolve it FIRST — it is the model workspace.
 // It only shows when such a model also links a dictionary defining the same name, and
 // closing it needs the parsers to keep the workspace file apart from the rest.
-import { blockKey, blockLabel } from '../blockIdentity.js';
+import { blockKey, blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { identifiersIn } from '../expressions.js';
 import { basenameOf, isMatFile, isModelFile, isSlddFile, modelNameOf, refBasename } from '../fileKinds.js';
 import { normalizeRefNames, readSlddContent, slddChunkContent } from '../parser/SlddContent.js';
@@ -68,6 +68,7 @@ function modelSummary(parsed, srcId, filename) {
             blockName: u.blockName,
             blockType: u.blockType,
             sid: u.sid ?? '',
+            systemPath: u.systemPath ?? '',
             property: u.paramProperty,
             expression: u.paramValue,
         })),
@@ -192,6 +193,10 @@ export function buildUsageIndex(files) {
             const key = blockKey(param.blockName, param.sid);
             const label = blockLabel(param.blockName, param.sid);
             const target = `${key}@${model.srcId}`;
+            // Where the block is, for a cell that must otherwise print the same word twice for
+            // two different blocks. Joined here rather than carried whole from the parser so
+            // that the label a user reads and the path it sits at cannot disagree.
+            const path = joinBlockPath(param.systemPath, label);
             // A Set: an expression can name the same definition twice (`Kp + Kp`), and that is ONE
             // place it is referenced, not two.
             const names = [...new Set(identifiersIn(param.expression))];
@@ -217,6 +222,7 @@ export function buildUsageIndex(files) {
                 if (!usages.some((u) => u.linkTarget === target)) {
                     usages.push({
                         blockName: label,
+                        blockPath: path,
                         blockType: param.blockType,
                         paramProperty: param.property,
                         paramValue: param.expression,

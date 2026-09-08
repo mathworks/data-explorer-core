@@ -3,7 +3,8 @@
 import BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef, RowData } from '../BaseNode.js';
 import PropName from '../../prop/PropName.js';
-import { blockKey, blockLabel } from '../../blockIdentity.js';
+import PropBlockPath from '../../prop/PropBlockPath.js';
+import { blockKey, blockLabel, joinBlockPath } from '../../blockIdentity.js';
 
 export default class ModelBlockNode extends BaseNode {
   blockType: string;
@@ -12,6 +13,8 @@ export default class ModelBlockNode extends BaseNode {
   paramSourceId: string | null;
   /** Simulink's own identity for this block; '' for a file that records none. */
   sid: string;
+  /** The systems this block is inside, model-relative; '' for one in the root system. */
+  systemPath: string;
 
   constructor(
     name: string,
@@ -21,6 +24,7 @@ export default class ModelBlockNode extends BaseNode {
     modelSrcId: string,
     paramSourceId: string | null,
     sid = '',
+    systemPath = '',
   ) {
     super(name, parent);
     this.blockType = blockType;
@@ -28,6 +32,7 @@ export default class ModelBlockNode extends BaseNode {
     this.modelSrcId = modelSrcId;
     this.paramSourceId = paramSourceId;
     this.sid = sid;
+    this.systemPath = systemPath;
   }
 
   /**
@@ -68,6 +73,17 @@ export default class ModelBlockNode extends BaseNode {
     return this.blockType;
   }
 
+  /**
+   * WHERE this block is — `Controller/Gain`, and just `Gain` for one in the root system.
+   *
+   * Read by PropBlockPath (which ModelReferenceNode already uses, for the same fact about
+   * a different node), so the Property Inspector answers the question a row of same-named
+   * blocks raises. Model-relative and escaped by joinBlockPath — see blockIdentity.
+   */
+  get blockPath(): string {
+    return joinBlockPath(this.systemPath, this.displayName);
+  }
+
   get className(): string {
     return this.paramUsages.map((u) => `${u.property}=${u.value}`).join(', ');
   }
@@ -99,14 +115,22 @@ export default class ModelBlockNode extends BaseNode {
       // would put one block's parameters on another block's row, which is the merge
       // blockIdentity exists to undo.
       _blockKey: blockKey(this.name, this.sid),
+      // Where the block is, for a host that wants to qualify a row a name cannot
+      // distinguish: the enclosing systems, and the whole path. Two fields rather than
+      // one because they answer differently — `Gain` in a cell reading
+      // `Gain (Controller)` needs the parent alone, and the full path is the address —
+      // and because joining them is an escaping rule (blockIdentity.joinBlockPath) that
+      // no consumer should have to repeat.
+      _systemPath: this.systemPath,
+      _blockPath: this.blockPath,
     };
   }
 
   getProperties(): PropClass[] {
-    return [PropName];
+    return [PropName, PropBlockPath];
   }
 
   getPILayout(): PIGroupDef[] {
-    return [{ group: 'General', items: [PropName] }];
+    return [{ group: 'General', items: [PropName, PropBlockPath] }];
   }
 }

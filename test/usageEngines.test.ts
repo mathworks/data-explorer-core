@@ -154,6 +154,26 @@ function expectBothLinks(files: File[], nodeId: string, srcId: string, name: str
   ).toEqual(expected);
 }
 
+// The same two answers read as `label @ path`, for the cases where WHERE the block is has
+// to agree. A third rule (blockIdentity.joinBlockPath) applied in two more places: the
+// session joins the parser's `systemPath` as it collects a usage, the index joins it as it
+// builds one, and a host that fills a cell from either must get the same qualifier.
+function expectBothPaths(files: File[], nodeId: string, srcId: string, name: string, expected: string[]): void {
+  const session = createSession();
+  for (const f of files) {
+    ingest(session, f.bytes, { filename: f.name });
+  }
+  expect(
+    session.findUsages(nodeId).map((u: any) => `${u.blockName} @ ${u.blockPath}`),
+    `session's findUsages for ${nodeId}`,
+  ).toEqual(expected);
+  const index = buildUsageIndex(files.map((f) => ({ srcId: f.name, filename: f.name, bytes: f.bytes })));
+  expect(
+    index.usagesOf(srcId, name).map((u) => `${u.blockName} @ ${u.blockPath}`),
+    `index's usagesOf(${srcId}, ${name})`,
+  ).toEqual(expected);
+}
+
 // mdlcases.mdl is harvested from MATLAB: its own model workspace defines `tau`, `span` and
 // `inner`, its block parameters read `Kp`, `Ki`, `[tau 1]`, `span` and `inner`, and it
 // records `mdlparams.sldd` as its linked dictionary. That dictionary was never harvested —
@@ -316,6 +336,48 @@ describe('identity — a link reaches one block, named by its SID', () => {
       file('p.sldd', slddBytes(['Uo'])),
     ];
     expectBothLinks(files, 'p.sldd/design/Uo', 'p.sldd', 'Uo', ['K -> K@nosid.slx']);
+  });
+
+  it('places both of two same-named blocks, in the same words', () => {
+    // The other half of the merge blockIdentity undid. Two rows named `Gain` are now two
+    // rows, correctly — and identical on screen, so each cell needs the subsystem to say
+    // which is which. That qualifier is worth nothing if the engine that answered decides
+    // how it reads, which is the failure this suite exists to catch.
+    const files = [
+      file(
+        'twosystems.slx',
+        slxModel({
+          dictionary: 'p.sldd',
+          blocks:
+            `<Block BlockType="Gain" Name="Gain" SID="15"><P Name="Gain">Kp</P></Block>` +
+            `<Block BlockType="SubSystem" Name="Controller" SID="20"><System>` +
+            `<Block BlockType="Gain" Name="Gain" SID="24"><P Name="Gain">Kp</P></Block>` +
+            `</System></Block>`,
+        }),
+      ),
+      file('p.sldd', slddBytes(['Kp'])),
+    ];
+    expectBothPaths(files, 'p.sldd/design/Kp', 'p.sldd', 'Kp', ['Gain @ Gain', 'Gain @ Controller/Gain']);
+  });
+
+  it('places a block whose label the user cleared by its stand-in, in both engines', () => {
+    // The path is built from the LABEL, so the two rules compose — and they have to
+    // compose the same way twice, or one engine says `Controller/<SID: 65>` and the other
+    // `Controller/`.
+    const files = [
+      file(
+        'blanknested.slx',
+        slxModel({
+          dictionary: 'p.sldd',
+          blocks:
+            `<Block BlockType="SubSystem" Name="Controller" SID="20"><System>` +
+            `<Block BlockType="Constant" Name="&#xA;" SID="65"><P Name="Value">Uo</P></Block>` +
+            `</System></Block>`,
+        }),
+      ),
+      file('p.sldd', slddBytes(['Uo'])),
+    ];
+    expectBothPaths(files, 'p.sldd/design/Uo', 'p.sldd', 'Uo', ['<SID: 65> @ Controller/<SID: 65>']);
   });
 
   it('resolves the link it hands out back to the block that holds the usage', () => {

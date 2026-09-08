@@ -31,6 +31,7 @@ export interface ModelSummary {
         blockName: string;
         blockType: string;
         sid: string;
+        systemPath: string;
         property: string;
         expression: string;
     }[];

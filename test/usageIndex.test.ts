@@ -134,10 +134,12 @@ describe('summarizeFiles — one summary per file, dispatched on the filename', 
     expect(models).toHaveLength(1);
     expect(models[0].name).toBe('m');
     expect(models[0].slddRefs).toEqual(['params.sldd']);
-    // Name AND sid: a cell reads the name, the index keys on the sid, and a summary that
-    // dropped the sid would leave the index no way to tell two `Gain` blocks apart.
+    // Name AND sid AND systemPath: a cell reads the name, the index keys on the sid, and
+    // the path is where the block sits. A summary that dropped the sid would leave the
+    // index no way to tell two `Gain` blocks apart; one that dropped the path would leave
+    // a cell no way to SHOW which is which.
     expect(models[0].blockParams).toEqual([
-      { blockName: 'G', blockType: 'Gain', property: 'Gain', expression: 'Kp', sid: '1' },
+      { blockName: 'G', blockType: 'Gain', property: 'Gain', expression: 'Kp', sid: '1', systemPath: '' },
     ]);
     expect([...(slddByName.get('params.sldd')?.names ?? [])].sort()).toEqual(['Ki', 'Kp']);
     // The MAT fixture holds a named variable and an unnamed one; a nameless definition is
@@ -281,11 +283,13 @@ describe('buildUsageIndex — the reverse direction, which fills a Usage cell', 
       file('b.slx', slxModel({ dictionary: 'params.sldd', blocks: block('Gb', 'Gain', 'Gain', '2*Kp') })),
       file('params.sldd', slddBytes(['Kp'])),
     ]);
-    // `blockName` is what the cell shows and `linkTarget` is `<sid>@<model>` — the name is
-    // not in the target at all, because a name does not identify a block.
+    // `blockName` is what the cell shows, `blockPath` is where the block is, and
+    // `linkTarget` is `<sid>@<model>` — the name is not in the target at all, because a
+    // name does not identify a block.
     expect(index.usagesOf('params.sldd', 'Kp')).toEqual([
       {
         blockName: 'Ga',
+        blockPath: 'Ga',
         blockType: 'Gain',
         paramProperty: 'Gain',
         paramValue: 'Kp',
@@ -294,6 +298,7 @@ describe('buildUsageIndex — the reverse direction, which fills a Usage cell', 
       },
       {
         blockName: 'Gb',
+        blockPath: 'Gb',
         blockType: 'Gain',
         paramProperty: 'Gain',
         paramValue: '2*Kp',

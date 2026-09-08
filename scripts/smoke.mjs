@@ -19,6 +19,12 @@ const requiredFns = [
   'serializeEntryToXml',
   'ingest',
   'toDTO',
+  // The three block-identity rules. A host bundles dist/ and calls them on the
+  // parse results it holds (its own search index does), so one of them missing from
+  // the built entry point is a broken host build, not a type error.
+  'blockKey',
+  'blockLabel',
+  'joinBlockPath',
 ];
 
 const missingFns = requiredFns.filter((name) => typeof m[name] !== 'function');

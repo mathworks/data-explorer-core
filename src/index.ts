@@ -38,6 +38,14 @@ export type { LinkResolution, NodeUsage, DictionaryReference } from './core/Data
 // copy credited `mode` in `cfg.mode`, inventing a usage for any entry named `mode`. The
 // rule is the shared thing; the scope is not.
 export { identifiersIn } from './datamodel/expressions.js';
+// How a block is identified, labelled and located, for the same reason `identifiersIn` is
+// public: a host that builds an index of its own over `parseModel`'s output — a search
+// index over every block in a folder of models, say — must key a block the way this
+// package does and print it the way this package does, or the two disagree about which
+// blocks a model even has. A name is unique only within one system, so keying by name
+// merges blocks and dropping the blank ones hides them; both are decisions this package
+// has already made once, in blockIdentity.
+export { blockKey, blockLabel, joinBlockPath } from './datamodel/blockIdentity.js';
 export { createEventBus } from './core/EventBus.js';
 export type { EventBusInstance } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';
