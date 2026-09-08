@@ -12,7 +12,7 @@ import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js
 // The name reductions and the expression reading, from the leaf modules that hold the
 // single copy of each. This file used to spell all three itself; the usage index needs
 // the same three, and a rule stated twice is a rule that drifts (see fileKinds).
-import { basenameOf, modelNameOf } from '../datamodel/fileKinds.js';
+import { basenameOf, isMatFile, isSlddFile, modelNameOf, refBasename } from '../datamodel/fileKinds.js';
 import { identifiersIn } from '../datamodel/expressions.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 // Whether a query field was actually asked about.
@@ -614,24 +614,26 @@ export function createSession(opts = {}) {
     //      fileKinds.modelNameOf for why that is a real case rather than a courtesy.
     //
     // Best rank wins, and ties go to the first source opened, so the answer is deterministic
-    // and an exactly-named file is never shadowed by a looser match on another. Case-sensitive
-    // throughout (except the extension itself): a srcId is a host key, not a filesystem
-    // lookup, and folding case here would let two distinct open sources answer as one.
+    // and an exactly-named file is never shadowed by a looser match on another.
     //
-    // ==> That last decision is worth re-examining, and is NOT settled. It is defensible for
-    // rank 4 — a srcId really is the host's key — but ranks 3, 2 and 1 compare a name a MODEL
-    // recorded against a name a FILESYSTEM produced, and those two disagree about case
-    // routinely: a model that links `Params.SLDD` resolves nothing here against an open
-    // `params.sldd`, on file systems (macOS, Windows) that consider them the same file. The
-    // usage index matches such references case-insensitively (fileKinds.refBasename) and
-    // therefore answers differently from this function for the same pair of files. Left alone
-    // here rather than changed on the way past, because narrowing it per rank is a behaviour
-    // change that wants its own tests; see the divergence note in usage/UsageIndex.ts.
+    // CASE is decided per rank, because the two sides being compared are not the same kind of
+    // string at every rank. Rank 4 is exact: a srcId is the HOST's key, not a filesystem
+    // lookup, and folding case there would let two distinct open sources answer as one. Ranks
+    // 3, 2 and 1 compare a name a MODEL recorded against a name a FILESYSTEM produced, and
+    // those two disagree about case routinely — a model that links `Params.SLDD` against an
+    // open `params.sldd`, on the file systems (macOS, Windows) that consider them one file —
+    // so those fold, through the same fileKinds.refBasename the usage index keys its
+    // references by. That is what makes the two answer alike for the same pair of files; they
+    // used to differ here, and the model whose dictionary link was upper-cased resolved
+    // nothing at all in a session while resolving fine over file summaries.
     function openSourceNamed(name) {
         if (!name) {
             return null;
         }
         const stem = modelNameOf(name);
+        // The recorded name, folded, for the ranks that compare against a filesystem name.
+        const key = refBasename(name);
+        const stemKey = stem === null ? null : stem.toLowerCase();
         let best = null;
         for (const [srcId, source] of dataSources) {
             const path = source.meta && typeof source.meta.path === 'string' ? source.meta.path : '';
@@ -639,15 +641,15 @@ export function createSession(opts = {}) {
             if (srcId === name) {
                 rank = 4;
             }
-            else if (basenameOf(srcId) === name) {
+            else if (refBasename(srcId) === key) {
                 rank = 3;
             }
-            else if (path !== '' && basenameOf(path) === name) {
+            else if (path !== '' && refBasename(path) === key) {
                 rank = 2;
             }
-            else if (stem !== null) {
+            else if (stemKey !== null) {
                 const candidateStem = modelNameOf(basenameOf(srcId)) ?? (path !== '' ? modelNameOf(basenameOf(path)) : null);
-                if (candidateStem !== null && candidateStem === stem) {
+                if (candidateStem !== null && candidateStem.toLowerCase() === stemKey) {
                     rank = 1;
                 }
             }
@@ -741,62 +743,165 @@ export function createSession(opts = {}) {
         }
         return { status: 'resolved', sourceId: open.srcId, node: found[0], nodes: found };
     }
-    // Whether `model` could resolve the name `definition` defines — the visibility rule
-    // findUsages applies before crediting any usage.
-    //
-    // Two ways a model reaches a definition, and they are the two MATLAB itself offers:
-    //
-    //   - the model's OWN model workspace, which is private to it. This is why a section
-    //     check is needed rather than just an owner check: a block is also a top-level entry
-    //     of its model, and without this a block named `tau` would collect the usages of the
-    //     workspace variable `tau`.
-    //   - a file the model declares as external data — its linked data dictionary and any
-    //     external `.mat`. Read off the `dataSources` section rather than from the
-    //     `dataDictionary` field, because that section is where ModelNode.fromParsed puts
-    //     BOTH, so one rule covers dictionary entries and MAT variables without naming
-    //     either.
-    //
-    // Everything else is invisible: two unrelated projects open in one session, or a model
-    // linked to a DIFFERENT dictionary that happens to define the same name, must not
-    // collect each other's usages. That is the whole reason this is not just a name match.
-    // `owner` and `definitionSrcId` are passed in rather than re-derived per model: they are
-    // properties of the definition, which does not change across the scan.
-    //
-    // ==> DIVERGENCE from usage/UsageIndex.ts, which answers the same question over file
-    // summaries instead of over registered node trees, and answers it differently in three
-    // ways. This is the predicate to converge on the index, and the reasons are named at both
-    // sites rather than left for whoever next sees one Usage column disagree with the other:
-    //
-    //   - SHADOWING. This is a per-definition PREDICATE, so a block reading `Kp` is credited
-    //     against every visible `Kp` — the model workspace's AND the linked dictionary's. But
-    //     MATLAB resolves one: the workspace shadows the dictionary. The loser is not used by
-    //     that block, and a usage shown against it is a claim about code that does not run.
-    //     Fixing it here means resolving a name ONCE per (model, name) rather than testing
-    //     each definition, which is what the index does.
-    //   - CHAINING. A definition in a sub-dictionary of the linked dictionary is invisible
-    //     here, because only the `dataSources` children are checked and
-    //     resolveDictionaryReferences is deliberately one level. MATLAB follows the chain.
-    //   - CASE. openSourceNamed matches a recorded reference exactly; see the note there.
-    function modelCanSee(model, definition, owner, definitionSrcId) {
-        if (model === owner) {
-            const parent = definition.parent;
-            return parent !== null && parent.name === 'workspace';
+    // The dictionary references `srcId` records, as the file names they are — one reading of a
+    // field that is typed `unknown[]` and spelled two ways, for the two callers that need it:
+    // resolveDictionaryReferences, which projects them for a host, and resolutionOrder, which
+    // chases them to work out what a model can see. See normalizeRefNames for why the reading
+    // is not `refs as string[]`.
+    function dictionaryRefNamesOf(srcId) {
+        const source = dataSources.get(srcId);
+        if (!source) {
+            return [];
         }
+        return normalizeRefNames(source.dictionaryReferences);
+    }
+    // The sources `model` resolves a name against, in MATLAB's order — the visibility rule
+    // findUsages applies, as an ORDER rather than as a per-definition predicate.
+    //
+    // The order matters as much as the membership, and that is the whole reason this is not a
+    // boolean: MATLAB resolves a name ONCE. A block reading `Kp` gets one value, so if the
+    // model workspace and the linked dictionary both define `Kp` the workspace wins and the
+    // dictionary's entry is NOT used by that block — a usage shown against it is a claim about
+    // code that does not run. This function used to be `modelCanSee`, a predicate asked per
+    // definition, which credited every reachable `Kp` and so put a usage on the shadowed one;
+    // the file-summary resolver (usage/UsageIndex.resolveName) always resolved in order, and
+    // the two answered the same question differently. There is now one rule, expressed the
+    // same way in both places, and the order below is that rule:
+    //
+    //   1. the model's OWN model workspace, which is private to it.
+    //   2. the dictionaries it links, and every dictionary those reference, transitively.
+    //      Chased breadth-first, so the nearer file wins, with a seen-set keyed by
+    //      refBasename because a dictionary hierarchy is a graph a user can make cyclic.
+    //      resolveDictionaryReferences is deliberately one level — a host follows a link at a
+    //      time — but a NAME resolves down the whole chain, which is what MATLAB does and
+    //      what made a sub-dictionary's entries show no usages here at all.
+    //   3. its external `.mat` files.
+    //
+    // Read off the `dataSources` section rather than the `dataDictionary` field, because that
+    // section is where ModelNode.fromParsed puts both kinds, in that same order — the linked
+    // dictionary first, then the externals — so one read covers dictionary entries and MAT
+    // variables without naming either. Each recorded name goes through openSourceNamed, the
+    // same matcher a bare link target goes through, so "the dictionary this model links" and
+    // "the dictionary that link points at" can never be answered differently.
+    //
+    // A file NOT in this list is invisible: two unrelated projects open in one session, or a
+    // model linked to a different dictionary that happens to define the same name, must not
+    // collect each other's usages — the reason this is not a name match.
+    //
+    // Cost: once per open model per collectUsages call, which is cheaper than the predicate it
+    // replaces (that one re-walked the declared children, calling openSourceNamed for each,
+    // once for every NAME being asked about).
+    function resolutionOrder(model, modelSrcId) {
+        // Index 0 is the model itself, which is how its own workspace comes first.
+        const order = [modelSrcId];
         // A host-supplied tree (addParsedSource) need not have sections at all.
         const declared = typeof model.getSection === 'function' ? model.getSection('dataSources') : null;
-        if (!declared || !Array.isArray(declared.children)) {
-            return false;
-        }
-        for (const child of declared.children) {
-            // The row's own name is the file name the model recorded, resolved through the same
-            // matcher a bare link target goes through — so "the dictionary this model links" and
-            // "the dictionary that link points at" can never be answered differently.
-            const named = openSourceNamed(child.name);
-            if (named !== null && named.srcId === definitionSrcId) {
-                return true;
+        const children = declared && Array.isArray(declared.children) ? declared.children : [];
+        const dictionaries = [];
+        const mats = [];
+        for (const child of children) {
+            const name = child && typeof child.name === 'string' ? child.name : '';
+            // The shared, case-insensitive kind tests: these strings are whatever the MODEL
+            // recorded, so `EXTRADICT.SLDD` is a real dictionary link and a stricter test would
+            // classify it as neither kind and drop it from the order entirely.
+            if (isSlddFile(name)) {
+                dictionaries.push(name);
+            }
+            else if (isMatFile(name)) {
+                mats.push(name);
             }
         }
-        return false;
+        const seen = new Set();
+        while (dictionaries.length > 0) {
+            const ref = dictionaries.shift();
+            const key = refBasename(ref);
+            if (seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            const open = openSourceNamed(ref);
+            if (open === null) {
+                // Not open, so it defines nothing this session can see — but its own references are
+                // unreachable too, which is why the chase stops here rather than guessing.
+                continue;
+            }
+            order.push(open.srcId);
+            dictionaries.push(...dictionaryRefNamesOf(open.srcId));
+        }
+        for (const ref of mats) {
+            const open = openSourceNamed(ref);
+            if (open !== null) {
+                order.push(open.srcId);
+            }
+        }
+        return order;
+    }
+    // The names one position of a resolution order contributes, which is what makes the
+    // resolution below a question about the FILES rather than about the definitions a caller
+    // happened to ask about. That distinction is the whole of it: collectUsages is asked about
+    // one node by findUsages and about a table's worth by rowsOf, and a shadowed entry must come
+    // out unused either way — resolving among only the asked-about definitions would make the
+    // batch change the answer, and a dictionary entry opened on its own would be credited
+    // because the model workspace variable that shadows it was not in the call.
+    //
+    // At position 0 — the model itself — that is its own model workspace and nothing else. A
+    // block is a top-level entry of its model too, and counting blocks would let a block named
+    // `tau` shadow a dictionary's `tau` for every other block in the file. Every later position
+    // is a dictionary or a `.mat` (see resolutionOrder), whose definitions are its top-level
+    // entries: a dictionary keeps them under sections (design, arch, …) and a `.mat` directly
+    // under its root, so an entry is taken wherever it sits at either depth rather than by
+    // naming the sections. `isEntry` is the same gate collectUsages admits definitions through.
+    //
+    // NOT asked through entriesNamed/findNodes, which is the lookup resolveLink uses for the
+    // same "does this file define this name" question: that is a pass over the flat node index
+    // per name, and a five-hundred-row table would ask it five hundred times per source in the
+    // order. A name set per source is one shallow walk, memoized for the scan — the same cost
+    // decision rowsOf() documents.
+    function definedNamesOf(srcId, asModel) {
+        const names = new Set();
+        const source = dataSources.get(srcId);
+        if (!source) {
+            return names;
+        }
+        // Defensive for the reason the scan above is: addParsedSource takes a tree this package
+        // did not build, and one malformed source must not take the whole answer down.
+        const add = (node) => {
+            if (node && node.isEntry === true && typeof node.name === 'string' && node.name !== '') {
+                names.add(node.name);
+            }
+        };
+        const childrenOf = (node) => node && Array.isArray(node.children) ? node.children : [];
+        if (asModel) {
+            const workspace = typeof source.getSection === 'function' ? source.getSection('workspace') : null;
+            for (const child of childrenOf(workspace)) {
+                add(child);
+            }
+            return names;
+        }
+        for (const child of childrenOf(source)) {
+            add(child); // a `.mat` keeps its variables at the root
+            for (const grandchild of childrenOf(child)) {
+                add(grandchild); // a dictionary keeps its entries under a section
+            }
+        }
+        return names;
+    }
+    // Where `definition` sits in a model's resolution order, or null when the model cannot
+    // reach it at all. Only a definition sitting at the position the NAME resolved to is
+    // credited — see collectUsages.
+    //
+    // `owner` and `definitionSrcId` are passed in rather than re-derived per model: they are
+    // properties of the definition, which does not change across the scan.
+    function definitionRank(model, definition, owner, definitionSrcId, rankOf) {
+        if (model === owner) {
+            // The model's own tree, so a section check is needed and not just an owner check: a
+            // block is also a top-level entry of its model, and without this a block named `tau`
+            // would collect the usages of the workspace variable `tau`.
+            const parent = definition.parent;
+            return parent !== null && parent.name === 'workspace' ? 0 : null;
+        }
+        const rank = rankOf.get(definitionSrcId);
+        return rank === undefined ? null : rank;
     }
     /**
      * Every block parameter that references the definition `nodeId` names — the reverse of
@@ -814,8 +919,9 @@ export function createSession(opts = {}) {
      * the common case handle three shapes. The file-level reverse direction is deliberately
      * not part of this.
      *
-     * Visibility is enforced, not assumed — see modelCanSee. A name match alone would make
-     * two unrelated projects open in one session report each other's usages.
+     * Visibility is enforced, not assumed — see resolutionOrder. A name match alone would make
+     * two unrelated projects open in one session report each other's usages, and a name match
+     * over everything VISIBLE would credit a definition the model's own workspace shadows.
      *
      * Cost: a scan over the block-parameter lists the open models already hold, per call,
      * with NO reverse index. Deliberate, and the same decision findNodes documents: a
@@ -898,11 +1004,50 @@ export function createSession(opts = {}) {
             // Visibility is a property of (model, definition) and does not vary across the usage
             // list, so it is settled once per source before the list is walked at all — which is
             // what the single-definition form did too, one definition at a time.
+            const ranked = [];
+            const rankOf = new Map();
+            for (const id of resolutionOrder(source, srcId)) {
+                // First occurrence wins: a file this model both links and reaches through another
+                // dictionary's references resolves at the nearer position. Deduplicated here so that
+                // a position in the order and a rank are the same number.
+                if (!rankOf.has(id)) {
+                    rankOf.set(id, ranked.length);
+                    ranked.push(id);
+                }
+            }
+            // The name sets, memoized, and built only for the positions a name is actually looked
+            // for in: a model whose own workspace defines everything its blocks read never walks
+            // its dictionary at all.
+            const definedAt = ranked.map(() => null);
+            const namesAt = (i) => {
+                const known = definedAt[i];
+                if (known !== null) {
+                    return known;
+                }
+                const built = definedNamesOf(ranked[i], i === 0);
+                definedAt[i] = built;
+                return built;
+            };
             const visible = new Map();
             for (const [name, defs] of byName) {
-                const reachable = defs.filter((d) => modelCanSee(source, d.node, d.owner, d.srcId));
-                if (reachable.length > 0) {
-                    visible.set(name, reachable);
+                // The name is resolved ONCE, against the FILES, and only the position it resolves to
+                // is credited, because that is the one value the block reads — see resolutionOrder and
+                // definedNamesOf. Every definition AT that position is credited, not just one: a
+                // dictionary can hold the same name in two sections at once (a design entry and its
+                // derived counterpart), and those are one resolution.
+                let resolved = -1;
+                for (let i = 0; i < ranked.length; i++) {
+                    if (namesAt(i).has(name)) {
+                        resolved = i;
+                        break;
+                    }
+                }
+                if (resolved === -1) {
+                    continue;
+                }
+                const winners = defs.filter((def) => definitionRank(source, def.node, def.owner, def.srcId, rankOf) === resolved);
+                if (winners.length > 0) {
+                    visible.set(name, winners);
                 }
             }
             if (visible.size === 0) {
@@ -1026,26 +1171,20 @@ export function createSession(opts = {}) {
      * One level, not a chain, for the same reason: a resolved sub-dictionary's own
      * references are the next question, asked the same way. Recursing here would also have
      * to decide what to do about a cycle, which is a decision nothing has asked for yet.
+     * Resolving a NAME is a different matter and does follow the chain — see resolutionOrder,
+     * which reads the same field through the same helper and does carry a seen-set.
      */
     function resolveDictionaryReferences(srcId) {
-        const source = dataSources.get(srcId);
-        if (!source) {
-            return [];
-        }
         // The field is absent for every format but `.sldd`, and empty for a dictionary that
         // references nothing. Both are "no references", which is the honest answer to the
-        // question, and normalizeRefNames gives it for either.
-        const refs = source.dictionaryReferences;
-        // Through the shared normalisation, because the field is `unknown[]` for a reason: a
-        // reference is a bare string in a compressed dictionary and can be a `{ file: ... }`
-        // object in a textual one, and which form a file uses is a property of its WRITER, not
-        // of the reference. This loop used to accept only strings and skip everything else, so
-        // the same dictionary saved both ways resolved its sub-dictionaries in one form and
-        // reported having NONE in the other — the inherited entries invisible again, in exactly
-        // the case this function exists to fix. normalizeRefNames drops what carries no usable
-        // name, which keeps the old guard's point: 'undefined' is not a file name, and reporting
-        // one would send a host looking for it.
-        return normalizeRefNames(refs).map((name) => ({ name, resolution: resolveLink(name) }));
+        // question, and dictionaryRefNamesOf gives it for either — through the shared
+        // normalisation, because the field is `unknown[]` for a reason: a reference is a bare
+        // string in a compressed dictionary and can be a `{ file: ... }` object in a textual one,
+        // and which form a file uses is a property of its WRITER, not of the reference. This loop
+        // used to accept only strings and skip everything else, so the same dictionary saved both
+        // ways resolved its sub-dictionaries in one form and reported having NONE in the other —
+        // the inherited entries invisible again, in exactly the case this function exists to fix.
+        return dictionaryRefNamesOf(srcId).map((name) => ({ name, resolution: resolveLink(name) }));
     }
     function reindexAll() {
         nodeIndex.clear();

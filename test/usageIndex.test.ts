@@ -6,16 +6,18 @@
 // session.findUsages answers the same question for sources REGISTERED in a session, and
 // cannot answer it for a folder: the answer is read off node trees, so asking about a
 // hundred models means holding a hundred trees. This index answers it off file summaries
-// instead, and the two therefore differ where scope matters:
+// instead, and applies the same visibility rule:
 //
-//   - a definition is resolved ONCE per (model, name), so a model workspace variable
-//     SHADOWS the dictionary entry of the same name and only the winner collects a usage;
+//   - a name is resolved ONCE per (model, name), so a model workspace variable SHADOWS the
+//     dictionary entry of the same name and only the winner collects a usage;
 //   - dictionary references are followed transitively;
 //   - a reference is matched case-insensitively, as the file systems these live on do.
 //
-// Those three are what the tests below pin, because they are what the visibility rule in
-// DataModel.ts gets wrong today and what step 2 has to converge on (see the divergence
-// notes at both sites). The rest — dedupe, the two directions, the unresolved arm — is the
+// Those three are what the tests below pin on THIS side. They are also where the session
+// used to differ — it credited everything a model could reach, chased no reference, and
+// matched a recorded name case-sensitively — and the agreement between the two engines is
+// pinned separately, in usageEngines.test.ts, which asks both the same question about the
+// same files. The rest here — dedupe, the two directions, the unresolved arm — is the
 // contract a host renders a Usage column from.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -223,8 +225,9 @@ describe('resolveName — MATLAB’s order, first hit wins', () => {
 
   it('follows a dictionary chain, however deep', () => {
     // A definition in a SUB-dictionary is visible to MATLAB and to this. The session's
-    // resolveDictionaryReferences is deliberately one level, so it is not visible there —
-    // named at both sites as the second divergence to close.
+    // resolveDictionaryReferences is deliberately one level — a host follows a link at a
+    // time — but a NAME resolves down the whole chain there too, which is what the session
+    // did not do until resolutionOrder replaced its per-definition predicate.
     const chain = new Map([
       ['a.sldd', dataOf('a.sldd', [], ['b.sldd'])],
       ['b.sldd', dataOf('b.sldd', [], ['c.sldd'])],
@@ -353,10 +356,9 @@ describe('buildUsageIndex — the reverse direction, which fills a Usage cell', 
   });
 
   it('matches a reference across a difference of CASE', () => {
-    // The third divergence. A model links `Params.SLDD` and the file on disk is
-    // `params.sldd`; macOS and Windows both consider those the same file, and the session's
-    // openSourceNamed does not. A usage that is plainly there must not go missing over the
-    // spelling of a file name.
+    // A model links `Params.SLDD` and the file on disk is `params.sldd`; macOS and Windows
+    // both consider those the same file, and the session's openSourceNamed used not to. A
+    // usage that is plainly there must not go missing over the spelling of a file name.
     const index = buildUsageIndex([
       file('m.slx', slxModel({ dictionary: 'Params.SLDD', blocks: block('G', 'Gain', 'Gain', 'Kp') })),
       file('params.sldd', slddBytes(['Kp'])),
