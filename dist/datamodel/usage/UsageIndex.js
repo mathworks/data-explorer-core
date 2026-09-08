@@ -15,24 +15,28 @@
 // A summary is small — names, links, and the block parameters — so a workspace-sized set
 // is affordable and needs no session, no node trees and no singleton.
 //
-// ==> DIVERGENCE, to be closed. This is currently the SECOND implementation of visibility
-// in this package, and the two do not agree. `modelCanSee` (DataModel.ts), which findUsages
-// applies, differs from `resolveName` below in three ways:
+// There are two implementations of visibility in this package — this one over file
+// summaries, and the session's over registered node trees (DataModel.resolutionOrder, which
+// findUsages applies) — and they now answer alike. They did not: the session credited every
+// definition a model could REACH, chased no dictionary reference, and matched a recorded
+// reference case-sensitively, so for the same two files it reported a usage this module
+// did not (a shadowed dictionary entry) and missed ones it did (a sub-dictionary's entry, a
+// model linking `Params.SLDD`). A host showing both — data-explorer-vscode fills the column
+// from this index and falls back to the session for a model it cannot find on disk — showed
+// whichever engine happened to answer, which is how the shadowed usage was found.
 //
-//   - SHADOWING. modelCanSee credits every visible definition of a name, so a block reading
-//     `Kp` collects a usage against the model workspace's `Kp` AND the linked dictionary's.
-//     MATLAB resolves one: the workspace shadows the dictionary, which shadows the MAT. Only
-//     the winner is a real usage; the others are claims about code that does not run.
-//   - CHAINING. resolveDictionaryReferences is documented as one level, not a chain, so a
-//     definition in a SUB-dictionary of the linked dictionary is invisible to findUsages.
-//     MATLAB sees it, and so does this module.
-//   - CASE. openSourceNamed matches a reference exactly, so a model that links
-//     `Params.SLDD` resolves nothing against `params.sldd` — the bug this module's
-//     refBasename keying exists to avoid.
+// The rule below is the one both express: model workspace, then the dictionary chain, then
+// the MATs, first hit wins. Two implementations remain because the INPUTS genuinely differ
+// (bytes on disk versus trees in a session, and neither can be had from the other), so the
+// agreement is pinned by test rather than by construction — see test/usageEngines.test.ts,
+// which asks both the same question about the same files.
 //
-// Both must end up calling one rule; this file is the one that has it right, and it is the
-// direction to move in. Until then, the two are named at both sites rather than left to be
-// found by whoever next sees the column disagree with itself.
+// ==> OPEN, and not the same question: a model whose WORKSPACE is sourced from a `.mat`
+// (`WSDataSource: 'MAT-File'`) resolves that file last here, with the other externals,
+// because both parsers merge it into `externalDataSources` and the distinction is gone by
+// the time a summary is built. MATLAB would resolve it FIRST — it is the model workspace.
+// It only shows when such a model also links a dictionary defining the same name, and
+// closing it needs the parsers to keep the workspace file apart from the rest.
 import { identifiersIn } from '../expressions.js';
 import { basenameOf, isMatFile, isModelFile, isSlddFile, modelNameOf, refBasename } from '../fileKinds.js';
 import { normalizeRefNames, readSlddContent, slddChunkContent } from '../parser/SlddContent.js';
