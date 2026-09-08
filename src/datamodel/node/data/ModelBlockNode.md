@@ -20,9 +20,28 @@ The node carries:
 - `paramUsages` — array of `{property, value}` pairs showing workspace refs
 - `modelSrcId` — navigation target for the model graph
 - `paramSourceId` — optional link target for parameter navigation
+- `sid` — Simulink's own identity for the block, `''` for a file that records none
+
+## Identity: the SID, not the name
+
+`id` is `` `${parent.id}/${blockKey(name, sid)}` `` — the **SID**, e.g.
+`f14.slx/blocks/65` — and `displayName` is `blockLabel(name, sid)`, which is the name
+or `<SID: 65>` when the file records none. Both rules live in
+`src/datamodel/blockIdentity.ts`; see item 21 in `docs/TODO.md` for the evidence.
+
+Why they are separate: a block name is unique **within its own system** only. `f14.slx`
+holds four blocks named `Gain`, so a name-keyed id gave all four
+`f14.slx/blocks/Gain` and the section merged them into one row reading
+`Gain=Mq, Gain=Zw, Gain=Kf, Gain=Zw`. A name may also be **blank** — clearing a label
+leaves `Name="&#xA;"` in the file, which normalizes to `''` — which made the id
+`f14.slx/blocks/` and left the Name cell and every link to that block with no text.
 
 Its `toRow()` emits a specialized row with a `_graphTarget` for model navigation
 and optional `linkTarget` in the DataType column for parameter cross-referencing.
+It also publishes `_blockKey` — the same key the id is built from — because that is
+what `UsageIndex.paramsOf(modelSrcId, blockKey)` is asked with and what a
+`NodeUsage.linkTarget` back to this block carries. A host must join on `_blockKey`
+and never on `Name.label`: the label is not unique and may be a stand-in.
 
 The target is `` `${firstParamValue}@${paramSourceId}` `` — e.g. `Kp@mdlparams.sldd`.
 A host follows it with `session.resolveLink(target)`, which parses the shape, finds

@@ -17,6 +17,7 @@ import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js
 // the same three, and a rule stated twice is a rule that drifts (see fileKinds).
 import { basenameOf, isMatFile, isSlddFile, modelNameOf, refBasename } from '../datamodel/fileKinds.js';
 import { identifiersIn } from '../datamodel/expressions.js';
+import { blockKey, blockLabel } from '../datamodel/blockIdentity.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 import type { INode, IContainerNode, ISourceNode, IAllNode, SourceMeta } from './NodeInterfaces.js';
 import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
@@ -106,7 +107,7 @@ export type LinkResolution =
  * the whole result unclonable for the consumer it exists to serve. A caller that wants
  * the block node itself passes `linkTarget` straight back to resolveLink().
  *
- * `linkTarget` is `blockName@modelSrcId` — the SAME grammar ModelBlockNode writes for
+ * `linkTarget` is `blockKey@modelSrcId` — the SAME grammar ModelBlockNode writes for
  * the forward direction, so the reverse link needs no second target format and no
  * second resolver. It round-trips: resolveLink(usage.linkTarget) is the block node.
  *
@@ -116,7 +117,11 @@ export type LinkResolution =
  * not agree on it. The four facts a label could want are all here separately.
  */
 export interface NodeUsage {
-  /** The block's name, as its node is named — 'Const'. */
+  /**
+   * What the block READS as — 'Const', or `<SID: 65>` for one whose label the model does
+   * not give (blockIdentity.blockLabel). Display text, and not an identity: two blocks of
+   * one model can share it. `linkTarget` is what tells them apart.
+   */
   blockName: string;
   /** The block's type — 'Constant'. Empty when the model did not record one. */
   blockType: string;
@@ -126,7 +131,10 @@ export interface NodeUsage {
   paramValue: string;
   /** The srcId of the model the block is in, as getDataSourceIds() reports it. */
   modelSrcId: string;
-  /** A target resolveLink() turns back into the block node — `blockName@modelSrcId`. */
+  /**
+   * A target resolveLink() turns back into the block node — `blockKey@modelSrcId`, the key
+   * being the block's SID where the file records one (blockIdentity.blockKey).
+   */
   linkTarget: string;
 }
 
@@ -902,6 +910,32 @@ function entriesNamed(srcId: string, name: string): INode[] {
   return candidates.filter((node) => node.name === name && node.isEntry === true);
 }
 
+// The block of `srcId` whose KEY is `key` — its SID, or its name in a file that records
+// no SIDs (blockIdentity.blockKey).
+//
+// A second way into a model's blocks, needed because a block is the one entry this package
+// does NOT identify by name: findUsages answers with `65@engine.slx`, and a SID is not a
+// MATLAB identifier, so the name lookup above cannot find it however the string is read.
+// Scanning the section beats an index: a model's blocks are the few that use a parameter,
+// and following a link is a click.
+function blockWithKey(srcId: string, key: string): INode | null {
+  const source = dataSources.get(srcId);
+  const section =
+    source && typeof (source as { getSection?: unknown }).getSection === 'function'
+      ? ((source as unknown as { getSection: (k: string) => INode | null }).getSection('blocks') as INode | null)
+      : null;
+  if (!section || !Array.isArray(section.children)) {
+    return null;
+  }
+  for (const child of section.children) {
+    const sid = (child as unknown as { sid?: unknown }).sid;
+    if (blockKey(child.name, typeof sid === 'string' ? sid : '') === key) {
+      return child;
+    }
+  }
+  return null;
+}
+
 /**
  * The node a `linkTarget` points at, or why it could not be reached.
  *
@@ -965,6 +999,13 @@ function resolveLink(target: string): LinkResolution {
     }
   }
   if (found.length === 0) {
+    // Nothing NAMED that, so the last thing the target can be is a block key — the
+    // reverse direction's own grammar (see NodeUsage.linkTarget). Tried last, and only on
+    // a miss, so a model that does hold an entry by this name still answers with it.
+    const block = blockWithKey(open.srcId, name);
+    if (block !== null) {
+      return { status: 'resolved', sourceId: open.srcId, node: block, nodes: [block] };
+    }
     return { status: 'not-found', sourceId: open.srcId, name };
   }
   return { status: 'resolved', sourceId: open.srcId, node: found[0], nodes: found };
@@ -1293,10 +1334,18 @@ function collectUsages(definitions: INode[]): Map<string, NodeUsage[]> {
       continue;
     }
     for (const raw of declared) {
-      const usage = raw as { blockName?: unknown; blockType?: unknown; paramProperty?: unknown; paramValue?: unknown };
+      const usage = raw as {
+        blockName?: unknown;
+        blockType?: unknown;
+        paramProperty?: unknown;
+        paramValue?: unknown;
+        sid?: unknown;
+      };
       if (!usage || typeof usage.paramValue !== 'string' || typeof usage.blockName !== 'string') {
         continue;
       }
+      // Defensive like every other read here: a host-supplied source may predate the field.
+      const sid = typeof usage.sid === 'string' ? usage.sid : '';
       // A Set of the identifiers, because an expression can name one definition twice
       // (`gravity + gravity`) and that is ONE place it is referenced, not two — which is
       // what the single-definition form's `includes()` said by construction.
@@ -1307,14 +1356,19 @@ function collectUsages(definitions: INode[]): Map<string, NodeUsage[]> {
         }
         for (const target of targets) {
           target.usages.push({
-            blockName: usage.blockName,
+            // What the block READS as, which for a block whose label a user cleared is
+            // `<SID: 65>` and not '' — a cell with a link in it has to have text. See
+            // blockIdentity.
+            blockName: blockLabel(usage.blockName, sid),
             blockType: typeof usage.blockType === 'string' ? usage.blockType : '',
             paramProperty: typeof usage.paramProperty === 'string' ? usage.paramProperty : '',
             paramValue: usage.paramValue,
             modelSrcId: srcId,
             // The forward grammar, reversed: an entry of the model named by the model. See
-            // NodeUsage for why this and not a second target format.
-            linkTarget: usage.blockName + '@' + srcId,
+            // NodeUsage for why this and not a second target format. The name part is the
+            // block's KEY rather than its label, because two blocks in one model can share
+            // a label and a link has to reach the one that holds the parameter.
+            linkTarget: blockKey(usage.blockName, sid) + '@' + srcId,
           });
         }
       }

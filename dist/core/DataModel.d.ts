@@ -96,7 +96,7 @@ export type LinkResolution = {
  * the whole result unclonable for the consumer it exists to serve. A caller that wants
  * the block node itself passes `linkTarget` straight back to resolveLink().
  *
- * `linkTarget` is `blockName@modelSrcId` — the SAME grammar ModelBlockNode writes for
+ * `linkTarget` is `blockKey@modelSrcId` — the SAME grammar ModelBlockNode writes for
  * the forward direction, so the reverse link needs no second target format and no
  * second resolver. It round-trips: resolveLink(usage.linkTarget) is the block node.
  *
@@ -106,7 +106,11 @@ export type LinkResolution = {
  * not agree on it. The four facts a label could want are all here separately.
  */
 export interface NodeUsage {
-    /** The block's name, as its node is named — 'Const'. */
+    /**
+     * What the block READS as — 'Const', or `<SID: 65>` for one whose label the model does
+     * not give (blockIdentity.blockLabel). Display text, and not an identity: two blocks of
+     * one model can share it. `linkTarget` is what tells them apart.
+     */
     blockName: string;
     /** The block's type — 'Constant'. Empty when the model did not record one. */
     blockType: string;
@@ -116,7 +120,10 @@ export interface NodeUsage {
     paramValue: string;
     /** The srcId of the model the block is in, as getDataSourceIds() reports it. */
     modelSrcId: string;
-    /** A target resolveLink() turns back into the block node — `blockName@modelSrcId`. */
+    /**
+     * A target resolveLink() turns back into the block node — `blockKey@modelSrcId`, the key
+     * being the block's SID where the file records one (blockIdentity.blockKey).
+     */
     linkTarget: string;
 }
 /**

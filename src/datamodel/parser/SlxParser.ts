@@ -19,6 +19,12 @@ export interface BlockParamUsage {
   blockType: string;
   paramProperty: string;
   paramValue: string;
+  /**
+   * The block's SID — Simulink's own identity for it, unique within the MODEL where
+   * the name is unique only within its system. '' for a classic `.mdl` older than
+   * R2010b, which records none. See blockIdentity, which is where this is read.
+   */
+  sid: string;
 }
 
 /**
@@ -592,6 +598,10 @@ function extractBlockParamUsages(
       const b = block as Record<string, unknown>;
       const blockName = normalizeBlockName((b['@_Name'] as string) || '');
       const blockType = (b['@_BlockType'] as string) || '';
+      // String() rather than a cast: the SID is an attribute and this parser leaves
+      // attributes as text, but a SID is digits and one option flip away from
+      // arriving as a number.
+      const sid = b['@_SID'] === undefined || b['@_SID'] === null ? '' : String(b['@_SID']);
       const props = b['P'];
       if (!props) continue;
       const propList = Array.isArray(props) ? props : [props];
@@ -600,7 +610,7 @@ function extractBlockParamUsages(
         const propName = pObj['@_Name'] as string;
         const val = (pObj['#text'] as string) || '';
         if (!isParamReference(propName, val)) continue;
-        usages.push({ blockName, blockType, paramProperty: propName, paramValue: val });
+        usages.push({ blockName, blockType, paramProperty: propName, paramValue: val, sid });
       }
     }
   }

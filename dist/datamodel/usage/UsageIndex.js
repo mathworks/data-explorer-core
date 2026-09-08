@@ -37,6 +37,7 @@
 // the time a summary is built. MATLAB would resolve it FIRST — it is the model workspace.
 // It only shows when such a model also links a dictionary defining the same name, and
 // closing it needs the parsers to keep the workspace file apart from the rest.
+import { blockKey, blockLabel } from '../blockIdentity.js';
 import { identifiersIn } from '../expressions.js';
 import { basenameOf, isMatFile, isModelFile, isSlddFile, modelNameOf, refBasename } from '../fileKinds.js';
 import { normalizeRefNames, readSlddContent, slddChunkContent } from '../parser/SlddContent.js';
@@ -66,6 +67,7 @@ function modelSummary(parsed, srcId, filename) {
         blockParams: (parsed.blockParamUsages ?? []).map((u) => ({
             blockName: u.blockName,
             blockType: u.blockType,
+            sid: u.sid ?? '',
             property: u.paramProperty,
             expression: u.paramValue,
         })),
@@ -168,7 +170,10 @@ export function resolveName(model, name, slddByName, matByName) {
     return null;
 }
 const reverseKey = (srcId, name) => `${srcId}\n${name}`;
-const forwardKey = (modelSrcId, blockName) => `${modelSrcId}\n${blockName}`;
+// Keyed by the block's KEY (its SID), which is what paramsOf is asked with. Keying this by
+// name merged every same-named block in a model: in f14.slx one lookup of `Gain` answered
+// with four different blocks' gains.
+const forwardKey = (modelSrcId, blockKey) => `${modelSrcId}\n${blockKey}`;
 /**
  * Build the index over a set of files.
  *
@@ -182,6 +187,11 @@ export function buildUsageIndex(files) {
     const forward = new Map();
     for (const model of models) {
         for (const param of model.blockParams) {
+            // Which block this is, and what it reads as — see blockIdentity. The target carries
+            // the key, the cell shows the label, and for most blocks they are the same string.
+            const key = blockKey(param.blockName, param.sid);
+            const label = blockLabel(param.blockName, param.sid);
+            const target = `${key}@${model.srcId}`;
             // A Set: an expression can name the same definition twice (`Kp + Kp`), and that is ONE
             // place it is referenced, not two.
             const names = [...new Set(identifiersIn(param.expression))];
@@ -198,23 +208,27 @@ export function buildUsageIndex(files) {
                 if (!origin) {
                     origin = { ...resolved, name };
                 }
-                const key = reverseKey(resolved.srcId, name);
-                const usages = reverse.get(key) ?? [];
-                if (!usages.some((u) => u.blockName === param.blockName && u.modelSrcId === model.srcId)) {
+                const index = reverseKey(resolved.srcId, name);
+                const usages = reverse.get(index) ?? [];
+                // One entry per BLOCK, and `target` identifies the block and its model together —
+                // which is the old two-field test made exact. Two blocks named `Gain` using the
+                // same variable are two usages of it, and used to collapse into one link that
+                // could only reach whichever came first.
+                if (!usages.some((u) => u.linkTarget === target)) {
                     usages.push({
-                        blockName: param.blockName,
+                        blockName: label,
                         blockType: param.blockType,
                         paramProperty: param.property,
                         paramValue: param.expression,
                         modelSrcId: model.srcId,
                         // The forward grammar reversed, the same target findUsages produces, so a host
                         // resolves a usage the same way whichever resolver answered it.
-                        linkTarget: `${param.blockName}@${model.srcId}`,
+                        linkTarget: target,
                     });
                 }
-                reverse.set(key, usages);
+                reverse.set(index, usages);
             }
-            const params = forward.get(forwardKey(model.srcId, param.blockName)) ?? [];
+            const params = forward.get(forwardKey(model.srcId, key)) ?? [];
             params.push({
                 property: param.property,
                 expression: param.expression,
@@ -226,13 +240,13 @@ export function buildUsageIndex(files) {
                 // this itself, which is what it already does with the targets nodes produce.
                 linkTarget: origin ? `${origin.name}@${origin.srcId}` : '',
             });
-            forward.set(forwardKey(model.srcId, param.blockName), params);
+            forward.set(forwardKey(model.srcId, key), params);
         }
     }
     return {
         models,
         usagesOf: (srcId, name) => reverse.get(reverseKey(srcId, name)) ?? [],
-        paramsOf: (modelSrcId, blockName) => forward.get(forwardKey(modelSrcId, blockName)) ?? [],
+        paramsOf: (modelSrcId, key) => forward.get(forwardKey(modelSrcId, key)) ?? [],
     };
 }
 //# sourceMappingURL=UsageIndex.js.map

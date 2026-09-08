@@ -116,8 +116,11 @@ describe('UsedBy — the reverse projection, in the row a host already renders',
     // Verbatim the sentence item 4 asks for: `Kp` in mdlparams.sldd is used by `Const`
     // in mdlcases.mdl. Read off the row projection, not off findUsages, because the
     // column being blank in a host that calls toRow() was the whole defect.
+    // The text is the block's name and the target is its SID (1 in this file) — the cell
+    // shows what a user recognises and links by what identifies the block. See
+    // blockIdentity: a name is unique within a system only.
     expect(usedByOf(s, 'mdlparams.sldd/design/Kp')).toEqual({
-      links: [{ text: 'Const', linkTarget: 'Const@mdlcases.mdl' }],
+      links: [{ text: 'Const', linkTarget: '1@mdlcases.mdl' }],
     });
   });
 
@@ -141,7 +144,8 @@ describe('UsedBy — the reverse projection, in the row a host already renders',
     // target is the usage's own, and the usage's own is the forward grammar reversed.
     const back = s.resolveLink(cell.links[0].linkTarget);
     expect(back.status).toBe('resolved');
-    expect(back.node).toBe(s.findNodeById('mdlcases.mdl/blocks/Const'));
+    expect(back.node).toBe(s.findNodeById('mdlcases.mdl/blocks/1'));
+    expect(back.node.displayName).toBe('Const');
   });
 
   it('lists every block in one model that references the entry, in the model’s own order', () => {
@@ -192,11 +196,11 @@ describe('UsedBy — the reverse projection, in the row a host already renders',
     // case that made both directions of link resolution read a parameter as an
     // expression rather than as a name.
     expect(usedByOf(s, 'mdlcases.mdl/workspace/tau')).toEqual({
-      links: [{ text: 'TF', linkTarget: 'TF@mdlcases.mdl' }],
+      links: [{ text: 'TF', linkTarget: '3@mdlcases.mdl' }],
     });
     // A block in a nested subsystem is a usage the same way — the usages are the
     // model's, not one system's.
-    expect(linksOf(usedByOf(s, 'mdlcases.mdl/workspace/inner'))).toEqual(['InnerGain -> InnerGain@mdlcases.mdl']);
+    expect(linksOf(usedByOf(s, 'mdlcases.mdl/workspace/inner'))).toEqual(['InnerGain -> 8@mdlcases.mdl']);
   });
 
   it('credits a dictionary entry referenced through an expression', () => {
@@ -264,7 +268,7 @@ describe('UsedBy — a definition nothing uses gets no cell at all', () => {
     // A BLOCK is technically an entry of its model, and "which blocks use this block"
     // is a different question with a different answer shape. Its row still carries the
     // FORWARD link, in DataType, which is where it always was.
-    const blockRow = rowFor('mdlcases.mdl/blocks/Const');
+    const blockRow = rowFor('mdlcases.mdl/blocks/1');
     expect('UsedBy' in blockRow).toBe(false);
     expect(blockRow.DataType).toEqual({ text: 'Value=Kp', linkTarget: 'Kp@mdlparams.sldd' });
     // An external-data FILE row is the file-level reverse direction ("which models use

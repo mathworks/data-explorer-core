@@ -385,7 +385,10 @@ describe('findUsages() — which blocks reference a definition', () => {
         paramProperty: 'Denominator',
         paramValue: '[tau 1]',
         modelSrcId: 'mdlcases.mdl',
-        linkTarget: 'TF@mdlcases.mdl',
+        // `<sid>@<model>`: the cell reads `TF` and the link carries SID 3, which is what
+        // this file records for that block. A name would not identify it — see
+        // blockIdentity, and the four blocks named `Gain` in f14.slx.
+        linkTarget: '3@mdlcases.mdl',
       },
     ]);
     // A variable a nested subsystem's block references is found too — usages are the
@@ -401,7 +404,10 @@ describe('findUsages() — which blocks reference a definition', () => {
     // assembling any string of its own.
     const back = s.resolveLink(usage.linkTarget);
     expect(back.status).toBe('resolved');
-    expect(back.node).toBe(s.findNodeById('mdlcases.mdl/blocks/TF'));
+    expect(back.node).toBe(s.findNodeById('mdlcases.mdl/blocks/3'));
+    // Which is the block the file calls `TF` — the target names it by SID, and what it
+    // resolves to still reads as the name.
+    expect(back.node.displayName).toBe('TF');
   });
 
   it('reports every block that references one dictionary entry', () => {
@@ -509,8 +515,8 @@ describe('findUsages() — which blocks reference a definition', () => {
     // does — but "which blocks use this block" is a different question with a different
     // answer shape, and this is not it. The reverse direction for a model or a
     // sub-dictionary is deliberately out of scope; see resolveDictionaryReferences.
-    expect(s.findNodeById('mdlcases.mdl/blocks/TF')).not.toBe(null);
-    expect(s.findUsages('mdlcases.mdl/blocks/TF')).toEqual([]);
+    expect(s.findNodeById('mdlcases.mdl/blocks/3')).not.toBe(null);
+    expect(s.findUsages('mdlcases.mdl/blocks/3')).toEqual([]);
     // A struct field is not a definition either.
     expect(s.findNodeById('mdlcases.mdl/workspace/cfg/mode')).not.toBe(null);
     expect(s.findUsages('mdlcases.mdl/workspace/cfg/mode')).toEqual([]);

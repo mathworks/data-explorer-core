@@ -36,8 +36,11 @@ function fixtureBytes(name: string): ArrayBuffer {
   return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
 }
 
-const block = (name: string, type: string, prop: string, value: string): string =>
-  `<Block BlockType="${type}" Name="${name}" SID="${name}"><P Name="${prop}">${value}</P></Block>`;
+// One block, with a SID that is deliberately NOT its name: the SID is what the index keys
+// a block by (blockIdentity), so a fixture whose SID equalled its name would let a
+// regression to name-keying pass every test in this file.
+const block = (name: string, type: string, prop: string, value: string, sid = '1'): string =>
+  `<Block BlockType="${type}" Name="${name}" SID="${sid}"><P Name="${prop}">${value}</P></Block>`;
 
 // An in-memory `.slx` holding just what a usage answer needs: the dictionary the model
 // links, any other external data source, and blocks whose parameters reference things.
@@ -131,8 +134,10 @@ describe('summarizeFiles — one summary per file, dispatched on the filename', 
     expect(models).toHaveLength(1);
     expect(models[0].name).toBe('m');
     expect(models[0].slddRefs).toEqual(['params.sldd']);
+    // Name AND sid: a cell reads the name, the index keys on the sid, and a summary that
+    // dropped the sid would leave the index no way to tell two `Gain` blocks apart.
     expect(models[0].blockParams).toEqual([
-      { blockName: 'G', blockType: 'Gain', property: 'Gain', expression: 'Kp' },
+      { blockName: 'G', blockType: 'Gain', property: 'Gain', expression: 'Kp', sid: '1' },
     ]);
     expect([...(slddByName.get('params.sldd')?.names ?? [])].sort()).toEqual(['Ki', 'Kp']);
     // The MAT fixture holds a named variable and an unnamed one; a nameless definition is
@@ -276,6 +281,8 @@ describe('buildUsageIndex — the reverse direction, which fills a Usage cell', 
       file('b.slx', slxModel({ dictionary: 'params.sldd', blocks: block('Gb', 'Gain', 'Gain', '2*Kp') })),
       file('params.sldd', slddBytes(['Kp'])),
     ]);
+    // `blockName` is what the cell shows and `linkTarget` is `<sid>@<model>` — the name is
+    // not in the target at all, because a name does not identify a block.
     expect(index.usagesOf('params.sldd', 'Kp')).toEqual([
       {
         blockName: 'Ga',
@@ -283,7 +290,7 @@ describe('buildUsageIndex — the reverse direction, which fills a Usage cell', 
         paramProperty: 'Gain',
         paramValue: 'Kp',
         modelSrcId: 'a.slx',
-        linkTarget: 'Ga@a.slx',
+        linkTarget: '1@a.slx',
       },
       {
         blockName: 'Gb',
@@ -291,7 +298,7 @@ describe('buildUsageIndex — the reverse direction, which fills a Usage cell', 
         paramProperty: 'Gain',
         paramValue: '2*Kp',
         modelSrcId: 'b.slx',
-        linkTarget: 'Gb@b.slx',
+        linkTarget: '1@b.slx',
       },
     ]);
   });
@@ -339,10 +346,10 @@ describe('buildUsageIndex — the reverse direction, which fills a Usage cell', 
       file('b.slx', slxModel({ dictionary: 'params.sldd', blocks: block('DragCalc', 'Gain', 'Gain', 'Cd') })),
       file('params.sldd', slddBytes(['Cd'])),
     ]);
-    expect(index.usagesOf('params.sldd', 'Cd').map((u) => u.linkTarget)).toEqual([
-      'DragCalc@a.slx',
-      'DragCalc@b.slx',
-    ]);
+    expect(index.usagesOf('params.sldd', 'Cd').map((u) => u.linkTarget)).toEqual(['1@a.slx', '1@b.slx']);
+    // Both cells still READ `DragCalc`, which is the name in each file. Two identical
+    // labels, two different blocks: that is why the target holds neither of the labels.
+    expect(index.usagesOf('params.sldd', 'Cd').map((u) => u.blockName)).toEqual(['DragCalc', 'DragCalc']);
   });
 
   it('answers with nothing for a definition no block refers to', () => {
@@ -437,7 +444,8 @@ describe('buildUsageIndex — the forward direction, one origin per parameter', 
       ),
       file('params.sldd', slddBytes(['Kp', 'Ki'])),
     ]);
-    expect(index.paramsOf('m.slx', 'F')).toEqual([
+    // Asked by SID, not by the name `F` — see blockIdentity, and paramsOf's own contract.
+    expect(index.paramsOf('m.slx', '1')).toEqual([
       {
         property: 'Numerator',
         expression: '2*Kp',
@@ -464,7 +472,7 @@ describe('buildUsageIndex — the forward direction, one origin per parameter', 
       file('m.slx', slxModel({ dictionary: 'params.sldd', blocks: block('G', 'Gain', 'Gain', '2*Kp') })),
       file('params.sldd', slddBytes(['Kp'])),
     ]);
-    const [origin] = index.paramsOf('m.slx', 'G');
+    const [origin] = index.paramsOf('m.slx', '1');
     expect(origin.expression).toBe('2*Kp');
     expect(origin.name).toBe('Kp');
   });
@@ -477,7 +485,7 @@ describe('buildUsageIndex — the forward direction, one origin per parameter', 
     const index = buildUsageIndex([
       file('m.slx', slxModel({ dictionary: 'absent.sldd', blocks: block('G', 'Gain', 'Gain', 'Kp') })),
     ]);
-    expect(index.paramsOf('m.slx', 'G')).toEqual([
+    expect(index.paramsOf('m.slx', '1')).toEqual([
       { property: 'Gain', expression: 'Kp', name: null, originSrcId: null, kind: null, linkTarget: '' },
     ]);
   });
@@ -487,8 +495,10 @@ describe('buildUsageIndex — the forward direction, one origin per parameter', 
       file('m.slx', slxModel({ dictionary: 'params.sldd', blocks: block('G', 'Gain', 'Gain', 'Kp') })),
       file('params.sldd', slddBytes(['Kp'])),
     ]);
-    expect(index.paramsOf('m.slx', 'NoSuchBlock')).toEqual([]);
-    expect(index.paramsOf('other.slx', 'G')).toEqual([]);
+    expect(index.paramsOf('m.slx', '99')).toEqual([]);
+    expect(index.paramsOf('other.slx', '1')).toEqual([]);
+    // Including when asked by the block's NAME, which is not a key here.
+    expect(index.paramsOf('m.slx', 'G')).toEqual([]);
   });
 
   it('is immutable, so there is no cache to go stale', () => {
@@ -553,7 +563,8 @@ describe('on a real model MATLAB wrote', () => {
     // a real parameter and it resolves to no definition, which is the unresolved arm on
     // bytes MATLAB wrote.
     const index = realIndex(['Kp', 'Ki']);
-    const [origin] = index.paramsOf('mdlcases.mdl', 'Child');
+    // SID 9 is what the file records for the block named `Child`.
+    const [origin] = index.paramsOf('mdlcases.mdl', '9');
     expect(origin).toEqual({
       property: 'ModelNameDialog',
       expression: 'mdl_child',

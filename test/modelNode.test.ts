@@ -279,60 +279,124 @@ describe('DataSourceNode', () => {
 });
 
 describe('ModelBlockNode', () => {
-  const GAIN_TWICE =
-    `<Block BlockType="Gain" Name="G1"><P Name="Gain">Kp</P></Block>` +
-    `<Block BlockType="Gain" Name="G1"><P Name="Gain">Ki</P></Block>`;
+  // ONE block with two referencing parameters — which is what a real file holds. The
+  // parser emits one usage per parameter and the node layer folds them back together;
+  // two `<Block>` elements sharing a name would be a file Simulink cannot write, since
+  // a name is unique within its system.
+  const TWO_PARAMS =
+    `<Block BlockType="Gain" Name="G1" SID="1"><P Name="Gain">Kp</P><P Name="SampleTime">Ts</P></Block>`;
 
   it('groups every usage of one block into a single entry', () => {
     // The parser emits one usage per referenced parameter; the table shows one
     // row per block, with its parameters collapsed into the Uses column.
-    const blocks = blockModel(GAIN_TWICE).getSection('blocks');
+    const blocks = blockModel(TWO_PARAMS).getSection('blocks');
     expect(blocks.children.length).toBe(1);
     const blk = blocks.children[0];
     expect(blk.name).toBe('G1');
     expect(blk.blockType).toBe('Gain');
     expect(blk.paramUsages).toEqual([
       { property: 'Gain', value: 'Kp' },
-      { property: 'Gain', value: 'Ki' },
+      { property: 'SampleTime', value: 'Ts' },
     ]);
   });
 
   it('shows the block type as the Value and its parameters as the Uses text', () => {
-    const row = blockModel(GAIN_TWICE).getSection('blocks').children[0].toRow();
+    const row = blockModel(TWO_PARAMS).getSection('blocks').children[0].toRow();
     expect(row.Value).toBe('Gain');
-    expect(row.DataType).toBe('Gain=Kp, Gain=Ki');
+    expect(row.DataType).toBe('Gain=Kp, SampleTime=Ts');
     expect(row._valueEditable).toBe(false);
     expect(row.Name).toMatchObject({ label: 'G1', iconId: 'block', editable: false });
   });
 
   it('links the Uses cell to the first parameter in the linked dictionary', () => {
-    const row = blockModel(GAIN_TWICE, 'params.sldd').getSection('blocks').children[0].toRow();
-    expect(row.DataType).toEqual({ text: 'Gain=Kp, Gain=Ki', linkTarget: 'Kp@params.sldd' });
+    const row = blockModel(TWO_PARAMS, 'params.sldd').getSection('blocks').children[0].toRow();
+    expect(row.DataType).toEqual({ text: 'Gain=Kp, SampleTime=Ts', linkTarget: 'Kp@params.sldd' });
   });
 
   it('leaves the Uses cell as plain text when the model has no dictionary', () => {
     // With no parameter source there is nothing to open, so the cell must not
     // render as a link the user can click into nowhere.
-    expect(blockModel(GAIN_TWICE).getSection('blocks').children[0].toRow().DataType).toBe('Gain=Kp, Gain=Ki');
+    expect(blockModel(TWO_PARAMS).getSection('blocks').children[0].toRow().DataType).toBe('Gain=Kp, SampleTime=Ts');
   });
 
   it('carries the owning model as the graph target', () => {
     // The Usage graph resolves a block back to the model that declares it.
-    expect(blockModel(GAIN_TWICE).getSection('blocks').children[0].toRow()._graphTarget).toBe('m.slx');
+    expect(blockModel(TWO_PARAMS).getSection('blocks').children[0].toRow()._graphTarget).toBe('m.slx');
   });
 
   it('displayName returns the block name (used by the tree label)', () => {
-    const blk = blockModel(GAIN_TWICE).getSection('blocks').children[0];
+    const blk = blockModel(TWO_PARAMS).getSection('blocks').children[0];
     expect(blk.displayName).toBe('G1');
   });
 
   it('is a non-editable entry offering only Name in the inspector', () => {
-    const blk = blockModel(GAIN_TWICE).getSection('blocks').children[0];
+    const blk = blockModel(TWO_PARAMS).getSection('blocks').children[0];
     expect(blk.isEntry).toBe(true);
     expect(blk.nameEditable).toBe(false);
     expect(blk.valueEditable).toBe(false);
     expect(blk.getProperties().map((p: any) => p.key)).toEqual(['Name']);
     expect(blk.getPILayout().map((g: any) => g.group)).toEqual(['General']);
+  });
+});
+
+// The SID is the identity and the name is only a label — blockIdentity's two rules,
+// measured on the file shapes that forced them. f14.slx (a shipped Simulink demo) is
+// where both were found: it holds four blocks named `Gain`, and one Constant whose
+// recorded name is a bare line break.
+describe('ModelBlockNode — identity is the SID, the name is a label', () => {
+  it('gives same-named blocks in different systems a row each', () => {
+    // f14.slx's shape: `Gain` appears in several subsystems, each with its own gain.
+    // Keyed by name, the four arrived as ONE row reading `Gain=Mq, Gain=Zw, ...` —
+    // four blocks' parameters under one name, and three blocks the host could not
+    // reach at all because they shared an id.
+    const blocks = blockModel(
+      `<Block BlockType="Gain" Name="Gain" SID="15"><P Name="Gain">Mq</P></Block>` +
+        `<Block BlockType="Gain" Name="Gain" SID="24"><P Name="Gain">Zw</P></Block>`,
+    ).getSection('blocks');
+    expect(blocks.children.length).toBe(2);
+    expect(blocks.children.map((c: any) => c.id)).toEqual(['m.slx/blocks/15', 'm.slx/blocks/24']);
+    // Each keeps its own parameter, and both still read `Gain`.
+    expect(blocks.children.map((c: any) => c.displayName)).toEqual(['Gain', 'Gain']);
+    expect(blocks.children.map((c: any) => c.toRow().DataType)).toEqual(['Gain=Mq', 'Gain=Zw']);
+    expect(blocks.children.map((c: any) => c.toRow()._blockKey)).toEqual(['15', '24']);
+  });
+
+  it('shows `<SID: 65>` for a block whose recorded name is blank', () => {
+    // f14.slx records `Name="&#xA;"` on one Constant — a label the user cleared, which
+    // normalizes to ''. The row still has to name something the user can act on, and
+    // the SID is the one thing that file offers.
+    const blk = blockModel(
+      `<Block BlockType="Constant" Name="&#xA;" SID="65"><P Name="Value">Uo</P></Block>`,
+    ).getSection('blocks').children[0];
+    expect(blk.name).toBe('');
+    expect(blk.displayName).toBe('<SID: 65>');
+    expect(blk.toRow().Name.label).toBe('<SID: 65>');
+    // And the id is the SID either way, so a blank name does not produce `.../blocks/`.
+    expect(blk.id).toBe('m.slx/blocks/65');
+  });
+
+  it('falls back to the name when the file records no SID at all', () => {
+    // A classic `.mdl` older than R2010b has no SIDs. The id is then the name, which is
+    // the id such a file always had — and same-named blocks in it still merge, because
+    // the file offers nothing to tell them apart.
+    const blocks = blockModel(
+      `<Block BlockType="Gain" Name="G1"><P Name="Gain">Kp</P></Block>` +
+        `<Block BlockType="Gain" Name="G1"><P Name="Gain">Ki</P></Block>`,
+    ).getSection('blocks');
+    expect(blocks.children.length).toBe(1);
+    expect(blocks.children[0].id).toBe('m.slx/blocks/G1');
+    expect(blocks.children[0].toRow()._blockKey).toBe('G1');
+    expect(blocks.children[0].displayName).toBe('G1');
+  });
+
+  it('reads as empty, not as `<SID: >`, when it has neither a name nor a SID', () => {
+    // Nothing to show and nothing to key by. The label stays empty rather than
+    // inventing a SID reference that points at no SID.
+    const blk = blockModel(
+      `<Block BlockType="Constant" Name="&#xA;"><P Name="Value">Uo</P></Block>`,
+    ).getSection('blocks').children[0];
+    expect(blk.displayName).toBe('');
+    expect(blk.id).toBe('m.slx/blocks/');
   });
 });
 

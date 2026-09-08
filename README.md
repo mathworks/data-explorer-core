@@ -91,8 +91,14 @@ const index = buildUsageIndex([
   { srcId: 'params.sldd', filename: 'params.sldd', bytes: dictBytes },
 ]);
 index.usagesOf('params.sldd', 'Kp'); // the blocks that read Kp, with link targets
-index.paramsOf('a.slx', 'Gain1');    // each parameter of that block, and where it resolved
+index.paramsOf('a.slx', '15');       // each parameter of that block, and where it resolved
 ```
+
+A block is addressed by its **SID** — `'15'` above — because a block name is unique
+within its own system only: a model may hold four blocks named `Gain`, each with its own
+gain. A row projected by the data model publishes it as `_blockKey`, and a usage's
+`linkTarget` is `` `${sid}@${srcId}` ``. What a cell *shows* is the block's name, or
+`<SID: 15>` for a block whose label the file leaves blank.
 
 A `srcId` is the caller's own key for a file and is never parsed; the `filename`
 is what decides the kind. Resolution follows MATLAB: the model workspace shadows

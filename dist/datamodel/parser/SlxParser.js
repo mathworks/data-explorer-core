@@ -492,6 +492,10 @@ function extractBlockParamUsages(entries, legacy, warnings) {
             const b = block;
             const blockName = normalizeBlockName(b['@_Name'] || '');
             const blockType = b['@_BlockType'] || '';
+            // String() rather than a cast: the SID is an attribute and this parser leaves
+            // attributes as text, but a SID is digits and one option flip away from
+            // arriving as a number.
+            const sid = b['@_SID'] === undefined || b['@_SID'] === null ? '' : String(b['@_SID']);
             const props = b['P'];
             if (!props)
                 continue;
@@ -502,7 +506,7 @@ function extractBlockParamUsages(entries, legacy, warnings) {
                 const val = pObj['#text'] || '';
                 if (!isParamReference(propName, val))
                     continue;
-                usages.push({ blockName, blockType, paramProperty: propName, paramValue: val });
+                usages.push({ blockName, blockType, paramProperty: propName, paramValue: val, sid });
             }
         }
     }

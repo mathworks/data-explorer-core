@@ -10,6 +10,7 @@ import type { BlockParamUsage, ParsedConfigSet } from '../../parser/SlxParser.js
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import PropName from '../../prop/PropName.js';
 import PropRelease from '../../prop/PropRelease.js';
+import { blockKey } from '../../blockIdentity.js';
 
 const SECTION_DEFS = [
   { key: 'blocks', label: 'Model Elements', icon: 'blocks' },
@@ -197,22 +198,35 @@ export default class ModelNode extends ContainerNode {
     node._workspaceVars = parsed.workspace;
     node.blockParamUsages = parsed.blockParamUsages || [];
 
-    // Populate blocks section from blockParamUsages
+    // Populate blocks section from blockParamUsages — ONE ROW PER BLOCK, keyed by the
+    // block's SID and not by its name. A name is unique within a system only, so
+    // grouping on it merged every same-named block in the model into a single row:
+    // f14.slx's four `Gain` blocks arrived as one row reading
+    // `Gain=Mq, Gain=Zw, Gain=Kf, Gain=Zw`, four blocks' parameters under one name with
+    // a duplicate that was really two blocks. See blockIdentity.
+    //
+    // A parsed usage carries the name AND the type as well as the SID, and the first
+    // usage of a block settles both: they are properties of the block, repeated on
+    // every usage of it, so any of them would do.
     if (parsed.blockParamUsages && parsed.blockParamUsages.length > 0) {
       const blocksSection = node.getSection('blocks')!;
-      const blockMap = new Map<string, { type: string; usages: Array<{ property: string; value: string }> }>();
+      const blockMap = new Map<
+        string,
+        { name: string; type: string; sid: string; usages: Array<{ property: string; value: string }> }
+      >();
       for (const usage of parsed.blockParamUsages) {
-        if (!blockMap.has(usage.blockName)) {
-          blockMap.set(usage.blockName, { type: usage.blockType, usages: [] });
+        const key = blockKey(usage.blockName, usage.sid ?? '');
+        if (!blockMap.has(key)) {
+          blockMap.set(key, { name: usage.blockName, type: usage.blockType, sid: usage.sid ?? '', usages: [] });
         }
-        blockMap.get(usage.blockName)!.usages.push({
+        blockMap.get(key)!.usages.push({
           property: usage.paramProperty,
           value: usage.paramValue,
         });
       }
       const paramSourceId = parsed.dataDictionary || null;
-      for (const [blockName, info] of blockMap) {
-        blocksSection.addBlockEntry(blockName, info.type, info.usages, filename, paramSourceId);
+      for (const info of blockMap.values()) {
+        blocksSection.addBlockEntry(info.name, info.type, info.usages, filename, paramSourceId, info.sid);
       }
     }
 

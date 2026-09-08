@@ -122,9 +122,13 @@ function relabelled(file: string, label: string): ArrayBuffer {
  * `add_block('simulink/Sources/Constant', [mdl '/' name], 'Value', 'Kp')`, and the
  * value stays ASCII on purpose: what is under test is the encoding of the file, not
  * the identifier gate that decides which rows surface.
+ *
+ * `sid` is the block's own — the first block MATLAB adds to a fresh model, so `1` in
+ * every one of these files. It is a parameter because a wrong label can cost the row
+ * its SID as well as its name; see the run-past-the-quote case.
  */
-function oneRow(blockName: string) {
-  return [{ blockName, blockType: 'Constant', paramProperty: 'Value', paramValue: 'Kp' }];
+function oneRow(blockName: string, sid = '1') {
+  return [{ blockName, blockType: 'Constant', paramProperty: 'Value', paramValue: 'Kp', sid }];
 }
 
 /** The workspace, less the raw mxarray bytes — those are asserted by their decode. */
@@ -204,8 +208,11 @@ describe('parseMdl — a classic .mdl decodes under its recorded SavedCharacterE
     // that follows. Note what does NOT happen: the block keeps its parameter row.
     // The damage is confined to the value holding the trap, which is why a "does it
     // contain the name" check would not notice and this one does.
+    //
+    // Swallowing `SID` costs the row its SID too — the property is gone as a property,
+    // so the block falls back to being identified by that ruined name (blockIdentity).
     const wrong = parseMdl(relabelled(SJIS, 'UTF-8'), 'm.mdl');
-    expect(wrong.blockParamUsages).toEqual(oneRow('���{��" SID'));
+    expect(wrong.blockParamUsages).toEqual(oneRow('���{��" SID', ''));
   });
 
   it('leaves the encoded model workspace byte-identical through the re-decode', () => {

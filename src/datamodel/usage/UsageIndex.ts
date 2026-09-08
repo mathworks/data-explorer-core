@@ -37,6 +37,7 @@
 // the time a summary is built. MATLAB would resolve it FIRST — it is the model workspace.
 // It only shows when such a model also links a dictionary defining the same name, and
 // closing it needs the parsers to keep the workspace file apart from the rest.
+import { blockKey, blockLabel } from '../blockIdentity.js';
 import { identifiersIn } from '../expressions.js';
 import { basenameOf, isMatFile, isModelFile, isSlddFile, modelNameOf, refBasename } from '../fileKinds.js';
 import { normalizeRefNames, readSlddContent, slddChunkContent } from '../parser/SlddContent.js';
@@ -76,7 +77,9 @@ export interface ModelSummary {
   slddRefs: string[];
   /** refBasename'd names of linked MAT-files. */
   matRefs: string[];
-  blockParams: { blockName: string; blockType: string; property: string; expression: string }[];
+  // `sid` rides along with the name because the two answer different questions: the name
+  // is what a cell reads, the SID is which block it is. See blockIdentity.
+  blockParams: { blockName: string; blockType: string; sid: string; property: string; expression: string }[];
 }
 
 /** What the index needs from a dictionary or a MAT-file: what it defines, and what it inherits. */
@@ -131,8 +134,16 @@ export interface UsageIndex {
    * shape whichever resolver produced it, and so that the two can be joined when they are.
    */
   usagesOf(srcId: string, name: string): NodeUsage[];
-  /** Every parameter of the block `blockName` in the model `modelSrcId`, with its origin. */
-  paramsOf(modelSrcId: string, blockName: string): ParamOrigin[];
+  /**
+   * Every parameter of ONE block of the model `modelSrcId`, with its origin.
+   *
+   * `blockKey` is the block's SID (blockIdentity.blockKey), not its name, and not the text
+   * a cell shows — a model may hold four blocks named `Gain`, each with its own gain, and
+   * a name would answer with all four blocks' parameters for every one of them. A host
+   * has it from the block row's `_blockKey`, which ModelBlockNode.toRow publishes for
+   * exactly this call.
+   */
+  paramsOf(modelSrcId: string, blockKey: string): ParamOrigin[];
   /** The models this index summarised, in the order they were given. */
   readonly models: readonly ModelSummary[];
 }
@@ -162,6 +173,7 @@ function modelSummary(parsed: ParsedSlx, srcId: string, filename: string): Model
     blockParams: (parsed.blockParamUsages ?? []).map((u) => ({
       blockName: u.blockName,
       blockType: u.blockType,
+      sid: u.sid ?? '',
       property: u.paramProperty,
       expression: u.paramValue,
     })),
@@ -274,7 +286,10 @@ export function resolveName(
 }
 
 const reverseKey = (srcId: string, name: string): string => `${srcId}\n${name}`;
-const forwardKey = (modelSrcId: string, blockName: string): string => `${modelSrcId}\n${blockName}`;
+// Keyed by the block's KEY (its SID), which is what paramsOf is asked with. Keying this by
+// name merged every same-named block in a model: in f14.slx one lookup of `Gain` answered
+// with four different blocks' gains.
+const forwardKey = (modelSrcId: string, blockKey: string): string => `${modelSrcId}\n${blockKey}`;
 
 /**
  * Build the index over a set of files.
@@ -290,6 +305,11 @@ export function buildUsageIndex(files: UsageFile[]): UsageIndex {
 
   for (const model of models) {
     for (const param of model.blockParams) {
+      // Which block this is, and what it reads as — see blockIdentity. The target carries
+      // the key, the cell shows the label, and for most blocks they are the same string.
+      const key = blockKey(param.blockName, param.sid);
+      const label = blockLabel(param.blockName, param.sid);
+      const target = `${key}@${model.srcId}`;
       // A Set: an expression can name the same definition twice (`Kp + Kp`), and that is ONE
       // place it is referenced, not two.
       const names = [...new Set(identifiersIn(param.expression))];
@@ -306,24 +326,28 @@ export function buildUsageIndex(files: UsageFile[]): UsageIndex {
         if (!origin) {
           origin = { ...resolved, name };
         }
-        const key = reverseKey(resolved.srcId, name);
-        const usages = reverse.get(key) ?? [];
-        if (!usages.some((u) => u.blockName === param.blockName && u.modelSrcId === model.srcId)) {
+        const index = reverseKey(resolved.srcId, name);
+        const usages = reverse.get(index) ?? [];
+        // One entry per BLOCK, and `target` identifies the block and its model together —
+        // which is the old two-field test made exact. Two blocks named `Gain` using the
+        // same variable are two usages of it, and used to collapse into one link that
+        // could only reach whichever came first.
+        if (!usages.some((u) => u.linkTarget === target)) {
           usages.push({
-            blockName: param.blockName,
+            blockName: label,
             blockType: param.blockType,
             paramProperty: param.property,
             paramValue: param.expression,
             modelSrcId: model.srcId,
             // The forward grammar reversed, the same target findUsages produces, so a host
             // resolves a usage the same way whichever resolver answered it.
-            linkTarget: `${param.blockName}@${model.srcId}`,
+            linkTarget: target,
           });
         }
-        reverse.set(key, usages);
+        reverse.set(index, usages);
       }
 
-      const params = forward.get(forwardKey(model.srcId, param.blockName)) ?? [];
+      const params = forward.get(forwardKey(model.srcId, key)) ?? [];
       params.push({
         property: param.property,
         expression: param.expression,
@@ -335,13 +359,13 @@ export function buildUsageIndex(files: UsageFile[]): UsageIndex {
         // this itself, which is what it already does with the targets nodes produce.
         linkTarget: origin ? `${origin.name}@${origin.srcId}` : '',
       });
-      forward.set(forwardKey(model.srcId, param.blockName), params);
+      forward.set(forwardKey(model.srcId, key), params);
     }
   }
 
   return {
     models,
     usagesOf: (srcId, name) => reverse.get(reverseKey(srcId, name)) ?? [],
-    paramsOf: (modelSrcId, blockName) => forward.get(forwardKey(modelSrcId, blockName)) ?? [],
+    paramsOf: (modelSrcId, key) => forward.get(forwardKey(modelSrcId, key)) ?? [],
   };
 }

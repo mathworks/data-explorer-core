@@ -131,7 +131,7 @@ describe('parseMdl — modern .mdl (OPC text package)', () => {
     expect(fromMdl.release).toBe('R2027a');
     expect(fromMdl.dataDictionary).toBe('params.sldd');
     expect(fromMdl.blockParamUsages).toEqual([
-      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Ki' },
+      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Ki', sid: '1' },
     ]);
   });
 
@@ -342,21 +342,24 @@ describe('parseMdl — classic .mdl block parameters', () => {
   const usages = parseMdl(bytes(CLASSIC), 'unit.mdl').blockParamUsages;
 
   it('reads every referencing parameter, in file order, recursing into subsystems', () => {
+    // `sid` rides on every row: it is an ordinary property here where a `.slx` makes it
+    // an attribute, and it is what the row is identified by — the two `TF` rows and the
+    // two `InnerGain` rows are each ONE block, and their SIDs say so.
     expect(usages).toEqual([
       // `"Two\nLines"` here, `Two&#xA;Lines` in the .slx — both flatten to one label.
-      { blockName: 'Two Lines', blockType: 'Constant', paramProperty: 'Value', paramValue: 'span' },
-      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Denominator', paramValue: '[tau 1]' },
+      { blockName: 'Two Lines', blockType: 'Constant', paramProperty: 'Value', paramValue: 'span', sid: '1' },
+      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Denominator', paramValue: '[tau 1]', sid: '2' },
       // An unquoted bracket literal, and one with a nested bracket — the `]` inside
       // must not end the value early.
-      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Coeffs', paramValue: '[k1 k2]' },
-      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Nested', paramValue: '[[k3] k4]' },
+      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Coeffs', paramValue: '[k1 k2]', sid: '2' },
+      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Nested', paramValue: '[[k3] k4]', sid: '2' },
       // Wrapped across two quoted chunks: MATLAB breaks a long value at
       // MaxMDLFileLineLength, and the chunks are ONE value.
-      { blockName: 'InnerGain', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'alphabeta' },
+      { blockName: 'InnerGain', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'alphabeta', sid: '4' },
       // `\\` and `\"` undone. `\\` is load-bearing well beyond this row: the uuencode
       // alphabet contains both characters, so the model workspace does not decode
       // unless escapes are undone first.
-      { blockName: 'InnerGain', blockType: 'Gain', paramProperty: 'Note', paramValue: 'path\\to"x"' },
+      { blockName: 'InnerGain', blockType: 'Gain', paramProperty: 'Note', paramValue: 'path\\to"x"', sid: '4' },
     ]);
   });
 
@@ -378,6 +381,30 @@ describe('parseMdl — classic .mdl block parameters', () => {
 
   it('drops the ModelReference block CopyOfModelName bookkeeping', () => {
     expect(usages.some((u) => u.paramProperty === 'CopyOfModelName')).toBe(false);
+  });
+
+  it('reports no SID for a file written before there were SIDs', () => {
+    // A `.mdl` older than R2010b records none at all, for any block. Empty rather than
+    // absent, so the fallback to the block name is made once, in blockIdentity, and not
+    // guessed at again by every consumer.
+    const parsed = parseMdl(
+      bytes(String.raw`Model {
+  Name                    "old"
+  System {
+    Name                  "old"
+    Block {
+      BlockType           Gain
+      Name                "G"
+      Gain                "Kp"
+    }
+  }
+}
+`),
+      'old.mdl',
+    );
+    expect(parsed.blockParamUsages).toEqual([
+      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp', sid: '' },
+    ]);
   });
 });
 
