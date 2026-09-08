@@ -9,6 +9,12 @@ import { parseModel } from '../datamodel/parser/ModelParser.js';
 import { parseMat } from '../datamodel/parser/MatParser.js';
 import { parseProject } from '../datamodel/parser/ProjectParser.js';
 import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js';
+// The name reductions and the expression reading, from the leaf modules that hold the
+// single copy of each. This file used to spell all three itself; the usage index needs
+// the same three, and a rule stated twice is a rule that drifts (see fileKinds).
+import { basenameOf, modelNameOf } from '../datamodel/fileKinds.js';
+import { identifiersIn } from '../datamodel/expressions.js';
+import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 // Whether a query field was actually asked about.
 //
 // `undefined` is the field a host left out. `''` is the field it filled in from an
@@ -109,28 +115,6 @@ function compileCriteria(query) {
     }
     return criteria;
 }
-// A file name with any directory part removed, both separators honoured. A srcId or a
-// recorded meta.path may have come from either platform and this layer never touches a
-// filesystem, so there is no path module to defer to and nothing to normalize against.
-function basenameOf(text) {
-    return text.split(/[\\/]/).pop() || text;
-}
-// A model file name with its extension removed, or null when the name is not a model
-// file at all.
-//
-// `.slx` and `.mdl` are the one pair this package treats as two spellings of the same
-// thing (parseModel reads whichever the bytes are), and the reason this exists is that
-// a model reference is recorded with the PARENT's extension: ModelNode.addReferenceEntry
-// guesses, because a `.mdl` names its child without an extension, so the same child is
-// 'mdl_child.mdl' seen from a `.mdl` and 'mdl_child.slx' seen from a `.slx`. Resolving
-// that guess strictly would make the link dead for exactly the mixed hierarchy the
-// guess was invented for. The extension match is case-insensitive because it is a file
-// extension; the STEM comparison is not, because a srcId is the host's own key and two
-// sources differing in case are two sources.
-function modelStemOf(name) {
-    const match = /^(.*)\.(slx|mdl)$/i.exec(name);
-    return match ? match[1] : null;
-}
 // A link target split into the entry name it asks for and the source it asks in.
 //
 // Two grammars, and only two: `name@source` names an ENTRY inside a named source, and a
@@ -156,55 +140,6 @@ function splitLinkTarget(target) {
         return { name: null, source: target };
     }
     return { name: target.slice(0, at), source: target.slice(at + 1) };
-}
-// The MATLAB identifiers in a block-parameter expression, in the order they appear.
-//
-// A block parameter's value is an expression as often as it is a bare name — mdlcases.mdl
-// has `[tau 1]`, `1/Uo`, `2*Tau_inf` — and the names in it are the definitions the block
-// refers to. Both directions of link resolution need the same reading of that, so both
-// call this: findUsages asks whether a parameter names a given definition, and
-// resolveLink asks what the name part of a target can mean (ModelBlockNode builds its
-// target from the raw parameter VALUE, so `[tau 1]@mdlparams.sldd` is a target this
-// package really produces).
-//
-// EXPORTED, and the barrel publishes it, because a host can have a second resolver this
-// package cannot be: data-explorer-vscode resolves usages across a whole WORKSPACE of
-// files on disk, most of them never registered in a session, with MATLAB's
-// workspace→sldd→mat shadowing over them. That resolver is legitimately its own — but
-// "which names does this expression refer to" is not, and while it had its own copy the
-// two answers differed: the host credited `mode` in `cfg.mode` and `e5` in `1e5` as
-// definitions, so a dictionary entry named `mode` acquired a usage that does not exist.
-// A phantom usage is worse than a missing one, because a user acts on it.
-//
-// A token is skipped when the character before it is `.` or a digit. `.` is a field or
-// property reference — `cfg.mode` refers to `cfg`, and the model resolves `cfg`, so the
-// base name is the one credited and `mode` is not a definition of its own. A digit
-// before an identifier cannot start one in MATLAB, so it is always the tail of a numeric
-// literal (`1e5` would otherwise offer `e5`).
-//
-// What this does NOT do: it makes no attempt to exclude text inside quotes. In MATLAB
-// `'` is both the char-literal delimiter and the transpose operator, so `A'*B'` is
-// indistinguishable from a quoted span by any regular scan — and getting that wrong
-// would DROP real usages, which is worse than the rare phantom one a char literal
-// holding an entry's name would add. It also cannot tell a function call from an index,
-// so a variable shadowed by a function of the same name is reported as a usage; MATLAB
-// itself decides that at run time from the workspace, which is not something a file
-// reader has.
-export function identifiersIn(expression) {
-    // Constructed per call rather than hoisted: a `/g` RegExp carries lastIndex, and a
-    // shared one would resume mid-string on the next call — the same reentrancy hazard
-    // compileTextTest rewrites `g` away for.
-    const pattern = /[A-Za-z_]\w*/g;
-    const names = [];
-    let match;
-    while ((match = pattern.exec(expression)) !== null) {
-        const before = match.index > 0 ? expression.charAt(match.index - 1) : '';
-        if (before === '.' || (before >= '0' && before <= '9')) {
-            continue;
-        }
-        names.push(match[0]);
-    }
-    return names;
 }
 export function createSession(opts = {}) {
     const bus = opts.bus ?? createEventBus();
@@ -676,17 +611,27 @@ export function createSession(opts = {}) {
     //   3. the srcId's basename is (a host keyed by path);
     //   2. the recorded meta.path's basename is (a host keyed by an opaque id);
     //   1. the target and the candidate are the same MODEL with the other extension — see
-    //      modelStemOf for why that is a real case rather than a courtesy.
+    //      fileKinds.modelNameOf for why that is a real case rather than a courtesy.
     //
     // Best rank wins, and ties go to the first source opened, so the answer is deterministic
     // and an exactly-named file is never shadowed by a looser match on another. Case-sensitive
     // throughout (except the extension itself): a srcId is a host key, not a filesystem
     // lookup, and folding case here would let two distinct open sources answer as one.
+    //
+    // ==> That last decision is worth re-examining, and is NOT settled. It is defensible for
+    // rank 4 — a srcId really is the host's key — but ranks 3, 2 and 1 compare a name a MODEL
+    // recorded against a name a FILESYSTEM produced, and those two disagree about case
+    // routinely: a model that links `Params.SLDD` resolves nothing here against an open
+    // `params.sldd`, on file systems (macOS, Windows) that consider them the same file. The
+    // usage index matches such references case-insensitively (fileKinds.refBasename) and
+    // therefore answers differently from this function for the same pair of files. Left alone
+    // here rather than changed on the way past, because narrowing it per rank is a behaviour
+    // change that wants its own tests; see the divergence note in usage/UsageIndex.ts.
     function openSourceNamed(name) {
         if (!name) {
             return null;
         }
-        const stem = modelStemOf(name);
+        const stem = modelNameOf(name);
         let best = null;
         for (const [srcId, source] of dataSources) {
             const path = source.meta && typeof source.meta.path === 'string' ? source.meta.path : '';
@@ -701,7 +646,7 @@ export function createSession(opts = {}) {
                 rank = 2;
             }
             else if (stem !== null) {
-                const candidateStem = modelStemOf(basenameOf(srcId)) ?? (path !== '' ? modelStemOf(basenameOf(path)) : null);
+                const candidateStem = modelNameOf(basenameOf(srcId)) ?? (path !== '' ? modelNameOf(basenameOf(path)) : null);
                 if (candidateStem !== null && candidateStem === stem) {
                     rank = 1;
                 }
@@ -816,6 +761,22 @@ export function createSession(opts = {}) {
     // collect each other's usages. That is the whole reason this is not just a name match.
     // `owner` and `definitionSrcId` are passed in rather than re-derived per model: they are
     // properties of the definition, which does not change across the scan.
+    //
+    // ==> DIVERGENCE from usage/UsageIndex.ts, which answers the same question over file
+    // summaries instead of over registered node trees, and answers it differently in three
+    // ways. This is the predicate to converge on the index, and the reasons are named at both
+    // sites rather than left for whoever next sees one Usage column disagree with the other:
+    //
+    //   - SHADOWING. This is a per-definition PREDICATE, so a block reading `Kp` is credited
+    //     against every visible `Kp` — the model workspace's AND the linked dictionary's. But
+    //     MATLAB resolves one: the workspace shadows the dictionary. The loser is not used by
+    //     that block, and a usage shown against it is a claim about code that does not run.
+    //     Fixing it here means resolving a name ONCE per (model, name) rather than testing
+    //     each definition, which is what the index does.
+    //   - CHAINING. A definition in a sub-dictionary of the linked dictionary is invisible
+    //     here, because only the `dataSources` children are checked and
+    //     resolveDictionaryReferences is deliberately one level. MATLAB follows the chain.
+    //   - CASE. openSourceNamed matches a recorded reference exactly; see the note there.
     function modelCanSee(model, definition, owner, definitionSrcId) {
         if (model === owner) {
             const parent = definition.parent;
@@ -1071,23 +1032,20 @@ export function createSession(opts = {}) {
         if (!source) {
             return [];
         }
+        // The field is absent for every format but `.sldd`, and empty for a dictionary that
+        // references nothing. Both are "no references", which is the honest answer to the
+        // question, and normalizeRefNames gives it for either.
         const refs = source.dictionaryReferences;
-        // Absent for every format but `.sldd`, and empty for a dictionary that references
-        // nothing. Both are "no references", which is the honest answer to the question.
-        if (!Array.isArray(refs)) {
-            return [];
-        }
-        const resolved = [];
-        for (const ref of refs) {
-            // The field is `unknown[]` because it is written from two different readers, so a
-            // non-string is possible and is skipped rather than coerced: 'undefined' is not a
-            // file name, and reporting one would send a host looking for it.
-            if (typeof ref !== 'string' || ref === '') {
-                continue;
-            }
-            resolved.push({ name: ref, resolution: resolveLink(ref) });
-        }
-        return resolved;
+        // Through the shared normalisation, because the field is `unknown[]` for a reason: a
+        // reference is a bare string in a compressed dictionary and can be a `{ file: ... }`
+        // object in a textual one, and which form a file uses is a property of its WRITER, not
+        // of the reference. This loop used to accept only strings and skip everything else, so
+        // the same dictionary saved both ways resolved its sub-dictionaries in one form and
+        // reported having NONE in the other — the inherited entries invisible again, in exactly
+        // the case this function exists to fix. normalizeRefNames drops what carries no usable
+        // name, which keeps the old guard's point: 'undefined' is not a file name, and reporting
+        // one would send a host looking for it.
+        return normalizeRefNames(refs).map((name) => ({ name, resolution: resolveLink(name) }));
     }
     function reindexAll() {
         nodeIndex.clear();

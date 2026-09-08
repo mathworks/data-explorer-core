@@ -7,7 +7,8 @@
 // in the Node-only `src/node/` subpath; this layer never touches the filesystem.
 
 import { unzipSync, strFromU8 } from 'fflate';
-import { parseBinarySldd } from '../datamodel/parser/BinarySlddParser.js';
+import { basenameOf, extOf, isMatFile, isModelFile, isProjectFile, isSlddFile } from '../datamodel/fileKinds.js';
+import { readSlddContent } from '../datamodel/parser/SlddContent.js';
 import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 import type { Session } from './DataModel.js';
 import type { ISourceNode, SourceMeta } from './NodeInterfaces.js';
@@ -29,37 +30,15 @@ function requireBinary(content: IngestContent, ext: string): ArrayBuffer {
   throw new Error(`ingest: "${ext}" requires binary content (ArrayBuffer or Uint8Array), got ${typeof content}`);
 }
 
-function extOf(filename: string): string {
-  const dot = filename.lastIndexOf('.');
-  return dot < 0 ? '' : filename.slice(dot).toLowerCase();
-}
-
-// True when these bytes open a JSON object, ignoring a leading UTF-8 BOM and any
-// leading whitespace. A binary .sldd is a zip, which starts with 'PK', so the
-// first significant byte cleanly separates the two textual/binary .sldd forms.
-function isJsonText(bytes: Uint8Array): boolean {
-  let i = 0;
-  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
-    i = 3; // UTF-8 BOM
-  }
-  while (i < bytes.length) {
-    const b = bytes[i];
-    // space, tab, LF, CR, FF, VT
-    if (b === 0x20 || b === 0x09 || b === 0x0a || b === 0x0d || b === 0x0c || b === 0x0b) {
-      i++;
-      continue;
-    }
-    return b === 0x7b /* '{' */;
-  }
-  return false;
-}
-
 export function ingest(session: Session, content: IngestContent, opts: IngestOptions): ISourceNode {
   const { filename, meta } = opts;
-  const id = filename.replace(/^.*[\\/]/, ''); // basename, no fs
+  const id = basenameOf(filename); // no fs
+  // Only for the error messages below. The DISPATCH goes through the shared kind tests
+  // (fileKinds), so `Params.SLDD` — which MATLAB and Windows both write — ingests as the
+  // dictionary it is rather than falling through to "unsupported extension".
   const ext = extOf(filename);
 
-  if (ext === '.sldd') {
+  if (isSlddFile(filename)) {
     // Already-parsed object → textual data source directly.
     if (typeof content === 'object' && !(content instanceof ArrayBuffer) && !(content instanceof Uint8Array)) {
       return session.addDataSource(id, content as Record<string, unknown>, meta);
@@ -68,40 +47,35 @@ export function ingest(session: Session, content: IngestContent, opts: IngestOpt
     if (typeof content === 'string') {
       return session.addDataSource(id, JSON.parse(content), meta);
     }
-    // Bytes → JSON text if it looks like JSON, else binary .sldd (zip). A textual
-    // .sldd may legitimately lead with a UTF-8 BOM and/or whitespace, so skip
-    // those before sniffing for '{' — otherwise such a file is misrouted to the
-    // zip parser and fails with a misleading "invalid zip data".
-    const buf = toArrayBuffer(content);
-    const bytes = new Uint8Array(buf);
-    if (isJsonText(bytes)) {
-      return session.addDataSource(id, JSON.parse(strFromU8(bytes)), meta);
-    }
-    // The one branch of this function that parses anything itself, and therefore the one
-    // that has to carry a parser's diagnostics onward by hand: every other dispatch hands
-    // raw content to a session adder that does its own parsing and collects its own
+    // Bytes → whichever of the two on-disk `.sldd` formats they are, decided by
+    // `readSlddContent` on the BYTES. Not decided here, and not decided by the name: both
+    // formats carry the same extension, so a reader that guesses from the name reads a
+    // compressed dictionary as JSON and fails with a misleading "invalid zip data".
+    //
+    // This is the one branch of this function that parses anything itself, and therefore
+    // the one that has to carry a reader's diagnostics onward by hand: every other dispatch
+    // hands raw content to a session adder that does its own parsing and collects its own
     // warnings inside. The sink is created here, filled in by the reader, and handed to
     // `addDataSource`, which appends the node layer's warnings to the SAME list before
     // attaching it to the source — so a host sees one list per file, whichever layer the
-    // loss happened in. The textual branches above need nothing: they have no parse step
-    // of their own beyond `JSON.parse`, and `addDataSource` makes its own sink.
+    // loss happened in.
     const warnings: ParseWarning[] = [];
-    const parsed = parseBinarySldd(buf, warnings);
+    const parsed = readSlddContent(toArrayBuffer(content), warnings);
     return session.addDataSource(id, parsed, meta, warnings);
   }
 
   // Both model extensions go to the same adder: a `.mdl` is a Simulink model like a
   // `.slx` is, and which generation of content the bytes hold is decided there, not
   // by the name (see parseModel).
-  if (ext === '.slx' || ext === '.mdl') {
+  if (isModelFile(filename)) {
     return session.addModelSource(id, requireBinary(content, ext), meta);
   }
 
-  if (ext === '.mat') {
+  if (isMatFile(filename)) {
     return session.addMatSource(id, requireBinary(content, ext), meta);
   }
 
-  if (ext === '.prj') {
+  if (isProjectFile(filename)) {
     const entries = unzipSync(new Uint8Array(requireBinary(content, ext)));
     const files: Record<string, string> = {};
     for (const [name, bytesU8] of Object.entries(entries)) files[name] = strFromU8(bytesU8);
