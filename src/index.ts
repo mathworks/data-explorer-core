@@ -33,12 +33,11 @@ export type { FindNodesQuery } from './core/DataModel.js';
 export type { LinkResolution, NodeUsage, DictionaryReference } from './core/DataModel.js';
 // How this package reads a block-parameter expression: the names in `2*Kp`, `[tau 1]`,
 // `cfg.mode`. Public because a host can have a resolver of its own that this package
-// cannot be — data-explorer-vscode scans a whole workspace of files on disk, with
-// MATLAB's shadowing over them — and that resolver has to read an expression the SAME
-// way, or the same file yields two different usage answers depending on which asked.
-// It did: the host's own copy credited `mode` in `cfg.mode`, inventing a usage for any
-// entry named `mode`. The rule is the shared thing; the scope is not.
-export { identifiersIn } from './core/DataModel.js';
+// cannot be, and that resolver has to read an expression the SAME way, or the same file
+// yields two different usage answers depending on which asked. It did: the host's own
+// copy credited `mode` in `cfg.mode`, inventing a usage for any entry named `mode`. The
+// rule is the shared thing; the scope is not.
+export { identifiersIn } from './datamodel/expressions.js';
 export { createEventBus } from './core/EventBus.js';
 export type { EventBusInstance } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';
@@ -83,6 +82,51 @@ export type { ParseWarning, ParseWarningCode } from './datamodel/parser/ParseWar
 // Universal ingest (sniff + dispatch) — superset entry over addXSource.
 export { ingest } from './core/ingest.js';
 export type { IngestContent, IngestOptions } from './core/ingest.js';
+
+// Which KIND of file a name refers to. Public because every consumer decides this too —
+// a host filters a folder listing, admits a drop, labels a tab — and each one that spells
+// its own `endsWith('.sldd')` gets a case-sensitive test where the glob that admitted the
+// file was not, so `Params.SLDD` is found, opened, and then classified as nothing. These
+// are the tests this package's own readers dispatch on, so a host that shares them cannot
+// disagree with the package about what a file is.
+export {
+  extOf,
+  basenameOf,
+  refBasename,
+  modelNameOf,
+  isModelFile,
+  isSlddFile,
+  isMatFile,
+  isProjectFile,
+} from './datamodel/fileKinds.js';
+
+// Reading a `.sldd` without a session: which of the two on-disk formats the bytes are,
+// where the content sits inside the result, and what a reference means. Public because a
+// consumer that scans dictionaries WITHOUT opening them — to index a folder, to resolve a
+// chain — otherwise reimplements the format sniff, and a sniff that guesses from the
+// extension reads a compressed dictionary as JSON and reports it as empty. normalizeRefNames
+// is the one that had actually drifted: a reference is a bare string or a `{ file }` object
+// depending on which writer produced the file, so a reader that accepts only strings
+// resolves the sub-dictionaries of one flavour and none of the other.
+export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames } from './datamodel/parser/SlddContent.js';
+
+// Usage across a SET OF FILES rather than across a session — which blocks refer to a
+// definition, and where a block parameter's names resolve, over files a caller has read
+// but need not have opened. session.findUsages answers the same question for registered
+// sources; this answers it for a workspace, with MATLAB's workspace → dictionary → MAT
+// shadowing and transitive dictionary references, and needs no node trees to do it. The
+// answers are `NodeUsage`, the same shape findUsages returns, so a host renders one cell
+// either way.
+export { buildUsageIndex, summarizeFiles, resolveName } from './datamodel/usage/UsageIndex.js';
+export type {
+  UsageIndex,
+  UsageFile,
+  FileSummaries,
+  ModelSummary,
+  DataSummary,
+  ParamOrigin,
+  OriginKind,
+} from './datamodel/usage/UsageIndex.js';
 
 // Serializable DTO projection — the machine contract for --json / RPC boundaries.
 export { toDTO } from './core/dto.js';

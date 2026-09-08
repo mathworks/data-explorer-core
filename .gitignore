@@ -1,6 +1,11 @@
 node_modules/
 coverage/
 *.tgz
+.DS_Store
+
+# Throwaway probes run against src/ — a fixture experiment, not a test. Relative imports
+# resolve from here, which is why they live in the repo rather than in /tmp.
+.scratch/
 
 # NOTE: dist/ is intentionally committed (not ignored). This package is consumed
 # as a git dependency, and enterprise npm setups often set `ignore-scripts=true`,

@@ -9,6 +9,7 @@ import PropName from '../../prop/PropName.js';
 import PropRelease from '../../prop/PropRelease.js';
 import PropFileFormat from '../../prop/PropFileFormat.js';
 import PropNumberOfEntries from '../../prop/PropNumberOfEntries.js';
+import { slddChunkContent } from '../../parser/SlddContent.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 
 const SECTION_DEFS = [
@@ -161,8 +162,10 @@ export default class SlddNode extends ContainerNode {
         }
 
         const parts = json.__MW_TEXT_PARTS__ as Record<string, unknown>;
-        const chunk = parts && (parts['__MW_TEXT_PART__/data/chunk0'] as Record<string, unknown>);
-        const content = chunk && (chunk.__MW_TEXT_content as Record<string, unknown>);
+        // The shared unwrap (SlddContent), not a local one: the same three-level path is what
+        // the usage index reads a dictionary's entries through, and a second copy here is a
+        // second chance for one of them to look in the wrong place and report an empty file.
+        const content = slddChunkContent(json);
 
         // Parse the systemcomposer catalog first so entry parsing can use it to
         // classify architectural entries (e.g. StructType vs DataInterface).
@@ -200,6 +203,12 @@ export default class SlddNode extends ContainerNode {
         }
 
         if (content) {
+            // VERBATIM, and `unknown[]` on purpose: a reference is a bare string in a
+            // compressed dictionary and can be a `{ file: ... }` object in a textual one, and
+            // serializeJson writes this array straight back out on save. Normalising here
+            // would turn a display fix into a data loss — whatever else the object carried
+            // would be gone from the saved file. Readers that need names call
+            // SlddContent.normalizeRefNames, which is why that is a read-time step.
             node.dictionaryReferences = (content['Dictionary References'] as unknown[]) || [];
             node.allowAccessBWS = (content.AllowAccessBWS as boolean) || false;
 

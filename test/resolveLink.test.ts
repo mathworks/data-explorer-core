@@ -59,9 +59,14 @@ function paramsJson(): any {
   );
 }
 
+// Where a textual `.sldd`'s content lives: the entries, and the references beside them.
+function contentOf(json: any): any {
+  return json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content;
+}
+
 // The entry list inside a textual `.sldd`, which is where a dictionary's content lives.
 function entriesOf(json: any): any[] {
-  return json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+  return contentOf(json).entries;
 }
 
 // An in-memory `.slx` holding just the facts a link needs: the dictionary the model is
@@ -598,6 +603,54 @@ describe('resolveDictionaryReferences() — the sub-dictionaries a dictionary na
     // The chain is one link deep on purpose: a reference is resolved, a reference's
     // references are the caller's next question, asked the same way.
     expect(s.resolveDictionaryReferences('common.sldd')).toEqual([]);
+  });
+
+  it('reads a reference written as a `{ file }` object, not only as a bare string', () => {
+    // THE BUG. Which form a dictionary records its references in is a property of its
+    // WRITER: the compressed reader hands back bare strings, and a textual dictionary can
+    // hold `{ file: 'common.sldd' }` objects instead. Reading only the string form left the
+    // object form resolving to nothing at all — no reference reported, so a host offered no
+    // way to open the sub-dictionary and every entry inherited through it looked absent,
+    // for a file that differs from a working one only in how it was saved.
+    const s = createSession();
+    const json = paramsJson();
+    contentOf(json)['Dictionary References'] = [{ file: 'common.sldd', uuid: 'ref-1' }];
+    s.addDataSource('mdlparams.sldd', json);
+
+    expect(s.resolveDictionaryReferences('mdlparams.sldd')).toEqual([
+      { name: 'common.sldd', resolution: { status: 'source-not-open', sourceId: 'common.sldd', name: null } },
+    ]);
+    ingest(s, fixtureBytes('compressed.sldd'), { filename: 'common.sldd' });
+    const refs = s.resolveDictionaryReferences('mdlparams.sldd');
+    expect(refs[0].resolution.status).toBe('resolved');
+    expect((refs[0].resolution as any).node).toBe(s.getDataSource('common.sldd'));
+  });
+
+  it('reads a list that mixes the two forms, and skips what names no file', () => {
+    const s = createSession();
+    const json = paramsJson();
+    contentOf(json)['Dictionary References'] = [{ file: 'common.sldd' }, 'other.sldd', null, {}];
+    s.addDataSource('mdlparams.sldd', json);
+    expect(s.resolveDictionaryReferences('mdlparams.sldd').map((r: any) => r.name)).toEqual([
+      'common.sldd',
+      'other.sldd',
+    ]);
+  });
+
+  it('writes the object form back the way it arrived', () => {
+    // Which is why the normalisation is READ-TIME and the node keeps the field verbatim: a
+    // reference object carries fields beyond `file` — a uuid here — and serializeSource
+    // writes this field straight back out. Normalising on the way IN would flatten each
+    // object to its name and save a dictionary that had quietly lost the rest, turning a
+    // display fix into data loss.
+    const s = createSession();
+    const json = paramsJson();
+    contentOf(json)['Dictionary References'] = [{ file: 'common.sldd', uuid: 'ref-1' }];
+    s.addDataSource('mdlparams.sldd', json);
+
+    const out = s.serializeSource('mdlparams.sldd')!;
+    const written = contentOf(JSON.parse(out.kind === 'text' ? out.text : '{}'));
+    expect(written['Dictionary References']).toEqual([{ file: 'common.sldd', uuid: 'ref-1' }]);
   });
 
   it('reports nothing for a source with no references, and for a srcId it does not hold', () => {

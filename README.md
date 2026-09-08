@@ -75,6 +75,33 @@ loadFromPath(s, 'params.sldd');
 loadDirectory(s, 'some_dir/');   // all .sldd/.slx/.mdl/.mat/.prj into one session
 ```
 
+### Usage across a folder
+
+`session.findUsages(nodeId)` answers "what refers to this?" for sources the
+session holds, off their node trees. For a whole folder that is the wrong shape —
+asking about a hundred models would mean holding a hundred trees — so the same
+question over a set of *read but unopened* files is answered from file summaries
+instead:
+
+```js
+import { buildUsageIndex } from 'data-explorer-core';
+
+const index = buildUsageIndex([
+  { srcId: 'a.slx', filename: 'a.slx', bytes: modelBytes },
+  { srcId: 'params.sldd', filename: 'params.sldd', bytes: dictBytes },
+]);
+index.usagesOf('params.sldd', 'Kp'); // the blocks that read Kp, with link targets
+index.paramsOf('a.slx', 'Gain1');    // each parameter of that block, and where it resolved
+```
+
+A `srcId` is the caller's own key for a file and is never parsed; the `filename`
+is what decides the kind. Resolution follows MATLAB: the model workspace shadows
+a linked dictionary, which shadows a linked MAT-file, dictionary references are
+followed transitively, and a reference is matched without regard to case, as the
+file systems these live on do. Answers are `NodeUsage`, the shape `findUsages`
+returns, so a consumer renders one cell whichever resolver produced it. An
+unreadable file in the set contributes nothing and does not fail the rest.
+
 ## License
 
 BSD-3-Clause © The MathWorks, Inc.
