@@ -11,6 +11,17 @@ export interface BlockParamUsage {
      * R2010b, which records none. See blockIdentity, which is where this is read.
      */
     sid: string;
+    /**
+     * The `/`-joined labels of the systems this block is INSIDE, model-relative — '' for
+     * a block in the root system, `Controller` for one in that subsystem,
+     * `Controller/Inner` two deep. Joined by blockIdentity.joinBlockPath, which owns the
+     * escaping.
+     *
+     * The fact that tells two same-named blocks apart on screen, where the SID only tells
+     * them apart in a link. Both model formats record the nesting and neither reader used
+     * to carry it: every block arrived as though it sat at the root.
+     */
+    systemPath: string;
 }
 /**
  * One configuration set, or a REFERENCE to one, normalized across all five layouts.

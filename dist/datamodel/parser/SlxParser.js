@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import { unzipSync } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
+import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { parseMxArray, readMxArrayRecords } from './MxArrayParser.js';
 import { parseMat } from './MatParser.js';
 import { reasonOf } from './ParseWarning.js';
@@ -313,33 +314,31 @@ function inlineConfigSets(model) {
     }
     return out;
 }
-// Every `<System>` reachable from one, the outermost included.
+// The ref a systems part is linked by: `simulink/systems/system_7.xml` -> `system_7`,
+// which is the string a `<System Ref="system_7"/>` stub names it with.
+const SYSTEMS_DIR = 'simulink/systems/';
+function partRef(key) {
+    return key.slice(SYSTEMS_DIR.length, -'.xml'.length);
+}
+// Every part ref named anywhere below `obj`, collected into `out`.
 //
-// A subsystem's blocks live in a `<System>` nested INSIDE the `<Block
-// BlockType="SubSystem">` that owns it; from R2020a each system got a
-// `systems/system_N.xml` part of its own instead, so the parts loop already sees
-// them all and never needs this. `findAll` deliberately does not descend into an
-// element it has already matched, so one `findAll(system, 'Block')` returns that
-// system's own blocks and stops — walking the systems first is what makes an inner
-// block reachable at all. Without it a legacy file dropped every nested block, which
-// for a model organised into subsystems is most of the model.
-function legacySystems(system) {
-    const out = [];
-    const stack = [system];
-    while (stack.length > 0) {
-        const current = stack.pop();
-        if (!current || typeof current !== 'object')
-            continue;
-        out.push(current);
-        for (const block of findAll(current, 'Block')) {
-            if (!block || typeof block !== 'object')
+// A FULL descent, unlike findAll, which stops at each element it matches: the refs
+// wanted here sit on a `<System Ref="…"/>` stub inside a SubSystem block, and a part can
+// hold such a block at any depth. Matching on the element name as well as the attribute
+// keeps this to system links — a `<Block Ref=…>` would be something else entirely.
+function systemRefsIn(obj, out) {
+    if (!obj || typeof obj !== 'object')
+        return;
+    for (const [key, val] of Object.entries(obj)) {
+        for (const item of Array.isArray(val) ? val : [val]) {
+            if (!item || typeof item !== 'object')
                 continue;
-            const inner = block.System;
-            if (inner)
-                stack.push(...(Array.isArray(inner) ? inner : [inner]));
+            const ref = item['@_Ref'];
+            if (key === 'System' && typeof ref === 'string')
+                out.add(ref);
+            systemRefsIn(item, out);
         }
     }
-    return out;
 }
 // Model references from a legacy `graphicalInterface`, which packs both facts into
 // ONE string: `<P Name="ModelRefBlockPath">$bdroot/Child|slx_child</P>`. The
@@ -458,37 +457,24 @@ export function isParamReference(propName, value) {
 // the caller — that part is the largest in the package and every legacy branch
 // wants something from it, so it is read once and passed around.
 function extractBlockParamUsages(entries, legacy, warnings) {
-    // `simulink/systems/*.xml` from R2020a on. Before that the block tree lived
-    // inside blockdiagram.xml, so when there are no systems parts the diagram's own
-    // `<System>` is the root to walk instead.
-    //
-    // Scoping to `<System>` rather than to the whole document is what keeps this
-    // honest: a legacy blockdiagram.xml also carries `<BlockDefaults>` and
-    // `<BlockParameterDefaults>`, which are TEMPLATE blocks — every block type
-    // Simulink knows, with placeholder values like `<Enter Model Name>`. Walking the
-    // document would report every one of them as a real block using real parameters.
-    //
-    // One unreadable systems part is one subsystem's blocks, not the model, so the loop
-    // reports it and carries on through the rest — a model organised into ten subsystems
-    // should not lose nine of them to the tenth. Note that having NO systems parts at all
-    // is not a loss and not reported: that is every release before R2020a, and the legacy
-    // branch below is how those files are read.
-    const roots = [];
-    for (const key in entries) {
-        if (key.startsWith('simulink/systems/') && key.endsWith('.xml')) {
-            const root = readPart(entries, key, 'the blocks it holds are missing', warnings);
-            if (root !== null) {
-                roots.push(root);
-            }
-        }
-    }
-    if (roots.length === 0 && legacy && legacy.System) {
-        roots.push(...legacySystems(legacy.System));
-    }
     const usages = [];
-    for (const root of roots) {
-        const blocks = findAll(root, 'Block');
-        for (const block of blocks) {
+    // The blocks of ONE system, each with the path of the systems enclosing it, and then
+    // the systems its own subsystems own — the recursion that carries the path.
+    //
+    // `findAll` deliberately does not descend into an element it has already matched, so
+    // one call answers with this system's OWN blocks and stops. A subsystem's blocks are
+    // reached through the `<System>` its block owns, which is where the two layouts differ
+    // and the only place they do: INLINE in every release before R2020a, a
+    // `<System Ref="system_7"/>` stub pointing at another part in every release since.
+    // Both are handled, because a package can be either and this reader is handed both.
+    //
+    // Scoping to `<System>` rather than to the whole document is what keeps this honest: a
+    // legacy blockdiagram.xml also carries `<BlockDefaults>` and `<BlockParameterDefaults>`,
+    // which are TEMPLATE blocks — every block type Simulink knows, with placeholder values
+    // like `<Enter Model Name>`. Walking the document would report every one of them as a
+    // real block using real parameters.
+    const collect = (system, path, descend) => {
+        for (const block of findAll(system, 'Block')) {
             const b = block;
             const blockName = normalizeBlockName(b['@_Name'] || '');
             const blockType = b['@_BlockType'] || '';
@@ -497,17 +483,87 @@ function extractBlockParamUsages(entries, legacy, warnings) {
             // arriving as a number.
             const sid = b['@_SID'] === undefined || b['@_SID'] === null ? '' : String(b['@_SID']);
             const props = b['P'];
-            if (!props)
-                continue;
-            const propList = Array.isArray(props) ? props : [props];
-            for (const p of propList) {
+            for (const p of props ? (Array.isArray(props) ? props : [props]) : []) {
                 const pObj = p;
                 const propName = pObj['@_Name'];
                 const val = pObj['#text'] || '';
                 if (!isParamReference(propName, val))
                     continue;
-                usages.push({ blockName, blockType, paramProperty: propName, paramValue: val, sid });
+                usages.push({ blockName, blockType, paramProperty: propName, paramValue: val, sid, systemPath: path });
             }
+            // Reached whether or not this block had a single parameter of its own: a SubSystem
+            // is usually all structure, and skipping a block with no `<P>` would skip the
+            // system underneath it and with it every block in the subsystem.
+            const inner = b.System;
+            if (!inner)
+                continue;
+            const childPath = joinBlockPath(path, blockLabel(blockName, sid));
+            for (const one of Array.isArray(inner) ? inner : [inner]) {
+                const ref = one?.['@_Ref'];
+                if (typeof ref === 'string') {
+                    descend(ref, childPath);
+                }
+                else {
+                    collect(one, childPath, descend);
+                }
+            }
+        }
+    };
+    // `simulink/systems/*.xml` from R2020a on, one part per system, linked to each other by
+    // ref. Before that the block tree lived inside blockdiagram.xml, so when there are no
+    // systems parts the diagram's own `<System>` is the root to walk instead.
+    //
+    // One unreadable systems part is one subsystem's blocks, not the model, so the loop
+    // reports it and carries on through the rest — a model organised into ten subsystems
+    // should not lose nine of them to the tenth. Note that having NO systems parts at all
+    // is not a loss and not reported: that is every release before R2020a, and the legacy
+    // branch below is how those files are read.
+    const parts = new Map();
+    for (const key in entries) {
+        if (key.startsWith(SYSTEMS_DIR) && key.endsWith('.xml')) {
+            const root = readPart(entries, key, 'the blocks it holds are missing', warnings);
+            if (root !== null) {
+                parts.set(partRef(key), root);
+            }
+        }
+    }
+    if (parts.size > 0) {
+        const visited = new Set();
+        const descend = (ref, into) => {
+            // Each part is walked ONCE, which is both what it was before there were paths and
+            // what stops a file whose refs form a cycle from recursing for ever.
+            if (visited.has(ref))
+                return;
+            visited.add(ref);
+            const part = parts.get(ref);
+            if (part !== undefined)
+                collect(part, into, descend);
+        };
+        // The ROOT is the part nothing else points at. That is `system_root` in every package
+        // MathWorks writes, and the block diagram names it outright — but deriving it costs a
+        // set of the refs this reader has already got, and then no era's spelling of the
+        // diagram (XML before R2026b, JSON after) has to be right for a single block to be
+        // read. Note that only the PARTS are scanned, so the diagram's own link to the root
+        // does not make the root look referenced.
+        const referenced = new Set();
+        for (const part of parts.values())
+            systemRefsIn(part, referenced);
+        for (const ref of parts.keys()) {
+            if (!referenced.has(ref))
+                descend(ref, '');
+        }
+        // Whatever the walk did not reach — a part referenced only from a part that failed to
+        // read, or from one whose ref this reader could not see — contributes its blocks at
+        // the root, exactly as it did when every part was walked as its own root. A path is
+        // worth having; it is not worth losing blocks over.
+        for (const ref of parts.keys())
+            descend(ref, '');
+    }
+    else if (legacy && legacy.System) {
+        for (const system of Array.isArray(legacy.System) ? legacy.System : [legacy.System]) {
+            // No parts, so nothing to descend INTO: this era nests inline, which `collect`
+            // handles itself.
+            collect(system, '', () => undefined);
         }
     }
     return usages;

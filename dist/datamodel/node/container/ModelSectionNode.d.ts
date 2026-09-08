@@ -19,7 +19,7 @@ export default class ModelSectionNode extends ContainerNode {
     addBlockEntry(blockName: string, blockType: string, paramUsages: Array<{
         property: string;
         value: string;
-    }>, modelSrcId: string, paramSourceId: string | null, sid?: string): BaseNode;
+    }>, modelSrcId: string, paramSourceId: string | null, sid?: string, systemPath?: string): BaseNode;
     addDataSourceEntry(path: string): BaseNode;
 }
 //# sourceMappingURL=ModelSectionNode.d.ts.map

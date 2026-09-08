@@ -24,6 +24,7 @@
 //
 // Both flavours are held to the .slx of the same diagram by the parity suite —
 // see test/parity/mdl.parity.test.ts and test/parity/matlab/gen_mdl.m.
+import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { configSetIdentity, isParamReference, normalizeBlockName, parseModelParts } from './SlxParser.js';
 import { parseMxArray, readMxArrayRecords } from './MxArrayParser.js';
 export function parseMdl(buffer, filename) {
@@ -707,9 +708,16 @@ function classicBlockParamUsages(model) {
     // name — and a `.slx` has no equivalent section, so counting them would give a
     // `.mdl` rows that the same model's `.slx` never reports. Breadth-first, appending
     // each subsystem's own `System` as it is met, so nesting costs no recursion.
-    const systems = childrenNamed(model, 'System');
+    //
+    // Each entry carries the PATH of the systems it is inside, which is the parent block's
+    // path plus that block's label — this format nests inline
+    // (`Block { Name "Sub" System { Block { Name "InnerGain" } } }`), so the enclosing
+    // block is right there to read it off. Same fact the `.slx` reader carries through part
+    // refs, and the two flavours of one model must agree about it.
+    const systems = childrenNamed(model, 'System').map((system) => ({ system, path: '' }));
     for (let s = 0; s < systems.length; s++) {
-        for (const block of childrenNamed(systems[s], 'Block')) {
+        const path = systems[s].path;
+        for (const block of childrenNamed(systems[s].system, 'Block')) {
             // `"Two\nLines"` here, `Two&#xA;Lines` in the `.slx`; both normalise to one
             // flat label. The unescaping already happened in the scanner.
             const blockName = normalizeBlockName(prop(block, 'Name') || '');
@@ -723,10 +731,11 @@ function classicBlockParamUsages(model) {
                     continue;
                 if (!isParamReference(p.name, p.value))
                     continue;
-                usages.push({ blockName, blockType, paramProperty: p.name, paramValue: p.value, sid });
+                usages.push({ blockName, blockType, paramProperty: p.name, paramValue: p.value, sid, systemPath: path });
             }
+            const childPath = joinBlockPath(path, blockLabel(blockName, sid));
             for (const inner of childrenNamed(block, 'System'))
-                systems.push(inner);
+                systems.push({ system: inner, path: childPath });
         }
     }
     return usages;

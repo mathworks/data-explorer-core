@@ -205,19 +205,31 @@ export default class ModelNode extends ContainerNode {
     // `Gain=Mq, Gain=Zw, Gain=Kf, Gain=Zw`, four blocks' parameters under one name with
     // a duplicate that was really two blocks. See blockIdentity.
     //
-    // A parsed usage carries the name AND the type as well as the SID, and the first
-    // usage of a block settles both: they are properties of the block, repeated on
-    // every usage of it, so any of them would do.
+    // A parsed usage carries the name, the type and the system path as well as the SID,
+    // and the first usage of a block settles all of them: they are properties of the
+    // block, repeated on every usage of it, so any of them would do.
     if (parsed.blockParamUsages && parsed.blockParamUsages.length > 0) {
       const blocksSection = node.getSection('blocks')!;
       const blockMap = new Map<
         string,
-        { name: string; type: string; sid: string; usages: Array<{ property: string; value: string }> }
+        {
+          name: string;
+          type: string;
+          sid: string;
+          systemPath: string;
+          usages: Array<{ property: string; value: string }>;
+        }
       >();
       for (const usage of parsed.blockParamUsages) {
         const key = blockKey(usage.blockName, usage.sid ?? '');
         if (!blockMap.has(key)) {
-          blockMap.set(key, { name: usage.blockName, type: usage.blockType, sid: usage.sid ?? '', usages: [] });
+          blockMap.set(key, {
+            name: usage.blockName,
+            type: usage.blockType,
+            sid: usage.sid ?? '',
+            systemPath: usage.systemPath ?? '',
+            usages: [],
+          });
         }
         blockMap.get(key)!.usages.push({
           property: usage.paramProperty,
@@ -226,7 +238,15 @@ export default class ModelNode extends ContainerNode {
       }
       const paramSourceId = parsed.dataDictionary || null;
       for (const info of blockMap.values()) {
-        blocksSection.addBlockEntry(info.name, info.type, info.usages, filename, paramSourceId, info.sid);
+        blocksSection.addBlockEntry(
+          info.name,
+          info.type,
+          info.usages,
+          filename,
+          paramSourceId,
+          info.sid,
+          info.systemPath,
+        );
       }
     }
 

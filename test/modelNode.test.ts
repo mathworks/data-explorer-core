@@ -329,12 +329,14 @@ describe('ModelBlockNode', () => {
     expect(blk.displayName).toBe('G1');
   });
 
-  it('is a non-editable entry offering only Name in the inspector', () => {
+  it('is a non-editable entry offering Name and Block Path in the inspector', () => {
     const blk = blockModel(TWO_PARAMS).getSection('blocks').children[0];
     expect(blk.isEntry).toBe(true);
     expect(blk.nameEditable).toBe(false);
     expect(blk.valueEditable).toBe(false);
-    expect(blk.getProperties().map((p: any) => p.key)).toEqual(['Name']);
+    // The path is the second property because the name alone does not say WHICH block
+    // this is — a model may hold four called `Gain`. See blockIdentity.
+    expect(blk.getProperties().map((p: any) => p.key)).toEqual(['Name', 'BlockPath']);
     expect(blk.getPILayout().map((g: any) => g.group)).toEqual(['General']);
   });
 });
@@ -397,6 +399,83 @@ describe('ModelBlockNode — identity is the SID, the name is a label', () => {
     ).getSection('blocks').children[0];
     expect(blk.displayName).toBe('');
     expect(blk.id).toBe('m.slx/blocks/');
+  });
+});
+
+// The third rule: WHERE the block is. The SID makes each same-named block its own row,
+// and this is what lets a person tell those rows apart — the identity is not something
+// they can read, and four rows all saying `Gain` are four correct rows and one useless
+// table.
+describe('ModelBlockNode — the path says which block a row is', () => {
+  // A subsystem holding a block, in the layout every release since R2020a writes: the
+  // child system is its own part, linked by ref.
+  const nestedModel = () =>
+    ModelNode.fromParsed(
+      parseSlx(
+        (() => {
+          const z = zipSync({
+            'simulink/blockDiagram.json': strToU8(JSON.stringify({ BlockDiagram: { ModelUUID: 'u1' } })),
+            'simulink/systems/system_root.xml': strToU8(
+              `<?xml version="1.0"?><System>` +
+                `<Block BlockType="Gain" Name="Gain" SID="15"><P Name="Gain">Mq</P></Block>` +
+                `<Block BlockType="SubSystem" Name="Controller" SID="20"><System Ref="system_7"/></Block>` +
+                `</System>`,
+            ),
+            'simulink/systems/system_7.xml': strToU8(
+              `<?xml version="1.0"?><System>` +
+                `<Block BlockType="Gain" Name="Gain" SID="24"><P Name="Gain">Zw</P></Block>` +
+                `</System>`,
+            ),
+            'metadata/coreProperties.xml': strToU8(
+              `<?xml version="1.0"?><coreProperties><version>R2026b</version></coreProperties>`,
+            ),
+          });
+          return z.buffer.slice(z.byteOffset, z.byteOffset + z.byteLength) as ArrayBuffer;
+        })(),
+        'm.slx',
+      ),
+      'm.slx',
+    ) as any;
+
+  it('gives each row the path its block sits at', () => {
+    // Two rows both reading `Gain`, one in the root system and one in `Controller`. The
+    // label is identical, the key is not, and the path is what says so on screen.
+    const blocks = nestedModel().getSection('blocks').children;
+    expect(blocks.map((c: any) => c.displayName)).toEqual(['Gain', 'Gain']);
+    expect(blocks.map((c: any) => c.blockPath)).toEqual(['Gain', 'Controller/Gain']);
+  });
+
+  it('publishes the parent systems and the whole path as separate row fields', () => {
+    // Two fields because they answer differently: a cell qualifying a name shows the
+    // PARENT (`Gain (Controller)`), while the whole path is the address, and joining them
+    // is an escaping rule (blockIdentity.joinBlockPath) no consumer should repeat.
+    const rows = nestedModel().getSection('blocks').children.map((c: any) => c.toRow());
+    expect(rows.map((r: any) => r._systemPath)).toEqual(['', 'Controller']);
+    expect(rows.map((r: any) => r._blockPath)).toEqual(['Gain', 'Controller/Gain']);
+  });
+
+  it('answers the inspector with the path, through the prop a model reference already uses', () => {
+    // PropBlockPath reads `node.blockPath`, which is the same question asked of a
+    // different node — so the Property Inspector needed no new prop, and a block and a
+    // model reference cannot disagree about what a block path is.
+    const blk = nestedModel().getSection('blocks').children[1];
+    expect(blk.toPIObject().objects[0].BlockPath).toBe('Controller/Gain');
+  });
+
+  it('is the label alone for a block in the root system', () => {
+    const blk = blockModel(`<Block BlockType="Gain" Name="G" SID="1"><P Name="Gain">Kp</P></Block>`)
+      .getSection('blocks').children[0];
+    expect(blk.blockPath).toBe('G');
+    expect(blk.toRow()._systemPath).toBe('');
+  });
+
+  it('uses the label, so a nameless block is placed by its SID stand-in', () => {
+    // f14.slx's cleared-label Constant. Composed with the label rather than the raw name
+    // so a path never ends in nothing — an empty last segment would read as the system
+    // itself, not as a block in it.
+    const blk = blockModel(`<Block BlockType="Constant" Name="&#xA;" SID="65"><P Name="Value">Uo</P></Block>`)
+      .getSection('blocks').children[0];
+    expect(blk.blockPath).toBe('<SID: 65>');
   });
 });
 

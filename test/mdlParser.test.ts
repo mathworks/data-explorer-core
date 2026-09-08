@@ -131,7 +131,7 @@ describe('parseMdl — modern .mdl (OPC text package)', () => {
     expect(fromMdl.release).toBe('R2027a');
     expect(fromMdl.dataDictionary).toBe('params.sldd');
     expect(fromMdl.blockParamUsages).toEqual([
-      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Ki', sid: '1' },
+      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Ki', sid: '1', systemPath: '' },
     ]);
   });
 
@@ -345,21 +345,25 @@ describe('parseMdl — classic .mdl block parameters', () => {
     // `sid` rides on every row: it is an ordinary property here where a `.slx` makes it
     // an attribute, and it is what the row is identified by — the two `TF` rows and the
     // two `InnerGain` rows are each ONE block, and their SIDs say so.
+    //
+    // `systemPath` says WHERE, and is the reason "recursing into subsystems" is worth
+    // more than a count: the two `InnerGain` rows are inside `Sub`, and a consumer that
+    // only had the name could not tell them from a root-level block of the same name.
     expect(usages).toEqual([
       // `"Two\nLines"` here, `Two&#xA;Lines` in the .slx — both flatten to one label.
-      { blockName: 'Two Lines', blockType: 'Constant', paramProperty: 'Value', paramValue: 'span', sid: '1' },
-      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Denominator', paramValue: '[tau 1]', sid: '2' },
+      { blockName: 'Two Lines', blockType: 'Constant', paramProperty: 'Value', paramValue: 'span', sid: '1', systemPath: '' },
+      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Denominator', paramValue: '[tau 1]', sid: '2', systemPath: '' },
       // An unquoted bracket literal, and one with a nested bracket — the `]` inside
       // must not end the value early.
-      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Coeffs', paramValue: '[k1 k2]', sid: '2' },
-      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Nested', paramValue: '[[k3] k4]', sid: '2' },
+      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Coeffs', paramValue: '[k1 k2]', sid: '2', systemPath: '' },
+      { blockName: 'TF', blockType: 'TransferFcn', paramProperty: 'Nested', paramValue: '[[k3] k4]', sid: '2', systemPath: '' },
       // Wrapped across two quoted chunks: MATLAB breaks a long value at
       // MaxMDLFileLineLength, and the chunks are ONE value.
-      { blockName: 'InnerGain', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'alphabeta', sid: '4' },
+      { blockName: 'InnerGain', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'alphabeta', sid: '4', systemPath: 'Sub' },
       // `\\` and `\"` undone. `\\` is load-bearing well beyond this row: the uuencode
       // alphabet contains both characters, so the model workspace does not decode
       // unless escapes are undone first.
-      { blockName: 'InnerGain', blockType: 'Gain', paramProperty: 'Note', paramValue: 'path\\to"x"', sid: '4' },
+      { blockName: 'InnerGain', blockType: 'Gain', paramProperty: 'Note', paramValue: 'path\\to"x"', sid: '4', systemPath: 'Sub' },
     ]);
   });
 
@@ -403,8 +407,49 @@ describe('parseMdl — classic .mdl block parameters', () => {
       'old.mdl',
     );
     expect(parsed.blockParamUsages).toEqual([
-      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp', sid: '' },
+      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp', sid: '', systemPath: '' },
     ]);
+  });
+
+  it('chains the path through every level of nesting, and escapes a name holding a slash', () => {
+    // The classic grammar walks nesting with a worklist rather than by following a part
+    // reference, and a worklist is where a path gets lost: each entry has to carry the
+    // path its system was reached at, or a block two subsystems down reports as if it
+    // were one down. `A/B` is a legal block name and Simulink doubles the slash — so a
+    // path built from it can still be split back into `A/B`, `Deep`, `G`.
+    const parsed = parseMdl(
+      bytes(String.raw`Model {
+  Name                    "deep"
+  System {
+    Name                  "deep"
+    Block {
+      BlockType           SubSystem
+      Name                "A/B"
+      SID                 "1"
+      System {
+        Name              "A/B"
+        Block {
+          BlockType       SubSystem
+          Name            "Deep"
+          SID             "2"
+          System {
+            Name          "Deep"
+            Block {
+              BlockType   Gain
+              Name        "G"
+              SID         "3"
+              Gain        "Kp"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+`),
+      'deep.mdl',
+    );
+    expect(parsed.blockParamUsages.map((u) => u.systemPath)).toEqual(['A//B/Deep']);
   });
 });
 

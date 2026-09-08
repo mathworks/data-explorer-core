@@ -11,6 +11,7 @@ export type { SerializedSource } from './core/DataModel.js';
 export type { FindNodesQuery } from './core/DataModel.js';
 export type { LinkResolution, NodeUsage, DictionaryReference } from './core/DataModel.js';
 export { identifiersIn } from './datamodel/expressions.js';
+export { blockKey, blockLabel, joinBlockPath } from './datamodel/blockIdentity.js';
 export { createEventBus } from './core/EventBus.js';
 export type { EventBusInstance } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';

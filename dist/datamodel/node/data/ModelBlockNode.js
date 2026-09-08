@@ -1,15 +1,17 @@
 // Copyright 2026 The MathWorks, Inc.
 import BaseNode from '../BaseNode.js';
 import PropName from '../../prop/PropName.js';
-import { blockKey, blockLabel } from '../../blockIdentity.js';
+import PropBlockPath from '../../prop/PropBlockPath.js';
+import { blockKey, blockLabel, joinBlockPath } from '../../blockIdentity.js';
 export default class ModelBlockNode extends BaseNode {
-    constructor(name, parent, blockType, paramUsages, modelSrcId, paramSourceId, sid = '') {
+    constructor(name, parent, blockType, paramUsages, modelSrcId, paramSourceId, sid = '', systemPath = '') {
         super(name, parent);
         this.blockType = blockType;
         this.paramUsages = paramUsages;
         this.modelSrcId = modelSrcId;
         this.paramSourceId = paramSourceId;
         this.sid = sid;
+        this.systemPath = systemPath;
     }
     /**
      * `…/blocks/65` — the SID, not the name.
@@ -44,6 +46,16 @@ export default class ModelBlockNode extends BaseNode {
     get displayValue() {
         return this.blockType;
     }
+    /**
+     * WHERE this block is — `Controller/Gain`, and just `Gain` for one in the root system.
+     *
+     * Read by PropBlockPath (which ModelReferenceNode already uses, for the same fact about
+     * a different node), so the Property Inspector answers the question a row of same-named
+     * blocks raises. Model-relative and escaped by joinBlockPath — see blockIdentity.
+     */
+    get blockPath() {
+        return joinBlockPath(this.systemPath, this.displayName);
+    }
     get className() {
         return this.paramUsages.map((u) => `${u.property}=${u.value}`).join(', ');
     }
@@ -72,13 +84,21 @@ export default class ModelBlockNode extends BaseNode {
             // would put one block's parameters on another block's row, which is the merge
             // blockIdentity exists to undo.
             _blockKey: blockKey(this.name, this.sid),
+            // Where the block is, for a host that wants to qualify a row a name cannot
+            // distinguish: the enclosing systems, and the whole path. Two fields rather than
+            // one because they answer differently — `Gain` in a cell reading
+            // `Gain (Controller)` needs the parent alone, and the full path is the address —
+            // and because joining them is an escaping rule (blockIdentity.joinBlockPath) that
+            // no consumer should have to repeat.
+            _systemPath: this.systemPath,
+            _blockPath: this.blockPath,
         };
     }
     getProperties() {
-        return [PropName];
+        return [PropName, PropBlockPath];
     }
     getPILayout() {
-        return [{ group: 'General', items: [PropName] }];
+        return [{ group: 'General', items: [PropName, PropBlockPath] }];
     }
 }
 //# sourceMappingURL=ModelBlockNode.js.map

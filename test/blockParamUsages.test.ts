@@ -36,15 +36,15 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
         `</Block>`,
     );
     expect(usages).toEqual([
-      { blockName: 'Filt', blockType: 'TransferFcn', paramProperty: 'Numerator', paramValue: '[1,W1]', sid: '1' },
-      { blockName: 'Filt', blockType: 'TransferFcn', paramProperty: 'Denominator', paramValue: '[Tal,1]', sid: '1' },
+      { blockName: 'Filt', blockType: 'TransferFcn', paramProperty: 'Numerator', paramValue: '[1,W1]', sid: '1', systemPath: '' },
+      { blockName: 'Filt', blockType: 'TransferFcn', paramProperty: 'Denominator', paramValue: '[Tal,1]', sid: '1', systemPath: '' },
     ]);
   });
 
   it('still captures a Gain param (allowlist behavior preserved)', () => {
     const usages = usagesFor(`<Block BlockType="Gain" Name="G1" SID="1"><P Name="Gain">Mq</P></Block>`);
     expect(usages).toEqual([
-      { blockName: 'G1', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Mq', sid: '1' },
+      { blockName: 'G1', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Mq', sid: '1', systemPath: '' },
     ]);
   });
 
@@ -76,7 +76,7 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
     // Only the real parameter (Gain=Kp) survives; Position/FontName/OutDataTypeStr
     // are on the non-param skip list.
     expect(usages).toEqual([
-      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp', sid: '1' },
+      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp', sid: '1', systemPath: '' },
     ]);
   });
 
@@ -104,7 +104,7 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
     // stays a usage. This is what the anchors on the non-finite pattern buy.
     const usages = usagesFor(`<Block BlockType="Gain" Name="G" SID="1"><P Name="Gain">Infinity</P></Block>`);
     expect(usages).toEqual([
-      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Infinity', sid: '1' },
+      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Infinity', sid: '1', systemPath: '' },
     ]);
   });
 
@@ -188,6 +188,201 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
         'Gain/24=Zw',
       ]);
     });
+  });
+});
+
+// WHERE each block is, which is the fact neither the name nor the SID carries: a SID
+// tells a machine two `Gain` blocks apart, and the enclosing subsystem is what tells a
+// PERSON. Every era of `.slx` records the nesting differently, and the two shapes below
+// are the only two there have ever been — a `<System Ref="system_7"/>` stub pointing at
+// another part (R2020a on), or the child `<System>` nested inline (before that).
+describe('the system path — which subsystems a block is inside', () => {
+  // An .slx whose systems parts are given by ref name: `{ system_root: '<Block …/>' }`.
+  // No blockDiagram.json content beyond the uuid, deliberately — the walk must not need
+  // the diagram to find its root, because that part is XML in four eras and JSON in the
+  // fifth and a path feature has no business depending on which.
+  function slxWithSystems(systems: Record<string, string>): ArrayBuffer {
+    const parts: Record<string, Uint8Array> = {
+      'simulink/blockDiagram.json': strToU8(JSON.stringify({ BlockDiagram: { ModelUUID: 'u1' } })),
+      'metadata/coreProperties.xml': strToU8(
+        `<?xml version="1.0"?><coreProperties><version>R2026b</version></coreProperties>`,
+      ),
+    };
+    for (const [ref, blocksXml] of Object.entries(systems)) {
+      parts[`simulink/systems/${ref}.xml`] = strToU8(
+        `<?xml version="1.0" encoding="utf-8"?><System>${blocksXml}</System>`,
+      );
+    }
+    const zipped = zipSync(parts);
+    return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
+  }
+
+  /** `Gain=Kp @ Sub/Inner` for every usage — the value, and where it was found. */
+  function whereFrom(buf: ArrayBuffer): string[] {
+    return parseSlx(buf, 'm.slx').blockParamUsages.map(
+      (u) => `${u.blockName}:${u.paramValue}@${u.systemPath}`,
+    );
+  }
+
+  it('is empty for a block in the root system', () => {
+    // '' is the root, not a missing value: a root block's path is its label, and a
+    // model-name prefix is what MATLAB's getfullname adds and this deliberately does not.
+    expect(whereFrom(slxWithSystems({ system_root: `<Block BlockType="Gain" Name="G" SID="1"><P Name="Gain">Kp</P></Block>` })))
+      .toEqual(['G:Kp@']);
+  });
+
+  it('names the subsystem for a block reached through a part reference', () => {
+    // The R2020a-on layout: the SubSystem block holds a stub, and the blocks are in the
+    // part it names.
+    expect(
+      whereFrom(
+        slxWithSystems({
+          system_root:
+            `<Block BlockType="Gain" Name="Outer" SID="1"><P Name="Gain">Kp</P></Block>` +
+            `<Block BlockType="SubSystem" Name="Sub" SID="2"><System Ref="system_7"/></Block>`,
+          system_7: `<Block BlockType="Gain" Name="Inner" SID="3"><P Name="Gain">Ki</P></Block>`,
+        }),
+      ),
+    ).toEqual(['Outer:Kp@', 'Inner:Ki@Sub']);
+  });
+
+  it('names every subsystem on the way down, however deep', () => {
+    expect(
+      whereFrom(
+        slxWithSystems({
+          system_root: `<Block BlockType="SubSystem" Name="Controller" SID="1"><System Ref="system_7"/></Block>`,
+          system_7: `<Block BlockType="SubSystem" Name="Inner" SID="2"><System Ref="system_9"/></Block>`,
+          system_9: `<Block BlockType="Gain" Name="G" SID="3"><P Name="Gain">Kp</P></Block>`,
+        }),
+      ),
+    ).toEqual(['G:Kp@Controller/Inner']);
+  });
+
+  it('names the subsystem for a block nested INLINE, the pre-R2020a shape', () => {
+    // The same claim about the other layout, and the reason `collect` recurses rather
+    // than only following refs. Written into a systems part here so the two shapes are
+    // compared in one place; the whole-file version of this is the R2018a fixture in
+    // test/parity/slxLayouts.parity.test.ts.
+    expect(
+      whereFrom(
+        slxWithSystems({
+          system_root:
+            `<Block BlockType="SubSystem" Name="Sub" SID="2">` +
+            `<System><Block BlockType="Gain" Name="Inner" SID="3"><P Name="Gain">Ki</P></Block></System>` +
+            `</Block>`,
+        }),
+      ),
+    ).toEqual(['Inner:Ki@Sub']);
+  });
+
+  it('descends a SubSystem that has no parameters of its own', () => {
+    // A subsystem is usually pure structure — no `<P>` at all. A walk that moved on from
+    // a block the moment it found nothing to report would take the whole subsystem with
+    // it, and the model would simply look smaller.
+    expect(
+      whereFrom(
+        slxWithSystems({
+          system_root: `<Block BlockType="SubSystem" Name="Sub" SID="2"><System Ref="system_7"/></Block>`,
+          system_7: `<Block BlockType="Gain" Name="Inner" SID="3"><P Name="Gain">Ki</P></Block>`,
+        }),
+      ),
+    ).toEqual(['Inner:Ki@Sub']);
+  });
+
+  it('uses the SID stand-in for a subsystem whose label the user cleared', () => {
+    // blockLabel's case, one level up: the segment is what the subsystem READS as, so a
+    // nameless one contributes `<SID: 2>` rather than an empty segment that would leave
+    // the child's path starting with a bare `/`.
+    expect(
+      whereFrom(
+        slxWithSystems({
+          system_root: `<Block BlockType="SubSystem" Name="&#xA;" SID="2"><System Ref="system_7"/></Block>`,
+          system_7: `<Block BlockType="Gain" Name="Inner" SID="3"><P Name="Gain">Ki</P></Block>`,
+        }),
+      ),
+    ).toEqual(['Inner:Ki@<SID: 2>']);
+  });
+
+  it("doubles a `/` in a subsystem's own name, so the path stays splittable", () => {
+    // Simulink allows `/` in a block name and escapes it by doubling — see
+    // blockIdentity.joinBlockPath. Left alone, `A/B` would read as two subsystems.
+    expect(
+      whereFrom(
+        slxWithSystems({
+          system_root: `<Block BlockType="SubSystem" Name="A/B" SID="2"><System Ref="system_7"/></Block>`,
+          system_7: `<Block BlockType="Gain" Name="Inner" SID="3"><P Name="Gain">Ki</P></Block>`,
+        }),
+      ),
+    ).toEqual(['Inner:Ki@A//B']);
+  });
+
+  it('finds the root part whatever it is called — nothing points at it', () => {
+    // The root is derived as the part no other part references, not matched against the
+    // name `system_root`. That is what keeps the walk independent of the block diagram,
+    // which names the root outright but spells it differently in every era.
+    expect(
+      whereFrom(
+        slxWithSystems({
+          system_top: `<Block BlockType="SubSystem" Name="Sub" SID="2"><System Ref="system_9"/></Block>`,
+          system_9: `<Block BlockType="Gain" Name="Inner" SID="3"><P Name="Gain">Ki</P></Block>`,
+        }),
+      ),
+    ).toEqual(['Inner:Ki@Sub']);
+  });
+
+  it('loses no block to a file whose part refs form a cycle', () => {
+    // Two parts pointing at each other: neither is unreferenced, so neither is a derived
+    // root and the first pass walks nothing at all. The sweep that follows walks whatever
+    // is still unvisited from the root, which is why a path feature cannot cost a model
+    // its blocks. The per-part visited set is what stops the cycle itself.
+    const usages = whereFrom(
+      slxWithSystems({
+        system_a:
+          `<Block BlockType="Gain" Name="Ga" SID="1"><P Name="Gain">Kp</P></Block>` +
+          `<Block BlockType="SubSystem" Name="ToB" SID="2"><System Ref="system_b"/></Block>`,
+        system_b:
+          `<Block BlockType="Gain" Name="Gb" SID="3"><P Name="Gain">Ki</P></Block>` +
+          `<Block BlockType="SubSystem" Name="ToA" SID="4"><System Ref="system_a"/></Block>`,
+      }),
+    );
+    expect(usages.map((u) => u.split(':')[0]).sort()).toEqual(['Ga', 'Gb']);
+  });
+
+  it('reports each block once, however many refs reach its part', () => {
+    // Two subsystems sharing one part is not a shape MATLAB writes, but a part walked
+    // twice would report its blocks twice and double every usage count downstream. The
+    // first ref to reach it settles its path.
+    expect(
+      whereFrom(
+        slxWithSystems({
+          system_root:
+            `<Block BlockType="SubSystem" Name="One" SID="1"><System Ref="system_7"/></Block>` +
+            `<Block BlockType="SubSystem" Name="Two" SID="2"><System Ref="system_7"/></Block>`,
+          system_7: `<Block BlockType="Gain" Name="Inner" SID="3"><P Name="Gain">Ki</P></Block>`,
+        }),
+      ),
+    ).toEqual(['Inner:Ki@One']);
+  });
+
+  it('names the subsystem in a legacy blockdiagram.xml, which has no systems parts at all', () => {
+    // Before R2020a the whole block tree is inside this one part, nested inline. The
+    // usages must carry the same paths a modern package gives, since it is the same
+    // diagram — the claim the layout parity suite makes over MATLAB's own exports.
+    const zipped = zipSync({
+      'simulink/blockdiagram.xml': strToU8(
+        `<?xml version="1.0"?><ModelInformation><Model><System>` +
+          `<Block BlockType="Gain" Name="Outer" SID="1"><P Name="Gain">Kp</P></Block>` +
+          `<Block BlockType="SubSystem" Name="Sub" SID="2"><System>` +
+          `<Block BlockType="Gain" Name="Inner" SID="3"><P Name="Gain">Ki</P></Block>` +
+          `</System></Block>` +
+          `</System></Model></ModelInformation>`,
+      ),
+      'metadata/coreProperties.xml': strToU8(
+        `<?xml version="1.0"?><coreProperties><version>R2018a</version></coreProperties>`,
+      ),
+    });
+    const buf = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
+    expect(whereFrom(buf)).toEqual(['Outer:Kp@', 'Inner:Ki@Sub']);
   });
 });
 
@@ -326,7 +521,7 @@ describe('parseSlx — model workspace MAT-File source + edge cases', () => {
       `<Block BlockType="Gain" Name="G1" SID="2"><P Name="Gain">Kp</P></Block>`,
     );
     expect(usages).toEqual([
-      { blockName: 'G1', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp', sid: '2' },
+      { blockName: 'G1', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp', sid: '2', systemPath: '' },
     ]);
   });
 });

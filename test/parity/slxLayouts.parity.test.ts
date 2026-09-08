@@ -240,8 +240,12 @@ function atBdroot(file: string, path: string): string {
  */
 function shape(file: string, model: any): Record<string, string[]> {
   return {
+    // `blockPath` rides along with the name because WHERE a block is has to survive the
+    // layout flip as surely as what it is called: R2020a and later give each system a
+    // part of its own, while every earlier file nests the child `<System>` inside the
+    // SubSystem block, and those are two different walks producing one answer.
     blocks: rows(model, 'blocks')
-      .map((n: any) => n.displayName + ' :: ' + n.displayValue + ' :: ' + n.className)
+      .map((n: any) => n.displayName + ' :: ' + n.blockPath + ' :: ' + n.displayValue + ' :: ' + n.className)
       .sort(),
     workspace: rows(model, 'workspace')
       .map((n: any) => [n.displayName, n.dataType, n.className, n.displayValue].join(' :: '))
@@ -399,6 +403,20 @@ for (const [key, eras] of [
             // each system a part of its own. Held to the name, so it cannot be satisfied
             // by some other block turning up in its place.
             expect(rows(model, 'blocks').map((n: any) => n.name)).toContain('InnerGain');
+          });
+
+          it('says which subsystem that block is in', () => {
+            // Reaching it is not the same as placing it: a walk that finds the inner
+            // block but loses the descent it made would report it at the root, and the
+            // row would then be indistinguishable from a root block of the same name.
+            // The parent is MATLAB's own name for the subsystem, so this is not the
+            // reader agreeing with itself.
+            const inner = rows(model, 'blocks').find((n: any) => n.name === 'InnerGain');
+            expect(inner.blockPath).toBe(nested.name + '/InnerGain');
+            // And a root-level block's path is its label and nothing else — no model
+            // name prefix, which is where getfullname and this differ.
+            const root = rows(model, 'blocks').find((n: any) => n.name === 'Gain');
+            expect(root.blockPath).toBe('Gain');
           });
         }
 

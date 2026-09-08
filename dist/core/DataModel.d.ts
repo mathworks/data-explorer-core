@@ -112,6 +112,17 @@ export interface NodeUsage {
      * one model can share it. `linkTarget` is what tells them apart.
      */
     blockName: string;
+    /**
+     * WHERE the block is — `Controller/Gain`, and just the label for one in the root
+     * system (blockIdentity.joinBlockPath). Model-relative, because the model is already
+     * named by `modelSrcId`.
+     *
+     * What makes two usages that read alike tell-apart-able for a PERSON: a dictionary
+     * entry used by four blocks all named `Gain` renders as one word four times, each link
+     * correctly reaching a different block, with nothing on screen to say which. Display
+     * text like `blockName`, not an identity — `linkTarget` remains the identity.
+     */
+    blockPath: string;
     /** The block's type — 'Constant'. Empty when the model did not record one. */
     blockType: string;
     /** The block parameter that holds the reference — 'Value', 'Denominator'. */
