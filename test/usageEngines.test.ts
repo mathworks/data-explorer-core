@@ -35,6 +35,9 @@ function artifact(rel: string): ArrayBuffer {
   return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
 }
 
+// The SID mirrors the name here only because these models hold one block per name, which
+// keeps a cell's text and its link target readable side by side. The cases where the two
+// genuinely differ — same-named blocks, a blank name — build their own XML at the bottom.
 const block = (name: string, type: string, prop: string, value: string): string =>
   `<Block BlockType="${type}" Name="${name}" SID="${name}"><P Name="${prop}">${value}</P></Block>`;
 
@@ -126,6 +129,29 @@ function expectBoth(files: File[], nodeId: string, srcId: string, name: string, 
   const { session, index } = bothEngines(files, nodeId, srcId, name);
   expect(session, `session's UsedBy for ${nodeId}`).toEqual(expected);
   expect(index, `index's usagesOf(${srcId}, ${name})`).toEqual(expected);
+}
+
+// The same two answers read as `label -> linkTarget`, for the cases where WHICH BLOCK a
+// link reaches is the thing that has to agree. The label and the target are two different
+// rules (blockIdentity) applied in two different engines, so there are four spellings that
+// could drift apart and only one of them is visible in the text alone.
+function expectBothLinks(files: File[], nodeId: string, srcId: string, name: string, expected: string[]): void {
+  const session = createSession();
+  for (const f of files) {
+    ingest(session, f.bytes, { filename: f.name });
+  }
+  const node: any = session.findNodeById(nodeId);
+  expect(node, `session holds no node ${nodeId}`).not.toBe(null);
+  const cell: any = node.toRow().UsedBy;
+  expect(
+    (cell?.links ?? []).map((l: any) => `${l.text} -> ${l.linkTarget}`),
+    `session's UsedBy links for ${nodeId}`,
+  ).toEqual(expected);
+  const index = buildUsageIndex(files.map((f) => ({ srcId: f.name, filename: f.name, bytes: f.bytes })));
+  expect(
+    index.usagesOf(srcId, name).map((u) => `${u.blockName} -> ${u.linkTarget}`),
+    `index's usagesOf(${srcId}, ${name})`,
+  ).toEqual(expected);
 }
 
 // mdlcases.mdl is harvested from MATLAB: its own model workspace defines `tau`, `span` and
@@ -230,5 +256,91 @@ describe('what shadowing must NOT take away', () => {
       file('signals.mat', artifact('mat/cases.mat')),
     ];
     expectBoth(files, 'signals.mat/kp', 'signals.mat', 'kp', ['K']);
+  });
+});
+
+// Which block a Usage link reaches, on the two file shapes that made a name unusable as an
+// identity. Both engines label a block with blockLabel and target it with blockKey, in
+// their own code — so agreement here is agreement about the RULE, not about one call site.
+describe('identity — a link reaches one block, named by its SID', () => {
+  it('keeps same-named blocks in ONE model apart', () => {
+    // f14.slx's shape: `Gain` in two subsystems, both reading the same parameter. Keyed by
+    // name they merged into a single row and a single link, so a user could reach only
+    // whichever of them the merge happened to keep.
+    const files = [
+      file(
+        'twogains.slx',
+        slxModel({
+          dictionary: 'p.sldd',
+          blocks:
+            `<Block BlockType="Gain" Name="Gain" SID="15"><P Name="Gain">Kp</P></Block>` +
+            `<Block BlockType="Gain" Name="Gain" SID="24"><P Name="Gain">Kp</P></Block>`,
+        }),
+      ),
+      file('p.sldd', slddBytes(['Kp'])),
+    ];
+    expectBothLinks(files, 'p.sldd/design/Kp', 'p.sldd', 'Kp', [
+      'Gain -> 15@twogains.slx',
+      'Gain -> 24@twogains.slx',
+    ]);
+  });
+
+  it('names a block whose label the user cleared after its SID', () => {
+    // `Name="&#xA;"` — f14.slx's Constant reading `Uo`. Two engines, one stand-in: a cell
+    // with no text is a link nobody can click, and an empty label in one engine and a SID
+    // in the other is the same defect one step later.
+    const files = [
+      file(
+        'blank.slx',
+        slxModel({
+          dictionary: 'p.sldd',
+          blocks: `<Block BlockType="Constant" Name="&#xA;" SID="65"><P Name="Value">Uo</P></Block>`,
+        }),
+      ),
+      file('p.sldd', slddBytes(['Uo'])),
+    ];
+    expectBothLinks(files, 'p.sldd/design/Uo', 'p.sldd', 'Uo', ['<SID: 65> -> 65@blank.slx']);
+  });
+
+  it('agrees on the name-based fallback for a file that records no SID', () => {
+    // No SID anywhere, as in a classic `.mdl` before R2010b: both engines fall back to the
+    // name, in the same place, so neither invents an identity the other does not have.
+    const files = [
+      file(
+        'nosid.slx',
+        slxModel({
+          dictionary: 'p.sldd',
+          blocks: `<Block BlockType="Constant" Name="K"><P Name="Value">Uo</P></Block>`,
+        }),
+      ),
+      file('p.sldd', slddBytes(['Uo'])),
+    ];
+    expectBothLinks(files, 'p.sldd/design/Uo', 'p.sldd', 'Uo', ['K -> K@nosid.slx']);
+  });
+
+  it('resolves the link it hands out back to the block that holds the usage', () => {
+    // The round trip both engines promise, on the blank-name case: the session resolves its
+    // own target, and the index's target is the same string — so a host that got its cell
+    // from the index can hand it to the session and reach the block.
+    const files = [
+      file(
+        'blank.slx',
+        slxModel({
+          dictionary: 'p.sldd',
+          blocks: `<Block BlockType="Constant" Name="&#xA;" SID="65"><P Name="Value">Uo</P></Block>`,
+        }),
+      ),
+      file('p.sldd', slddBytes(['Uo'])),
+    ];
+    const session = createSession();
+    for (const f of files) {
+      ingest(session, f.bytes, { filename: f.name });
+    }
+    const index = buildUsageIndex(files.map((f) => ({ srcId: f.name, filename: f.name, bytes: f.bytes })));
+    const target = index.usagesOf('p.sldd', 'Uo')[0].linkTarget;
+    const back: any = session.resolveLink(target);
+    expect(back.status).toBe('resolved');
+    expect(back.node.id).toBe('blank.slx/blocks/65');
+    expect(back.node.displayName).toBe('<SID: 65>');
   });
 });

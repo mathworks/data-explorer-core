@@ -792,10 +792,14 @@ function classicBlockParamUsages(model: MdlNode): BlockParamUsage[] {
       // flat label. The unescaping already happened in the scanner.
       const blockName = normalizeBlockName(prop(block, 'Name') || '');
       const blockType = prop(block, 'BlockType') || '';
+      // An ORDINARY property here, an attribute in the `.slx` — the third of the
+      // three identity props above, and the one a file older than R2010b simply does
+      // not have. See blockIdentity for what an absent SID costs.
+      const sid = prop(block, 'SID') || '';
       for (const p of block.props) {
         if (BLOCK_IDENTITY_PROPS.has(p.name)) continue;
         if (!isParamReference(p.name, p.value)) continue;
-        usages.push({ blockName, blockType, paramProperty: p.name, paramValue: p.value });
+        usages.push({ blockName, blockType, paramProperty: p.name, paramValue: p.value, sid });
       }
       for (const inner of childrenNamed(block, 'System')) systems.push(inner);
     }

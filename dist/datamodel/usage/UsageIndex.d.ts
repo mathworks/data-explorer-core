@@ -30,6 +30,7 @@ export interface ModelSummary {
     blockParams: {
         blockName: string;
         blockType: string;
+        sid: string;
         property: string;
         expression: string;
     }[];
@@ -81,8 +82,16 @@ export interface UsageIndex {
      * shape whichever resolver produced it, and so that the two can be joined when they are.
      */
     usagesOf(srcId: string, name: string): NodeUsage[];
-    /** Every parameter of the block `blockName` in the model `modelSrcId`, with its origin. */
-    paramsOf(modelSrcId: string, blockName: string): ParamOrigin[];
+    /**
+     * Every parameter of ONE block of the model `modelSrcId`, with its origin.
+     *
+     * `blockKey` is the block's SID (blockIdentity.blockKey), not its name, and not the text
+     * a cell shows — a model may hold four blocks named `Gain`, each with its own gain, and
+     * a name would answer with all four blocks' parameters for every one of them. A host
+     * has it from the block row's `_blockKey`, which ModelBlockNode.toRow publishes for
+     * exactly this call.
+     */
+    paramsOf(modelSrcId: string, blockKey: string): ParamOrigin[];
     /** The models this index summarised, in the order they were given. */
     readonly models: readonly ModelSummary[];
 }

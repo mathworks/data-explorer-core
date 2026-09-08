@@ -80,8 +80,10 @@ export default class ModelSectionNode extends ContainerNode {
         this.addChild(node);
         return node;
     }
-    addBlockEntry(blockName, blockType, paramUsages, modelSrcId, paramSourceId) {
-        const node = new ModelBlockNode(blockName, this, blockType, paramUsages, modelSrcId, paramSourceId);
+    // `blockName` is the name the FILE records, blank included; `sid` is what the entry
+    // is identified by. See blockIdentity for why those are two arguments and not one.
+    addBlockEntry(blockName, blockType, paramUsages, modelSrcId, paramSourceId, sid = '') {
+        const node = new ModelBlockNode(blockName, this, blockType, paramUsages, modelSrcId, paramSourceId, sid);
         this.addChild(node);
         return node;
     }

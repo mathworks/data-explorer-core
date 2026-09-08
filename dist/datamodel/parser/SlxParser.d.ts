@@ -5,6 +5,12 @@ export interface BlockParamUsage {
     blockType: string;
     paramProperty: string;
     paramValue: string;
+    /**
+     * The block's SID — Simulink's own identity for it, unique within the MODEL where
+     * the name is unique only within its system. '' for a classic `.mdl` older than
+     * R2010b, which records none. See blockIdentity, which is where this is read.
+     */
+    sid: string;
 }
 /**
  * One configuration set, or a REFERENCE to one, normalized across all five layouts.

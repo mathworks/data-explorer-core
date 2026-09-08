@@ -36,14 +36,16 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
         `</Block>`,
     );
     expect(usages).toEqual([
-      { blockName: 'Filt', blockType: 'TransferFcn', paramProperty: 'Numerator', paramValue: '[1,W1]' },
-      { blockName: 'Filt', blockType: 'TransferFcn', paramProperty: 'Denominator', paramValue: '[Tal,1]' },
+      { blockName: 'Filt', blockType: 'TransferFcn', paramProperty: 'Numerator', paramValue: '[1,W1]', sid: '1' },
+      { blockName: 'Filt', blockType: 'TransferFcn', paramProperty: 'Denominator', paramValue: '[Tal,1]', sid: '1' },
     ]);
   });
 
   it('still captures a Gain param (allowlist behavior preserved)', () => {
     const usages = usagesFor(`<Block BlockType="Gain" Name="G1" SID="1"><P Name="Gain">Mq</P></Block>`);
-    expect(usages).toEqual([{ blockName: 'G1', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Mq' }]);
+    expect(usages).toEqual([
+      { blockName: 'G1', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Mq', sid: '1' },
+    ]);
   });
 
   it('captures an expression that contains an identifier (1/Uo)', () => {
@@ -73,7 +75,9 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
     );
     // Only the real parameter (Gain=Kp) survives; Position/FontName/OutDataTypeStr
     // are on the non-param skip list.
-    expect(usages).toEqual([{ blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp' }]);
+    expect(usages).toEqual([
+      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp', sid: '1' },
+    ]);
   });
 
   it('drops on/off toggle values', () => {
@@ -100,7 +104,7 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
     // stays a usage. This is what the anchors on the non-finite pattern buy.
     const usages = usagesFor(`<Block BlockType="Gain" Name="G" SID="1"><P Name="Gain">Infinity</P></Block>`);
     expect(usages).toEqual([
-      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Infinity' },
+      { blockName: 'G', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Infinity', sid: '1' },
     ]);
   });
 
@@ -141,6 +145,48 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
     it('a name that is only a newline normalizes to empty (not a literal &#xA;)', () => {
       const usages = usagesFor(`<Block BlockType="Constant" Name="&#xA;" SID="1"><P Name="Value">Uo</P></Block>`);
       expect(usages[0].blockName).toBe('');
+      // And the SID is still there, which is what such a row is named and keyed by
+      // downstream — see blockIdentity.
+      expect(usages[0].sid).toBe('1');
+    });
+  });
+
+  // Every usage carries the block's SID, because a name does not identify a block: it is
+  // unique within its own system only, and f14.slx holds four blocks called `Gain`.
+  describe('the block SID', () => {
+    it('reads the SID attribute, verbatim, onto every usage of the block', () => {
+      const usages = usagesFor(
+        `<Block BlockType="TransferFcn" Name="F" SID="42">` +
+          `<P Name="Numerator">Kp</P><P Name="Denominator">[Ki 1]</P>` +
+          `</Block>`,
+      );
+      expect(usages.map((u) => u.sid)).toEqual(['42', '42']);
+    });
+
+    it('keeps a numeric SID as the string the file wrote', () => {
+      // fast-xml-parser coerces `"7"` to the NUMBER 7 when it looks numeric, and every
+      // consumer treats a key as a string — one that came back as a number would build
+      // the id `7` in one path and `'7'` in another and match neither.
+      const [usage] = usagesFor(`<Block BlockType="Gain" Name="G" SID="7"><P Name="Gain">Kp</P></Block>`);
+      expect(usage.sid).toBe('7');
+    });
+
+    it('reports no SID as empty, for a file that records none', () => {
+      // A classic `.mdl` written before R2010b has no SIDs at all. Empty, so the fallback
+      // to the block name happens in one place (blockIdentity) rather than here.
+      const [usage] = usagesFor(`<Block BlockType="Gain" Name="G" ><P Name="Gain">Kp</P></Block>`);
+      expect(usage.sid).toBe('');
+    });
+
+    it('tells two same-named blocks apart, which is the whole point', () => {
+      const usages = usagesFor(
+        `<Block BlockType="Gain" Name="Gain" SID="15"><P Name="Gain">Mq</P></Block>` +
+          `<Block BlockType="Gain" Name="Gain" SID="24"><P Name="Gain">Zw</P></Block>`,
+      );
+      expect(usages.map((u) => `${u.blockName}/${u.sid}=${u.paramValue}`)).toEqual([
+        'Gain/15=Mq',
+        'Gain/24=Zw',
+      ]);
     });
   });
 });
@@ -280,7 +326,7 @@ describe('parseSlx — model workspace MAT-File source + edge cases', () => {
       `<Block BlockType="Gain" Name="G1" SID="2"><P Name="Gain">Kp</P></Block>`,
     );
     expect(usages).toEqual([
-      { blockName: 'G1', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp' },
+      { blockName: 'G1', blockType: 'Gain', paramProperty: 'Gain', paramValue: 'Kp', sid: '2' },
     ]);
   });
 });
