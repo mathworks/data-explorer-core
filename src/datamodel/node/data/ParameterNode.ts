@@ -155,6 +155,16 @@ export default class ParameterNode extends DataNode {
         this.children = [];
     }
 
+    // This node's one child IS the class's `Value` property, exactly as an object's
+    // children are its properties — so its name is fixed by the class, not chosen by the
+    // user. Saying so here is what makes the Value row's Name cell read-only, through the
+    // rule children already consult (BaseNode.nameEditable). Without it the table offered
+    // a rename that serialize discarded in silence: the property is written under the key
+    // `Value` whatever the node is called, so a re-read showed `Value` again.
+    get isObjectPropertyBag(): boolean {
+        return true;
+    }
+
     getProperties(): PropClass[] {
         return [PropName, PropValue, PropDataType, PropMin, PropMax, PropUnit, PropDescription, ...schemaColumns(this.className)];
     }

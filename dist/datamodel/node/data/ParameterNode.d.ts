@@ -19,6 +19,7 @@ export default class ParameterNode extends DataNode {
     get displayValue(): string;
     _adoptValueNode(rawValue: unknown, edited?: boolean): void;
     childStructureChanged(child: BaseNode): void;
+    get isObjectPropertyBag(): boolean;
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _getSerializedProperties(): Record<string, unknown>;

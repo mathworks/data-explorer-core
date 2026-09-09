@@ -2,7 +2,7 @@ import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
-import type { SystemComposerCatalog } from './SlddNode.js';
+import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
 export declare function generateUuid(): string;
@@ -16,6 +16,7 @@ export default class SectionNode extends ContainerNode {
     getAllowedTypes(): string[];
     allowsType(className: string): boolean;
     _namespaceEntryNames(): string[];
+    _entryRenamed(oldName: string, newName: string): void;
     addEntry(className: string, entryName?: string): DataNode | null;
     execAddEntry(className: string, entryName?: string): {
         node: DataNode;

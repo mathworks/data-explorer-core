@@ -43,7 +43,7 @@ describe('StructNode parse', () => {
     // losing the 2-D structure that MATLAB shows. The element list arrives in
     // MATLAB's own COLUMN-major order, so element 2 is S(2,1), not S(1,2).
     const node = parseStruct(['x'], [{ x: 1 }, { x: 2 }, { x: 3 }, { x: 4 }], [2, 2]);
-    expect(node.children.map((c) => (c as any)._displayName)).toEqual([
+    expect(node.children.map((c) => c.displayName)).toEqual([
       'S(1,1)', 'S(2,1)', 'S(1,2)', 'S(2,2)',
     ]);
   });
@@ -55,7 +55,7 @@ describe('StructNode parse', () => {
     const node = parseStruct(['a'], [11, 21, 12, 22, 13, 23].map((n) => ({
       a: { _type: 'double', _value: String(n) },
     })), [2, 3]);
-    const pairs = node.children.map((c) => [(c as any)._displayName, c.children[0].displayValue]);
+    const pairs = node.children.map((c) => [c.displayName, c.children[0].displayValue]);
     expect(pairs).toEqual([
       ['S(1,1)', '11'], ['S(2,1)', '21'], ['S(1,2)', '12'],
       ['S(2,2)', '22'], ['S(1,3)', '13'], ['S(2,3)', '23'],
@@ -67,7 +67,7 @@ describe('StructNode parse', () => {
     // (1,1,1)(2,1,1)(1,2,1)…(2,3,2) and never mention a row 3.
     const elems = Array.from({ length: 12 }, (_, i) => ({ a: i + 1 }));
     const node = parseStruct(['a'], elems, [2, 3, 2]);
-    const labels = node.children.map((c) => (c as any)._displayName as string);
+    const labels = node.children.map((c) => c.displayName);
     expect(labels[0]).toBe('S(1,1,1)');
     expect(labels[1]).toBe('S(2,1,1)');
     expect(labels[11]).toBe('S(2,3,2)');
@@ -76,7 +76,7 @@ describe('StructNode parse', () => {
 
   it('uses linear subscripts for a vector struct array', () => {
     const node = parseStruct(['a'], [{ a: 1 }, { a: 2 }], [2, 1]);
-    expect(node.children.map((c) => (c as any)._displayName)).toEqual(['S(1)', 'S(2)']);
+    expect(node.children.map((c) => c.displayName)).toEqual(['S(1)', 'S(2)']);
   });
 
   it('types each element of a struct array as a struct, and each field by its own value', () => {
@@ -88,7 +88,7 @@ describe('StructNode parse', () => {
       { n: { _type: 'int32', _value: '5' }, tag: 'lo' },
       { n: { _type: 'int32', _value: '6' }, tag: 'hi' },
     ], [1, 2]);
-    expect(node.children.map((c) => [(c as any)._displayName, c.dataType])).toEqual([
+    expect(node.children.map((c) => [c.displayName, c.dataType])).toEqual([
       ['S(1)', 'struct'],
       ['S(2)', 'struct'],
     ]);

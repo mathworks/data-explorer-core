@@ -32,6 +32,8 @@ export { ingest } from './core/ingest.js';
 export type { IngestContent, IngestOptions } from './core/ingest.js';
 export { extOf, basenameOf, refBasename, modelNameOf, isModelFile, isSlddFile, isMatFile, isProjectFile, } from './datamodel/fileKinds.js';
 export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames } from './datamodel/parser/SlddContent.js';
+export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogFromDefinitions, classificationOf, scRenameEdits, scanScJsonText, scanScXml, } from './datamodel/parser/ScCatalog.js';
+export type { ScDefinition, ScNameSite, ScTextEdit, SystemComposerCatalog } from './datamodel/parser/ScCatalog.js';
 export { buildUsageIndex, summarizeFiles, resolveName } from './datamodel/usage/UsageIndex.js';
 export type { UsageIndex, UsageFile, FileSummaries, ModelSummary, DataSummary, ParamOrigin, OriginKind, } from './datamodel/usage/UsageIndex.js';
 export { toDTO } from './core/dto.js';

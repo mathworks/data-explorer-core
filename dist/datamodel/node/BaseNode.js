@@ -49,11 +49,12 @@ export default class BaseNode {
     }
     // The sole signal for graying a Name cell: this node's displayed name is a
     // synthetic positional subscript, not a user-assigned identifier. Covers bare
-    // array/cell/string indices (isIndexedName) and struct-array elements (which
-    // carry a `Name(i)` alias in `_displayName`). Structural and independent of file
-    // format — entries and struct FIELDS are never elements, so they render normally.
+    // array/cell/string indices (isIndexedName), struct/object-array elements (which
+    // carry an `_subscript` into their parent) and an explicit `_displayName` alias.
+    // Structural and independent of file format — entries and struct FIELDS are never
+    // elements, so they render normally.
     get isElementName() {
-        return this.isIndexedName || !!this._displayName;
+        return this.isIndexedName || !!this._subscript || !!this._displayName;
     }
     // True when this node's CHILDREN are the properties of a MATLAB class object
     // (ObjectNode overrides it). A class property's name is fixed by the class
@@ -68,7 +69,7 @@ export default class BaseNode {
         if (this.isIndexedName) {
             return false;
         }
-        if (this._displayName) {
+        if (this._subscript || this._displayName) {
             return false;
         }
         // A class property name is fixed by the class definition.
@@ -218,6 +219,13 @@ export default class BaseNode {
             // label->value pairing is wrong.
             return subscriptLabel(this.parent.displayName, this.parent.children.indexOf(this), this.parent._dims, this.parent._kind === 'array' ? 'row-major' : 'column-major', this.parent._kind === 'cell' ? '{}' : '()');
         }
+        // A struct/object-array element: the same derivation, off the spec its parse
+        // site recorded. Read live from the parent's CURRENT displayed name, which is
+        // what makes an element row follow a rename of the array above it.
+        if (this._subscript && this.parent) {
+            const s = this._subscript;
+            return subscriptLabel(this.parent.displayName, s.index, s.dims, s.order, s.bracket);
+        }
         return this._displayName || this.name;
     }
     get valueEditable() {
@@ -225,6 +233,23 @@ export default class BaseNode {
         if (v && v.charAt(0) === '<' && v.charAt(v.length - 1) === '>') {
             return false;
         }
+        return true;
+    }
+    // Whether a Description typed onto this row could be SAVED — the third member of the
+    // nameEditable/valueEditable family, and one for the same reason: the Description
+    // column exists for every row, but only a node that serializes a MATLAB property bag
+    // has anywhere to put one. A plain variable (and a struct) goes out as
+    // `{name, metadata, value}`, so a Description set on it showed in the cell and was
+    // gone on the next read of the file.
+    //
+    // True here, false in the two classes that cannot hold one, rather than the other way
+    // round: every Simulink object can be described, and a new class that cannot has to
+    // say so — which is the same direction nameEditable and valueEditable are declared in.
+    //
+    // It used to be answered by `valueEditable`, which is a different question: a
+    // Parameter whose value displays as a `<1x12 double>` summary takes no value editor
+    // and can still be described.
+    get descriptionEditable() {
         return true;
     }
     getPropInfo(PropClassRef) {
@@ -242,6 +267,12 @@ export default class BaseNode {
         }
         if (key === 'Value') {
             editable = editable && this.valueEditable;
+        }
+        // Consulted HERE and not only in toRow so the property inspector honours it too: it
+        // builds its fields from getPropInfo, and it offered the same unkeepable Description
+        // the table did.
+        if (key === 'Description') {
+            editable = editable && this.descriptionEditable;
         }
         return {
             key,
@@ -313,6 +344,11 @@ export default class BaseNode {
         if (!('Description' in row)) {
             row.Description = this.Description || '';
         }
+        // Unconditional, and beside the cell rather than inside it: Description renders
+        // through a dedicated webview branch that consumes a plain string (see
+        // DEDICATED_COLUMNS), so the editability has to travel as its own key — the same
+        // arrangement `_valueEditable` already has, and for the same reason.
+        row._descriptionEditable = this.descriptionEditable;
         // The reverse projection, reached through the resolver the session stamped on this
         // node's source root rather than through a session reference a node must not hold.
         // This is the seam that makes the column non-blank in a host that changed nothing:

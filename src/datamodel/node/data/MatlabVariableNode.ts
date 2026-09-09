@@ -30,7 +30,6 @@ import {
   overCharBudget,
   summaryForm,
 } from '../../display/DisplayConvention.js';
-import { subscriptLabel } from '../../display/Subscript.js';
 import {
   charNeedsShape,
   charTextFromCodes,
@@ -731,6 +730,15 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   // ---- Property set + Property Inspector layout ----
+
+  // A plain variable goes out as `{name, metadata, value}` — there is no property bag
+  // in that shape, and serializeValue emits the VALUE alone. So a Description set here
+  // could only ever live until the file was read again. The prop stays declared (the
+  // column and the inspector field exist for every row); what changes is that neither
+  // offers an editor, and setProperty refuses it.
+  get descriptionEditable(): boolean {
+    return false;
+  }
 
   getProperties(): PropClass[] {
     return [PropName, PropValue, PropDataType, PropDescription];
@@ -2261,7 +2269,8 @@ export default class MatlabVariableNode extends DataNode {
       elemNode._scalarType = 'struct';
       elemNode._scalarValue = null;
       elemNode._dims = [1, 1];
-      elemNode._displayName = subscriptLabel(name, ei, node._dims, 'column-major', '()');
+      // Derived, not baked: see BaseNode.ElementSubscript.
+      elemNode._subscript = { index: ei, dims: node._dims, order: 'column-major', bracket: '()' };
       for (const fieldName of fieldNames) {
         const fieldVar = variable.fields[fieldName];
         const childVar = Array.isArray(fieldVar) ? fieldVar[ei] : fieldVar;

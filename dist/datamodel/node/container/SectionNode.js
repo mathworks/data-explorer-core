@@ -5,7 +5,7 @@ import ContainerNode from '../ContainerNode.js';
 // reach the class map without a cycle. NodeClassMap installs itself into it.
 import * as NodeRegistry from '../NodeRegistry.js';
 import { matlabTimestampNow } from '../../parser/XmlUtils.js';
-import { classificationOf as _classificationOf } from './SlddNode.js';
+import { classificationOf as _classificationOf, renameInCatalog as _renameInCatalog, } from '../../parser/ScCatalog.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
 const ALLOWED_TYPES = {
@@ -107,6 +107,21 @@ export default class SectionNode extends ContainerNode {
             }
         }
         return names;
+    }
+    // One of MY entries was renamed — follow it wherever else the dictionary spells that
+    // name. Today that is the System Composer catalog, which keys its definitions by
+    // entry name and so decides an architectural entry's Kind by it: a catalog left
+    // holding the old name reclassifies the entry (a struct type re-reads as a plain data
+    // interface) the next time anything rebuilds it from a record.
+    //
+    // Called by DataNode.setProperty for the same reason `_renameField` is: a rename is
+    // only complete when every structure keyed by the name has been told, and only the
+    // parent knows which those are. Nested children (bus elements, struct fields) have no
+    // such parent, which is what keeps an element that happens to share a definition's
+    // name from moving the catalog under the entry that really carries it.
+    _entryRenamed(oldName, newName) {
+        const dictionary = this.parent;
+        _renameInCatalog(dictionary?.systemComposer, oldName, newName);
     }
     addEntry(className, entryName) {
         const NodeClass = NodeRegistry.getClass(className);

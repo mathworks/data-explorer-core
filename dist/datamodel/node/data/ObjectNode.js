@@ -9,7 +9,6 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { OBJECT_ICON } from '../icons.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
-import { subscriptLabel } from '../../display/Subscript.js';
 import { effectiveDims, summaryForm } from '../../display/DisplayConvention.js';
 export default class ObjectNode extends DataNode {
     constructor(name, parent, arrayClass, serial) {
@@ -211,8 +210,10 @@ export default class ObjectNode extends DataNode {
                 // The MCOS decoder and both SLDD paths deliver elements in MATLAB's
                 // own COLUMN-major order, so element ei is MATLAB's linear index
                 // ei+1. Reading it row-major named 4 of the 6 elements of a 2x3
-                // array after the wrong object.
-                elemNode._displayName = subscriptLabel(name, ei, dims, 'column-major', '()');
+                // array after the wrong object. The label itself is derived from
+                // this spec on demand (BaseNode.displayName), so it follows a
+                // rename of the array.
+                elemNode._subscript = { index: ei, dims, order: 'column-major', bracket: '()' };
                 node.addChild(elemNode);
             });
         }
