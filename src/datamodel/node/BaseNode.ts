@@ -3,6 +3,7 @@
 import { buildPILayout } from './schemaBridge.js';
 import { buildOtherRows } from './piOther.js';
 import { subscriptLabel } from '../display/Subscript.js';
+import type { Bracket, ElementOrder } from '../display/Subscript.js';
 
 export interface PropClass {
   key: string;
@@ -47,6 +48,10 @@ export interface RowData {
   Name?: { label: string; iconId: string; disabled: boolean; editable: boolean; element: boolean };
   Value?: unknown;
   _valueEditable?: boolean;
+  // Whether the Description cell takes an editor. Carried separately for the same
+  // reason as `_valueEditable`: the column renders through a dedicated branch that
+  // consumes a plain string.
+  _descriptionEditable?: boolean;
   DataType?: string | { text: string; linkTarget?: string };
   Class?: string;
   Kind?: string;
@@ -109,11 +114,30 @@ const DEDICATED_COLUMNS = new Set(['Name', 'Value', 'DataType', 'Class', 'Kind',
 // four switches refuse.
 export type MatlabVariableKind = 'scalar' | 'array' | 'cell' | 'string';
 
+// Where an element sits in its parent's array — everything needed to SPELL the
+// element's row label, and nothing that is the label itself. A struct-array,
+// object-array or .mat struct-array element is named by a subscript into its
+// parent (`s(2,1)`), so the three parse sites that build such elements record
+// this and displayName derives the text on demand.
+//
+// Deliberately not the finished string, which is what this replaced: baked at
+// parse time, it went stale the moment the parent was renamed and every element
+// row under `newName` still read `oldName(1,1)` until the file was reopened. The
+// parent's own displayed name is read live, so a nested array's elements follow
+// the row above them at any depth.
+export interface ElementSubscript {
+  index: number;
+  dims: number[] | undefined;
+  order: ElementOrder;
+  bracket: Bracket;
+}
+
 export default class BaseNode {
   name: string;
   parent: BaseNode | null;
   children: BaseNode[];
   _displayName?: string;
+  _subscript?: ElementSubscript;
   _kind?: MatlabVariableKind;
   _dims?: number[];
 
@@ -169,11 +193,12 @@ export default class BaseNode {
 
   // The sole signal for graying a Name cell: this node's displayed name is a
   // synthetic positional subscript, not a user-assigned identifier. Covers bare
-  // array/cell/string indices (isIndexedName) and struct-array elements (which
-  // carry a `Name(i)` alias in `_displayName`). Structural and independent of file
-  // format — entries and struct FIELDS are never elements, so they render normally.
+  // array/cell/string indices (isIndexedName), struct/object-array elements (which
+  // carry an `_subscript` into their parent) and an explicit `_displayName` alias.
+  // Structural and independent of file format — entries and struct FIELDS are never
+  // elements, so they render normally.
   get isElementName(): boolean {
-    return this.isIndexedName || !!this._displayName;
+    return this.isIndexedName || !!this._subscript || !!this._displayName;
   }
 
   // True when this node's CHILDREN are the properties of a MATLAB class object
@@ -190,7 +215,7 @@ export default class BaseNode {
     if (this.isIndexedName) {
       return false;
     }
-    if (this._displayName) {
+    if (this._subscript || this._displayName) {
       return false;
     }
     // A class property name is fixed by the class definition.
@@ -357,6 +382,13 @@ export default class BaseNode {
         this.parent._kind === 'cell' ? '{}' : '()',
       );
     }
+    // A struct/object-array element: the same derivation, off the spec its parse
+    // site recorded. Read live from the parent's CURRENT displayed name, which is
+    // what makes an element row follow a rename of the array above it.
+    if (this._subscript && this.parent) {
+      const s = this._subscript;
+      return subscriptLabel(this.parent.displayName, s.index, s.dims, s.order, s.bracket);
+    }
     return this._displayName || this.name;
   }
 
@@ -365,6 +397,24 @@ export default class BaseNode {
     if (v && v.charAt(0) === '<' && v.charAt(v.length - 1) === '>') {
       return false;
     }
+    return true;
+  }
+
+  // Whether a Description typed onto this row could be SAVED — the third member of the
+  // nameEditable/valueEditable family, and one for the same reason: the Description
+  // column exists for every row, but only a node that serializes a MATLAB property bag
+  // has anywhere to put one. A plain variable (and a struct) goes out as
+  // `{name, metadata, value}`, so a Description set on it showed in the cell and was
+  // gone on the next read of the file.
+  //
+  // True here, false in the two classes that cannot hold one, rather than the other way
+  // round: every Simulink object can be described, and a new class that cannot has to
+  // say so — which is the same direction nameEditable and valueEditable are declared in.
+  //
+  // It used to be answered by `valueEditable`, which is a different question: a
+  // Parameter whose value displays as a `<1x12 double>` summary takes no value editor
+  // and can still be described.
+  get descriptionEditable(): boolean {
     return true;
   }
 
@@ -383,6 +433,12 @@ export default class BaseNode {
     }
     if (key === 'Value') {
       editable = editable && this.valueEditable;
+    }
+    // Consulted HERE and not only in toRow so the property inspector honours it too: it
+    // builds its fields from getPropInfo, and it offered the same unkeepable Description
+    // the table did.
+    if (key === 'Description') {
+      editable = editable && this.descriptionEditable;
     }
 
     return {
@@ -456,6 +512,11 @@ export default class BaseNode {
     if (!('Description' in row)) {
       row.Description = (this as unknown as { Description?: string }).Description || '';
     }
+    // Unconditional, and beside the cell rather than inside it: Description renders
+    // through a dedicated webview branch that consumes a plain string (see
+    // DEDICATED_COLUMNS), so the editability has to travel as its own key — the same
+    // arrangement `_valueEditable` already has, and for the same reason.
+    row._descriptionEditable = this.descriptionEditable;
 
     // The reverse projection, reached through the resolver the session stamped on this
     // node's source root rather than through a session reference a node must not hold.

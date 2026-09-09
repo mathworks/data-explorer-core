@@ -3,11 +3,7 @@ import SectionNode from './SectionNode.js';
 import type DataNode from '../DataNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
-export interface SystemComposerCatalog {
-    interfaces: Record<string, string>;
-    modeledDataTypes: Record<string, string>;
-}
-export declare function classificationOf(catalog: SystemComposerCatalog | null | undefined, entryName: string): string | null;
+import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 export default class SlddNode extends ContainerNode {
     coreProperties: Record<string, unknown> | null;
     dictionaryReferences: unknown[];

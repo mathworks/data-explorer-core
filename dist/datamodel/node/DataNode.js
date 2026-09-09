@@ -174,9 +174,10 @@ export default class DataNode extends BaseNode {
         const by = m.lastModifiedBy ?? m.modifiedby;
         return typeof by === 'string' ? by : '';
     }
-    // nameEditable is inherited from BaseNode: the three things that fix a name — a
-    // synthetic positional index, a `_displayName` alias, and an object-property-bag
-    // parent — are all structural, so the base rule already covers every data node.
+    // nameEditable is inherited from BaseNode: the things that fix a name — a
+    // synthetic positional index, an element subscript, a `_displayName` alias, and an
+    // object-property-bag parent — are all structural, so the base rule already covers
+    // every data node.
     get disabled() {
         return !this.isEntry;
     }
@@ -206,6 +207,21 @@ export default class DataNode extends BaseNode {
         }
         const resolved = this._resolveProperty(propName);
         if (resolved === 'name') {
+            // The node already answers "can this name be typed into", and every path that
+            // fixes a name fixes it because the FORMAT has no other spelling for it: a
+            // positional element index, an element subscript, a class property's name. Ask
+            // that question here too, or a rename the table declined to offer still lands when
+            // something asks for it directly — renaming a Simulink.Parameter's `Value` row was
+            // exactly that, accepted by the model and dropped by serialize, which writes the
+            // key `Value` whatever the node is called.
+            if (!this.nameEditable) {
+                return {
+                    error: true,
+                    reason: `'${this.displayName}' is not a name this entry can carry, so it cannot be renamed.`,
+                    invalidValue: stringValue,
+                    validValue: this.displayName,
+                };
+            }
             const error = validateMatlabName(stringValue);
             if (error) {
                 return { error: true, reason: error, invalidValue: stringValue, validValue: this.name };
@@ -242,8 +258,30 @@ export default class DataNode extends BaseNode {
             if (typeof renameField === 'function') {
                 renameField.call(this.parent, oldName, stringValue);
             }
+            // The same obligation one level out: a SECTION's parent is the dictionary, which
+            // keys the System Composer catalog by entry name, so renaming an ENTRY has to move
+            // that key too or the entry is reclassified the next time it is rebuilt from a
+            // record (see SectionNode._entryRenamed). Only a top-level entry has a section for
+            // a parent, which is what scopes this to the names the catalog can be about.
+            const entryRenamed = this.parent
+                ?._entryRenamed;
+            if (typeof entryRenamed === 'function') {
+                entryRenamed.call(this.parent, oldName, stringValue);
+            }
             this._markModified();
             return true;
+        }
+        // Same shape as the name guard: a node that has nowhere to serialize a Description
+        // refuses one rather than holding it until the file is read again (see
+        // BaseNode.descriptionEditable). The generic tail below would otherwise write it,
+        // because the FIELD exists on every node whether the format carries it or not.
+        if (resolved === 'Description' && !this.descriptionEditable) {
+            return {
+                error: true,
+                reason: `A ${this.kind || 'value'} has no Description in a dictionary, so one cannot be saved for '${this.displayName}'.`,
+                invalidValue: stringValue,
+                validValue: this.Description || '',
+            };
         }
         const self = this;
         const current = self[resolved];

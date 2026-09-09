@@ -138,9 +138,11 @@ fields are editable as individual children.
 ### A struct ARRAY expands to one row per element, not one row per field
 `MatParser` reads a struct array as one `MatVariable` per element per field
 (`fields[f][ei]`), in MATLAB's own column-major order. A 1x1 struct keeps its
-fields as its direct children; a struct array gets one child per ELEMENT,
-subscript-labelled through `subscriptLabel(name, ei, dims, 'column-major', '()')`
-— `s(1,1) s(2,1) s(1,2) …` — with that element's fields beneath it. Keeping only
+fields as its direct children; a struct array gets one child per ELEMENT, carrying
+an `_subscript` spec (`{index: ei, dims, 'column-major', '()'}`) that
+`BaseNode.displayName` spells as `s(1,1) s(2,1) s(1,2) …` on demand — derived, so
+renaming the variable relabels its elements — with that element's fields beneath
+it. Keeping only
 `fields[f][0]` used to make every element after the first invisible, and forced
 `_buildVarObject` to replay elements 2..N from the parse snapshot, so an edit to
 any element but the first was discarded on save. The rebuild now reads the live

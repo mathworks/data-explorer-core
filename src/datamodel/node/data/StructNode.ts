@@ -13,7 +13,6 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
-import { subscriptLabel } from '../../display/Subscript.js';
 import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
 
 export default class StructNode extends DataNode {
@@ -67,6 +66,12 @@ export default class StructNode extends DataNode {
     // `d[0] === 1 && d[1] === 1`, which is true of a 1x1x3 array as well.
     get _isScalarStruct(): boolean {
         return this._numElements === 1;
+    }
+
+    // A struct serializes as its fields and nothing else — the same limit a plain
+    // variable has, and for the same reason (see MatlabVariableNode.descriptionEditable).
+    get descriptionEditable(): boolean {
+        return false;
     }
 
     getProperties(): PropClass[] {
@@ -261,8 +266,10 @@ export default class StructNode extends DataNode {
                 };
                 const elemNode = new StructNode(String(ei), node, elemSerial);
                 elemNode._isElementNode = true;
-                // Column-major, as MATLAB stores it — see ObjectNode.
-                elemNode._displayName = subscriptLabel(name, ei, dims, 'column-major', '()');
+                // Column-major, as MATLAB stores it — see ObjectNode. The label is
+                // DERIVED from this spec by BaseNode.displayName rather than baked
+                // here, so renaming the array relabels its elements.
+                elemNode._subscript = { index: ei, dims, order: 'column-major', bracket: '()' };
                 fields.forEach((field) => {
                     const childNode = NodeRegistry.parseValue(elem[field], field, elemNode);
                     elemNode.addChild(childNode);

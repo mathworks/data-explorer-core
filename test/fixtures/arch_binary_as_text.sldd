@@ -1,0 +1,267 @@
+{
+ "__MW_TEXT_COREPROPERTIES__": {
+  "release": "R2027a"
+ },
+ "__MW_TEXT_PARTS__": {
+  "__MW_TEXT_PART__/data/chunk0": {
+   "__MW_TEXT_content": {
+    "entries": [
+     {
+      "name": "StructType",
+      "metadata": {
+       "uuid": "35295363-c32f-46ee-be90-558c6ac74ee0",
+       "namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+       "lastmod": "20260806T151506.676643",
+       "modifiedby": "user",
+       "isderived": "1"
+      },
+      "value": {
+       "_array_class": "Simulink.Bus",
+       "_dimensions": [
+        1,
+        1
+       ],
+       "_elements": [
+        {
+         "_id": "1",
+         "_properties": {
+          "DataScope": "Auto",
+          "Description": "",
+          "Elements_internal": {
+           "_array_class": "Simulink.BusElement",
+           "_dimensions": [
+            1,
+            1
+           ],
+           "_elements": [
+            {
+             "_id": "Element",
+             "_properties": {
+              "Complexity": "real",
+              "Dimensions": 1,
+              "DimensionsMode": "Fixed",
+              "Name": "Element"
+             }
+            }
+           ]
+          }
+         }
+        }
+       ],
+       "_mw_element_type": "MATLABArray"
+      }
+     },
+     {
+      "name": "DataInterface",
+      "metadata": {
+       "uuid": "287f5dd2-a9f4-4992-a068-ef8cc14ce0e3",
+       "namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+       "lastmod": "20260806T151506.676643",
+       "modifiedby": "user",
+       "isderived": "1"
+      },
+      "value": {
+       "_array_class": "Simulink.Bus",
+       "_dimensions": [
+        1,
+        1
+       ],
+       "_elements": [
+        {
+         "_id": "1",
+         "_properties": {
+          "DataScope": "Auto",
+          "Description": "",
+          "Elements_internal": {
+           "_array_class": "Simulink.BusElement",
+           "_dimensions": [
+            1,
+            1
+           ],
+           "_elements": [
+            {
+             "_id": "ValueType",
+             "_properties": {
+              "Complexity": "real",
+              "Dimensions": 1,
+              "DimensionsMode": "Fixed",
+              "Name": "ValueType",
+              "DataType_internal": "ValueType: ValueType"
+             }
+            }
+           ]
+          }
+         }
+        }
+       ],
+       "_mw_element_type": "MATLABArray"
+      }
+     },
+     {
+      "name": "ValueType",
+      "metadata": {
+       "uuid": "eff4f621-407e-4a3c-9cba-54bf03d1e5fb",
+       "namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+       "lastmod": "20260806T151506.676643",
+       "modifiedby": "user",
+       "isderived": "1"
+      },
+      "value": {
+       "_array_class": "Simulink.ValueType",
+       "_dimensions": [
+        1,
+        1
+       ],
+       "_elements": [
+        {
+         "_id": "1",
+         "_properties": {
+          "Description": ""
+         }
+        }
+       ],
+       "_mw_element_type": "MATLABArray"
+      }
+     },
+     {
+      "name": "NumericType",
+      "metadata": {
+       "uuid": "630fe342-234d-4a0e-aee2-7589ceeb1d8e",
+       "namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+       "lastmod": "20260806T151506.676643",
+       "modifiedby": "user",
+       "isderived": "1"
+      },
+      "value": {
+       "_array_class": "Simulink.NumericType",
+       "_dimensions": [
+        1,
+        1
+       ],
+       "_elements": [
+        {
+         "_id": "1",
+         "_properties": {
+          "DataTypeMode": "Double",
+          "IsAlias": false
+         }
+        }
+       ],
+       "_mw_element_type": "MATLABArray"
+      }
+     }
+    ],
+    "Dictionary References": [],
+    "AllowAccessBWS": false
+   }
+  },
+  "__MW_TEXT_PART__/simulink/systemcomposer/interfaceDictionary": {
+   "__MW_TEXT_content": {
+    "entries": [
+     {
+      "content": {},
+      "type": "systemcomposer.property.UnitQueryClientWrapper",
+      "uuid": "398f5b73-d3b9-43cb-a2a8-99ec65c79483"
+     },
+     {
+      "content": {
+       "p_Name": "arch",
+       "p_PortInterfaceCatalog": {
+        "content": {
+         "p_Interfaces": [
+          {
+           "content": {
+            "p_Name": "ValueType",
+            "p_ValueType": {
+             "content": {
+              "p_Name": "ValueType"
+             },
+             "type": "systemcomposer.property.ValueTypeDescriptor",
+             "uuid": "82927978-4c91-4892-80d8-c2370f926b6d"
+            },
+            "elemProxy": {
+             "content": {},
+             "type": "systemcomposer.services.proxy.ProxyTarget",
+             "uuid": "86f959b6-8ae7-4ade-964d-f9b09dd5fd69"
+            }
+           },
+           "type": "systemcomposer.architecture.model.interface.ValueTypeInterface",
+           "uuid": "46cb9da0-fc40-4566-a6a7-cc5d6d953c46"
+          },
+          {
+           "content": {
+            "p_DataElements": [
+             {
+              "content": {
+               "p_Index": "1",
+               "p_Name": "ValueType"
+              },
+              "type": "systemcomposer.architecture.model.interface.DataElement",
+              "uuid": "a4c32884-42b1-408e-bc27-e55141143e37"
+             }
+            ],
+            "p_Name": "DataInterface"
+           },
+           "type": "systemcomposer.architecture.model.interface.CompositeDataInterface",
+           "uuid": "61e42015-fa86-4b2f-bd2f-04350e68a7b0"
+          }
+         ]
+        },
+        "type": "systemcomposer.architecture.model.interface.InterfaceCatalog",
+        "uuid": "144e27c1-b244-4360-ba96-0cb8df225695"
+       }
+      },
+      "type": "systemcomposer.architecture.model.SystemComposerModel",
+      "uuid": "127f28ec-e357-4fa3-8a7e-52f7437bff42"
+     },
+     {
+      "content": {
+       "p_BuiltInValueTypes": [
+        {
+         "content": {
+          "p_Name": "double"
+         },
+         "type": "systemcomposer.property.ValueTypeDescriptor",
+         "uuid": "44f10ce9-bfc8-414b-b9dd-c5ba0f83352d"
+        }
+       ],
+       "p_ModeledDataTypes": [
+        {
+         "content": {
+          "p_Name": "StructType",
+          "p_StructElements": [
+           {
+            "content": {
+             "p_Index": "1",
+             "p_Name": "Element",
+             "p_Descriptor": {
+              "content": {},
+              "type": "systemcomposer.property.ValueTypeDescriptor",
+              "uuid": "6bc4a743-cd34-4ed6-b5e5-b510ba531389"
+             }
+            },
+            "type": "systemcomposer.property.StructElement",
+            "uuid": "37453b4c-60be-4a11-a657-ccd189cc5e4a"
+           }
+          ]
+         },
+         "type": "systemcomposer.property.StructDataType",
+         "uuid": "beac7d1c-c596-438c-af7a-d94d268e9b11"
+        },
+        {
+         "content": {
+          "p_Name": "NumericType"
+         },
+         "type": "systemcomposer.property.NumericType",
+         "uuid": "ac8c1b34-e43d-4eef-b1e0-56fd8ef78928"
+        }
+       ]
+      },
+      "type": "systemcomposer.property.TypeCatalog",
+      "uuid": "fee70a44-2c9c-4c19-acfb-329cd36f6fc7"
+     }
+    ]
+   }
+  }
+ }
+}

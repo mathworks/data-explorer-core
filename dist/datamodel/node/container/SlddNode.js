@@ -7,41 +7,17 @@ import PropRelease from '../../prop/PropRelease.js';
 import PropFileFormat from '../../prop/PropFileFormat.js';
 import PropNumberOfEntries from '../../prop/PropNumberOfEntries.js';
 import { slddChunkContent } from '../../parser/SlddContent.js';
+import { SC_PART, scPartUnreadableMessage } from '../../parser/ScCatalog.js';
 const SECTION_DEFS = [
     { key: 'design', label: 'Design Data', icon: 'databaseFolderDesign' },
     { key: 'arch', label: 'Architectural Data', icon: 'databaseFolderArchitecture' },
     { key: 'config', label: 'Configurations', icon: 'databaseFolderConfiguration' },
     { key: 'other', label: 'Other Data', icon: 'databaseFolder' }
 ];
-// The part path of the systemcomposer interface dictionary, named once because it is
-// used three times now: to look the part up, and — when it is there and unreadable — in
-// the message and in the `part` field of the warning that says so. A warning naming a
-// different string from the one that was looked up would be a lie no reader could
-// detect, and a `part` a host cannot match against the package is no better than none.
-const SC_PART = 'simulink/systemcomposer/interfaceDictionary';
-// Maps a systemcomposer type string to the semantic classification token that
-// drives the entry's Kind. The token is derived from the type, not the entry
-// name (which is user-chosen), so it stays correct regardless of the name.
-const SC_TYPE_TO_CLASSIFICATION = {
-    'systemcomposer.architecture.model.interface.CompositeDataInterface': 'DataInterface',
-    'systemcomposer.architecture.model.interface.CompositePhysicalInterface': 'PhysicalInterface',
-    'systemcomposer.architecture.model.swarch.ServiceInterface': 'ServiceInterface',
-    'systemcomposer.architecture.model.interface.ValueTypeInterface': 'ValueType',
-    'systemcomposer.property.StructDataType': 'StructType',
-    'systemcomposer.property.NumericType': 'NumericType',
-    'systemcomposer.property.EnumDataType': 'EnumType',
-    'systemcomposer.property.AliasType': 'AliasType',
-};
-// Resolve the classification token (e.g. 'DataInterface', 'StructType') for an
-// entry name, or null if the catalog doesn't classify it. Interfaces are checked
-// before modeled data types.
-export function classificationOf(catalog, entryName) {
-    if (!catalog) {
-        return null;
-    }
-    const scType = catalog.interfaces[entryName] || catalog.modeledDataTypes[entryName];
-    return (scType && SC_TYPE_TO_CLASSIFICATION[scType]) || null;
-}
+// The catalog vocabulary — the part path, the type map, the classification rule —
+// lives in the parser module both dictionary formats read it through (ScCatalog), so
+// a textual and a compressed-binary dictionary cannot classify the same entry
+// differently.
 export default class SlddNode extends ContainerNode {
     constructor(name) {
         super(name, null);
@@ -122,7 +98,14 @@ export default class SlddNode extends ContainerNode {
         const content = slddChunkContent(json);
         // Parse the systemcomposer catalog first so entry parsing can use it to
         // classify architectural entries (e.g. StructType vs DataInterface).
-        node.systemComposer = SlddNode._parseSystemComposer(parts, warnings);
+        //
+        // A compressed-binary dictionary arrives with the catalog already read: its
+        // interface dictionary is a zipped XML member, which the binary reader is the
+        // only layer holding the bytes of, so it scans it and hands the finished catalog
+        // over on `__scCatalog`. The textual flavour has no parser between the bytes and
+        // here, so its catalog is read out of the parts below.
+        node.systemComposer = json.__scCatalog
+            ?? SlddNode._parseSystemComposer(parts, warnings);
         if (!content) {
             // The four sections are built by the constructor, so a content-less dictionary
             // used to open as a perfectly ordinary tree with four empty sections and report
@@ -198,9 +181,7 @@ export default class SlddNode extends ContainerNode {
             if (part) {
                 warnings?.push({
                     code: 'part-unreadable',
-                    message: `The dictionary part "${SC_PART}" holds nothing readable, so `
-                        + 'architectural entries are reported by their Simulink class rather than '
-                        + 'their System Composer type.',
+                    message: scPartUnreadableMessage(SC_PART),
                     part: SC_PART,
                 });
             }

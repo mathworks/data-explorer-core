@@ -45,6 +45,7 @@
 import { unzipSync } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
 import { reasonOf } from './ParseWarning.js';
+import { SC_PART_XML, catalogFromDefinitions, scPartUnreadableMessage, scanScXml, } from './ScCatalog.js';
 import { charNeedsShape, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, SAVEOBJ_KEY, } from './XmlUtils.js';
 const xmlParser = new XMLParser({
     ignoreAttributes: false,
@@ -261,7 +262,43 @@ export function parseBinarySlddParts(xmlString, zipMetadata, warnings) {
         __rawXml: xmlString,
         __zipMetadata: zipMetadata,
         __dataSourceAttrs: dataSourceAttrs,
+        ...scCatalogOf(zipMetadata, decoder, warnings),
     };
+}
+/**
+ * The System Composer catalog of a compressed-binary dictionary, read from the zipped
+ * interface-dictionary member.
+ *
+ * This reader is where it has to happen: the member is XML inside the package, and no
+ * layer above ever sees those bytes — `SlddNode.parse` receives the parts bag, which
+ * carries the member as raw pass-through bytes in `__zipMetadata`. Without this the
+ * catalog was simply absent for the binary flavour, and every architectural entry read
+ * as its raw Simulink class: a struct type reported as 'Data Interface', which is a
+ * wrong answer that looks exactly like a right one.
+ *
+ * Spread into the content bag, so a dictionary with no interface dictionary (nearly
+ * all of them) adds no key at all and `SlddNode.parse` falls through to the textual
+ * reader as before.
+ */
+function scCatalogOf(zipMetadata, decoder, warnings) {
+    const member = zipMetadata[SC_PART_XML];
+    if (!member) {
+        return {};
+    }
+    const defs = scanScXml(decoder.decode(member));
+    if (!defs.length) {
+        // Present and holding no definitions: the package claims the catalog is there, and
+        // the entries all still read, so this is one piece of the dictionary missing rather
+        // than the dictionary. Same code, same words and the same reasoning as the textual
+        // reader's — see SlddNode._parseSystemComposer.
+        warnings?.push({
+            code: 'part-unreadable',
+            message: scPartUnreadableMessage(SC_PART_XML),
+            part: SC_PART_XML,
+        });
+        return {};
+    }
+    return { __scCatalog: catalogFromDefinitions(defs) };
 }
 function extractEntryFragments(xmlString) {
     const fragments = [];

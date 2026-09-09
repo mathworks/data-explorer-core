@@ -12,6 +12,7 @@ export default class StructNode extends DataNode {
     get dims(): number[];
     get _numElements(): number;
     get _isScalarStruct(): boolean;
+    get descriptionEditable(): boolean;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];
     serializeElement(): Record<string, unknown>;

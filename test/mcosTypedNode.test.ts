@@ -139,7 +139,7 @@ describe('buildTypedNodeFromMcos — object ARRAYS (the .slx/.mat entry point)',
     expect(node.children).toHaveLength(3);
     node.children.forEach((child: any, i: number) => {
       expect(child).toBeInstanceOf(ParameterNode);
-      expect(child._displayName).toBe(`p(${i + 1})`);
+      expect(child.displayName).toBe(`p(${i + 1})`);
     });
     expect((node.children[0] as ParameterNode).Value).toBe(10);
     expect((node.children[2] as ParameterNode).Value).toBe(30);
@@ -159,7 +159,7 @@ describe('buildTypedNodeFromMcos — object ARRAYS (the .slx/.mat entry point)',
     expect(node.children).toHaveLength(2);
     node.children.forEach((child: any, i: number) => {
       expect(child.constructor.name).toBe('ObjectNode');
-      expect(child._displayName).toBe(`u(${i + 1})`);
+      expect(child.displayName).toBe(`u(${i + 1})`);
     });
   });
 

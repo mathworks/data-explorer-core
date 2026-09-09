@@ -41,7 +41,7 @@ describe('general array rule — NodeClassMap.parseValue routing (format-indepen
     // Each element is a KNOWN typed node (ParameterNode), labeled p(i).
     node.children.forEach((child: any, i: number) => {
       expect(child.constructor.name).toBe('ParameterNode');
-      expect(child._displayName).toBe(`p(${i + 1})`);
+      expect(child.displayName).toBe(`p(${i + 1})`);
     });
     expect((node.children[1] as any).Value).toBe(20);
   });
@@ -56,7 +56,7 @@ describe('general array rule — NodeClassMap.parseValue routing (format-indepen
     expect(node.children).toHaveLength(2);
     node.children.forEach((child: any, i: number) => {
       expect(child.constructor.name).toBe('ObjectNode');
-      expect(child._displayName).toBe(`u(${i + 1})`);
+      expect(child.displayName).toBe(`u(${i + 1})`);
     });
   });
 
@@ -73,7 +73,7 @@ describe('general array rule — NodeClassMap.parseValue routing (format-indepen
     ]);
     const node = NodeRegistry.parseValue(val, 'm', null);
     // The elements arrive in MATLAB's own order, so element 2 IS m(2,1).
-    expect(node.children.map((c: any) => c._displayName)).toEqual([
+    expect(node.children.map((c: any) => c.displayName)).toEqual([
       'm(1,1)', 'm(2,1)', 'm(1,2)', 'm(2,2)',
     ]);
   });
@@ -86,7 +86,7 @@ describe('general array rule — NodeClassMap.parseValue routing (format-indepen
       { Value: 22 }, { Value: 13 }, { Value: 23 },
     ]);
     const node = NodeRegistry.parseValue(val, 'w', null);
-    const pairs = node.children.map((c: any) => [c._displayName, c.Value]);
+    const pairs = node.children.map((c: any) => [c.displayName, c.Value]);
     expect(pairs).toEqual([
       ['w(1,1)', 11], ['w(2,1)', 21], ['w(1,2)', 12],
       ['w(2,2)', 22], ['w(1,3)', 13], ['w(2,3)', 23],
@@ -97,7 +97,7 @@ describe('general array rule — NodeClassMap.parseValue routing (format-indepen
     const elems = Array.from({ length: 12 }, (_, i) => ({ Value: i + 1 }));
     const val = arrayValue('Simulink.Parameter', [2, 3, 2], elems);
     const node = NodeRegistry.parseValue(val, 'v', null);
-    const labels = node.children.map((c: any) => c._displayName);
+    const labels = node.children.map((c: any) => c.displayName);
     expect(labels[0]).toBe('v(1,1,1)');
     expect(labels[11]).toBe('v(2,3,2)');
     expect(labels.some((s: string) => /\(3,|\(4,/.test(s))).toBe(false);

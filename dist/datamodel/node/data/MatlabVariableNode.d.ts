@@ -41,6 +41,7 @@ export default class MatlabVariableNode extends DataNode {
     _formatArray(): string;
     _formatCell(): string;
     _formatString(): string;
+    get descriptionEditable(): boolean;
     getProperties(): PropClass[];
     getPILayout(): {
         group: string;

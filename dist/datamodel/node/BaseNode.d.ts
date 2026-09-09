@@ -1,3 +1,4 @@
+import type { Bracket, ElementOrder } from '../display/Subscript.js';
 export interface PropClass {
     key: string;
     displayName: string;
@@ -32,6 +33,7 @@ export interface RowData {
     };
     Value?: unknown;
     _valueEditable?: boolean;
+    _descriptionEditable?: boolean;
     DataType?: string | {
         text: string;
         linkTarget?: string;
@@ -86,11 +88,18 @@ export interface PIObject {
     showDefaultGroup: boolean;
 }
 export type MatlabVariableKind = 'scalar' | 'array' | 'cell' | 'string';
+export interface ElementSubscript {
+    index: number;
+    dims: number[] | undefined;
+    order: ElementOrder;
+    bracket: Bracket;
+}
 export default class BaseNode {
     name: string;
     parent: BaseNode | null;
     children: BaseNode[];
     _displayName?: string;
+    _subscript?: ElementSubscript;
     _kind?: MatlabVariableKind;
     _dims?: number[];
     constructor(name: string, parent: BaseNode | null);
@@ -116,6 +125,7 @@ export default class BaseNode {
     flatten(): BaseNode[];
     get displayName(): string;
     get valueEditable(): boolean;
+    get descriptionEditable(): boolean;
     getPropInfo(PropClassRef: PropClass): PropInfo;
     toRow(): RowData | null;
     getProperties(): PropClass[];
