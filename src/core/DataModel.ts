@@ -481,6 +481,59 @@ function mutateSubtree<T>(root: INode, mutate: () => T): T {
   }
 }
 
+/**
+ * Index a subtree the caller has just ATTACHED to a tree the session owns — the
+ * whole-entry counterpart of mutateSubtree, for the host described there.
+ *
+ * mutateSubtree covers an edit INSIDE a subtree that is in the tree on both sides of
+ * the mutation. Adding a whole entry (a paste, or the redo of a delete) is the other
+ * shape: the nodes did not exist to be snapshotted before, so there is no before/after
+ * pair to diff — every node in the new subtree is simply new to the index.
+ *
+ * Call it AFTER attaching. An id is a PATH, so a subtree indexed while still detached
+ * would go into the index under ids that name no place in the tree, and the ids it
+ * actually answers to afterwards would be missing — the same failure mutateSubtree's
+ * matched-pair snapshot exists to avoid.
+ */
+function indexSubtree(root: INode): void {
+  const flat = root.flatten();
+  for (let i = 0; i < flat.length; i++) {
+    nodeIndex.set(flat[i].id, flat[i]);
+  }
+}
+
+/**
+ * Drop a subtree the caller is DETACHING, and release any selection inside it.
+ *
+ * The inverse of indexSubtree, and the reason it takes the detach as a callback rather
+ * than leaving it to the caller: the ids to delete must be read while the subtree is
+ * still ATTACHED (an id is a path, so a detached node reports a shorter one, and
+ * deleting those would leave the real entries behind — the index would go on handing
+ * out an entry that has left the tree, which is the failure this exists to prevent).
+ * Passing the detach makes that ordering the API rather than a comment.
+ *
+ * Called with no callback it means "these nodes are leaving", and the caller detaches
+ * them immediately after.
+ */
+function unindexSubtree(root: INode, detach?: () => void): void {
+  const flat = root.flatten();
+  const ids: string[] = [];
+  for (let i = 0; i < flat.length; i++) {
+    ids.push(flat[i].id);
+  }
+  try {
+    detach?.();
+  } finally {
+    for (let i = 0; i < ids.length; i++) {
+      nodeIndex.delete(ids[i]);
+    }
+    // Every node here is leaving the tree, so the whole subtree is what the selection
+    // must stop pointing at — see releaseSubtreeSelection, and mutateSubtree's
+    // before-minus-after form of the same rule.
+    releaseSubtreeSelection(flat);
+  }
+}
+
 function beginBatch(): void {
   batchDepth++;
 }
@@ -2178,9 +2231,13 @@ function getActiveSourceNode(): ISourceNode | null {
     deleteNodeById,
     deleteNodesById,
     // For a host whose mutations do NOT come through the forms above (it owns its own
-    // undo stack and edits nodes in place): the wrapper that keeps the node index and
+    // undo stack and edits nodes in place): the wrappers that keep the node index and
     // the selection honest across such an edit, at subtree scope instead of a re-parse.
+    // mutateSubtree for an edit inside a subtree, index/unindexSubtree for a whole
+    // subtree joining or leaving the tree.
     mutateSubtree,
+    indexSubtree,
+    unindexSubtree,
     undo: undoAction,
     redo: redoAction,
     canUndo: canUndoActive,
