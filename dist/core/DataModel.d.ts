@@ -231,6 +231,8 @@ export declare function createSession(opts?: CreateSessionOptions): {
     deleteNodeById: (nodeId: string) => boolean;
     deleteNodesById: (nodeIds: string[]) => boolean;
     mutateSubtree: <T>(root: INode, mutate: () => T) => T;
+    indexSubtree: (root: INode) => void;
+    unindexSubtree: (root: INode, detach?: () => void) => void;
     undo: () => void;
     redo: () => void;
     canUndo: () => boolean;
@@ -289,6 +291,8 @@ declare const DataModel: {
     deleteNodeById: (nodeId: string) => boolean;
     deleteNodesById: (nodeIds: string[]) => boolean;
     mutateSubtree: <T>(root: INode, mutate: () => T) => T;
+    indexSubtree: (root: INode) => void;
+    unindexSubtree: (root: INode, detach?: () => void) => void;
     undo: () => void;
     redo: () => void;
     canUndo: () => boolean;
