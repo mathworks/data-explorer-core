@@ -218,6 +218,66 @@ export function createSession(opts = {}) {
             nodeIndex.delete(flat[i].id);
         }
     }
+    /**
+     * Run `mutate`, then leave the session consistent with whatever it did to `root`'s
+     * subtree — the supported route for a host that edits nodes DIRECTLY instead of through
+     * editProperty/addChildTo/deleteNodeById.
+     *
+     * Such a host exists. One that owns its own undo stack (the VS Code extension's edits
+     * are splices into the file text it re-serializes) calls node.setProperty /
+     * node.addChild / parent.removeChild itself, and so takes none of the bookkeeping the
+     * session-level forms do. The bookkeeping still has to happen: `nodeIndex` is keyed by
+     * node id, and an id is a node's PATH (BaseNode.id walks parents), so a RENAME silently
+     * rekeys the whole subtree. The index then goes on offering the old ids and holds none
+     * of the new ones — and findNodeById, which is how such a host resolves the very rows it
+     * just painted, answers null for a node that is sitting right there. An added child is
+     * unfindable for the same reason. A removed one is worse than unfindable: the index
+     * keeps handing it out, and an edit routed at a detached node mutates an orphan and
+     * vanishes on save.
+     *
+     * The only repair before this was re-registering the source, which for the parse-based
+     * entry points means re-PARSING the file — seconds, for one cell edit in a large
+     * dictionary. This is the same repair at subtree scope.
+     *
+     * The before/after snapshot is taken HERE, not asked of the caller, because the halves
+     * must be a matched pair around one mutation: `id` is a live getter, so ids read after a
+     * rename are the NEW ones, and a caller that snapshots a moment too late deletes exactly
+     * the entries it meant to keep and leaves the stale ones resolving. In a `finally`, so a
+     * mutation that throws part-way still leaves the index describing the tree as it stands.
+     *
+     * Scope is `root.flatten()` on both sides — the same span indexSource/deindexSource use,
+     * so the index still holds exactly what flatten() yields and roots and sections
+     * (ContainerNode.flatten excludes its receiver) stay out of it as before.
+     *
+     * Notification is deliberately NOT published here. A host that mutates the tree itself
+     * is the host that knows what it changed and repaints accordingly; guessing an event for
+     * it ('node/added'? 'children-changed'?) would announce a shape this function cannot
+     * know.
+     */
+    function mutateSubtree(root, mutate) {
+        const before = root.flatten();
+        const staleIds = [];
+        for (let i = 0; i < before.length; i++) {
+            staleIds.push(before[i].id);
+        }
+        try {
+            return mutate();
+        }
+        finally {
+            for (let i = 0; i < staleIds.length; i++) {
+                nodeIndex.delete(staleIds[i]);
+            }
+            const after = root.flatten();
+            for (let i = 0; i < after.length; i++) {
+                nodeIndex.set(after[i].id, after[i]);
+            }
+            // Whatever `mutate` removed is a node the session must stop pointing at, for the
+            // reason deleteOneNode releases it there: `before` minus `after`, by identity, so a
+            // rename (same nodes, new ids) releases nothing.
+            const survivors = new Set(after);
+            releaseSubtreeSelection(before.filter((n) => !survivors.has(n)));
+        }
+    }
     function beginBatch() {
         batchDepth++;
     }
@@ -1786,6 +1846,10 @@ export function createSession(opts = {}) {
         addChildTo,
         deleteNodeById,
         deleteNodesById,
+        // For a host whose mutations do NOT come through the forms above (it owns its own
+        // undo stack and edits nodes in place): the wrapper that keeps the node index and
+        // the selection honest across such an edit, at subtree scope instead of a re-parse.
+        mutateSubtree,
         undo: undoAction,
         redo: redoAction,
         canUndo: canUndoActive,
