@@ -236,6 +236,61 @@ describe('ParameterNode — Value row follows a structural edit', () => {
     expect(p.displayValue).toBe('"hello"');
   });
 
+  // The other way to cross that line: not adding or removing an element, but
+  // restating the whole value. The table's Value cell on the Value row commits
+  // through MatlabVariableNode.setProperty, which rebuilds the node's children from
+  // the text — and used to tell nobody, so a matrix retyped as a scalar left the
+  // Parameter holding a childless Value row. The consumer that repaints from the
+  // node it mutated (rather than from a re-read of the file) then paints a row a
+  // re-read would not: an expander onto nothing, under a scalar.
+  it('drops the row when the value row itself is retyped as a scalar', () => {
+    const p = parseParamValue([1, 2]);
+    const valueNode = p.children[0] as any;
+    expect(valueNode.setProperty('Value', '42')).toBe(true);
+    expect(valueNode.children.length).toBe(0);
+    expect(p.children.length).toBe(0);
+    expect(p.displayValue).toBe('42');
+    expect(serializedValue(p)).toBe(42);
+  });
+
+  it('keeps the row when the value row is retyped as another array', () => {
+    const p = parseParamValue([1, 2]);
+    const valueNode = p.children[0] as any;
+    expect(valueNode.setProperty('Value', '[7 8 9]')).toBe(true);
+    // The SAME node: it is still this Parameter's _valueNode.
+    expect(p.children).toEqual([valueNode]);
+    expect(p.displayValue).toBe('[7 8 9]');
+  });
+
+  it('brings the row back when a hidden scalar value node becomes an array', () => {
+    // The inverse, and the reason the notification is not a one-way "drop it". A
+    // TYPED scalar keeps its value node with no row of its own (the node is what
+    // writes int32 back out), so the row has to appear when that node grows
+    // children. Reached by a caller holding the value node itself rather than by the
+    // table, which has no row to double-click — but it is the same hook, and a
+    // one-way version of it would be a latent half-fix.
+    const p = parseParamValue({ _type: 'int32', _value: '5' });
+    expect(p.children.length).toBe(0);
+    const valueNode = (p as any)._valueNode;
+    expect(valueNode.setProperty('Value', '[1 2]')).toBe(true);
+    expect(p.children).toEqual([valueNode]);
+    expect(p.displayValue).toBe('[1 2]');
+  });
+
+  it('adds the row when the ENTRY\'s own value is retyped as an array', () => {
+    // The path the table actually takes for a scalar Parameter — there is no Value
+    // row to edit, so the edit lands on the entry and goes through
+    // ParameterNode.setProperty, which re-adopts the value node and so decides the
+    // row itself. Pinned beside the others because a consumer repainting from the
+    // mutated node needs BOTH spellings of "the value changed shape" to leave the
+    // same tree a re-read would build.
+    const p = parseParamValue(5);
+    expect(p.setProperty('Value', '[1 2]')).toBe(true);
+    expect(p.children.map((c) => c.name)).toEqual(['Value']);
+    expect(p.children[0].children.length).toBe(2);
+    expect(p.displayValue).toBe('[1 2]');
+  });
+
   it('does not drop another class\'s Value row when its array collapses', () => {
     // Scoping guard, the counterpart of the parse-time one: a property bag's rows
     // ARE its properties, so MyGain.Value must survive becoming a scalar. Only

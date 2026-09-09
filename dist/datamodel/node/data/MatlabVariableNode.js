@@ -657,6 +657,14 @@ export default class MatlabVariableNode extends DataNode {
             }
             this._applyParsed(parsed);
             this._markModified();
+            // _applyParsed rebuilds this node's children from the text, so restating a
+            // value crosses the same has-children/has-none line an add or a remove does
+            // (childEdit.ts notifies for those). A parent whose row for this node depends
+            // on its shape — a Simulink.Parameter's Value row — has to follow, or a matrix
+            // retyped as a scalar leaves it holding an expander onto nothing until the file
+            // is re-read. The notification goes both ways: the same hook brings the row
+            // back when a hidden scalar value node grows elements.
+            this.parent?.childStructureChanged(this);
             return true;
         }
         return DataNode.prototype.setProperty.call(this, propName, stringValue);
