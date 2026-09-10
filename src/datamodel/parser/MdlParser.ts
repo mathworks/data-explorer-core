@@ -938,7 +938,7 @@ function classicBlockParamUsages(model: MdlNode): { blockParamUsages: BlockParam
         // block has no mask at all, because a leftover `MaskType ""` on an unmasked block
         // is common and means nothing.
         if (MASK_PROPS.has(p.name)) continue;
-        if (!isParamReference(p.name, p.value)) continue;
+        if (!isParamReference(blockType, p.name, p.value)) continue;
         usages.push({ blockName, blockType, paramProperty: p.name, paramValue: p.value, sid, systemPath: path });
       }
       const childPath = joinBlockPath(path, blockLabel(blockName, sid));

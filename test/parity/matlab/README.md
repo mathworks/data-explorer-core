@@ -57,11 +57,12 @@ and writes to `../artifacts/mdl/` and nowhere else. Nothing writes to
 |---|---|
 | `gen_truth.m` | the only entry point for the corpus: one case catalog, every format emitted from it |
 | `gen_mdl.m` | the entry point for the SECOND, separate corpus: the `.mdl` flavours and their `.slx` twins — see [The `.mdl` corpus](#the-mdl-corpus) |
-| `gen_mask.m` | the masked-subsystem fixture — see [The mask fixture](#the-mask-fixture). The only generator that writes outside `../artifacts/`: its truth pair goes to `test/fixtures/` |
+| `gen_mask.m` | the masked-subsystem fixture — see [The mask fixture](#the-mask-fixture). Writes outside `../artifacts/`: its truth pair goes to `test/fixtures/` |
+| `gen_block_params.m` | the option-list parameter table — see [The block-parameter gate](#the-block-parameter-gate). The only generator that writes into **`src/`**, because the parser imports its output at parse time |
 | `probe_*.m`, `probe_writeback*.mjs` | one-question probes — see the table below. None of them writes to `artifacts/` |
 | `wbcompare.m` | the comparison both write-back gates share: `fullsig`, which walks a value to every leaf spelling class, size, complexity and exact value |
 | `DESIGN.md` | the display convention, the coverage matrix, and the numbered defects this suite exists to pin |
-| `drift.mjs` | regenerate BOTH corpora into a temp directory and diff `truth.json` and `mdl_truth.json` against what is committed — the check for MATLAB-release drift |
+| `drift.mjs` | regenerate ALL FOUR into a temp directory and diff `truth.json`, `mdl_truth.json`, `mask_truth.json` and `enumBlockParams.ts` against what is committed — the check for MATLAB-release drift |
 | `STRING_MCOS.md` | how MATLAB stores a `string` in a `.mat`: the metadata segment the parser skipped, the packed `uint64` payload, and what could not be determined |
 | `../artifacts/truth.json` | the expectations, for every format at once |
 | `../artifacts/meta.json` | `version` and `release` of the MATLAB that wrote the corpus |
@@ -108,6 +109,7 @@ directory, because `Simulink.data.dictionary.open` rejects a relative one with
 | `probe_mdl_encoding.m` | what does a classic `.mdl` saved under a non-UTF-8 `slCharacterEncoding` look like, and what does MATLAB read back out of it? (TODO item 11) | `$MDL_ENCODING_OUT` or `tempdir/mdlenc` | `mdlenc_shift_jis_R2011b.mdl`, `mdlenc_windows_1252_R2011b.mdl`, `mdlenc_shift_jis.mdl` |
 | `probe_mask_types.m` | which mask parameter TYPES hold an expression `findVars` resolves, and which are a selection or a widget state? | — | — |
 | `probe_evaluate.m` | is `Evaluate` a SECOND gate, independent of the type — and how does each container format spell it? | `tempdir/probe_evaluate` | — |
+| `probe_non_data_params.m` | which FREE-TEXT block parameters never name data, however much their values look like variables? | `tempdir` (one child model, deleted) | — |
 | `probe_writeback.mjs` + `.m` | **the acceptance gate for the TEXT dictionary**: does MATLAB read back the JSON `_value` our writer emits? | `$PROBE_OUT` | — |
 | `probe_writeback_bin.mjs` + `.m` | **the acceptance gate for the BINARY dictionary**: does MATLAB read back the XML chunk our writer emits? (defects 27-30) | `$PROBE_OUT` | — |
 
@@ -470,6 +472,61 @@ needs no truth entry, since each flavour is the other's expectation.
 `test/usageEngines.test.ts` then pins the same answers on **both** usage engines,
 which reach the mask by different routes — `resolveName` against a summary's mask list,
 `collectUsages` against a `ModelNode`'s.
+
+## The block-parameter gate
+
+Not a corpus and not a fixture: a **generated runtime module**,
+`src/datamodel/parser/enumBlockParams.ts`, written by `gen_block_params.m`. The parser
+imports it, so drift in it changes what a parse returns — which is why it is in `src/`
+and not in `artifacts/`, and why `drift.mjs` compares it.
+
+The question it answers is `<P Name="Operator">square</P>` — can that be a reference to
+data? The file records nothing that says. `square` is a legal variable name, so the
+value-only gate (numeric? `on`/`off`? contains an identifier?) has to say yes, and a
+model with a variable called `square` then showed a Math block on its Usage cell. The
+missing fact is about the **parameter**, not the value: `Operator` is an option list of
+fifteen choices Simulink itself enforces.
+
+```bash
+mw -using Bmain matlab -nodesktop -batch "run('$PWD/test/parity/matlab/gen_block_params.m')"
+```
+
+Prints `GEN_BLOCK_PARAMS OK  108 block types, 343 parameters from 2846 blocks`. It copies
+every block in `simulink` and `simulink_extras` into a scratch model — `DialogParameters`
+is only answerable on an instance — and keeps a `(BlockType, parameter)` pair when the
+type is `enum` or `dynamic enum` on **every** instance that has it. One free-text sighting
+disqualifies the pair, which is what `SubSystem|OutDataTypeStr` cost: an option list on a
+masked subsystem, free text that can name a `Simulink.NumericType` on a plain one.
+
+**Two other rules were measured first and both are wrong, both by hiding real
+references.** They are written out in the generator's header so they are not
+re-derived: the `dont-eval` attribute (findVars credits a `dont-eval` `SampleTime`, so a
+654-name blocklist from it would have deleted `SampleTime = Ts`), and "`set_param`
+refuses an identifier" (a successful `set_param` mutates the block, so the refusal count
+moves with scan ORDER — 682 pairs against 765 — and an order-dependent measurement cannot
+be a committed table). The `Type` reading has neither problem: it is read-only, and two
+independent scans agreed on all 1905 pairs.
+
+The generator deliberately does **not** guess at free-text parameters that merely happen
+never to name data. Those are `probe_non_data_params.m`'s question — asked of
+`Simulink.findVars` on models built so the answer is sharp, each holding a variable whose
+name COLLIDES with the parameter's value plus a control Gain reading a real variable — and
+they are a three-entry hand list in `SlxParser.ts` with the measurement beside it:
+a Bus Selector's `OutputSignals`, a Bus Assignment's `AssignedSignals`, and a Model
+block's file name under all three of its spellings.
+
+Keying on the **pair** rather than the parameter name is what makes suppression safe:
+`Operator` is a menu on a Math block and an expression on a Gain, and `Format`,
+`SimulateUsing`, `TriggerType` and `IntermediateResultsDataTypeStr` are each measured both
+ways. A block type in neither table — every toolbox block, and every masked library link,
+which a file records as `Reference` — is judged exactly as before. That asymmetry is
+deliberate: a spare row is a row a user ignores, a suppressed reference is a Usage cell
+that lies by omission (issue #9).
+
+Mask parameters do not go through this gate at all and must not — a mask parameter's name
+is one its author chose, so a mask really called `Operator` means whatever they meant.
+`test/blockParamUsages.test.ts` pins that, along with the verdicts above and the
+`.slx`/`.mdl` agreement on all of them.
 
 ## The `.slx` layout corpus
 

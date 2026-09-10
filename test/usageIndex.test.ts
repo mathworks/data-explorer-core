@@ -23,7 +23,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strToU8, unzipSync, zipSync } from 'fflate';
-import { buildUsageIndex, summarizeFiles, resolveName } from '../src/index.js';
+import { buildUsageIndex, summarizeFiles, resolveName, parseModel } from '../src/index.js';
 import type { UsageFile, ModelSummary, DataSummary } from '../src/index.js';
 
 function artifact(rel: string): ArrayBuffer {
@@ -729,22 +729,24 @@ describe('on a real model MATLAB wrote', () => {
     expect(index.usagesOf('common.sldd', 'Ki').map((u) => u.blockName)).toEqual(['Gain']);
   });
 
-  it('leaves a parameter that names another MODEL unresolved', () => {
-    // `Child.ModelNameDialog=mdl_child` is a model reference, not a data reference. It is
-    // a real parameter and it resolves to no definition, which is the unresolved arm on
-    // bytes MATLAB wrote.
+  it('gives a Model block no data parameters — its ModelNameDialog is a FILE', () => {
+    // `Child.ModelNameDialog=mdl_child` names the referenced model, not data, and MATLAB
+    // agrees: findVars credits nothing for it even when a variable is spelled exactly like
+    // the child model (test/parity/matlab/probe_non_data_params.m).
+    //
+    // It used to be a row here, on the unresolved arm — a real parameter that resolves to
+    // no definition — and that reading was wrong twice over. It is not unresolvED but
+    // unresolvABLE, so no file set could ever have filled it in; and the fact was already
+    // known, resolved, as a model reference. A host given the row painted a link with an
+    // empty target: accent-blue, underlined, and going nowhere when clicked.
     const index = realIndex(['Kp', 'Ki']);
     // SID 9 is what the file records for the block named `Child`.
-    const [origin] = index.paramsOf('mdlcases.mdl', '9');
-    expect(origin).toEqual({
-      property: 'ModelNameDialog',
-      expression: 'mdl_child',
-      name: null,
-      originSrcId: null,
-      kind: null,
-      linkTarget: '',
-      maskBlock: null,
-    });
+    expect(index.paramsOf('mdlcases.mdl', '9')).toEqual([]);
+    // And the thing that DOES carry the fact, off the same bytes, so dropping the row
+    // loses nothing: the reference is reported resolved, under the child model's name.
+    expect(parseModel(artifact('mdl/mdlcases.mdl'), 'mdlcases.mdl').modelReferences.map((r) => r.modelName)).toEqual([
+      'mdl_child',
+    ]);
   });
 
   it('reports the model under the name a block path and a reference record use', () => {
