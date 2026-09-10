@@ -15,7 +15,7 @@ import { describe, it, expect } from 'vitest';
 import StructNode from '../src/datamodel/node/data/StructNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 import type { MatVariable } from '../src/datamodel/parser/MatParser.js';
 
 type Any = any;

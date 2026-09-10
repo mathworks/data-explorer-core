@@ -125,7 +125,7 @@ import ConfigSetRefNode from '../src/datamodel/node/data/ConfigSetRefNode.js';
 import { BusNode } from '../src/datamodel/node/data/BusNode.js';
 import type DataNode from '../src/datamodel/node/DataNode.js';
 // Registers the class map the nodes' shared machinery dispatches through.
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 function rawVal(className: string, properties: Record<string, unknown>): Record<string, unknown> {
   return {

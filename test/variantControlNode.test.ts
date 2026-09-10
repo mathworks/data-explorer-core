@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import VariantControlNode from '../src/datamodel/node/data/VariantControlNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 function wrap(props: Record<string, unknown> = {}) {
   return {

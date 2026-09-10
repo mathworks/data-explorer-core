@@ -34,7 +34,7 @@ import ObjectNode from '../src/datamodel/node/data/ObjectNode.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
 import type DataNode from '../src/datamodel/node/DataNode.js';
 import type BaseNode from '../src/datamodel/node/BaseNode.js';
-import * as NodeClassMap from '../src/datamodel/node/NodeClassMap.js';
+import * as NodeClassMap from '../src/datamodel/node/data/NodeClassMap.js';
 import { buildTypedNodeFromMcos } from '../src/datamodel/node/data/mcosTypedNode.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 import { buildDataChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';

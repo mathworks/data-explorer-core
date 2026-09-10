@@ -18,7 +18,7 @@ import { describe, it, expect } from 'vitest';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import MatlabValueParser from '../src/datamodel/parser/MatlabValueParser.js';
 import PropValue from '../src/datamodel/prop/PropValue.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 describe('a displayed non-finite value can be typed back in', () => {
   for (const [text, expected] of [

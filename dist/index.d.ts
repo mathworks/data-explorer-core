@@ -1,4 +1,4 @@
-import './datamodel/node/NodeClassMap.js';
+import './datamodel/node/data/NodeClassMap.js';
 export { default as DataModel } from './core/DataModel.js';
 export type { AllNode, SourceMeta } from './core/DataModel.js';
 export * as EventBus from './core/EventBus.js';

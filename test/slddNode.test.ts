@@ -46,7 +46,7 @@ import { SC_PART } from '../src/datamodel/parser/ScCatalog.js';
 import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
 // Registers the node classes the entry parser resolves values with; without it every
 // entry would fall through to the generic object node and no Kind would be right.
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 const jsonFixture = (name: string) => JSON.parse(readFileSync(fixture(name), 'utf8')) as Record<string, unknown>;

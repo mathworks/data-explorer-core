@@ -24,7 +24,7 @@ import { describe, it, expect } from 'vitest';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import StructNode from '../src/datamodel/node/data/StructNode.js';
-import * as NodeClassMap from '../src/datamodel/node/NodeClassMap.js';
+import * as NodeClassMap from '../src/datamodel/node/data/NodeClassMap.js';
 
 void NodeClassMap;
 

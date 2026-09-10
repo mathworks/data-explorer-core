@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { BusElementNode } from '../src/datamodel/node/data/BusNode.js';
 import { ConnectionBusElementNode } from '../src/datamodel/node/data/ConnectionBusNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 // Regression: bus/connection elements store their name under the raw 'Name' key
 // and read type/min/max through '*_internal' aliased keys. The PI "Other"

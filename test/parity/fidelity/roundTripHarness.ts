@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import DataModel from '../../../src/core/DataModel.js';
 import { parseBinarySldd } from '../../../src/datamodel/parser/BinarySlddParser.js';
 import { serializeBinarySldd } from '../../../src/datamodel/parser/BinarySlddSerializer.js';
-import '../../../src/datamodel/node/NodeClassMap.js';
+import '../../../src/datamodel/node/data/NodeClassMap.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 // MATLAB launcher, configured out-of-band so no environment-specific path is

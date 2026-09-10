@@ -22,7 +22,7 @@ import ConfigSetRefNode from '../src/datamodel/node/data/ConfigSetRefNode.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
 import type DataNode from '../src/datamodel/node/DataNode.js';
 // Registers the node class map so StructNode.parse can recurse into field values.
-import { parseValue } from '../src/datamodel/node/NodeClassMap.js';
+import { parseValue } from '../src/datamodel/node/data/NodeClassMap.js';
 
 // Build the raw Simulink-object value wrapper a node's static parse() expects,
 // with a single element carrying the given _properties.

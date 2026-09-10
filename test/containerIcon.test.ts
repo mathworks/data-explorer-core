@@ -21,7 +21,7 @@
 
 import { describe, it, expect } from 'vitest';
 // Importing the class map registers the NodeRegistry every case dispatches through.
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 
 interface IconNode { icon: string; className: string; children: IconNode[] }

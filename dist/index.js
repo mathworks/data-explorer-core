@@ -3,7 +3,7 @@
 // Milestone 1: re-exports the surface consumed by data-explorer-vscode today,
 // with no renaming. A curated REST-style facade lands in a later milestone.
 // Side-effecting node-class registration (must be imported for registry setup).
-import './datamodel/node/NodeClassMap.js';
+import './datamodel/node/data/NodeClassMap.js';
 // Runtime services (core).
 export { default as DataModel } from './core/DataModel.js';
 export * as EventBus from './core/EventBus.js';

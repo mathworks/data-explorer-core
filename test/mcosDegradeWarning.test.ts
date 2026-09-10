@@ -35,7 +35,7 @@ vi.mock('../src/datamodel/node/NodeRegistry.js', async (importOriginal) => {
 
 // Side-effect import: registers the class map, so the REAL getClass (kept by the spread
 // above) answers truthy for a known class and the code reaches the try/catch.
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 import { buildTypedNodeFromMcos } from '../src/datamodel/node/data/mcosTypedNode.js';
 import type { ParseWarning } from '../src/index.js';
 

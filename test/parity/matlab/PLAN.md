@@ -3822,7 +3822,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSession } from '../../src/index.js';
 import { ingest } from '../../src/core/ingest.js';
-import '../../src/datamodel/node/NodeClassMap.js';
+import '../../src/datamodel/node/data/NodeClassMap.js';
 
 /** Read a file relative to THIS module and hand back a detached ArrayBuffer. */
 export function bytesOf(rel: string): ArrayBuffer {
@@ -3897,7 +3897,7 @@ exactly one definition of "the node for this name" in the test tree.
 
 **5. Imports.** `MatlabVariableNode` is a **default** export (`import MatlabVariableNode from '.../MatlabVariableNode.js'`), and it re-exports the `MatVariable` type. `StructNode`, `ObjectNode`, `DataModel` (the session singleton, `src/core/DataModel.js`) are default exports too. Check each import against the file before writing it — a named-vs-default mistake fails at typecheck, which is cheap, but it wastes a cycle.
 
-**6. `NodeClassMap` must be imported for its side effect** before `NodeRegistry.parseValue` will dispatch: `import '../src/datamodel/node/NodeClassMap.js';` (see `test/parity/fidelity/roundTripHarness.ts:24`). A test that skips it gets bare nodes and confusing failures.
+**6. `NodeClassMap` must be imported for its side effect** before `NodeRegistry.parseValue` will dispatch: `import '../src/datamodel/node/data/NodeClassMap.js';` (see `test/parity/fidelity/roundTripHarness.ts:24`). A test that skips it gets bare nodes and confusing failures.
 
 **7. MATLAB gating.** `DEX_MATLAB_CMD` (launcher + fixed args, e.g. `mw -using Bmain matlab`) and optional `DEX_MATLAB_CWD`. When unset, MATLAB-dependent assertions **skip**, never fail — that is how the suite stays green in CI and for external contributors. Reuse this convention exactly; do not invent a second env var.
 

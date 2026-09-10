@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 // Importing the class map registers the NodeRegistry the parsers route through.
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import MatNode from '../src/datamodel/node/container/MatNode.js';
 import ModelNode from '../src/datamodel/node/container/ModelNode.js';

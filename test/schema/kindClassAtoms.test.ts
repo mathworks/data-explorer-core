@@ -12,7 +12,7 @@ import PropClass from '../../src/datamodel/prop/PropClass.js';
 import ParameterNode from '../../src/datamodel/node/data/ParameterNode.js';
 import ConstantNode from '../../src/datamodel/node/data/ConstantNode.js';
 import { BusNode } from '../../src/datamodel/node/data/BusNode.js';
-import '../../src/datamodel/node/NodeClassMap.js';
+import '../../src/datamodel/node/data/NodeClassMap.js';
 
 describe('PropKind / PropClass atoms', () => {
   it('Parameter: Kind is human-readable, Class is the raw identity, and they differ', () => {

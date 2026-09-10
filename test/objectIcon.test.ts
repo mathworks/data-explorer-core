@@ -17,7 +17,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 // Importing the class map registers the NodeRegistry these paths dispatch through.
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 import { OBJECT_ICON } from '../src/datamodel/node/icons.js';
 import ObjectNode from '../src/datamodel/node/data/ObjectNode.js';
 import MatNode from '../src/datamodel/node/container/MatNode.js';

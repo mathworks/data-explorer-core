@@ -12,7 +12,7 @@ import ParameterNode from '../../src/datamodel/node/data/ParameterNode.js';
 import SignalNode from '../../src/datamodel/node/data/SignalNode.js';
 import DataModel from '../../src/core/DataModel.js';
 import { parseBinarySldd } from '../../src/datamodel/parser/BinarySlddParser.js';
-import '../../src/datamodel/node/NodeClassMap.js';
+import '../../src/datamodel/node/data/NodeClassMap.js';
 
 describe('Parameter/Signal PI includes hydrated schema groups', () => {
   it('ParameterNode PI opens with the common General group, then Value Properties/Code Generation/Custom Attributes', () => {

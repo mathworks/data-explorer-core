@@ -21,7 +21,7 @@ import { describe, it, expect } from 'vitest';
 import { loadFile, findEntry } from './parity/loadFile.js';
 import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import DataNode from '../src/datamodel/node/DataNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 // loadFile resolves relative to test/parity/loadFile.ts.
 const MAT = ['./artifacts/mat/cases.mat', 'cases.mat'] as const;

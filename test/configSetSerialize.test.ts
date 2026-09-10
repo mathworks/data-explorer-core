@@ -15,7 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import ConfigSetNode from '../src/datamodel/node/data/ConfigSetNode.js';
 import ConfigSetRefNode from '../src/datamodel/node/data/ConfigSetRefNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 const savedProps = (node: { serializeValue(): unknown }): Record<string, unknown> => {
   const sv = node.serializeValue() as { _elements: { _properties: Record<string, unknown> }[] };

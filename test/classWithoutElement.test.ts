@@ -30,7 +30,7 @@
 // agree about that or the test would be exercising a path nothing takes.
 
 import { describe, it, expect } from 'vitest';
-import { parseValue } from '../src/datamodel/node/NodeClassMap.js';
+import { parseValue } from '../src/datamodel/node/data/NodeClassMap.js';
 import SectionNode from '../src/datamodel/node/container/SectionNode.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
 import type DataNode from '../src/datamodel/node/DataNode.js';

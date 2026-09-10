@@ -18,7 +18,7 @@ import { describe, it, expect } from 'vitest';
 import { zipSync } from 'fflate';
 import { parseBinarySldd, parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 import DataNode from '../src/datamodel/node/DataNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 const DECL = '<?xml version="1.0" encoding="UTF-8"?>';
 

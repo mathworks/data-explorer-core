@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import { isMatCdata } from '../src/datamodel/parser/CdataCodec.js';
-import * as NodeClassMap from '../src/datamodel/node/NodeClassMap.js';
+import * as NodeClassMap from '../src/datamodel/node/data/NodeClassMap.js';
 
 // The raw shape the sldd parsers hand ParameterNode.parse: a 1x1
 // Simulink.Parameter whose _properties carry the on-disk values.

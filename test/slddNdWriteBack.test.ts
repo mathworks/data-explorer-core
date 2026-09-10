@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { unzipSync } from 'fflate';
 import DataModel from '../src/core/DataModel.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 import { buildDataChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { loadFile, findEntry } from './parity/loadFile.js';

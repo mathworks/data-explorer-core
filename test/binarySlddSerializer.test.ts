@@ -28,7 +28,7 @@ import {
   serializeEntryToXml,
 } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 const binPath = fileURLToPath(new URL('./parity/artifacts/binary/params.sldd', import.meta.url));
 const bytes = readFileSync(binPath);

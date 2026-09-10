@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 // Importing the class map registers the NodeRegistry the adapter routes through.
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 import { loadFile, findEntry } from './parity/loadFile.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import {

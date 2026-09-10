@@ -20,6 +20,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { ModuleEdge } from './tools/moduleGraph.js';
 import { readModuleGraph, runtimeCycles, runtimeEdges, describeEdges } from './tools/moduleGraph.js';
 
 const SRC = fileURLToPath(new URL('../src', import.meta.url));
@@ -66,6 +67,111 @@ describe('the runtime module graph is acyclic', () => {
     // this at zero — a maintainer dropping one `type` keyword is the whole risk.
     const cycles = runtimeCycles(graph).map((c) => c.join(' -> '));
     expect(cycles).toEqual([]);
+  });
+});
+
+// The same edges, counted by FOLDER instead of by file: one edge per importer's
+// directory → target's directory, self-edges dropped (a folder depending on itself is
+// what a folder is for). A view of the graph above, not a second graph.
+const dirOf = (file: string): string => (file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '.');
+
+const directoryEdges = (): Map<string, ModuleEdge[]> => {
+  const byPair = new Map<string, ModuleEdge[]>();
+  for (const e of runtimeEdges(graph)) {
+    const [from, to] = [dirOf(e.from), dirOf(e.to)];
+    if (from === to) continue;
+    byPair.set(`${from} -> ${to}`, [...(byPair.get(`${from} -> ${to}`) ?? []), e]);
+  }
+  return byPair;
+};
+
+describe('the directory graph is acyclic too', () => {
+  it('has no folder pair that imports both ways round', () => {
+    // Weaker than the file-level rule above and worth its own test, because it is the
+    // one the file level cannot see: a directory cycle can exist while every FILE
+    // stays acyclic, and it did here until `NodeClassMap` moved. It bundles and runs
+    // perfectly — the cost is paid later, by whoever tries to lift a folder out into
+    // its own package and finds the dependency points both ways. A DAG of folders is
+    // the precondition for ever splitting this package up, and it is cheap to hold
+    // and expensive to restore, so it is asserted now rather than rediscovered then.
+    //
+    // Two folders on one side of a cycle usually means a file is filed in the wrong
+    // one: the fix is a `git mv`, not an interface. `NodeClassMap` enumerates the
+    // subclasses in `node/data/`, so it belongs beside them; sitting in `node/` with
+    // the base classes it imported DOWNWARD 24 times, against the layering, and one
+    // move deleted the cycle without inverting anything.
+    const pairs = directoryEdges();
+    const projected = {
+      files: [...new Set(graph.files.map(dirOf))],
+      edges: [...pairs.keys()].map((pair) => {
+        const [from, to] = pair.split(' -> ');
+        return { from, to, specifier: to, typeOnly: false, line: 0 };
+      }),
+    };
+    // Named down to the import, because "a cycle exists" is not something a reader can
+    // act on: the actionable fact is which line to reconsider. Capped per leg — a leg
+    // can hold dozens of imports and any one of them locates the folder pair.
+    const cycles = runtimeCycles(projected).map((cycle) =>
+      cycle
+        .map((dir, i) => {
+          const pair = `${dir} -> ${cycle[(i + 1) % cycle.length]}`;
+          const causes = describeEdges(pairs.get(pair) ?? []);
+          const shown = causes.slice(0, 3).join(', ');
+          return `${pair} via ${shown}${causes.length > 3 ? ` (+${causes.length - 3} more)` : ''}`;
+        })
+        .join('\n    '),
+    );
+    expect(cycles).toEqual([]);
+  });
+});
+
+describe('the seams that are already clean stay clean', () => {
+  // Three folders import NOTHING outside themselves, and a fourth — 7600 lines of
+  // parsers, the bulk of the package — imports exactly one module outside itself.
+  // Nothing forced that and nothing but this test keeps it.
+  //
+  // Why these four and not a rule for every folder: they are the seams a package split
+  // would cut FIRST, because for them it is nearly free. `datamodel/node/` is larger
+  // still (9400 lines) but is entangled with the session, the props and the schema, so
+  // bounding it would mean inventing interfaces; these four need only an `export`.
+  //
+  // When this fails, the new import is the thing to look at, not the test. Ask whether
+  // the caller can pass the value in instead — a parser being handed what it needs is
+  // usually the cheaper shape anyway. Widening the allowed set is a legitimate answer,
+  // but it should be a decision someone made, not a number someone updated.
+  const outboundFrom = (dir: string): Array<ModuleEdge & { to: string }> => {
+    // A misspelled folder matches no file, so every filter here would return nothing
+    // and every assertion would pass on an empty list. Prove the folder is real first.
+    expect(graph.files.filter((f) => under(dir, f)).length, `${dir} holds modules`).toBeGreaterThan(0);
+    return runtimeEdges(graph).filter((e) => under(dir, e.from) && !under(dir, e.to));
+  };
+
+  it('keeps datamodel/schema/ self-contained', () => {
+    // The schema is the DECLARATION of what a class's properties are and how they lay
+    // out; it answers from its own tables. An import here would mean a declaration had
+    // started asking a parser or a node what it should say. `schema/index.ts`'s own
+    // header already claims this ("the seed of a future standalone `dex-schema`
+    // package; dependencies point INTO it only") — this is that claim, checked.
+    expect(describeEdges(outboundFrom('datamodel/schema'))).toEqual([]);
+  });
+
+  it('keeps datamodel/display/ self-contained', () => {
+    // Formatting values for a column: total functions on data handed to them. Reaching
+    // out would mean a formatter had started fetching what it formats.
+    expect(describeEdges(outboundFrom('datamodel/display'))).toEqual([]);
+  });
+
+  it('keeps datamodel/parser/ reaching for nothing but blockIdentity', () => {
+    // The one allowed edge, twice: `MdlParser` and `SlxParser` both have to name what
+    // kind of block they just read, and `datamodel/blockIdentity.ts` is the shared
+    // table they name it against. Allowing it widens the seam by nothing measurable —
+    // that module imports nothing at all, so it travels alone.
+    const allowed = 'datamodel/blockIdentity.ts';
+    const strays = outboundFrom('datamodel/parser').filter((e) => e.to !== allowed);
+    expect(describeEdges(strays)).toEqual([]);
+    // Not a count of them — a check that the exemption is still USED, so the test
+    // cannot start passing because the seam quietly stopped existing.
+    expect(outboundFrom('datamodel/parser').length, `and ${allowed} is still reached`).toBeGreaterThan(0);
   });
 });
 

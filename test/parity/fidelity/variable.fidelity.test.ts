@@ -22,7 +22,7 @@ import {
 } from './roundTripHarness.js';
 import MatlabVariableNode from '../../../src/datamodel/node/data/MatlabVariableNode.js';
 import ConstantNode from '../../../src/datamodel/node/data/ConstantNode.js';
-import '../../../src/datamodel/node/NodeClassMap.js';
+import '../../../src/datamodel/node/data/NodeClassMap.js';
 
 const FORMATS: SlddFormat[] = ['json', 'binary'];
 const FIXTURE = 'params.sldd';
