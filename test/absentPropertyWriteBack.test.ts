@@ -8,18 +8,43 @@
 // their own blocks, because a bound and an ungated key are not the table's shape. A bus
 // is not counted separately — it appears only as the thing a BusElement is saved inside.
 //
-// A dictionary entry's property bag is what the FILE held, and MATLAB writes only the
-// properties it has something to say about: a `Simulink.ValueType` a user never gave a
-// description to has no `Description` key at all.
+// A dictionary entry's property bag is what the FILE held, and what this file is about is
+// that the bag we write back is a function of that bag — not of what our model happens to
+// hold at save time.
 //
-// That premise is measured, in BOTH formats, which is what makes it safe to build on.
-// R2027a, on dictionaries MATLAB wrote itself: a `Simulink.Parameter` given no bound has no
-// `Min` TAG at all — see `test/fixtures/object_array_binary.sldd`, whose Parameter elements
-// carry only `Value` and `Description`. So "absent" is a state the binary format really has,
-// not a text-only convention with binary always emitting every key. A bound explicitly
-// assigned `[]`, by contrast, IS written. Presence-in-the-file therefore distinguishes
-// "never set" from "set to empty" in both flavours, and keying on presence rather than on
-// truthiness is what preserves that distinction.
+// An earlier version of this header justified that with "MATLAB writes only the properties
+// it has something to say about", called it measured in BOTH formats, and cited
+// `test/fixtures/object_array_binary.sldd`. The binary half is now measured FALSE, and the
+// correction is recorded here rather than quietly dropped, because the false half is the
+// more intuitive one and would otherwise be re-derived. R2027a Prerelease
+// (27.1.0.3353139), three `Simulink.Parameter` entries in one compressed-binary dictionary
+// MATLAB wrote itself: a parameter whose `Min` was NEVER touched still gets
+// `<P Name="Min" Class="double" Dimension="0*0"/>`, and its whole entry block is
+// byte-identical to one explicitly assigned `Min = []` once Name/UUID/LastMod are
+// normalized out. `Description`, `DocUnits`, `DataType`, `Complexity` and `Dimensions`
+// behave the same way, as do `Simulink.Signal` and `Simulink.ValueType`. In memory the two
+// states are `isequal`, so there is no "was it ever assigned" bit to serialize even in
+// principle. The fixture cited as evidence is not MATLAB output: zero `UUID`, zero
+// `LastMod`, no `CoderInfo` on any of its three parameters (a real MATLAB-written
+// `Simulink.Parameter` always carries one), no `DD.Dictionary` trailer, and the entire
+// chunk on ONE unindented line where MATLAB pretty-prints with 4-space indents.
+//
+// The TEXT half stands: an uncompressed-text `.sldd` really does omit the key for an empty
+// Description or bound. So the two formats encode emptiness by different mechanisms —
+// binary as `Dimension="0*0"` versus a value body, text as an absent key versus a present
+// one — and presence distinguishes "never set" from "set to empty" in NEITHER: in binary
+// those two states are the same bytes, in text the same absent key.
+//
+// None of which makes the gate below wrong, which is worth saying so the correction does
+// not read as a licence to remove it. The gate's real rule is not "presence means MATLAB
+// had something to say" but the narrower, format-independent one: preserve exactly the key
+// set the file had, and add a key only where the user has actually set a value. That holds
+// whatever the upstream writer emits, and it is what makes the third failure mode below —
+// open a dictionary, save with no edits, get a diff in source control — impossible. What
+// the measurement does change is the gate's REACH: on a genuine MATLAB-written binary
+// dictionary the key is always present, so the `in stored` half always fires and the gate
+// never has to decide. Its live audience is bags some other writer produced — our own
+// fixtures, an older release, and this extension's own output on a re-save.
 //
 // Most nodes in this cluster therefore gate their write-back on the same question — "was
 // this key on disk, or has the user since set it?" — spelled
