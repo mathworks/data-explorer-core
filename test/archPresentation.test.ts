@@ -19,6 +19,7 @@ import LookupTableNode from '../src/datamodel/node/data/LookupTableNode.js';
 import VariantConfigurationDataNode from '../src/datamodel/node/data/VariantConfigurationDataNode.js';
 import ConfigSetNode from '../src/datamodel/node/data/ConfigSetNode.js';
 import ConfigSetRefNode from '../src/datamodel/node/data/ConfigSetRefNode.js';
+import SlddNode from '../src/datamodel/node/container/SlddNode.js';
 import type DataNode from '../src/datamodel/node/DataNode.js';
 // Registers the node class map so StructNode.parse can recurse into field values.
 import { parseValue } from '../src/datamodel/node/NodeClassMap.js';
@@ -104,6 +105,52 @@ describe('ValueType defaultName and isDerived icon', () => {
     const node = ValueTypeNode.parse(rawVal('Simulink.ValueType', {}), 'VT', null);
     node.metadata = { isderived: '1' };
     expect(node.icon).toBe('typeSignalUI');
+  });
+});
+
+// The same rule as the ValueType case just above, stated for the whole family that
+// obeys it, and driven from the SECTION rather than from a hand-set metadata bag —
+// which is where the distinction comes from for a real user: the same class dropped
+// into Design Data and into Architectural Data is byte-identical on disk apart from
+// `isderived`, so the icon is the ONLY thing in the tree that says which section an
+// entry belongs to. A class whose ternary collapsed to one glyph would make an arch
+// entry indistinguishable from a design one, and these four are the classes both
+// sections admit (see ALLOWED_TYPES), so they are exactly the ones it can happen to.
+describe('Design Data and Architectural Data icons for the classes both sections admit', () => {
+  const CASES: [string, string, string][] = [
+    // className, Design Data icon, Architectural Data icon
+    ['Simulink.NumericType', 'wsNumeric', 'typeNumeric'],
+    ['Simulink.AliasType', 'wsAlias', 'typeAlias'],
+    ['Simulink.ValueType', 'wsValue', 'typeSignalUI'],
+    // A derived Signal shares the serviceInterfaces glyph with a derived
+    // Simulink.ServiceBus; what matters here is that it is NOT the wsSignal one.
+    ['Simulink.Signal', 'wsSignal', 'serviceInterfaces'],
+  ];
+
+  it('gives each class a different glyph in each section', () => {
+    const root = new SlddNode('d.sldd');
+    for (const [className, designIcon, archIcon] of CASES) {
+      const design = root.getSection('design')!.addEntry(className)!;
+      const arch = root.getSection('arch')!.addEntry(className)!;
+      // addEntry stamps isderived from the section key; that is the whole difference.
+      expect(design.isDerived, className).toBe(false);
+      expect(arch.isDerived, className).toBe(true);
+      expect(design.icon, className).toBe(designIcon);
+      expect(arch.icon, className).toBe(archIcon);
+      expect(design.icon, `${className} must not share one glyph`).not.toBe(arch.icon);
+    }
+  });
+
+  it('follows the entry when it is moved between the two sections', () => {
+    // Paste and drag between Design and Architectural Data rebind `isderived` and
+    // re-read the entry, so the icon has to be derived from the metadata every time it
+    // is asked for rather than cached at construction — otherwise a pasted entry keeps
+    // the glyph of the section it came from.
+    const root = new SlddNode('d.sldd');
+    const node = root.getSection('design')!.addEntry('Simulink.AliasType', 'MyAlias')!;
+    expect(node.icon).toBe('wsAlias');
+    node.metadata = { ...node.metadata, isderived: '1' };
+    expect(node.icon).toBe('typeAlias');
   });
 });
 

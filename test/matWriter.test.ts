@@ -59,6 +59,69 @@ function readStream(s: string): { bytes: Uint8Array; declared: number; variable:
   return { bytes, declared, variable: parseMatrix(view, 16, declared) };
 }
 
+/**
+ * The same stream read as if the file had ENDED after `keep` bytes of it.
+ *
+ * MatParser stops at the end it was given — a struct with no room left for its
+ * field-name table keeps `fields` null, and a struct array with no room left for
+ * element 10 hands back a field list shorter than the dimensions declare. Both are
+ * shapes a truncated or partially written file really produces, and both then have to
+ * come back out of the writer.
+ */
+function readTruncatedStream(s: string, keep: number): MatVariable {
+  const bytes = uudecode(s);
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return parseMatrix(view, 16, keep);
+}
+
+/** The MatVariable inside one bare `miMATRIX` element — what `encodeMatVariable` returns. */
+function readElement(bytes: Uint8Array): MatVariable {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  expect(view.getUint32(0, true)).toBe(MI_MATRIX);
+  return parseMatrix(view, 8, view.getUint32(4, true));
+}
+
+/**
+ * The type code and payload length of every subelement of one `miMATRIX` element, in
+ * order: array flags, dimensions, name, then the data. Read by hand rather than through
+ * MatParser because the point of the tests that use it is the TAG — which of the ten
+ * numeric element types the payload declares itself to be, and how many bytes it claims
+ * per value. Nothing MatParser hands back names those two things.
+ */
+function subelements(bytes: Uint8Array): { type: number; bytes: number }[] {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const end = 8 + view.getUint32(4, true);
+  const out: { type: number; bytes: number }[] = [];
+  for (let at = 8; at < end; ) {
+    // The small form packs the byte count into the tag's upper half; the long form
+    // spends a second word on it and pads the payload to an 8-byte boundary.
+    const packed = view.getUint16(at + 2, true);
+    if (packed !== 0) {
+      out.push({ type: view.getUint16(at, true), bytes: packed });
+      at += 8;
+    } else {
+      const n = view.getUint32(at + 4, true);
+      out.push({ type: view.getUint32(at, true), bytes: n });
+      at += 8 + n + ((8 - (n % 8)) % 8);
+    }
+  }
+  return out;
+}
+
+/** A 1x1 double: the starting point each hand-built case below varies one field of. */
+function variable(over: Partial<MatVariable>): MatVariable {
+  return {
+    name: '',
+    className: 'double',
+    dimensions: [1, 1],
+    isComplex: false,
+    isLogical: false,
+    value: 1,
+    fields: null,
+    ...over,
+  };
+}
+
 describe('the cdata transport is its own inverse', () => {
   // The content is 8 bytes of preamble plus the element the stream declares;
   // anything past that is MATLAB's NUL padding, which carries no data.
@@ -211,6 +274,33 @@ describe('the layout choices, stated where a failure is readable', () => {
     expect((back.value as MatVariable[]).map((c) => c.value)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
+  it('keeps a hole a hole, and an empty value indistinguishable from one', () => {
+    // The placeholder a hole gets IS MATLAB's `[]`, byte for byte — which is the whole
+    // reason a hole is readable at all, and the reason an empty value must not be
+    // treated as a defect. `flatValues` is where that lands: MatParser leaves an empty
+    // variable's value null, and null is neither a list nor a scalar. Read as a
+    // one-element list it contradicts the declared [0,0] and raises MatWriteError,
+    // which for an N-D value is not an error a user sees — `_serializeCdata` catches it
+    // and falls back to the rank-2 literal grammar MATLAB reads as an empty 1x0. One
+    // empty slot would take the whole surrounding value with it.
+    const hole = encodeMatVariable(variable({ className: 'cell', dimensions: [1, 1], value: [null] }));
+    const written = encodeMatVariable(
+      variable({
+        className: 'cell',
+        dimensions: [1, 1],
+        value: [variable({ className: 'double', dimensions: [0, 0], value: null })],
+      }),
+    );
+    expect(written).toEqual(hole);
+
+    // And an empty value of some other class keeps that class rather than becoming the
+    // placeholder: an empty int32 reopens as int32, not as double.
+    const emptyInt = readElement(encodeMatVariable(variable({ className: 'int32', dimensions: [0, 0], value: null })));
+    expect(emptyInt.className).toBe('int32');
+    expect(emptyInt.dimensions).toEqual([0, 0]);
+    expect(emptyInt.value).toEqual([]);
+  });
+
   it('keeps a hole a hole', () => {
     const cell: MatVariable = {
       name: '',
@@ -229,5 +319,151 @@ describe('the layout choices, stated where a failure is readable', () => {
     expect(cells[1].value).toBe(7);
     expect(cells[0].dimensions).toEqual([0, 0]);
     expect(cells[2].dimensions).toEqual([0, 0]);
+  });
+});
+
+// Ten numeric classes reach the payload writer and each is one line differing only in
+// which DataView setter it calls — that is, only in how many bytes it spends per value
+// and whether it treats the top bit as a sign. MATLAB's own cdata corpus happens to
+// use six of them (double, single, int32, uint64, uint8-as-logical, and char's UTF-8),
+// so four have never been written by anything but this file. Getting one wrong is not
+// a crash: an int16 written through the int8 line stores 300 as 44, and MATLAB reopens
+// the dictionary and shows 44. So the tag and the width are asserted directly, against
+// the type codes the MAT-file format fixes, and the extremes of each class are in the
+// data because a narrower setter cannot carry them.
+//
+// Signedness is deliberately NOT asserted: setInt16 and setUint16 write identical bytes
+// for every value either class can hold, so the two lines are interchangeable and a
+// test claiming otherwise would be claiming something untrue about the format. What
+// distinguishes the classes is the class code in the array flags, which is asserted by
+// reading the class name back.
+describe('the integer widths MATLAB’s own corpus never made this writer produce', () => {
+  const CASES: { className: string; miType: number; width: number; values: number[] }[] = [
+    { className: 'int8', miType: 1, width: 1, values: [-128, 127, -1, 0, 1, 42] },
+    { className: 'uint8', miType: 2, width: 1, values: [0, 255, 128, 1, 7, 42] },
+    { className: 'int16', miType: 3, width: 2, values: [-32768, 32767, 300, -1, 0, 256] },
+    { className: 'uint16', miType: 4, width: 2, values: [0, 65535, 300, 1, 256, 7] },
+    { className: 'int32', miType: 5, width: 4, values: [-2147483648, 2147483647, 70000, -1, 0, 4] },
+    { className: 'uint32', miType: 6, width: 4, values: [0, 4294967295, 70000, 1, 65536, 4] },
+  ];
+
+  for (const c of CASES) {
+    it(`writes a rank-3 ${c.className} as a ${c.width}-byte mi type ${c.miType} payload`, () => {
+      const bytes = encodeMatVariable(variable({ className: c.className, dimensions: [2, 1, 3], value: c.values }));
+      const parts = subelements(bytes);
+      expect(parts.length, 'array flags, dimensions, name, data').toBe(4);
+      expect(parts[3].type).toBe(c.miType);
+      expect(parts[3].bytes, 'six values at the class’s own width').toBe(c.width * 6);
+
+      const back = readElement(bytes);
+      expect(back.className).toBe(c.className);
+      expect(back.dimensions).toEqual([2, 1, 3]);
+      // Including the extremes, which is what a too-narrow setter loses.
+      expect(back.value).toEqual(c.values);
+    });
+  }
+});
+
+// The guards that answer with a placeholder instead of refusing.
+//
+// A MatWriteError raised over a value that is merely INCOMPLETE is the worst outcome
+// available here, and it does not look like an error. `MatlabVariableNode._serializeCdata`
+// wraps this writer in a try/catch and returns null on a throw; `serializeValue` then
+// falls through to the rank-2 literal grammar, which — per the file header above — is
+// exactly the spelling MATLAB reads back as an empty 1x0. So one element the model
+// could not hand over whole does not produce a warning or a failed save: it deletes the
+// value it belonged to, quietly, in a file that reopens perfectly.
+//
+// Every case below is a shape a real reader or a real edit produces, and the behaviour
+// pinned is always the same one — the slot is kept, filled with the nearest thing MATLAB
+// can read, and the rest of the value goes out intact.
+describe('a value the model could not hand over whole is still written', () => {
+  it('writes a non-finite int64 element as zero rather than failing the save', () => {
+    // `BigInt()` throws on Inf and on NaN, and there is no integer to write instead —
+    // an int64 that came in through a path still reading it as a double, or an element a
+    // user typed `Inf` into, has no 64-bit form at all. Zero in the slot keeps every
+    // other element of the array in its own place.
+    const back = readElement(
+      encodeMatVariable(variable({ className: 'int64', dimensions: [1, 1, 3], value: [1, Infinity, NaN] })),
+    );
+    expect(back.className).toBe('int64');
+    expect(back.value).toEqual([1, 0, 0]);
+  });
+
+  it('writes a complex element that lost its imaginary part as x+0i, in its own slot', () => {
+    // A complex value's elements arrive as `{re, im}` pairs from the reader, but not from
+    // every edit: `_buildVarObject`'s complex-scalar arm only builds a pair when its
+    // regex matches the element's text, and leaves the raw value in place when it does
+    // not — a complex scalar a user retyped as plain `5` is a bare value under an
+    // `isComplex` header. Reading no `im` as no ELEMENT would shorten the payload and
+    // slide every later value one position early.
+    const back = readElement(
+      encodeMatVariable(
+        variable({
+          className: 'double',
+          isComplex: true,
+          dimensions: [1, 3],
+          value: [{ re: 1, im: 2 }, 7, { re: 3, im: 4 }],
+        }),
+      ),
+    );
+    expect(back.value).toEqual([{ re: 1, im: 2 }, { re: 7, im: 0 }, { re: 3, im: 4 }]);
+
+    // The shape the node layer actually hands over for that retyped scalar: one bare
+    // string under a complex header, which is 5+0i and not an empty value.
+    const scalar = readElement(encodeMatVariable(variable({ className: 'double', isComplex: true, value: '5' })));
+    expect(scalar.value).toEqual([{ re: 5, im: 0 }]);
+  });
+
+  it('writes an empty char as no characters, not as the four letters of “null”', () => {
+    // `_buildVarObject` assigns a char's `value` straight from the node's scalar value
+    // and only guards the DIMENSIONS computation against a non-string, so the writer is
+    // where a char with nothing in it arrives as null. `String(null)` is the text
+    // 'null' — four characters against a declared zero, which raises MatWriteError and
+    // so deletes the value the empty char sat inside.
+    const empty = encodeMatVariable(variable({ className: 'char', dimensions: [0, 0], value: null }));
+    const parts = subelements(empty);
+    expect(parts[3].type, 'char data is miUTF8').toBe(16);
+    expect(parts[3].bytes).toBe(0);
+    expect(readElement(empty).value).toBe('');
+
+    // A char whose text arrived as a number is written as its digits — the same
+    // coercion, in the direction the display layer already tolerates.
+    expect(readElement(encodeMatVariable(variable({ className: 'char', dimensions: [1, 2], value: 65 }))).value).toBe('65');
+  });
+
+  it('keeps every slot of a struct array whose bytes ran out before the last element', () => {
+    // MATLAB's own 2x3x2 `structNd`, read as if the file had ended 400 bytes early: the
+    // reader stops at the end it was given, so `fields.a` comes back with six of the
+    // twelve elements. The twelve slots are not interchangeable — a MAT struct array
+    // stores them in order, so writing only the six would move element 7's value into
+    // element 1's place for every field, and the six values that DID survive would come
+    // back attached to the wrong elements.
+    const structNd = STREAMS.find((s) => s.name === 'structNd')!;
+    const short = readTruncatedStream(structNd.value, readStream(structNd.value).declared - 400);
+    expect((short.fields!.a as MatVariable[]).length, 'the reader kept what was there').toBe(6);
+
+    const back = readElement(encodeMatVariable(short));
+    expect(back.dimensions).toEqual([2, 3, 2]);
+    const slots = back.fields!.a as MatVariable[];
+    expect(slots.length).toBe(12);
+    // 1..6 where MATLAB put them; an empty double for each element that was lost.
+    expect(slots.map((f) => f.value)).toEqual([1, 2, 3, 4, 5, 6, [], [], [], [], [], []]);
+  });
+
+  it('writes a struct whose field table was lost as a struct with no fields', () => {
+    // Truncated harder — before the field-name stride — the reader has no field names to
+    // report and leaves `fields` null. `Object.keys(null)` throws, and this is a whole
+    // ENTRY's value in a forty-entry save, so the dictionary is what would be lost, not
+    // the struct. It goes out as a 2x3x2 struct with nothing in it.
+    const structNd = STREAMS.find((s) => s.name === 'structNd')!;
+    const gutted = readTruncatedStream(structNd.value, 48);
+    expect(gutted.className).toBe('struct');
+    expect(gutted.fields).toBe(null);
+
+    const back = readElement(encodeMatVariable(gutted));
+    expect(back.className).toBe('struct');
+    expect(back.dimensions).toEqual([2, 3, 2]);
+    expect(back.fields).toEqual({});
   });
 });

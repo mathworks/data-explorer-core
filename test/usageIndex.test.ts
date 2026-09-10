@@ -22,7 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { strToU8, zipSync } from 'fflate';
+import { strToU8, unzipSync, zipSync } from 'fflate';
 import { buildUsageIndex, summarizeFiles, resolveName } from '../src/index.js';
 import type { UsageFile, ModelSummary, DataSummary } from '../src/index.js';
 
@@ -81,11 +81,20 @@ function slxModel(opts: {
   return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
 }
 
+// Any JSON object, as the bytes of a textual `.sldd`. A textual dictionary has no parser
+// between the bytes and the reader — `readSlddContent` is `JSON.parse` and nothing else —
+// so a file that is valid JSON and short of the shape a dictionary has is expressible
+// only this way, and it is a shape a partial write really produces.
+function jsonBytes(json: unknown): ArrayBuffer {
+  const u8 = strToU8(JSON.stringify(json));
+  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+}
+
 // A textual `.sldd` defining `names` and referencing `refs`. The summariser reads only an
 // entry's `name` and the reference list, so this is the whole of what a dictionary is from
 // here — and building it by hand is what makes a chain of four dictionaries expressible.
 function slddBytes(names: string[], refs: unknown[] = []): ArrayBuffer {
-  const json = {
+  return jsonBytes({
     __MW_TEXT_PARTS__: {
       '__MW_TEXT_PART__/data/chunk0': {
         __MW_TEXT_content: {
@@ -95,9 +104,39 @@ function slddBytes(names: string[], refs: unknown[] = []): ArrayBuffer {
         },
       },
     },
-  };
-  const u8 = strToU8(JSON.stringify(json));
-  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+  });
+}
+
+// The one data part of a compressed-binary `.sldd`, and two entries for it: one the file
+// names and one it does not.
+const CHUNK_PART = 'data/chunk0.xml';
+
+const NAMED_ENTRY =
+  '    <Object Class="DD.ENTRY">\n'
+  + '        <P Name="Name" Class="char">aParam</P>\n'
+  + '        <P Name="Value" Class="double">42</P>\n'
+  + '    </Object>';
+
+const UNNAMED_ENTRY =
+  '    <Object Class="DD.ENTRY">\n'
+  + '        <P Name="Value" Class="double">1</P>\n'
+  + '    </Object>';
+
+/**
+ * A real compressed `.sldd`, unzipped, its data part replaced, rezipped — the technique
+ * parseWarnings.test.ts uses, and for the same reason: the bytes under test then differ
+ * from a file MATLAB wrote in exactly the one way the test is about, and the entries come
+ * back through the REAL binary reader rather than out of a literal written here.
+ */
+function binarySlddWithChunk(body: string): ArrayBuffer {
+  const entries = unzipSync(new Uint8Array(fixtureBytes('compressed.sldd')));
+  expect(Object.keys(entries)).toContain(CHUNK_PART); // the fixture really holds it
+  entries[CHUNK_PART] = strToU8(
+    '<?xml version="1.0" encoding="UTF-8"?>\n'
+      + `<DataSource FormatVersion="1" MinRelease="R2014a" Arch="maca64">\n${body}\n</DataSource>`,
+  );
+  const zipped = zipSync(entries);
+  return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
 }
 
 const file = (name: string, bytes: ArrayBuffer, srcId = name): UsageFile => ({ srcId, filename: name, bytes });
@@ -156,6 +195,23 @@ describe('summarizeFiles — one summary per file, dispatched on the filename', 
     expect(matByName.has('numeric.mat')).toBe(true);
   });
 
+  it('keeps a dictionary and a MAT-file that share a STEM, because they are two files', () => {
+    // `params.sldd` and `params.mat` sit side by side in real projects — a dictionary and the
+    // MAT-file a model workspace loads — and a model may reference both. Every key in both
+    // maps, and every lookup against them, is a basename WITH its extension, so the two are
+    // separate entries that never contend: nothing here needs to choose a winner per stem.
+    // Keying on the stem instead would make the second file read seem to replace the first,
+    // and the loser's definitions would report as used by nothing.
+    // The MAT-file FIRST and the dictionary second, deliberately: that is the order in which
+    // a per-stem eviction would take the MAT-file's summary back out again.
+    const { slddByName, matByName } = summarizeFiles([
+      file('params.mat', fixtureBytes('mcos/Numeric.mat')),
+      file('params.sldd', slddBytes(['Kp'])),
+    ]);
+    expect([...(slddByName.get('params.sldd')?.names ?? [])]).toEqual(['Kp']);
+    expect([...(matByName.get('params.mat')?.names ?? [])]).toEqual(['Numeric']);
+  });
+
   it('accepts a full path as the filename, and an opaque srcId beside it', () => {
     // A host's srcId is its own key — a URI, a document handle — and is never parsed. The
     // FILENAME is what decides the kind, which is why they are separate fields.
@@ -182,6 +238,42 @@ describe('summarizeFiles — one summary per file, dispatched on the filename', 
     ]);
     expect(models.map((m) => m.name)).toEqual(['m']);
     expect([...slddByName.keys()]).toEqual(['params.sldd']);
+  });
+
+  it('summarises a dictionary with no content part as one that DEFINES nothing', () => {
+    // Not the corrupt case above: this file opens. A textual `.sldd` is handed to
+    // JSON.parse and passed straight through, so valid JSON that is not a dictionary is a
+    // dictionary with no content part — the shape a partial write leaves, and the one
+    // SlddNode reports as `source-empty` (parseWarnings.test.ts hands it the same content
+    // object). The summary has to reach the same conclusion: it defines nothing, and
+    // it is STILL IN THE MAP. A throw here would be swallowed by the per-file catch and
+    // the dictionary would be absent altogether, which is how a caller tells "indexed,
+    // defines nothing" from "never indexed" — the second sends a host looking for a file
+    // it already handed over.
+    const { slddByName } = summarizeFiles([
+      file('notes.sldd', jsonBytes({ hello: 'not a dictionary' })),
+      file('params.sldd', slddBytes(['Kp'])),
+    ]);
+    expect(slddByName.has('notes.sldd')).toBe(true);
+    expect([...(slddByName.get('notes.sldd')?.names ?? [])]).toEqual([]);
+    expect(slddByName.get('notes.sldd')?.slddRefs).toEqual([]);
+    // And the dictionary beside it still answers, which is the folder-scan policy again.
+    expect([...(slddByName.get('params.sldd')?.names ?? [])]).toEqual(['Kp']);
+  });
+
+  it('leaves an entry the bytes never named out of the summary', () => {
+    // Real bytes through the real binary reader: a `DD.ENTRY` with no `<P Name="Name">`
+    // reads back with an EMPTY name — the reader's default, and not a loss it warns about,
+    // both pinned by parseWarnings.test.ts — and an empty name is not a name a block
+    // parameter can refer to. So it is not a definition, and it is not in the summary —
+    // the same rule matSummary applies to the MAT-file's unnamed variable in the first
+    // test in this file, spelled in a second place. Admitting it puts a nameless
+    // definition in a published summary, which a host draws as a blank row that links
+    // nowhere.
+    const { slddByName } = summarizeFiles([
+      file('edited.sldd', binarySlddWithChunk(`${NAMED_ENTRY}\n${UNNAMED_ENTRY}`)),
+    ]);
+    expect([...(slddByName.get('edited.sldd')?.names ?? [])]).toEqual(['aParam']);
   });
 
   it('ignores a file of no interest rather than failing on it', () => {
@@ -392,6 +484,50 @@ describe('buildUsageIndex — the reverse direction, which fills a Usage cell', 
     expect(index.usagesOf('mid.sldd', 'deep')).toEqual([]);
   });
 
+  it('follows the chain through a dictionary whose content part carries no entries list', () => {
+    // The content part is THERE — so this is not the "no content part" case — and its
+    // `entries` key is not, which is what a partial write of that one part leaves behind.
+    // The reference list beside it is still read, so a dictionary that has lost its own
+    // entries still passes the INHERITANCE through to the file that defines the name.
+    // Reading the absent list instead throws, the per-file catch drops `mid.sldd`
+    // entirely, and the chain through it breaks: `deep` then reads as used by nothing,
+    // which is a user deleting a parameter that a block does read.
+    const index = buildUsageIndex([
+      file('m.slx', slxModel({ dictionary: 'mid.sldd', blocks: block('G', 'Gain', 'Gain', 'deep') })),
+      file(
+        'mid.sldd',
+        jsonBytes({
+          __MW_TEXT_PARTS__: {
+            '__MW_TEXT_PART__/data/chunk0': { __MW_TEXT_content: { 'Dictionary References': ['leaf.sldd'] } },
+          },
+        }),
+      ),
+      file('leaf.sldd', slddBytes(['deep'])),
+    ]);
+    expect(index.usagesOf('leaf.sldd', 'deep').map((u) => u.blockName)).toEqual(['G']);
+  });
+
+  it('moves a usage DOWN the order when the file that shadowed it is not in the set', () => {
+    // The resolution order, and what depends on it, over two files that both define `Kp`:
+    // `m.slx` links `first.sldd` and lists `second.sldd` as an external, so the block
+    // reads the first one's value and only the first one collects the usage. A link on
+    // `second.sldd` would point at an entry whose value never reaches that block.
+    //
+    // Then the same model with the winner NOT handed over, which is an ordinary folder
+    // scan — the file is elsewhere, or the host has not read it. The usage moves down the
+    // order rather than vanishing: an entry that a block does read must not report as
+    // unused because a file that shadowed it was missing from the set.
+    const model = file(
+      'm.slx',
+      slxModel({ dictionary: 'first.sldd', externals: ['second.sldd'], blocks: block('G', 'Gain', 'Gain', 'Kp') }),
+    );
+    const both = buildUsageIndex([model, file('first.sldd', slddBytes(['Kp'])), file('second.sldd', slddBytes(['Kp']))]);
+    expect(both.usagesOf('first.sldd', 'Kp').map((u) => u.blockName)).toEqual(['G']);
+    expect(both.usagesOf('second.sldd', 'Kp')).toEqual([]);
+    const without = buildUsageIndex([model, file('second.sldd', slddBytes(['Kp']))]);
+    expect(without.usagesOf('second.sldd', 'Kp').map((u) => u.blockName)).toEqual(['G']);
+  });
+
   it('reads a reference in the object form as well as the bare-string form', () => {
     // Which form a dictionary uses is a property of its WRITER. A reader that took only
     // strings followed the chain of one flavour and reported the other as having no
@@ -413,6 +549,33 @@ describe('buildUsageIndex — the reverse direction, which fills a Usage cell', 
       file('Numeric.mat', fixtureBytes('mcos/Numeric.mat')),
     ]);
     expect(index.usagesOf('Numeric.mat', 'Numeric').map((u) => u.blockName)).toEqual(['G']);
+  });
+
+  it('resolves each name to the right file when a dictionary and a MAT-file share a stem', () => {
+    // Same-stem pair, both linked by one model, one block reading a name from each. The two
+    // are different files and resolve independently — the extension is part of every key and
+    // every lookup — so neither shadows the other and neither collects the other's usage.
+    // A cell that answered `params.mat` for a dictionary entry sends a user to edit the
+    // wrong file, and the block does not read the value they would change.
+    const index = buildUsageIndex([
+      file(
+        'm.slx',
+        slxModel({
+          dictionary: 'params.sldd',
+          externals: ['params.mat'],
+          blocks:
+            block('Kpath', 'Gain', 'Gain', 'Kp', '1') + block('Npath', 'Gain', 'Gain', 'Numeric', '2'),
+        }),
+      ),
+      file('params.mat', fixtureBytes('mcos/Numeric.mat')),
+      file('params.sldd', slddBytes(['Kp'])),
+    ]);
+    expect(index.usagesOf('params.sldd', 'Kp').map((u) => u.blockName)).toEqual(['Kpath']);
+    expect(index.usagesOf('params.mat', 'Numeric').map((u) => u.blockName)).toEqual(['Npath']);
+    // And neither file answers for the other's name, which is what "resolve independently"
+    // costs if the pair is ever collapsed to one entry per stem.
+    expect(index.usagesOf('params.mat', 'Kp')).toEqual([]);
+    expect(index.usagesOf('params.sldd', 'Numeric')).toEqual([]);
   });
 
   it('resolves an external dictionary listed in the settings part', () => {

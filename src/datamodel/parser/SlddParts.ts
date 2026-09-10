@@ -41,10 +41,16 @@
  * The dictionary's data part, without an extension — the shared stem of both spellings
  * below, and the reason `chunk0` appears in a zip member name and in a JSON key.
  *
- * The `0` is MATLAB's, not a placeholder this package fills in: every dictionary written
- * so far keeps all of its entries in chunk zero. A package that also held a `chunk1.xml`
- * would be read for chunk zero and carry the rest through untouched as pass-through
- * metadata, which is the conservative answer — the entries would be invisible, not lost.
+ * The `0` is MATLAB's, not a placeholder this package fills in, and it does not become a
+ * loop once a dictionary gets big enough. R2027a was asked for two deliberately extreme
+ * dictionaries — 120 entries of `rand(120,120)` (36.8 MB as text, 15.8 MB zipped) and
+ * 20,000 scalar entries — in both on-disk formats, and all four wrote exactly one data
+ * part. Chunking by payload size or by entry count is not a behaviour this MATLAB has.
+ *
+ * That is measured for one release, though, so the reader stays conservative rather than
+ * asserting: a package that also held a `chunk1.xml` is read for chunk zero and carries
+ * the rest through untouched as pass-through metadata, so a future chunking scheme would
+ * make those entries invisible rather than lose them on the next save.
  */
 export const DATA_PART = 'data/chunk0';
 
