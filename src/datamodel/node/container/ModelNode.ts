@@ -11,6 +11,7 @@ import type { ParseWarning } from '../../parser/ParseWarning.js';
 import PropName from '../../prop/PropName.js';
 import PropRelease from '../../prop/PropRelease.js';
 import { blockKey } from '../../blockIdentity.js';
+import { refModelExt } from '../../fileKinds.js';
 
 const SECTION_DEFS = [
   { key: 'blocks', label: 'Model Elements', icon: 'blocks' },
@@ -280,7 +281,7 @@ export default class ModelNode extends ContainerNode {
 
     // Populate model references section
     const refSection = node.getSection('references')!;
-    const refExt = /\.mdl$/i.test(filename) ? '.mdl' : '.slx';
+    const refExt = refModelExt(filename);
     for (const ref of parsed.modelReferences) {
       refSection.addReferenceEntry(ref, refExt);
     }

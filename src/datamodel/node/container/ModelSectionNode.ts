@@ -11,6 +11,7 @@ import ModelReferenceNode from '../data/ModelReferenceNode.js';
 import DataSourceNode from '../data/DataSourceNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { ParsedConfigSet } from '../../parser/SlxParser.js';
+import { isModelFile } from '../../fileKinds.js';
 
 export default class ModelSectionNode extends ContainerNode {
   label: string;
@@ -91,8 +92,13 @@ export default class ModelSectionNode extends ContainerNode {
   // far likelier to be the same generation of file as the model referencing it — a
   // legacy `.mdl` hierarchy is legacy throughout — and a `.mdl` model whose children
   // were all labelled `.slx` would link to nothing.
+  //
+  // `isModelFile` decides whether the name is already complete, rather than a regex
+  // spelled here: that is the same question this package publishes an answer to, and a
+  // second copy of it is a second opinion about whether `plant.MDL` needs completing —
+  // which would produce `plant.MDL.slx`, a link to nothing.
   addReferenceEntry(ref: { blockPath: string; modelName: string }, defaultExt = '.slx'): BaseNode {
-    const named = /\.(slx|mdl)$/i.test(ref.modelName);
+    const named = isModelFile(ref.modelName);
     const node = new ModelReferenceNode(named ? ref.modelName : ref.modelName + defaultExt, this, ref.blockPath);
     this.addChild(node);
     return node;

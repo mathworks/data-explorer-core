@@ -30,7 +30,7 @@ export type { ParsedMat, MatVariable } from './datamodel/parser/MatParser.js';
 export type { ParseWarning, ParseWarningCode } from './datamodel/parser/ParseWarning.js';
 export { ingest } from './core/ingest.js';
 export type { IngestContent, IngestOptions } from './core/ingest.js';
-export { extOf, basenameOf, refBasename, modelNameOf, isModelFile, isSlddFile, isMatFile, isProjectFile, } from './datamodel/fileKinds.js';
+export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, isModelFile, isSlddFile, isMatFile, isProjectFile, } from './datamodel/fileKinds.js';
 export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames } from './datamodel/parser/SlddContent.js';
 export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogFromDefinitions, classificationOf, scRenameEdits, scanScJsonText, scanScXml, } from './datamodel/parser/ScCatalog.js';
 export type { ScDefinition, ScNameSite, ScTextEdit, SystemComposerCatalog } from './datamodel/parser/ScCatalog.js';

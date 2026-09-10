@@ -53,7 +53,13 @@ export { ingest } from './core/ingest.js';
 // file was not, so `Params.SLDD` is found, opened, and then classified as nothing. These
 // are the tests this package's own readers dispatch on, so a host that shares them cannot
 // disagree with the package about what a file is.
-export { extOf, basenameOf, refBasename, modelNameOf, isModelFile, isSlddFile, isMatFile, isProjectFile, } from './datamodel/fileKinds.js';
+// `refModelExt` is here for a sharper version of the same reason: it is not a question
+// about a file this package was GIVEN, it is the guess this package MAKES when a model
+// names a reference without an extension — and a host that indexes `parseModel`'s raw
+// `modelReferences` has to make the identical guess to resolve an edge by filename. Both
+// spelled `/\.mdl$/i.test(name) ? '.mdl' : '.slx'` independently, so the tree row and the
+// graph edge agreed only by coincidence; now there is one of them.
+export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, isModelFile, isSlddFile, isMatFile, isProjectFile, } from './datamodel/fileKinds.js';
 // Reading a `.sldd` without a session: which of the two on-disk formats the bytes are,
 // where the content sits inside the result, and what a reference means. Public because a
 // consumer that scans dictionaries WITHOUT opening them — to index a folder, to resolve a

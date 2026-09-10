@@ -15,11 +15,13 @@ import {
   basenameOf,
   refBasename,
   modelNameOf,
+  refModelExt,
   isModelFile,
   isSlddFile,
   isMatFile,
   isProjectFile,
 } from '../src/index.js';
+import ModelSectionNode from '../src/datamodel/node/container/ModelSectionNode.js';
 
 describe('extOf', () => {
   it('returns the extension lower-cased, with the dot', () => {
@@ -99,6 +101,74 @@ describe('modelNameOf', () => {
     // 'child.mdl' from a `.mdl` and 'child.slx' from a `.slx'. The stem is what makes a
     // mixed hierarchy resolve at all.
     expect(modelNameOf('child.mdl')).toBe(modelNameOf('child.slx'));
+  });
+});
+
+describe('refModelExt', () => {
+  it('completes a reference with the PARENT model’s container', () => {
+    expect(refModelExt('legacy.mdl')).toBe('.mdl');
+    expect(refModelExt('modern.slx')).toBe('.slx');
+  });
+
+  it('is case-insensitive, like every other test in this module', () => {
+    // The whole reason these live together: MATLAB and Windows both write `Legacy.MDL`,
+    // and a case-sensitive copy of this rule labels a legacy hierarchy's children `.slx`,
+    // so every reference in it resolves to a file that does not exist.
+    expect(refModelExt('Legacy.MDL')).toBe('.mdl');
+    expect(refModelExt('/work/models/LEGACY.MDL')).toBe('.mdl');
+  });
+
+  it('answers `.slx` for anything that is not a `.mdl`, including a bare name', () => {
+    // `.slx` is the default because it is the modern container: a caller that hands over
+    // a name with no extension (a model named the MATLAB way, `engine`) wants the
+    // extension a fresh save_system would produce.
+    expect(refModelExt('engine')).toBe('.slx');
+    expect(refModelExt('')).toBe('.slx');
+    expect(refModelExt('params.sldd')).toBe('.slx');
+  });
+
+  it('takes the LAST extension, so a name that merely contains .mdl is a .slx', () => {
+    expect(refModelExt('legacy.mdl.slx')).toBe('.slx');
+    expect(refModelExt('notes-about-mdl.slx')).toBe('.slx');
+  });
+});
+
+// The seam this module exists to remove. `refModelExt` decides WHICH extension, and
+// `addReferenceEntry` decides WHETHER to add one — two halves of completing a bare
+// reference name, and until they were joined here each half was spelled twice (once in
+// this package, once in its vscode host) with no test that could see both copies.
+describe('refModelExt and addReferenceEntry complete a name together', () => {
+  const ref = (modelName: string, parent: string) =>
+    (
+      new ModelSectionNode('references', null, 'Model References', 'modelReference').addReferenceEntry(
+        { blockPath: 'top/ref', modelName },
+        refModelExt(parent),
+      ) as { name: string }
+    ).name;
+
+  it('gives a bare name the parent’s container, in both directions', () => {
+    expect(ref('plant', 'legacy.mdl')).toBe('plant.mdl');
+    expect(ref('plant', 'modern.slx')).toBe('plant.slx');
+  });
+
+  it('leaves an ALREADY-complete name alone, in either container and either case', () => {
+    // The bug the `isModelFile` call replaced a local regex to prevent: a second opinion
+    // about whether `plant.MDL` still needs an extension appends one, and `plant.MDL.slx`
+    // is a link to nothing.
+    expect(ref('plant.slx', 'legacy.mdl')).toBe('plant.slx');
+    expect(ref('plant.mdl', 'modern.slx')).toBe('plant.mdl');
+    expect(ref('plant.MDL', 'modern.slx')).toBe('plant.MDL');
+    expect(ref('Plant.SLX', 'legacy.mdl')).toBe('Plant.SLX');
+  });
+
+  it('names the same child two ways, which is what modelNameOf reconciles', () => {
+    // A mixed hierarchy is the case the guess exists to serve: the SAME child model is
+    // `plant.mdl` seen from a `.mdl` parent and `plant.slx` seen from a `.slx` one, so a
+    // resolver comparing full names finds nothing and one comparing stems finds it.
+    const fromMdl = ref('plant', 'legacy.mdl');
+    const fromSlx = ref('plant', 'modern.slx');
+    expect(fromMdl).not.toBe(fromSlx);
+    expect(modelNameOf(fromMdl)).toBe(modelNameOf(fromSlx));
   });
 });
 
