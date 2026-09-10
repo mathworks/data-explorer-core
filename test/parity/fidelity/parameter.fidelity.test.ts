@@ -90,6 +90,36 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
       }
     });
 
+    it('edits Value to the string scalar "abc", round-trips', { timeout: MATLAB_TIMEOUT }, () => {
+      // A string scalar is the one text class MATLAB really stores here — its Value
+      // setter coerces all text to a 1x1 string — and it was the one the edit path
+      // dropped: type 'string' had no arm in ParameterNode.setProperty, so it fell to
+      // the catch-all that stores a bare JS string, this model's spelling for a CHAR.
+      // The cell showed 'abc' for a value typed as "abc", and the file saved a char.
+      //
+      // Parametrized over BOTH formats deliberately: the class was lost in the model,
+      // so the json save wrote the wrong class, while the binary save additionally had
+      // no XML arm for either string shape and wrote `Class="double">NaN`. One bug in
+      // the model, two different corrupt files.
+      const { model, entry } = freshEntry();
+
+      expect(entry.setProperty('Value', '"abc"')).toBe(true);
+      expect(entry.displayValue).toBe('"abc"');
+
+      const bytes = serializeModel(model, format);
+      const fresh = reparseEntry(bytes, format, 'params.sldd', 'gravity');
+      // The quotes are the assertion: 'abc' is the char this used to become.
+      expect(fresh.displayValue).toBe('"abc"');
+
+      if (matlabAvailable()) {
+        const out = matlabAssertRoundTrip(bytes, 'gravity', {
+          Value: 'abc',
+          __class__: 'Simulink.Parameter',
+        });
+        expect(out).toMatch(/RESULT PASS/);
+      }
+    });
+
     it('rejects cell value "{1,2}" with MATLAB-mirroring error', () => {
       const { entry } = freshEntry();
       const originalDisplay = entry.displayValue;

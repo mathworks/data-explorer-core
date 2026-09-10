@@ -336,3 +336,55 @@ describe('defects 29 and 30: a 64-bit integer keeps every digit', () => {
     expect(n._scalarValue).toBe(42);
   });
 });
+
+// A string Value edited into a MATLAB-authored Parameter, through the same rebuild the
+// gate hands MATLAB. Two writers had to be wrong at once for this to reach a file, and
+// the second was invisible while the first hid it:
+//
+//   * ParameterNode.setProperty had no arm for a string SCALAR, so `"abc"` fell to the
+//     catch-all that stores the parser's bare JS string — this model's spelling for a
+//     CHAR. The cell then displayed 'abc' and the value saved as char.
+//   * serializePropertyXml had no arm for either string shape, so once the class was
+//     kept, the one-element list took the NUMERIC-array branch and formatDoubleXml
+//     spelled its text `NaN`, and the multi-element wrapper reached the char fallback
+//     as the literal `[object Object]`.
+//
+// So the assertion is a reopen, not a text match: the value has to come back out of the
+// rebuilt chunk as the string it went in as.
+describe('a string Parameter value survives the binary write-back', () => {
+  const stringParam = (model: any) => {
+    const p = findByName(model, 'aParam');
+    expect(p.setProperty('Value', '"abc"')).toBe(true);
+    return p;
+  };
+
+  /**
+   * The `<Object>` block of the named entry. Scoped rather than global, because the two
+   * spellings this test refuses are legitimate elsewhere in this very dictionary: MATLAB
+   * wrote a real `Class="double">NaN` entry into cases.sldd, so a chunk-wide
+   * `not.toContain('NaN')` fails on MATLAB's own data.
+   */
+  const entryBlock = (xml: string, name: string): string => {
+    const at = xml.indexOf('>' + name + '</P>');
+    const open = xml.lastIndexOf('<Object ', at);
+    return xml.slice(open, xml.indexOf('</Object>', at));
+  };
+
+  it('writes MATLAB\'s string envelope rather than a numeric or char body', () => {
+    const block = entryBlock(rebuildXml('parity/artifacts/binary/cases.sldd', stringParam), 'aParam');
+    expect(block).toContain('<Element Class="string">');
+    expect(block).toContain('<Element Class="char">abc</Element>');
+    // The two spellings the missing arms produced.
+    expect(block).not.toContain('NaN');
+    expect(block).not.toContain('[object Object]');
+  });
+
+  it('reopens as a string, and as the same text', () => {
+    const xml = rebuildXml('parity/artifacts/binary/cases.sldd', stringParam);
+    const uri = 'mem://strparam';
+    DataModel.removeDataSource(uri);
+    const reopened = DataModel.addDataSource(uri, parseBinarySlddParts(xml, {}), { path: 'cases.sldd' });
+    // The double quotes ARE the assertion: 'abc' would be the char this used to save.
+    expect(findByName(reopened, 'aParam').displayValue).toBe('"abc"');
+  });
+});

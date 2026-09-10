@@ -69,6 +69,66 @@ describe('DataNode.serializePropertyXml — plain arrays', () => {
   });
 });
 
+// A string-valued property, in the two shapes the readers hand back: a 1x1 arrives
+// as a bare one-element LIST and anything larger as the `_array_type: 'String'`
+// wrapper (BinarySlddParser.parseStringValue, and the same pair MatlabValueParser
+// documents for a cell element). Neither had an arm here, so both fell through the
+// dispatch and were destroyed on the way into a binary .sldd: the list took the
+// numeric-array branch, whose formatDoubleXml turns text into a double body, and the
+// wrapper reached the trailing char fallback as the literal `[object Object]`.
+//
+// The envelope asserted is MATLAB's own, copied from the string entries of the
+// MATLAB-authored test/parity/artifacts/binary/{params,cases}.sldd: a `Class="string"`
+// Element wrapping a saveobj CELL of chars, with the cell's Dimension present for
+// every shape but 1x1. Those examples are dictionary ENTRIES rather than object
+// properties — the corpus has no MATLAB-authored Parameter holding a string — but the
+// reader decodes the two identically (see the nested-string branch of
+// BinarySlddParser.parsePropertyValue), so the writer states one spelling too.
+describe('DataNode.serializePropertyXml — strings', () => {
+  it('writes a 1x1 string as a saveobj cell with no Dimension', () => {
+    expect(prop('Value', ['abc'])).toBe(
+      [
+        '<P Name="Value">',
+        '    <Element Class="string">',
+        '        <P Source="saveobj" PropertyType="any" Class="cell">',
+        '            <Element Class="char">abc</Element>',
+        '        </P>',
+        '    </Element>',
+        '</P>',
+      ].join('\n'),
+    );
+  });
+
+  it('writes a string array with the cell Dimension its shape needs', () => {
+    expect(prop('Value', { _array_type: 'String', _dimensions: [1, 2], _elements: ['ab', 'cd'] })).toBe(
+      [
+        '<P Name="Value">',
+        '    <Element Class="string">',
+        '        <P Source="saveobj" PropertyType="any" Class="cell" Dimension="1*2">',
+        '            <Element Class="char">ab</Element>',
+        '            <Element Class="char">cd</Element>',
+        '        </P>',
+        '    </Element>',
+        '</P>',
+      ].join('\n'),
+    );
+  });
+
+  it('escapes the XML metacharacters in an element', () => {
+    expect(prop('Value', ['a<b&c'])).toContain('<Element Class="char">a&lt;b&amp;c</Element>');
+  });
+
+  it('indents the envelope under its caller', () => {
+    expect(prop('Value', ['abc'], 2).split('\n')[0]).toBe('        <P Name="Value">');
+  });
+
+  it('still writes a numeric array as a double row', () => {
+    // The discriminator is the ELEMENT type, not the array-ness: a bare list of
+    // numbers is the 1xN double it always was.
+    expect(prop('Dims', [1, 2, 3])).toBe('<P Name="Dims" Class="double" Dimension="1*3">1.0 2.0 3.0</P>');
+  });
+});
+
 describe('DataNode.serializePropertyXml — typed {_type,_value} literals', () => {
   it('writes a typed scalar in its own class, dropping the F/U literal suffix', () => {
     expect(prop('N', { _type: 'int32', _value: '5' })).toBe('<P Name="N" Class="int32">5</P>');

@@ -552,6 +552,18 @@ export default class DataNode extends BaseNode {
             if (value.length === 0) {
                 return p + '<P' + DataNode.pxAttrs(name) + ' Class="double" Dimension="0*0"/>';
             }
+            // A bare list of TEXT is a STRING, not a numeric row. That is how both readers
+            // hand back a 1x1 string — MATLAB writes it as a bare `["abc"]` in a text
+            // dictionary and as an undimensioned saveobj cell in a binary one, which
+            // parseStringValue returns as this same one-element list — so without this arm the
+            // value fell into the numeric branch below and formatDoubleXml spelled every
+            // element `NaN`: a string Value went into the .sldd as `Class="double">NaN`.
+            // The ELEMENT type is the discriminator, not the array-ness, so a list of numbers
+            // is untouched. A bare list carries no shape of its own, and a row is the only
+            // thing it can mean.
+            if (value.every((v) => typeof v === 'string')) {
+                return DataNode._serializeStringPropertyXml(name, value, [1, value.length], indent);
+            }
             const formatted = value.map(function (v) {
                 return formatDoubleXml(v);
             });
@@ -586,6 +598,13 @@ export default class DataNode extends BaseNode {
             if (obj._array_type === 'Cell') {
                 return DataNode._serializeCellPropertyXml(name, obj, indent);
             }
+            // The shape a string with more than one element arrives in. Without this arm it
+            // reached the trailing char fallback, where String() spelled the whole wrapper
+            // `[object Object]` — every element of the value gone from the saved file.
+            if (obj._array_type === 'String') {
+                const elements = obj._elements || [];
+                return DataNode._serializeStringPropertyXml(name, elements, obj._dimensions || [1, elements.length], indent);
+            }
         }
         return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(String(value)) + '</P>';
     }
@@ -618,6 +637,46 @@ export default class DataNode extends BaseNode {
             // and a char code is never one — mxchar is not an integer class.
             body: escapeXml(charTextFromCodes(DataNode._parseMatrixNums(m[2]).map(Number), dims)),
         };
+    }
+    /**
+     * MATLAB's spelling of a string value, from the `<Element Class="string">` down: a
+     * saveobj CELL of chars, one `<Element Class="char">` per element, carrying the cell's
+     * Dimension for every shape but 1x1.
+     *
+     * Copied from the string entries of the MATLAB-authored dictionaries in
+     * test/parity/artifacts/binary — `strScalar` writes an undimensioned cell around one
+     * char, `strArray` a `Dimension="1*3"` one around three. Those are dictionary ENTRIES
+     * rather than object properties, and the corpus has no MATLAB-authored object holding a
+     * string, but BinarySlddParser decodes both through the same parseStringValue, so there
+     * is one envelope to write and not two.
+     *
+     * Shared with MatlabVariableNode._serializeStringXml, which writes the same envelope
+     * for an entry, for the same reason _mxCharXml is shared: this is the second and last
+     * place that spells it, and two copies of a format are how one of them goes stale.
+     */
+    static _stringEnvelopeXml(elements, dims, indent) {
+        const ip = xmlPad(indent + 1);
+        const ip2 = xmlPad(indent + 2);
+        const ip3 = xmlPad(indent + 3);
+        // 1x1 alone goes bare, and the rank has to be tested with it: dims[0] === 1 &&
+        // dims[1] === 1 is also true of a 1x1x3, whose extents must be stated.
+        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims.join('*') + '"';
+        let xml = ip + '<Element Class="string">\n';
+        xml += ip2 + '<P Source="saveobj" PropertyType="any" Class="cell"' + dimAttr + '>\n';
+        for (const el of elements) {
+            // `|| ''`: a `missing` element is null in the model, and has no text to write.
+            xml += ip3 + '<Element Class="char">' + escapeXml(el || '') + '</Element>\n';
+        }
+        xml += ip2 + '</P>\n';
+        xml += ip + '</Element>\n';
+        return xml;
+    }
+    // A string-valued PROPERTY: the envelope above under a `<P Name="…">` that carries no
+    // Class of its own — the class is stated by the Element inside, exactly as MATLAB
+    // writes it and as _serializeObjectPropertyXml's `<P>` does for a nested object.
+    static _serializeStringPropertyXml(name, elements, dims, indent) {
+        const p = xmlPad(indent);
+        return (p + '<P' + DataNode.pxAttrs(name) + '>\n' + DataNode._stringEnvelopeXml(elements, dims, indent) + p + '</P>');
     }
     static _serializeTypedPropertyXml(name, value, indent) {
         const p = xmlPad(indent);

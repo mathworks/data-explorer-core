@@ -200,6 +200,36 @@ export default class ParameterNode extends DataNode {
                 this._markModified();
                 return true;
             }
+            // A string SCALAR — the one text class MATLAB genuinely stores at this
+            // property, since its Value setter coerces all text to a 1x1 string (measured,
+            // DESIGN.md). It needs an arm of its own because the catch-all at the tail of
+            // this method stores the parser's bare JS string, and a bare JS string is this
+            // model's spelling for a CHAR: PropValue.format quotes it with formatMatlabChar
+            // and both writers emit char. So `"abc"` displayed 'abc' and saved a char, with
+            // the class the user explicitly typed thrown away.
+            //
+            // What made that a data bug rather than a cosmetic one is that the READ path
+            // models the same value correctly — a 1x1 string arrives as the one-element
+            // list and displays "abc" — so the two paths disagreed about one value. The
+            // table seeds its in-place editor with the displayed text, so committing a
+            // string Parameter's own Value cell unchanged retyped it to char and marked the
+            // file dirty. Same shape as defect 25 (a char matrix retyped to string by its
+            // own displayed text) and as the `it''s` quoting note in PropValue.
+            //
+            // The one-element LIST is not a spelling invented here: it is what MATLAB
+            // writes for a 1x1 string in a text dictionary, what parseStringValue hands
+            // back for the undimensioned saveobj cell a binary one holds, and what
+            // cellElementRaw already documents for the same value inside a cell. Only a
+            // string with MORE than one element takes the _array_type wrapper below.
+            // Routing through _adoptValueNode is what makes the two paths converge on one
+            // node, so from here the value is formatted and serialized by the same code
+            // whichever way it arrived.
+            if (parsed.type === 'string') {
+                this._adoptValueNode([parsed.value], true);
+                this.Value = [parsed.value];
+                this._markModified();
+                return true;
+            }
             if ((parsed.type === 'double' && Array.isArray(parsed.value)) || parsed.type === 'string-array') {
                 let rawValue;
                 if (parsed.type === 'string-array') {
