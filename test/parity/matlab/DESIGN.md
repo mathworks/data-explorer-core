@@ -1777,6 +1777,59 @@ quietly become one.
 The suite is also checked for teeth the same way every other tier is: with
 `SlxParser.ts` reverted to its pre-phase version, 66 of its 193 tests fail.
 
+## A defect found by using the extension, and its neighbour
+
+Not a phase. Defect 49 was reported by a user editing a value in the VS Code table, which
+makes it the first entry here that no tier of this suite had asked about — and the reason
+is worth as much as the fix: every tier reads or writes a value at the TOP level of an
+entry, and this one only misbehaves one level down, inside a cell.
+
+49. **A shaped value typed into a cell lost its shape, on screen and in the file.**
+    `{[1;2]}` came back `{[1 2]}`: a 2x1 double read as a 1x2, and `saveChanges` wrote
+    the 1x2. `MatlabValueParser.tokenizeCellElements` read each element with its own
+    code per bracket kind rather than with the parser's own `parse`, and the `[` arm
+    pushed `parseArray(...).value` — the flat element list, with `dims` dropped. A bare
+    JSON list has nowhere to carry `[2,1]` and reads back as a row, which is precisely
+    what `MatlabVariableNode._serializeArray` says in the comment above its own typed
+    literal fallback, one directory away. The `{` arm had been right all along, because
+    a nested cell could only carry `nested.dims` in a wrapper.
+
+    Five element kinds were affected, not one: a numeric column and matrix (reshaped), a
+    logical array (**retyped to double**, since a bare list says double), a char matrix
+    (flattened to the column-major text read back as a row, so the characters scrambled
+    rather than merely reshaped), a string array (retyped to char, then flattened) and a
+    1x1 string (retyped to char). `{"a"}` displaying as `{'a'}` is the same defect as
+    `{[1;2]}` displaying as `{[1 2]}`.
+
+    Fixed by parsing each element recursively — `parse(span)` for every span, then one
+    `cellElementRaw` converter to the raw form the readers produce — so an element of a
+    cell is now read exactly as a value of its own, and there is one path where there
+    were four. `probe_cell_shapes.m` is the new probe; every arm of the converter is a
+    line in its header, taken from a dictionary MATLAB wrote itself. Two of those
+    spellings are not choices: a double row is a bare list and a LOGICAL row is not,
+    because the bare form says double; a 1x1 string is a one-element list `["a"]` rather
+    than bare text, because bare text is a char. Held by `cellElementShape.test.ts` (24
+    tests; 21 of them fail with the fix reverted), which asserts the raw spelling, the
+    display, and a round trip through the value's own displayed text in both `.sldd`
+    flavours.
+
+50. **A multi-row cell is transposed by the edit path. Found by 49's tests, NOT fixed.**
+    The parser assembles a cell's own element list ROW-major, while every reader in this
+    repo stores one COLUMN-major (`cellElementOrder.test.ts`, itself written to fix the
+    mirror-image defect on the read path). MATLAB writes `{1 2; 3 4}` as
+    `"_elements": [1, 3, 2, 4]` — measured in `probe_cell_shapes.m` — so editing a
+    multi-row cell writes a transposed value, and typing the transposed text back
+    transposes it again. Only a 1xN or an Nx1 is unaffected, which is why it survived: a
+    vector reads the same in either order, and the repo's editable cell fixtures are
+    vectors.
+
+    Left open deliberately, and it is a separate change rather than the rest of this one:
+    the same question has to be answered for a multi-row STRING array (whose element list
+    the node layer also stores column-major) without disturbing the NUMERIC branch, which
+    is row-major on purpose and transposed downstream. Pinned at today's answer by
+    `cellElementShape.test.ts`'s `KNOWN DEFECT 50` test, with values asymmetric under
+    transpose so the pin cannot pass by accident.
+
 ## Known limitations, to verify and document
 
 - **Derived MCOS classes.** A customer class `MyParam < Simulink.Parameter`
