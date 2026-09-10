@@ -11,7 +11,7 @@ import ModelReferenceNode from '../data/ModelReferenceNode.js';
 import DataSourceNode from '../data/DataSourceNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { ParsedConfigSet } from '../../parser/SlxParser.js';
-import { isModelFile } from '../../fileKinds.js';
+import { basenameOf, isModelFile } from '../../fileKinds.js';
 
 export default class ModelSectionNode extends ContainerNode {
   label: string;
@@ -131,8 +131,12 @@ export default class ModelSectionNode extends ContainerNode {
   }
 
   addDataSourceEntry(path: string): BaseNode {
-    const filename = path.split('/').pop()!;
-    const node = new DataSourceNode(filename, this, path);
+    // `path` is whatever MATLAB wrote into the model, so a model saved on Windows records
+    // `..\shared\signals.mat`. Splitting on `/` alone left that entire string as the
+    // node's name — a path in the Name column and a path as the link target — while the
+    // link still resolved, because `refBasename` does split on both. `basenameOf` is the
+    // one place that rule lives.
+    const node = new DataSourceNode(basenameOf(path), this, path);
     this.addChild(node);
     return node;
   }

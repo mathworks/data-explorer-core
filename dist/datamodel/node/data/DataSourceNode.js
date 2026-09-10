@@ -3,6 +3,7 @@ import BaseNode from '../BaseNode.js';
 import PropName from '../../prop/PropName.js';
 import PropPath from '../../prop/PropPath.js';
 import PropStatus from '../../prop/PropStatus.js';
+import { isModelFile, isSlddFile } from '../../fileKinds.js';
 export default class DataSourceNode extends BaseNode {
     constructor(name, parent, fullPath) {
         super(name, parent);
@@ -12,16 +13,33 @@ export default class DataSourceNode extends BaseNode {
     get isEntry() {
         return true;
     }
-    get icon() {
-        if (this.name.endsWith('.sldd')) {
-            return 'simulinkDataDictionary_FT';
+    /**
+     * The one classification behind BOTH the icon and the class name.
+     *
+     * These were two independent chains of `endsWith`, which is two answers to one
+     * question: a kind added to one and not the other shows a dictionary icon on a row
+     * labelled 'MAT File'. They were also both case-SENSITIVE, while `refBasename` —
+     * which is what actually RESOLVES this source against the workspace — is not. So a
+     * model naming `Params.SLDD`, exactly as its author typed it, got a working link and a
+     * MAT-file presentation, and no part of that looks like a bug from either side.
+     * Deriving from `fileKinds` puts the case rule where the rest of this package keeps it.
+     */
+    get presentation() {
+        if (isSlddFile(this.name)) {
+            return { icon: 'simulinkDataDictionary_FT', className: 'Data Dictionary' };
         }
         // A `.mdl` is a Simulink model too — the same thing in an older container —
         // so it gets the model icon rather than falling through to the MAT default.
-        if (this.name.endsWith('.slx') || this.name.endsWith('.mdl')) {
-            return 'simulinkModel_FT';
+        if (isModelFile(this.name)) {
+            return { icon: 'simulinkModel_FT', className: 'Simulink Model' };
         }
-        return 'matlabWorkspaceFile';
+        // A model's external data sources are dictionaries, models and MAT-files, so an
+        // extension none of those tests recognise is presented as the last of them rather
+        // than as nothing at all.
+        return { icon: 'matlabWorkspaceFile', className: 'MAT File' };
+    }
+    get icon() {
+        return this.presentation.icon;
     }
     get displayName() {
         return this.name;
@@ -30,13 +48,7 @@ export default class DataSourceNode extends BaseNode {
         return this.fullPath;
     }
     get className() {
-        if (this.name.endsWith('.sldd')) {
-            return 'Data Dictionary';
-        }
-        if (this.name.endsWith('.slx') || this.name.endsWith('.mdl')) {
-            return 'Simulink Model';
-        }
-        return 'MAT File';
+        return this.presentation.className;
     }
     get nameEditable() {
         return false;

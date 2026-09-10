@@ -5,7 +5,7 @@ import { decodeMcosObjects, modelOpaqueMcosVariable } from '../data/mcosTypedNod
 import PropName from '../../prop/PropName.js';
 import PropRelease from '../../prop/PropRelease.js';
 import { blockKey } from '../../blockIdentity.js';
-import { refModelExt } from '../../fileKinds.js';
+import { extOf, refModelExt } from '../../fileKinds.js';
 const SECTION_DEFS = [
     { key: 'blocks', label: 'Model Elements', icon: 'blocks' },
     { key: 'workspace', label: 'Model Workspace', icon: 'databaseFolderWorkspace' },
@@ -71,7 +71,7 @@ export default class ModelNode extends ContainerNode {
         if (!this._zipEntries) {
             return 'mdl';
         }
-        return /\.mdl$/i.test(this.name) ? 'mdl-package' : 'slx';
+        return extOf(this.name) === '.mdl' ? 'mdl-package' : 'slx';
     }
     get icon() {
         return 'simulink';
