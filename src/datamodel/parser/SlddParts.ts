@@ -75,5 +75,12 @@ export const DATA_PART_KEY = `__MW_TEXT_PART__/${DATA_PART}`;
 /**
  * The content wrapper inside the part — the third and last step, whose value is the object
  * holding `entries`, `Dictionary References` and `AllowAccessBWS`.
+ *
+ * The wrapper is MATLAB's for EVERY text part, not just the data one: `arch.sldd` carries
+ * three parts (`data/chunk0`, `simulink/ArchitecturePart` and the System Composer
+ * interfaceDictionary) and each is wrapped in this same key. So the catalog reader
+ * (`SlddNode._parseSystemComposer`) unwraps its own part with this constant too, and the
+ * name it is combined with — `DATA_PART_KEY` or `__MW_TEXT_PART__/${SC_PART}` — is what
+ * says WHICH part is being unwrapped.
  */
 export const TEXT_CONTENT = '__MW_TEXT_content';
