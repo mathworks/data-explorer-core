@@ -3,6 +3,7 @@
 import { unzipSync } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
+import { ENUM_BLOCK_PARAMS } from './enumBlockParams.js';
 import type { MaskScope } from '../maskScope.js';
 import { parseMxArray, readMxArrayRecords } from './MxArrayParser.js';
 import { parseMat } from './MatParser.js';
@@ -575,14 +576,78 @@ export function valueReferencesData(value: string): boolean {
 }
 
 /**
- * Does `propName = value` on a block count as a reference to named data?
+ * Free-text parameters a block fills with something other than data, keyed by BlockType.
+ *
+ * The companion to ENUM_BLOCK_PARAMS and the part no scan can produce: these are ordinary
+ * string parameters, so nothing in the dialog marks them, and nothing in the file does
+ * either. Each is here because `Simulink.findVars` was asked directly, on a model built to
+ * make the question sharp — see test/parity/matlab/probe_non_data_params.m.
+ *
+ *   BusSelector.OutputSignals    the names of the signals selected out of a bus. Measured
+ *   BusAssignment.AssignedSignals  on wired models whose bus carries a signal `a` while
+ *                                the model workspace ALSO holds a variable `a`: findVars
+ *                                credits the control Gain's `kGain` and nothing else, and
+ *                                `a` has no users at all. Pointed the other way — at
+ *                                `a_var`, a variable that is NOT a signal on the bus —
+ *                                it is still not credited, so the parameter is a signal
+ *                                name in both directions and never an expression.
+ *                                Admitting it put the Bus Selector on the Usage cell of a
+ *                                variable it does not read: a false edge, not a spare row.
+ *
+ *   ModelReference.ModelNameDialog  the referenced model's FILE name — measured the same
+ *   ModelReference.ModelFile        way (a parent whose workspace holds a variable named
+ *   ModelReference.ModelName        exactly like the child model: not credited). And not
+ *                                really a findVars question, because a file reference is
+ *                                already surfaced, resolved, as `ParsedSlx.modelReferences`.
+ *                                Left in, the same fact arrived a second time as a data
+ *                                reference that resolves to nothing — and `child.slx`
+ *                                passes the identifier gate, so a dictionary entry named
+ *                                `child` would have collected a link from it. All three
+ *                                names are one parameter under three spellings: a block
+ *                                reporting `ModelNameDialog=child` also reports
+ *                                `ModelFile=child.slx` and `ModelName=child`.
+ *
+ * `ParameterArgumentValues` and `ParameterArgumentNames` are deliberately NOT here: a
+ * model argument's value is an expression in the parent's scope and is exactly the kind of
+ * reference this column exists to show.
+ */
+const NON_DATA_BLOCK_PARAMS: Readonly<Record<string, readonly string[]>> = {
+  BusSelector: ['OutputSignals'],
+  BusAssignment: ['AssignedSignals'],
+  ModelReference: ['ModelNameDialog', 'ModelFile', 'ModelName'],
+};
+
+// Both pair-keyed tables as one lookup, built once. `isParamReference` runs for every
+// property of every block of every model in a workspace, so this is a Set membership test
+// and not a scan of two record literals.
+const NON_DATA_PARAMS: ReadonlyMap<string, ReadonlySet<string>> = (() => {
+  const merged = new Map<string, Set<string>>();
+  for (const table of [ENUM_BLOCK_PARAMS, NON_DATA_BLOCK_PARAMS]) {
+    for (const [blockType, params] of Object.entries(table)) {
+      const set = merged.get(blockType) ?? new Set<string>();
+      for (const p of params) set.add(p);
+      merged.set(blockType, set);
+    }
+  }
+  return merged;
+})();
+
+/**
+ * Does `propName = value` on a block of type `blockType` count as a reference to named data?
  *
  * The one gate both model formats go through, so a `.mdl` and the `.slx` of the
  * SAME diagram surface the same rows. Exported for MdlParser, which reads the
  * classic nested-brace flavour and has no `<P>` elements to work from.
+ *
+ * `blockType` narrows the two pair-keyed tables and nothing else, so a block type neither
+ * table knows — every toolbox block, and every masked library link, which a file records
+ * as `Reference` — is judged exactly as before. That is the safe direction: an unlisted
+ * pair is admitted, and admitting a spare row costs less than hiding a real reference
+ * (issue #9). An EMPTY blockType, which a hand-made file can have, matches no table.
  */
-export function isParamReference(propName: string, value: string): boolean {
+export function isParamReference(blockType: string, propName: string, value: string): boolean {
   if (!propName || NON_PARAM_PROPS.has(propName)) return false;
+  if (NON_DATA_PARAMS.get(blockType)?.has(propName)) return false;
   return valueReferencesData(value);
 }
 
@@ -663,7 +728,7 @@ function extractBlockParamUsages(
         const pObj = p as Record<string, unknown>;
         const propName = pObj['@_Name'] as string;
         const val = (pObj['#text'] as string) || '';
-        if (!isParamReference(propName, val)) continue;
+        if (!isParamReference(blockType, propName, val)) continue;
         usages.push({ blockName, blockType, paramProperty: propName, paramValue: val, sid, systemPath: path });
       }
       // A MASK, if this block wears one. Its parameters are read on the same terms as

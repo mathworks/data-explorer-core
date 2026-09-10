@@ -108,6 +108,22 @@ doubled, as `getfullname` writes it. The three rules are exported for a host tha
 indexes parse results itself — `blockKey(name, sid)`, `blockLabel(name, sid)` and
 `joinBlockPath(parentPath, label)`.
 
+Not every block parameter is reported: only those that *can* name data. A value that
+is a number, a non-finite, `on`/`off` or has no identifier in it at all is not a
+reference, and neither is a parameter whose value space is a fixed option list — a Math
+block's `Operator = square` reads like a variable and is one of fifteen menu choices
+Simulink enforces. That table is keyed on the `(BlockType, parameter)` pair and measured
+from MATLAB rather than hand-written, because the same name can be a menu on one block
+and an expression on another; the few free-text parameters that measurably never name
+data (a Bus Selector's `OutputSignals`, a Model block's file name) are excluded the same
+way. A block type the tables do not know is judged on its value alone, so a toolbox
+block is never silently reduced to fewer rows than it has.
+
+A reported parameter can still resolve to nothing — `linkTarget: ''` with nulls
+throughout — and that is an answer, not an absence: the name may be defined in a file the
+caller did not hand over, or in the MATLAB base workspace, which is a live session and not
+a file. Render the value, without a link.
+
 A `srcId` is the caller's own key for a file and is never parsed; the `filename`
 is what decides the kind. Resolution follows MATLAB: the mask workspaces the block
 sits inside shadow the model workspace, which shadows a linked dictionary, which

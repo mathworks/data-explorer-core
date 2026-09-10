@@ -100,13 +100,19 @@ export declare function normalizeBlockName(name: string): string;
  */
 export declare function valueReferencesData(value: string): boolean;
 /**
- * Does `propName = value` on a block count as a reference to named data?
+ * Does `propName = value` on a block of type `blockType` count as a reference to named data?
  *
  * The one gate both model formats go through, so a `.mdl` and the `.slx` of the
  * SAME diagram surface the same rows. Exported for MdlParser, which reads the
  * classic nested-brace flavour and has no `<P>` elements to work from.
+ *
+ * `blockType` narrows the two pair-keyed tables and nothing else, so a block type neither
+ * table knows — every toolbox block, and every masked library link, which a file records
+ * as `Reference` — is judged exactly as before. That is the safe direction: an unlisted
+ * pair is admitted, and admitting a spare row costs less than hiding a real reference
+ * (issue #9). An EMPTY blockType, which a hand-made file can have, matches no table.
  */
-export declare function isParamReference(propName: string, value: string): boolean;
+export declare function isParamReference(blockType: string, propName: string, value: string): boolean;
 /**
  * Does a mask parameter of this TYPE hold an expression? Exported for MdlParser, which
  * reads the same fact out of a classic `.mdl`'s `MaskStyleString` and must reach the same

@@ -9,6 +9,8 @@
 import { describe, it, expect } from 'vitest';
 import { zipSync, strToU8 } from 'fflate';
 import { parseSlx } from '../src/datamodel/parser/SlxParser.js';
+import { parseMdl } from '../src/datamodel/parser/MdlParser.js';
+import { ENUM_BLOCK_PARAMS } from '../src/datamodel/parser/enumBlockParams.js';
 
 // Build an in-memory .slx with a single systems file holding the given <Block>
 // XML. Only the pieces parseSlx reads for block params are included.
@@ -188,6 +190,184 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
         'Gain/24=Zw',
       ]);
     });
+  });
+});
+
+// The second half of the gate, added after a bug report: three blocks in a real model
+// showed a Usage of something that was not data at all — a Math block's `Operator=square`,
+// a Bus Selector's `OutputSignals=a,b`, a Model block's file name. The value-only gate
+// above cannot tell them apart from a reference, because `square` IS a legal variable name;
+// what rules them out is WHICH PARAMETER holds them, and that is a fact about the block
+// type. Every entry below is measured — see the header comments on ENUM_BLOCK_PARAMS
+// (generated from `DialogParameters`) and NON_DATA_BLOCK_PARAMS (from `Simulink.findVars`).
+//
+// The cost of getting this wrong is asymmetric, which is why the table is keyed on the
+// PAIR and consulted rather than replacing the blocklist: a spare row is a row a user
+// ignores, while a suppressed reference is a Usage cell that lies by omission (issue #9).
+describe('the (BlockType, parameter) gate', () => {
+  /** `Operator=square` for every usage — the pair, and nothing else, is what is at stake. */
+  function pairs(blocksXml: string): string[] {
+    return usagesFor(blocksXml).map((u) => `${u.paramProperty}=${u.paramValue}`);
+  }
+
+  describe('option-list parameters (ENUM_BLOCK_PARAMS)', () => {
+    it('drops a Math block\'s Operator=square — a menu choice, not a variable', () => {
+      // The reported case. `square` is one of fifteen options Simulink enforces, so no
+      // loadable model can hold a reference there; crediting it put the Math block on the
+      // Usage cell of any variable spelled `square`.
+      expect(pairs(`<Block BlockType="Math" Name="M" SID="1"><P Name="Operator">square</P></Block>`)).toEqual([]);
+    });
+
+    it('keeps Operator=square on a Gain block, where the table does not list it', () => {
+      // The whole reason the key is a pair. `Gain` is IN the table — with `Multiplication`
+      // and `RndMeth` — so this is the table being consulted and declining to suppress,
+      // not the table being missed. A name-keyed blocklist could not tell these two apart.
+      expect(pairs(`<Block BlockType="Gain" Name="G" SID="1"><P Name="Operator">square</P></Block>`)).toEqual([
+        'Operator=square',
+      ]);
+    });
+
+    it('keeps a parameter of a listed block type that is not on its list', () => {
+      // `Math` is listed for six parameters; a seventh is judged by value alone.
+      expect(pairs(`<Block BlockType="Math" Name="M" SID="1"><P Name="Bias">offset</P></Block>`)).toEqual([
+        'Bias=offset',
+      ]);
+    });
+
+    it('judges a block type the table has never heard of exactly as before', () => {
+      // The safe direction, and the one issue #9 was about: the scan covers `simulink` and
+      // `simulink_extras`, so every toolbox block — and every masked library link, which a
+      // file records as `Reference` — falls through to the value gate untouched.
+      expect(
+        pairs(`<Block BlockType="SomeToolboxBlock" Name="X" SID="1"><P Name="Operator">square</P></Block>`),
+      ).toEqual(['Operator=square']);
+      expect(ENUM_BLOCK_PARAMS.SomeToolboxBlock).toBeUndefined();
+    });
+
+    it('suppresses nothing for a block whose file records no BlockType', () => {
+      // A hand-written or hand-edited file can omit it. An empty key must match no table
+      // rather than match the first one, which a `Record` lookup on `''` would not do
+      // anyway — pinned because the parser defaults the attribute to `''` on purpose.
+      expect(pairs(`<Block Name="M" SID="1"><P Name="Operator">square</P></Block>`)).toEqual([
+        'Operator=square',
+      ]);
+    });
+  });
+
+  describe('free-text parameters that never name data (NON_DATA_BLOCK_PARAMS)', () => {
+    it('drops a Bus Selector\'s OutputSignals — bus signal names, not variables', () => {
+      // The reported case, and the one that produced a FALSE EDGE rather than a spare row:
+      // on a MATLAB-written model whose bus carries a signal `a` and whose workspace also
+      // holds a variable `a`, findVars gives `a` no users at all, while our graph put the
+      // Bus Selector on it. Measured in probe_non_data_params.m.
+      expect(
+        pairs(`<Block BlockType="BusSelector" Name="BS" SID="1"><P Name="OutputSignals">a,b</P></Block>`),
+      ).toEqual([]);
+    });
+
+    it('drops a Bus Assignment\'s AssignedSignals', () => {
+      // Same measurement on the block that writes into a bus. Spelled differently, so a
+      // pair-keyed table cannot generalise from the selector — hence a second entry and a
+      // second test.
+      expect(
+        pairs(`<Block BlockType="BusAssignment" Name="BA" SID="1"><P Name="AssignedSignals">a</P></Block>`),
+      ).toEqual([]);
+    });
+
+    it('drops all three spellings of a Model block\'s file name', () => {
+      // One fact under three names — a block reporting `ModelNameDialog=child` also reports
+      // `ModelFile=child.slx` and `ModelName=child`. Already surfaced, resolved, as
+      // `modelReferences`; left here it arrived a second time as a data reference that
+      // resolves to nothing, and `child` would have collected a link from a dictionary
+      // entry of that name.
+      expect(
+        pairs(
+          `<Block BlockType="ModelReference" Name="M" SID="1">` +
+            `<P Name="ModelNameDialog">child</P><P Name="ModelFile">child.slx</P><P Name="ModelName">child</P>` +
+            `</Block>`,
+        ),
+      ).toEqual([]);
+    });
+
+    it('keeps a Model block\'s parameter ARGUMENTS, which are expressions', () => {
+      // The line the entry above must not cross. A model argument's value is evaluated in
+      // the parent's scope, so it is exactly the kind of reference this column exists for —
+      // the same block, two parameters, opposite verdicts.
+      expect(
+        pairs(
+          `<Block BlockType="ModelReference" Name="M" SID="1">` +
+            `<P Name="ModelNameDialog">child</P>` +
+            `<P Name="ParameterArgumentNames">gainArg</P>` +
+            `<P Name="ParameterArgumentValues">Kp</P>` +
+            `</Block>`,
+        ),
+      ).toEqual(['ParameterArgumentNames=gainArg', 'ParameterArgumentValues=Kp']);
+    });
+  });
+
+  it('leaves a MASK parameter of the same name alone, on the same block type', () => {
+    // Mask parameters do not go through this gate at all, and must not: the name is one the
+    // mask's author chose, so `Operator` there is whatever they meant by it. Pinned because
+    // the two are pushed onto the SAME list a few lines apart, which is exactly the shape
+    // in which a later "just add it to the table" would catch the wrong one.
+    const usages = usagesFor(
+      `<Block BlockType="Math" Name="M" SID="1">` +
+        `<P Name="Operator">square</P>` +
+        `<Mask><MaskParameter Name="Operator" Type="edit"><Value>square</Value></MaskParameter></Mask>` +
+        `</Block>`,
+    );
+    expect(usages.map((u) => `${u.paramProperty}=${u.paramValue}`)).toEqual(['Operator=square']);
+  });
+
+  // One gate, two parsers — the recurring failure here is a rule that ends up spelled twice
+  // and drifts. `.slx` and `.mdl` are held against each other rather than each against a
+  // literal, so a change made to one path fails here rather than in a model-shaped bug.
+  it('gives the same verdicts on the classic .mdl of the same blocks', () => {
+    const fromSlx = usagesFor(
+      `<Block BlockType="Math" Name="M" SID="1"><P Name="Operator">square</P><P Name="Bias">offset</P></Block>` +
+        `<Block BlockType="Gain" Name="G" SID="2"><P Name="Operator">square</P></Block>` +
+        `<Block BlockType="BusSelector" Name="BS" SID="3"><P Name="OutputSignals">a,b</P></Block>`,
+    );
+    const fromMdl = parseMdl(
+      (() => {
+        const text = `Model {
+  Name                    "m"
+  System {
+    Name                  "m"
+    Block {
+      BlockType           Math
+      Name                "M"
+      SID                 "1"
+      Operator            "square"
+      Bias                "offset"
+    }
+    Block {
+      BlockType           Gain
+      Name                "G"
+      SID                 "2"
+      Operator            "square"
+    }
+    Block {
+      BlockType           BusSelector
+      Name                "BS"
+      SID                 "3"
+      OutputSignals       "a,b"
+    }
+  }
+}
+`;
+        const u8 = strToU8(text);
+        return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+      })(),
+      'm.mdl',
+    ).blockParamUsages;
+    expect(fromMdl).toEqual(fromSlx);
+    // And what that agreement is: the Math block keeps only its non-listed parameter, the
+    // Gain keeps the identically-named one, the Bus Selector contributes nothing.
+    expect(fromSlx.map((u) => `${u.blockName}:${u.paramProperty}=${u.paramValue}`)).toEqual([
+      'M:Bias=offset',
+      'G:Operator=square',
+    ]);
   });
 });
 
