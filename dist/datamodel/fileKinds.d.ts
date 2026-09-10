@@ -56,4 +56,22 @@ export declare function isSlddFile(filename: string): boolean;
 export declare function isMatFile(filename: string): boolean;
 /** True if `filename` names a MATLAB project. */
 export declare function isProjectFile(filename: string): boolean;
+/**
+ * A project file name with its `.prj` removed — the project's NAME, as distinct from the
+ * file it is stored in.
+ *
+ * `parseProject` takes this rather than a filename, because it is what a project calls
+ * itself: the name appears in a `.prj`'s own metadata and is the fallback when that
+ * metadata is missing or unreadable. So every caller of `parseProject` has to make this
+ * reduction first, and — like `refModelExt` — it is made on two paths that must not
+ * disagree: this package makes it when adding a project source to a session, and a host
+ * makes it again for whatever index it builds directly over `parseProject`. The name is
+ * user-visible on both (a tree row and a graph group label), so a drift between the two
+ * shows up as one project appearing under two names.
+ *
+ * Total rather than nullable, unlike `modelNameOf`: that one returns null to mean "not a
+ * model, do not compare stems", whereas the answer wanted here is always a label. A name
+ * with no `.prj` to strip is returned unchanged.
+ */
+export declare function projectNameOf(filename: string): string;
 //# sourceMappingURL=fileKinds.d.ts.map

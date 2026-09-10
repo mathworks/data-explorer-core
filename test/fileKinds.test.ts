@@ -16,6 +16,7 @@ import {
   refBasename,
   modelNameOf,
   refModelExt,
+  projectNameOf,
   isModelFile,
   isSlddFile,
   isMatFile,
@@ -169,6 +170,49 @@ describe('refModelExt and addReferenceEntry complete a name together', () => {
     const fromSlx = ref('plant', 'modern.slx');
     expect(fromMdl).not.toBe(fromSlx);
     expect(modelNameOf(fromMdl)).toBe(modelNameOf(fromSlx));
+  });
+});
+
+// The other reduction a consumer has to make before it can call a public parser, and the
+// third rule in this module that was spelled once here and once in the vscode host.
+describe('projectNameOf', () => {
+  it('takes the `.prj` off, in either case', () => {
+    expect(projectNameOf('work.prj')).toBe('work');
+    expect(projectNameOf('Work.PRJ')).toBe('Work');
+  });
+
+  it('keeps the rest of the name exactly as written', () => {
+    // The name is a LABEL — it goes in a tree row and a graph group heading — so its case
+    // and its dots are the author's, not ours. Only the extension is ours to remove.
+    expect(projectNameOf('My.Big.Project.prj')).toBe('My.Big.Project');
+    expect(projectNameOf('Simulink_Model_Advisor.PRJ')).toBe('Simulink_Model_Advisor');
+  });
+
+  it('leaves a name with no `.prj` alone rather than returning null', () => {
+    // Deliberately total, unlike modelNameOf: every caller wants a label, and a null here
+    // would only be re-defaulted back to the filename at each of them.
+    expect(projectNameOf('work')).toBe('work');
+    expect(projectNameOf('')).toBe('');
+    expect(projectNameOf('notes-about-prj.txt')).toBe('notes-about-prj.txt');
+  });
+
+  it('strips only the LAST extension', () => {
+    expect(projectNameOf('work.prj.bak')).toBe('work.prj.bak');
+    expect(projectNameOf('old.prj.prj')).toBe('old.prj');
+  });
+
+  it('composes with basenameOf the way its callers do', () => {
+    // Neither this nor modelNameOf takes a path: a caller reduces the path first and the
+    // name second, which is the composition `UsageIndex` already spells for models. Pinned
+    // because the two halves live in the same module and could each look right alone —
+    // `projectNameOf('/work/proj/thing.prj')` returning a path with the extension gone is
+    // exactly the kind of half-answer that reads fine at a call site.
+    expect(projectNameOf(basenameOf('/work/proj/thing.prj'))).toBe('thing');
+    expect(projectNameOf(basenameOf('C:\\work\\proj\\Thing.PRJ'))).toBe('Thing');
+    // And a project file is still recognisably one before the strip and not after, which is
+    // what makes the order of the two calls matter.
+    expect(isProjectFile(basenameOf('C:\\work\\Thing.PRJ'))).toBe(true);
+    expect(isProjectFile(projectNameOf('Thing.PRJ'))).toBe(false);
   });
 });
 

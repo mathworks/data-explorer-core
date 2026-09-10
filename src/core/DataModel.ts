@@ -15,7 +15,7 @@ import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js
 // The name reductions and the expression reading, from the leaf modules that hold the
 // single copy of each. This file used to spell all three itself; the usage index needs
 // the same three, and a rule stated twice is a rule that drifts (see fileKinds).
-import { basenameOf, isMatFile, isSlddFile, modelNameOf, refBasename } from '../datamodel/fileKinds.js';
+import { basenameOf, isMatFile, isSlddFile, modelNameOf, projectNameOf, refBasename } from '../datamodel/fileKinds.js';
 import { identifiersIn } from '../datamodel/expressions.js';
 import { blockKey, blockLabel, joinBlockPath } from '../datamodel/blockIdentity.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
@@ -659,8 +659,8 @@ function addProjectSource(
   // filename for its fallback, hence the strip — note ProjectNode.fromParsed labels
   // itself from the basename and never reads parsed.name, so the stripped form only
   // shows up if a host calls parseProject itself.
-  const basename = ((meta && meta.path) || srcId).split(/[\\/]/).pop() || srcId;
-  const parsed = parseProject(files, basename.replace(/\.prj$/i, ''));
+  const basename = basenameOf((meta && meta.path) || srcId) || srcId;
+  const parsed = parseProject(files, projectNameOf(basename));
   const projectNode = ProjectNode.fromParsed(parsed, basename);
   return registerSource(srcId, projectNode, meta, parsed.warnings);
 }

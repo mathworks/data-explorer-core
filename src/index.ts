@@ -103,12 +103,17 @@ export type { IngestContent, IngestOptions } from './core/ingest.js';
 // `modelReferences` has to make the identical guess to resolve an edge by filename. Both
 // spelled `/\.mdl$/i.test(name) ? '.mdl' : '.slx'` independently, so the tree row and the
 // graph edge agreed only by coincidence; now there is one of them.
+// `projectNameOf` is the third of that kind, and the plainest: `parseProject` is public and
+// takes a project NAME, not a filename, so every caller has to strip the `.prj` first —
+// this package before it builds a project's node tree, a host before it builds its own
+// index over the same parse. The result is a label a user reads on both sides.
 export {
   extOf,
   basenameOf,
   refBasename,
   modelNameOf,
   refModelExt,
+  projectNameOf,
   isModelFile,
   isSlddFile,
   isMatFile,

@@ -59,7 +59,11 @@ export { ingest } from './core/ingest.js';
 // `modelReferences` has to make the identical guess to resolve an edge by filename. Both
 // spelled `/\.mdl$/i.test(name) ? '.mdl' : '.slx'` independently, so the tree row and the
 // graph edge agreed only by coincidence; now there is one of them.
-export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, isModelFile, isSlddFile, isMatFile, isProjectFile, } from './datamodel/fileKinds.js';
+// `projectNameOf` is the third of that kind, and the plainest: `parseProject` is public and
+// takes a project NAME, not a filename, so every caller has to strip the `.prj` first —
+// this package before it builds a project's node tree, a host before it builds its own
+// index over the same parse. The result is a label a user reads on both sides.
+export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, projectNameOf, isModelFile, isSlddFile, isMatFile, isProjectFile, } from './datamodel/fileKinds.js';
 // Reading a `.sldd` without a session: which of the two on-disk formats the bytes are,
 // where the content sits inside the result, and what a reference means. Public because a
 // consumer that scans dictionaries WITHOUT opening them — to index a folder, to resolve a
