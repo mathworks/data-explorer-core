@@ -12,7 +12,7 @@ import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import DataModel from '../src/core/DataModel.js';
 import { parseBinarySldd } from '../src/datamodel/parser/BinarySlddParser.js';
 import { resolveSourcePath } from '../src/datamodel/schema/index.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 describe('trySetSchemaProperty routing via node.setProperty', () => {
   it('sets storageClass to a valid enum value', () => {

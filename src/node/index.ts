@@ -9,7 +9,7 @@ import { readFileSync, statSync, readdirSync } from 'node:fs';
 import { basename, join, extname } from 'node:path';
 // Side-effect import: registers node classes so SectionNode.addEntry and
 // NodeRegistry value-parsing work when consumers import ONLY from this subpath.
-import '../datamodel/node/NodeClassMap.js';
+import '../datamodel/node/data/NodeClassMap.js';
 import { createSession as _createSession } from '../core/DataModel.js';
 import { ingest } from '../core/ingest.js';
 import type { Session } from '../core/DataModel.js';

@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import { describe, it, expect } from 'vitest';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 // Build a Parameter whose raw _properties carry an EXTRA unmodeled key on top of
 // the seeded default, so the PI "Other" catch-all has something to surface.

@@ -51,3 +51,42 @@ describe('SignalNode serializeValue — Unit/Description overrides', () => {
     expect('Unit' in props).toBe(false);
   });
 });
+
+describe('the Data Type a Signal shows', () => {
+  // `DataType` has the same two-spelling problem the unit key has: a dictionary may
+  // store a Signal's declared type as `DataType` or as the resolved `DataType_internal`,
+  // and this column was blank for every Signal in every format until the node read both
+  // (DESIGN.md item 37). One spelling working and the other not is invisible until a
+  // dictionary written by a different release shows a whole column of blanks, so both
+  // spellings are pinned, along with which one wins when a file carries the two.
+  const dataTypeCell = (props: Record<string, unknown>) =>
+    SignalNode.parse(rawVal(props), 'sig', null).toRow()!.DataType;
+
+  it('reads the type out of either spelling the file may have used', () => {
+    expect(dataTypeCell({ DataType: 'single' })).toBe('single');
+    expect(dataTypeCell({ DataType_internal: 'int32' })).toBe('int32');
+  });
+
+  it('prefers the resolved DataType_internal when the file carries both', () => {
+    // The two disagree in a dictionary where a type alias was resolved on save;
+    // `_internal` is the answer Simulink itself computed, so it is the one to show.
+    expect(dataTypeCell({ DataType_internal: 'int32', DataType: 'single' })).toBe('int32');
+  });
+
+  it("says 'auto' rather than nothing when the file declares no type", () => {
+    // Not a missing value: a Signal with no DataType key IS auto, and MATLAB shows it
+    // that way. A blank cell would read as "unknown" for the commonest Signal there is.
+    expect(dataTypeCell({})).toBe('auto');
+    expect(dataTypeCell({ DataType: '' })).toBe('auto');
+  });
+
+  it('does not write that default back into a file that never declared a type', () => {
+    // The default is a display answer only. Writing `DataType: "auto"` into a dictionary
+    // that omitted the key would turn opening and saving a file into a diff, and both
+    // save paths have to agree about staying quiet.
+    const node = SignalNode.parse(rawVal({}), 'sig', null);
+    expect(node._getSerializedProperties()).not.toHaveProperty('DataType');
+    const sv = node.serializeValue() as { _elements: { _properties: Record<string, unknown> }[] };
+    expect(sv._elements[0]._properties).not.toHaveProperty('DataType');
+  });
+});

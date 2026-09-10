@@ -21,7 +21,7 @@
 import { describe, it, expect } from 'vitest';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { NOT_AVAILABLE } from '../src/datamodel/parser/McosParser.js';
-import * as NodeClassMap from '../src/datamodel/node/NodeClassMap.js';
+import * as NodeClassMap from '../src/datamodel/node/data/NodeClassMap.js';
 import { CLASS, MI, arrayFlags, dims, matrix, numericData, varName } from './tools/matBytes.js';
 
 // These tests reach into the node's internal state (_kind, _elements, _dims) on

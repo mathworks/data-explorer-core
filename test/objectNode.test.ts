@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 // Importing the class map registers the NodeRegistry the element dispatch uses.
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 import ObjectNode from '../src/datamodel/node/data/ObjectNode.js';
 
 // A top-level value object: { _array_class, _elements: [{ _properties }] }.

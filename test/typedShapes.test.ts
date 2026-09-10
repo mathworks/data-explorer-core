@@ -34,7 +34,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { loadFile, findEntry } from './parity/loadFile.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 const RAW: { name: string; value: unknown }[] = JSON.parse(
   readFileSync(fileURLToPath(new URL('./fixtures/typed_text.sldd', import.meta.url)), 'utf8'),

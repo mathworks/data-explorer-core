@@ -15,7 +15,7 @@ import {
   type SlddFormat,
 } from './roundTripHarness.js';
 import { ServiceBusNode } from '../../../src/datamodel/node/data/ServiceBusNode.js';
-import '../../../src/datamodel/node/NodeClassMap.js';
+import '../../../src/datamodel/node/data/NodeClassMap.js';
 
 const FORMATS: SlddFormat[] = ['json', 'binary'];
 const FIXTURE = 'params.sldd';

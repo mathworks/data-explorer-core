@@ -12,7 +12,7 @@
 // tests and by objectExpansion.test.ts's authentic .mat fixtures.
 import { describe, it, expect } from 'vitest';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 // A value object of N elements, exactly as every parser emits it.
 function arrayValue(arrayClass: string, dims: number[], elements: Record<string, unknown>[]) {

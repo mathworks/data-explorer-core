@@ -6,6 +6,7 @@ import ConfigSetNode from '../data/ConfigSetNode.js';
 import ConfigSetRefNode from '../data/ConfigSetRefNode.js';
 import ModelReferenceNode from '../data/ModelReferenceNode.js';
 import DataSourceNode from '../data/DataSourceNode.js';
+import { basenameOf, isModelFile } from '../../fileKinds.js';
 export default class ModelSectionNode extends ContainerNode {
     constructor(name, parent, label, iconId) {
         super(name, parent);
@@ -74,8 +75,19 @@ export default class ModelSectionNode extends ContainerNode {
     // far likelier to be the same generation of file as the model referencing it — a
     // legacy `.mdl` hierarchy is legacy throughout — and a `.mdl` model whose children
     // were all labelled `.slx` would link to nothing.
-    addReferenceEntry(ref, defaultExt = '.slx') {
-        const named = /\.(slx|mdl)$/i.test(ref.modelName);
+    //
+    // `isModelFile` decides whether the name is already complete, rather than a regex
+    // spelled here: that is the same question this package publishes an answer to, and a
+    // second copy of it is a second opinion about whether `plant.MDL` needs completing —
+    // which would produce `plant.MDL.slx`, a link to nothing.
+    //
+    // Required, with no `.slx` default: a default would be a THIRD answer to "which
+    // extension" — one a caller that forgot the parent's would take silently. The guess
+    // belongs to `fileKinds.refModelExt`, and the point of it living there is that every
+    // caller makes it the same way. No caller ever took the default; omitting the argument
+    // is now a compile error rather than a `.mdl` hierarchy labelled `.slx`.
+    addReferenceEntry(ref, defaultExt) {
+        const named = isModelFile(ref.modelName);
         const node = new ModelReferenceNode(named ? ref.modelName : ref.modelName + defaultExt, this, ref.blockPath);
         this.addChild(node);
         return node;
@@ -89,8 +101,12 @@ export default class ModelSectionNode extends ContainerNode {
         return node;
     }
     addDataSourceEntry(path) {
-        const filename = path.split('/').pop();
-        const node = new DataSourceNode(filename, this, path);
+        // `path` is whatever MATLAB wrote into the model, so a model saved on Windows records
+        // `..\shared\signals.mat`. Splitting on `/` alone left that entire string as the
+        // node's name — a path in the Name column and a path as the link target — while the
+        // link still resolved, because `refBasename` does split on both. `basenameOf` is the
+        // one place that rule lives.
+        const node = new DataSourceNode(basenameOf(path), this, path);
         this.addChild(node);
         return node;
     }

@@ -16,7 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import DataNode from '../src/datamodel/node/DataNode.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 const prop = (name: string, value: unknown, indent = 0) => DataNode.serializePropertyXml(name, value, indent, null);
 

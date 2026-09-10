@@ -6,8 +6,6 @@ export default class ParameterNode extends DataNode {
     Value: unknown;
     _valueNode: DataNode | null;
     DataType: string;
-    _rawMin: unknown;
-    _rawMax: unknown;
     Min: number | undefined;
     Max: number | undefined;
     Unit: string;

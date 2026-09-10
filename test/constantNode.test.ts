@@ -15,7 +15,7 @@ import ConstantNode from '../src/datamodel/node/data/ConstantNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { parsedIsScalarNumeric } from '../src/datamodel/parser/MatlabValueParser.js';
 import MatlabValueParser from '../src/datamodel/parser/MatlabValueParser.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 describe('parsedIsScalarNumeric truth table', () => {
   const scalarNumeric = ['5', '3.14', '-2', 'true', 'false', '1+2i'];

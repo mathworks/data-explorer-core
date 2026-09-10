@@ -158,6 +158,14 @@ export interface UsageIndex {
 
 // --- Summarising -------------------------------------------------------------
 
+// Every `??` below defaults a field ParsedSlx declares as REQUIRED, so TypeScript says none
+// of them can be taken and a coverage report lists them as branches never hit. They are kept
+// deliberately, and the next person measuring coverage should leave them alone: these fields
+// are what a PARSER made of a user's file, and the type is only as true as SlxParser is on
+// every malformed `.slx` anyone ever opens. Deleting them to move that number up trades a
+// summary short of one field for a TypeError that costs the whole file — the opposite of the
+// policy on summarizeFiles below, where one unreadable file must not empty the answers for
+// the rest of the folder.
 function modelSummary(parsed: ParsedSlx, srcId: string, filename: string): ModelSummary {
   const externals = parsed.externalDataSources ?? [];
   return {
@@ -233,7 +241,6 @@ export function summarizeFiles(files: UsageFile[]): FileSummaries {
       } else if (isMatFile(file.filename)) {
         matByName.set(refBasename(file.filename), matSummary(file.srcId, parseMat(file.bytes)));
       } else if (isSlddFile(file.filename)) {
-        matByName.delete(refBasename(file.filename)); // never both; last write wins per kind
         slddByName.set(refBasename(file.filename), slddSummary(file.srcId, readSlddContent(file.bytes)));
       }
     } catch {

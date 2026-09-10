@@ -8,6 +8,7 @@ import PropFileFormat from '../../prop/PropFileFormat.js';
 import PropNumberOfEntries from '../../prop/PropNumberOfEntries.js';
 import { slddChunkContent } from '../../parser/SlddContent.js';
 import { SC_PART, scPartUnreadableMessage } from '../../parser/ScCatalog.js';
+import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.js';
 const SECTION_DEFS = [
     { key: 'design', label: 'Design Data', icon: 'databaseFolderDesign' },
     { key: 'arch', label: 'Architectural Data', icon: 'databaseFolderArchitecture' },
@@ -91,7 +92,15 @@ export default class SlddNode extends ContainerNode {
             node._zipMetadata = json.__zipMetadata || null;
             node._dataSourceAttrs = json.__dataSourceAttrs || null;
         }
-        const parts = json.__MW_TEXT_PARTS__;
+        // `TEXT_PARTS`, not the literal: `serializeJson` below WRITES this bag through the
+        // constant, and a reader in the same file spelling it by hand is the two-copies-of-
+        // one-name shape SlddParts exists to close. A drift here would not empty the
+        // dictionary — the entries arrive through `slddChunkContent` — it would drop only
+        // the System Composer catalog, and drop it QUIETLY: a bag that is not there looks
+        // exactly like a dictionary with no catalog part, which _parseSystemComposer is
+        // deliberately silent about. That is the degrade its own comment below calls the
+        // nastiest partial in this reader.
+        const parts = json[TEXT_PARTS];
         // The shared unwrap (SlddContent), not a local one: the same three-level path is what
         // the usage index reads a dictionary's entries through, and a second copy here is a
         // second chance for one of them to look in the wrong place and report an empty file.
@@ -136,7 +145,7 @@ export default class SlddNode extends ContainerNode {
                     + 'It may not be a data dictionary, or it may not have been written completely.',
             });
         }
-        if (content) {
+        else {
             // VERBATIM, and `unknown[]` on purpose: a reference is a bare string in a
             // compressed dictionary and can be a `{ file: ... }` object in a textual one, and
             // serializeJson writes this array straight back out on save. Normalising here
@@ -160,7 +169,7 @@ export default class SlddNode extends ContainerNode {
     // systemcomposer interface dictionary part, if present.
     static _parseSystemComposer(parts, warnings) {
         const part = parts && parts[`__MW_TEXT_PART__/${SC_PART}`];
-        const content = part && part.__MW_TEXT_content;
+        const content = part && part[TEXT_CONTENT];
         const entries = content && content.entries;
         if (!entries) {
             // The two reasons for a null catalog are opposites, and only one of them is a
@@ -237,9 +246,9 @@ export default class SlddNode extends ContainerNode {
         });
         return {
             __MW_TEXT_COREPROPERTIES__: this.coreProperties,
-            __MW_TEXT_PARTS__: {
-                '__MW_TEXT_PART__/data/chunk0': {
-                    __MW_TEXT_content: {
+            [TEXT_PARTS]: {
+                [DATA_PART_KEY]: {
+                    [TEXT_CONTENT]: {
                         entries,
                         'Dictionary References': this.dictionaryReferences,
                         AllowAccessBWS: this.allowAccessBWS

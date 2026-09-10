@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import { parseExactNum } from './XmlUtils.js';
+import { parseExactNum, formatMatrixSerial, formatMxCharSerial } from './XmlUtils.js';
 function parse(str) {
     str = str.trim();
     if (str === '') {
@@ -268,15 +268,13 @@ function parseArray(str) {
     if (cols < 0) {
         return null;
     }
-    const elements = [];
-    for (let r = 0; r < matrix.length; r++) {
-        for (let c = 0; c < cols; c++) {
-            elements.push(matrix[r][c]);
-        }
-    }
+    // A STRING array's element list is column-major and a numeric one's is row-major —
+    // not a preference here, but what the readers deliver (see flatten). Writing one
+    // loop for both is what made a 2x2 string array come back transposed (defect 50).
     if (isStringArray) {
-        return { type: 'string-array', value: elements, dims: [matrix.length, cols] };
+        return { type: 'string-array', value: flatten(matrix, cols, 'column'), dims: [matrix.length, cols] };
     }
+    const elements = flatten(matrix, cols, 'row');
     // 'logical' with an ARRAY value, not a type of its own: the two are told apart by
     // Array.isArray at every consumer that cares (see _applyParsed and
     // parsedIsScalarNumeric), the same way 'double' already carries both a scalar and an
@@ -287,6 +285,41 @@ function parseArray(str) {
         return { type: 'logical', value: elements, dims: [matrix.length, cols] };
     }
     return { type: 'double', value: elements, dims: [matrix.length, cols] };
+}
+// A literal's rows, flattened into the ONE element list the node layer wants — and the
+// order is not the same for every type, which is the whole reason this is a named
+// function with an argument rather than the loop it used to be at each site.
+//
+// A cell's and a string array's element list reach the node layer COLUMN-major; a
+// numeric one's reaches it ROW-major. That is measured, not chosen:
+// `MatParser.parseMatrix` transposes only its numeric branch and stores cells in file
+// order, MATLAB writes both cells and strings column-major, and all four containers
+// agree — `test/cellElementOrder.test.ts` pins it against MATLAB's own subscripts in
+// `truth.json`. `formatMatrixSerial` then re-transposes the numeric list on the way
+// out, which is why row-major is right there and only there.
+//
+// Every site here used to flatten row-major, so committing a multi-ROW cell or string
+// array TRANSPOSED it — `{1 2; 3 4}` came back `{1 3; 2 4}` and saved that way, and
+// retyping the displayed text transposed it again (defect 50). It hid for as long as it
+// did because a 1xN and an Nx1 read the same in either order, and every editable cell
+// fixture in the corpus is a vector. `charFromRows` below had the column-major rule
+// right from the start, for the same reason and one value type away.
+function flatten(matrix, cols, order) {
+    const elements = [];
+    if (order === 'column') {
+        for (let c = 0; c < cols; c++) {
+            for (let r = 0; r < matrix.length; r++) {
+                elements.push(matrix[r][c]);
+            }
+        }
+        return elements;
+    }
+    for (let r = 0; r < matrix.length; r++) {
+        for (let c = 0; c < cols; c++) {
+            elements.push(matrix[r][c]);
+        }
+    }
+    return elements;
 }
 // The char array `['ab'; 'cd']` spells, from its already-concatenated rows.
 //
@@ -377,13 +410,9 @@ function parseCell(str) {
     if (matrix.length === 0) {
         return { type: 'cell', value: [], dims: [0, 0] };
     }
-    const elements = [];
-    for (let r = 0; r < matrix.length; r++) {
-        for (let c = 0; c < cols; c++) {
-            elements.push(matrix[r][c]);
-        }
-    }
-    return { type: 'cell', value: elements, dims: [matrix.length, cols] };
+    // Column-major, which is the order every reader delivers a cell's elements in and
+    // the order MATLAB writes them (defect 50 — see flatten).
+    return { type: 'cell', value: flatten(matrix, cols, 'column'), dims: [matrix.length, cols] };
 }
 // Split on the row separator, ignoring any ';' that is inside a nested
 // bracket/brace or inside a quoted literal — `{'a;b'}` is one element, not two
@@ -459,6 +488,17 @@ function tokenizeNumbers(rowStr) {
     }
     return nums.length > 0 ? { nums, allLogical } : null;
 }
+// One row of a cell literal, as the raw element values a cell node is built from.
+//
+// Each element is handed to the SAME `parse` the whole value goes through and then
+// spelled by cellElementRaw, so an element of a cell is read exactly like a value of
+// its own. This arm used to do its own reading per bracket kind, and the readings
+// disagreed with the top level: `[` pushed `parseArray(...).value`, the flat element
+// list with the DIMS DROPPED, so `{[1;2]}` came back as a 1x2 and committed as
+// `{[1 2]}` — in the file as well as on screen, since _serializeCell rebuilds each
+// element from its child node (defect 49, reported from the extension). The `{` arm
+// was right precisely because it kept a wrapper carrying `nested.dims`; that wrapper
+// is now what every shaped element gets.
 function tokenizeCellElements(rowStr) {
     const elements = [];
     let i = 0;
@@ -470,46 +510,25 @@ function tokenizeCellElements(rowStr) {
         if (i >= len) {
             break;
         }
+        // The span of ONE element. Bracketed and quoted spans are measured by the
+        // scanners that already know where they end (a ',' or ' ' inside either is
+        // ordinary content); a bare token runs to the next separator.
         const ch = rowStr.charAt(i);
+        let span;
         if (ch === "'" || ch === '"') {
             const scanned = scanQuoted(rowStr, i);
             if (!scanned) {
                 return null;
             }
-            elements.push(scanned.text);
+            span = rowStr.slice(i, scanned.next);
             i = scanned.next;
         }
-        else if (ch === '[') {
-            const end = findMatchingBracket(rowStr, i, '[', ']');
+        else if (ch === '[' || ch === '{') {
+            const end = findMatchingBracket(rowStr, i, ch, ch === '[' ? ']' : '}');
             if (end < 0) {
                 return null;
             }
-            const nested = parseArray(rowStr.slice(i, end + 1));
-            if (nested === null) {
-                return null;
-            }
-            // Same reason as parseLiteral: a numeric array inside a cell is a double
-            // array, so no exact-integer token leaves parseCell. `type === 'double'` is
-            // the gate rather than the value's shape, because a string array's elements
-            // are strings too and {["12" "ab"]} must keep "12" as text.
-            elements.push(collapseExact(nested).value);
-            i = end + 1;
-        }
-        else if (ch === '{') {
-            const end = findMatchingBracket(rowStr, i, '{', '}');
-            if (end < 0) {
-                return null;
-            }
-            const nested = parseCell(rowStr.slice(i, end + 1));
-            if (nested === null) {
-                return null;
-            }
-            elements.push({
-                _array_type: 'Cell',
-                _dimensions: nested.dims,
-                _elements: nested.value,
-                _mw_element_type: 'MATLABArray'
-            });
+            span = rowStr.slice(i, end + 1);
             i = end + 1;
         }
         else {
@@ -517,35 +536,128 @@ function tokenizeCellElements(rowStr) {
             while (end < len && rowStr.charAt(end) !== ',' && rowStr.charAt(end) !== ' ' && rowStr.charAt(end) !== ';') {
                 end++;
             }
-            const token = rowStr.slice(i, end);
-            elements.push(parseLiteral(token));
+            span = rowStr.slice(i, end);
             i = end;
         }
+        const parsed = parse(span);
+        if (parsed === null) {
+            // A bare identifier in a cell stays text — {a, b} is a cell of two names as
+            // far as this reader is concerned, and refusing it would reject a value the
+            // table can perfectly well show. A malformed BRACKETED or QUOTED span is a
+            // different thing: it announced a shape and then failed to be one, so it is
+            // still a rejection of the whole cell.
+            if (ch === '[' || ch === '{' || ch === "'" || ch === '"') {
+                return null;
+            }
+            elements.push(span);
+            continue;
+        }
+        elements.push(cellElementRaw(parsed));
     }
     return elements.length > 0 ? elements : null;
 }
-function parseLiteral(token) {
-    if (token === 'true') {
-        return true;
+/**
+ * One parsed element, in the raw form the READERS produce for that same value — the
+ * shape NodeRegistry.parseValue dispatches on and _serializeCell writes back.
+ *
+ * This is the cell twin of MatlabVariableNode._serializeArray: a shaped value has to
+ * state its shape, because the bare JSON list every element used to take has nowhere
+ * to carry [2,1] and reads back as a row. Each arm below is MATLAB's OWN spelling for
+ * that element, read off two text .sldd files MATLAB wrote itself
+ * (test/parity/matlab/probe_cell_shapes.m):
+ *
+ *   {[1;2]}         {"_type": "double",  "_value": "Matrix(2,1)\n[1.0, 2.0]"}
+ *   {[1 2;3 4]}     {"_type": "double",  "_value": "Matrix(2,2)\n[[1.0, 2.0]; [3.0, 4.0]]"}
+ *   {[1 2]}         [1, 2]                       <- a double ROW, and only that, goes bare
+ *   {[]}            []
+ *   {1}             1
+ *   {[true;false]}  {"_type": "logical", "_value": "Matrix(2,1)\n[1, 0]"}
+ *   {[true false]}  {"_type": "logical", "_value": "[1, 0]"}
+ *   {true}          true
+ *   {['ab';'cd']}   {"_type": "mxchar",  "_value": "Matrix(2,2)\n[[97, 98]; [99, 100]]"}
+ *   {'ab'}          "ab"
+ *   {["a";"b"]}     {"_array_type": "String", "_dimensions": [2,1], "_elements": ["a","b"]}
+ *   {["a" "b"]}     {"_array_type": "String", "_dimensions": [1,2], "_elements": ["a","b"]}
+ *   {"a"}           ["a"]
+ *   {{1;2}}         {"_array_type": "Cell",   "_dimensions": [2,1], "_elements": [1,2]}
+ *
+ * Note how little of that is a free choice: a double row is bare and a LOGICAL row is
+ * not, because the bare form says double; a 1x1 string is a one-element LIST because a
+ * bare JSON string is a char. Where a shape does have to be stated, the spelling comes
+ * from the same formatMatrixSerial the readers and the write-back path use, so the
+ * grammar keeps its single owner (defect 19/21) and only the type tag differs.
+ *
+ * MATLAB omits `_mw_element_type` from a NESTED wrapper (both cases above). It is kept
+ * here because our own writers add it back on save regardless (_serializeCell,
+ * _serializeString), so this matches the shape a re-read of our file produces.
+ */
+function cellElementRaw(parsed) {
+    switch (parsed.type) {
+        case 'cell':
+            return {
+                _array_type: 'Cell',
+                _dimensions: parsed.dims,
+                _elements: parsed.value,
+                _mw_element_type: 'MATLABArray'
+            };
+        case 'string-array':
+        case 'string': {
+            // A string is one class with two literals: `["a";"b"]` arrives as an array
+            // with dims, `"a"` as a lone scalar with none. Neither may be pushed as bare
+            // TEXT, because a bare JSON string is a char — that is what made `{"a"}`
+            // display and save as `{'a'}`, retyping the element.
+            const elems = parsed.type === 'string' ? [parsed.value] : parsed.value;
+            // A 1x1 string is the one-element LIST `["a"]`, which is both MATLAB's own
+            // spelling for it in a cell (probe_cell_shapes.m) and what serializeValue
+            // writes for a string scalar at the top level. Only a string with more than
+            // one element takes the wrapper — and it takes it at EITHER orientation, a
+            // 1x2 row included, unlike a double row.
+            return elems.length === 1
+                ? elems
+                : {
+                    _array_type: 'String',
+                    _dimensions: parsed.dims || [1, elems.length],
+                    _elements: elems,
+                    _mw_element_type: 'MATLABArray'
+                };
+        }
+        case 'char':
+            // dims are set only for a char that needs them (charNeedsShape): a 1xN row
+            // is a bare JSON string in MATLAB's own file, here as at the top level.
+            return parsed.dims
+                ? { _type: 'mxchar', _value: formatMxCharSerial(parsed.value, parsed.dims) }
+                : parsed.value;
+        case 'logical':
+            // Every logical ARRAY is tagged, at either orientation — see the table above.
+            // A logical scalar is a JSON boolean, which is already self-describing.
+            return Array.isArray(parsed.value)
+                ? { _type: 'logical', _value: formatMatrixSerial(parsed.value, parsed.dims, 'logical') }
+                : parsed.value;
+        case 'double': {
+            // A numeric array inside a cell is a double array — a cell element has no
+            // class beside it to consult and a bare decimal literal is a double in MATLAB
+            // too — so the exact-integer token collapses here rather than leaving the
+            // parser: `{18446744073709551615}` holds a double, and a token that escaped
+            // would be written as a JSON string and read back as char (defect 42).
+            // `type === 'double'` is the gate rather than the value's shape, because a
+            // string array's elements are strings too and {["12" "ab"]} must keep "12".
+            const value = collapseExact(parsed).value;
+            if (!Array.isArray(value)) {
+                return value;
+            }
+            // Bare for the two shapes the bare form states correctly: a row, and the
+            // empty `[]` (dims [0,0], which has no Matrix() body to write).
+            const dims = parsed.dims;
+            return dims.length <= 2 && dims[0] <= 1
+                ? value
+                : { _type: 'double', _value: formatMatrixSerial(value, dims, 'double') };
+        }
+        default:
+            // 'complex'. MATLAB writes a cdata MAT stream for one of those even inside a
+            // cell, which this parser cannot build, so the formatted literal is kept as
+            // text — the reading `{1+2i}` has always had here. Logged in the spec.
+            return parsed.value;
     }
-    if (token === 'false') {
-        return false;
-    }
-    const n = parseMatlabNumber(token);
-    // A CELL element's class comes from its own literal, and a bare decimal literal is a
-    // double in MATLAB — {18446744073709551615} holds a double, not a uint64 — so the
-    // exact-integer token collapses here rather than being carried out of the parser.
-    // A cell element has no class beside it to consult later, and a bare string in one
-    // IS text (see the `return token` below), so a token that escaped would come back
-    // as the char '18446744073709551615'.
-    if (typeof n === 'string') {
-        return Number(n);
-    }
-    if (n !== null) {
-        return n;
-    }
-    // Not a number — keep the raw token (a bare identifier in a cell stays text).
-    return token;
 }
 // Skip over quoted spans rather than counting brackets inside them: a bracket is
 // ordinary text between quotes, so `{['a]'], 1}` closed its inner array at the ']'

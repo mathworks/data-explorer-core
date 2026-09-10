@@ -7,7 +7,7 @@
 // data corruption in the user's .sldd file.
 import { describe, it, expect } from 'vitest';
 import StructNode from '../src/datamodel/node/data/StructNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 // --- helpers ---------------------------------------------------------------
 

@@ -1,4 +1,4 @@
-import './datamodel/node/NodeClassMap.js';
+import './datamodel/node/data/NodeClassMap.js';
 export { default as DataModel } from './core/DataModel.js';
 export type { AllNode, SourceMeta } from './core/DataModel.js';
 export * as EventBus from './core/EventBus.js';
@@ -30,8 +30,9 @@ export type { ParsedMat, MatVariable } from './datamodel/parser/MatParser.js';
 export type { ParseWarning, ParseWarningCode } from './datamodel/parser/ParseWarning.js';
 export { ingest } from './core/ingest.js';
 export type { IngestContent, IngestOptions } from './core/ingest.js';
-export { extOf, basenameOf, refBasename, modelNameOf, isModelFile, isSlddFile, isMatFile, isProjectFile, } from './datamodel/fileKinds.js';
+export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, projectNameOf, isModelFile, isSlddFile, isMatFile, isProjectFile, } from './datamodel/fileKinds.js';
 export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames } from './datamodel/parser/SlddContent.js';
+export { DATA_PART, DATA_PART_XML, DATA_PART_KEY, TEXT_PARTS, TEXT_CONTENT } from './datamodel/parser/SlddParts.js';
 export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogFromDefinitions, classificationOf, scRenameEdits, scanScJsonText, scanScXml, } from './datamodel/parser/ScCatalog.js';
 export type { ScDefinition, ScNameSite, ScTextEdit, SystemComposerCatalog } from './datamodel/parser/ScCatalog.js';
 export { buildUsageIndex, summarizeFiles, resolveName } from './datamodel/usage/UsageIndex.js';

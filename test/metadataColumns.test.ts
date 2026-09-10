@@ -9,7 +9,7 @@
 // the extension's integration tests.
 import { describe, it, expect } from 'vitest';
 import DataNode from '../src/datamodel/node/DataNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 describe('DataNode metadata normalization', () => {
   it('normalizes the text-format keys (lastmod / modifiedby)', () => {

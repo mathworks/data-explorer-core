@@ -4,7 +4,7 @@
 // with no renaming. A curated REST-style facade lands in a later milestone.
 
 // Side-effecting node-class registration (must be imported for registry setup).
-import './datamodel/node/NodeClassMap.js';
+import './datamodel/node/data/NodeClassMap.js';
 
 // Runtime services (core).
 export { default as DataModel } from './core/DataModel.js';
@@ -97,11 +97,23 @@ export type { IngestContent, IngestOptions } from './core/ingest.js';
 // file was not, so `Params.SLDD` is found, opened, and then classified as nothing. These
 // are the tests this package's own readers dispatch on, so a host that shares them cannot
 // disagree with the package about what a file is.
+// `refModelExt` is here for a sharper version of the same reason: it is not a question
+// about a file this package was GIVEN, it is the guess this package MAKES when a model
+// names a reference without an extension — and a host that indexes `parseModel`'s raw
+// `modelReferences` has to make the identical guess to resolve an edge by filename. Both
+// spelled `/\.mdl$/i.test(name) ? '.mdl' : '.slx'` independently, so the tree row and the
+// graph edge agreed only by coincidence; now there is one of them.
+// `projectNameOf` is the third of that kind, and the plainest: `parseProject` is public and
+// takes a project NAME, not a filename, so every caller has to strip the `.prj` first —
+// this package before it builds a project's node tree, a host before it builds its own
+// index over the same parse. The result is a label a user reads on both sides.
 export {
   extOf,
   basenameOf,
   refBasename,
   modelNameOf,
+  refModelExt,
+  projectNameOf,
   isModelFile,
   isSlddFile,
   isMatFile,
@@ -117,6 +129,17 @@ export {
 // depending on which writer produced the file, so a reader that accepts only strings
 // resolves the sub-dictionaries of one flavour and none of the other.
 export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames } from './datamodel/parser/SlddContent.js';
+
+// WHERE those entries sit — the zip member name and the three-step JSON key path to the
+// one part a dictionary keeps its entries in. Published for the same reason `SC_PART` is,
+// and more sharply: a host that WRITES a dictionary owns the document this package cannot
+// touch. It holds the open zip's other members and must preserve them byte-for-byte while
+// replacing exactly one, and it splices byte offsets into the raw JSON text rather than
+// re-serializing it — so it looks the part up, excludes it, and re-inserts it under names
+// that have to be identical to these. Drift is not a throw at either end: the wrong
+// exclusion ships a zip carrying the entries twice, and the wrong JSON key hands back
+// content this package reads as `null` and reports as an empty dictionary.
+export { DATA_PART, DATA_PART_XML, DATA_PART_KEY, TEXT_PARTS, TEXT_CONTENT } from './datamodel/parser/SlddParts.js';
 
 // The System Composer catalog: what says a `Simulink.Bus` is a struct type rather than
 // a data interface. It is a SEPARATE part of the dictionary that references its entries

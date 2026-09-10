@@ -272,10 +272,19 @@ describe('MatlabValueParser — char and string', () => {
     expect(parse('["hello"]')).toEqual({ type: 'string-array', value: ['hello'], dims: [1, 1] });
   });
 
-  it('parses a multi-row string matrix', () => {
+  it('parses a multi-row string matrix, COLUMN-major', () => {
+    // ["a" "b"; "c" "d"] is written row by row and stored column by column, so the
+    // element list is a c b d — the order every reader delivers a string array in and
+    // the order MATLAB writes one (defect 50). Row-major here made committing a 2x2
+    // string array transpose it; the numeric branch beside it stays row-major, because
+    // formatMatrixSerial re-transposes that one on the way out.
     expect(parse('["a" "b"; "c" "d"]')).toEqual({
-      type: 'string-array', value: ['a', 'b', 'c', 'd'], dims: [2, 2],
+      type: 'string-array', value: ['a', 'c', 'b', 'd'], dims: [2, 2],
     });
+    // A vector is the same list either way, which is why every existing case here and
+    // every editable fixture in the corpus missed it.
+    expect(parse('["a" "b"]')).toEqual({ type: 'string-array', value: ['a', 'b'], dims: [1, 2] });
+    expect(parse('["a"; "b"]')).toEqual({ type: 'string-array', value: ['a', 'b'], dims: [2, 1] });
   });
 
   it('rejects a ragged string matrix', () => {
@@ -372,8 +381,15 @@ describe('MatlabValueParser — cell arrays', () => {
   });
 
   it('parses double-quoted strings in a cell', () => {
-    expect(parse('{"hello"}')).toEqual({ type: 'cell', value: ['hello'], dims: [1, 1] });
-    expect(parse('{"a,b"}')).toEqual({ type: 'cell', value: ['a,b'], dims: [1, 1] });
+    // A one-element LIST, not the bare text: a bare JSON string is a CHAR, so the
+    // element used to come back the wrong class — `{"hello"}` displayed and saved as
+    // `{'hello'}`, retyping a string to char the way defect 25 did at the top level.
+    // `["hello"]` is MATLAB's own spelling for a 1x1 string in a cell
+    // (test/parity/matlab/probe_cell_shapes.m).
+    expect(parse('{"hello"}')).toEqual({ type: 'cell', value: [['hello']], dims: [1, 1] });
+    expect(parse('{"a,b"}')).toEqual({ type: 'cell', value: [['a,b']], dims: [1, 1] });
+    // The single-quoted twin stays bare text, because that one IS a char.
+    expect(parse("{'hello'}")).toEqual({ type: 'cell', value: ['hello'], dims: [1, 1] });
   });
 
   it('rejects an unterminated quote inside a cell element', () => {
@@ -436,7 +452,10 @@ describe('MatlabValueParser — cell arrays', () => {
     // so this 1x2 cell tokenized to the THREE elements "it", "s'" and "ok" and was
     // written back to the file as a 1x3 cell of mangled text.
     expect(parse("{'it''s', 'ok'}")).toEqual({ type: 'cell', value: ["it's", 'ok'], dims: [1, 2] });
-    expect(parse('{"a""b", "c"}')).toEqual({ type: 'cell', value: ['a"b', 'c'], dims: [1, 2] });
+    // Each double-quoted element is a 1x1 string, hence a one-element list — see
+    // 'parses double-quoted strings in a cell'. What this asserts is the SHAPE: two
+    // elements, and the escaped quote inside the first one.
+    expect(parse('{"a""b", "c"}')).toEqual({ type: 'cell', value: [['a"b'], ['c']], dims: [1, 2] });
     expect(parse("{''''}")).toEqual({ type: 'cell', value: ["'"], dims: [1, 1] });
   });
 

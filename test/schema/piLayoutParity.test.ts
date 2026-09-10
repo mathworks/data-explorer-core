@@ -7,7 +7,7 @@ import { EnumTypeNode } from '../../src/datamodel/node/data/EnumTypeNode.js';
 import { BusNode } from '../../src/datamodel/node/data/BusNode.js';
 import { ConnectionBusNode } from '../../src/datamodel/node/data/ConnectionBusNode.js';
 import { ServiceBusNode } from '../../src/datamodel/node/data/ServiceBusNode.js';
-import '../../src/datamodel/node/NodeClassMap.js';
+import '../../src/datamodel/node/data/NodeClassMap.js';
 
 // Every schema-driven class opens with a common, fixed-name "General" identity
 // group [Name, (Value,) (DataType/BaseType,) Kind, Class] — a deliberate

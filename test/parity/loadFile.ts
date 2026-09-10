@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSession } from '../../src/index.js';
 import { ingest } from '../../src/core/ingest.js';
-import '../../src/datamodel/node/NodeClassMap.js';
+import '../../src/datamodel/node/data/NodeClassMap.js';
 
 /** Read a file relative to THIS module and hand back a detached ArrayBuffer. */
 export function bytesOf(rel: string): ArrayBuffer {

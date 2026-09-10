@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import { describe, it, expect } from 'vitest';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 import ModelSectionNode from '../src/datamodel/node/container/ModelSectionNode.js';
 import ConfigSetNode from '../src/datamodel/node/data/ConfigSetNode.js';
 import ConfigSetRefNode from '../src/datamodel/node/data/ConfigSetRefNode.js';

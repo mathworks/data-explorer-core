@@ -12,110 +12,16 @@ import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js
 // The name reductions and the expression reading, from the leaf modules that hold the
 // single copy of each. This file used to spell all three itself; the usage index needs
 // the same three, and a rule stated twice is a rule that drifts (see fileKinds).
-import { basenameOf, isMatFile, isSlddFile, modelNameOf, refBasename } from '../datamodel/fileKinds.js';
+import { basenameOf, isMatFile, isSlddFile, modelNameOf, projectNameOf, refBasename } from '../datamodel/fileKinds.js';
 import { identifiersIn } from '../datamodel/expressions.js';
 import { blockKey, blockLabel, joinBlockPath } from '../datamodel/blockIdentity.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
-// Whether a query field was actually asked about.
-//
-// `undefined` is the field a host left out. `''` is the field it filled in from an
-// empty search box, and it is treated as ALSO not asked: a substring test against ''
-// passes for every node, so honouring it would answer "the user has typed nothing"
-// with every node in every open file — the largest allocation the session can make
-// and the one nobody asked for. A caller that really means "renders as empty" says
-// so with a pattern, `/^$/`, which this leaves alone. A RegExp is never `''`, so an
-// explicit `new RegExp('')` stays a match-all: a pattern object is a choice, an
-// empty string is a blank.
-function isAsked(field) {
-    return field !== undefined && field !== '';
-}
-// A criterion over one piece of a node's text.
-//
-// The read is defensive. Name, class, kind and value are all getters over parsed
-// content, and a host may hand the session a tree this package did not build
-// (addParsedSource exists for exactly that), so one node that throws on read must not
-// take a whole search down — the same rule readPropertyValue applies on the edit path.
-//
-// A failed read is NOT the empty string: a criterion is a claim about a field, and a
-// field that cannot be read is a claim that cannot be checked, so it is false. Folding
-// it to '' instead would let `{ value: /^$/ }` — a caller asking specifically which
-// nodes render no value — answer with a node whose value might render as anything, if
-// only it could be read.
-function textCriterion(read, test) {
-    return (node) => {
-        let text;
-        try {
-            text = read(node);
-        }
-        catch {
-            return false;
-        }
-        return typeof text === 'string' && test(text);
-    };
-}
-// A caller's string or RegExp as a test over one piece of text. `whole` picks between
-// the two kinds of string criterion described on FindNodesQuery.
-function compileTextTest(pattern, caseSensitive, whole) {
-    if (typeof pattern !== 'string') {
-        // A RegExp is honoured exactly as written: `caseSensitive` never adds an `i` flag
-        // and never takes one away, because the caller already made that choice and a
-        // pattern that behaves differently inside this call than it did in the host's own
-        // test is worse than either default.
-        //
-        // The one rewrite is `g`/`y`, and it is not optional. RegExp.prototype.test on a
-        // global or sticky pattern advances lastIndex and resumes from there next call,
-        // so reusing one caller-supplied pattern across a whole index would match roughly
-        // every SECOND node — and because the state lives in the caller's object, a host
-        // retyping the same search would watch its own results flicker. Cloned rather
-        // than reset per node so the caller's own object is never mutated, and once per
-        // query rather than once per node.
-        if (pattern.global || pattern.sticky) {
-            const stateless = new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ''));
-            return (text) => stateless.test(text);
-        }
-        return (text) => pattern.test(text);
-    }
-    if (caseSensitive) {
-        return whole ? (text) => text === pattern : (text) => text.includes(pattern);
-    }
-    // Folded once here, per query, rather than per node per criterion.
-    const folded = pattern.toLowerCase();
-    return whole ? (text) => text.toLowerCase() === folded : (text) => text.toLowerCase().includes(folded);
-}
-// The criteria a query asks for, in the order they should be evaluated: the two
-// whole-string compares first, then the name substring, and the VALUE last —
-// displayValue formats its content on read (a large matrix or cell renders through
-// the display-convention machinery), so it is the one field worth not reading for a
-// node another criterion has already rejected.
-function compileCriteria(query) {
-    const caseSensitive = query.caseSensitive === true;
-    const criteria = [];
-    if (isAsked(query.className)) {
-        criteria.push(textCriterion((node) => node.className, compileTextTest(query.className, caseSensitive, true)));
-    }
-    if (isAsked(query.kind)) {
-        criteria.push(textCriterion((node) => node.kind, compileTextTest(query.kind, caseSensitive, true)));
-    }
-    if (isAsked(query.name)) {
-        // The node's own name — the identifier its id is built from, and the same string
-        // findNodeById resolves against — not its rendered displayName. The two differ
-        // only for positional elements, whose label embeds the PARENT's name ('Array(1)'
-        // for the node named '1'), so matching the label as well would make a search for
-        // `Array` return every element of every array and bury the variable in its own
-        // contents. A host that wants label matching has displayName one field away.
-        criteria.push(textCriterion((node) => node.name, compileTextTest(query.name, caseSensitive, false)));
-    }
-    if (isAsked(query.value)) {
-        // Matched against displayValue, which is the string a host actually shows: it is
-        // what PropValue.readValue returns for the Value column and what BaseNode.toRow
-        // falls back to, so a user searches over exactly what a user can read. A node
-        // with no value renders '' and so fails every non-empty pattern, which is what
-        // keeps a value query from sweeping up the sections and the structure-only
-        // entries the way a listing would.
-        criteria.push(textCriterion((node) => node.displayValue, compileTextTest(query.value, caseSensitive, false)));
-    }
-    return criteria;
-}
+// The session's own vocabulary — what a caller passes in and what these functions hand
+// back — and the compiler that turns one of those types, FindNodesQuery, into the tests
+// findNodes runs. Both used to be written out in this file, above createSession; neither
+// is session code, and each now has a module of its own that says why (see the headers of
+// `sessionTypes.ts` and `findQuery.ts`).
+import { compileCriteria } from './findQuery.js';
 // A link target split into the entry name it asks for and the source it asks in.
 //
 // Two grammars, and only two: `name@source` names an ENTRY inside a named source, and a
@@ -431,8 +337,11 @@ export function createSession(opts = {}) {
         // filename for its fallback, hence the strip — note ProjectNode.fromParsed labels
         // itself from the basename and never reads parsed.name, so the stripped form only
         // shows up if a host calls parseProject itself.
-        const basename = ((meta && meta.path) || srcId).split(/[\\/]/).pop() || srcId;
-        const parsed = parseProject(files, basename.replace(/\.prj$/i, ''));
+        // No `|| srcId` guard on the reduction: `basenameOf` returns the whole string when it
+        // finds no separator to cut at, so it is falsy only for input that was already empty —
+        // in which case srcId is the empty string too and the fallback returned it unchanged.
+        const basename = basenameOf((meta && meta.path) || srcId);
+        const parsed = parseProject(files, projectNameOf(basename));
         const projectNode = ProjectNode.fromParsed(parsed, basename);
         return registerSource(srcId, projectNode, meta, parsed.warnings);
     }
@@ -603,8 +512,8 @@ export function createSession(opts = {}) {
      *     already precise and cheap through getDataSource(id).flatten().
      *
      *   - A RegExp keeps its own flags; `caseSensitive` governs string criteria only. See
-     *     compileTextTest, which also explains the one rewrite (`g`/`y`) and why it is
-     *     forced.
+     *     compileTextTest in findQuery.ts, which also explains the one rewrite (`g`/`y`) and
+     *     why it is forced.
      *
      *   - Results come back in the order the session indexed them: per source, the
      *     pre-order walk indexSource performs (parent before child, siblings in tree
@@ -1140,7 +1049,7 @@ export function createSession(opts = {}) {
             // package did not build, and a host that supplies block-parameter usages in the
             // documented shape should be searchable. The reads below are defensive for the same
             // reason — one hostile source must not take the whole scan down, the rule
-            // textCriterion applies on the search path.
+            // findQuery.ts's textCriterion applies on the search path.
             const declared = source.blockParamUsages;
             if (!Array.isArray(declared)) {
                 continue;

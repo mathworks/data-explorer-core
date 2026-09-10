@@ -27,7 +27,7 @@ import { ConnectionBusNode } from '../../src/datamodel/node/data/ConnectionBusNo
 import { ServiceBusNode } from '../../src/datamodel/node/data/ServiceBusNode.js';
 import { EnumTypeNode } from '../../src/datamodel/node/data/EnumTypeNode.js';
 import NodeRegistry from '../../src/datamodel/node/NodeRegistry.js';
-import '../../src/datamodel/node/NodeClassMap.js';
+import '../../src/datamodel/node/data/NodeClassMap.js';
 
 function groupsOf(node: any): { name: string; items: string[] }[] {
   const pi = node.toPIObject();

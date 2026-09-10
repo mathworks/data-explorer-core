@@ -20,7 +20,7 @@ import SectionNode from '../src/datamodel/node/container/SectionNode.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
 import { generateUuid } from '../src/datamodel/node/container/SectionNode.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER } from '../src/datamodel/SectionConstants.js';
-import { getClass, getRegisteredClasses } from '../src/datamodel/node/NodeClassMap.js';
+import { getClass, getRegisteredClasses } from '../src/datamodel/node/data/NodeClassMap.js';
 
 // A real SlddNode already builds the four sections wired to a parent, which is
 // what the namespace and dirty-flag logic reads.

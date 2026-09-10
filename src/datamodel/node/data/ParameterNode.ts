@@ -26,8 +26,6 @@ export default class ParameterNode extends DataNode {
     // — see _adoptValueNode; otherwise it lives here and nowhere else.
     _valueNode: DataNode | null;
     DataType: string;
-    _rawMin: unknown;
-    _rawMax: unknown;
     Min: number | undefined;
     Max: number | undefined;
     Unit: string;
@@ -44,8 +42,6 @@ export default class ParameterNode extends DataNode {
         // Display-only — _getSerializedProperties copies the on-disk properties, so
         // nothing writes this default back into a file that did not have it.
         this.DataType = (props.DataType as string) || 'auto';
-        this._rawMin = props.Min;
-        this._rawMax = props.Max;
         this.Min = ParameterNode._normalizeMinMax(props.Min);
         this.Max = ParameterNode._normalizeMinMax(props.Max);
         this.Unit = (props.DocUnits as string) || (props.Unit as string) || '';
@@ -297,16 +293,34 @@ export default class ParameterNode extends DataNode {
         } else {
             innerValue = this.Value;
         }
-        const props = Object.assign({}, this.serial._properties as Record<string, unknown>);
+        // `sp` is the bag as the FILE holds it, `props` the copy that goes out — the same
+        // two names SignalNode and BusElementNode use in their versions of this method.
+        // Every guard below asks `sp`, never the copy, because the question each one asks
+        // is what the FILE had. The two answer alike today (nothing written into the copy
+        // shares a key with a later guard), so this is about the next guard added: one
+        // asking the copy about a key an earlier line already put there — `Value` is
+        // written before all four — would read this save's own output as evidence about
+        // the file and write a property the file never carried.
+        const sp = this.serial._properties as Record<string, unknown>;
+        const props = Object.assign({}, sp);
         if (innerValue !== undefined) { props.Value = innerValue; }
-        if ('Min' in (this.serial._properties as Record<string, unknown>) || this.Min !== undefined) {
-            props.Min = this.Min !== undefined ? this.Min : this._rawMin;
+        // A cleared bound is written as `[]`, the empty value MATLAB itself stores —
+        // NOT as whatever the file held, which is what this used to fall back to: the
+        // node's row went blank, the save put the old number back, and the bound
+        // reappeared on reopen with no error anywhere (the same rule SignalNode already
+        // wrote correctly). `undefined` is not the alternative: this one bag feeds BOTH
+        // save paths, and serializePropertyXml spells `undefined` as `Class="char"` — an
+        // empty char where a double belongs. The residual difference from MATLAB is that
+        // the TEXT dictionary gets `"Min": []` where MATLAB omits the key entirely; both
+        // read back as no bound, so this is a correct value spelled our way, not parity.
+        if ('Min' in sp || this.Min !== undefined) {
+            props.Min = this.Min !== undefined ? this.Min : [];
         }
-        if ('Max' in (this.serial._properties as Record<string, unknown>) || this.Max !== undefined) {
-            props.Max = this.Max !== undefined ? this.Max : this._rawMax;
+        if ('Max' in sp || this.Max !== undefined) {
+            props.Max = this.Max !== undefined ? this.Max : [];
         }
-        if ('DocUnits' in (this.serial._properties as Record<string, unknown>) || this.Unit) { props.DocUnits = this.Unit; }
-        if ('Description' in (this.serial._properties as Record<string, unknown>) || this.Description) { props.Description = this.Description; }
+        if ('DocUnits' in sp || this.Unit) { props.DocUnits = this.Unit; }
+        if ('Description' in sp || this.Description) { props.Description = this.Description; }
         return props;
     }
 

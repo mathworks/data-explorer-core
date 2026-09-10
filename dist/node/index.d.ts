@@ -1,4 +1,4 @@
-import '../datamodel/node/NodeClassMap.js';
+import '../datamodel/node/data/NodeClassMap.js';
 import { createSession as _createSession } from '../core/DataModel.js';
 import type { Session } from '../core/DataModel.js';
 import type { ISourceNode } from '../core/NodeInterfaces.js';

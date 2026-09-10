@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
-import DataNode, { type SetPropertyResult } from '../DataNode.js';
+import SimulinkObjectNode from '../SimulinkObjectNode.js';
+import type { SetPropertyResult } from '../DataNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import PropName from '../../prop/PropName.js';
@@ -12,7 +13,7 @@ const CLASS_NAME = 'Simulink.VariantControl';
 const MSG_INTEGER = 'Simulink.VariantControl value must be an integer, logical, an enumeration, or a Simulink.Parameter with value of type integer, logical or enumeration.';
 const MSG_SCALAR = 'Simulink.VariantControl value must be a scalar or a Simulink.Parameter with scalar value.';
 
-export default class VariantControlNode extends DataNode {
+export default class VariantControlNode extends SimulinkObjectNode {
     Value: unknown;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) { super(name, parent, serial); this.Value = props.Value !== undefined ? props.Value : ''; }
     get icon(): string { return 'twoConnected_wsDefault'; }
@@ -85,8 +86,9 @@ export default class VariantControlNode extends DataNode {
         return true;
     }
 
-    _getSerializedProperties(): Record<string, unknown> { const props = Object.assign({}, this.serial._properties as Record<string, unknown>); props.Value = this.Value; return props; }
-    serializeValue(): unknown { return this._serializeSimulinkObject({ Value: this.Value }); }
+    // UNGATED: the Value is what the control selects with, so it is written whether or not
+    // the file carried the key — including the empty one setProperty accepts above.
+    _serializedOverrides(): Record<string, unknown> { return { Value: this.Value }; }
     static get defaultName(): string { return 'VariantControl'; }
     static createDefault(name: string, parent: BaseNode | null): VariantControlNode { const rawVal = { _array_class: CLASS_NAME, _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: { Value: '' } }] }; const props = rawVal._elements[0]._properties; const serial = { _rawVal: rawVal, _properties: props }; return new VariantControlNode(name, parent, props as unknown as Record<string, unknown>, serial as unknown as Record<string, unknown>); }
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): VariantControlNode { const elem = rawVal._elements && (rawVal._elements as unknown[])[0]; const props = ((elem && (elem as Record<string, unknown>)._properties) || {}) as Record<string, unknown>; const serial = { _rawVal: rawVal, _properties: props }; return new VariantControlNode(name, parent, props, serial as Record<string, unknown>); }

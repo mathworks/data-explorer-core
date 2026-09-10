@@ -42,7 +42,7 @@ import { unzipSync } from 'fflate';
 import { loadFile, findEntry } from './parity/loadFile.js';
 import MatlabValueParser from '../src/datamodel/parser/MatlabValueParser.js';
 import { charNeedsShape } from '../src/datamodel/parser/XmlUtils.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 // ---- MATLAB's bytes, both flavours -------------------------------------------
 

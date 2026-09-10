@@ -27,6 +27,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { unzipSync, zipSync, strToU8, zlibSync } from 'fflate';
 import { parseSlx } from '../src/datamodel/parser/SlxParser.js';
@@ -37,6 +38,7 @@ import { parseBinarySldd, parseBinarySlddParts } from '../src/datamodel/parser/B
 // SlddNode.parse builds a tree out of. A deep import of SlddNode alone leaves
 // NodeRegistry empty and parseEntry with nothing to route an entry to.
 import { SlddNode } from '../src/index.js';
+import { reasonOf } from '../src/datamodel/parser/ParseWarning.js';
 import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
 import {
   CLASS,
@@ -1040,5 +1042,55 @@ describe('SlddNode.parse — the warnings channel', () => {
     const { node, warnings } = readContent(json, 'params.sldd');
     expect(warnings).toEqual([]);
     expect(entryNamesOf(node)).toContain(first.name as string);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reasonOf — the cause every message above is built from
+// ---------------------------------------------------------------------------
+//
+// Eight warning sites in this package quote `reasonOf(err)` inside their message, and
+// every one of them is inside a `catch`, whose binding is `unknown` because a throw can
+// carry anything. What comes back has to be a STRING, always: a warning is stored and
+// handed across a worker boundary by structured clone or JSON, so an `Error` kept there
+// arrives as `{}` (JSON) and an arbitrary object may not clone at all — which is why
+// nothing here holds the Error itself. The tests above all throw real Errors; these two
+// are the other arm, and the failure they guard against is a message that reads
+// "the model part could not be read (undefined)".
+
+describe('reasonOf — a cause that is not an Error', () => {
+  it('reads the cause off an Error thrown in another realm, which instanceof cannot see', () => {
+    // The case this arm actually exists for, and the reason it is not dead code. `instanceof`
+    // compares against ONE realm's Error, so an error raised in a worker, a sandbox or a vm
+    // context fails the test while carrying a perfectly good message — and hosts of this
+    // package parse off-thread by design (see the header of ParseWarning.ts). Falling
+    // through to String() is what keeps the cause readable there.
+    const thrown = runInNewContext('new TypeError("the model part is not an mxarray")') as unknown;
+    expect(thrown instanceof Error, 'a cross-realm Error is what this arm is for').toBe(false);
+    // Error.prototype.toString, so the class name comes along with the message. More than
+    // the message alone, and all that is available without the type.
+    expect(reasonOf(thrown)).toContain('the model part is not an mxarray');
+    expect(reasonOf(thrown)).toContain('TypeError');
+  });
+
+  it('reduces a thrown non-Error to text, so a warning stays a value', () => {
+    // A host's `throw` need not be an Error at all, and reaching for `.message` on one of
+    // these is what puts the word "undefined" into the sentence a user reads.
+    expect(reasonOf('the sandbox refused to read the file')).toBe('the sandbox refused to read the file');
+    expect(reasonOf(undefined)).toBe('undefined');
+    expect(reasonOf(null)).toBe('null');
+    // A thrown object keeps nothing but its shape. Asserted as "a string" rather than as
+    // that exact text: the floor this guarantees is the type, and a reader that learned to
+    // say more about an object would still be honouring it.
+    expect(typeof reasonOf({ code: 'ENOENT' })).toBe('string');
+    // What the type is for. A warning built from any of them is a plain value that
+    // survives both crossings intact.
+    const warning: ParseWarning = {
+      code: 'source-unreadable',
+      message: `cases.slx could not be opened and was skipped (${reasonOf('EBUSY')})`,
+    };
+    expect(warning.message).toContain('EBUSY');
+    expect(() => structuredClone(warning)).not.toThrow();
+    expect(JSON.parse(JSON.stringify(warning))).toEqual(warning);
   });
 });

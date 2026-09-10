@@ -9,7 +9,7 @@
 // the per-class differences get their own cases.
 
 import { describe, it, expect } from 'vitest';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 import VariantBankNode from '../src/datamodel/node/data/VariantBankNode.js';
 import VariantBankCoderInfoNode from '../src/datamodel/node/data/VariantBankCoderInfoNode.js';
 import VariantExpressionNode from '../src/datamodel/node/data/VariantExpressionNode.js';

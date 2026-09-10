@@ -23,7 +23,7 @@ import { describe, it, expect } from 'vitest';
 import ContainerNode from '../src/datamodel/node/ContainerNode.js';
 import BaseNode from '../src/datamodel/node/BaseNode.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 /** A container holding `a` (with one nested child) and `b`. */
 function tree(): { box: ContainerNode; a: BaseNode; a1: BaseNode; b: BaseNode } {

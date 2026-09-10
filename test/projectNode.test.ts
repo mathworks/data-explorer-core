@@ -83,6 +83,33 @@ describe('ProjectNode.fromParsed', () => {
     expect([folder.name, (folder as any).location]).toEqual(['helpers', 'utils/helpers/']);
   });
 
+  it('never leaves an entry nameless, whatever shape the recorded path has', () => {
+    // Both sections name an entry by the last segment of its path, and a `.prj` is not
+    // required to hand over a path that HAS a last segment: a folder member recorded with
+    // a trailing separator, or a path entry that is a bare root, leaves the split with
+    // nothing to take. The Name column is the only thing identifying a row here — a
+    // project is read-only, so there is no editing the blank away — and a nameless row is
+    // also unselectable-looking and indistinguishable from its neighbours. So the rule for
+    // both is the same: when there is no basename to show, show the path itself.
+    //
+    // MATLAB does not normally write either shape; a Windows-authored or hand-edited
+    // project can, which is also why the separator match takes `\` as well as `/`.
+    const parsed = makeParsed();
+    parsed.files = [
+      { path: 'models/', isFolder: true, labels: [] },
+      { path: 'code\\utils\\a.m', isFolder: false, labels: [] },
+    ];
+    parsed.pathFolders = ['/'];
+    const node = ProjectNode.fromParsed(parsed, 'p.prj');
+    const named = (n: { name: string; location?: string }) => [n.name, (n as any).location];
+    expect(node.getSection('files')!.children.map((c) => named(c as any))).toEqual([
+      ['models/', 'models/'],
+      // A backslash counts as a separator, so a Windows path is not shown whole.
+      ['a.m', 'code\\utils\\a.m'],
+    ]);
+    expect(named(node.getSection('path')!.children[0] as any)).toEqual(['/', '/']);
+  });
+
   it('falls back to the reference id when it has no name', () => {
     const parsed = makeParsed();
     parsed.references = [{ id: 'ref-uuid-2' }];

@@ -15,7 +15,7 @@ export default class ModelSectionNode extends ContainerNode {
     addReferenceEntry(ref: {
         blockPath: string;
         modelName: string;
-    }, defaultExt?: string): BaseNode;
+    }, defaultExt: string): BaseNode;
     addBlockEntry(blockName: string, blockType: string, paramUsages: Array<{
         property: string;
         value: string;

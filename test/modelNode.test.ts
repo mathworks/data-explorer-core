@@ -257,13 +257,68 @@ describe('DataSourceNode', () => {
     ]);
   });
 
-  it('shows the full path but links by filename', () => {
+  it('classifies the extension case-insensitively, the way the link already did', () => {
+    // A model records a linked file the way its author typed it, and neither the file
+    // systems these live on nor this package's reference matching care: `refBasename`
+    // lower-cases precisely so `Params.SLDD` inside a model resolves to `params.sldd` on
+    // disk. The icon and the class name were the two readers that did NOT, so a
+    // dictionary spelled in caps resolved as a dictionary and was then presented as a
+    // MAT file — the row disagreed with its own working link, and nothing about it looked
+    // broken. This is the defect `fileKinds` was written to end, in the package that
+    // wrote it.
+    const ds = model({ externalDataSources: ['A.SLDD', 'B.SLX', 'C.MDL', 'D.MAT'] }).getSection('dataSources');
+    expect(ds.children.map((c: any) => [c.icon, c.className])).toEqual([
+      ['simulinkDataDictionary_FT', 'Data Dictionary'],
+      ['simulinkModel_FT', 'Simulink Model'],
+      ['simulinkModel_FT', 'Simulink Model'],
+      ['matlabWorkspaceFile', 'MAT File'],
+    ]);
+  });
+
+  it('picks the icon and the class name from ONE classification', () => {
+    // Two getters answering one question, and they were two independent chains of
+    // `endsWith`. A fourth kind — or a case fix — applied to one and not the other gives
+    // a row a dictionary icon under the label 'MAT File', which is not a crash and not a
+    // warning, just a row that is quietly wrong about what it points at.
+    //
+    // Asserted as a partition rather than as a table so it pins the RELATIONSHIP: both
+    // getters must draw the same lines between these names, whatever the two vocabularies
+    // happen to be. Adding a kind to one getter alone fails here even if every literal
+    // above is still correct.
+    const ds = model({
+      externalDataSources: ['a.sldd', 'b.slx', 'c.mdl', 'd.mat', 'e.txt', 'F.SLDD', 'G.MDL'],
+    }).getSection('dataSources');
+    const partition = (answer: (c: any) => string): string[] => {
+      const groups = new Map<string, string[]>();
+      for (const child of ds.children) {
+        const key = answer(child);
+        groups.set(key, [...(groups.get(key) ?? []), child.name]);
+      }
+      return [...groups.values()].map((names) => names.join(',')).sort();
+    };
+    expect(partition((c) => c.icon)).toEqual(partition((c) => c.className));
+    // And it is a real partition, not everything in one bucket, which would pass above.
+    expect(partition((c) => c.icon).length).toBeGreaterThan(2);
+  });
+
+  it('shows the full path but links by filename, on either separator', () => {
     // The name is what the host resolves against the workspace, so a nested
     // source must link by basename even though the cell shows its whole path.
     const ds = model({ externalDataSources: ['sub/dir/signals.mat'] }).getSection('dataSources').children[0];
     expect(ds.name).toBe('signals.mat');
     expect(ds.fullPath).toBe('sub/dir/signals.mat');
     expect(ds.toRow().Value).toEqual({ text: 'sub/dir/signals.mat', linkTarget: 'signals.mat' });
+
+    // A backslash path is not hypothetical: this string is whatever MATLAB wrote into the
+    // model, so a model saved on Windows records `..\shared\signals.mat`. Splitting on `/`
+    // alone left the WHOLE path as the node's name, so the Name column showed a path and
+    // `linkTarget` was a path — while the link still resolved, because that matching goes
+    // through `refBasename`, which splits on both. One rule, two spellings, and only the
+    // spelling a user reads was wrong.
+    const win = model({ externalDataSources: ['..\\shared\\signals.mat'] }).getSection('dataSources').children[0];
+    expect(win.name).toBe('signals.mat');
+    expect(win.fullPath).toBe('..\\shared\\signals.mat');
+    expect(win.toRow().Value).toEqual({ text: '..\\shared\\signals.mat', linkTarget: 'signals.mat' });
   });
 
   it('is a non-renamable entry reporting Not Loaded', () => {

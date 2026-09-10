@@ -15,7 +15,7 @@ import { EnumTypeNode } from '../src/datamodel/node/data/EnumTypeNode.js';
 import { BusNode } from '../src/datamodel/node/data/BusNode.js';
 import { ConnectionBusNode } from '../src/datamodel/node/data/ConnectionBusNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 function rawVal(className: string, properties: Record<string, unknown>): Record<string, unknown> {
   return {

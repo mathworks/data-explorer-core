@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import SignalNode from '../src/datamodel/node/data/SignalNode.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 // An editable generic cell is the object shape { text, editable, editor }; a
 // skipped/absent column is simply not a key on the row.

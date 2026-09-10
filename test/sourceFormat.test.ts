@@ -87,6 +87,20 @@ describe('sourceFormat — every source root names its own format', () => {
     expect(format).not.toBe('slx');
   });
 
+  it('decides the package flavour on the EXTENSION, not on the name containing "mdl"', () => {
+    // The `.slx` and the package `.mdl` are the same bytes read the same way, so the only
+    // thing separating their two tokens is a test on the name — and the name is a user's,
+    // so `mdl_library.slx` and `MdlUtils.slx` are ordinary. A test that matched anywhere in
+    // the name would call those packages `mdl-package`, and `serializeSource` picks a
+    // WRITER by this field: the file would be offered to Simulink as the wrong container,
+    // from a model that opens and reads perfectly.
+    const s = createSession();
+    expect((toDTO(s.addModelSource('mdl_library.slx', bytes(SLX))) as SourceDTO).sourceFormat).toBe('slx');
+    expect((toDTO(s.addModelSource('notes.mdl.slx', bytes(SLX))) as SourceDTO).sourceFormat).toBe('slx');
+    // And the other direction, in the case MATLAB and Windows actually write.
+    expect((toDTO(s.addModelSource('SHOUTED.MDL', bytes(MDL_PACKAGE))) as SourceDTO).sourceFormat).toBe('mdl-package');
+  });
+
   it('a .mat says mat', () => {
     const s = createSession();
     const src = s.addMatSource('v.mat', bytes(MAT));

@@ -61,6 +61,28 @@ export function isModelFile(filename) {
     const ext = extOf(filename);
     return ext === '.slx' || ext === '.mdl';
 }
+/**
+ * The extension to complete a bare model-reference name with, given the name of the
+ * model that RECORDS the reference.
+ *
+ * A model file names its references without an extension, so the bare name has to be
+ * completed before it can be used as a link target or matched against a file on disk.
+ * It takes the PARENT's own extension: a reference is far likelier to be the same
+ * generation of file as the model referencing it — a legacy `.mdl` hierarchy is legacy
+ * throughout — and a `.mdl` model whose children were all labelled `.slx` would link to
+ * nothing.
+ *
+ * This is published for the same reason `isModelFile` is. The guess is made TWICE for
+ * every model opened, on two paths that must not disagree: this package completes it for
+ * the node tree (`ModelNode.fromParsed` → `addReferenceEntry`), and a host completes it
+ * again for whatever index it builds over `parseModel`'s raw `modelReferences` — a usage
+ * graph resolves edges by filename, so it cannot use the bare name either. When the two
+ * copies drift, the tree row and the graph edge name two different files for one
+ * reference, and the row you can see stops agreeing with the link that resolves.
+ */
+export function refModelExt(parentFilename) {
+    return extOf(parentFilename) === '.mdl' ? '.mdl' : '.slx';
+}
 /** True if `filename` names a data dictionary. */
 export function isSlddFile(filename) {
     return extOf(filename) === '.sldd';
@@ -72,5 +94,25 @@ export function isMatFile(filename) {
 /** True if `filename` names a MATLAB project. */
 export function isProjectFile(filename) {
     return extOf(filename) === '.prj';
+}
+/**
+ * A project file name with its `.prj` removed — the project's NAME, as distinct from the
+ * file it is stored in.
+ *
+ * `parseProject` takes this rather than a filename, because it is what a project calls
+ * itself: the name appears in a `.prj`'s own metadata and is the fallback when that
+ * metadata is missing or unreadable. So every caller of `parseProject` has to make this
+ * reduction first, and — like `refModelExt` — it is made on two paths that must not
+ * disagree: this package makes it when adding a project source to a session, and a host
+ * makes it again for whatever index it builds directly over `parseProject`. The name is
+ * user-visible on both (a tree row and a graph group label), so a drift between the two
+ * shows up as one project appearing under two names.
+ *
+ * Total rather than nullable, unlike `modelNameOf`: that one returns null to mean "not a
+ * model, do not compare stems", whereas the answer wanted here is always a label. A name
+ * with no `.prj` to strip is returned unchanged.
+ */
+export function projectNameOf(filename) {
+    return filename.replace(/\.prj$/i, '');
 }
 //# sourceMappingURL=fileKinds.js.map

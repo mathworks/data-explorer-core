@@ -6,6 +6,7 @@ import PropName from '../../prop/PropName.js';
 import PropType from '../../prop/PropType.js';
 import PropLocation from '../../prop/PropLocation.js';
 import PropLabels from '../../prop/PropLabels.js';
+import { isMatFile, isModelFile, isSlddFile } from '../../fileKinds.js';
 
 export interface ProjectItemOpts {
     itemType: string;
@@ -46,15 +47,17 @@ export default class ProjectItemNode extends BaseNode {
         if (type === 'Reference') {
             return 'modelReference';
         }
-        // File: pick by extension.
-        const lower = this.name.toLowerCase();
-        if (lower.endsWith('.slx') || lower.endsWith('.mdl')) {
+        // File: pick by extension, through the module that owns the case rule. The
+        // fallback differs from DataSourceNode's on purpose — a project's members are
+        // arbitrary files (`.m`, `.txt`, an image), so an unrecognised one is generic here,
+        // where a model's external data sources can only be the three kinds above.
+        if (isModelFile(this.name)) {
             return 'simulinkModel_FT';
         }
-        if (lower.endsWith('.sldd')) {
+        if (isSlddFile(this.name)) {
             return 'simulinkDataDictionary_FT';
         }
-        if (lower.endsWith('.mat')) {
+        if (isMatFile(this.name)) {
             return 'matlabWorkspaceFile';
         }
         return 'wsDefault';

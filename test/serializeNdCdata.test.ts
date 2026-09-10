@@ -43,7 +43,7 @@ import { loadFile, findEntry } from './parity/loadFile.js';
 import DataNode from '../src/datamodel/node/DataNode.js';
 import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import { isMatCdata } from '../src/datamodel/parser/CdataCodec.js';
-import '../src/datamodel/node/NodeClassMap.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
 
 const truth = JSON.parse(
   readFileSync(fileURLToPath(new URL('./parity/artifacts/truth.json', import.meta.url)), 'utf8'),

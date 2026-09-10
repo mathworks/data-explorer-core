@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import DataNode from '../DataNode.js';
+import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -7,7 +7,7 @@ const CLASS_NAME = 'Simulink.VariantControl';
 // Verbatim MATLAB R2027a rejection messages for Simulink.VariantControl.Value.
 const MSG_INTEGER = 'Simulink.VariantControl value must be an integer, logical, an enumeration, or a Simulink.Parameter with value of type integer, logical or enumeration.';
 const MSG_SCALAR = 'Simulink.VariantControl value must be a scalar or a Simulink.Parameter with scalar value.';
-export default class VariantControlNode extends DataNode {
+export default class VariantControlNode extends SimulinkObjectNode {
     constructor(name, parent, props, serial) { super(name, parent, serial); this.Value = props.Value !== undefined ? props.Value : ''; }
     get icon() { return 'twoConnected_wsDefault'; }
     get className() { return CLASS_NAME; }
@@ -69,8 +69,9 @@ export default class VariantControlNode extends DataNode {
         this._markModified();
         return true;
     }
-    _getSerializedProperties() { const props = Object.assign({}, this.serial._properties); props.Value = this.Value; return props; }
-    serializeValue() { return this._serializeSimulinkObject({ Value: this.Value }); }
+    // UNGATED: the Value is what the control selects with, so it is written whether or not
+    // the file carried the key — including the empty one setProperty accepts above.
+    _serializedOverrides() { return { Value: this.Value }; }
     static get defaultName() { return 'VariantControl'; }
     static createDefault(name, parent) { const rawVal = { _array_class: CLASS_NAME, _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: { Value: '' } }] }; const props = rawVal._elements[0]._properties; const serial = { _rawVal: rawVal, _properties: props }; return new VariantControlNode(name, parent, props, serial); }
     static parse(rawVal, name, parent) { const elem = rawVal._elements && rawVal._elements[0]; const props = ((elem && elem._properties) || {}); const serial = { _rawVal: rawVal, _properties: props }; return new VariantControlNode(name, parent, props, serial); }
