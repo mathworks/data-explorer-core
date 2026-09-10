@@ -16,6 +16,7 @@
 // that had actually drifted — see `normalizeRefNames`.
 import { strFromU8 } from 'fflate';
 import { parseBinarySldd } from './BinarySlddParser.js';
+import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
 /**
  * True when these bytes open a JSON object, ignoring a leading UTF-8 BOM and any leading
  * whitespace. A binary `.sldd` is a zip, which starts with 'PK', so the first significant
@@ -72,9 +73,9 @@ export function readSlddContent(bytes, warnings) {
  * than as a parse loss.
  */
 export function slddChunkContent(json) {
-    const parts = json.__MW_TEXT_PARTS__;
-    const chunk = parts?.['__MW_TEXT_PART__/data/chunk0'];
-    return chunk?.__MW_TEXT_content ?? null;
+    const parts = json[TEXT_PARTS];
+    const chunk = parts?.[DATA_PART_KEY];
+    return chunk?.[TEXT_CONTENT] ?? null;
 }
 /**
  * Normalise a `Dictionary References` array to plain name strings, dropping any element

@@ -13,6 +13,7 @@ import { slddChunkContent } from '../../parser/SlddContent.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 import { SC_PART, scPartUnreadableMessage } from '../../parser/ScCatalog.js';
+import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.js';
 
 const SECTION_DEFS = [
     { key: 'design', label: 'Design Data', icon: 'databaseFolderDesign' },
@@ -287,9 +288,9 @@ export default class SlddNode extends ContainerNode {
 
         return {
             __MW_TEXT_COREPROPERTIES__: this.coreProperties,
-            __MW_TEXT_PARTS__: {
-                '__MW_TEXT_PART__/data/chunk0': {
-                    __MW_TEXT_content: {
+            [TEXT_PARTS]: {
+                [DATA_PART_KEY]: {
+                    [TEXT_CONTENT]: {
                         entries,
                         'Dictionary References': this.dictionaryReferences,
                         AllowAccessBWS: this.allowAccessBWS

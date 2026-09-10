@@ -7,6 +7,7 @@
 // not here.
 import { zipSync } from 'fflate';
 import { escapeXml, matlabTimestampNow } from './XmlUtils.js';
+import { DATA_PART_XML } from './SlddParts.js';
 export function serializeBinarySldd(slddNode) {
     const xmlString = buildDataChunkXml(slddNode);
     const encoder = new TextEncoder();
@@ -16,7 +17,7 @@ export function serializeBinarySldd(slddNode) {
             zipEntries[name] = data;
         }
     }
-    zipEntries['data/chunk0.xml'] = encoder.encode(xmlString);
+    zipEntries[DATA_PART_XML] = encoder.encode(xmlString);
     const zipped = zipSync(zipEntries, { level: 6 });
     return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength);
 }

@@ -16,6 +16,7 @@
 // that had actually drifted — see `normalizeRefNames`.
 import { strFromU8 } from 'fflate';
 import { parseBinarySldd } from './BinarySlddParser.js';
+import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
 import type { ParseWarning } from './ParseWarning.js';
 
 /**
@@ -79,9 +80,9 @@ export function readSlddContent(
  * than as a parse loss.
  */
 export function slddChunkContent(json: Record<string, unknown>): Record<string, unknown> | null {
-  const parts = json.__MW_TEXT_PARTS__ as Record<string, unknown> | undefined;
-  const chunk = parts?.['__MW_TEXT_PART__/data/chunk0'] as Record<string, unknown> | undefined;
-  return (chunk?.__MW_TEXT_content as Record<string, unknown> | undefined) ?? null;
+  const parts = json[TEXT_PARTS] as Record<string, unknown> | undefined;
+  const chunk = parts?.[DATA_PART_KEY] as Record<string, unknown> | undefined;
+  return (chunk?.[TEXT_CONTENT] as Record<string, unknown> | undefined) ?? null;
 }
 
 /**

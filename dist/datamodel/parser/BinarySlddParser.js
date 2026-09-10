@@ -46,6 +46,7 @@ import { unzipSync } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
 import { reasonOf } from './ParseWarning.js';
 import { SC_PART_XML, catalogFromDefinitions, scPartUnreadableMessage, scanScXml, } from './ScCatalog.js';
+import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
 import { charNeedsShape, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, SAVEOBJ_KEY, } from './XmlUtils.js';
 const xmlParser = new XMLParser({
     ignoreAttributes: false,
@@ -113,14 +114,14 @@ export function parseBinarySldd(arrayBuffer, warnings) {
     const uint8 = new Uint8Array(arrayBuffer);
     const entries = unzipSync(uint8);
     const decoder = new TextDecoder();
-    const dataXml = entries['data/chunk0.xml'];
+    const dataXml = entries[DATA_PART_XML];
     if (!dataXml) {
-        throw new Error('Missing data/chunk0.xml in binary SLDD');
+        throw new Error(`Missing ${DATA_PART_XML} in binary SLDD`);
     }
     const xmlString = decoder.decode(dataXml);
     const zipMetadata = {};
     for (const [name, data] of Object.entries(entries)) {
-        if (name !== 'data/chunk0.xml') {
+        if (name !== DATA_PART_XML) {
             zipMetadata[name] = data;
         }
     }
@@ -180,7 +181,7 @@ export function parseBinarySlddParts(xmlString, zipMetadata, warnings) {
         refused = true;
         warnings?.push({
             code: 'source-unreadable',
-            message: `The dictionary part "data/chunk0.xml" could not be read (${reasonOf(err)}), `
+            message: `The dictionary part "${DATA_PART_XML}" could not be read (${reasonOf(err)}), `
                 + 'so this dictionary reads as empty.',
         });
     }
@@ -190,7 +191,7 @@ export function parseBinarySlddParts(xmlString, zipMetadata, warnings) {
     if (!refused && !Object.prototype.hasOwnProperty.call(doc, 'DataSource')) {
         warnings?.push({
             code: 'source-unreadable',
-            message: 'The dictionary part "data/chunk0.xml" holds no <DataSource> element, '
+            message: `The dictionary part "${DATA_PART_XML}" holds no <DataSource> element, `
                 + 'so this dictionary reads as empty.',
         });
     }
@@ -250,9 +251,9 @@ export function parseBinarySlddParts(xmlString, zipMetadata, warnings) {
     }
     return {
         __MW_TEXT_COREPROPERTIES__: { release },
-        __MW_TEXT_PARTS__: {
-            '__MW_TEXT_PART__/data/chunk0': {
-                __MW_TEXT_content: {
+        [TEXT_PARTS]: {
+            [DATA_PART_KEY]: {
+                [TEXT_CONTENT]: {
                     entries: ddEntries,
                     'Dictionary References': dictionaryReferences,
                     AllowAccessBWS: allowAccessBWS,

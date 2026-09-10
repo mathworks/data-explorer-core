@@ -73,6 +73,16 @@ export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, projectNameOf
 // depending on which writer produced the file, so a reader that accepts only strings
 // resolves the sub-dictionaries of one flavour and none of the other.
 export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames } from './datamodel/parser/SlddContent.js';
+// WHERE those entries sit — the zip member name and the three-step JSON key path to the
+// one part a dictionary keeps its entries in. Published for the same reason `SC_PART` is,
+// and more sharply: a host that WRITES a dictionary owns the document this package cannot
+// touch. It holds the open zip's other members and must preserve them byte-for-byte while
+// replacing exactly one, and it splices byte offsets into the raw JSON text rather than
+// re-serializing it — so it looks the part up, excludes it, and re-inserts it under names
+// that have to be identical to these. Drift is not a throw at either end: the wrong
+// exclusion ships a zip carrying the entries twice, and the wrong JSON key hands back
+// content this package reads as `null` and reports as an empty dictionary.
+export { DATA_PART, DATA_PART_XML, DATA_PART_KEY, TEXT_PARTS, TEXT_CONTENT } from './datamodel/parser/SlddParts.js';
 // The System Composer catalog: what says a `Simulink.Bus` is a struct type rather than
 // a data interface. It is a SEPARATE part of the dictionary that references its entries
 // BY NAME, so a host that renames a catalogued entry has to carry the rename into that
