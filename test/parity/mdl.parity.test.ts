@@ -13,6 +13,12 @@
 // launches MATLAB, and mdl_truth.json is the only source of expected values that did
 // not come out of our own parse.
 //
+// A third pair lives in the same artifacts directory and is NOT driven from here:
+// mdlmask.slx / mdlmask_R2011b.mdl, written by gen_mask.m, whose masks the two grammars
+// spell in unrelated ways — one element per parameter against three flat `Mask*`
+// properties. Its cross-flavour assertion is in test/maskWorkspace.test.ts, with the rest
+// of the mask story and the `Simulink.findVars` truth that settles it.
+//
 // Two kinds of assertion, and the difference matters:
 //   - AGAINST MATLAB: what MATLAB says the diagram holds (mdl_truth.json), through
 //     the same expect.ts convention the `.slx` corpus is held to.

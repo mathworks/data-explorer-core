@@ -57,6 +57,7 @@ and writes to `../artifacts/mdl/` and nowhere else. Nothing writes to
 |---|---|
 | `gen_truth.m` | the only entry point for the corpus: one case catalog, every format emitted from it |
 | `gen_mdl.m` | the entry point for the SECOND, separate corpus: the `.mdl` flavours and their `.slx` twins — see [The `.mdl` corpus](#the-mdl-corpus) |
+| `gen_mask.m` | the masked-subsystem fixture — see [The mask fixture](#the-mask-fixture). The only generator that writes outside `../artifacts/`: its truth pair goes to `test/fixtures/` |
 | `probe_*.m`, `probe_writeback*.mjs` | one-question probes — see the table below. None of them writes to `artifacts/` |
 | `wbcompare.m` | the comparison both write-back gates share: `fullsig`, which walks a value to every leaf spelling class, size, complexity and exact value |
 | `DESIGN.md` | the display convention, the coverage matrix, and the numbered defects this suite exists to pin |
@@ -105,6 +106,8 @@ directory, because `Simulink.data.dictionary.open` rejects a relative one with
 | `probe_char_shape.m` | what does a dictionary do with a char array that is not 1xN, and which literals does MATLAB accept for one? (defect 25) | `$CHAR_SHAPE_OUT` or `tempdir/charshape` | `char_text.sldd`, `char_binary.sldd` |
 | `probe_string.m` | how does MATLAB store a `string` in a `.mat`, and which heap cell holds the text? (`STRING_MCOS.md`); also: what does it write for a `sparse` matrix? (TODO item 10) | `$STRING_OUT` or `tempdir/strprobe` | `strings.mat`, `strings_truth.json`, `strings_mixed.mat`, `strings_v73.mat`, `sparse_cases.mat` |
 | `probe_mdl_encoding.m` | what does a classic `.mdl` saved under a non-UTF-8 `slCharacterEncoding` look like, and what does MATLAB read back out of it? (TODO item 11) | `$MDL_ENCODING_OUT` or `tempdir/mdlenc` | `mdlenc_shift_jis_R2011b.mdl`, `mdlenc_windows_1252_R2011b.mdl`, `mdlenc_shift_jis.mdl` |
+| `probe_mask_types.m` | which mask parameter TYPES hold an expression `findVars` resolves, and which are a selection or a widget state? | — | — |
+| `probe_evaluate.m` | is `Evaluate` a SECOND gate, independent of the type — and how does each container format spell it? | `tempdir/probe_evaluate` | — |
 | `probe_writeback.mjs` + `.m` | **the acceptance gate for the TEXT dictionary**: does MATLAB read back the JSON `_value` our writer emits? | `$PROBE_OUT` | — |
 | `probe_writeback_bin.mjs` + `.m` | **the acceptance gate for the BINARY dictionary**: does MATLAB read back the XML chunk our writer emits? (defects 27-30) | `$PROBE_OUT` | — |
 
@@ -388,6 +391,85 @@ MATLAB's own `Fri Sep 04 10:15:29 2026` spelling rather than ISO 8601,
 `rawContents` and `zipEntries` are `null` (there is no zip), and **R2011b drops the
 linked data dictionary** — so the block row that links into it is a plain string
 there and a link target in every other flavour. R2017b keeps it.
+
+## The mask fixture
+
+A masked subsystem's parameters are a **resolution scope**, innermost of four: mask
+workspaces from the inside out, then the model workspace, then the linked `.sldd`
+chain, then the `.mat`. Nothing in the file says so, so `gen_mask.m` writes one model
+that exercises every arm and records `Simulink.findVars` beside it.
+
+| file | what |
+|---|---|
+| `../../fixtures/maskUsage.slx` | the model: a plain root block, a mask with one parameter of every flavour, and a nested `Outer`/`Inner` pair |
+| `../../fixtures/mask_truth.json` | `findVars` on it, plus each mask's `MaskNames`/`MaskValues`/`Type` triples |
+| `../artifacts/mdl/mdlmask.slx` | the same diagram again, for the cross-format pair |
+| `../artifacts/mdl/mdlmask_R2011b.mdl` | and in the classic grammar, which spells a mask in three flat properties instead of one element per parameter |
+
+Four rules came out of it, each one an arm of that model:
+
+1. **A mask parameter's value is credited to the MASKED BLOCK**, whether or not
+   anything inside reads the parameter — `g3 = g3_param` is unused inside `MulAdd`
+   and `g3_param` still lists `MulAdd` as its user. The dialog evaluates it either way.
+2. **Only expression-valued TYPES count.** Credited: `edit`, `slider`, `dial`,
+   `spinbox`, `min`, `max`. Not credited: `checkbox`, `popup`, `combobox`, `listbox`,
+   `radiobutton`, `unit`, `promote`. The fixture's popup is valued `popupVar` and a
+   model workspace variable of that name exists, and MATLAB resolves nothing —
+   a popup's value is a selection, not an expression. Measured by
+   `probe_mask_types.m`, which asks one parameter of every type at once.
+3. **A parameter NAME shadows outwards.** The model workspace's `shadowed` gets no
+   usage at all, because the mask declares a `shadowed` of its own; and `Inner`'s `o1`
+   beats `Outer`'s for the blocks inside `Inner`.
+4. **A parameter's VALUE resolves in the mask block's ENCLOSING scope**, never its
+   own mask. `Inner`'s `i1 = o1` credits **`Outer`**'s `o1`, one hop out — so a mask
+   parameter is a user of the scope around it and a definition for the scope inside it,
+   and those are two different scopes.
+
+A fifth came out of `probe_evaluate.m`: **`Evaluate` is a separate gate from the
+type.** An `edit` marked `Evaluate="off"` holds the literal string the user typed, and
+`findVars` ignores it. The `.slx` says so in an attribute; the classic `.mdl` says so
+in `MaskVariables`, where `@` means evaluated and `&` means literal —
+`"p_on=@1;p_off=&2;"` — and its `MaskStyleString` reads `"edit,edit"` for both.
+
+The classic grammar, measured rather than guessed, is three properties read together:
+`MaskVariables "g1=@1;g2=@2;"` gives the names and a **1-based index** into
+`MaskValueString "g1_param|2*g2_param"`, with the type at the same index of
+`MaskStyleString "edit,edit,popup(a|b)"` — where a comma inside parentheses is not a
+separator.
+
+### Regenerate
+
+```bash
+mw -using Bmain matlab -nodesktop -batch \
+  "addpath('$PWD/test/parity/matlab'); gen_mask('$PWD/test/fixtures')"
+```
+
+The cross-format pair needs a **second argument and an older release**: R2027a can no
+longer `ExportToVersion` a pre-R2012 `.mdl`, and R2025a can. Point the first argument
+somewhere harmless so the fixture is not rewritten by the older MATLAB:
+
+```bash
+mw -using BR2025ad:latest_pass matlab -nodesktop -batch \
+  "addpath('$PWD/test/parity/matlab'); \
+   gen_mask('/tmp/scratch', '$PWD/test/parity/artifacts/mdl')"
+```
+
+`mask_truth.json` is byte-reproducible and came out **identical on R2025a and
+R2027a**, SIDs included, so these rules are not one release's behaviour.
+
+### What `test/maskWorkspace.test.ts` asserts
+
+The whole feature in one file, because the rules only make sense together: the two
+parsers' extraction (in-memory `.slx` cases), `isInsideBlockPath` and `maskDefining`,
+the index's mask origins, then the truth-derived parity — `mask_truth.json` read
+**both ways round**, so a model workspace variable MATLAB does not credit must have no
+users on our side either. That is the half the popup and the shadowed name live in.
+The cross-format pair is asserted there too rather than in `mdl.parity.test.ts`; it
+needs no truth entry, since each flavour is the other's expectation.
+
+`test/usageEngines.test.ts` then pins the same answers on **both** usage engines,
+which reach the mask by different routes — `resolveName` against a summary's mask list,
+`collectUsages` against a `ModelNode`'s.
 
 ## The `.slx` layout corpus
 

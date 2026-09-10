@@ -8,6 +8,7 @@ import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { BlockParamUsage, ParsedConfigSet } from '../../parser/SlxParser.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
+import type { MaskScope } from '../../maskScope.js';
 import PropName from '../../prop/PropName.js';
 import PropRelease from '../../prop/PropRelease.js';
 import { blockKey } from '../../blockIdentity.js';
@@ -38,6 +39,7 @@ export interface ParsedSlx {
   configSets: ParsedConfigSet[];
   workspace: MatVariable[];
   blockParamUsages?: BlockParamUsage[];
+  masks?: MaskScope[];
   rawContents: Record<string, string> | null;
   zipEntries: Record<string, Uint8Array> | null;
   // Optional here and required on SlxParser's, which keeps that one assignable to this:
@@ -56,6 +58,12 @@ export default class ModelNode extends ContainerNode {
   rawContents: Record<string, string> | null;
   dirty: boolean;
   blockParamUsages: BlockParamUsage[];
+  /**
+   * The mask workspaces of this model's masked subsystems, which findUsages needs to
+   * resolve a block parameter the way MATLAB does — a name a mask defines belongs to the
+   * mask and not to the model workspace. See maskScope.
+   */
+  masks: MaskScope[];
   _zipEntries: Record<string, Uint8Array> | null;
   _workspaceVars: MatVariable[] | null;
 
@@ -69,6 +77,7 @@ export default class ModelNode extends ContainerNode {
     this.rawContents = null;
     this.dirty = false;
     this.blockParamUsages = [];
+    this.masks = [];
     this._zipEntries = null;
     this._workspaceVars = null;
 
@@ -198,6 +207,7 @@ export default class ModelNode extends ContainerNode {
     node._zipEntries = parsed.zipEntries || null;
     node._workspaceVars = parsed.workspace;
     node.blockParamUsages = parsed.blockParamUsages || [];
+    node.masks = parsed.masks || [];
 
     // Populate blocks section from blockParamUsages — ONE ROW PER BLOCK, keyed by the
     // block's SID and not by its name. A name is unique within a system only, so

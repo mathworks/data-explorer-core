@@ -1,3 +1,4 @@
+import type { MaskScope } from '../maskScope.js';
 import type { MatVariable } from './MatParser.js';
 import type { ParseWarning } from './ParseWarning.js';
 export interface BlockParamUsage {
@@ -73,6 +74,12 @@ export interface ParsedSlx {
         _trailingElements: Uint8Array[];
     };
     blockParamUsages: BlockParamUsage[];
+    /**
+     * Every masked subsystem's mask workspace — the names it defines for the blocks
+     * inside it. The mask parameter VALUES are not here; they are in `blockParamUsages`
+     * as parameters of the masked block, which is what they are. See maskScope.
+     */
+    masks: MaskScope[];
     rawContents: Record<string, string> | null;
     zipEntries: Record<string, Uint8Array> | null;
     warnings: ParseWarning[];
@@ -83,6 +90,16 @@ export declare function configSetIdentity(data: unknown): {
 };
 export declare function normalizeBlockName(name: string): string;
 /**
+ * Could this VALUE, whatever holds it, refer to named data?
+ *
+ * The half of the gate that is about the expression rather than about the property it
+ * was written into — split out for the mask parameters, whose "property name" is a name
+ * the mask's author chose and so cannot be judged by the blocklist above. A mask
+ * parameter legitimately named `Units` or `Position` is a real reference; a block `<P>`
+ * of either name never is.
+ */
+export declare function valueReferencesData(value: string): boolean;
+/**
  * Does `propName = value` on a block count as a reference to named data?
  *
  * The one gate both model formats go through, so a `.mdl` and the `.slx` of the
@@ -90,6 +107,12 @@ export declare function normalizeBlockName(name: string): string;
  * classic nested-brace flavour and has no `<P>` elements to work from.
  */
 export declare function isParamReference(propName: string, value: string): boolean;
+/**
+ * Does a mask parameter of this TYPE hold an expression? Exported for MdlParser, which
+ * reads the same fact out of a classic `.mdl`'s `MaskStyleString` and must reach the same
+ * answer — the type is spelled the same in both formats, so the set can be shared whole.
+ */
+export declare function isExpressionMaskType(type: string): boolean;
 export declare function parseSlx(buffer: ArrayBuffer, filename: string): ParsedSlx;
 /**
  * The model behind an OPC part map — everything `parseSlx` does except unzipping.

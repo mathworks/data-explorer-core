@@ -5,6 +5,7 @@ import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { BlockParamUsage, ParsedConfigSet } from '../../parser/SlxParser.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
+import type { MaskScope } from '../../maskScope.js';
 export interface ParsedSlx {
     name: string;
     release: string;
@@ -20,6 +21,7 @@ export interface ParsedSlx {
     configSets: ParsedConfigSet[];
     workspace: MatVariable[];
     blockParamUsages?: BlockParamUsage[];
+    masks?: MaskScope[];
     rawContents: Record<string, string> | null;
     zipEntries: Record<string, Uint8Array> | null;
     warnings?: ParseWarning[];
@@ -33,6 +35,12 @@ export default class ModelNode extends ContainerNode {
     rawContents: Record<string, string> | null;
     dirty: boolean;
     blockParamUsages: BlockParamUsage[];
+    /**
+     * The mask workspaces of this model's masked subsystems, which findUsages needs to
+     * resolve a block parameter the way MATLAB does — a name a mask defines belongs to the
+     * mask and not to the model workspace. See maskScope.
+     */
+    masks: MaskScope[];
     _zipEntries: Record<string, Uint8Array> | null;
     _workspaceVars: MatVariable[] | null;
     constructor(name: string);

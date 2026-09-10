@@ -152,6 +152,7 @@ function summaryOf(over: Partial<ModelSummary> = {}): ModelSummary {
     workspaceNames: new Set<string>(),
     slddRefs: [],
     matRefs: [],
+    masks: [],
     blockParams: [],
     ...over,
   };
@@ -621,6 +622,7 @@ describe('buildUsageIndex — the forward direction, one origin per parameter', 
         originSrcId: 'params.sldd',
         kind: 'sldd',
         linkTarget: 'Kp@params.sldd',
+        maskBlock: null,
       },
       {
         property: 'Denominator',
@@ -629,6 +631,7 @@ describe('buildUsageIndex — the forward direction, one origin per parameter', 
         originSrcId: 'params.sldd',
         kind: 'sldd',
         linkTarget: 'Ki@params.sldd',
+        maskBlock: null,
       },
     ]);
   });
@@ -654,7 +657,7 @@ describe('buildUsageIndex — the forward direction, one origin per parameter', 
       file('m.slx', slxModel({ dictionary: 'absent.sldd', blocks: block('G', 'Gain', 'Gain', 'Kp') })),
     ]);
     expect(index.paramsOf('m.slx', '1')).toEqual([
-      { property: 'Gain', expression: 'Kp', name: null, originSrcId: null, kind: null, linkTarget: '' },
+      { property: 'Gain', expression: 'Kp', name: null, originSrcId: null, kind: null, linkTarget: '', maskBlock: null },
     ]);
   });
 
@@ -740,6 +743,7 @@ describe('on a real model MATLAB wrote', () => {
       originSrcId: null,
       kind: null,
       linkTarget: '',
+      maskBlock: null,
     });
   });
 

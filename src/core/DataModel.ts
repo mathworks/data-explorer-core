@@ -18,6 +18,8 @@ import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js
 import { basenameOf, isMatFile, isSlddFile, modelNameOf, projectNameOf, refBasename } from '../datamodel/fileKinds.js';
 import { identifiersIn } from '../datamodel/expressions.js';
 import { blockKey, blockLabel, joinBlockPath } from '../datamodel/blockIdentity.js';
+import { maskDefining } from '../datamodel/maskScope.js';
+import type { MaskScope } from '../datamodel/maskScope.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 import type { INode, IContainerNode, ISourceNode, IAllNode, SourceMeta } from './NodeInterfaces.js';
 import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
@@ -1153,6 +1155,15 @@ function collectUsages(definitions: INode[]): Map<string, NodeUsage[]> {
     if (!Array.isArray(declared)) {
       continue;
     }
+    // The model's mask workspaces, read on the same duck-typed, defensive terms as the
+    // usages themselves — a host-supplied source may predate the field, and a model with
+    // no masked subsystem has none, both of which mean an empty list and no shadowing.
+    const declaredMasks = (source as unknown as { masks?: unknown }).masks;
+    const masks: MaskScope[] = Array.isArray(declaredMasks)
+      ? (declaredMasks as MaskScope[]).filter(
+          (mask) => mask && Array.isArray(mask.names) && typeof mask.blockPath === 'string',
+        )
+      : [];
     // Visibility is a property of (model, definition) and does not vary across the usage
     // list, so it is settled once per source before the list is walked at all — which is
     // what the single-definition form did too, one definition at a time.
@@ -1230,6 +1241,15 @@ function collectUsages(definitions: INode[]): Map<string, NodeUsage[]> {
       for (const identifier of new Set(identifiersIn(usage.paramValue))) {
         const targets = visible.get(identifier);
         if (!targets) {
+          continue;
+        }
+        // An enclosing mask SHADOWS every file scope, and `visible` was resolved against
+        // the FILES — one scope too far out for a block that sits inside a masked
+        // subsystem whose mask defines this very name. Skipping is the whole correction:
+        // the usage is not lost, it belongs to the mask parameter, which is a parameter of
+        // the masked block and so reaches this same list on that block's own row. See
+        // maskScope, and UsageIndex, which withholds the same credit for the same reason.
+        if (maskDefining(masks, systemPath, identifier)) {
           continue;
         }
         for (const target of targets) {

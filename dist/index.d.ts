@@ -11,7 +11,7 @@ export type { SerializedSource } from './core/DataModel.js';
 export type { FindNodesQuery } from './core/DataModel.js';
 export type { LinkResolution, NodeUsage, DictionaryReference } from './core/DataModel.js';
 export { identifiersIn } from './datamodel/expressions.js';
-export { blockKey, blockLabel, joinBlockPath } from './datamodel/blockIdentity.js';
+export { blockKey, blockLabel, isInsideBlockPath, joinBlockPath } from './datamodel/blockIdentity.js';
 export { createEventBus } from './core/EventBus.js';
 export type { EventBusInstance } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';
@@ -37,6 +37,8 @@ export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogF
 export type { ScDefinition, ScNameSite, ScTextEdit, SystemComposerCatalog } from './datamodel/parser/ScCatalog.js';
 export { buildUsageIndex, summarizeFiles, resolveName } from './datamodel/usage/UsageIndex.js';
 export type { UsageIndex, UsageFile, FileSummaries, ModelSummary, DataSummary, ParamOrigin, OriginKind, } from './datamodel/usage/UsageIndex.js';
+export { maskDefining } from './datamodel/maskScope.js';
+export type { MaskScope } from './datamodel/maskScope.js';
 export { toDTO } from './core/dto.js';
 export type { NodeDTO, PropDTO, SourceDTO, ToDTOOptions } from './core/dto.js';
 export { default as ModelBlockNode } from './datamodel/node/data/ModelBlockNode.js';

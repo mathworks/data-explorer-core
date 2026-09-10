@@ -109,12 +109,22 @@ indexes parse results itself — `blockKey(name, sid)`, `blockLabel(name, sid)` 
 `joinBlockPath(parentPath, label)`.
 
 A `srcId` is the caller's own key for a file and is never parsed; the `filename`
-is what decides the kind. Resolution follows MATLAB: the model workspace shadows
-a linked dictionary, which shadows a linked MAT-file, dictionary references are
-followed transitively, and a reference is matched without regard to case, as the
-file systems these live on do. Answers are `NodeUsage`, the shape `findUsages`
-returns, so a consumer renders one cell whichever resolver produced it. An
-unreadable file in the set contributes nothing and does not fail the rest.
+is what decides the kind. Resolution follows MATLAB: the mask workspaces the block
+sits inside shadow the model workspace, which shadows a linked dictionary, which
+shadows a linked MAT-file, dictionary references are followed transitively, and a
+reference is matched without regard to case, as the file systems these live on do.
+Answers are `NodeUsage`, the shape `findUsages` returns, so a consumer renders one
+cell whichever resolver produced it. An unreadable file in the set contributes
+nothing and does not fail the rest.
+
+The innermost of those scopes is the only one that is not a file. A masked
+subsystem's parameters are visible to the blocks inside it, so `Gain = g1` there
+may name a mask parameter rather than anything in the workspace — and the mask
+parameter's own value (`g1 = g1_param`) is an expression evaluated *outside* the
+mask, which is what makes `g1_param` used by the masked block itself. `paramsOf`
+reports that as `kind: 'mask'` with the masked block in `maskBlock`, and its
+`linkTarget` is that block's `` `${sid}@${srcId}` `` rather than a name — so a host
+routes it to wherever it shows blocks, not to a workspace row.
 
 ## License
 

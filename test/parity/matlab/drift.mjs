@@ -17,9 +17,16 @@
 // uuid and timestamp. Comparing containers would report drift every single time and train
 // the reader to ignore it.
 //
-// Both corpora are regenerated, because both can go stale independently: gen_truth.m for
-// the value corpus and gen_mdl.m for the `.mdl` container corpus. That is two MATLAB
-// launches, and the second one loads Simulink, so expect this to take minutes.
+// All three corpora are regenerated, because each can go stale independently: gen_truth.m
+// for the value corpus, gen_mdl.m for the `.mdl` container corpus, and gen_mask.m for the
+// mask fixture. That is three MATLAB launches, two of which load Simulink, so expect this
+// to take minutes.
+//
+// The mask corpus is the one most worth this check. Its expectations are entirely
+// `Simulink.findVars`' behaviour — which mask parameter types hold an expression, which
+// scope a value resolves in, which shadowed definition gets no credit — and none of it is
+// derivable from the file, so a release that changed its mind would leave the suite green
+// and wrong. It matched on R2025a and R2027a when it was written.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -30,6 +37,9 @@ const HERE = fileURLToPath(new URL('.', import.meta.url));
 const ARTIFACTS = join(HERE, '..', 'artifacts');
 const COMMITTED = join(ARTIFACTS, 'truth.json');
 const COMMITTED_MDL = join(ARTIFACTS, 'mdl', 'mdl_truth.json');
+// The one fixture a generator writes outside artifacts/, because it belongs with the
+// fixtures its own suite reads rather than with a parity corpus.
+const COMMITTED_MASK = join(HERE, '..', '..', 'fixtures', 'mask_truth.json');
 const LAUNCH = process.env.DEX_MATLAB_CMD || '';
 
 if (!LAUNCH) {
@@ -59,8 +69,22 @@ function regenerate(name) {
   );
 }
 
+// gen_mask.m is a FUNCTION, not a script, so it takes its output directory as an argument
+// rather than off a pre-set variable. Its second argument — the cross-format `.mdl` pair —
+// is deliberately not passed: that export needs a release old enough to still write a
+// pre-R2012 `.mdl`, and the pair is asserted against itself, not against this truth.
+function regenerateFn(call) {
+  console.log('\n--- ' + call + ' ---');
+  execFileSync(
+    bin,
+    [...args, '-nodesktop', '-batch', `addpath('${HERE}'); ${call}`],
+    { stdio: 'inherit', maxBuffer: 64 * 1024 * 1024 },
+  );
+}
+
 regenerate('gen_truth.m');
 regenerate('gen_mdl.m');
+regenerateFn(`gen_mask('${out}')`);
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const fresh = readJson(join(out, 'truth.json'));
@@ -140,6 +164,44 @@ if (!existsSync(COMMITTED_MDL)) {
           console.log('  regenerated: ' + sb);
         }
       }
+    }
+  }
+}
+
+// The mask fixture. Compared per variable AND per mask, keyed by name plus source, because
+// the whole point of the model is that one name (`o1`) is defined in two scopes at once —
+// keying on the name alone would compare the two entries against each other.
+if (!existsSync(COMMITTED_MASK)) {
+  console.log('\n(no committed mask_truth.json; skipping the mask fixture)');
+} else {
+  const freshMask = readJson(join(out, 'mask_truth.json'));
+  const oldMask = readJson(COMMITTED_MASK);
+  const byKey = (t, key) => new Map((t.vars ?? []).map((v) => [v.name + ' @ ' + v.source, v[key]]));
+  for (const [label, key] of [['users', 'users'], ['sourceType', 'sourceType']]) {
+    const a = byKey(oldMask, key);
+    const b = byKey(freshMask, key);
+    for (const name of new Set([...a.keys(), ...b.keys()])) {
+      const sa = JSON.stringify(a.get(name) ?? null);
+      const sb = JSON.stringify(b.get(name) ?? null);
+      if (sa !== sb) {
+        drift++;
+        console.log('\nDRIFT mask.' + name + '.' + label);
+        console.log('  committed:   ' + sa);
+        console.log('  regenerated: ' + sb);
+      }
+    }
+  }
+  // The masks themselves: the names, the values and — the release-sensitive part — the
+  // TYPE of each parameter, which is what decides whether its value names data at all.
+  const masksOf = (t) => new Map((t.masks ?? []).map((m) => [m.block, JSON.stringify(m)]));
+  const ma = masksOf(oldMask);
+  const mb = masksOf(freshMask);
+  for (const block of new Set([...ma.keys(), ...mb.keys()])) {
+    if (ma.get(block) !== mb.get(block)) {
+      drift++;
+      console.log('\nDRIFT mask.masks.' + block);
+      console.log('  committed:   ' + (ma.get(block) ?? null));
+      console.log('  regenerated: ' + (mb.get(block) ?? null));
     }
   }
 }
