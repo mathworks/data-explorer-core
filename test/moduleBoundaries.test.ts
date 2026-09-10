@@ -207,10 +207,12 @@ describe('the data model does not need the session layer', () => {
     // consumer scanning a folder should not be loading a session.
     //
     // Type-only reaches upward are fine and one exists — `UsageIndex` returns
-    // `NodeUsage`, which `core/DataModel` declares — which is exactly why this test
-    // filters on erasure instead of on the import's text. Turning that one line into a
-    // value import would both fatten every folder-scan consumer and create the cycle
-    // the test above forbids, since `core/DataModel` imports `datamodel/` sixteen times.
+    // `NodeUsage`, which `core/DataModel` publishes (declared in `core/sessionTypes.ts`
+    // and re-exported, so this edge kept its shape when the contract types moved out) —
+    // which is exactly why this test filters on erasure instead of on the import's text.
+    // Turning that one line into a value import would both fatten every folder-scan
+    // consumer and create the cycle the test above forbids, since `core/DataModel`
+    // imports `datamodel/` sixteen times.
     const upward = runtimeEdges(graph).filter((e) => under('datamodel', e.from) && under('core', e.to));
     expect(describeEdges(upward)).toEqual([]);
   });

@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { defaultBus, createEventBus, type EventBusInstance } from './EventBus.js';
+import { defaultBus, createEventBus } from './EventBus.js';
 import { createUndoManager } from './UndoManager.js';
 import SlddNode from '../datamodel/node/container/SlddNode.js';
 import ModelNode from '../datamodel/node/container/ModelNode.js';
@@ -26,285 +26,32 @@ import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 // a field of NodeUsage breaks the one line that installs the resolver — see UsageResolver.
 import type { RowData, UsageResolver } from '../datamodel/node/BaseNode.js';
 
-export type { IAllNode as AllNode, SourceMeta };
+// The session's own vocabulary — what a caller passes in and what these functions hand
+// back — and the compiler that turns one of those types, FindNodesQuery, into the tests
+// findNodes runs. Both used to be written out in this file, above createSession; neither
+// is session code, and each now has a module of its own that says why (see the headers of
+// `sessionTypes.ts` and `findQuery.ts`).
+import { compileCriteria } from './findQuery.js';
+import type {
+  CreateSessionOptions,
+  DictionaryReference,
+  FindNodesQuery,
+  LinkResolution,
+  NodeUsage,
+  SerializedSource,
+} from './sessionTypes.js';
 
-export interface CreateSessionOptions {
-  bus?: EventBusInstance;
-}
-
-/**
- * One source's content, ready to be written back over the file it came from.
- *
- * Discriminated on `kind` rather than left as `ArrayBuffer | string`, because this is
- * a machine contract in the same register as SourceDTO: a caller about to write a
- * file must not have to `typeof` the answer to find out which of the two it got, and
- * a `typeof` check is exactly the kind of test that stops being correct the moment a
- * third flavour appears. `bytes` is a Uint8Array rather than an ArrayBuffer because
- * that is what a filesystem write actually accepts.
- *
- * `sourceFormat` is the source node's OWN format string — the same vocabulary
- * SourceDTO.sourceFormat publishes ('json' for a textual `.sldd`, 'xml' for a
- * compressed-binary one) — so a consumer can correlate the two without a mapping
- * table of its own.
- */
-export type SerializedSource =
-  | { kind: 'binary'; sourceFormat: string; bytes: Uint8Array }
-  | { kind: 'text'; sourceFormat: string; text: string };
-
-/**
- * What a link target resolved to — see session.resolveLink().
- *
- * Discriminated on `status` for the reason SerializedSource is discriminated on `kind`:
- * this is a machine contract, and the interesting part of it is the FAILURES. A bare
- * `INode | null` would fold three different situations into one answer and leave the
- * host unable to tell them apart, which matters because they call for different
- * behaviour:
- *
- *   - 'resolved' — a node to go to.
- *   - 'not-found' — the file IS open and holds nothing by that name. Report it; there
- *     is nothing to offer the user, and the link is probably stale or the target was
- *     built from an expression this could not read (see resolveLink).
- *   - 'source-not-open' — the file is not open in this session. This is the one a host
- *     can act on: "open mdlparams.sldd to follow this" is a genuinely better answer
- *     than a dead link, and it is only possible because the status carries `sourceId`
- *     AND `name`, so the host can re-ask once the file is open.
- *   - 'empty' — the caller passed nothing at all (no target, or whitespace). Separated
- *     from the other two because it is a bug in the CALLER's plumbing rather than a
- *     fact about the session, and answering it with 'source-not-open' for the source
- *     named '' would send a host off to open a file with no name.
- *
- * Never throws, for the reason serializeSource returns null rather than throwing: a
- * consumer walking every link in a table must not need a try/catch per row.
- *
- * `nodes` is every candidate in document order and `node` is `nodes[0]`. Both are
- * present on purpose: a `.sldd` target names an ENTRY, not a node id, and a dictionary
- * can hold that name in two sections at once (a design entry and its derived
- * counterpart). A host with nowhere to put a choice follows `node` and is right for
- * the ordinary case; a host that can offer a picker has the alternatives without
- * having to re-run the search. Being ambiguous is therefore not a separate status —
- * it would make every caller handle a fourth case to learn something the list already
- * says.
- *
- * Plain data apart from the nodes themselves. The nodes are LIVE INodes, as
- * findNodes() hands back live nodes and for the same reason: an in-process host edits
- * what it followed, and toDTO is the projection applied at the out-of-process edge by
- * the caller that needs it (see src/core/dto.ts).
- */
-export type LinkResolution =
-  | { status: 'resolved'; sourceId: string; node: INode; nodes: INode[] }
-  | { status: 'not-found'; sourceId: string; name: string }
-  | { status: 'source-not-open'; sourceId: string; name: string | null }
-  | { status: 'empty' };
-
-/**
- * One place a definition is referenced — see session.findUsages().
- *
- * Plain data, with NO live node on it, which is the opposite of the choice
- * LinkResolution makes and deliberate. This is what fills a `UsedBy` cell: it goes
- * into a RowData, and a RowData is a plain-data shape that hosts pass through
- * structured clone or JSON to a webview or an RPC client (the same reason ParseWarning
- * carries a reason string instead of an Error). A live node on this object would make
- * the whole result unclonable for the consumer it exists to serve. A caller that wants
- * the block node itself passes `linkTarget` straight back to resolveLink().
- *
- * `linkTarget` is `blockKey@modelSrcId` — the SAME grammar ModelBlockNode writes for
- * the forward direction, so the reverse link needs no second target format and no
- * second resolver. It round-trips: resolveLink(usage.linkTarget) is the block node.
- *
- * No display text is pre-baked here. What a `UsedBy` cell should READ is a
- * presentation decision ("Const (Constant)" or "mdlcases.mdl: Const" or a count), and
- * this package is consumed by a VS Code extension, a CLI and an RPC server that will
- * not agree on it. The four facts a label could want are all here separately.
- */
-export interface NodeUsage {
-  /**
-   * What the block READS as — 'Const', or `<SID: 65>` for one whose label the model does
-   * not give (blockIdentity.blockLabel). Display text, and not an identity: two blocks of
-   * one model can share it. `linkTarget` is what tells them apart.
-   */
-  blockName: string;
-  /**
-   * WHERE the block is — `Controller/Gain`, and just the label for one in the root
-   * system (blockIdentity.joinBlockPath). Model-relative, because the model is already
-   * named by `modelSrcId`.
-   *
-   * What makes two usages that read alike tell-apart-able for a PERSON: a dictionary
-   * entry used by four blocks all named `Gain` renders as one word four times, each link
-   * correctly reaching a different block, with nothing on screen to say which. Display
-   * text like `blockName`, not an identity — `linkTarget` remains the identity.
-   */
-  blockPath: string;
-  /** The block's type — 'Constant'. Empty when the model did not record one. */
-  blockType: string;
-  /** The block parameter that holds the reference — 'Value', 'Denominator'. */
-  paramProperty: string;
-  /** The parameter's value VERBATIM, which is an expression as often as a bare name: '[tau 1]'. */
-  paramValue: string;
-  /** The srcId of the model the block is in, as getDataSourceIds() reports it. */
-  modelSrcId: string;
-  /**
-   * A target resolveLink() turns back into the block node — `blockKey@modelSrcId`, the key
-   * being the block's SID where the file records one (blockIdentity.blockKey).
-   */
-  linkTarget: string;
-}
-
-/**
- * One sub-dictionary a `.sldd` references, and whether this session can reach it —
- * see session.resolveDictionaryReferences().
- *
- * `name` is what the FILE records (a bare file name, e.g. 'common.sldd'), normalized to
- * a string: the node keeps these as `unknown[]` because the two `.sldd` readers put
- * different shapes in it, and every consumer would otherwise repeat the same narrowing.
- */
-export interface DictionaryReference {
-  /** The sub-dictionary as the referencing file names it. */
-  name: string;
-  /** The same answer resolveLink() gives for that name — a root node, or why not. */
-  resolution: LinkResolution;
-}
-
-/**
- * What session.findNodes() matches on.
- *
- * `name` and `value` are searches, so a string is a SUBSTRING test — what a search
- * box does. `className` and `kind` are filters over closed vocabularies a host holds
- * verbatim (see kindForClass), so a string there is a WHOLE-string test: 'Simulink.Bus'
- * must not also answer for Simulink.BusElement. Neither takes a RegExp today; widening
- * either to `string | RegExp` later is a backward-compatible change.
- *
- * `sourceId`, `caseSensitive` and `limit` are modifiers rather than criteria: they
- * shape an answer, they do not select one. A query holding only modifiers therefore
- * has no criteria at all — see findNodes for what that means.
- */
-export interface FindNodesQuery {
-  /** Substring of the node's own name, or a RegExp tested against it. */
-  name?: string | RegExp;
-  /** The Class column, matched whole — e.g. 'Simulink.Parameter'. */
-  className?: string;
-  /** The Kind column, matched whole — e.g. 'Bus Element'. */
-  kind?: string;
-  /** Substring of the node's rendered value, or a RegExp tested against it. */
-  value?: string | RegExp;
-  /** Restrict the search to one open source. Omitted means every open source. */
-  sourceId?: string;
-  /** Applies to STRING criteria only; a RegExp always keeps its own flags. Default false. */
-  caseSensitive?: boolean;
-  /** Cap on the number of matches. Omitted means uncapped. */
-  limit?: number;
-}
-
-// One query field, reduced to a test over a node. Compiled once per query rather
-// than re-decided per node, so the per-node cost is a call and a string compare
-// instead of a walk back through the query object.
-type NodeCriterion = (node: INode) => boolean;
-
-// Whether a query field was actually asked about.
-//
-// `undefined` is the field a host left out. `''` is the field it filled in from an
-// empty search box, and it is treated as ALSO not asked: a substring test against ''
-// passes for every node, so honouring it would answer "the user has typed nothing"
-// with every node in every open file — the largest allocation the session can make
-// and the one nobody asked for. A caller that really means "renders as empty" says
-// so with a pattern, `/^$/`, which this leaves alone. A RegExp is never `''`, so an
-// explicit `new RegExp('')` stays a match-all: a pattern object is a choice, an
-// empty string is a blank.
-function isAsked(field: string | RegExp | undefined): boolean {
-  return field !== undefined && field !== '';
-}
-
-// A criterion over one piece of a node's text.
-//
-// The read is defensive. Name, class, kind and value are all getters over parsed
-// content, and a host may hand the session a tree this package did not build
-// (addParsedSource exists for exactly that), so one node that throws on read must not
-// take a whole search down — the same rule readPropertyValue applies on the edit path.
-//
-// A failed read is NOT the empty string: a criterion is a claim about a field, and a
-// field that cannot be read is a claim that cannot be checked, so it is false. Folding
-// it to '' instead would let `{ value: /^$/ }` — a caller asking specifically which
-// nodes render no value — answer with a node whose value might render as anything, if
-// only it could be read.
-function textCriterion(read: (node: INode) => string, test: (text: string) => boolean): NodeCriterion {
-  return (node) => {
-    let text: string;
-    try {
-      text = read(node);
-    } catch {
-      return false;
-    }
-    return typeof text === 'string' && test(text);
-  };
-}
-
-// A caller's string or RegExp as a test over one piece of text. `whole` picks between
-// the two kinds of string criterion described on FindNodesQuery.
-function compileTextTest(
-  pattern: string | RegExp,
-  caseSensitive: boolean,
-  whole: boolean,
-): (text: string) => boolean {
-  if (typeof pattern !== 'string') {
-    // A RegExp is honoured exactly as written: `caseSensitive` never adds an `i` flag
-    // and never takes one away, because the caller already made that choice and a
-    // pattern that behaves differently inside this call than it did in the host's own
-    // test is worse than either default.
-    //
-    // The one rewrite is `g`/`y`, and it is not optional. RegExp.prototype.test on a
-    // global or sticky pattern advances lastIndex and resumes from there next call,
-    // so reusing one caller-supplied pattern across a whole index would match roughly
-    // every SECOND node — and because the state lives in the caller's object, a host
-    // retyping the same search would watch its own results flicker. Cloned rather
-    // than reset per node so the caller's own object is never mutated, and once per
-    // query rather than once per node.
-    if (pattern.global || pattern.sticky) {
-      const stateless = new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, ''));
-      return (text) => stateless.test(text);
-    }
-    return (text) => pattern.test(text);
-  }
-  if (caseSensitive) {
-    return whole ? (text) => text === pattern : (text) => text.includes(pattern);
-  }
-  // Folded once here, per query, rather than per node per criterion.
-  const folded = pattern.toLowerCase();
-  return whole ? (text) => text.toLowerCase() === folded : (text) => text.toLowerCase().includes(folded);
-}
-
-// The criteria a query asks for, in the order they should be evaluated: the two
-// whole-string compares first, then the name substring, and the VALUE last —
-// displayValue formats its content on read (a large matrix or cell renders through
-// the display-convention machinery), so it is the one field worth not reading for a
-// node another criterion has already rejected.
-function compileCriteria(query: FindNodesQuery): NodeCriterion[] {
-  const caseSensitive = query.caseSensitive === true;
-  const criteria: NodeCriterion[] = [];
-  if (isAsked(query.className)) {
-    criteria.push(textCriterion((node) => node.className, compileTextTest(query.className!, caseSensitive, true)));
-  }
-  if (isAsked(query.kind)) {
-    criteria.push(textCriterion((node) => node.kind, compileTextTest(query.kind!, caseSensitive, true)));
-  }
-  if (isAsked(query.name)) {
-    // The node's own name — the identifier its id is built from, and the same string
-    // findNodeById resolves against — not its rendered displayName. The two differ
-    // only for positional elements, whose label embeds the PARENT's name ('Array(1)'
-    // for the node named '1'), so matching the label as well would make a search for
-    // `Array` return every element of every array and bury the variable in its own
-    // contents. A host that wants label matching has displayName one field away.
-    criteria.push(textCriterion((node) => node.name, compileTextTest(query.name!, caseSensitive, false)));
-  }
-  if (isAsked(query.value)) {
-    // Matched against displayValue, which is the string a host actually shows: it is
-    // what PropValue.readValue returns for the Value column and what BaseNode.toRow
-    // falls back to, so a user searches over exactly what a user can read. A node
-    // with no value renders '' and so fails every non-empty pattern, which is what
-    // keeps a value query from sweeping up the sections and the structure-only
-    // entries the way a listing would.
-    criteria.push(textCriterion((node) => node.displayValue, compileTextTest(query.value!, caseSensitive, false)));
-  }
-  return criteria;
-}
+// Every type this file used to declare is still importable FROM this file, at the same
+// path, because that is the path its consumers already name: `src/index.ts` publishes
+// them from here onto the package barrel, and `datamodel/usage/UsageIndex.ts` reaches up
+// for `NodeUsage` — the one upward edge from `datamodel/` into `core/` that
+// `test/moduleBoundaries.test.ts` allows, by name and on condition that it stays
+// type-only. So the declarations moved and not one importer changed, which is the only
+// reason the move was free. Do not "clean this up" by pointing the barrel at
+// `sessionTypes.js` instead: `AllNode` and `SourceMeta` are aliases published here, the
+// barrel is a released surface, and that test asserts the shape of the UsageIndex edge.
+export type { AllNode, SourceMeta } from './sessionTypes.js';
+export type { CreateSessionOptions, DictionaryReference, FindNodesQuery, LinkResolution, NodeUsage, SerializedSource };
 
 // A link target split into the entry name it asks for and the source it asks in.
 //
@@ -848,8 +595,8 @@ function findNodeById(nodeId: string): INode | null {
  *     already precise and cheap through getDataSource(id).flatten().
  *
  *   - A RegExp keeps its own flags; `caseSensitive` governs string criteria only. See
- *     compileTextTest, which also explains the one rewrite (`g`/`y`) and why it is
- *     forced.
+ *     compileTextTest in findQuery.ts, which also explains the one rewrite (`g`/`y`) and
+ *     why it is forced.
  *
  *   - Results come back in the order the session indexed them: per source, the
  *     pre-order walk indexSource performs (parent before child, siblings in tree
@@ -1401,7 +1148,7 @@ function collectUsages(definitions: INode[]): Map<string, NodeUsage[]> {
     // package did not build, and a host that supplies block-parameter usages in the
     // documented shape should be searchable. The reads below are defensive for the same
     // reason — one hostile source must not take the whole scan down, the rule
-    // textCriterion applies on the search path.
+    // findQuery.ts's textCriterion applies on the search path.
     const declared = (source as unknown as { blockParamUsages?: unknown }).blockParamUsages;
     if (!Array.isArray(declared)) {
       continue;
