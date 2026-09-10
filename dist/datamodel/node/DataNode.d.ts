@@ -100,6 +100,24 @@ export default class DataNode extends BaseNode {
         dimAttr: string;
         body: string;
     } | null;
+    /**
+     * MATLAB's spelling of a string value, from the `<Element Class="string">` down: a
+     * saveobj CELL of chars, one `<Element Class="char">` per element, carrying the cell's
+     * Dimension for every shape but 1x1.
+     *
+     * Copied from the string entries of the MATLAB-authored dictionaries in
+     * test/parity/artifacts/binary — `strScalar` writes an undimensioned cell around one
+     * char, `strArray` a `Dimension="1*3"` one around three. Those are dictionary ENTRIES
+     * rather than object properties, and the corpus has no MATLAB-authored object holding a
+     * string, but BinarySlddParser decodes both through the same parseStringValue, so there
+     * is one envelope to write and not two.
+     *
+     * Shared with MatlabVariableNode._serializeStringXml, which writes the same envelope
+     * for an entry, for the same reason _mxCharXml is shared: this is the second and last
+     * place that spells it, and two copies of a format are how one of them goes stale.
+     */
+    static _stringEnvelopeXml(elements: unknown[], dims: number[], indent: number): string;
+    static _serializeStringPropertyXml(name: string, elements: unknown[], dims: number[], indent: number): string;
     static _serializeTypedPropertyXml(name: string, value: Record<string, unknown>, indent: number): string;
     static _serializeObjectPropertyXml(name: string, value: Record<string, unknown>, indent: number, ownerNode: DataNode | null): string;
     static _serializeStructPropertyXml(name: string, value: Record<string, unknown>, indent: number): string;

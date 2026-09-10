@@ -375,6 +375,76 @@ describe('ParameterNode.setProperty — complex value', () => {
   });
 });
 
+// A STRING scalar is the one text class MATLAB actually stores in a
+// Simulink.Parameter's Value — its setter coerces all text to a 1x1 string
+// (DESIGN.md, measured on R2027a) — and it is the one the edit path used to drop.
+// `"abc"` parses to type 'string', which had no arm of its own here, so it fell
+// through to the catch-all that stores the parser's bare JS string. A bare JS
+// string is this model's spelling for a CHAR: PropValue.format quotes it with
+// formatMatlabChar and both writers emit it as char. So typing a string literal
+// displayed `'abc'` and saved a char.
+//
+// The read path never had the bug — a 1x1 string arrives as the one-element list
+// `["abc"]` and displays `"abc"` — which is what made the round trip below lose
+// data: the table seeds its in-place editor with the displayed text, so committing
+// a string Parameter's own cell unchanged retyped it to char. Same defect shape as
+// 25 (a char matrix retyped to string) and the `it''s` quoting note in PropValue,
+// so the assertions pin the two paths AGAINST EACH OTHER rather than one each.
+describe('ParameterNode.setProperty — string scalar value', () => {
+  const STRING_SCALAR_RAW = ['abc'];
+
+  it('keeps the string class of a value typed as a string literal', () => {
+    const p = ParameterNode.createDefault('p', null);
+    expect(p.setProperty('Value', '"abc"')).toBe(true);
+    expect(p.displayValue).toBe('"abc"');
+    // No child row: a 1x1 has nothing to expand into, the same rule every other
+    // scalar class follows here.
+    expect(p.children.length).toBe(0);
+    expect(serializedValue(p)).toEqual(STRING_SCALAR_RAW);
+  });
+
+  it('stores what the read path stores for the same value', () => {
+    // The invariant that matters is BETWEEN the paths: one MATLAB value, one stored
+    // spelling, whichever way it got here. Asserting each path's output separately
+    // is what let them drift.
+    const read = parseParamValue(STRING_SCALAR_RAW);
+    const edited = ParameterNode.createDefault('p', null);
+    edited.setProperty('Value', '"abc"');
+    expect(edited.displayValue).toBe(read.displayValue);
+    expect(serializedValue(edited)).toEqual(serializedValue(read));
+  });
+
+  it('survives a commit of its own displayed text', () => {
+    // The table's in-place editor opens seeded with the displayed text, so an
+    // accidental Enter on a string Parameter runs exactly this. It used to change
+    // the value's class and mark the file dirty.
+    const p = parseParamValue(STRING_SCALAR_RAW);
+    expect(p.setProperty('Value', p.displayValue)).toBe(true);
+    expect(p.displayValue).toBe('"abc"');
+    expect(serializedValue(p)).toEqual(STRING_SCALAR_RAW);
+  });
+
+  it('escapes an embedded double quote both ways', () => {
+    // MATLAB doubles a quote inside a string literal, so the text `a"b` displays as
+    // "a""b" — and that text has to parse back to the same three characters.
+    const p = ParameterNode.createDefault('p', null);
+    expect(p.setProperty('Value', '"a""b"')).toBe(true);
+    expect(p.displayValue).toBe('"a""b"');
+    expect(serializedValue(p)).toEqual(['a"b']);
+  });
+
+  it('leaves a char literal a char', () => {
+    // The recorded divergence next door (DESIGN.md): MATLAB coerces `p.Value = 'abc'`
+    // to string("abc") and we keep char. Unchanged deliberately — coercing would
+    // retype every char Parameter in the corpus — and pinned here so the string fix
+    // is visibly not that change.
+    const p = ParameterNode.createDefault('p', null);
+    expect(p.setProperty('Value', "'abc'")).toBe(true);
+    expect(p.displayValue).toBe("'abc'");
+    expect(serializedValue(p)).toBe('abc');
+  });
+});
+
 describe('ParameterNode.setProperty — string-array value', () => {
   it('accepts a string-array literal and serializes the String wrapper', () => {
     // String arrays are used in Simulink for multi-valued string parameters

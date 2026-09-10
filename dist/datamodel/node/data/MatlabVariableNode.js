@@ -1554,10 +1554,6 @@ export default class MatlabVariableNode extends DataNode {
     }
     _serializeStringXml(tagName, attrs, indent) {
         const p = xmlPad(indent);
-        const ip = xmlPad(indent + 1);
-        const ip2 = xmlPad(indent + 2);
-        const ip3 = xmlPad(indent + 3);
-        const dims = this._dims;
         const elements = this.children.length > 0
             ? this.children.map(function (c) {
                 return c._elements
@@ -1569,20 +1565,20 @@ export default class MatlabVariableNode extends DataNode {
         if (attrs && attrs.Name) {
             attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
         }
-        let xml = p + '<' + tagName + attrStr + '>\n';
-        xml += ip + '<Element Class="string">\n';
-        xml += ip2 + '<P Source="saveobj" PropertyType="any" Class="cell"';
-        if (!(dims.length <= 2 && dims[0] === 1 && dims[1] === 1)) {
-            xml += ' Dimension="' + dims.join('*') + '"';
-        }
-        xml += '>\n';
-        for (const str of elements) {
-            xml += ip3 + '<Element Class="char">' + escapeXml(str || '') + '</Element>\n';
-        }
-        xml += ip2 + '</P>\n';
-        xml += ip + '</Element>\n';
-        xml += p + '</' + tagName + '>';
-        return xml;
+        // The envelope itself lives on DataNode, because an object PROPERTY holding a string
+        // has to write the identical thing (see _stringEnvelopeXml). This method keeps only
+        // what is the entry's own: its tag, its Name attribute, and reading the elements off
+        // the live children rather than the stored list.
+        return (p +
+            '<' +
+            tagName +
+            attrStr +
+            '>\n' +
+            DataNode._stringEnvelopeXml(elements, this._dims, indent) +
+            p +
+            '</' +
+            tagName +
+            '>');
     }
     // ---- Binary rebuild: the MatVariable the .mat/.slx save path writes ----
     //
