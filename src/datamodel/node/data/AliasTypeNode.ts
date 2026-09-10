@@ -1,12 +1,12 @@
 // Copyright 2026 The MathWorks, Inc.
-import DataNode from '../DataNode.js';
+import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import PropName from '../../prop/PropName.js';
 import PropBaseType from '../../prop/PropBaseType.js';
 import PropDescription from '../../prop/PropDescription.js';
 const CLASS_NAME = 'Simulink.AliasType';
-export default class AliasTypeNode extends DataNode {
+export default class AliasTypeNode extends SimulinkObjectNode {
     BaseType: string; Description: string;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) { super(name, parent, serial); this.BaseType = (props.BaseType as string) || ''; this.Description = (props.Description as string) || ''; }
     get icon(): string { return this.isDerived ? 'typeAlias' : 'wsAlias'; }
@@ -20,8 +20,10 @@ export default class AliasTypeNode extends DataNode {
     // would show the class name 'Simulink.AliasType') is omitted here.
     getProperties(): PropClass[] { return [PropName, PropBaseType, PropDescription]; }
     // PI layout is schema-driven (schema/classes/aliasType.json).
-    _getSerializedProperties(): Record<string, unknown> { const props = Object.assign({}, this.serial._properties as Record<string, unknown>); props.BaseType = this.BaseType; if ('Description' in (this.serial._properties as Record<string, unknown>) || this.Description) { props.Description = this.Description; } return props; }
-    serializeValue(): unknown { const overrides: Record<string, unknown> = { BaseType: this.BaseType }; if ('Description' in (this.serial._properties as Record<string, unknown>) || this.Description) { overrides.Description = this.Description; } return this._serializeSimulinkObject(overrides); }
+    // BaseType is UNGATED: an alias with no base type is not a type at all, so MATLAB gets
+    // the key even as the empty string a half-built entry carries. It is named first because
+    // that is the order a bag that lacks both keys reads on disk.
+    _serializedOverrides(): Record<string, unknown> { return Object.assign({ BaseType: this.BaseType }, this._gatedProps({ Description: this.Description })); }
     static get defaultName(): string { return 'AliasType'; }
     static createDefault(name: string, parent: BaseNode | null): AliasTypeNode { const rawVal = { _array_class: CLASS_NAME, _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: { BaseType: 'double', DataScope: 'Auto', Description: '', HeaderFile: '' } }] }; const props = rawVal._elements[0]._properties; const serial = { _rawVal: rawVal, _properties: props }; return new AliasTypeNode(name, parent, props as unknown as Record<string, unknown>, serial as unknown as Record<string, unknown>); }
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): AliasTypeNode { const elem = rawVal._elements && (rawVal._elements as unknown[])[0]; const props = ((elem && (elem as Record<string, unknown>)._properties) || {}) as Record<string, unknown>; const serial = { _rawVal: rawVal, _properties: props }; return new AliasTypeNode(name, parent, props, serial as Record<string, unknown>); }

@@ -1,11 +1,11 @@
 // Copyright 2026 The MathWorks, Inc.
-import DataNode from '../DataNode.js';
+import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
 const CLASS_NAME = 'Simulink.ConfigSet';
-export default class ConfigSetNode extends DataNode {
+export default class ConfigSetNode extends SimulinkObjectNode {
     // The config set's own Name property. In a .sldd the entry name and this
     // property are the same string — both parse paths build the node with
     // _properties.Name equal to the entry name — so this is a view of `name`
@@ -26,8 +26,10 @@ export default class ConfigSetNode extends DataNode {
     get valueEditable(): boolean { return false; }
     getProperties(): PropClass[] { return [PropName, PropDataType]; }
     // PI layout: schema-driven "General" group (classes/configSet.json).
-    _getSerializedProperties(): Record<string, unknown> { const props = Object.assign({}, this.serial._properties as Record<string, unknown>); props.Name = this.ConfigName; return props; }
-    serializeValue(): unknown { return this._serializeSimulinkObject({ Name: this.ConfigName }); }
+    // UNGATED: a config set MATLAB can load has to be able to say what it is called, so the
+    // key is written whatever the file carried — and because it is a view of `name`, a
+    // renamed entry saves under the new name on both paths.
+    _serializedOverrides(): Record<string, unknown> { return { Name: this.ConfigName }; }
     static get defaultName(): string { return 'Configuration'; }
     static createDefault(name: string, parent: BaseNode | null): ConfigSetNode { const rawVal = { _array_class: CLASS_NAME, _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: { Name: name || 'Configuration' } }] }; const props = rawVal._elements[0]._properties; const serial = { _rawVal: rawVal, _properties: props }; return new ConfigSetNode(name, parent, props as unknown as Record<string, unknown>, serial as unknown as Record<string, unknown>); }
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): ConfigSetNode { const elem = rawVal._elements && (rawVal._elements as unknown[])[0]; const props = ((elem && (elem as Record<string, unknown>)._properties) || {}) as Record<string, unknown>; const serial = { _rawVal: rawVal, _properties: props }; return new ConfigSetNode(name, parent, props, serial as Record<string, unknown>); }
