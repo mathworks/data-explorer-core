@@ -268,15 +268,13 @@ function parseArray(str) {
     if (cols < 0) {
         return null;
     }
-    const elements = [];
-    for (let r = 0; r < matrix.length; r++) {
-        for (let c = 0; c < cols; c++) {
-            elements.push(matrix[r][c]);
-        }
-    }
+    // A STRING array's element list is column-major and a numeric one's is row-major —
+    // not a preference here, but what the readers deliver (see flatten). Writing one
+    // loop for both is what made a 2x2 string array come back transposed (defect 50).
     if (isStringArray) {
-        return { type: 'string-array', value: elements, dims: [matrix.length, cols] };
+        return { type: 'string-array', value: flatten(matrix, cols, 'column'), dims: [matrix.length, cols] };
     }
+    const elements = flatten(matrix, cols, 'row');
     // 'logical' with an ARRAY value, not a type of its own: the two are told apart by
     // Array.isArray at every consumer that cares (see _applyParsed and
     // parsedIsScalarNumeric), the same way 'double' already carries both a scalar and an
@@ -287,6 +285,41 @@ function parseArray(str) {
         return { type: 'logical', value: elements, dims: [matrix.length, cols] };
     }
     return { type: 'double', value: elements, dims: [matrix.length, cols] };
+}
+// A literal's rows, flattened into the ONE element list the node layer wants — and the
+// order is not the same for every type, which is the whole reason this is a named
+// function with an argument rather than the loop it used to be at each site.
+//
+// A cell's and a string array's element list reach the node layer COLUMN-major; a
+// numeric one's reaches it ROW-major. That is measured, not chosen:
+// `MatParser.parseMatrix` transposes only its numeric branch and stores cells in file
+// order, MATLAB writes both cells and strings column-major, and all four containers
+// agree — `test/cellElementOrder.test.ts` pins it against MATLAB's own subscripts in
+// `truth.json`. `formatMatrixSerial` then re-transposes the numeric list on the way
+// out, which is why row-major is right there and only there.
+//
+// Every site here used to flatten row-major, so committing a multi-ROW cell or string
+// array TRANSPOSED it — `{1 2; 3 4}` came back `{1 3; 2 4}` and saved that way, and
+// retyping the displayed text transposed it again (defect 50). It hid for as long as it
+// did because a 1xN and an Nx1 read the same in either order, and every editable cell
+// fixture in the corpus is a vector. `charFromRows` below had the column-major rule
+// right from the start, for the same reason and one value type away.
+function flatten(matrix, cols, order) {
+    const elements = [];
+    if (order === 'column') {
+        for (let c = 0; c < cols; c++) {
+            for (let r = 0; r < matrix.length; r++) {
+                elements.push(matrix[r][c]);
+            }
+        }
+        return elements;
+    }
+    for (let r = 0; r < matrix.length; r++) {
+        for (let c = 0; c < cols; c++) {
+            elements.push(matrix[r][c]);
+        }
+    }
+    return elements;
 }
 // The char array `['ab'; 'cd']` spells, from its already-concatenated rows.
 //
@@ -377,13 +410,9 @@ function parseCell(str) {
     if (matrix.length === 0) {
         return { type: 'cell', value: [], dims: [0, 0] };
     }
-    const elements = [];
-    for (let r = 0; r < matrix.length; r++) {
-        for (let c = 0; c < cols; c++) {
-            elements.push(matrix[r][c]);
-        }
-    }
-    return { type: 'cell', value: elements, dims: [matrix.length, cols] };
+    // Column-major, which is the order every reader delivers a cell's elements in and
+    // the order MATLAB writes them (defect 50 — see flatten).
+    return { type: 'cell', value: flatten(matrix, cols, 'column'), dims: [matrix.length, cols] };
 }
 // Split on the row separator, ignoring any ';' that is inside a nested
 // bracket/brace or inside a quoted literal — `{'a;b'}` is one element, not two

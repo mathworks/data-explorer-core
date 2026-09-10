@@ -33,12 +33,14 @@
 % Note also that MATLAB omits `_mw_element_type` from a nested wrapper.
 %
 % One more answer, about the cell's OWN element list rather than one element, and it
-% is the evidence for defect 50 (found while fixing 49, still open):
+% is the evidence for defect 50 (found while fixing 49, fixed in the commit after it):
 %
 %   {1 2; 3 4}      "_dimensions": [2,2], "_elements": [1, 3, 2, 4]
 %
-% Column-major, as every reader in this repo already stores a cell list. The parser
-% assembles one ROW-major, so editing a multi-row cell transposes it.
+% Column-major, as every reader in this repo already stores a cell list -- and as it
+% stores a STRING array's list, which had the same defect. The parser assembled both
+% ROW-major, so editing a multi-row one transposed it. A numeric list is the exception
+% and stays row-major, because formatMatrixSerial re-transposes that one on the way out.
 %
 % Run: mw -using Bmain matlab -nodesktop -batch "run('test/parity/matlab/probe_cell_shapes.m')"
 

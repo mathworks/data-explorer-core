@@ -160,10 +160,11 @@ describe('defect 49: a cell element is spelled the way MATLAB spells it', () => 
       value: ["it's", 'ok'],
       dims: [1, 2],
     });
-    // Element ORDER and the row/column count are unchanged: row-major in, dims out.
+    // The row/column COUNT is unchanged. The element order is not, and that is defect
+    // 50's fix rather than this one's: written row by row, stored column by column.
     expect(MatlabValueParser.parse('{1, 2; 3, 4}')).toEqual({
       type: 'cell',
-      value: [1, 2, 3, 4],
+      value: [1, 3, 2, 4],
       dims: [2, 2],
     });
     // A malformed bracketed or quoted span is still a rejection of the whole cell.
@@ -290,21 +291,18 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
       }
     });
 
-    // Defect 50, found by this file and NOT fixed here: it is a different defect in a
-    // different half of the same function, and it fails identically with the shape fix
-    // reverted. The parser assembles a cell's own element list ROW-major, while every
-    // reader stores one COLUMN-major (test/cellElementOrder.test.ts) — MATLAB writes
-    // `{1 2; 3 4}` as `_elements: [1, 3, 2, 4]`, measured in probe_cell_shapes.m. So
-    // editing any multi-ROW cell transposes it, and typing the transposed text back
-    // transposes it again. Pinned here at today's answer, with the values asymmetric
-    // under transpose so the pin cannot pass by accident; when it is fixed, the two
-    // expectations below become `{1, 2; 3, 4}` and this comment goes away.
-    it('KNOWN DEFECT 50: a multi-row cell is transposed by the edit path', () => {
+    // Defect 50, which this file found while pinning 49 and which is fixed in the commit
+    // after it: the parser assembled a cell's OWN element list row-major while every
+    // reader stores one column-major, so editing a multi-ROW cell transposed it. Kept
+    // here as well as in cellElementOrder.test.ts — that file owns the rule and states it
+    // against MATLAB's subscripts, this one is the shape-fix's neighbour and would notice
+    // if a later change to cellElementRaw reintroduced the transpose one type at a time.
+    it('a multi-row cell keeps its layout, and so does a vector', () => {
       const { display, fresh } = editAndReread('{1, 2; 3, 4}');
-      expect(display).toBe('{1, 3; 2, 4}');
-      expect(String(fresh.displayValue)).toBe('{1, 3; 2, 4}');
-      // A single-ROW cell is unaffected, which is why this went unnoticed: a 1xN and
-      // an Nx1 read the same in either order.
+      expect(display).toBe('{1, 2; 3, 4}');
+      expect(String(fresh.displayValue)).toBe('{1, 2; 3, 4}');
+      // A vector was unaffected even before the fix, which is why this hid: a 1xN and
+      // an Nx1 flatten to the same list in either order.
       expect(editAndReread('{1, 2, 3}').display).toBe('{1, 2, 3}');
       expect(editAndReread('{1; 2; 3}').display).toBe('{1; 2; 3}');
     });

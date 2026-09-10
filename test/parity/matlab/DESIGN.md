@@ -1813,22 +1813,35 @@ entry, and this one only misbehaves one level down, inside a cell.
     display, and a round trip through the value's own displayed text in both `.sldd`
     flavours.
 
-50. **A multi-row cell is transposed by the edit path. Found by 49's tests, NOT fixed.**
-    The parser assembles a cell's own element list ROW-major, while every reader in this
-    repo stores one COLUMN-major (`cellElementOrder.test.ts`, itself written to fix the
-    mirror-image defect on the read path). MATLAB writes `{1 2; 3 4}` as
-    `"_elements": [1, 3, 2, 4]` — measured in `probe_cell_shapes.m` — so editing a
-    multi-row cell writes a transposed value, and typing the transposed text back
-    transposes it again. Only a 1xN or an Nx1 is unaffected, which is why it survived: a
-    vector reads the same in either order, and the repo's editable cell fixtures are
-    vectors.
+50. **A multi-row cell — and a multi-row string array — was transposed by the edit path.
+    Found by 49's tests.** `MatlabValueParser` assembled both element lists ROW-major,
+    while every reader in this repo delivers one COLUMN-major — **defect 14 above is this
+    same defect on the READ path**, fixed in Phase 5 and locked by
+    `cellElementOrder.test.ts`, whose own closing line warns against a future "make
+    everything column-major" fix. MATLAB's own file agrees with the readers: `{1 2; 3 4}` is
+    `"_elements": [1, 3, 2, 4]`, measured in `probe_cell_shapes.m`. So committing a 2x3
+    cell wrote `{1, 4, 2; 5, 3, 6}` — every off-diagonal element moved — and retyping the
+    displayed text transposed it again, so the value never settled. Only a 1xN or an Nx1
+    was unaffected, which is why it survived 49's own review: a vector flattens to the
+    same list in either order, and every editable cell fixture in the corpus is a vector.
 
-    Left open deliberately, and it is a separate change rather than the rest of this one:
-    the same question has to be answered for a multi-row STRING array (whose element list
-    the node layer also stores column-major) without disturbing the NUMERIC branch, which
-    is row-major on purpose and transposed downstream. Pinned at today's answer by
-    `cellElementShape.test.ts`'s `KNOWN DEFECT 50` test, with values asymmetric under
-    transpose so the pin cannot pass by accident.
+    Fixed by giving the flatten a name and an ORDER argument — `flatten(matrix, cols,
+    'row' | 'column')` — called `'column'` from the cell and string-array returns and
+    `'row'` from the numeric one. The numeric exception is not an inconsistency:
+    `formatMatrixSerial` re-transposes that list on the way out, so row-major is what the
+    numeric writer is owed, and "make them all the same for consistency" is a third
+    mutation the tests catch. `charFromRows` had the column-major rule right from the
+    start, one value type away.
+
+    Held in `cellElementOrder.test.ts`, next to the read-path assertions it belongs
+    beside, and deliberately **stating no order of its own**: it retypes each fixture's
+    OWN displayed text and demands MATLAB's `truth.json` subscript→value pairs back, in
+    both `.sldd` flavours, with `mat2x3` as the row-major control. That makes the read
+    path the write path's expected answer, which is the shape a "one rule, two paths"
+    defect has to be pinned in — defect 14 fixed the read path and pinned *the read
+    path's answer*, which is exactly why the write path could still be wrong afterwards
+    with a green suite. Three mutations, all caught: cell back to row-major (6 failures),
+    string back to row-major (4), numeric to column-major (14, across seven files).
 
 ## Known limitations, to verify and document
 

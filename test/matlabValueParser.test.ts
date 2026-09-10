@@ -272,10 +272,19 @@ describe('MatlabValueParser — char and string', () => {
     expect(parse('["hello"]')).toEqual({ type: 'string-array', value: ['hello'], dims: [1, 1] });
   });
 
-  it('parses a multi-row string matrix', () => {
+  it('parses a multi-row string matrix, COLUMN-major', () => {
+    // ["a" "b"; "c" "d"] is written row by row and stored column by column, so the
+    // element list is a c b d — the order every reader delivers a string array in and
+    // the order MATLAB writes one (defect 50). Row-major here made committing a 2x2
+    // string array transpose it; the numeric branch beside it stays row-major, because
+    // formatMatrixSerial re-transposes that one on the way out.
     expect(parse('["a" "b"; "c" "d"]')).toEqual({
-      type: 'string-array', value: ['a', 'b', 'c', 'd'], dims: [2, 2],
+      type: 'string-array', value: ['a', 'c', 'b', 'd'], dims: [2, 2],
     });
+    // A vector is the same list either way, which is why every existing case here and
+    // every editable fixture in the corpus missed it.
+    expect(parse('["a" "b"]')).toEqual({ type: 'string-array', value: ['a', 'b'], dims: [1, 2] });
+    expect(parse('["a"; "b"]')).toEqual({ type: 'string-array', value: ['a', 'b'], dims: [2, 1] });
   });
 
   it('rejects a ragged string matrix', () => {
