@@ -45,7 +45,11 @@ export { identifiersIn } from './datamodel/expressions.js';
 // blocks a model even has. A name is unique only within one system, so keying by name
 // merges blocks and dropping the blank ones hides them; both are decisions this package
 // has already made once, in blockIdentity.
-export { blockKey, blockLabel, joinBlockPath } from './datamodel/blockIdentity.js';
+// `isInsideBlockPath` is here for the same reason and answers the question the other three
+// leave open: whether one of those paths is inside another. Its own reason to exist is that
+// `/` is escaped by doubling, so `A//B/C` is a block inside a block NAMED `a/b` and not
+// inside a block `A` — which a plain `startsWith` gets wrong.
+export { blockKey, blockLabel, isInsideBlockPath, joinBlockPath } from './datamodel/blockIdentity.js';
 export { createEventBus } from './core/EventBus.js';
 export type { EventBusInstance } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';
@@ -166,8 +170,8 @@ export type { ScDefinition, ScNameSite, ScTextEdit, SystemComposerCatalog } from
 // Usage across a SET OF FILES rather than across a session — which blocks refer to a
 // definition, and where a block parameter's names resolve, over files a caller has read
 // but need not have opened. session.findUsages answers the same question for registered
-// sources; this answers it for a workspace, with MATLAB's workspace → dictionary → MAT
-// shadowing and transitive dictionary references, and needs no node trees to do it. The
+// sources; this answers it for a workspace, with MATLAB's mask → workspace → dictionary →
+// MAT shadowing and transitive dictionary references, and needs no node trees to do it. The
 // answers are `NodeUsage`, the same shape findUsages returns, so a host renders one cell
 // either way.
 export { buildUsageIndex, summarizeFiles, resolveName } from './datamodel/usage/UsageIndex.js';
@@ -180,6 +184,12 @@ export type {
   ParamOrigin,
   OriginKind,
 } from './datamodel/usage/UsageIndex.js';
+// The innermost of those scopes, and the only one that is not a file: a masked subsystem's
+// own parameters. On the barrel because `ParamOrigin.maskBlock` hands one out — a host
+// rendering a mask-resolved parameter needs the block's path to name the source of the
+// value, and its key to link there.
+export { maskDefining } from './datamodel/maskScope.js';
+export type { MaskScope } from './datamodel/maskScope.js';
 
 // Serializable DTO projection — the machine contract for --json / RPC boundaries.
 export { toDTO } from './core/dto.js';

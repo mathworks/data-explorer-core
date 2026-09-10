@@ -279,6 +279,63 @@ describe('what shadowing must NOT take away', () => {
   });
 });
 
+// The fourth scope, and the one that arrived last: a MASK WORKSPACE. mdlmask.slx is a real
+// MATLAB model (test/parity/matlab/gen_mask.m) whose masked subsystems both DEFINE names and
+// read the model workspace, and MATLAB's own `Simulink.findVars` on it is recorded in
+// test/fixtures/mask_truth.json — the expectations below are that answer.
+//
+// This is where the two engines reach it by different routes and so could easily part
+// company: the index resolves a name against the summary's mask list in resolveName, and the
+// session does it against the ModelNode's, in collectUsages. Neither is derivable from the
+// other, and getting only one right is the failure this whole file exists to catch.
+describe('the mask workspace — a scope inside the model', () => {
+  const files = [file('mdlmask.slx', artifact('mdl/mdlmask.slx'))];
+
+  it('credits the masked BLOCK with the model workspace variable its mask parameter reads', () => {
+    // MATLAB credits `maskUsage/MulAdd` and `maskUsage/RootGain` for `g1_param`: the masked
+    // subsystem whose dialog evaluates `g1 = g1_param`, and the plain block. Before this the
+    // mask half was missing from both engines and the variable looked half-unused.
+    expectBoth(files, 'mdlmask.slx/workspace/g1_param', 'mdlmask.slx', 'g1_param', ['MulAdd', 'RootGain']);
+    expectBothPaths(files, 'mdlmask.slx/workspace/g1_param', 'mdlmask.slx', 'g1_param', [
+      'MulAdd @ MulAdd',
+      'RootGain @ RootGain',
+    ]);
+    // And the link lands on the masked subsystem itself, which is where a reader has to go
+    // to see `g1_param` written down.
+    expectBothLinks(files, 'mdlmask.slx/workspace/g1_param', 'mdlmask.slx', 'g1_param', [
+      'MulAdd -> 2@mdlmask.slx',
+      'RootGain -> 1@mdlmask.slx',
+    ]);
+  });
+
+  it('credits a mask parameter no inner block reads', () => {
+    // `g3 = g3_param` is evaluated by the dialog whether or not anything inside uses `g3`.
+    expectBoth(files, 'mdlmask.slx/workspace/g3_param', 'mdlmask.slx', 'g3_param', ['MulAdd']);
+  });
+
+  it('credits the outer mask block, not the inner one, for the outer mask’s own value', () => {
+    // `Outer`'s `o1 = outer_param` — the mask parameter's value is resolved where the masked
+    // block SITS, so this reaches the model workspace and stops there.
+    expectBoth(files, 'mdlmask.slx/workspace/outer_param', 'mdlmask.slx', 'outer_param', ['Outer']);
+  });
+
+  it('credits a model workspace variable a mask parameter SHADOWS with nothing', () => {
+    // `MulAdd/Const`'s `Value = shadowed` reads the mask's `shadowed`, whose value is `10`.
+    // The model workspace also has a `shadowed`, and it is not the value that block reads —
+    // the same rule the dictionary case above follows, one scope further in. MATLAB withholds
+    // this credit too, and before the mask existed as a scope both engines granted it.
+    expectBoth(files, 'mdlmask.slx/workspace/shadowed', 'mdlmask.slx', 'shadowed', []);
+  });
+
+  it('credits nothing for a variable that only LOOKS read, by a popup', () => {
+    // `mode` is a popup whose selected option is spelled `popupVar`, and a model workspace
+    // variable of that name exists. A popup's value is a selection, not an expression, so
+    // MATLAB resolves nothing — the arm that makes the type allowlist load-bearing rather
+    // than a tidy-up.
+    expectBoth(files, 'mdlmask.slx/workspace/popupVar', 'mdlmask.slx', 'popupVar', []);
+  });
+});
+
 // Which block a Usage link reaches, on the two file shapes that made a name unusable as an
 // identity. Both engines label a block with blockLabel and target it with blockKey, in
 // their own code — so agreement here is agreement about the RULE, not about one call site.

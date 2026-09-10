@@ -433,15 +433,15 @@ export function normalizeBlockName(name) {
         .trim();
 }
 /**
- * Does `propName = value` on a block count as a reference to named data?
+ * Could this VALUE, whatever holds it, refer to named data?
  *
- * The one gate both model formats go through, so a `.mdl` and the `.slx` of the
- * SAME diagram surface the same rows. Exported for MdlParser, which reads the
- * classic nested-brace flavour and has no `<P>` elements to work from.
+ * The half of the gate that is about the expression rather than about the property it
+ * was written into — split out for the mask parameters, whose "property name" is a name
+ * the mask's author chose and so cannot be judged by the blocklist above. A mask
+ * parameter legitimately named `Units` or `Position` is a real reference; a block `<P>`
+ * of either name never is.
  */
-export function isParamReference(propName, value) {
-    if (!propName || NON_PARAM_PROPS.has(propName))
-        return false;
+export function valueReferencesData(value) {
     if (!value || NUMERIC_RE.test(value))
         return false;
     if (NON_FINITE_RE.test(value))
@@ -453,11 +453,59 @@ export function isParamReference(propName, value) {
     // handled above, while keeping expressions like `[Tal,1]` or `1/Uo`.
     return IDENT_RE.test(value);
 }
+/**
+ * Does `propName = value` on a block count as a reference to named data?
+ *
+ * The one gate both model formats go through, so a `.mdl` and the `.slx` of the
+ * SAME diagram surface the same rows. Exported for MdlParser, which reads the
+ * classic nested-brace flavour and has no `<P>` elements to work from.
+ */
+export function isParamReference(propName, value) {
+    if (!propName || NON_PARAM_PROPS.has(propName))
+        return false;
+    return valueReferencesData(value);
+}
+/**
+ * Mask parameter types whose `<Value>` is an EXPRESSION Simulink evaluates against
+ * workspace data, as opposed to a widget state or a chosen option.
+ *
+ * An ALLOWLIST, which is the opposite of NON_PARAM_PROPS above and for the opposite
+ * reason. A block `<P>` is usually an expression and the exceptions are enumerable; a
+ * mask parameter is usually a SELECTION — most of the types below are — so a type
+ * nobody has measured must not be assumed to hold an expression. Getting that backwards
+ * is not a cosmetic miss: a popup's value is the option text the user picked, and
+ * crediting it puts a block on the Usage cell of any variable that happens to share the
+ * option's spelling. maskUsage.slx plants exactly that trap — a model workspace
+ * variable `popupVar` and a popup whose selected option is the word `popupVar` — and
+ * MATLAB ignores it.
+ *
+ * Measured with test/parity/matlab/probe_mask_types.m under R2027a: one parameter of
+ * every type `Simulink.Mask.addParameter` accepts, each valued with the NAME of a model
+ * workspace variable, then `Simulink.findVars` asked which of those names it resolved.
+ *
+ *   resolved      edit, slider, dial, min, max
+ *   NOT resolved  checkbox, popup, combobox, listbox, radiobutton, unit, promote
+ *
+ * `spinbox` is here unmeasured — that release's addParameter would not accept it — on
+ * the grounds that it is the same numeric-entry family as slider and dial, both of which
+ * resolve. A missing `Type` attribute is read as `edit`: no MathWorks writer omits it,
+ * so a file that does is a hand-made one, and `edit` is what a hand-made mask means.
+ */
+const EXPRESSION_MASK_TYPES = new Set(['edit', 'slider', 'dial', 'spinbox', 'min', 'max']);
+/**
+ * Does a mask parameter of this TYPE hold an expression? Exported for MdlParser, which
+ * reads the same fact out of a classic `.mdl`'s `MaskStyleString` and must reach the same
+ * answer — the type is spelled the same in both formats, so the set can be shared whole.
+ */
+export function isExpressionMaskType(type) {
+    return EXPRESSION_MASK_TYPES.has(type.trim().toLowerCase());
+}
 // `legacy` is the `<Model>` element of a legacy blockdiagram.xml, already parsed by
 // the caller — that part is the largest in the package and every legacy branch
 // wants something from it, so it is read once and passed around.
 function extractBlockParamUsages(entries, legacy, warnings) {
     const usages = [];
+    const masks = [];
     // The blocks of ONE system, each with the path of the systems enclosing it, and then
     // the systems its own subsystems own — the recursion that carries the path.
     //
@@ -490,6 +538,56 @@ function extractBlockParamUsages(entries, legacy, warnings) {
                 if (!isParamReference(propName, val))
                     continue;
                 usages.push({ blockName, blockType, paramProperty: propName, paramValue: val, sid, systemPath: path });
+            }
+            // A MASK, if this block wears one. Its parameters are read on the same terms as
+            // the `<P>` properties above and pushed onto the same list — a mask parameter's
+            // value is a parameter expression OF THIS BLOCK, evaluated where this block sits,
+            // so `path` (the enclosing system, not the block's own) is already the right
+            // scope for it. The NAMES go somewhere else entirely; see maskScope.
+            const mask = b['Mask'];
+            if (mask) {
+                const names = [];
+                // `MaskParameter` only: a `<Mask>` also holds `<DialogControl>` elements which
+                // carry a `Type` attribute of their own and a `Name` matching the parameter they
+                // present, so a document-wide search would read every parameter twice, the
+                // second time with a widget's notion of its type (`Edit`, capitalised).
+                const params = mask['MaskParameter'];
+                for (const one of params ? (Array.isArray(params) ? params : [params]) : []) {
+                    const mp = one;
+                    const paramName = mp['@_Name'] === undefined ? '' : String(mp['@_Name']);
+                    if (paramName === '')
+                        continue;
+                    // Occupies the name whether or not its value is an expression, so that a
+                    // checkbox cannot leave a model-workspace variable of the same name visible
+                    // to the blocks this mask encloses.
+                    names.push(paramName);
+                    const type = mp['@_Type'] === undefined ? 'edit' : String(mp['@_Type']);
+                    if (!isExpressionMaskType(type))
+                        continue;
+                    // A parameter with Evaluate OFF is handed to the mask as the LITERAL TEXT the
+                    // user typed, so a value that reads like a variable name is a string and not a
+                    // reference. Measured: an `edit` valued `v_off` with Evaluate off gets no usage
+                    // from findVars where the same edit with Evaluate on does. Absent means on,
+                    // which is the default and the only spelling in most files. The classic `.mdl`
+                    // records the same fact as `&` instead of `@` in MaskVariables.
+                    if (String(mp['@_Evaluate'] ?? 'on') === 'off')
+                        continue;
+                    // `<Value>` has no attributes, so it arrives as the text itself rather than as
+                    // an object with a '#text' — and as a NUMBER when it looks like one, this
+                    // parser leaving tag values converted. Both are the same string to the gate.
+                    const raw = mp['Value'];
+                    if (raw === undefined || raw === null)
+                        continue;
+                    const val = String(raw);
+                    if (!valueReferencesData(val))
+                        continue;
+                    usages.push({ blockName, blockType, paramProperty: paramName, paramValue: val, sid, systemPath: path });
+                }
+                if (names.length > 0) {
+                    // The mask's OWN path — one level deeper than the usages above, because this
+                    // is the scope INSIDE the block, and the values were expressions outside it.
+                    masks.push({ sid, blockName, blockPath: joinBlockPath(path, blockLabel(blockName, sid)), names });
+                }
             }
             // Reached whether or not this block had a single parameter of its own: a SubSystem
             // is usually all structure, and skipping a block with no `<P>` would skip the
@@ -566,7 +664,7 @@ function extractBlockParamUsages(entries, legacy, warnings) {
             collect(system, '', () => undefined);
         }
     }
-    return usages;
+    return { usages, masks };
 }
 function extractModelReferences(graphicalInterface) {
     if (!graphicalInterface) {
@@ -763,8 +861,9 @@ export function parseModelParts(entries, filename) {
         // is still set because every consumer reads it unconditionally.
         workspace._trailingElements = [];
     }
-    // Block parameter usages (which blocks reference which params by name)
-    const blockParamUsages = extractBlockParamUsages(entries, legacy, warnings);
+    // Block parameter usages (which blocks reference which params by name), and the mask
+    // workspaces the same walk passed through
+    const { usages: blockParamUsages, masks } = extractBlockParamUsages(entries, legacy, warnings);
     const rawContents = {};
     for (const key in entries) {
         if (key.endsWith('.xml') || key.endsWith('.json')) {
@@ -783,6 +882,7 @@ export function parseModelParts(entries, filename) {
         configSets,
         workspace,
         blockParamUsages,
+        masks,
         rawContents,
         zipEntries: entries,
         warnings,

@@ -27,8 +27,16 @@
 // see test/parity/mdl.parity.test.ts and test/parity/matlab/gen_mdl.m.
 
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
-import { configSetIdentity, isParamReference, normalizeBlockName, parseModelParts } from './SlxParser.js';
+import {
+  configSetIdentity,
+  isExpressionMaskType,
+  isParamReference,
+  normalizeBlockName,
+  parseModelParts,
+  valueReferencesData,
+} from './SlxParser.js';
 import type { BlockParamUsage, ParsedConfigSet, ParsedSlx } from './SlxParser.js';
+import type { MaskScope } from '../maskScope.js';
 import { parseMxArray, readMxArrayRecords } from './MxArrayParser.js';
 import type { MatVariable } from './MatParser.js';
 import type { ParseWarning } from './ParseWarning.js';
@@ -678,7 +686,7 @@ function parseClassicMdl(bytes: Uint8Array, filename: string): ParsedMdl {
     externalDataSources,
     configSets: classicConfigSets(model),
     workspace: classicWorkspace(root, model, warnings),
-    blockParamUsages: classicBlockParamUsages(model),
+    ...classicBlockParamUsages(model),
     // There are no OPC parts to hand back: this flavour is one flat text file, not
     // an archive. ModelNode treats both as nullable and falls back to a summary.
     rawContents: null,
@@ -779,8 +787,128 @@ function classicConfigSets(model: MdlNode): ParsedConfigSet[] {
 // skipping them is what keeps the two flavours of one model reporting the same rows.
 const BLOCK_IDENTITY_PROPS = new Set(['BlockType', 'Name', 'SID']);
 
-function classicBlockParamUsages(model: MdlNode): BlockParamUsage[] {
+/**
+ * A mask, whose whole definition is FLAT PROPERTIES here where a `.slx` has a `<Mask>`
+ * element with one child per parameter. Every one of these has to be skipped by the
+ * ordinary parameter loop and read by classicMask instead — leaving them in credited
+ * `MaskValueString = "g1_param|2*g2_param|g3_param|5|10|popupVar|on"` to the masked block
+ * as a single parameter named `MaskValueString`, which is one row where MATLAB has three,
+ * carrying every value including the ones that are not expressions, and which the `.slx`
+ * of the same model never reported at all.
+ *
+ * Listed rather than matched on a `Mask` prefix because `MaskedZcDiagnostic` is a
+ * SOLVER setting on the Model and `BrowserLookUnderMasks` a GUI one — neither is a block
+ * property, but a prefix rule invites the next reader to think the family is closed.
+ */
+const MASK_PROPS = new Set([
+  'MaskType',
+  'MaskDescription',
+  'MaskHelp',
+  'MaskPromptString',
+  'MaskStyleString',
+  'MaskStyles',
+  'MaskVariables',
+  'MaskVariableAliases',
+  'MaskVarAliasString',
+  'MaskTunableValueString',
+  'MaskTunableValues',
+  'MaskCallbackString',
+  'MaskCallbacks',
+  'MaskEnableString',
+  'MaskEnables',
+  'MaskVisibilityString',
+  'MaskVisibilities',
+  'MaskToolTipString',
+  'MaskTooltipString',
+  'MaskInitialization',
+  'MaskDisplay',
+  'MaskIconFrame',
+  'MaskIconOpaque',
+  'MaskIconRotate',
+  'MaskIconUnits',
+  'MaskPortRotate',
+  'MaskRunInitForIconRedraw',
+  'MaskSelfModifiable',
+  'MaskValueString',
+  'MaskValues',
+  'MaskNames',
+  'MaskObject',
+]);
+
+/**
+ * The classic `.mdl`'s spelling of a mask: three parallel flat properties, read together.
+ *
+ *   MaskVariables    "g1=@1;g2=@2;mode=@6;"                name = which value, 1-based
+ *   MaskStyleString  "edit,edit,popup(popupVar|other)"      one type per parameter
+ *   MaskValueString  "g1_param|2*g2_param|popupVar"         the values, in dialog order
+ *
+ * `MaskVariables` is the authority on the NAMES, and on which value each one takes:
+ * `MaskPromptString` holds the dialog LABELS, which are a different thing and are usually
+ * empty. The `@` in `name=@1` marks a value Simulink EVALUATES; `&` marks one assigned
+ * literally, which is a string and not a reference however much it looks like one.
+ *
+ * Everything the `.slx` reader decides from `<MaskParameter Type=...>` is decided here
+ * from MaskStyleString, and it has to be the same decision — see SlxParser's
+ * EXPRESSION_MASK_TYPES for what was measured and why the list is an allowlist.
+ */
+function classicMask(block: MdlNode): { names: string[]; params: { name: string; value: string }[] } {
+  const vars = prop(block, 'MaskVariables') || '';
+  const styles = splitMaskStyles(prop(block, 'MaskStyleString') || '');
+  // `|` is the separator AND a character a value may not contain; Simulink has the same
+  // limitation in this format, which is why later releases added the cell-valued
+  // `MaskValues`. Nothing to recover, so nothing is attempted.
+  const values = (prop(block, 'MaskValueString') || '').split('|');
+  const names: string[] = [];
+  const params: { name: string; value: string }[] = [];
+  for (const decl of vars.split(';')) {
+    const parsed = /^\s*([A-Za-z_]\w*)\s*=\s*([@&])(\d+)\s*$/.exec(decl);
+    if (!parsed) {
+      continue;
+    }
+    const [, name, evaluated, index] = parsed;
+    // The name is in scope whether or not its value is an expression — same reason the
+    // `.slx` reader keeps a checkbox's name.
+    names.push(name);
+    const slot = Number(index) - 1;
+    if (evaluated !== '@' || slot < 0 || slot >= values.length) {
+      continue;
+    }
+    const type = (styles[slot] ?? 'edit').replace(/\(.*$/, '').trim().toLowerCase();
+    if (!isExpressionMaskType(type)) {
+      continue;
+    }
+    params.push({ name, value: values[slot] });
+  }
+  return { names, params };
+}
+
+/**
+ * MaskStyleString split into one style per parameter — at the commas OUTSIDE the
+ * parentheses, because a popup carries its options inside them (`popup(a|b)`) and an
+ * option is free to contain a comma.
+ */
+function splitMaskStyles(styles: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < styles.length; i++) {
+    const c = styles[i];
+    if (c === '(') {
+      depth++;
+    } else if (c === ')') {
+      depth = depth > 0 ? depth - 1 : 0;
+    } else if (c === ',' && depth === 0) {
+      out.push(styles.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(styles.slice(start));
+  return out;
+}
+
+function classicBlockParamUsages(model: MdlNode): { blockParamUsages: BlockParamUsage[]; masks: MaskScope[] } {
   const usages: BlockParamUsage[] = [];
+  const masks: MaskScope[] = [];
   // Walk the DIAGRAM, not the whole tree: `BlockParameterDefaults` also holds nodes
   // named `Block` — one per block type, carrying that type's factory defaults and no
   // name — and a `.slx` has no equivalent section, so counting them would give a
@@ -806,14 +934,36 @@ function classicBlockParamUsages(model: MdlNode): BlockParamUsage[] {
       const sid = prop(block, 'SID') || '';
       for (const p of block.props) {
         if (BLOCK_IDENTITY_PROPS.has(p.name)) continue;
+        // Read as a mask below, not as a parameter of its own. Skipped even when this
+        // block has no mask at all, because a leftover `MaskType ""` on an unmasked block
+        // is common and means nothing.
+        if (MASK_PROPS.has(p.name)) continue;
         if (!isParamReference(p.name, p.value)) continue;
         usages.push({ blockName, blockType, paramProperty: p.name, paramValue: p.value, sid, systemPath: path });
       }
       const childPath = joinBlockPath(path, blockLabel(blockName, sid));
+      // The `.slx`'s `<Mask>` element, spelled flat. Same two products: the values are
+      // parameters of THIS block, in the system this block sits in, and the names are a
+      // scope over the blocks inside it.
+      const mask = classicMask(block);
+      for (const param of mask.params) {
+        if (!valueReferencesData(param.value)) continue;
+        usages.push({
+          blockName,
+          blockType,
+          paramProperty: param.name,
+          paramValue: param.value,
+          sid,
+          systemPath: path,
+        });
+      }
+      if (mask.names.length > 0) {
+        masks.push({ sid, blockName, blockPath: childPath, names: mask.names });
+      }
       for (const inner of childrenNamed(block, 'System')) systems.push({ system: inner, path: childPath });
     }
   }
-  return usages;
+  return { blockParamUsages: usages, masks };
 }
 
 /**

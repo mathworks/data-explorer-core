@@ -25,8 +25,9 @@
 // from this index and falls back to the session for a model it cannot find on disk — showed
 // whichever engine happened to answer, which is how the shadowed usage was found.
 //
-// The rule below is the one both express: model workspace, then the dictionary chain, then
-// the MATs, first hit wins. Two implementations remain because the INPUTS genuinely differ
+// The rule below is the one both express: the enclosing mask workspaces innermost-out, then
+// the model workspace, then the dictionary chain, then the MATs, first hit wins. Two
+// implementations remain because the INPUTS genuinely differ
 // (bytes on disk versus trees in a session, and neither can be had from the other), so the
 // agreement is pinned by test rather than by construction — see test/usageEngines.test.ts,
 // which asks both the same question about the same files.
@@ -39,6 +40,8 @@
 // closing it needs the parsers to keep the workspace file apart from the rest.
 import { blockKey, blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { identifiersIn } from '../expressions.js';
+import { maskDefining } from '../maskScope.js';
+import type { MaskScope } from '../maskScope.js';
 import { basenameOf, isMatFile, isModelFile, isSlddFile, modelNameOf, refBasename } from '../fileKinds.js';
 import { normalizeRefNames, readSlddContent, slddChunkContent } from '../parser/SlddContent.js';
 import { parseModel } from '../parser/ModelParser.js';
@@ -47,8 +50,14 @@ import type { ParsedMat } from '../parser/MatParser.js';
 import type { ParsedSlx } from '../parser/SlxParser.js';
 import type { NodeUsage } from '../../core/DataModel.js';
 
-/** Where a name a block parameter refers to was defined. */
-export type OriginKind = 'workspace' | 'sldd' | 'mat';
+/**
+ * Where a name a block parameter refers to was defined.
+ *
+ * `'mask'` is the odd one out and the only one that is not a FILE: the definition is a
+ * mask parameter of an enclosing masked subsystem, in the same model as the block using
+ * it. See maskScope.
+ */
+export type OriginKind = 'mask' | 'workspace' | 'sldd' | 'mat';
 
 /**
  * One file to index, already read.
@@ -77,6 +86,12 @@ export interface ModelSummary {
   slddRefs: string[];
   /** refBasename'd names of linked MAT-files. */
   matRefs: string[];
+  /**
+   * The model's mask workspaces — a scope INSIDE the model, ahead of everything above.
+   * Unlike the three ref lists this needs no lookup elsewhere: a mask is defined in the
+   * same file as the blocks that see it.
+   */
+  masks: MaskScope[];
   // `sid` and `systemPath` ride along with the name because the three answer different
   // questions: the name is what a cell reads, the SID is which block it is, and the path
   // is where it is. See blockIdentity.
@@ -123,7 +138,19 @@ export interface ParamOrigin {
   name: string | null;
   originSrcId: string | null;
   kind: OriginKind | null;
+  /**
+   * `name@srcId` — except for `kind === 'mask'`, where the definition is a BLOCK and the
+   * target is `blockKey@srcId`, the same grammar `usagesOf` answers with. A host routes
+   * the two to different channels (`workspace:` versus `blocks:`) and so has to read
+   * `kind` to know which it is holding.
+   */
   linkTarget: string;
+  /**
+   * The masked subsystem whose mask workspace defined `name`, and null for every other
+   * kind — the only origin that is a place in the MODEL rather than a file, so the only
+   * one `originSrcId` alone cannot locate. See maskScope.
+   */
+  maskBlock: MaskScope | null;
 }
 
 /**
@@ -186,6 +213,7 @@ function modelSummary(parsed: ParsedSlx, srcId: string, filename: string): Model
       ...externals.filter(isSlddFile).map(refBasename),
     ],
     matRefs: externals.filter(isMatFile).map(refBasename),
+    masks: parsed.masks ?? [],
     blockParams: (parsed.blockParamUsages ?? []).map((u) => ({
       blockName: u.blockName,
       blockType: u.blockType,
@@ -253,13 +281,21 @@ export function summarizeFiles(files: UsageFile[]): FileSummaries {
 // --- Resolving ---------------------------------------------------------------
 
 /**
- * Where the name `name` resolves for the model `model`, or null if it does not.
+ * Where the name `name` resolves for a block of `model` sitting at `systemPath`, or null
+ * if it does not.
  *
- * MATLAB's order, and the FIRST hit wins: the model's own workspace, then the linked
- * dictionary and any dictionary it references transitively, then linked MAT-files. A
- * workspace variable SHADOWS a dictionary entry of the same name — the block reads one
- * value, so only one definition is used, and crediting both would put a usage on an entry
- * whose value never reaches the block.
+ * MATLAB's order, and the FIRST hit wins: the mask workspaces of the masked subsystems
+ * this block is inside (innermost out), then the model's own workspace, then the linked
+ * dictionary and any dictionary it references transitively, then linked MAT-files. Each
+ * scope SHADOWS the ones after it — the block reads one value, so only one definition is
+ * used, and crediting both would put a usage on a definition whose value never reaches
+ * the block.
+ *
+ * `systemPath` is where the resolution is being done FROM, and it defaults to the root
+ * for a caller that has no block in mind. It is only the mask scope that needs it — the
+ * other three are properties of the model as a whole — but that is exactly the fact this
+ * signature had to learn: which names a block can see depends on where the block is, not
+ * only on which model it is in.
  *
  * Dictionary references are chased breadth-first with a seen-set, because a dictionary
  * hierarchy is a graph a user can make cyclic and a cycle here would not terminate.
@@ -269,7 +305,15 @@ export function resolveName(
   name: string,
   slddByName: Map<string, DataSummary>,
   matByName: Map<string, DataSummary>,
-): { kind: OriginKind; srcId: string } | null {
+  systemPath: string = '',
+): { kind: OriginKind; srcId: string; maskBlock?: MaskScope } | null {
+  const mask = maskDefining(model.masks, systemPath, name);
+  if (mask) {
+    // The model's own srcId: a mask workspace is not a file, and the block it belongs to
+    // is in this model. What identifies it is `maskBlock`, not the srcId.
+    return { kind: 'mask', srcId: model.srcId, maskBlock: mask };
+  }
+
   if (model.workspaceNames.has(name)) {
     return { kind: 'workspace', srcId: model.srcId };
   }
@@ -333,9 +377,9 @@ export function buildUsageIndex(files: UsageFile[]): UsageIndex {
       // A Set: an expression can name the same definition twice (`Kp + Kp`), and that is ONE
       // place it is referenced, not two.
       const names = [...new Set(identifiersIn(param.expression))];
-      let origin: { kind: OriginKind; srcId: string; name: string } | null = null;
+      let origin: { kind: OriginKind; srcId: string; name: string; maskBlock?: MaskScope } | null = null;
       for (const name of names) {
-        const resolved = resolveName(model, name, slddByName, matByName);
+        const resolved = resolveName(model, name, slddByName, matByName, param.systemPath);
         if (!resolved) {
           continue;
         }
@@ -345,6 +389,18 @@ export function buildUsageIndex(files: UsageFile[]): UsageIndex {
         // of both.
         if (!origin) {
           origin = { ...resolved, name };
+        }
+        // A mask-resolved name has NO reverse entry. `reverse` is keyed by (file, name of
+        // a definition IN that file), and a mask parameter is not one — so the only key
+        // available would be the model's own, which belongs to the model workspace's
+        // variable of that name. That is a variable the mask HIDES from this block, and
+        // crediting it there is the exact usage MATLAB withholds: maskUsage.slx defines
+        // `shadowed` in the model workspace and again as a mask parameter of `MulAdd`, and
+        // findVars gives the workspace one no user at all though `MulAdd/Const` reads
+        // `shadowed`. The usage is not lost — it appears on the mask parameter's own row,
+        // which is the masked block's, through the forward direction below.
+        if (resolved.kind === 'mask') {
+          continue;
         }
         const index = reverseKey(resolved.srcId, name);
         const usages = reverse.get(index) ?? [];
@@ -378,7 +434,14 @@ export function buildUsageIndex(files: UsageFile[]): UsageIndex {
         // `name@srcId`, this package's one link grammar — never a display string, and never
         // a channel prefix. A host that routes `workspace:` or `blocks:` targets prefixes
         // this itself, which is what it already does with the targets nodes produce.
-        linkTarget: origin ? `${origin.name}@${origin.srcId}` : '',
+        //
+        // A mask origin points at the masked BLOCK instead, by its key: there is no row
+        // anywhere named `g1` to reach, and the place a reader wants from `Gain = g1` is
+        // the mask that gives `g1` its value. Two hops, which is how MATLAB models it too.
+        linkTarget: origin
+          ? `${origin.maskBlock ? blockKey(origin.maskBlock.blockName, origin.maskBlock.sid) : origin.name}@${origin.srcId}`
+          : '',
+        maskBlock: origin?.maskBlock ?? null,
       });
       forward.set(forwardKey(model.srcId, key), params);
     }

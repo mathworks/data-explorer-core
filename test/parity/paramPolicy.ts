@@ -9,9 +9,9 @@
 // a reading of the implementation. If the two ever disagree, that disagreement is
 // the finding.
 //
-// It lives in a module of its own because two suites hold files to it: the `.mdl`
-// container parity suite and the `.slx` layout parity suite. One statement they
-// both read cannot drift out of step with itself; two copies could.
+// It lives in a module of its own because three suites hold files to it: the `.mdl`
+// container parity suite, the `.slx` layout parity suite, and the mask suite. One
+// statement they all read cannot drift out of step with itself; three copies could.
 import type { MdlBlockTruth } from './matlab/loadTruth.js';
 
 const NUMERIC = /^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
@@ -21,11 +21,32 @@ const IDENTIFIER = /[A-Za-z_]\w*/;
 // listed; the full blocklist lives in the parser.
 const COSMETIC = new Set(['Position', 'ShowName', 'ZOrder']);
 
-export function referencesData(prop: string, value: string): boolean {
-  if (COSMETIC.has(prop)) { return false; }
+/** Whether a VALUE could name workspace data, whatever wrote it. */
+export function valueReferencesData(value: string): boolean {
   if (!value || NUMERIC.test(value) || NON_FINITE.test(value)) { return false; }
   if (value === 'on' || value === 'off') { return false; }
   return IDENTIFIER.test(value);
+}
+
+export function referencesData(prop: string, value: string): boolean {
+  if (COSMETIC.has(prop)) { return false; }
+  return valueReferencesData(value);
+}
+
+// A MASK parameter is the same policy with the property test swapped for two others,
+// and the difference is not ours to choose: `Simulink.findVars` resolves a mask
+// parameter's value only when the parameter is an expression-valued TYPE and is marked
+// evaluated, and it credits the value to the MASKED BLOCK. Measured, not read off the
+// format — test/parity/matlab/probe_mask_types.m for the types, probe_evaluate.m for
+// the flag. The blocklist above does NOT apply: a mask parameter's name is chosen by
+// the mask's author, so a mask really named `Position` carries none of the meaning the
+// block property of that name has.
+const EXPRESSION_MASK_TYPES = new Set(['edit', 'slider', 'dial', 'spinbox', 'min', 'max']);
+
+export function maskParamReferencesData(type: string, evaluate: string, value: string): boolean {
+  if (!EXPRESSION_MASK_TYPES.has(type.trim().toLowerCase())) { return false; }
+  if (evaluate === 'off') { return false; }
+  return valueReferencesData(value);
 }
 
 /**

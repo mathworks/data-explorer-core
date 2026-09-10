@@ -1,6 +1,13 @@
+import type { MaskScope } from '../maskScope.js';
 import type { NodeUsage } from '../../core/DataModel.js';
-/** Where a name a block parameter refers to was defined. */
-export type OriginKind = 'workspace' | 'sldd' | 'mat';
+/**
+ * Where a name a block parameter refers to was defined.
+ *
+ * `'mask'` is the odd one out and the only one that is not a FILE: the definition is a
+ * mask parameter of an enclosing masked subsystem, in the same model as the block using
+ * it. See maskScope.
+ */
+export type OriginKind = 'mask' | 'workspace' | 'sldd' | 'mat';
 /**
  * One file to index, already read.
  *
@@ -27,6 +34,12 @@ export interface ModelSummary {
     slddRefs: string[];
     /** refBasename'd names of linked MAT-files. */
     matRefs: string[];
+    /**
+     * The model's mask workspaces — a scope INSIDE the model, ahead of everything above.
+     * Unlike the three ref lists this needs no lookup elsewhere: a mask is defined in the
+     * same file as the blocks that see it.
+     */
+    masks: MaskScope[];
     blockParams: {
         blockName: string;
         blockType: string;
@@ -65,7 +78,19 @@ export interface ParamOrigin {
     name: string | null;
     originSrcId: string | null;
     kind: OriginKind | null;
+    /**
+     * `name@srcId` — except for `kind === 'mask'`, where the definition is a BLOCK and the
+     * target is `blockKey@srcId`, the same grammar `usagesOf` answers with. A host routes
+     * the two to different channels (`workspace:` versus `blocks:`) and so has to read
+     * `kind` to know which it is holding.
+     */
     linkTarget: string;
+    /**
+     * The masked subsystem whose mask workspace defined `name`, and null for every other
+     * kind — the only origin that is a place in the MODEL rather than a file, so the only
+     * one `originSrcId` alone cannot locate. See maskScope.
+     */
+    maskBlock: MaskScope | null;
 }
 /**
  * Usage answers over a fixed set of files.
@@ -107,20 +132,29 @@ export interface UsageIndex {
  */
 export declare function summarizeFiles(files: UsageFile[]): FileSummaries;
 /**
- * Where the name `name` resolves for the model `model`, or null if it does not.
+ * Where the name `name` resolves for a block of `model` sitting at `systemPath`, or null
+ * if it does not.
  *
- * MATLAB's order, and the FIRST hit wins: the model's own workspace, then the linked
- * dictionary and any dictionary it references transitively, then linked MAT-files. A
- * workspace variable SHADOWS a dictionary entry of the same name — the block reads one
- * value, so only one definition is used, and crediting both would put a usage on an entry
- * whose value never reaches the block.
+ * MATLAB's order, and the FIRST hit wins: the mask workspaces of the masked subsystems
+ * this block is inside (innermost out), then the model's own workspace, then the linked
+ * dictionary and any dictionary it references transitively, then linked MAT-files. Each
+ * scope SHADOWS the ones after it — the block reads one value, so only one definition is
+ * used, and crediting both would put a usage on a definition whose value never reaches
+ * the block.
+ *
+ * `systemPath` is where the resolution is being done FROM, and it defaults to the root
+ * for a caller that has no block in mind. It is only the mask scope that needs it — the
+ * other three are properties of the model as a whole — but that is exactly the fact this
+ * signature had to learn: which names a block can see depends on where the block is, not
+ * only on which model it is in.
  *
  * Dictionary references are chased breadth-first with a seen-set, because a dictionary
  * hierarchy is a graph a user can make cyclic and a cycle here would not terminate.
  */
-export declare function resolveName(model: ModelSummary, name: string, slddByName: Map<string, DataSummary>, matByName: Map<string, DataSummary>): {
+export declare function resolveName(model: ModelSummary, name: string, slddByName: Map<string, DataSummary>, matByName: Map<string, DataSummary>, systemPath?: string): {
     kind: OriginKind;
     srcId: string;
+    maskBlock?: MaskScope;
 } | null;
 /**
  * Build the index over a set of files.

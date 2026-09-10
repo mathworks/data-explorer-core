@@ -24,6 +24,7 @@ export default class ModelNode extends ContainerNode {
         this.rawContents = null;
         this.dirty = false;
         this.blockParamUsages = [];
+        this.masks = [];
         this._zipEntries = null;
         this._workspaceVars = null;
         SECTION_DEFS.forEach((def) => {
@@ -138,6 +139,7 @@ export default class ModelNode extends ContainerNode {
         node._zipEntries = parsed.zipEntries || null;
         node._workspaceVars = parsed.workspace;
         node.blockParamUsages = parsed.blockParamUsages || [];
+        node.masks = parsed.masks || [];
         // Populate blocks section from blockParamUsages — ONE ROW PER BLOCK, keyed by the
         // block's SID and not by its name. A name is unique within a system only, so
         // grouping on it merged every same-named block in the model into a single row:

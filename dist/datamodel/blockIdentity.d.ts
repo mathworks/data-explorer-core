@@ -38,4 +38,24 @@ export declare function blockLabel(name: string, sid: string): string;
  * escaped — the escape is applied to the segment being added, once.
  */
 export declare function joinBlockPath(parentPath: string, label: string): string;
+/**
+ * Is `path` AT or BENEATH `ancestor` — both paths as joinBlockPath spells them?
+ *
+ * The containment question the mask workspace asks (maskScope): a masked subsystem's
+ * scope covers the blocks inside it, and "inside" is a fact about paths.
+ *
+ * A plain `path.startsWith(ancestor + '/')` gets this wrong, and gets it wrong in the
+ * direction that credits a usage to a scope that does not hold it. `A//B/C` is a block
+ * `C` inside a block NAMED `a/b` — one segment, doubled — and it starts with `A/`, so
+ * a mask on a sibling block `A` would swallow it. So the boundary is checked rather
+ * than assumed: what follows the ancestor must be a run of slashes of ODD length, the
+ * even half being the escape and the odd one left over being the separator.
+ *
+ * The one path pair this cannot tell apart is a label that ENDS in a slash from a
+ * separator followed by a label that begins with one (`A///B` is both `[A/, B]` and
+ * `[A, /B]`), which is inherent to the escape and not worth a second encoding to fix:
+ * Simulink trims a block name's outer whitespace and no MathWorks tool writes such a
+ * name.
+ */
+export declare function isInsideBlockPath(ancestor: string, path: string): boolean;
 //# sourceMappingURL=blockIdentity.d.ts.map

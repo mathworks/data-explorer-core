@@ -1,0 +1,149 @@
+{
+  "model": "maskUsage",
+  "vars": [
+    {
+      "name": "g1",
+      "sourceType": "mask workspace",
+      "source": "maskUsage/MulAdd",
+      "users": [
+        "maskUsage/MulAdd/Gain"
+      ]
+    },
+    {
+      "name": "g1_param",
+      "sourceType": "model workspace",
+      "source": "maskUsage",
+      "users": [
+        "maskUsage/MulAdd",
+        "maskUsage/RootGain"
+      ]
+    },
+    {
+      "name": "g2",
+      "sourceType": "mask workspace",
+      "source": "maskUsage/MulAdd",
+      "users": [
+        "maskUsage/MulAdd/Gain1"
+      ]
+    },
+    {
+      "name": "g2_param",
+      "sourceType": "model workspace",
+      "source": "maskUsage",
+      "users": [
+        "maskUsage/MulAdd"
+      ]
+    },
+    {
+      "name": "g3_param",
+      "sourceType": "model workspace",
+      "source": "maskUsage",
+      "users": [
+        "maskUsage/MulAdd"
+      ]
+    },
+    {
+      "name": "i1",
+      "sourceType": "mask workspace",
+      "source": "maskUsage/Outer/Inner",
+      "users": [
+        "maskUsage/Outer/Inner/Gain"
+      ]
+    },
+    {
+      "name": "o1",
+      "sourceType": "mask workspace",
+      "source": "maskUsage/Outer",
+      "users": [
+        "maskUsage/Outer/Inner",
+        "maskUsage/Outer/OuterGain"
+      ]
+    },
+    {
+      "name": "o1",
+      "sourceType": "mask workspace",
+      "source": "maskUsage/Outer/Inner",
+      "users": [
+        "maskUsage/Outer/Inner/Gain1"
+      ]
+    },
+    {
+      "name": "outer_param",
+      "sourceType": "model workspace",
+      "source": "maskUsage",
+      "users": [
+        "maskUsage/Outer"
+      ]
+    },
+    {
+      "name": "shadowed",
+      "sourceType": "mask workspace",
+      "source": "maskUsage/MulAdd",
+      "users": [
+        "maskUsage/MulAdd/Const"
+      ]
+    }
+  ],
+  "masks": [
+    {
+      "block": "maskUsage/MulAdd",
+      "sid": "2",
+      "names": [
+        "g1",
+        "g2",
+        "g3",
+        "g5",
+        "shadowed",
+        "mode",
+        "flag"
+      ],
+      "values": [
+        "g1_param",
+        "2*g2_param",
+        "g3_param",
+        "5",
+        "10",
+        "popupVar",
+        "on"
+      ],
+      "types": [
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "edit",
+        "popup",
+        "checkbox"
+      ]
+    },
+    {
+      "block": "maskUsage/Outer",
+      "sid": "6",
+      "names": [
+        "o1"
+      ],
+      "values": [
+        "outer_param"
+      ],
+      "types": [
+        "edit"
+      ]
+    },
+    {
+      "block": "maskUsage/Outer/Inner",
+      "sid": "8",
+      "names": [
+        "i1",
+        "o1"
+      ],
+      "values": [
+        "o1",
+        "7"
+      ],
+      "types": [
+        "edit",
+        "edit"
+      ]
+    }
+  ]
+}
