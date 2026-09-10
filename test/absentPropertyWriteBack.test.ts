@@ -1,6 +1,12 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// ONE WRITE-BACK RULE, TWO SAVE PATHS, SIX CLASSES.
+// ONE WRITE-BACK RULE, TWO SAVE PATHS, ELEVEN CLASSES.
+//
+// The eleven, so the count above can be checked rather than trusted: NumericType,
+// AliasType, ValueType, Signal, Breakpoint, LookupTable and the registered CustomObject
+// are the `CASES` table below; Parameter, BusElement, ConfigSet and ConfigSetRef have
+// their own blocks, because a bound and an ungated key are not the table's shape. A bus
+// is not counted separately — it appears only as the thing a BusElement is saved inside.
 //
 // A dictionary entry's property bag is what the FILE held, and MATLAB writes only the
 // properties it has something to say about: a `Simulink.ValueType` a user never gave a
@@ -15,8 +21,8 @@
 // "never set" from "set to empty" in both flavours, and keying on presence rather than on
 // truthiness is what preserves that distinction.
 //
-// Every node in this cluster therefore gates its write-back on the same question — "was this
-// key on disk, or has the user since set it?" — spelled
+// Most nodes in this cluster therefore gate their write-back on the same question — "was
+// this key on disk, or has the user since set it?" — spelled
 // `if ('Description' in stored || this.Description)`. Both halves matter and they fail in
 // opposite directions:
 //
@@ -27,6 +33,14 @@
 //     worst place to find out;
 //   * lose the gate entirely and every save invents keys the file never had, so opening
 //     a dictionary and saving it with no edits produces a diff in source control.
+//
+// Three keys here are deliberately NOT gated, and they are in this file because the
+// invariant asserted is the same one: an alias's BaseType, a ConfigSet's Name and a
+// ConfigSetRef's SourceName identify the entry rather than describe it, so MATLAB gets
+// them even when the value is the empty string a half-built entry carries. The two paths
+// still have to agree, and for these three what they must agree ON is that the key is
+// unconditional — one path gating what the other writes always is the same divergence
+// wearing different clothes.
 //
 // The reason this deserves its own file rather than a line in each class's tests is that
 // each of these classes spells the rule TWICE. `_getSerializedProperties` is read by
@@ -78,6 +92,11 @@ import AliasTypeNode from '../src/datamodel/node/data/AliasTypeNode.js';
 import ValueTypeNode from '../src/datamodel/node/data/ValueTypeNode.js';
 import SignalNode from '../src/datamodel/node/data/SignalNode.js';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
+import BreakpointNode from '../src/datamodel/node/data/BreakpointNode.js';
+import LookupTableNode from '../src/datamodel/node/data/LookupTableNode.js';
+import CustomObjectNode from '../src/datamodel/node/data/CustomObjectNode.js';
+import ConfigSetNode from '../src/datamodel/node/data/ConfigSetNode.js';
+import ConfigSetRefNode from '../src/datamodel/node/data/ConfigSetRefNode.js';
 import { BusNode } from '../src/datamodel/node/data/BusNode.js';
 import type DataNode from '../src/datamodel/node/DataNode.js';
 // Registers the class map the nodes' shared machinery dispatches through.
@@ -163,6 +182,39 @@ const CASES: Case[] = [
     prop: 'Description',
     key: 'Description',
     typed: 'commanded torque',
+  },
+  // The three classes below hold nothing but a Description, so today their two save
+  // paths are character-for-character the same gate. That identity is not a property of
+  // the code, though — it is still two hand-written copies — so the next person who
+  // teaches one of these classes a second property, or hoists one of its paths onto a
+  // shared helper, can change one method and leave the other behind with nothing
+  // objecting. Being trivially correct today is the reason to pin them here, not a
+  // reason to leave them out.
+  {
+    label: 'Simulink.Breakpoint',
+    className: 'Simulink.Breakpoint',
+    parse: (raw, name) => BreakpointNode.parse(raw, name, null),
+    prop: 'Description',
+    key: 'Description',
+    typed: 'engine speed breakpoints, 0:500:6000 rpm',
+  },
+  {
+    label: 'Simulink.LookupTable',
+    className: 'Simulink.LookupTable',
+    parse: (raw, name) => LookupTableNode.parse(raw, name, null),
+    prop: 'Description',
+    key: 'Description',
+    typed: 'engine torque vs. speed and throttle',
+  },
+  {
+    // Not a Simulink class name: `CustomObject` is the literal `_array_class` this
+    // package registers a node for, and the Class column shows it verbatim.
+    label: 'CustomObject',
+    className: 'CustomObject',
+    parse: (raw, name) => CustomObjectNode.parse(raw, name, null),
+    prop: 'Description',
+    key: 'Description',
+    typed: 'legacy calibration object, kept for the report generator',
   },
 ];
 
@@ -263,6 +315,35 @@ describe('the compressed-binary and uncompressed-text save paths agree', () => {
     edited.setProperty('BaseType', 'int8');
     expect(binaryPath(edited)).toHaveProperty('BaseType', 'int8');
     expect(textFileBag(edited)).toHaveProperty('BaseType', 'int8');
+  });
+
+  it('carries a ConfigSet Name and a ConfigSetRef SourceName unconditionally, on both paths', () => {
+    // The other two ungated keys in this cluster, asserted the same way as BaseType and
+    // for the same reason: an unconditional write is still written twice, so the two
+    // copies can still lose each other. A config set MATLAB can load has to be able to
+    // say what it is called and a reference has to say what it points at, so neither key
+    // waits for the file to have carried it — and what a bare bag proves is exactly that,
+    // since a gated key would be missing here.
+    const cfg = ConfigSetNode.parse(rawVal('Simulink.ConfigSet', {}), 'Cfg', null);
+    expect(binaryPath(cfg)).toHaveProperty('Name', 'Cfg');
+    expect(textFileBag(cfg)).toHaveProperty('Name', 'Cfg');
+
+    // A ConfigSet's Name is the entry name rather than a field of its own, which is the
+    // whole point of writing it unconditionally: rename the entry and BOTH saved bags
+    // have to name the new one. When ConfigName was stored separately the binary and
+    // text bags agreed with each other and disagreed with the tree, and the config set
+    // came back under its old name on reopen.
+    expect(cfg.setProperty('Name', 'FasterCfg')).toBe(true);
+    expect(binaryPath(cfg)).toHaveProperty('Name', 'FasterCfg');
+    expect(textFileBag(cfg)).toHaveProperty('Name', 'FasterCfg');
+
+    const ref = ConfigSetRefNode.parse(rawVal('Simulink.ConfigSetRef', {}), 'R', null);
+    expect(binaryPath(ref)).toHaveProperty('SourceName', '');
+    expect(textFileBag(ref)).toHaveProperty('SourceName', '');
+
+    const pointed = ConfigSetRefNode.parse(rawVal('Simulink.ConfigSetRef', { SourceName: 'shared' }), 'R', null);
+    expect(binaryPath(pointed)).toHaveProperty('SourceName', 'shared');
+    expect(textFileBag(pointed)).toHaveProperty('SourceName', 'shared');
   });
 
   it('spells a saved Signal unit key the way the file spelled it, on both paths', () => {
