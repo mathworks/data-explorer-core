@@ -4,10 +4,21 @@
 //
 // A dictionary entry's property bag is what the FILE held, and MATLAB writes only the
 // properties it has something to say about: a `Simulink.ValueType` a user never gave a
-// description to has no `Description` key at all. Every node in this cluster therefore
-// gates its write-back on the same question — "was this key on disk, or has the user
-// since set it?" — spelled `if ('Description' in stored || this.Description)`. Both
-// halves matter and they fail in opposite directions:
+// description to has no `Description` key at all.
+//
+// That premise is measured, in BOTH formats, which is what makes it safe to build on.
+// R2027a, on dictionaries MATLAB wrote itself: a `Simulink.Parameter` given no bound has no
+// `Min` TAG at all — see `test/fixtures/object_array_binary.sldd`, whose Parameter elements
+// carry only `Value` and `Description`. So "absent" is a state the binary format really has,
+// not a text-only convention with binary always emitting every key. A bound explicitly
+// assigned `[]`, by contrast, IS written. Presence-in-the-file therefore distinguishes
+// "never set" from "set to empty" in both flavours, and keying on presence rather than on
+// truthiness is what preserves that distinction.
+//
+// Every node in this cluster therefore gates its write-back on the same question — "was this
+// key on disk, or has the user since set it?" — spelled
+// `if ('Description' in stored || this.Description)`. Both halves matter and they fail in
+// opposite directions:
 //
 //   * drop the `in stored` half and a property MATLAB DID write, whose value happens to
 //     be empty, disappears from the saved file;
@@ -41,6 +52,14 @@
 // the way out: the two paths share the bag, and `undefined` reaches the binary writer as
 // `Class="char"` — an empty char where a double belongs — which is why the XML spelling
 // is asserted too.
+//
+// "MATLAB reads it back as the same absent bound" is measured, not assumed: R2027a reads a
+// text dictionary's `"Min": []` as `class double`, `size [0 0]`, `isempty 1`, and `isequal`
+// to an entry whose key was omitted returns 1. Worth knowing alongside that: MATLAB does
+// NOT normalize our spelling away. It re-serializes only the entries it actually modified,
+// so editing a neighbouring entry leaves `"Min": []` byte-identical on disk and an entry the
+// user never touches again keeps it indefinitely. The difference is durable, which is why it
+// is recorded as a known divergence rather than treated as something that resolves itself.
 //
 // One honest caveat about how the rule is reached. The `this.X` half of the gate is only
 // reachable by an EDIT for the properties a user can actually edit — Description, Min, Max
