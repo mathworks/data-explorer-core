@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// ONE WRITE-BACK RULE, TWO SAVE PATHS, FOUR CLASSES.
+// ONE WRITE-BACK RULE, TWO SAVE PATHS, SIX CLASSES.
 //
 // A dictionary entry's property bag is what the FILE held, and MATLAB writes only the
 // properties it has something to say about: a `Simulink.ValueType` a user never gave a
@@ -27,6 +27,21 @@
 // Until the others do the same, the agreement between the pair is the invariant worth
 // asserting, and it is asserted here for all of them at once.
 //
+// The other edge of that shape, recorded here because it is the one thing this file
+// cannot claim for a Parameter or a bus element: ONE shared method cannot express a
+// legitimate per-format difference. A cleared numeric bound is such a difference —
+// MATLAB spells an empty Min in a binary dictionary as `<P Name="Min" Class="double"
+// Dimension="0*0"/>` (an empty `[]`) and in a text one by OMITTING the key. `SignalNode`,
+// whose two paths are separate, writes each format's own spelling. `ParameterNode` and
+// `BusElementNode` write `[]` on BOTH paths, so their text flavour carries `"Min": []`
+// where MATLAB would carry nothing. That is a correct value spelled differently, and
+// MATLAB reads it back as the same absent bound — so what is asserted below is the
+// ANSWER a reopened file gives, plus the exact binary spelling. The `[]` in the text
+// bag is pinned as what we do write, NOT as byte parity with MATLAB. `undefined` is not
+// the way out: the two paths share the bag, and `undefined` reaches the binary writer as
+// `Class="char"` — an empty char where a double belongs — which is why the XML spelling
+// is asserted too.
+//
 // One honest caveat about how the rule is reached. The `this.X` half of the gate is only
 // reachable by an EDIT for the properties a user can actually edit — Description, Min, Max
 // and an alias's BaseType all have editors. `Unit` and a ValueType's `DataType` are declared
@@ -43,6 +58,8 @@ import NumericTypeNode from '../src/datamodel/node/data/NumericTypeNode.js';
 import AliasTypeNode from '../src/datamodel/node/data/AliasTypeNode.js';
 import ValueTypeNode from '../src/datamodel/node/data/ValueTypeNode.js';
 import SignalNode from '../src/datamodel/node/data/SignalNode.js';
+import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
+import { BusNode } from '../src/datamodel/node/data/BusNode.js';
 import type DataNode from '../src/datamodel/node/DataNode.js';
 // Registers the class map the nodes' shared machinery dispatches through.
 import '../src/datamodel/node/NodeClassMap.js';
@@ -67,6 +84,21 @@ const textPath = (node: DataNode) => {
 // `undefined` — so this is the bag as the FILE would carry it, not as the object holds it.
 const textFileBag = (node: DataNode) =>
   JSON.parse(JSON.stringify({ p: textPath(node) })).p as Record<string, unknown>;
+
+// The elements wrapper a bus carries its elements in, built the way
+// archPresentation.test.ts builds it. A bus element has no save path of its own — it
+// reaches a file only inside its parent's `Elements_internal` — so the element bag is
+// pulled back out of whichever of the BUS's two bags is under test.
+function elementsInternal(elementClass: string, elems: Record<string, unknown>[]): Record<string, unknown> {
+  return {
+    _array_class: elementClass,
+    _dimensions: [elems.length, 1],
+    _mw_element_type: 'MATLABArray',
+    _elements: elems.map((p) => ({ _properties: p })),
+  };
+}
+const firstElementBag = (busBag: Record<string, unknown>) =>
+  (busBag.Elements_internal as { _elements: { _properties: Record<string, unknown> }[] })._elements[0]._properties;
 
 type Case = {
   // How a user names the entry's class, since that is what the Class column shows.
@@ -312,5 +344,179 @@ describe('a Signal bound the user cleared', () => {
     expect(node.setProperty('Max', '10')).toBe(true);
     expect(binaryPath(node)).toMatchObject({ Min: -10, Max: 10 });
     expect(textFileBag(node)).toMatchObject({ Min: -10, Max: 10 });
+  });
+});
+
+describe('a Parameter bound the user cleared', () => {
+  // The same rule as the Signal above, in a different hand-written copy. A Parameter's
+  // two paths are the SHARED shape (`serializeValue` calls `_getSerializedProperties`),
+  // so both write MATLAB's binary spelling `[]`; see the note in this file's header for
+  // why the text flavour's `"Min": []` is the right answer spelled our way rather than
+  // MATLAB's omitted key.
+  const param = (props: Record<string, unknown>) =>
+    ParameterNode.parse(rawVal('Simulink.Parameter', props), 'p', null);
+  const minCell = (node: DataNode) => (node.toRow()!.Min as { text: string }).text;
+  const maxCell = (node: DataNode) => (node.toRow()!.Max as { text: string }).text;
+
+  it('reads back as no minimum from either flavour of the saved file', () => {
+    // What a user does: a Parameter whose dictionary gives it Min 5, and they empty the
+    // Minimum box. Before this was fixed, the node's own row went blank and the SAVED
+    // file still said 5 — so the bound came back on reopen and the edit was gone with no
+    // error anywhere. The reopen is asserted, not just the bag, because "what the file
+    // holds" only matters through what it shows when read again.
+    const node = param({ Min: 5, Max: 9 });
+    expect(minCell(node)).toBe('5');
+    expect(node.setProperty('Min', '')).toBe(true);
+    expect(minCell(node)).toBe('');
+
+    // Binary: MATLAB's own empty, written out.
+    expect(binaryPath(node).Min).toEqual([]);
+    expect(minCell(param(binaryPath(node)))).toBe('');
+
+    // Text: `[]` survives JSON.stringify where MATLAB would have omitted the key. Both
+    // are read back as "no bound" (_normalizeMinMax maps an empty array to undefined),
+    // which is the statement that matters to the user.
+    expect(textFileBag(node).Min).toEqual([]);
+    expect(minCell(param(textFileBag(node)))).toBe('');
+
+    // The bound the user did NOT clear is untouched by either path.
+    expect(binaryPath(node).Max).toBe(9);
+    expect(textFileBag(node).Max).toBe(9);
+
+    // And the upper bound behaves as the lower one does — asserted rather than assumed,
+    // for the reason the Signal case gives: Min and Max are separate copies of the rule.
+    expect(node.setProperty('Max', '')).toBe(true);
+    expect(maxCell(node)).toBe('');
+    expect(binaryPath(node).Max).toEqual([]);
+    expect(textFileBag(node).Max).toEqual([]);
+    expect(maxCell(param(binaryPath(node)))).toBe('');
+    expect(maxCell(param(textFileBag(node)))).toBe('');
+  });
+
+  it('spells a cleared bound in the binary XML as the empty double, not an empty char', () => {
+    // The assertion that rules out the tempting "simplification" to `undefined`. This is
+    // the one place the bytes are visible: `undefined` reaches the XML writer as
+    // `<P Name="Min" Class="char"/>` — an empty CHAR where MATLAB writes an empty
+    // DOUBLE — and a stale fallback reaches it as the old number, still 5.0.
+    const node = param({ Min: 5, Max: 9 });
+    expect(node.setProperty('Min', '')).toBe(true);
+    expect(node.setProperty('Max', '')).toBe(true);
+    const xml = node.serializeXml('P', { Name: 'Value' }, 0);
+    expect(xml).toContain('<P Name="Min" Class="double" Dimension="0*0"/>');
+    expect(xml).toContain('<P Name="Max" Class="double" Dimension="0*0"/>');
+    expect(xml).not.toContain('Name="Min" Class="char"');
+    expect(xml).not.toContain('Name="Max" Class="char"');
+  });
+
+  it('does not gain a Min key at all when the file had none and the user set none', () => {
+    const node = param({});
+    expect(binaryPath(node)).not.toHaveProperty('Min');
+    expect(binaryPath(node)).not.toHaveProperty('Max');
+    expect(textFileBag(node)).not.toHaveProperty('Min');
+    expect(textFileBag(node)).not.toHaveProperty('Max');
+  });
+
+  it('writes a bound the user typed into a Parameter the file gave none', () => {
+    const node = param({});
+    expect(node.setProperty('Min', '-10')).toBe(true);
+    expect(node.setProperty('Max', '10')).toBe(true);
+    expect(binaryPath(node)).toMatchObject({ Min: -10, Max: 10 });
+    expect(textFileBag(node)).toMatchObject({ Min: -10, Max: 10 });
+  });
+});
+
+describe('a BusElement bound the user cleared', () => {
+  // The third copy of the rule, reached the way a file reaches it: an element serializes
+  // only as part of its bus, under the `Min_internal`/`Max_internal` spelling a bus
+  // element's bag uses, so every assertion here goes through the BUS's two save paths
+  // rather than through `_applyElementOverrides` directly.
+  const busWith = (elemProps: Record<string, unknown>) =>
+    BusNode.parse(
+      rawVal('Simulink.Bus', { Elements_internal: elementsInternal('Simulink.BusElement', [elemProps]) }),
+      'B',
+      null,
+    );
+  const element = (bus: DataNode) => bus.children[0] as DataNode;
+  const minCell = (node: DataNode) => (node.toRow()!.Min as { text: string }).text;
+  const maxCell = (node: DataNode) => (node.toRow()!.Max as { text: string }).text;
+  // The element bag as each of the bus's paths puts it in the file.
+  const binaryElement = (bus: DataNode) => firstElementBag(binaryPath(bus));
+  const textFileElement = (bus: DataNode) => firstElementBag(textFileBag(bus));
+
+  it('reads back as no minimum from either flavour of the saved file', () => {
+    const bus = busWith({ Name: 'a', Min_internal: 5, Max_internal: 9 });
+    const el = element(bus);
+    expect(minCell(el)).toBe('5');
+    expect(el.setProperty('Min', '')).toBe(true);
+    expect(minCell(el)).toBe('');
+
+    // Written under the key the file used, as MATLAB's empty double — and NOT under the
+    // un-aliased `Min`, which would leave the element with two minima to choose from.
+    expect(binaryElement(bus).Min_internal).toEqual([]);
+    expect(binaryElement(bus)).not.toHaveProperty('Min');
+    expect(textFileElement(bus).Min_internal).toEqual([]);
+    expect(textFileElement(bus)).not.toHaveProperty('Min');
+
+    // Reopened from either saved bag, the element shows no minimum.
+    expect(minCell(element(busWith(binaryElement(bus))))).toBe('');
+    expect(minCell(element(busWith(textFileElement(bus))))).toBe('');
+
+    // The bound the user did NOT clear is untouched by either path.
+    expect(binaryElement(bus).Max_internal).toBe(9);
+    expect(textFileElement(bus).Max_internal).toBe(9);
+
+    // Max separately — a separate copy of the rule again.
+    expect(el.setProperty('Max', '')).toBe(true);
+    expect(maxCell(el)).toBe('');
+    expect(binaryElement(bus).Max_internal).toEqual([]);
+    expect(textFileElement(bus).Max_internal).toEqual([]);
+    expect(maxCell(element(busWith(binaryElement(bus))))).toBe('');
+    expect(maxCell(element(busWith(textFileElement(bus))))).toBe('');
+  });
+
+  it('spells a cleared bound in the binary XML as the empty double, not an empty char', () => {
+    const bus = busWith({ Name: 'a', Min_internal: 5, Max_internal: 9 });
+    expect(element(bus).setProperty('Min', '')).toBe(true);
+    expect(element(bus).setProperty('Max', '')).toBe(true);
+    const xml = bus.serializeXml('P', { Name: 'Value' }, 0);
+    expect(xml).toContain('<P Name="Min_internal" Class="double" Dimension="0*0"/>');
+    expect(xml).toContain('<P Name="Max_internal" Class="double" Dimension="0*0"/>');
+    expect(xml).not.toContain('Name="Min_internal" Class="char"');
+    expect(xml).not.toContain('Name="Max_internal" Class="char"');
+  });
+
+  it('keeps a bound the file spelled without the alias under that same plain key', () => {
+    // A bag carrying plain `Min`/`Max` is read the same way, and a clear must go back
+    // under the spelling the file used — inventing the `_internal` alias here would
+    // leave the old plain key beside it, unchanged, and MATLAB reading the old bound.
+    const bus = busWith({ Name: 'a', Min: 5, Max: 9 });
+    expect(element(bus).setProperty('Min', '')).toBe(true);
+    expect(binaryElement(bus).Min).toEqual([]);
+    expect(binaryElement(bus)).not.toHaveProperty('Min_internal');
+    expect(textFileElement(bus).Min).toEqual([]);
+    expect(minCell(element(busWith(binaryElement(bus))))).toBe('');
+  });
+
+  it('does not gain a Min key at all when the file had none and the user set none', () => {
+    const bus = busWith({ Name: 'a' });
+    expect(binaryElement(bus)).not.toHaveProperty('Min');
+    expect(binaryElement(bus)).not.toHaveProperty('Min_internal');
+    expect(binaryElement(bus)).not.toHaveProperty('Max');
+    expect(binaryElement(bus)).not.toHaveProperty('Max_internal');
+    expect(textFileElement(bus)).not.toHaveProperty('Min');
+    expect(textFileElement(bus)).not.toHaveProperty('Min_internal');
+    expect(textFileElement(bus)).not.toHaveProperty('Max');
+    expect(textFileElement(bus)).not.toHaveProperty('Max_internal');
+  });
+
+  it('writes a bound the user typed into an element the file gave none', () => {
+    const bus = busWith({ Name: 'a' });
+    expect(element(bus).setProperty('Min', '-10')).toBe(true);
+    expect(element(bus).setProperty('Max', '10')).toBe(true);
+    // No alias to inherit from the file, so the plain keys are the ones written.
+    expect(binaryElement(bus)).toMatchObject({ Min: -10, Max: 10 });
+    expect(textFileElement(bus)).toMatchObject({ Min: -10, Max: 10 });
+    expect(minCell(element(busWith(binaryElement(bus))))).toBe('-10');
+    expect(maxCell(element(busWith(textFileElement(bus))))).toBe('10');
   });
 });

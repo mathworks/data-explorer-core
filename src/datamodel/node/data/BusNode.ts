@@ -14,8 +14,6 @@ import PropDimensionsMode from '../../prop/PropDimensionsMode.js';
 const CLASS_NAME = 'Simulink.Bus';
 
 export class BusElementNode extends BaseBusElementNode {
-    _rawMin: unknown;
-    _rawMax: unknown;
     Min: number | undefined;
     Max: number | undefined;
     Unit: string;
@@ -34,10 +32,14 @@ export class BusElementNode extends BaseBusElementNode {
 
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) {
         super(name, parent, props, serial);
-        this._rawMin = props.Min_internal !== undefined ? props.Min_internal : props.Min;
-        this._rawMax = props.Max_internal !== undefined ? props.Max_internal : props.Max;
-        this.Min = BusElementNode._normalizeMinMax(this._rawMin);
-        this.Max = BusElementNode._normalizeMinMax(this._rawMax);
+        // A bus element's bounds may arrive under either spelling; only the normalized
+        // value is kept. The raw one was held in a field until the write-back stopped
+        // falling back to it — nothing else ever read it, and while it existed a cleared
+        // bound was silently restored from it on save.
+        const rawMin = props.Min_internal !== undefined ? props.Min_internal : props.Min;
+        const rawMax = props.Max_internal !== undefined ? props.Max_internal : props.Max;
+        this.Min = BusElementNode._normalizeMinMax(rawMin);
+        this.Max = BusElementNode._normalizeMinMax(rawMax);
         this.Unit = (props.DocUnits as string) || (props.Unit as string) || '';
         // The element's data type is stored in DataType_internal (falling back to
         // DataType); an unset type means the Simulink default of 'double'.
@@ -160,8 +162,15 @@ export class BusElementNode extends BaseBusElementNode {
         const maxKey = 'Max_internal' in sp ? 'Max_internal' : 'Max';
         const unitKey = 'DocUnits' in sp ? 'DocUnits' : 'Unit';
         const dtKey = 'DataType_internal' in sp ? 'DataType_internal' : 'DataType';
-        if (minKey in sp || this.Min !== undefined) { props[minKey] = this.Min !== undefined ? this.Min : this._rawMin; }
-        if (maxKey in sp || this.Max !== undefined) { props[maxKey] = this.Max !== undefined ? this.Max : this._rawMax; }
+        // A cleared bound goes out as `[]` — MATLAB's own empty — under the key the file
+        // used, and not as the value the file held there: falling back to that (what this
+        // did) meant emptying the Minimum box blanked the row and saved the old number,
+        // so the bound came back on reopen. `undefined` is not the alternative here
+        // either; this bag reaches the XML writer, which spells `undefined` as
+        // `Class="char"`. See ParameterNode._getSerializedProperties for the full note,
+        // including the residual `"Min": []`-vs-omitted-key difference on the text path.
+        if (minKey in sp || this.Min !== undefined) { props[minKey] = this.Min !== undefined ? this.Min : []; }
+        if (maxKey in sp || this.Max !== undefined) { props[maxKey] = this.Max !== undefined ? this.Max : []; }
         if (unitKey in sp || this.Unit) { props[unitKey] = this.Unit; }
         // Only write the data type back when the source had it or it differs from
         // the implicit 'double' default, so untyped elements stay untouched.

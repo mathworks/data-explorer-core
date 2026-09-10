@@ -4,8 +4,6 @@ import type BaseNode from '../BaseNode.js';
 import type { SetPropertyResult } from '../DataNode.js';
 import PropUnit from '../../prop/PropUnit.js';
 export declare class BusElementNode extends BaseBusElementNode {
-    _rawMin: unknown;
-    _rawMax: unknown;
     Min: number | undefined;
     Max: number | undefined;
     Unit: string;
