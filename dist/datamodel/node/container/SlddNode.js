@@ -145,7 +145,7 @@ export default class SlddNode extends ContainerNode {
                     + 'It may not be a data dictionary, or it may not have been written completely.',
             });
         }
-        if (content) {
+        else {
             // VERBATIM, and `unknown[]` on purpose: a reference is a bare string in a
             // compressed dictionary and can be a `{ file: ... }` object in a textual one, and
             // serializeJson writes this array straight back out on save. Normalising here

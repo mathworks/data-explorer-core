@@ -80,7 +80,13 @@ export default class ModelSectionNode extends ContainerNode {
     // spelled here: that is the same question this package publishes an answer to, and a
     // second copy of it is a second opinion about whether `plant.MDL` needs completing —
     // which would produce `plant.MDL.slx`, a link to nothing.
-    addReferenceEntry(ref, defaultExt = '.slx') {
+    //
+    // Required, with no `.slx` default: a default would be a THIRD answer to "which
+    // extension" — one a caller that forgot the parent's would take silently. The guess
+    // belongs to `fileKinds.refModelExt`, and the point of it living there is that every
+    // caller makes it the same way. No caller ever took the default; omitting the argument
+    // is now a compile error rather than a `.mdl` hierarchy labelled `.slx`.
+    addReferenceEntry(ref, defaultExt) {
         const named = isModelFile(ref.modelName);
         const node = new ModelReferenceNode(named ? ref.modelName : ref.modelName + defaultExt, this, ref.blockPath);
         this.addChild(node);

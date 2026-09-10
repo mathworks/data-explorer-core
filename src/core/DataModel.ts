@@ -659,7 +659,10 @@ function addProjectSource(
   // filename for its fallback, hence the strip — note ProjectNode.fromParsed labels
   // itself from the basename and never reads parsed.name, so the stripped form only
   // shows up if a host calls parseProject itself.
-  const basename = basenameOf((meta && meta.path) || srcId) || srcId;
+  // No `|| srcId` guard on the reduction: `basenameOf` returns the whole string when it
+  // finds no separator to cut at, so it is falsy only for input that was already empty —
+  // in which case srcId is the empty string too and the fallback returned it unchanged.
+  const basename = basenameOf((meta && meta.path) || srcId);
   const parsed = parseProject(files, projectNameOf(basename));
   const projectNode = ProjectNode.fromParsed(parsed, basename);
   return registerSource(srcId, projectNode, meta, parsed.warnings);
