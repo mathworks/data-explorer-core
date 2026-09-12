@@ -1,0 +1,22 @@
+{
+  "//": "Copy to perf/corpus.local.json and edit. That file is gitignored ON PURPOSE:",
+  "//root": "the paths below name files on your machine, and real dictionaries carry",
+  "//names": "customer identities that must never reach this public tree. Anything not",
+  "//absent": "filled in is reported as an absent role rather than silently skipped.",
+
+  "root": "/path/to/your/corpus",
+
+  "files": {
+    "sldd-zip-entries": "a zip-spelled .sldd with MANY entries (entry-count dominated)",
+    "sldd-zip-values": "a zip-spelled .sldd with FEW entries but LARGE values",
+    "sldd-json-entries": "the json-text spelling of the entry-count-dominated one",
+    "sldd-json-values": "the json-text spelling of the value-size-dominated one",
+    "sldd-refs": "a .sldd that actually carries Dictionary References (not empty)",
+    "sldd-oversize": "a .sldd past V8's max string length, if you have one",
+    "slx-large": "a .slx whose blockdiagram.xml inflates to several MB"
+  },
+
+  "dirs": {
+    "slx-small": "a directory of small .slx models"
+  }
+}

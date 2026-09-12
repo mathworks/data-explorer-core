@@ -16,3 +16,14 @@ coverage/
 # Internal working notes — never publish to the public tree.
 docs/
 CLAUDE.md
+
+# Performance-harness corpus manifest. It names real files on one machine, and real
+# dictionaries carry customer identities that must never reach this public tree —
+# scripts/leak-check.mjs asserts none of its paths appear in a tracked file. Start
+# from perf/corpus.local.example.json, which is tracked and names nothing.
+perf/corpus.local.json
+
+# Performance snapshots are machine-specific: perf/compare.mjs refuses to diff runs
+# from different CPUs or corpora, so a committed snapshot helps nobody. Record your
+# own before/after pair around a change.
+perf/baselines/
