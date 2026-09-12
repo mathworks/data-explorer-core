@@ -6,7 +6,8 @@
 // source-adder. Environment-independent — NO fs. The `path -> bytes` step lives
 // in the Node-only `src/node/` subpath; this layer never touches the filesystem.
 
-import { unzipSync, strFromU8 } from 'fflate';
+import { strFromU8 } from 'fflate';
+import { unzipEntries } from '../datamodel/parser/Inflate.js';
 import { basenameOf, extOf, isMatFile, isModelFile, isProjectFile, isSlddFile } from '../datamodel/fileKinds.js';
 import { readSlddContent } from '../datamodel/parser/SlddContent.js';
 import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
@@ -76,7 +77,7 @@ export function ingest(session: Session, content: IngestContent, opts: IngestOpt
   }
 
   if (isProjectFile(filename)) {
-    const entries = unzipSync(new Uint8Array(requireBinary(content, ext)));
+    const entries = unzipEntries(new Uint8Array(requireBinary(content, ext)));
     const files: Record<string, string> = {};
     for (const [name, bytesU8] of Object.entries(entries)) files[name] = strFromU8(bytesU8);
     return session.addProjectSource(id, files, meta);

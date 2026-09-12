@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import { unzipSync } from 'fflate';
+import { unzipEntries } from './Inflate.js';
 import { XMLParser } from 'fast-xml-parser';
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { ENUM_BLOCK_PARAMS } from './enumBlockParams.js';
@@ -751,7 +751,7 @@ function extractModelReferences(graphicalInterface) {
     });
 }
 export function parseSlx(buffer, filename) {
-    return parseModelParts(unzipSync(new Uint8Array(buffer)), filename);
+    return parseModelParts(unzipEntries(new Uint8Array(buffer)), filename);
 }
 /**
  * The model behind an OPC part map — everything `parseSlx` does except unzipping.

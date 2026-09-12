@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { unzipSync } from 'fflate';
+import { unzipEntries } from './Inflate.js';
 import { XMLParser } from 'fast-xml-parser';
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { ENUM_BLOCK_PARAMS } from './enumBlockParams.js';
@@ -871,7 +871,7 @@ function extractModelReferences(
 }
 
 export function parseSlx(buffer: ArrayBuffer, filename: string): ParsedSlx {
-  return parseModelParts(unzipSync(new Uint8Array(buffer)), filename);
+  return parseModelParts(unzipEntries(new Uint8Array(buffer)), filename);
 }
 
 /**

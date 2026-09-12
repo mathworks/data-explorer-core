@@ -16,6 +16,8 @@ export { createEventBus } from './core/EventBus.js';
 export type { EventBusInstance } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';
 export type { UndoManagerInstance } from './core/UndoManager.js';
+export { setNativeInflate, nativeInflateAvailable } from './datamodel/parser/Inflate.js';
+export type { NativeInflate } from './datamodel/parser/Inflate.js';
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
 export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';

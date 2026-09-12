@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { resolveCorpus, describeCorpus } from './corpus.mjs';
 import { measure, environment, gcAvailable } from './measure.mjs';
-import { scenarios } from './scenarios.mjs';
+import { scenarios, inflateEngine, forceInflateEngine } from './scenarios.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BASELINE_DIR = join(HERE, 'baselines');
@@ -45,7 +45,12 @@ if (!gcAvailable) {
   console.log('note: started without --expose-gc, so heap is not recorded this run.\n');
 }
 
+// Before `scenarios()` reads anything: importing dist/node/index.js armed the native
+// engine as a side effect, and this is the only place that can put it back.
+forceInflateEngine(process.env.DEX_PERF_INFLATE);
+
 const all = scenarios(corpus);
+console.log(`inflate engine: ${inflateEngine()}\n`);
 const selected = only ? all.filter((s) => s.id.includes(only)) : all;
 
 if (selected.length === 0) {
@@ -101,6 +106,10 @@ const snapshot = {
   // Recorded so a diff can refuse to compare runs from different machines or
   // different corpora -- both of which would make the numbers meaningless.
   environment: environment(),
+  // Which decompression engine was live. Not part of `environment()` because it is a
+  // property of this PACKAGE's state, not the machine's, and step 1 is precisely the
+  // step that changes it.
+  inflateEngine: inflateEngine(),
   corpus: {
     root: corpus.root,
     present: Object.values(corpus.roles).filter((r) => r.present).map((r) => r.id),

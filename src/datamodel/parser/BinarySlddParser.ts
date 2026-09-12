@@ -43,7 +43,7 @@
 // internal helpers already make, and the reason the parameter is documented on both
 // exported functions rather than left to be discovered.
 
-import { unzipSync } from 'fflate';
+import { unzipEntries } from './Inflate.js';
 import { XMLParser } from 'fast-xml-parser';
 import { reasonOf, type ParseWarning } from './ParseWarning.js';
 import type { SystemComposerCatalog } from './ScCatalog.js';
@@ -153,7 +153,7 @@ export function parseBinarySldd(
   warnings?: ParseWarning[],
 ): Record<string, unknown> {
   const uint8 = new Uint8Array(arrayBuffer);
-  const entries = unzipSync(uint8);
+  const entries = unzipEntries(uint8);
   const decoder = new TextDecoder();
 
   const dataXml = entries[DATA_PART_XML];

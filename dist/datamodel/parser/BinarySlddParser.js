@@ -42,7 +42,7 @@
 // wants diagnostics has to know to ask. That is the same bargain `SlxParser`'s
 // internal helpers already make, and the reason the parameter is documented on both
 // exported functions rather than left to be discovered.
-import { unzipSync } from 'fflate';
+import { unzipEntries } from './Inflate.js';
 import { XMLParser } from 'fast-xml-parser';
 import { reasonOf } from './ParseWarning.js';
 import { SC_PART_XML, catalogFromDefinitions, scPartUnreadableMessage, scanScXml, } from './ScCatalog.js';
@@ -112,7 +112,7 @@ export function parseDims(dimension) {
  */
 export function parseBinarySldd(arrayBuffer, warnings) {
     const uint8 = new Uint8Array(arrayBuffer);
-    const entries = unzipSync(uint8);
+    const entries = unzipEntries(uint8);
     const decoder = new TextDecoder();
     const dataXml = entries[DATA_PART_XML];
     if (!dataXml) {

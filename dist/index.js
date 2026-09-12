@@ -32,6 +32,13 @@ export { identifiersIn } from './datamodel/expressions.js';
 export { blockKey, blockLabel, isInsideBlockPath, joinBlockPath } from './datamodel/blockIdentity.js';
 export { createEventBus } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';
+// The inflate seam. Every decompression in this package goes through it, and it finds
+// `node:zlib` by itself on Node 22.3+ (`process.getBuiltinModule`), falling back to
+// fflate everywhere else — a browser bundle included. `setNativeInflate` is published
+// because detection cannot cover every host: a consumer on an older Node, or one that
+// imports only this barrel and knows it is in Node, can arm the fast engine explicitly
+// and get ~5x on inflate. Passing `null` forces the fflate path.
+export { setNativeInflate, nativeInflateAvailable } from './datamodel/parser/Inflate.js';
 // Parsers + serializer (datamodel).
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
 // The whole write path for a compressed-binary `.sldd`: serializeBinarySldd rebuilds

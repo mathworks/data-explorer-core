@@ -21,6 +21,11 @@ import { filesFor, fileFor } from './corpus.mjs';
 
 const core = await import('../dist/index.js');
 const nodeApi = await import('../dist/node/index.js');
+// The inflate seam, reached by a DEEP import on purpose: it is not barrel surface, and
+// this harness is internal. Importing dist/node/index.js above has already armed the
+// native engine as a side effect, so every scenario below measures the engine a Node
+// consumer really gets.
+const { unzipEntries, nativeInflateAvailable, setNativeInflate } = await import('../dist/datamodel/parser/Inflate.js');
 
 const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, parseModel, summarizeFiles } = core;
 const { createSession, loadFromPath } = nodeApi;
@@ -36,6 +41,38 @@ function readAsArrayBuffer(path) {
 const entryCount = (json) => slddChunkContent(json)?.entries?.length ?? 0;
 
 const base = (p) => p.split('/').pop();
+
+/**
+ * Which inflate engine this run measured. Recorded in every snapshot, because a
+ * before/after that silently ran the SAME engine twice would show a 0% change and be
+ * read as "step 1 did nothing" rather than "the measurement was not set up".
+ */
+export function inflateEngine() {
+  return nativeInflateAvailable() ? 'node:zlib' : 'fflate';
+}
+
+/**
+ * Force the engine, so a before/after can isolate ONE variable.
+ *
+ * `setNativeInflate(null)` is not an approximation of the pre-seam package: it calls
+ * the very same `fflate.unzipSync` / `unzlibSync` the four call sites called before the
+ * seam existed. So `DEX_PERF_INFLATE=fflate` measures the old cost in the NEW tree --
+ * same harness, same scenario list, same process conditions, engine the only
+ * difference. A cross-branch diff cannot claim that, because it moves the harness too.
+ */
+export function forceInflateEngine(name) {
+  if (name === 'fflate') setNativeInflate(null);
+  else if (name === 'node:zlib' || name === 'native') setNativeInflate(NATIVE_FOR_PERF);
+  else if (name) throw new Error(`unknown DEX_PERF_INFLATE=${name} (want 'fflate' or 'node:zlib')`);
+}
+
+// Built here rather than trusting detection, so `DEX_PERF_INFLATE=node:zlib` means the
+// same thing on a host where getBuiltinModule is missing.
+const zlibForPerf = await import('node:zlib');
+const NATIVE_FOR_PERF = {
+  raw: (d) => zlibForPerf.inflateRawSync(d),
+  zlib: (w) => zlibForPerf.inflateSync(w),
+};
 
 /**
  * Build the scenario list for a resolved corpus.
@@ -65,13 +102,32 @@ export function scenarios(corpus) {
       },
     });
 
+    // Two measurements of the same work, on purpose.
+    //
+    // `unzipDecode` calls fflate DIRECTLY and so is a FIXED CONTROL: it does not route
+    // through the seam and must therefore not move across steps. If it does move, the
+    // machine drifted and every other delta in the snapshot is suspect. Reading a
+    // step-1 win into this row would be reading it into a number step 1 cannot touch.
+    //
+    // `unzipDecodeSeam` is the one step 1 changes.
     list.push({
       id: `sldd.zip.${tag}.unzipDecode`,
-      what: `unzip + UTF-8 decode of ${base(path)} -- the floor under any scanner, and the step 1 target`,
+      what: `unzip + decode of ${base(path)} via fflate directly -- FIXED CONTROL, bypasses the seam`,
       role,
       samples: 3,
       run: () => {
         const xml = new TextDecoder().decode(unzipSync(u8)['data/chunk0.xml']);
+        return { probe: xml.length, retain: xml };
+      },
+    });
+
+    list.push({
+      id: `sldd.zip.${tag}.unzipDecodeSeam`,
+      what: `unzip + decode of ${base(path)} through the inflate seam -- the step 1 target`,
+      role,
+      samples: 3,
+      run: () => {
+        const xml = new TextDecoder().decode(unzipEntries(u8)['data/chunk0.xml']);
         return { probe: xml.length, retain: xml };
       },
     });
