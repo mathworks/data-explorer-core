@@ -61,6 +61,7 @@ const SLASH = 0x2f; // /
 const BANG = 0x21; // !
 const AMP = 0x26; // &
 const QUOTE = 0x22; // "
+const EQ = 0x3d; // =
 /**
  * Boyer-Moore-Horspool skip table.
  *
@@ -119,7 +120,7 @@ function skipSpace(hay, at) {
 // the scan
 // ---------------------------------------------------------------------------------
 const DATASOURCE_OPEN = encoder.encode('<DataSource');
-const CLASS_ATTR = encoder.encode(' Class="');
+const CLASS_NAME = encoder.encode('Class');
 const P_NAME = encoder.encode('<P Name="');
 const CLASS_ENTRY = encoder.encode('DD.ENTRY"');
 const CLASS_REFERENCE = encoder.encode('DD.DICTIONARYREFERENCE"');
@@ -147,6 +148,9 @@ const SUBDICTIONARY_ATTR_VALUE = encoder.encode('Subdictionary"');
  *    emits top-level objects indented 20 and 32 spaces.
  *  - a name or reference containing `&` (see the file header) or introduced by `<!`,
  *    which is CDATA or a comment where this reads plain text.
+ *  - an `<Object>` attribute whose value is not double-quoted, or that has no value. See
+ *    `classValueAt`: reading a `Class` that is PRESENT as missing is how a scan returns an
+ *    EMPTY name list for a full dictionary, which is far worse than being slow.
  *  - a truncated document: an unterminated tag, or a missing `</Object>`.
  *
  * `FormatVersion` is deliberately NOT one of them, though an earlier draft of this gated
@@ -250,20 +254,64 @@ function seekByte(xml, from, byte) {
     throw new UnscannableDictionary('unterminated tag');
 }
 /**
- * Where the `Class="` attribute VALUE starts inside the tag spanning [tagStart, tagEnd),
- * or -1 when the tag carries no such attribute.
+ * Where the `Class` attribute VALUE starts inside the `<Object` tag spanning
+ * [tagStart, tagEnd), or -1 when the tag carries no `Class` attribute at all.
  *
  * An offset rather than a decoded string: this runs once per object, and callers only
  * ever compare it against two known class names, so decoding 31,346 short strings just
  * to throw them away is work with no reader. Comparison is against bytes that INCLUDE
  * the closing quote, which is what stops `DD.ENTRYLIKE` from matching `DD.ENTRY`.
+ *
+ * -1 means "no Class at all", and skipping such an object is what the reference does too:
+ * `obj['@_Class']` is undefined, so it matches neither class it looks for.
+ *
+ * A REAL WALK RATHER THAN A SEARCH FOR ` Class="`, and the difference is a bug class, not
+ * a style. Reading an attribute that is PRESENT as absent makes this return an EMPTY name
+ * list for a full dictionary -- succeeding, silently, with the wrong answer, which is the
+ * one outcome this module must never produce. Searching for a fixed ` Class="` did exactly
+ * that TWICE: once for `Class='DD.ENTRY'` and again, after a needle was added for that,
+ * for `Class = "DD.ENTRY"`. Both are legal XML that fast-xml-parser reads. Chasing
+ * spellings one needle at a time is unbounded; parsing the attribute list is not, so the
+ * only shapes left are the ones this refuses OUT LOUD:
+ *
+ *   - a value that is not double-quoted (`Class='DD.ENTRY'`). Supporting apostrophes would
+ *     mean teaching the whole tag walk -- `seekByte` included -- a second quote character,
+ *     and no corpus file needs it.
+ *   - an attribute with no `=value` at all, which is not well-formed XML here.
+ *
+ * Whitespace around the `=` is ACCEPTED, because refusing it would be the same mistake in
+ * a smaller form: fast-xml-parser reads it, so the file has a right answer and this can
+ * see it. The refusals above cost a fallback; they cannot cost a wrong name.
  */
 function classValueAt(xml, tagStart, tagEnd) {
-    // A linear scan, not BMH: the tag is a few dozen bytes and a skip table would cost
-    // more to build than the search saves.
-    for (let i = tagStart; i + CLASS_ATTR.length <= tagEnd; i++) {
-        if (matchesAt(xml, i, CLASS_ATTR))
-            return i + CLASS_ATTR.length;
+    // Byte-by-byte over a few dozen bytes, not BMH: a skip table would cost more to build
+    // than the search saves. `tagEnd` is the `>` and `seekByte` already skipped quoted
+    // spans to find it, so a `>` inside a value cannot end the span early.
+    let i = tagStart + OPEN_OBJECT.length;
+    while (i < tagEnd) {
+        i = skipSpace(xml, i);
+        if (i >= tagEnd || xml[i] === SLASH)
+            break; // end of tag, or the `/` of `/>`
+        const nameStart = i;
+        while (i < tagEnd && !isSpace(xml[i]) && xml[i] !== EQ)
+            i++;
+        const isClass = i - nameStart === CLASS_NAME.length && matchesAt(xml, nameStart, CLASS_NAME);
+        i = skipSpace(xml, i);
+        if (xml[i] !== EQ)
+            throw new UnscannableDictionary('attribute without a value in <Object>');
+        i = skipSpace(xml, i + 1);
+        if (xml[i] !== QUOTE) {
+            throw new UnscannableDictionary('attribute value in <Object> is not double-quoted');
+        }
+        const valueStart = i + 1;
+        i = valueStart;
+        while (i < tagEnd && xml[i] !== QUOTE)
+            i++;
+        if (i >= tagEnd)
+            throw new UnscannableDictionary('unterminated attribute value in <Object>');
+        if (isClass)
+            return valueStart;
+        i++; // past the closing quote
     }
     return -1;
 }

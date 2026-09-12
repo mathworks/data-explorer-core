@@ -139,6 +139,20 @@ describe('scanDataSourceXml — shapes it reads directly', () => {
     ['an empty name written <P></P>', `<Object Class="DD.ENTRY"><P Name="Name" Class="char"></P></Object>`, ['']],
     ['an empty name written <P/>', `<Object Class="DD.ENTRY"><P Name="Name" Class="char"/></Object>`, ['']],
     ['an unrelated object class', `<Object Class="DD.Dictionary"><P Name="AllowAccessBWS" Class="bool">1</P></Object>`, []],
+    // No Class at all is genuinely "neither of the two classes", which is what the
+    // reference concludes as well: `obj['@_Class']` is undefined. Distinct from a Class
+    // that is PRESENT but written in a way this cannot read, which is refused — see below.
+    ['an <Object> carrying no Class attribute', `<Object><P Name="Name" Class="char">Kp</P></Object>`, []],
+    // The next three are why `classValueAt` walks the attribute list instead of searching
+    // for a literal ` Class="`. Every one of them is legal XML that fast-xml-parser reads,
+    // so every one has a right answer this must not miss — and the search MISSED the
+    // second one even after a needle was bolted on for single quotes.
+    ['spaces around the Class attribute’s =', `<Object Class = "DD.ENTRY"><P Name="Name" Class="char">Kp</P></Object>`, ['Kp']],
+    ['an attribute ahead of Class', `<Object UUID="u" Class="DD.ENTRY"><P Name="Name" Class="char">Kp</P></Object>`, ['Kp']],
+    ['a `>` in an earlier attribute value', `<Object X="a>b" Class="DD.ENTRY"><P Name="Name" Class="char">Kp</P></Object>`, ['Kp']],
+    // `Class` is matched as a whole attribute name, so a longer one that merely ends with
+    // it is a different attribute — and this object has no class at all.
+    ['an attribute whose name ends in Class', `<Object SuperClass="DD.ENTRY"><P Name="Name" Class="char">Kp</P></Object>`, []],
     ['indentation and newlines between the tags', `<Object Class="DD.ENTRY">\n        <P Name="Name" Class="char">Kp</P>\n    </Object>`, ['Kp']],
   ])('reads %s', (_label, inner, names) => {
     expect(scanDataSourceXml(xmlBytes(inner)).names).toEqual(names);
@@ -221,6 +235,47 @@ describe('scanDataSourceXml — shapes it refuses, and the fallback that covers 
       /first child/i,
     ],
     ['a self-closing <Object/> with no properties', `<Object Class="DD.ENTRY"/>`, /first child/i],
+    [
+      // The worst bug this module can have, and the one that made `classValueAt` a walk.
+      // Single quotes are legal XML and fast-xml-parser reads them, so a scan that only
+      // knew ` Class="` saw NO class, matched neither branch, and returned an EMPTY name
+      // list for a dictionary full of entries — succeeding, with the wrong answer,
+      // silently. An adversarial probe found it; no corpus file uses single quotes, so
+      // refusing is free where teaching the whole tag walk a second quote character is not.
+      'a single-quoted Class attribute',
+      `<Object Class='DD.ENTRY'><P Name="Name" Class="char">Kp</P></Object>`,
+      /double-quoted/i,
+    ],
+    [
+      // Refused even though `Class` itself is perfectly readable here. The walk has to get
+      // PAST this value to reach the next attribute, and pairing on `'` is the same second
+      // quote character it declines to learn. A refusal costs a fallback, not a name.
+      'a single-quoted attribute alongside a readable Class',
+      `<Object UUID='u' Class="DD.ENTRY"><P Name="Name" Class="char">Kp</P></Object>`,
+      /double-quoted/i,
+    ],
+    [
+      'an attribute with no value at all',
+      `<Object Hidden Class="DD.ENTRY"><P Name="Name" Class="char">Kp</P></Object>`,
+      /without a value/i,
+    ],
+    [
+      // The value's closing quote is missing, so `seekByte` pairs the `>` into the value
+      // and the tag never ends where the walk can see it.
+      'an unterminated Class value',
+      `<Object Class="DD.ENTRY><P Name="Name" Class="char">Kp</P></Object>`,
+      /unterminated/i,
+    ],
+    [
+      // Reaches the walk's own end-of-value bound, which the row above does NOT: there
+      // `seekByte` refuses first. A quote inside an attribute NAME is the only way to get
+      // here, because it leaves the walk mid-value at the exact `>` that `seekByte`, having
+      // paired that quote the other way, accepted as the end of the tag. Mutation testing
+      // is what demanded this: deleting the bound broke no test until this row existed.
+      'a quote inside an attribute name',
+      `<Object a"x="><P Name="Name" Class="char">Kp</P></Object>`,
+      /unterminated attribute value/i,
+    ],
     ['an unterminated tag', `<Object Class="DD.ENTRY"><P Name="Name" Class="char`, /unterminated/i],
     ['a missing </Object>', `<Object Class="DD.ENTRY"><P Name="Name" Class="char">Kp</P>`, /unclosed/i],
   ];

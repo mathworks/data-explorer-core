@@ -99,11 +99,26 @@ for (const id of ids) {
     notes.push(`PROBE ${b.probe} -> ${a.probe}`);
     probeChanges.push(`${id}: probe ${b.probe} -> ${a.probe}`);
   }
+  // A percentage alone cannot gate a sub-millisecond scenario. `slx.deep.small` runs in
+  // 1.1 ms over seven toy models, so ordinary machine drift of 0.1 ms reads as +10% and
+  // fails a gate about code that was never touched -- which trains everyone to ignore the
+  // gate. Requiring an absolute move as well fixes that WITHOUT blinding the scenario: a
+  // floor of 0.5 ms still catches a real doubling there (1.1 -> 2.2 is +1.1 ms), it only
+  // drops deltas at the resolution of a best-of-N wall clock.
+  //
+  // Suppression is REPORTED rather than silent. A gate that quietly stopped applying to a
+  // scenario would look identical to one that passed it.
+  const MS_FLOOR = 0.5;
+  const overFloor = Math.abs(a.ms - b.ms) >= MS_FLOOR;
   if (deltaPct > threshold) {
-    notes.push('REGRESSION');
-    regressions.push(`${id}: ${b.ms.toFixed(1)} -> ${a.ms.toFixed(1)} ms (+${deltaPct.toFixed(1)}%)`);
+    if (overFloor) {
+      notes.push('REGRESSION');
+      regressions.push(`${id}: ${b.ms.toFixed(1)} -> ${a.ms.toFixed(1)} ms (+${deltaPct.toFixed(1)}%)`);
+    } else {
+      notes.push(`+${deltaPct.toFixed(0)}% but under the ${MS_FLOOR} ms floor -- not gated`);
+    }
   } else if (deltaPct < -threshold) {
-    notes.push('improved');
+    notes.push(overFloor ? 'improved' : `-${Math.abs(deltaPct).toFixed(0)}% but under the ${MS_FLOOR} ms floor`);
   }
   // Both memory figures matter, and for different steps: the tree-building paths move
   // heapUsed, the byte-oriented paths move off-heap. Reporting one would miss the other.

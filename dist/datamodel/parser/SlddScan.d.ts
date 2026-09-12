@@ -40,6 +40,9 @@ export interface SlddScanResult {
  *    emits top-level objects indented 20 and 32 spaces.
  *  - a name or reference containing `&` (see the file header) or introduced by `<!`,
  *    which is CDATA or a comment where this reads plain text.
+ *  - an `<Object>` attribute whose value is not double-quoted, or that has no value. See
+ *    `classValueAt`: reading a `Class` that is PRESENT as missing is how a scan returns an
+ *    EMPTY name list for a full dictionary, which is far worse than being slow.
  *  - a truncated document: an unterminated tag, or a missing `</Object>`.
  *
  * `FormatVersion` is deliberately NOT one of them, though an earlier draft of this gated
