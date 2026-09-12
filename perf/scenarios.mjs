@@ -27,7 +27,7 @@ const nodeApi = await import('../dist/node/index.js');
 // consumer really gets.
 const { unzipEntries, nativeInflateAvailable, setNativeInflate } = await import('../dist/datamodel/parser/Inflate.js');
 
-const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, parseModel, summarizeFiles, scanSldd } = core;
+const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, parseModel, summarizeFiles, scanSldd, RowCellPool } = core;
 const { createSession, loadFromPath } = nodeApi;
 
 /** Read a file as a fresh ArrayBuffer. Buffer pooling makes `.buffer` wrong on its
@@ -234,6 +234,29 @@ export function scenarios(corpus) {
           }
         }
         return { probe: rows.length, retain: rows };
+      },
+    });
+    // The same pass with a cell pool, which is what step 4 changed. Kept as a SECOND
+    // scenario rather than folded into the one above so the unpooled number stays
+    // comparable to every baseline recorded before the pool existed: this pair is the
+    // measurement, and `rows.materialize` staying flat is half of it.
+    list.push({
+      id: 'rows.materialize.pooled',
+      what: 'the same rows, sharing one cell per distinct value (RowCellPool)',
+      role: 'sldd-json-entries',
+      samples: 2,
+      run: () => {
+        const session = createSession();
+        const src = loadFromPath(session, rowsPath);
+        const pool = new RowCellPool();
+        const rows = [];
+        for (const section of src.children ?? []) {
+          for (const entry of section.children ?? []) {
+            const flat = entry.flatten ? entry.flatten() : [entry];
+            for (const node of flat) rows.push(node.toRow(pool));
+          }
+        }
+        return { probe: `${rows.length} rows, ${pool.size} distinct cells`, retain: rows };
       },
     });
   }

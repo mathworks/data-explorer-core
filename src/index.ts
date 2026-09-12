@@ -221,5 +221,10 @@ export { schemaColumnLabels } from './datamodel/node/schemaBridge.js';
 export { kindForClass } from './datamodel/kindMap.js';
 export { getSectionMetadata } from './datamodel/SectionConstants.js';
 
+// One shared cell per distinct value across a table's rows. A host with its own row
+// builder (the VS Code table stamps its own columns over each node's row) creates one per
+// materialization pass and passes it to `toRow`; `rowsOf` does it internally.
+export { default as RowCellPool } from './datamodel/node/RowCellPool.js';
+
 // Public data-shape types.
 export type { RowData, PropClass, PropInfo, PIGroupDef, PIObject } from './datamodel/node/BaseNode.js';

@@ -134,4 +134,8 @@ export { generateUuid } from './datamodel/node/container/SectionNode.js';
 export { schemaColumnLabels } from './datamodel/node/schemaBridge.js';
 export { kindForClass } from './datamodel/kindMap.js';
 export { getSectionMetadata } from './datamodel/SectionConstants.js';
+// One shared cell per distinct value across a table's rows. A host with its own row
+// builder (the VS Code table stamps its own columns over each node's row) creates one per
+// materialization pass and passes it to `toRow`; `rowsOf` does it internally.
+export { default as RowCellPool } from './datamodel/node/RowCellPool.js';
 //# sourceMappingURL=index.js.map

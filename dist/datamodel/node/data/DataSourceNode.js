@@ -56,12 +56,15 @@ export default class DataSourceNode extends BaseNode {
     get valueEditable() {
         return false;
     }
-    toRow() {
+    // Deliberately calls super WITHOUT the pool and shares at the end instead: it replaces
+    // the Value cell super built, so pooling before the rewrite would index a cell that
+    // does not survive the call and leave the one that does unpooled.
+    toRow(pool) {
         const row = super.toRow();
         if (row) {
             row.Value = { text: row.Value, linkTarget: this.name };
         }
-        return row;
+        return row && pool ? pool.share(row) : row;
     }
     getProperties() {
         return [PropName, PropPath, PropStatus];

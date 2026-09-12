@@ -13,6 +13,7 @@
  */
 
 import type { PropClass, PropInfo, RowData, PIGroupDef, PIObject } from '../datamodel/node/BaseNode.js';
+import type RowCellPool from '../datamodel/node/RowCellPool.js';
 import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 
 export type { PropClass, PropInfo, RowData, PIGroupDef };
@@ -40,7 +41,10 @@ export interface INode {
     status?: string;
 
     flatten(): INode[];
-    toRow(): RowData | null;
+    // The pool is optional at BOTH ends: a caller need not bring one, and a node need not
+    // take one (ContainerNode's `toRow(): null` still satisfies this). A node that ignores
+    // it simply returns unshared cells.
+    toRow(pool?: RowCellPool): RowData | null;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[] | null;
     toPIObject(): PIObject | null;

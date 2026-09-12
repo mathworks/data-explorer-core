@@ -2,6 +2,7 @@
 
 import BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef, RowData } from '../BaseNode.js';
+import type RowCellPool from '../RowCellPool.js';
 import PropName from '../../prop/PropName.js';
 import PropBlockPath from '../../prop/PropBlockPath.js';
 import PropStatus from '../../prop/PropStatus.js';
@@ -44,12 +45,13 @@ export default class ModelReferenceNode extends BaseNode {
         return false;
     }
 
-    toRow(): RowData | null {
+    // Super without the pool, shared after the rewrite — see DataSourceNode.toRow.
+    toRow(pool?: RowCellPool): RowData | null {
         const row = super.toRow();
         if (row) {
             row.Value = { text: row.Value as string, linkTarget: this.name };
         }
-        return row;
+        return row && pool ? pool.share(row) : row;
     }
 
     getProperties(): PropClass[] {

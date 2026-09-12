@@ -30,12 +30,13 @@ export default class ModelReferenceNode extends BaseNode {
     get valueEditable() {
         return false;
     }
-    toRow() {
+    // Super without the pool, shared after the rewrite — see DataSourceNode.toRow.
+    toRow(pool) {
         const row = super.toRow();
         if (row) {
             row.Value = { text: row.Value, linkTarget: this.name };
         }
-        return row;
+        return row && pool ? pool.share(row) : row;
     }
     getProperties() {
         return [PropName, PropBlockPath, PropStatus];

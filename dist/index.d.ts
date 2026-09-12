@@ -50,5 +50,6 @@ export { generateUuid } from './datamodel/node/container/SectionNode.js';
 export { schemaColumnLabels } from './datamodel/node/schemaBridge.js';
 export { kindForClass } from './datamodel/kindMap.js';
 export { getSectionMetadata } from './datamodel/SectionConstants.js';
+export { default as RowCellPool } from './datamodel/node/RowCellPool.js';
 export type { RowData, PropClass, PropInfo, PIGroupDef, PIObject } from './datamodel/node/BaseNode.js';
 //# sourceMappingURL=index.d.ts.map

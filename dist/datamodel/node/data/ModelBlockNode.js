@@ -65,11 +65,15 @@ export default class ModelBlockNode extends BaseNode {
     get valueEditable() {
         return false;
     }
-    toRow() {
+    // Builds its row from scratch rather than through super, so it shares its own — see
+    // RowCellPool. A model's block list is where the repetition is worst: every block of the
+    // same type spells the same Value, and a model with one parameterized gain per subsystem
+    // spells the same DataType.
+    toRow(pool) {
         const paramText = this.paramUsages.map((u) => `${u.property}=${u.value}`).join(', ');
         const firstParam = this.paramUsages.length > 0 ? this.paramUsages[0].value : null;
         const paramLink = firstParam && this.paramSourceId ? `${firstParam}@${this.paramSourceId}` : undefined;
-        return {
+        const row = {
             ID: this.id,
             parent: null,
             Status: '',
@@ -93,6 +97,7 @@ export default class ModelBlockNode extends BaseNode {
             _systemPath: this.systemPath,
             _blockPath: this.blockPath,
         };
+        return pool ? pool.share(row) : row;
     }
     getProperties() {
         return [PropName, PropBlockPath];
