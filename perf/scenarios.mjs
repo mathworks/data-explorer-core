@@ -343,16 +343,35 @@ export function scenarios(corpus) {
     });
   }
 
-  const slxLarge = fileFor(corpus, 'slx-large');
-  if (slxLarge) {
+  // Two large models, measured as a PAIR. They are the same size in block XML and differ
+  // only in whether a block parameter names a variable, so the gap between these two rows
+  // is the cost of resolving and recording 64,002 param usages -- which is how the plan
+  // establishes that a `.slx` name scanner has no tree to skip. One row alone cannot say
+  // that, which is why both are here.
+  //
+  // `probe` counts the PAYLOAD rather than reporting 'parsed'. A parse that silently
+  // returned an empty model would otherwise post an excellent time and read as healthy --
+  // the same trap the scan scenarios avoid by counting names. The part count comes along
+  // because the literal model's payload is legitimately zero, so on that row it is the
+  // part count that proves anything was read at all.
+  const payload = (parsed) =>
+    `${parsed.blockParamUsages?.length ?? 0} usages, ${parsed.workspace?.length ?? 0} vars, ` +
+    `${Object.keys(parsed.rawContents ?? {}).length} parts`;
+
+  for (const [role, id, what] of [
+    ['slx-large', 'slx.deep.large', 'parseModel on a large .slx -- the fixture the plan says every model number needs'],
+    ['slx-large-refs', 'slx.deep.large.refs', 'parseModel on the same model with every block parameter naming a variable'],
+  ]) {
+    const file = fileFor(corpus, role);
+    if (!file) continue;
     list.push({
-      id: 'slx.deep.large',
-      what: 'parseModel on a large .slx -- the fixture the plan says every model number needs',
-      role: 'slx-large',
+      id,
+      what,
+      role,
       samples: 2,
       run: () => {
-        const parsed = parseModel(readAsArrayBuffer(slxLarge), base(slxLarge));
-        return { probe: 'parsed', retain: parsed };
+        const parsed = parseModel(readAsArrayBuffer(file), base(file));
+        return { probe: payload(parsed), retain: parsed };
       },
     });
   }

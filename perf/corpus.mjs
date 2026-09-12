@@ -135,7 +135,22 @@ const ROLES = [
     // anything measuring NAME extraction rather than parse cost — block parameters
     // that reference workspace VARIABLES. Literal arithmetic like `1.037 * 403` names
     // nothing, so a model full of it yields zero param usages and measures only the
-    // XML walk.
+    // XML walk. THIS role is the literal one; the role below is its counterpart.
+    knownGap: true,
+  },
+  {
+    // The same model with one thing changed: every block parameter names a
+    // model-workspace variable (`Kp0201 * 102`) instead of being arithmetic, so the
+    // parse yields a full payload — 64,002 param usages and 300 workspace vars —
+    // over block XML that is the same size as `slx-large`'s to within 0.03 MB.
+    //
+    // It exists to be COMPARED with `slx-large`, and that comparison is a finding
+    // rather than a benchmark: the two parse in the same time (see the plan's
+    // slx-large section), which is what says a `.slx` name scanner has no tree to
+    // skip. Kept as two roles so that stays measured instead of remembered.
+    id: 'slx-large-refs',
+    what: 'the same large .slx with every block parameter naming a variable',
+    kind: 'file',
     knownGap: true,
   },
 ];
