@@ -118,12 +118,24 @@ const ROLES = [
   },
   {
     id: 'slx-large',
-    what: 'a .slx whose blockdiagram.xml inflates to several MB',
+    // Deliberately layout-GENERIC. Where a model's blocks live has moved twice (see
+    // the layout table in docs/TODO.md item 1): `blockdiagram.xml` until R2020a, then
+    // `simulink/systems/*.xml`, and from R2026b the top-level diagram file is JSON
+    // metadata carrying no block content at all. Naming one of those spellings dated
+    // this role's description to a release era, so it names the SIZE instead.
+    what: 'a .slx whose block XML runs to several MB',
     kind: 'file',
-    // Recorded as a KNOWN GAP rather than an oversight. Every model-side number in
-    // the perf plan comes from 2-3 KB files, which is why the "dictionary work
-    // dominates summarizeFiles" observation is an artifact of the corpus. Any
-    // snapshot taken without this must say so.
+    // Still flagged as a gap, because the flag means "if this is absent, say so
+    // loudly" rather than "nobody has built one". Every model-side number in the perf
+    // plan before this existed came from 2-3 KB files, so a snapshot taken without it
+    // cannot support any claim about model parsing.
+    //
+    // What a fixture has to have, since it is generated rather than found: block XML
+    // in the MB range (~64k blocks across nested subsystems gets there), and — for
+    // anything measuring NAME extraction rather than parse cost — block parameters
+    // that reference workspace VARIABLES. Literal arithmetic like `1.037 * 403` names
+    // nothing, so a model full of it yields zero param usages and measures only the
+    // XML walk.
     knownGap: true,
   },
 ];
