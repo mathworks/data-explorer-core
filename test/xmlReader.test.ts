@@ -77,11 +77,39 @@ describe('the shape every reader produces', () => {
     everyReader('<Q Dim="7"/>', { Q: { '@_Dim': '7' } });
   });
 
-  it('loses a leading zero when it coerces', () => {
-    // `007` is not 7 to MATLAB, and once the engine has answered there is nothing left in
-    // the tree to recover the original spelling from. Anything that must round-trip a
-    // literal exactly reads it from the bytes, not from here.
+  it('loses the SPELLING of a number when it coerces', () => {
+    // `007` and `1.0` are not `7` and `1` to MATLAB, and once the engine has answered
+    // there is nothing left in the tree to recover the original spelling from. Anything
+    // that must round-trip a literal exactly reads it from the bytes, not from here.
     everyReader('<Q>007</Q>', { Q: 7 });
+    everyReader('<Q>1.0</Q>', { Q: 1 });
+    // Hex too, which is easier to miss: the option is on by default, so a dictionary
+    // value written `0x1F` reads as the decimal 31 and would save back that way.
+    everyReader('<Q>0x1F</Q>', { Q: 31 });
+  });
+
+  it('leaves an integer too large for a double as a STRING', () => {
+    // The one place the coercion protects itself, and it is worth knowing it is there:
+    // 9007199254740993 cannot round-trip through a JS number, so it is not converted.
+    // A UUID-sized integer in a dictionary survives exactly; a 15-digit one does not.
+    everyReader('<Q>9007199254740993</Q>', { Q: '9007199254740993' });
+  });
+
+  it('coerces `true` and `false` to BOOLEANS, lowercase only', () => {
+    // Not a number and not documented anywhere before this: the engine tests the trimmed
+    // text against these two words before it tries `strnum`. So a `<P Name="Foo">true`
+    // arrives as a boolean and stringifies as 'true' rather than as whatever the file
+    // said — and `TRUE`, which MATLAB would not write but a hand-edited file might,
+    // does not. Every walker that compares a parsed value to a string depends on which
+    // of these two it got.
+    everyReader('<Q>true</Q>', { Q: true });
+    everyReader('<Q>false</Q>', { Q: false });
+    everyReader('<Q>TRUE</Q>', { Q: 'TRUE' });
+    everyReader('<Q>True</Q>', { Q: 'True' });
+  });
+
+  it('coerces none of it in an ATTRIBUTE value', () => {
+    everyReader('<Q Flag="true"/>', { Q: { '@_Flag': 'true' } });
   });
 
   it('decodes a NAMED entity but leaves a numeric character reference alone', () => {
@@ -180,6 +208,18 @@ describe('what only the dictionary reader does', () => {
     expect(readDictionaryXml('<Q Name="  Kp  "/>')).toEqual({ Q: { '@_Name': '  Kp  ' } });
     expect(readModelXml('<Q Name="  Kp  "/>')).toEqual({ Q: { '@_Name': 'Kp' } });
     expect(readProjectXml('<Q Name="  Kp  "/>')).toEqual({ Q: { '@_Name': 'Kp' } });
+  });
+
+  it('does not COERCE a padded value either, which the model reader does', () => {
+    // A consequence of the flag rather than a second flag, and the more useful half of it.
+    // With trimming off the engine returns any value that differs from its own trim RAW,
+    // unparsed — so padding protects a dictionary value from every coercion above: ' 7 '
+    // stays the three characters it was written as, and '  true  ' stays a string. The
+    // model reader trims first and then coerces, so the same bytes become 7 and true.
+    expect(readDictionaryXml('<Q> 7 </Q>')).toEqual({ Q: ' 7 ' });
+    expect(readDictionaryXml('<Q>  true  </Q>')).toEqual({ Q: '  true  ' });
+    expect(readModelXml('<Q> 7 </Q>')).toEqual({ Q: 7 });
+    expect(readModelXml('<Q>  true  </Q>')).toEqual({ Q: true });
   });
 
   it('trims only the ENDS — interior whitespace survives everywhere', () => {

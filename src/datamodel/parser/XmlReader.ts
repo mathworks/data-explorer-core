@@ -19,8 +19,13 @@
 // Shape, all three readers:
 //
 //   - An attribute is a key prefixed `@_`; an element's text is the key `#text`.
-//   - Numeric-looking TEXT is coerced to a number, and the coercion is LOSSY: `007` reads
-//     as the number 7. Attribute values are NOT coerced — `Dim="7"` stays the string '7'.
+//   - TEXT is coerced, and more widely than "numbers": `007` and `1.0` read as 7 and 1,
+//     `0x1F` reads as 31, and `true`/`false` — lowercase only — read as BOOLEANS. The
+//     spelling is gone once it has, so anything that must round-trip a literal exactly
+//     reads it from the bytes. An integer too large for a double is the one case the
+//     coercion declines: it stays a string rather than lose precision.
+//   - Attribute values are coerced not at all — `Dim="7"` stays the string '7' and
+//     `Flag="true"` stays the string 'true'. One rule for text, another for attributes.
 //   - Named entities are decoded (`&amp;` -> `&`). NUMERIC character references are NOT:
 //     `&#65;` arrives as the five characters `&#65;`. This is why `SlddScan` carries its
 //     own entity table rather than deciding what to decode for itself.
@@ -59,6 +64,12 @@
 //   the file said, so trimming here would edit the user's data on the way in. A model
 //   part's text is markup-formatted and its whitespace is layout, which is why the other
 //   two readers keep the engine's default.
+//
+//   It has a second effect that is not in its name, and it is the more useful half: with
+//   trimming off the engine returns any value that DIFFERS FROM ITS OWN TRIM raw and
+//   unparsed, so padding protects a dictionary value from every coercion above. `' 7 '`
+//   stays three characters where the model reader would make it the number 7. Interior
+//   whitespace is untouched either way — trimming is not normalization.
 
 import { XMLParser } from 'fast-xml-parser';
 
