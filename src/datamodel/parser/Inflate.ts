@@ -34,7 +34,7 @@
 // the whole corpus the two engines produce byte-identical output for all 32 zipped
 // dictionaries, every `.slx`, and all 236 MAT payloads.
 
-import { unzipSync, unzlibSync } from 'fflate';
+import { Unzlib, unzipSync, unzlibSync } from 'fflate';
 
 /**
  * The two shapes of inflate this package needs: RAW deflate (zip members carry no
@@ -43,6 +43,16 @@ import { unzipSync, unzlibSync } from 'fflate';
 export interface NativeInflate {
   raw(deflated: Uint8Array): Uint8Array;
   zlib(wrapped: Uint8Array): Uint8Array;
+  /**
+   * Inflate as much as a PREFIX of a zlib stream allows, treating the missing tail as
+   * the end of the input rather than as corruption.
+   *
+   * Optional, and the reason it is optional is that an engine is INJECTED by
+   * `src/node/index.ts` and by tests: one written before this method existed must keep
+   * working. Where it is absent `inflateZlibHead` inflates the whole stream instead —
+   * slower, never wrong.
+   */
+  zlibHead?(prefix: Uint8Array): Uint8Array;
 }
 
 // `undefined` means "no override, use detection"; `null` means "explicitly disabled".
@@ -90,15 +100,28 @@ function detectNative(): NativeInflate | null {
     // is not an error condition — it just means the fallback.
     return null;
   }
-  const zlib = mod as { inflateRawSync?: unknown; inflateSync?: unknown } | undefined;
+  const zlib = mod as
+    | { inflateRawSync?: unknown; inflateSync?: unknown; constants?: { Z_SYNC_FLUSH?: unknown } }
+    | undefined;
   if (typeof zlib?.inflateRawSync !== 'function' || typeof zlib?.inflateSync !== 'function') {
     return null;
   }
+  const inflateSync = zlib.inflateSync as (b: Uint8Array, o?: object) => Uint8Array;
+  // `Z_SYNC_FLUSH` as the FINISH flush is what makes a truncated input an end rather
+  // than an error: zlib's default is Z_FINISH, which demands the stream's own
+  // end-of-data marker and throws `unexpected end of file` without it. Read off
+  // `constants` rather than hard-coded as 2, and omitted where it is missing, because
+  // a polyfilled `node:zlib` may have the functions and not the table.
+  const syncFlush = zlib.constants?.Z_SYNC_FLUSH;
   // Returned unwrapped: `ownExactBuffer` is applied at the seam below, so it holds for
   // an INJECTED engine too and not only for this one.
   return {
     raw: zlib.inflateRawSync as (b: Uint8Array) => Uint8Array,
-    zlib: zlib.inflateSync as (b: Uint8Array) => Uint8Array,
+    zlib: inflateSync,
+    zlibHead:
+      typeof syncFlush === 'number'
+        ? (prefix) => inflateSync(prefix, { finishFlush: syncFlush })
+        : undefined,
   };
 }
 
@@ -282,4 +305,80 @@ export function inflateZlib(wrapped: Uint8Array): Uint8Array {
   } catch {
     return unzlibSync(wrapped);
   }
+}
+
+/**
+ * The BEGINNING of a zlib-wrapped stream, inflated from no more than `maxInputBytes` of
+ * its compressed bytes.
+ *
+ * For `MatScan`, which needs the first ~100 bytes of each `miCOMPRESSED` record — an
+ * array-flags subelement, a dimensions subelement and a name — out of records that
+ * inflate to megabytes. Over the corpus's 236 payloads that is 8.6 MB of input expanding
+ * to 171.4 MB when inflated whole, against 512 bytes per record here.
+ *
+ * WHAT THE CALLER GETS, and it is deliberately weak: *at least* something, or a throw.
+ * The length is whatever the engine chose to emit, NOT `maxInputBytes` worth and not a
+ * fixed size — deflate's block structure decides it, and a stream may also simply end
+ * inside the prefix, in which case this is the whole thing. So a caller must treat a
+ * short result as "ask for more or give up" and never as "the record is truncated". It
+ * may also be LONGER than the prefix implies in the other direction: 512 compressed
+ * bytes of MAT record measured 1,886 bytes out.
+ *
+ * Falls back to inflating the whole stream — never to failing — when the engine has no
+ * head mode, when the head mode throws, or when the fflate path produces nothing. That
+ * fallback is what lets `MatScan` treat this as an optimization rather than a second
+ * format reader with its own failure modes.
+ */
+export function inflateZlibHead(wrapped: Uint8Array, maxInputBytes: number): Uint8Array {
+  const prefix =
+    wrapped.byteLength <= maxInputBytes ? wrapped : wrapped.subarray(0, maxInputBytes);
+  const native = activeNative();
+  if (native !== null) {
+    if (native.zlibHead === undefined) return inflateZlib(wrapped);
+    try {
+      return ownExactBuffer(native.zlibHead(prefix));
+    } catch {
+      return inflateZlib(wrapped);
+    }
+  }
+  return fflateHead(prefix) ?? unzlibSync(wrapped);
+}
+
+/**
+ * fflate's answer to the same question, which only its STREAMING decompressor can give.
+ *
+ * Both one-shot spellings were tried and neither works: `unzlibSync(prefix)` throws
+ * `unexpected EOF` on a truncated stream, and `unzlibSync(whole, { out })` with a
+ * bounded output buffer throws `offset is out of bounds` when the stream outgrows it.
+ * `Unzlib.push(prefix, false)` says "more may follow", which is exactly the claim a
+ * prefix makes, so it emits what it has and does not object to the rest being absent.
+ *
+ * Returns null rather than throwing, because every failure here has the same answer —
+ * inflate the whole stream — and null is the shape that says so once.
+ */
+function fflateHead(prefix: Uint8Array): Uint8Array | null {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    const stream = new Unzlib((chunk) => {
+      // COPIED, not kept: fflate hands out views into a buffer it goes on to reuse and
+      // resize, so a retained subarray can change under the caller. `ownExactBuffer`
+      // cannot help here — the aliasing is fflate's, not the wrapper's.
+      const owned = chunk.slice();
+      chunks.push(owned);
+      total += owned.byteLength;
+    });
+    stream.push(prefix, false);
+  } catch {
+    return null;
+  }
+  if (total === 0) return null;
+  if (chunks.length === 1) return chunks[0];
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return out;
 }

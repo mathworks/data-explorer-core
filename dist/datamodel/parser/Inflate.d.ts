@@ -5,6 +5,16 @@
 export interface NativeInflate {
     raw(deflated: Uint8Array): Uint8Array;
     zlib(wrapped: Uint8Array): Uint8Array;
+    /**
+     * Inflate as much as a PREFIX of a zlib stream allows, treating the missing tail as
+     * the end of the input rather than as corruption.
+     *
+     * Optional, and the reason it is optional is that an engine is INJECTED by
+     * `src/node/index.ts` and by tests: one written before this method existed must keep
+     * working. Where it is absent `inflateZlibHead` inflates the whole stream instead —
+     * slower, never wrong.
+     */
+    zlibHead?(prefix: Uint8Array): Uint8Array;
 }
 /**
  * Force the inflate engine, or pass `null` to force the fflate fallback, or
@@ -36,4 +46,27 @@ export declare function unzipEntries(bytes: Uint8Array): Record<string, Uint8Arr
  * failing because the new one is stricter about trailing bytes.
  */
 export declare function inflateZlib(wrapped: Uint8Array): Uint8Array;
+/**
+ * The BEGINNING of a zlib-wrapped stream, inflated from no more than `maxInputBytes` of
+ * its compressed bytes.
+ *
+ * For `MatScan`, which needs the first ~100 bytes of each `miCOMPRESSED` record — an
+ * array-flags subelement, a dimensions subelement and a name — out of records that
+ * inflate to megabytes. Over the corpus's 236 payloads that is 8.6 MB of input expanding
+ * to 171.4 MB when inflated whole, against 512 bytes per record here.
+ *
+ * WHAT THE CALLER GETS, and it is deliberately weak: *at least* something, or a throw.
+ * The length is whatever the engine chose to emit, NOT `maxInputBytes` worth and not a
+ * fixed size — deflate's block structure decides it, and a stream may also simply end
+ * inside the prefix, in which case this is the whole thing. So a caller must treat a
+ * short result as "ask for more or give up" and never as "the record is truncated". It
+ * may also be LONGER than the prefix implies in the other direction: 512 compressed
+ * bytes of MAT record measured 1,886 bytes out.
+ *
+ * Falls back to inflating the whole stream — never to failing — when the engine has no
+ * head mode, when the head mode throws, or when the fflate path produces nothing. That
+ * fallback is what lets `MatScan` treat this as an optimization rather than a second
+ * format reader with its own failure modes.
+ */
+export declare function inflateZlibHead(wrapped: Uint8Array, maxInputBytes: number): Uint8Array;
 //# sourceMappingURL=Inflate.d.ts.map

@@ -44,7 +44,7 @@ import { maskDefining } from '../maskScope.js';
 import { basenameOf, isMatFile, isModelFile, isSlddFile, modelNameOf, refBasename } from '../fileKinds.js';
 import { scanSldd } from '../parser/SlddScan.js';
 import { parseModel } from '../parser/ModelParser.js';
-import { parseMat } from '../parser/MatParser.js';
+import { scanMat } from '../parser/MatScan.js';
 // --- Summarising -------------------------------------------------------------
 // Every `??` below defaults a field ParsedSlx declares as REQUIRED, so TypeScript says none
 // of them can be taken and a coverage report lists them as branches never hit. They are kept
@@ -107,10 +107,23 @@ function slddSummary(srcId, bytes) {
         slddRefs: refs.map(refBasename),
     };
 }
-function matSummary(srcId, parsed) {
+/**
+ * The MAT half of the same substitution `slddSummary` makes, for the same reason: this
+ * reads one string per variable and `parseMat` was decoding every element of every matrix
+ * to supply them — 1271 ms over the corpus's `.mat` files against 4.4 ms here.
+ *
+ * `scanMat` falls back to the full parse on any file it cannot prove itself equivalent
+ * on, so this is a substitution and not a second reader. It discards `parseMat`'s
+ * warnings, which this never collected either: a usage index is built over a folder and
+ * drops unreadable files silently by design (see `summarizeFiles`).
+ */
+function matSummary(srcId, bytes) {
     return {
         srcId,
-        names: new Set(parsed.variables.map((v) => v.name).filter(Boolean)),
+        // `filter(Boolean)` because `scanMat` reports '' for a variable with no name, to keep
+        // positions aligned for callers that index by position. A Set keyed on names has no
+        // use for that placeholder, and the previous code dropped it too.
+        names: new Set(scanMat(bytes).names.filter(Boolean)),
         slddRefs: [],
     };
 }
@@ -133,7 +146,7 @@ export function summarizeFiles(files) {
                 models.push(modelSummary(parseModel(file.bytes, file.filename), file.srcId, file.filename));
             }
             else if (isMatFile(file.filename)) {
-                matByName.set(refBasename(file.filename), matSummary(file.srcId, parseMat(file.bytes)));
+                matByName.set(refBasename(file.filename), matSummary(file.srcId, file.bytes));
             }
             else if (isSlddFile(file.filename)) {
                 slddByName.set(refBasename(file.filename), slddSummary(file.srcId, file.bytes));

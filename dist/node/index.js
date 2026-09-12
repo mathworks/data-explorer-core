@@ -6,7 +6,7 @@
 // browser bundle by package.json `exports` conditions, so core proper stays fs-free.
 import { readFileSync, statSync, readdirSync } from 'node:fs';
 import { basename, join, extname } from 'node:path';
-import { inflateRawSync, inflateSync } from 'node:zlib';
+import { constants as zlibConstants, inflateRawSync, inflateSync } from 'node:zlib';
 // Side-effect import: registers node classes so SectionNode.addEntry and
 // NodeRegistry value-parsing work when consumers import ONLY from this subpath.
 import '../datamodel/node/data/NodeClassMap.js';
@@ -24,6 +24,13 @@ import { reasonOf } from '../datamodel/parser/ParseWarning.js';
 setNativeInflate({
     raw: (deflated) => inflateRawSync(deflated),
     zlib: (wrapped) => inflateSync(wrapped),
+    // Z_SYNC_FLUSH instead of the default Z_FINISH: this one is handed a PREFIX of a
+    // stream on purpose (see `inflateZlibHead`), and Z_FINISH would call the absent tail
+    // an unexpected end of file. Omitting it here would not break anything — the seam
+    // falls back to inflating whole records — it would just quietly cost a Node 20 host
+    // the whole MAT scan speedup, which is the sort of thing that is only ever noticed
+    // as "why is it slower there".
+    zlibHead: (prefix) => inflateSync(prefix, { finishFlush: zlibConstants.Z_SYNC_FLUSH }),
 });
 const SUPPORTED = new Set(['.sldd', '.slx', '.mdl', '.mat', '.prj']);
 // Re-export createSession so Node consumers can import everything from one place.

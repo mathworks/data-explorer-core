@@ -27,7 +27,7 @@ const nodeApi = await import('../dist/node/index.js');
 // consumer really gets.
 const { unzipEntries, nativeInflateAvailable, setNativeInflate } = await import('../dist/datamodel/parser/Inflate.js');
 
-const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, parseModel, summarizeFiles, scanSldd, RowCellPool } = core;
+const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, parseModel, summarizeFiles, scanSldd, scanMat, RowCellPool } = core;
 const { createSession, loadFromPath } = nodeApi;
 
 /** Read a file as a fresh ArrayBuffer. Buffer pooling makes `.buffer` wrong on its
@@ -72,6 +72,12 @@ const zlibForPerf = await import('node:zlib');
 const NATIVE_FOR_PERF = {
   raw: (d) => zlibForPerf.inflateRawSync(d),
   zlib: (w) => zlibForPerf.inflateSync(w),
+  // Present so that `DEX_PERF_INFLATE=node:zlib` measures the SAME engine a Node consumer
+  // gets from dist/node/index.js. Omitting it would leave the forced engine a head-less
+  // one, and `mat.scan.corpus` would then be slower when forced to the very engine it
+  // already runs on by default -- a difference in the harness read as a difference in the
+  // code (Z_SYNC_FLUSH: treat a truncated prefix as an end rather than an error).
+  zlibHead: (p) => zlibForPerf.inflateSync(p, { finishFlush: zlibForPerf.constants.Z_SYNC_FLUSH }),
 };
 
 /**
@@ -281,6 +287,39 @@ export function scenarios(corpus) {
           }
         }
         return `${ok} parsed, ${refused} refused`;
+      },
+    });
+
+    // The step 3 target, paired with `mat.deep.corpus` above the way `sldd.zip.*.scan` is
+    // paired with `.deep`: the two rows in ONE snapshot are the speedup, so nothing has to
+    // be compared against a baseline from another machine or another day.
+    //
+    // Deliberately identical to the scenario above in every way but the call — same file
+    // list, same `readAsArrayBuffer` inside the timed region, same try/catch. A scan that
+    // only looked faster because it skipped the file reads would not be measuring anything.
+    //
+    // `probe` counts NAMES, not files: a scanner that returned empty lists would otherwise
+    // post a spectacular time, and the v7.3 files that `parseMat` throws on must keep
+    // throwing here (`scanMat` refuses them so `parseMat` speaks) — the refused count is in
+    // the probe for exactly that reason.
+    list.push({
+      id: 'mat.scan.corpus',
+      what: `scanMat over ${mats.length} .mat files -- names only, the step 3 replacement for mat.deep.corpus`,
+      role: 'mat-corpus',
+      samples: 3,
+      run: () => {
+        let ok = 0;
+        let refused = 0;
+        let names = 0;
+        for (const f of mats) {
+          try {
+            names += scanMat(readAsArrayBuffer(f)).names.length;
+            ok++;
+          } catch {
+            refused++;
+          }
+        }
+        return `${ok} scanned, ${refused} refused, ${names} names`;
       },
     });
   }

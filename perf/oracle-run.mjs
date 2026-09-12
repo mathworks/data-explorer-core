@@ -17,7 +17,22 @@ import { filesFor, resolveCorpus, describeCorpus } from './corpus.mjs';
 import { runCase, formatCase, compareBytes } from './oracle.mjs';
 
 const core = await import('../dist/index.js');
-const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, scanSldd } = core;
+const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, scanSldd, scanMat } = core;
+// The inflate seam, by a DEEP import: it is not barrel surface, and this harness is
+// internal. Needed so an oracle case can pin the engine — see `mat.names.scan.fflate`.
+const { setNativeInflate } = await import('../dist/datamodel/parser/Inflate.js');
+
+/** Run `fn` with the inflate engine pinned, then hand detection back. */
+function withEngine(engine, fn) {
+  return (path) => {
+    setNativeInflate(engine);
+    try {
+      return fn(path);
+    } finally {
+      setNativeInflate(undefined);
+    }
+  };
+}
 
 function arg(name, fallback = null) {
   const i = process.argv.indexOf(`--${name}`);
@@ -55,7 +70,14 @@ const slddRefs = (path) => {
 const scanNames = (path) => scanSldd(readAsArrayBuffer(path), []).names;
 const scanRefs = (path) => scanSldd(readAsArrayBuffer(path), []).refs;
 
+// THE MAT REFERENCE, and it is NOT filtered either: `parseMat` pushes an anonymous
+// variable with `name: ''` for a matrix truncated before its own array flags, which every
+// MCOS file carries one of. Same argument as `slddNames` — a candidate that drops it while
+// the reference keeps it shifts every later name by one, positionally.
 const matNames = (path) => parseMat(readAsArrayBuffer(path)).variables.map((v) => v.name);
+
+// THE STEP-3 CANDIDATE, through the public entry point for the same reason as `scanNames`.
+const matScanNames = (path) => scanMat(readAsArrayBuffer(path)).names;
 
 const corpus = resolveCorpus();
 console.log(describeCorpus(corpus));
@@ -105,6 +127,24 @@ const CASES = [
     reference: matNames,
     candidate: matNames,
   },
+  // ---- the step-3 claim: the scanner IS the full parse, for the name list -----------
+  {
+    name: 'mat.names.scan',
+    files: matFiles,
+    reference: matNames,
+    candidate: matScanNames,
+  },
+  {
+    // The SAME claim on the engine a browser gets. `scanMat` reads only the head of each
+    // compressed record, and the head comes from a different code path per engine —
+    // `inflateSync(prefix, {finishFlush: Z_SYNC_FLUSH})` natively, a streaming
+    // `Unzlib.push(prefix, false)` under fflate. Two paths, one contract, so both are
+    // compared against the same reference rather than against each other.
+    name: 'mat.names.scan.fflate',
+    files: matFiles,
+    reference: matNames,
+    candidate: withEngine(null, matScanNames),
+  },
   // ---- negative controls, on real files ----------------------------------------
   {
     name: 'control.sldd.dropsLastName',
@@ -136,6 +176,15 @@ const CASES = [
     files: matFiles,
     reference: matNames,
     candidate: (f) => matNames(f).map(() => 'MCOS'),
+    expectFail: true,
+  },
+  {
+    // Aimed at `scanMat` itself, so a scanner quietly wired back to `parseMat` could not
+    // sit in the table looking green.
+    name: 'control.mat.scanDropsLastName',
+    files: matFiles,
+    reference: matNames,
+    candidate: (f) => matScanNames(f).slice(0, -1),
     expectFail: true,
   },
 ];

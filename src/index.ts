@@ -152,6 +152,16 @@ export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames }
 // equivalent on, and that equivalence is checked over the whole corpus by the oracle.
 export { scanSldd, type SlddScanResult } from './datamodel/parser/SlddScan.js';
 
+// The same trade on the other format a usage index reads. `parseMat` decodes every element
+// of every matrix to hand back a list of names, which is all two of its three callers ever
+// read: 1271 ms over the corpus's `.mat` files against 4.4 ms here. Published because one
+// of those callers is in the extension — its name index calls `parseMat` and reads only
+// `variables[].name` — and it cannot reach a module this barrel does not export. Same
+// discipline as `scanSldd`: a strict substitute that falls back to `parseMat` for anything
+// it has not been proven equivalent on, checked name-by-name over the corpus by the oracle
+// and over the fixtures by the test suite.
+export { scanMat, type MatScanResult } from './datamodel/parser/MatScan.js';
+
 // WHERE those entries sit — the zip member name and the three-step JSON key path to the
 // one part a dictionary keeps its entries in. Published for the same reason `SC_PART` is,
 // and more sharply: a host that WRITES a dictionary owns the document this package cannot
