@@ -13,6 +13,14 @@
 //   node scripts/verify-consumer.mjs
 //   DEX_CONSUMER=/path/to/consumer node scripts/verify-consumer.mjs
 //   node scripts/verify-consumer.mjs --keep    (leave the swap in place for debugging)
+//   node scripts/verify-consumer.mjs --restore <backup>   (undo a --keep)
+//
+// `--keep` is for running something this script does not: the consumer's
+// @vscode/test-electron suite, a single vitest file, a mutation check. It needs an UNDO
+// that is not a shell one-liner — the printed `rm -rf`/`mv` is fine for a human but is
+// exactly the shape a sandboxed or reviewed runner refuses, which leaves node_modules
+// holding an unpublished build and no supported way back. So the undo lives here, in the
+// tool that made the mess, and it verifies what it is restoring before it moves anything.
 
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, renameSync } from 'node:fs';
@@ -23,12 +31,29 @@ const CORE = resolve(import.meta.dirname, '..');
 const CONSUMER = resolve(process.env.DEX_CONSUMER ?? join(CORE, '..', 'data-explorer-vscode'));
 const PKG = 'data-explorer-core';
 const keep = process.argv.includes('--keep');
+const restoreFrom = process.argv[process.argv.indexOf('--restore') + 1];
 
 const say = (m) => console.log(m);
 const die = (m) => {
   console.error(`verify-consumer: ${m}`);
   process.exit(1);
 };
+
+// ---- undo a --keep, then stop ---------------------------------------------------
+if (process.argv.includes('--restore')) {
+  const live = join(CONSUMER, 'node_modules', PKG, 'dist');
+  if (!restoreFrom || restoreFrom.startsWith('--')) die('--restore needs the backup path --keep printed');
+  const backup = resolve(restoreFrom);
+  // Both checks matter: without them a typo'd path deletes the installed package and
+  // replaces it with nothing, which looks like a broken install rather than a bad command.
+  if (!existsSync(join(backup, 'index.js'))) die(`${backup} does not look like a core dist/ (no index.js)`);
+  if (!existsSync(live)) die(`nothing installed at ${live}`);
+  rmSync(live, { recursive: true, force: true });
+  renameSync(backup, live);
+  say(`restored ${live}`);
+  say(`  from ${backup}`);
+  process.exit(0);
+}
 
 function run(cmd, args, cwd) {
   return execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -87,7 +112,7 @@ try {
   failure = err;
 } finally {
   if (keep) {
-    say(`\n--keep: local dist/ left in place; restore with\n  rm -rf ${liveDist} && mv ${backup} ${liveDist}`);
+    say(`\n--keep: local dist/ left in place; restore with\n  node scripts/verify-consumer.mjs --restore ${backup}`);
   } else {
     say('\nrestoring the consumer');
     rmSync(liveDist, { recursive: true, force: true });
