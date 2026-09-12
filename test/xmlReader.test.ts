@@ -222,31 +222,52 @@ describe('what only the dictionary reader does', () => {
     expect(readProjectXml('<Q Name="  Kp  "/>')).toEqual({ Q: { '@_Name': 'Kp' } });
   });
 
-  it('gives a pretty-printed PARENT a `#text` of the whitespace between its children', () => {
-    // Found by deep-comparing the parsed tree against an independently built one over the
-    // corpus: 204,373 of the differences were this, and every one was a non-leaf element.
-    // With trimming off the engine tests the RAW length of the text, so the newline and
-    // indent between two children is text like any other — CONCATENATED across the gaps,
-    // which is why a two-child parent holds three newlines rather than one.
-    //
-    // It is dead weight rather than a hazard TODAY, and the distinction is worth stating
-    // precisely: `BinarySlddParser.getTextContent` reads `#text` off whatever node it is
-    // given without asking whether that node has children, and every branch that calls it
-    // is reached only after the child-element check found none. So the whitespace is never
-    // read — by construction of the callers, not of the accessor. It is still one string
-    // and one property per non-leaf element of a 71.3 MB document, which is worth knowing
-    // before reading a heap number. The model reader trims first, is left with nothing,
-    // and adds no key at all.
-    expect(readDictionaryXml('<Object>\n  <P Name="a">1</P>\n</Object>')).toEqual({
-      Object: [{ P: [{ '@_Name': 'a', '#text': 1 }], '#text': '\n  \n' }],
-    });
+  it('stores no `#text` for the whitespace BETWEEN two tags, though it keeps every value', () => {
+    // Trimming off would otherwise make the newline and indent of a pretty-printed parent
+    // into text like any other — CONCATENATED across the gaps, so a one-child parent holds
+    // two newlines. Found by deep-comparing the tree against an independently built one:
+    // 204,373 of the differences were this, every one on a non-leaf element, 80.7 MB of
+    // the 232.1 MB that parse retains. Nothing read them, so `dropLayoutWhitespace` stops
+    // the engine producing them, and a pretty-printed parent now reads the same as one
+    // written without the newlines.
+    const pretty = readDictionaryXml('<Object>\n  <P Name="a">1</P>\n</Object>');
+    expect(pretty).toEqual({ Object: [{ P: [{ '@_Name': 'a', '#text': 1 }] }] });
+    expect(pretty).toEqual(readDictionaryXml('<Object><P Name="a">1</P></Object>'));
+    // The KEY is gone, not emptied: a walker asking `'#text' in node` gets the same answer
+    // as for a parent whose source had no whitespace in it.
+    expect(Object.keys((pretty as any).Object[0])).toEqual(['P']);
+    // The model reader trims first, is left with nothing, and adds no key either — it
+    // arrives at the same shape by the other route.
     expect(readModelXml('<Object>\n  <P Name="a">1</P>\n</Object>')).toEqual({
       Object: { P: { '@_Name': 'a', '#text': 1 } },
     });
-    // No whitespace in the source, no key — so this is a property of the FILE's layout,
-    // not of the reader.
-    expect(readDictionaryXml('<Object><P Name="a">1</P></Object>')).toEqual({
-      Object: [{ P: [{ '@_Name': 'a', '#text': 1 }] }],
+  });
+
+  it('drops the whitespace beside markup in MIXED content, which is the one value it changes', () => {
+    // The cost of the rule above, pinned rather than described. The engine calls the hook
+    // once per text CHUNK, so an element holding BOTH text and children loses the
+    // whitespace-only chunks next to the markup from a value that used to concatenate
+    // them: this reads '\n  abc\n  ' where it once read '\n  abc\n  \n'.
+    //
+    // No character of real text is ever affected, and no dictionary in the corpus holds
+    // this shape — 22 XML parts, 155 MB, 2.09 M elements, zero with both text and children
+    // — because a property tree serializes an element as a value OR children. The corpus
+    // cannot promise that about a file it has not seen, so the behaviour is written down
+    // here: if a future format nests markup inside a value, this test is the one that has
+    // to be argued with first.
+    expect(readDictionaryXml('<P Name="v">\n  abc\n  <Element>x</Element>\n</P>')).toEqual({
+      P: [{ '@_Name': 'v', '#text': '\n  abc\n  ', Element: ['x'] }],
+    });
+    // Text with no whitespace against the markup is untouched on both sides.
+    expect(readDictionaryXml('<P Name="v">abc<Element>x</Element>def</P>')).toEqual({
+      P: [{ '@_Name': 'v', '#text': 'abcdef', Element: ['x'] }],
+    });
+    // And whitespace that is MEANT survives beside markup if it is written as CDATA: the
+    // engine hands CDATA to the hook as leaf text whatever its siblings are, so the rule
+    // never sees it. Not a workaround anybody has needed — it is the evidence that the
+    // rule keys on "the engine found this between two tags" and not on "this is spaces".
+    expect(readDictionaryXml('<R>\n  <Q>a</Q>\n  <![CDATA[   ]]>\n</R>')).toEqual({
+      R: { Q: 'a', '#text': '   ' },
     });
   });
 

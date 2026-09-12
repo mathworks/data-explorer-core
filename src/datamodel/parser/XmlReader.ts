@@ -68,12 +68,13 @@
 //   part's text is markup-formatted and its whitespace is layout, which is why the other
 //   two readers keep the engine's default.
 //
-//   It has a THIRD effect, and this one is pure weight: a pretty-printed parent gets a
-//   `#text` holding the newline and indent between its children, concatenated across the
-//   gaps. 204,373 of them in the 71.3 MB corpus dictionary. Nothing reads it — every
-//   caller of `BinarySlddParser.getTextContent` is reached only after the child-element
-//   check found none — but it is one string and one property per non-leaf element, and it
-//   is the reason that tree is bigger than the document suggests.
+//   It HAD a third effect, and this reader cancels it. Left alone, a pretty-printed
+//   parent gets a `#text` holding the newline and indent between its children,
+//   concatenated across the gaps: 204,373 of them in the 71.3 MB corpus dictionary,
+//   443,019 across the corpus. Nothing reads them, and they cost 80.7 MB of the 232.1 MB
+//   that parse retains — so `dropLayoutWhitespace` below refuses them, and the flag is
+//   left with only the two effects that are about fidelity. Leaf whitespace, padded
+//   values and interior whitespace are untouched.
 //
 //   It has a second effect that is not in its name, and it is the more useful half: with
 //   trimming off the engine returns any value that DIFFERS FROM ITS OWN TRIM raw and
@@ -93,10 +94,51 @@ const SHAPE = {
   textNodeName: TEXT_KEY,
 };
 
+/**
+ * Whitespace between two child elements is layout, not data — so it is not stored.
+ *
+ * `trimValues: false` is asked for so a MATLAB char array keeps its padding, and it does
+ * give that; it also turns the newline-and-indent of a pretty-printed file into text like
+ * any other, one string and one property per non-leaf element. On the 71.3 MB corpus
+ * dictionary that is 204,373 keys and 80.7 MB of the 232.1 MB the parse retains — a third
+ * of the tree, for a key no walker reads: `BinarySlddParser.getTextContent` reads `#text`
+ * off whatever node it is handed, and every branch that calls it is reached only after the
+ * child-element check found none.
+ *
+ * The engine passes `isLeafNode: false` exactly when the text it has just collected has an
+ * element sibling — `OrderedObjParser` hands `false` outright in the opening-tag branch,
+ * and otherwise asks whether the parent has children yet. So "not a leaf, and nothing but
+ * whitespace" is precisely "the gap between two tags". Returning the empty string for it
+ * removes the KEY rather than emptying it, because `saveTextToParentTag` adds `#text` only
+ * when the processed value is truthy. A leaf is answered before `trim` is ever called, so
+ * no value pays for this.
+ *
+ * What it does not do, said here because the difference stays invisible until it bites:
+ * the hook is called once per text CHUNK, not once per element. For MIXED content — real
+ * text AND child elements inside one element — a whitespace-only chunk beside the markup
+ * is dropped from a value that would otherwise have concatenated it, so
+ * `<P>\n  abc\n  <E/>\n</P>` reads as '\n  abc\n  ' where it used to read as
+ * '\n  abc\n  \n'. No dictionary in the corpus holds that shape: 22 XML parts, 155 MB,
+ * 2.09 M elements, zero with both text and children (`.scratch/probe-mixed-corpus.mjs`),
+ * because the writer serializes a property tree in which an element carries either a value
+ * or children. That is a corpus fact and not a guarantee, which is why the contract test
+ * pins the mixed-content case as behaviour rather than leaving it to be discovered.
+ */
+function dropLayoutWhitespace(
+  _tagName: string,
+  value: string,
+  _jPath: unknown,
+  _hasAttributes: boolean,
+  isLeafNode: boolean,
+): string {
+  return !isLeafNode && value.trim() === '' ? '' : value;
+}
+
 const dictionaryParser = new XMLParser({
   ...SHAPE,
   isArray: (name: string) => name === 'Object' || name === 'P' || name === 'Element',
   trimValues: false,
+  tagValueProcessor: dropLayoutWhitespace,
 });
 
 // The model and project readers ask for the same thing, so they share one parser rather
@@ -108,8 +150,9 @@ const dictionaryParser = new XMLParser({
 const defaultParser = new XMLParser(SHAPE);
 
 /**
- * A `.sldd`'s XML part. `Object`, `P` and `Element` are always arrays; whitespace is
- * preserved exactly as written.
+ * A `.sldd`'s XML part. `Object`, `P` and `Element` are always arrays; whitespace inside a
+ * value is preserved exactly as written, and whitespace between two tags is not stored at
+ * all (`dropLayoutWhitespace`).
  *
  * Returns `unknown` on purpose: the empty object is a valid, common answer that means
  * "nothing readable here", so a caller has to narrow before it can trust a key. Every
