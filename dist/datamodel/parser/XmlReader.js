@@ -32,6 +32,9 @@
 //   - CDATA arrives as ordinary text with its markup characters intact.
 //   - `<P/>` reads as the empty STRING when it carries no attributes, and as an object
 //     with no `#text` key when it does. Both, not one.
+//   - The XML declaration is a `?xml` KEY at the root, beside the document element. So a
+//     part holding only a declaration is not the empty object, and anything deciding
+//     "nothing readable here" by counting root keys counts this one too.
 //
 // Refusal, all three readers — and this is the part that matters most to a caller:
 //
@@ -64,6 +67,13 @@
 //   the file said, so trimming here would edit the user's data on the way in. A model
 //   part's text is markup-formatted and its whitespace is layout, which is why the other
 //   two readers keep the engine's default.
+//
+//   It has a THIRD effect, and this one is pure weight: a pretty-printed parent gets a
+//   `#text` holding the newline and indent between its children, concatenated across the
+//   gaps. 204,373 of them in the 71.3 MB corpus dictionary. Nothing reads it — every
+//   caller of `BinarySlddParser.getTextContent` is reached only after the child-element
+//   check found none — but it is one string and one property per non-leaf element, and it
+//   is the reason that tree is bigger than the document suggests.
 //
 //   It has a second effect that is not in its name, and it is the more useful half: with
 //   trimming off the engine returns any value that DIFFERS FROM ITS OWN TRIM raw and

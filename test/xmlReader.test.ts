@@ -132,6 +132,18 @@ describe('the shape every reader produces', () => {
     // `#text` is not the absence of the element.
     everyReader('<R><Q Name="v"/></R>', { R: { Q: { '@_Name': 'v' } } });
   });
+
+  it('keeps the XML declaration as a `?xml` key', () => {
+    // Which is a key at the ROOT, beside the document element. Anything that decides a
+    // part is empty by counting root keys is counting this one too: a part holding only a
+    // declaration is not the empty object, so it passes that check and then fails to have
+    // the element the caller wanted. All three callers test for the KEY they need for
+    // exactly this reason.
+    everyReader('<?xml version="1.0" encoding="UTF-8"?><Q>x</Q>', {
+      '?xml': { '@_version': '1.0', '@_encoding': 'UTF-8' },
+      Q: 'x',
+    });
+  });
 });
 
 describe('what a reader refuses, and what it lets through', () => {
@@ -208,6 +220,43 @@ describe('what only the dictionary reader does', () => {
     expect(readDictionaryXml('<Q Name="  Kp  "/>')).toEqual({ Q: { '@_Name': '  Kp  ' } });
     expect(readModelXml('<Q Name="  Kp  "/>')).toEqual({ Q: { '@_Name': 'Kp' } });
     expect(readProjectXml('<Q Name="  Kp  "/>')).toEqual({ Q: { '@_Name': 'Kp' } });
+  });
+
+  it('gives a pretty-printed PARENT a `#text` of the whitespace between its children', () => {
+    // Found by deep-comparing the parsed tree against an independently built one over the
+    // corpus: 204,373 of the differences were this, and every one was a non-leaf element.
+    // With trimming off the engine tests the RAW length of the text, so the newline and
+    // indent between two children is text like any other — CONCATENATED across the gaps,
+    // which is why a two-child parent holds three newlines rather than one.
+    //
+    // It is dead weight rather than a hazard TODAY, and the distinction is worth stating
+    // precisely: `BinarySlddParser.getTextContent` reads `#text` off whatever node it is
+    // given without asking whether that node has children, and every branch that calls it
+    // is reached only after the child-element check found none. So the whitespace is never
+    // read — by construction of the callers, not of the accessor. It is still one string
+    // and one property per non-leaf element of a 71.3 MB document, which is worth knowing
+    // before reading a heap number. The model reader trims first, is left with nothing,
+    // and adds no key at all.
+    expect(readDictionaryXml('<Object>\n  <P Name="a">1</P>\n</Object>')).toEqual({
+      Object: [{ P: [{ '@_Name': 'a', '#text': 1 }], '#text': '\n  \n' }],
+    });
+    expect(readModelXml('<Object>\n  <P Name="a">1</P>\n</Object>')).toEqual({
+      Object: { P: { '@_Name': 'a', '#text': 1 } },
+    });
+    // No whitespace in the source, no key — so this is a property of the FILE's layout,
+    // not of the reader.
+    expect(readDictionaryXml('<Object><P Name="a">1</P></Object>')).toEqual({
+      Object: [{ P: [{ '@_Name': 'a', '#text': 1 }] }],
+    });
+  });
+
+  it('keeps a whitespace-only value, where the model reader empties it', () => {
+    // The same rule at the leaf, and here it is fidelity rather than weight: three spaces
+    // is a 1x3 char array in MATLAB and the empty string is a 0x0.
+    expect(readDictionaryXml('<Q>   </Q>')).toEqual({ Q: '   ' });
+    expect(readDictionaryXml('<Q Name="v">   </Q>')).toEqual({ Q: { '@_Name': 'v', '#text': '   ' } });
+    expect(readModelXml('<Q>   </Q>')).toEqual({ Q: '' });
+    expect(readModelXml('<Q Name="v">   </Q>')).toEqual({ Q: { '@_Name': 'v' } });
   });
 
   it('does not COERCE a padded value either, which the model reader does', () => {
