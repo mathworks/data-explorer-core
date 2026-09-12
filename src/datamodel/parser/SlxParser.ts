@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { unzipEntries } from './Inflate.js';
-import { XMLParser } from 'fast-xml-parser';
+import { readModelXml } from './XmlReader.js';
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { ENUM_BLOCK_PARAMS } from './enumBlockParams.js';
 import type { MaskScope } from '../maskScope.js';
@@ -10,12 +10,6 @@ import { parseMat } from './MatParser.js';
 import type { MatVariable } from './MatParser.js';
 import { reasonOf } from './ParseWarning.js';
 import type { ParseWarning } from './ParseWarning.js';
-
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: '@_',
-  textNodeName: '#text',
-});
 
 export interface BlockParamUsage {
   blockName: string;
@@ -121,7 +115,7 @@ function parseJSON(buf: Uint8Array): unknown {
 }
 
 function parseXml(buf: Uint8Array): unknown {
-  return xmlParser.parse(decodeText(buf));
+  return readModelXml(decodeText(buf));
 }
 
 /**
@@ -161,10 +155,11 @@ function readPart(
     });
     return null;
   }
-  // fast-xml-parser is lenient and answers with an EMPTY object for input carrying no
+  // The XML reader is lenient and answers with an EMPTY object for input carrying no
   // markup at all — plain text, an empty part, binary — and that is the shape a
-  // truncated or mis-encoded write actually takes. Same loss as a throw, so the same
-  // report; ProjectParser.parseInfo already draws this line for the `.prj` store.
+  // truncated or mis-encoded write actually takes (`XmlReader` pins it). Same loss as a
+  // throw, so the same report; ProjectParser.parseInfo already draws this line for the
+  // `.prj` store.
   if (doc === null || typeof doc !== 'object' || Object.keys(doc).length === 0) {
     warnings.push({
       code: 'part-unreadable',

@@ -33,12 +33,12 @@
 // here is the worst available outcome: it would make a rename target the wrong entry.
 //
 // The refusals are listed on `scanDataSourceXml`. The one worth naming here is entity
-// escaping. fast-xml-parser decodes `&amp;` and friends (`processEntities` defaults on),
-// so a name containing an entity would need this module to mirror its decoder exactly,
-// and "exactly" is not something to assume about a table that lives in another package.
-// No name in 241,599 corpus entries contains an entity, so refusing costs nothing
-// measurable and cannot be wrong. If a real file ever trips it, the fix is to mirror
-// fast-xml-parser's table under a test that compares the two.
+// escaping. The full parse decodes `&amp;` and friends and leaves `&#65;` alone (see
+// `XmlReader`, which pins that), so a name containing an entity would need this module to
+// mirror the engine's decoder exactly, and "exactly" is not something to assume about a
+// table that lives in another package. No name in 241,599 corpus entries contains an
+// entity, so refusing costs nothing measurable and cannot be wrong. If a real file ever
+// trips it, the fix is to mirror that table under a test that compares the two.
 import { unzipEntries } from './Inflate.js';
 import { isJsonTextBytes, normalizeRefNames, readSlddContent, slddChunkContent, } from './SlddContent.js';
 import { DATA_PART_XML } from './SlddParts.js';
