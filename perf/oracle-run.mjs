@@ -17,7 +17,7 @@ import { filesFor, resolveCorpus, describeCorpus } from './corpus.mjs';
 import { runCase, formatCase, compareBytes } from './oracle.mjs';
 
 const core = await import('../dist/index.js');
-const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat } = core;
+const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, scanSldd } = core;
 
 function arg(name, fallback = null) {
   const i = process.argv.indexOf(`--${name}`);
@@ -30,11 +30,17 @@ function readAsArrayBuffer(path) {
   return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 }
 
+// THE REFERENCE. One name per entry, taken straight off the full parse, and NOT filtered:
+// `parseEntry` does `getProperty(obj, 'Name') || ''` and pushes the entry regardless, so an
+// entry with no readable name still occupies a position in `entries`. Dropping it here
+// would have let a candidate that also drops it pass while shifting every later name by
+// one against a consumer that indexes positionally — the oracle would have been blind to
+// the exact class of bug it exists to catch.
 const slddNames = (path) => {
   const content = slddChunkContent(readSlddContent(readAsArrayBuffer(path), []));
   const out = [];
   for (const entry of content?.entries ?? []) {
-    if (entry?.name) out.push(entry.name);
+    out.push(typeof entry?.name === 'string' ? entry.name : '');
   }
   return out;
 };
@@ -43,6 +49,11 @@ const slddRefs = (path) => {
   const content = slddChunkContent(readSlddContent(readAsArrayBuffer(path), []));
   return content ? normalizeRefNames(content['Dictionary References']) : [];
 };
+
+// THE CANDIDATE — the byte scanner, through the public entry point, so what is compared is
+// what a consumer would actually call and not some inner function the wiring might bypass.
+const scanNames = (path) => scanSldd(readAsArrayBuffer(path), []).names;
+const scanRefs = (path) => scanSldd(readAsArrayBuffer(path), []).refs;
 
 const matNames = (path) => parseMat(readAsArrayBuffer(path)).variables.map((v) => v.name);
 
@@ -67,6 +78,19 @@ const CASES = [
     files: slddFiles,
     reference: slddRefs,
     candidate: slddRefs,
+  },
+  // ---- the step-2 claim: the scanner IS the full parse, for these two fields --------
+  {
+    name: 'sldd.names.scan',
+    files: slddFiles,
+    reference: slddNames,
+    candidate: scanNames,
+  },
+  {
+    name: 'sldd.refs.scan',
+    files: slddFiles,
+    reference: slddRefs,
+    candidate: scanRefs,
   },
   {
     name: 'sldd.unzip.deterministic',
@@ -94,6 +118,15 @@ const CASES = [
     files: slddFiles,
     reference: slddNames,
     candidate: (f) => slddNames(f).slice().reverse(),
+    expectFail: true,
+  },
+  {
+    // Aimed at the SCANNER rather than the reference, so a `scanNames` that had somehow
+    // been wired back to the full parse could not sit in the table looking green.
+    name: 'control.sldd.scanDropsLastName',
+    files: slddFiles,
+    reference: slddNames,
+    candidate: (f) => scanNames(f).slice(0, -1),
     expectFail: true,
   },
   {

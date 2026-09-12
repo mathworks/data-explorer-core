@@ -143,6 +143,15 @@ export {
 // resolves the sub-dictionaries of one flavour and none of the other.
 export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames } from './datamodel/parser/SlddContent.js';
 
+// The same read, for a caller that wants ONLY the entry names and the referenced
+// sub-dictionaries. Published because that caller exists three times over — two indexes
+// in the extension and `summarizeFiles` here — and each was paying for the whole entry
+// tree to read one string per entry: 3230 ms and 31,345 objects on the larger customer
+// dictionary, against ~100 ms for the scan. It is a strict substitute, not a second
+// format reader: it falls back to `readSlddContent` for anything it has not been proven
+// equivalent on, and that equivalence is checked over the whole corpus by the oracle.
+export { scanSldd, type SlddScanResult } from './datamodel/parser/SlddScan.js';
+
 // WHERE those entries sit — the zip member name and the three-step JSON key path to the
 // one part a dictionary keeps its entries in. Published for the same reason `SC_PART` is,
 // and more sharply: a host that WRITES a dictionary owns the document this package cannot

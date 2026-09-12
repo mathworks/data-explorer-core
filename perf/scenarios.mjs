@@ -27,7 +27,7 @@ const nodeApi = await import('../dist/node/index.js');
 // consumer really gets.
 const { unzipEntries, nativeInflateAvailable, setNativeInflate } = await import('../dist/datamodel/parser/Inflate.js');
 
-const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, parseModel, summarizeFiles } = core;
+const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, parseModel, summarizeFiles, scanSldd } = core;
 const { createSession, loadFromPath } = nodeApi;
 
 /** Read a file as a fresh ArrayBuffer. Buffer pooling makes `.buffer` wrong on its
@@ -142,6 +142,24 @@ export function scenarios(corpus) {
         return { probe: out ? 'summarized' : 'empty', retain: out };
       },
     });
+
+    // The step 2 target. Paired with `.deep` above deliberately: `.deep` is the cost
+    // being removed and this is what replaces it, so the two rows in one snapshot ARE
+    // the speedup — no comparison against a baseline from another machine or another
+    // day, which is where the step-1 write-up went wrong once already.
+    //
+    // `probe` is the name COUNT rather than a truthiness check, because a scanner that
+    // silently returned nothing would otherwise post a spectacular time.
+    list.push({
+      id: `sldd.zip.${tag}.scan`,
+      what: `scanSldd on ${base(path)} -- names + refs only, the step 2 replacement for .deep`,
+      role,
+      samples: 3,
+      run: () => {
+        const out = scanSldd(bytes, []);
+        return { probe: `${out.names.length} names, ${out.refs.length} refs`, retain: out };
+      },
+    });
   }
 
   // ---- the same dictionaries, json-text spelling --------------------------------
@@ -160,6 +178,20 @@ export function scenarios(corpus) {
       run: () => {
         const json = readSlddContent(bytes, []);
         return { probe: entryCount(json), retain: json };
+      },
+    });
+
+    // Timed even though step 2 deliberately does NOT optimise this spelling, because a
+    // claim that it changes nothing here is a claim, and this is the row that checks it.
+    // Expect it to track `sldd.json.*.deep`: same JSON.parse, then a walk of the result.
+    list.push({
+      id: `sldd.json.${tag}.scan`,
+      what: `scanSldd on ${base(path)} -- json-text keeps JSON.parse, so this must NOT beat .deep by much`,
+      role,
+      samples: 2,
+      run: () => {
+        const out = scanSldd(bytes, []);
+        return { probe: `${out.names.length} names, ${out.refs.length} refs`, retain: out };
       },
     });
   }
