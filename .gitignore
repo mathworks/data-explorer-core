@@ -17,6 +17,12 @@ coverage/
 docs/
 CLAUDE.md
 
+# Screenshots and page snapshots a browser-automation session leaves behind. Scratch
+# output, never source — and a snapshot taken while a real dictionary was on screen would
+# carry a customer's entry names into this public tree, which nothing else here would
+# catch: leak-check.mjs reads TRACKED files, and these arrive untracked.
+.playwright-mcp/
+
 # Performance-harness corpus manifest. It names real files on one machine, and real
 # dictionaries carry customer identities that must never reach this public tree —
 # scripts/leak-check.mjs asserts none of its paths appear in a tracked file. Start
