@@ -55,5 +55,9 @@ export { getSectionMetadata } from './datamodel/SectionConstants.js';
 export { default as RowCellPool } from './datamodel/node/RowCellPool.js';
 export { applyTextPatch, minimalReplacement } from './edit/textPatch.js';
 export type { TextPatch } from './edit/textPatch.js';
+export { findEntryObjectSpan, findEntryElementSpan, findEntryInsertionPoint } from './datamodel/parser/xmlEntrySplice.js';
+export type { XmlSpan } from './datamodel/parser/xmlEntrySplice.js';
+export { toEntrySelector, entrySelectorOf } from './datamodel/parser/entrySelector.js';
+export type { EntrySelector } from './datamodel/parser/entrySelector.js';
 export type { RowData, PropClass, PropInfo, PIGroupDef, PIObject } from './datamodel/node/BaseNode.js';
 //# sourceMappingURL=index.d.ts.map

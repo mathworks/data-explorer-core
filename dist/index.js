@@ -166,4 +166,23 @@ export { default as RowCellPool } from './datamodel/node/RowCellPool.js';
 // the two code units of an emoji, which is the subtle rule each host would otherwise
 // reimplement (and a `.sldd` really does carry emoji in Description strings).
 export { applyTextPatch, minimalReplacement } from './edit/textPatch.js';
+// WHERE an entry lives in a binary .sldd's `data/chunk0.xml`, and WHICH entry that is.
+// This package already owns every other part of that format — the parser, the serializer,
+// the parts, the catalog, the inflater — and the span finders are the piece a host needs
+// to write a structural edit back into the text those produce. They belong beside the
+// parser for a concrete reason: `findEntryObjectSpan` matches the Name P-node on its
+// `Name` attribute ALONE, because `BinarySlddParser` does, and when the two disagreed the
+// result was an entry the table listed and no edit could touch. Keeping the finder and
+// the parser in one package is what keeps that agreement checkable.
+//
+// `EntrySelector` is the identity half, and the reason it is public rather than an
+// implementation detail: a name is not an identity in a .sldd, because names are unique
+// only per NAMESPACE and one file holds several, so `Array` in Design Data and `Array` in
+// Other Data are two entries. Every front-end that deletes or renames a row has to know
+// that, and would otherwise rediscover it as a bug — a delete that removed the wrong row.
+//
+// Asymmetry to be honest about: the JSON-side splicer for text .sldd files is still in
+// data-explorer-vscode, because it needs a JSON parser this package does not depend on.
+export { findEntryObjectSpan, findEntryElementSpan, findEntryInsertionPoint } from './datamodel/parser/xmlEntrySplice.js';
+export { toEntrySelector, entrySelectorOf } from './datamodel/parser/entrySelector.js';
 //# sourceMappingURL=index.js.map
