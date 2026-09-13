@@ -62,5 +62,6 @@ export type { EntrySelector } from './datamodel/parser/entrySelector.js';
 export { owningEntryOf } from './datamodel/node/DataNode.js';
 export { planDeletion } from './core/deletionPlan.js';
 export type { DeletionPlan, ChildGroup } from './core/deletionPlan.js';
+export { effectiveDims } from './datamodel/display/DisplayConvention.js';
 export type { RowData, PropClass, PropInfo, PIGroupDef, PIObject } from './datamodel/node/BaseNode.js';
 //# sourceMappingURL=index.d.ts.map

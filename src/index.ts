@@ -310,5 +310,26 @@ export { owningEntryOf } from './datamodel/node/DataNode.js';
 export { planDeletion } from './core/deletionPlan.js';
 export type { DeletionPlan, ChildGroup } from './core/deletionPlan.js';
 
+// WHAT SHAPE a node actually has, which is not what its `dims` reports. MATLAB's `size()`
+// has no trailing singleton dimensions past the second — a 2x3x1 IS a 2x3 — and this package
+// normalizes through this rule everywhere it renders a shape, ELEMENT LABELS included: the
+// element rows of a [2,3,1] are labelled with two subscripts, not three, because
+// `subscriptLabel` normalizes first. What it does NOT do is normalize every `dims` accessor
+// on the way out: `ObjectNode` and `StructNode` happen to, `MatlabVariableNode` — the class
+// with element children, so the one a grid reads — reports `_dims` raw.
+//
+// Public because that leaves a consumer holding two facts of ours that only agree once the
+// rule is applied. Read a node's three-entry `dims` against the two-subscript labels this
+// package wrote for its elements and the ranks disagree, so a front-end placing those
+// elements into a dims-shaped buffer refuses a perfectly good matrix. The consumer's grid
+// did exactly that until it carried a copy of this function, in a comment naming this file:
+// the rule is ours, and a second copy of it in a host is a second answer to `size()` that
+// can drift from the labels it has to line up with.
+//
+// The rest of DisplayConvention — the thresholds, the empty spellings, `summaryForm` — stays
+// internal, because those are decisions about how THIS package prints a value, and it is the
+// one printing it. `effectiveDims` is different: it is a fact about the array.
+export { effectiveDims } from './datamodel/display/DisplayConvention.js';
+
 // Public data-shape types.
 export type { RowData, PropClass, PropInfo, PIGroupDef, PIObject } from './datamodel/node/BaseNode.js';
