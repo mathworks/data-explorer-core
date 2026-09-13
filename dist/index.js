@@ -156,4 +156,14 @@ export { getSectionMetadata } from './datamodel/SectionConstants.js';
 // builder (the VS Code table stamps its own columns over each node's row) creates one per
 // materialization pass and passes it to `toRow`; `rowsOf` does it internally.
 export { default as RowCellPool } from './datamodel/node/RowCellPool.js';
+// WHICH REGION of a document an edit changed, and the one way to apply it. This package
+// already produces the new text for every structural edit; "what changed" is the same
+// question about the same two strings whatever renders them, so it is not a fact about a
+// front-end. Public because the write path lives in the CONSUMER: a host owns the open
+// document and writes the region itself, and any host writing a 47.8 MB dictionary back has
+// to write a region rather than the whole file. `minimalReplacement` is the part worth
+// sharing — it nudges both boundaries off a surrogate pair, so an offset never lands between
+// the two code units of an emoji, which is the subtle rule each host would otherwise
+// reimplement (and a `.sldd` really does carry emoji in Description strings).
+export { applyTextPatch, minimalReplacement } from './edit/textPatch.js';
 //# sourceMappingURL=index.js.map
