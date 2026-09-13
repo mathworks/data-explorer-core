@@ -73,7 +73,7 @@ export default class VariantControlNode extends SimulinkObjectNode {
     // the file carried the key — including the empty one setProperty accepts above.
     _serializedOverrides() { return { Value: this.Value }; }
     static get defaultName() { return 'VariantControl'; }
-    static createDefault(name, parent) { const rawVal = { _array_class: CLASS_NAME, _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: { Value: '' } }] }; const props = rawVal._elements[0]._properties; const serial = { _rawVal: rawVal, _properties: props }; return new VariantControlNode(name, parent, props, serial); }
-    static parse(rawVal, name, parent) { const elem = rawVal._elements && rawVal._elements[0]; const props = ((elem && elem._properties) || {}); const serial = { _rawVal: rawVal, _properties: props }; return new VariantControlNode(name, parent, props, serial); }
+    static createDefault(name, parent) { const rawVal = VariantControlNode._defaultRawVal(CLASS_NAME, { Value: '' }); const props = VariantControlNode._propsOf(rawVal); return new VariantControlNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
+    static parse(rawVal, name, parent) { const props = VariantControlNode._propsOf(rawVal); return new VariantControlNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
 }
 //# sourceMappingURL=VariantControlNode.js.map

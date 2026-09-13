@@ -7,6 +7,29 @@ export interface SetPropertyResult {
     invalidValue: string;
     validValue: string;
 }
+/**
+ * The ENTRY `node` belongs to — itself when it IS one, null when nothing above it is.
+ *
+ * Every entry-scoped operation asks this first, because an entry is the unit the formats
+ * actually work in: a text splice rewrites one entry, deleting a bus element reserializes
+ * the bus that holds it, a drag carries whole entries however many rows were selected. So
+ * each consumer was walking `parent` until `isEntry` for itself, and both members are
+ * ours — `isEntry` is DataNode's, `parent` is BaseNode's — which makes the walk a fact
+ * about this model and not about whatever is asking.
+ *
+ * A FUNCTION as well as the `owningEntry` getter below, and duck-typed on purpose. Two
+ * kinds of caller cannot use the getter: a node that is not a DataNode at all (a SECTION
+ * and a source root are ContainerNodes, and carry no `isEntry` — read as falsy here, so a
+ * section's answer is null rather than the section itself), and a host holding a stand-in
+ * shaped like a node rather than an instance of one. Both already relied on `isEntry`
+ * being read off the object, so narrowing to the class would not have tightened anything
+ * — it would only have moved the walk back out to the callers.
+ *
+ * Walks `parent` and nothing else, which is what `_markModified` depends on: it clears
+ * state on every node BETWEEN `this` and the answer, and identifies that stretch by
+ * walking parents until it reaches what this returned.
+ */
+export declare function owningEntryOf(node: BaseNode | null | undefined): DataNode | null;
 export default class DataNode extends BaseNode {
     metadata: Record<string, unknown> | null;
     serial: Record<string, unknown>;
@@ -19,6 +42,8 @@ export default class DataNode extends BaseNode {
     get kind(): string;
     get dataType(): string;
     get isEntry(): boolean;
+    /** The entry this node belongs to — itself when it IS one, null when none is above it. */
+    get owningEntry(): DataNode | null;
     get isDerived(): boolean;
     get lastModified(): string;
     get lastModifiedBy(): string;

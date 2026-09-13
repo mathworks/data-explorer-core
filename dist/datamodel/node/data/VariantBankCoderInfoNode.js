@@ -14,7 +14,7 @@ export default class VariantBankCoderInfoNode extends SimulinkObjectNode {
     // UNGATED, as VariantBankNode's Value is.
     _serializedOverrides() { return { Value: this.Value }; }
     static get defaultName() { return 'VariantBankCoderInfo'; }
-    static createDefault(name, parent) { const rawVal = { _array_class: CLASS_NAME, _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: { Value: '' } }] }; const props = rawVal._elements[0]._properties; const serial = { _rawVal: rawVal, _properties: props }; return new VariantBankCoderInfoNode(name, parent, props, serial); }
-    static parse(rawVal, name, parent) { const elem = rawVal._elements && rawVal._elements[0]; const props = ((elem && elem._properties) || {}); const serial = { _rawVal: rawVal, _properties: props }; return new VariantBankCoderInfoNode(name, parent, props, serial); }
+    static createDefault(name, parent) { const rawVal = VariantBankCoderInfoNode._defaultRawVal(CLASS_NAME, { Value: '' }); const props = VariantBankCoderInfoNode._propsOf(rawVal); return new VariantBankCoderInfoNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
+    static parse(rawVal, name, parent) { const props = VariantBankCoderInfoNode._propsOf(rawVal); return new VariantBankCoderInfoNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
 }
 //# sourceMappingURL=VariantBankCoderInfoNode.js.map

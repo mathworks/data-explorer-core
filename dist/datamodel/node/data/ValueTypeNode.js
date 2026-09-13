@@ -25,7 +25,7 @@ export default class ValueTypeNode extends SimulinkObjectNode {
         overrides.DataType = this.DataType;
     } return Object.assign(overrides, this._gatedProps({ Description: this.Description })); }
     static get defaultName() { return 'ValueType'; }
-    static createDefault(name, parent) { const rawVal = { _array_class: CLASS_NAME, _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: {} }] }; const props = rawVal._elements[0]._properties; const serial = { _rawVal: rawVal, _properties: props }; return new ValueTypeNode(name, parent, props, serial); }
-    static parse(rawVal, name, parent) { const elem = rawVal._elements && rawVal._elements[0]; const props = ((elem && elem._properties) || {}); const serial = { _rawVal: rawVal, _properties: props }; return new ValueTypeNode(name, parent, props, serial); }
+    static createDefault(name, parent) { const rawVal = ValueTypeNode._defaultRawVal(CLASS_NAME); const props = ValueTypeNode._propsOf(rawVal); return new ValueTypeNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
+    static parse(rawVal, name, parent) { const props = ValueTypeNode._propsOf(rawVal); return new ValueTypeNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
 }
 //# sourceMappingURL=ValueTypeNode.js.map

@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import DataNode from '../DataNode.js';
+import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
@@ -125,10 +126,10 @@ export class EnumTypeNode extends DataNode {
 
     static createDefault(name: string, parent: BaseNode | null): EnumTypeNode {
         const enumerals = { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ Description: '', Name: 'enum1', Value: '0' }], _fields: ['Name', 'Value', 'Description'] };
-        const rawVal = { _array_class: CLASS_NAME, _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: { Enumerals: enumerals } }] };
-        const props = rawVal._elements[0]._properties;
+        const rawVal = SimulinkObjectNode._defaultRawVal(CLASS_NAME, { Enumerals: enumerals });
+        const props = SimulinkObjectNode._propsOf(rawVal);
         const serial = { _rawVal: rawVal, _properties: props, _rawEnumerals: enumerals };
-        const node = new EnumTypeNode(name, parent, props as unknown as Record<string, unknown>, serial as unknown as Record<string, unknown>);
+        const node = new EnumTypeNode(name, parent, props, serial as unknown as Record<string, unknown>);
         const childProps = enumerals._elements[0];
         const childNode = new EnumValueNode('enum1', node, childProps as unknown as Record<string, unknown>);
         node.addChild(childNode);

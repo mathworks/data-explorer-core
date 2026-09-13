@@ -70,5 +70,32 @@ export default class SimulinkObjectNode extends DataNode {
      * without edits.
      */
     _gatedProps(candidates: Record<string, unknown>): Record<string, unknown>;
+    /**
+     * The property bag inside a Simulink object's rawVal — its first element's `_properties`,
+     * or an empty bag when the file carries neither.
+     *
+     * Stated once here because every subclass's `static parse` needs it and all of them used to
+     * spell it out identically; a reader who wants to know where a saved object keeps its
+     * properties should find one answer, not fourteen.
+     */
+    static _propsOf(rawVal: Record<string, unknown>): Record<string, unknown>;
+    /**
+     * A fresh single-element rawVal envelope for a new Simulink object of `className`, carrying
+     * `properties` as its element's property bag.
+     *
+     * The envelope is what MATLAB writes around every scalar object — a 1x1 MATLABArray holding
+     * one element — and every class here minted it identically. Stated once so a new class gets
+     * the shape right by construction rather than by copying a neighbour.
+     *
+     * The returned object OWNS `properties` by reference: callers rely on
+     * `rawVal._elements[0]._properties` being the same object they passed in, because that
+     * aliasing is how a later edit to the node's property bag reaches the bytes written back.
+     *
+     * This and `_propsOf` are the two members here that are plain `static` rather than
+     * `protected`: `SignalNode`, `ParameterNode` and `EnumTypeNode` mint the same envelope while
+     * deliberately NOT extending this class (see the class header for why), so `protected` would
+     * shut out exactly the callers that need it most.
+     */
+    static _defaultRawVal(className: string, properties?: Record<string, unknown>): Record<string, unknown>;
 }
 //# sourceMappingURL=SimulinkObjectNode.d.ts.map

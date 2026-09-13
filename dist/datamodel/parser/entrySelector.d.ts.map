@@ -1,0 +1,1 @@
+{"version":3,"file":"entrySelector.d.ts","sourceRoot":"","sources":["../../../src/datamodel/parser/entrySelector.ts"],"names":[],"mappings":"AAmBA,MAAM,WAAW,aAAa;IAC5B,IAAI,EAAE,MAAM,CAAC;IACb,0DAA0D;IAC1D,IAAI,CAAC,EAAE,MAAM,CAAC;CACf;AAED;;;;;;GAMG;AACH,wBAAgB,eAAe,CAAC,KAAK,EAAE,OAAO,GAAG,aAAa,CAK7D;AAED;;;;GAIG;AACH,wBAAgB,eAAe,CAAC,MAAM,EAAE,MAAM,GAAG,aAAa,GAAG,aAAa,CAE7E"}

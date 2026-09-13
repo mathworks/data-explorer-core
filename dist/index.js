@@ -156,4 +156,80 @@ export { getSectionMetadata } from './datamodel/SectionConstants.js';
 // builder (the VS Code table stamps its own columns over each node's row) creates one per
 // materialization pass and passes it to `toRow`; `rowsOf` does it internally.
 export { default as RowCellPool } from './datamodel/node/RowCellPool.js';
+// WHICH REGION of a document an edit changed, and the one way to apply it. This package
+// already produces the new text for every structural edit; "what changed" is the same
+// question about the same two strings whatever renders them, so it is not a fact about a
+// front-end. Public because the write path lives in the CONSUMER: a host owns the open
+// document and writes the region itself, and any host writing a 47.8 MB dictionary back has
+// to write a region rather than the whole file. `minimalReplacement` is the part worth
+// sharing — it nudges both boundaries off a surrogate pair, so an offset never lands between
+// the two code units of an emoji, which is the subtle rule each host would otherwise
+// reimplement (and a `.sldd` really does carry emoji in Description strings).
+export { applyTextPatch, minimalReplacement } from './edit/textPatch.js';
+// WHERE an entry lives in a binary .sldd's `data/chunk0.xml`, and WHICH entry that is.
+// This package already owns every other part of that format — the parser, the serializer,
+// the parts, the catalog, the inflater — and the span finders are the piece a host needs
+// to write a structural edit back into the text those produce. They belong beside the
+// parser for a concrete reason: `findEntryObjectSpan` matches the Name P-node on its
+// `Name` attribute ALONE, because `BinarySlddParser` does, and when the two disagreed the
+// result was an entry the table listed and no edit could touch. Keeping the finder and
+// the parser in one package is what keeps that agreement checkable.
+//
+// `EntrySelector` is the identity half, and the reason it is public rather than an
+// implementation detail: a name is not an identity in a .sldd, because names are unique
+// only per NAMESPACE and one file holds several, so `Array` in Design Data and `Array` in
+// Other Data are two entries. Every front-end that deletes or renames a row has to know
+// that, and would otherwise rediscover it as a bug — a delete that removed the wrong row.
+//
+// Asymmetry to be honest about: the JSON-side splicer for text .sldd files is still in
+// data-explorer-vscode, because it needs a JSON parser this package does not depend on.
+export { findEntryObjectSpan, findEntryElementSpan, findEntryInsertionPoint } from './datamodel/parser/xmlEntrySplice.js';
+export { toEntrySelector, entrySelectorOf } from './datamodel/parser/entrySelector.js';
+// WHICH ENTRY a row belongs to. Public because it is the first question every entry-scoped
+// gesture in a front-end asks — an entry is the unit both .sldd formats splice, so deleting
+// a bus element, dragging three rows of one bus, and pasting beside a row all have to
+// resolve rows to entries before they can do anything. `isEntry` and `parent` are both node
+// members of ours, so the walk is a fact about this model; the consumer that spelled it out
+// for itself was answering our question with its own copy of our rule.
+//
+// A function rather than only the `DataNode.owningEntry` getter, because the callers that
+// need it most cannot reach a getter: a SECTION or a source root is a ContainerNode and has
+// no `isEntry` at all (its answer is null, not itself), and a host testing its own edit
+// paths holds stand-ins shaped like nodes. Both already read `isEntry` off the object, so
+// this narrows nothing that was ever narrow.
+export { owningEntryOf } from './datamodel/node/DataNode.js';
+// WHAT DELETING A SET OF ROWS MEANS, which is not the same question as how to delete them.
+// Delete is the one action with no destination, so it is the one that acts on ROWS rather
+// than entries: its operands can mix whole entries with nested children of other entries,
+// across sections, and turning that mix into model work is arithmetic about `isEntry` and
+// `parent` — ours, and identical for every front-end. `findNode` is injected precisely so
+// the planner does not care who resolved the row.
+//
+// Public because the two halves it does NOT do are the consumer's: splicing the text and
+// pushing the undo step. What it exists to prevent is a front-end grouping the rows itself
+// and getting the grouping wrong — two children of one bus must arrive as ONE group,
+// because each group reserializes its entry, so two groups over one entry would each write
+// a stale copy and the second would silently undo the first. That defect looks like a
+// delete that half-worked, and it is invisible until a file is saved and re-read.
+export { planDeletion } from './core/deletionPlan.js';
+// WHAT SHAPE a node actually has, which is not what its `dims` reports. MATLAB's `size()`
+// has no trailing singleton dimensions past the second — a 2x3x1 IS a 2x3 — and this package
+// normalizes through this rule everywhere it renders a shape, ELEMENT LABELS included: the
+// element rows of a [2,3,1] are labelled with two subscripts, not three, because
+// `subscriptLabel` normalizes first. What it does NOT do is normalize every `dims` accessor
+// on the way out: `ObjectNode` and `StructNode` happen to, `MatlabVariableNode` — the class
+// with element children, so the one a grid reads — reports `_dims` raw.
+//
+// Public because that leaves a consumer holding two facts of ours that only agree once the
+// rule is applied. Read a node's three-entry `dims` against the two-subscript labels this
+// package wrote for its elements and the ranks disagree, so a front-end placing those
+// elements into a dims-shaped buffer refuses a perfectly good matrix. The consumer's grid
+// did exactly that until it carried a copy of this function, in a comment naming this file:
+// the rule is ours, and a second copy of it in a host is a second answer to `size()` that
+// can drift from the labels it has to line up with.
+//
+// The rest of DisplayConvention — the thresholds, the empty spellings, `summaryForm` — stays
+// internal, because those are decisions about how THIS package prints a value, and it is the
+// one printing it. `effectiveDims` is different: it is a fact about the array.
+export { effectiveDims } from './datamodel/display/DisplayConvention.js';
 //# sourceMappingURL=index.js.map

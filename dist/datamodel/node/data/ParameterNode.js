@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import DataNode from '../DataNode.js';
+import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { formatMatlabNum, formatMatrixSerial } from '../../parser/XmlUtils.js';
 import PropName from '../../prop/PropName.js';
@@ -344,16 +345,9 @@ export default class ParameterNode extends DataNode {
     }
     static get defaultName() { return 'Param'; }
     static createDefault(name, parent) {
-        const rawVal = {
-            _array_class: CLASS_NAME,
-            _array_type: 'MATLABArray',
-            _dimensions: [1, 1],
-            _mw_element_type: 'MATLABArray',
-            _elements: [{ _properties: { CoderInfo: { _object_class: 'Simulink.CoderInfo', _properties: { CSCPackageName: 'Simulink', CustomAttributes: { _object_class: 'SimulinkCSC.AttribClass_Simulink_Default', _properties: {} }, CustomStorageClass: 'Default', ParameterOrSignal: 'Parameter', StorageClass: 'Auto' } }, Complexity: 'real', Dimensions: -1, Value: 0 } }]
-        };
-        const props = rawVal._elements[0]._properties;
-        const serial = { _rawVal: rawVal, _properties: props };
-        return new ParameterNode(name, parent, props, serial);
+        const rawVal = SimulinkObjectNode._defaultRawVal(CLASS_NAME, { CoderInfo: { _object_class: 'Simulink.CoderInfo', _properties: { CSCPackageName: 'Simulink', CustomAttributes: { _object_class: 'SimulinkCSC.AttribClass_Simulink_Default', _properties: {} }, CustomStorageClass: 'Default', ParameterOrSignal: 'Parameter', StorageClass: 'Auto' } }, Complexity: 'real', Dimensions: -1, Value: 0 });
+        const props = SimulinkObjectNode._propsOf(rawVal);
+        return new ParameterNode(name, parent, props, { _rawVal: rawVal, _properties: props });
     }
     static _normalizeMinMax(val) {
         if (Array.isArray(val) && val.length === 0) {
