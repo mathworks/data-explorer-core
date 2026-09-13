@@ -23,7 +23,7 @@ export default class VariantVariableNode extends SimulinkObjectNode {
     // merges is the same one the text path merges; only the merge differs.
     _getSerializedProperties() { return this._mergeProps(this._serializedOverrides()); }
     static get defaultName() { return 'VariantVariable'; }
-    static createDefault(name, parent) { const rawVal = { _array_class: CLASS_NAME, _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: { Specification: '' } }] }; const props = rawVal._elements[0]._properties; const serial = { _rawVal: rawVal, _properties: props }; return new VariantVariableNode(name, parent, props, serial); }
-    static parse(rawVal, name, parent) { const elem = rawVal._elements && rawVal._elements[0]; const props = ((elem && elem._properties) || {}); const serial = { _rawVal: rawVal, _properties: props }; return new VariantVariableNode(name, parent, props, serial); }
+    static createDefault(name, parent) { const rawVal = VariantVariableNode._defaultRawVal(CLASS_NAME, { Specification: '' }); const props = VariantVariableNode._propsOf(rawVal); return new VariantVariableNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
+    static parse(rawVal, name, parent) { const props = VariantVariableNode._propsOf(rawVal); return new VariantVariableNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
 }
 //# sourceMappingURL=VariantVariableNode.js.map

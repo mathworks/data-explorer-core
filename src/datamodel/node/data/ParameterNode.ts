@@ -2,6 +2,7 @@
 
 import DataNode from '../DataNode.js';
 import type { SetPropertyResult } from '../DataNode.js';
+import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
@@ -368,16 +369,9 @@ export default class ParameterNode extends DataNode {
     static get defaultName(): string { return 'Param'; }
 
     static createDefault(name: string, parent: BaseNode | null): ParameterNode {
-        const rawVal = {
-            _array_class: CLASS_NAME,
-            _array_type: 'MATLABArray',
-            _dimensions: [1, 1],
-            _mw_element_type: 'MATLABArray',
-            _elements: [{ _properties: { CoderInfo: { _object_class: 'Simulink.CoderInfo', _properties: { CSCPackageName: 'Simulink', CustomAttributes: { _object_class: 'SimulinkCSC.AttribClass_Simulink_Default', _properties: {} }, CustomStorageClass: 'Default', ParameterOrSignal: 'Parameter', StorageClass: 'Auto' } }, Complexity: 'real', Dimensions: -1, Value: 0 } }]
-        };
-        const props = rawVal._elements[0]._properties;
-        const serial = { _rawVal: rawVal, _properties: props };
-        return new ParameterNode(name, parent, props as unknown as Record<string, unknown>, serial as unknown as Record<string, unknown>);
+        const rawVal = SimulinkObjectNode._defaultRawVal(CLASS_NAME, { CoderInfo: { _object_class: 'Simulink.CoderInfo', _properties: { CSCPackageName: 'Simulink', CustomAttributes: { _object_class: 'SimulinkCSC.AttribClass_Simulink_Default', _properties: {} }, CustomStorageClass: 'Default', ParameterOrSignal: 'Parameter', StorageClass: 'Auto' } }, Complexity: 'real', Dimensions: -1, Value: 0 });
+        const props = SimulinkObjectNode._propsOf(rawVal);
+        return new ParameterNode(name, parent, props, { _rawVal: rawVal, _properties: props } as Record<string, unknown>);
     }
 
     static _normalizeMinMax(val: unknown): number | undefined {
