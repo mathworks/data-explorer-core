@@ -59,5 +59,8 @@ export { findEntryObjectSpan, findEntryElementSpan, findEntryInsertionPoint } fr
 export type { XmlSpan } from './datamodel/parser/xmlEntrySplice.js';
 export { toEntrySelector, entrySelectorOf } from './datamodel/parser/entrySelector.js';
 export type { EntrySelector } from './datamodel/parser/entrySelector.js';
+export { owningEntryOf } from './datamodel/node/DataNode.js';
+export { planDeletion } from './core/deletionPlan.js';
+export type { DeletionPlan, ChildGroup } from './core/deletionPlan.js';
 export type { RowData, PropClass, PropInfo, PIGroupDef, PIObject } from './datamodel/node/BaseNode.js';
 //# sourceMappingURL=index.d.ts.map

@@ -280,5 +280,35 @@ export type { XmlSpan } from './datamodel/parser/xmlEntrySplice.js';
 export { toEntrySelector, entrySelectorOf } from './datamodel/parser/entrySelector.js';
 export type { EntrySelector } from './datamodel/parser/entrySelector.js';
 
+// WHICH ENTRY a row belongs to. Public because it is the first question every entry-scoped
+// gesture in a front-end asks — an entry is the unit both .sldd formats splice, so deleting
+// a bus element, dragging three rows of one bus, and pasting beside a row all have to
+// resolve rows to entries before they can do anything. `isEntry` and `parent` are both node
+// members of ours, so the walk is a fact about this model; the consumer that spelled it out
+// for itself was answering our question with its own copy of our rule.
+//
+// A function rather than only the `DataNode.owningEntry` getter, because the callers that
+// need it most cannot reach a getter: a SECTION or a source root is a ContainerNode and has
+// no `isEntry` at all (its answer is null, not itself), and a host testing its own edit
+// paths holds stand-ins shaped like nodes. Both already read `isEntry` off the object, so
+// this narrows nothing that was ever narrow.
+export { owningEntryOf } from './datamodel/node/DataNode.js';
+
+// WHAT DELETING A SET OF ROWS MEANS, which is not the same question as how to delete them.
+// Delete is the one action with no destination, so it is the one that acts on ROWS rather
+// than entries: its operands can mix whole entries with nested children of other entries,
+// across sections, and turning that mix into model work is arithmetic about `isEntry` and
+// `parent` — ours, and identical for every front-end. `findNode` is injected precisely so
+// the planner does not care who resolved the row.
+//
+// Public because the two halves it does NOT do are the consumer's: splicing the text and
+// pushing the undo step. What it exists to prevent is a front-end grouping the rows itself
+// and getting the grouping wrong — two children of one bus must arrive as ONE group,
+// because each group reserializes its entry, so two groups over one entry would each write
+// a stale copy and the second would silently undo the first. That defect looks like a
+// delete that half-worked, and it is invisible until a file is saved and re-read.
+export { planDeletion } from './core/deletionPlan.js';
+export type { DeletionPlan, ChildGroup } from './core/deletionPlan.js';
+
 // Public data-shape types.
 export type { RowData, PropClass, PropInfo, PIGroupDef, PIObject } from './datamodel/node/BaseNode.js';

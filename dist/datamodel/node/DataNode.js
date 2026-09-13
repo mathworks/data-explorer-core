@@ -99,6 +99,35 @@ function writeIntoSaveobj(envelope, key, val) {
         _elements: [Object.assign({}, el, { [key]: val })],
     });
 }
+/**
+ * The ENTRY `node` belongs to — itself when it IS one, null when nothing above it is.
+ *
+ * Every entry-scoped operation asks this first, because an entry is the unit the formats
+ * actually work in: a text splice rewrites one entry, deleting a bus element reserializes
+ * the bus that holds it, a drag carries whole entries however many rows were selected. So
+ * each consumer was walking `parent` until `isEntry` for itself, and both members are
+ * ours — `isEntry` is DataNode's, `parent` is BaseNode's — which makes the walk a fact
+ * about this model and not about whatever is asking.
+ *
+ * A FUNCTION as well as the `owningEntry` getter below, and duck-typed on purpose. Two
+ * kinds of caller cannot use the getter: a node that is not a DataNode at all (a SECTION
+ * and a source root are ContainerNodes, and carry no `isEntry` — read as falsy here, so a
+ * section's answer is null rather than the section itself), and a host holding a stand-in
+ * shaped like a node rather than an instance of one. Both already relied on `isEntry`
+ * being read off the object, so narrowing to the class would not have tightened anything
+ * — it would only have moved the walk back out to the callers.
+ *
+ * Walks `parent` and nothing else, which is what `_markModified` depends on: it clears
+ * state on every node BETWEEN `this` and the answer, and identifies that stretch by
+ * walking parents until it reaches what this returned.
+ */
+export function owningEntryOf(node) {
+    let entry = node;
+    while (entry && !entry.isEntry) {
+        entry = entry.parent;
+    }
+    return entry ?? null;
+}
 export default class DataNode extends BaseNode {
     constructor(name, parent, serial) {
         super(name, parent);
@@ -138,6 +167,10 @@ export default class DataNode extends BaseNode {
     }
     get isEntry() {
         return !!(this.parent && this.parent.isContainer);
+    }
+    /** The entry this node belongs to — itself when it IS one, null when none is above it. */
+    get owningEntry() {
+        return owningEntryOf(this);
     }
     // isIndexedName is inherited from BaseNode (structural: parent is array/cell/
     // string), as is nameEditable — see the note below.
@@ -374,20 +407,29 @@ export default class DataNode extends BaseNode {
             fields[idx] = to;
         }
     }
+    // An edit anywhere under an entry makes the entry Modified, and drops the raw parse
+    // input of every node it passed THROUGH on the way up: `_rawInput` is the bytes a node
+    // was read from, which a reserialize prefers over the live values, so a stale one is how
+    // an edit reaches the table and never reaches the file.
+    //
+    // The walk is still here because only the walk sees those in-between nodes —
+    // `owningEntry` reports the destination, not the path. It stops by comparing against
+    // that destination rather than re-reading `isEntry`, so the two cannot come to disagree
+    // about where the stretch ends (see owningEntryOf, which walks `parent` and nothing
+    // else, which is what makes the comparison reachable at all).
     _markModified() {
-        let node = this;
-        while (node && !node.isEntry) {
+        const entry = this.owningEntry;
+        for (let node = this; node && node !== entry; node = node.parent) {
             if (node._rawInput !== undefined) {
                 node._rawInput = undefined;
             }
-            node = node.parent;
         }
-        if (node) {
-            node.status = 'Modified';
-            if (node._rawInput !== undefined) {
-                node._rawInput = undefined;
+        if (entry) {
+            entry.status = 'Modified';
+            if (entry._rawInput !== undefined) {
+                entry._rawInput = undefined;
             }
-            node._stampLastModified();
+            entry._stampLastModified();
         }
         this._markSourceDirty();
     }
