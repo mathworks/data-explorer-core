@@ -4,6 +4,17 @@ import { parseMdl } from './MdlParser.js';
 // A zip local-file header: `PK\x03\x04`.
 const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04];
 /**
+ * Is this a ZIP OPC package — i.e. a `.slx` rather than either `.mdl` spelling?
+ *
+ * Exported so that the structural scanner dispatches on the SAME test this file does.
+ * Two copies of the magic bytes is two places for the answer to drift, and a scanner
+ * that disagreed with `parseModel` about the format would route a file to a reader it
+ * is not for.
+ */
+export function isZipPackage(bytes) {
+    return ZIP_MAGIC.every((byte, i) => bytes[i] === byte);
+}
+/**
  * Open a Simulink model, whichever of its on-disk forms it is in.
  *
  * A `.slx` is a ZIP OPC package; a `.mdl` is the same package written as text, or
@@ -16,8 +27,6 @@ const ZIP_MAGIC = [0x50, 0x4b, 0x03, 0x04];
  * same reasoning already routes a textual vs. binary `.sldd` in `ingest`.
  */
 export function parseModel(buffer, filename) {
-    const bytes = new Uint8Array(buffer);
-    const isZip = ZIP_MAGIC.every((byte, i) => bytes[i] === byte);
-    return isZip ? parseSlx(buffer, filename) : parseMdl(buffer, filename);
+    return isZipPackage(new Uint8Array(buffer)) ? parseSlx(buffer, filename) : parseMdl(buffer, filename);
 }
 //# sourceMappingURL=ModelParser.js.map

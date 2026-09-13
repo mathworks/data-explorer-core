@@ -117,6 +117,19 @@ const ROLES = [
     ext: '.slx',
   },
   {
+    // The oracle's model corpus, and the counterpart to `sldd-corpus`: breadth, not
+    // timing. Separate from `slx-small` because that role is a manifest-named DIRECTORY
+    // of toy models, and equivalence has to be checked over every model there is —
+    // `scanModelStructure` reads a different set of OPC parts per layout era, and the
+    // eras are distinguishable only across a real spread of release vintages. Sweeping
+    // the whole root finds 127 where `slx-small` finds 7.
+    id: 'slx-corpus',
+    what: 'every .slx in the corpus -- breadth for the oracle, not timing',
+    kind: 'glob',
+    at: '.',
+    ext: '.slx',
+  },
+  {
     id: 'slx-large',
     // Deliberately layout-GENERIC. Where a model's blocks live has moved twice (see
     // the layout table in docs/TODO.md item 1): `blockdiagram.xml` until R2020a, then

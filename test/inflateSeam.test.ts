@@ -219,6 +219,78 @@ describe('inflate seam — falls back rather than failing', () => {
   });
 });
 
+describe('inflate seam — a filtered read materializes only what was asked for', () => {
+  // `unzipEntries(bytes, wanted)` exists so a caller reading five parts of a 13 MB `.slx`
+  // does not materialize the other 13.2 MB (`ModelStructureScan`, which holds 1.4 KB
+  // instead). Filtering the RESULT would give the same map, so "only the wanted members
+  // were materialized" is the whole contract -- and it cannot be checked with a clock
+  // without being flaky. What is checked instead: the map contains exactly the wanted
+  // names. A walk that ignored the filter would hand back every member and fail here, and
+  // the two engines are checked separately because each implements the filter itself --
+  // the walk with a `keep` flag, fflate with its own `filter` option.
+  const MIXED = () =>
+    zipSync({
+      'simulink/blockDiagram.json': strToU8(`{"note":"deflated, and wanted"}${' '.repeat(200)}`),
+      'simulink/systems/system_1.xml': strToU8('<System><Block/></System>'.repeat(400)),
+      'metadata/thumbnail.png': [new Uint8Array([0x89, 0x50, 0x4e, 0x47]), { level: 0 }],
+      'meta.txt': strToU8('stored-or-deflated, unwanted'),
+    });
+  const WANTED = new Set(['simulink/blockDiagram.json', 'metadata/thumbnail.png']);
+  const wanted = (name: string) => WANTED.has(name);
+
+  it.each([['node:zlib', NATIVE], ['fflate', null]] as Array<[string, NativeInflate | null]>)(
+    'returns exactly the wanted names, with the same bytes as an unfiltered read (%s)',
+    (_label, engine) => {
+      const archive = MIXED();
+      // One wanted member is deflated and one is stored, deliberately: the two are gated
+      // in different branches of the walk, and a filter honoured in only one of them would
+      // pass a test whose wanted members were all the same kind.
+      const all = entriesWith(engine, archive);
+      expect(Object.keys(all).length).toBeGreaterThan(WANTED.size);
+
+      setNativeInflate(engine);
+      const filtered = unzipEntries(archive, wanted);
+      expect(Object.keys(filtered).sort()).toEqual([...WANTED].sort());
+      // And they are the SAME members, not merely members with the right names: skipping
+      // entries is where an offset walk would go wrong, and a wrong offset yields bytes
+      // rather than an error.
+      for (const name of WANTED) {
+        expect(Array.from(filtered[name]), name).toEqual(Array.from(all[name]));
+      }
+    },
+  );
+
+  it.each([['node:zlib', NATIVE], ['fflate', null]] as Array<[string, NativeInflate | null]>)(
+    'admits nothing for a filter that wants nothing, and everything for one that wants all (%s)',
+    (_label, engine) => {
+      // The degenerate ends. A filter ignored outright passes neither: the empty case comes
+      // back full, and the total case is what says the filter subtracts nothing on its own.
+      const archive = MIXED();
+      const all = entriesWith(engine, archive);
+      setNativeInflate(engine);
+      expect(unzipEntries(archive, () => false)).toEqual({});
+      expectSameEntries(all, unzipEntries(archive, () => true));
+    },
+  );
+
+  it('leaves an unwanted member unread even when that member could not be read at all', () => {
+    // The documented consequence of filtering, pinned so it cannot drift silently: bytes
+    // that are never inflated cannot fail to inflate. An archive with an unsupported
+    // compression method on an UNWANTED member is refused by the unfiltered read -- fflate
+    // raises it, and that is the diagnostic callers have always seen -- and opens on the
+    // filtered one. `ModelStructureScan` inherits exactly this, which is why a model whose
+    // block parts are corrupt still yields its dictionary link and references.
+    const archive = zipSync({
+      'wanted.txt': strToU8('the part the caller reads'),
+      'broken.bin': strToU8('content that deflates'),
+    });
+    const patched = patchCompressionMethod(archive, 99, 'broken.bin');
+    setNativeInflate(NATIVE);
+    expect(() => unzipEntries(patched)).toThrow();
+    expect(Object.keys(unzipEntries(patched, (name) => name === 'wanted.txt'))).toEqual(['wanted.txt']);
+  });
+});
+
 describe('inflate seam — engine selection', () => {
   it('null forces the fflate path', () => {
     setNativeInflate(null);
@@ -287,22 +359,33 @@ function findEocd(b: Uint8Array): number {
   throw new Error('no EOCD in the test archive');
 }
 
-/** Rewrite the compression method in both the central directory and the local header. */
-function patchCompressionMethod(archive: Uint8Array, method: number): Uint8Array {
+/**
+ * Rewrite the compression method in both the central directory and the local header —
+ * for every member, or for just the one named.
+ */
+function patchCompressionMethod(archive: Uint8Array, method: number, only?: string): Uint8Array {
   const out = archive.slice();
   const v = new DataView(out.buffer, out.byteOffset, out.byteLength);
+  const utf8 = new TextDecoder();
   const eocd = findEocd(out);
   let p = v.getUint32(eocd + 16, true);
   const count = v.getUint16(eocd + 10, true);
+  let patched = 0;
   for (let i = 0; i < count; i++) {
     const nameLength = v.getUint16(p + 28, true);
     const extraLength = v.getUint16(p + 30, true);
     const commentLength = v.getUint16(p + 32, true);
     const localOffset = v.getUint32(p + 42, true);
-    v.setUint16(p + 10, method, true);
-    v.setUint16(localOffset + 8, method, true);
+    if (only === undefined || utf8.decode(out.subarray(p + 46, p + 46 + nameLength)) === only) {
+      v.setUint16(p + 10, method, true);
+      v.setUint16(localOffset + 8, method, true);
+      patched++;
+    }
     p += 46 + nameLength + extraLength + commentLength;
   }
+  // A misspelled name would leave the archive intact and every caller's `toThrow` would
+  // then be asserting nothing at all.
+  expect(patched, `patched no member for ${only ?? 'all'}`).toBeGreaterThan(0);
   return out;
 }
 

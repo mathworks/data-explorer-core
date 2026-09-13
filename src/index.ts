@@ -162,6 +162,16 @@ export { scanSldd, type SlddScanResult } from './datamodel/parser/SlddScan.js';
 // and over the fixtures by the test suite.
 export { scanMat, type MatScanResult } from './datamodel/parser/MatScan.js';
 
+// The same trade for the third format, and the one whose caller pays most often: a host
+// that draws a model's relationships rebuilds them on every save, and `parseModel` walks
+// every block to hand back three strings' worth of them. 1600 ms over a 127-model corpus
+// against 75 ms here, for the same 76 dictionary links, 82 references and 13 external
+// sources; 605 ms against 2.0 ms on a 13 MB model, where the parts these three fields come
+// from total 1.4 KB. Unlike the two scanners above this one reads no bytes of its own — it
+// runs the FULL parser over a smaller set of OPC parts, so the answer is the same answer
+// rather than a second derivation of it.
+export { scanModelStructure, type ModelStructure } from './datamodel/parser/ModelStructureScan.js';
+
 // WHERE those entries sit — the zip member name and the three-step JSON key path to the
 // one part a dictionary keeps its entries in. Published for the same reason `SC_PART` is,
 // and more sharply: a host that WRITES a dictionary owns the document this package cannot

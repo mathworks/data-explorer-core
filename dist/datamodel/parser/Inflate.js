@@ -142,15 +142,27 @@ class UnsupportedArchive extends Error {
  * looks wrong. Falling back on a malformed archive is deliberate: fflate then raises
  * the SAME diagnostic this package raised before, so error messages callers already
  * match on do not shift under them.
+ *
+ * `wanted`, when given, names the members the caller will actually read, and the rest are
+ * never materialized. What that buys over filtering the RESULT map is mostly memory, and
+ * the honest numbers are worth writing down because the time saving is the smaller half:
+ * reading the five structural members of `.slx` models (`ModelStructureScan`) materializes
+ * 1.80 MB against 44.85 MB over a 127-model corpus, and 1.4 KB against 13.2 MB on the one
+ * 13 MB model in it. In wall clock that is 18x on that model and only 1.3x over the whole
+ * sweep — because Simulink STORES most parts (that corpus: 3061 stored members against
+ * 1817 deflated) and copying a stored member is cheap next to inflating one.
+ *
+ * So: pass a filter to avoid holding 25x the bytes, not because the read is slow.
  */
-export function unzipEntries(bytes) {
+export function unzipEntries(bytes, wanted) {
     const native = activeNative();
     // With no native engine the walk would only be fflate's inflate wearing a hat, and
-    // the framing it would save is ~2 ms of 105 ms. Not worth a second code path.
+    // the framing it would save is ~2 ms of 105 ms. Not worth a second code path. The
+    // filter still has to reach fflate, though: it is the whole point of the call.
     if (native === null)
-        return unzipSync(bytes);
+        return unzipWithFflate(bytes, wanted);
     try {
-        return walkCentralDirectory(bytes, native);
+        return walkCentralDirectory(bytes, native, wanted);
     }
     catch {
         // Everything falls back, whether it was an `UnsupportedArchive` we recognised or
@@ -158,10 +170,16 @@ export function unzipEntries(bytes) {
         // the engine that shipped for years can still read the file. And if fflate cannot
         // read it either, ITS throw is the one the caller sees — which is how the existing
         // diagnostics for a corrupt archive stay exactly as they were.
-        return unzipSync(bytes);
+        return unzipWithFflate(bytes, wanted);
     }
 }
-function walkCentralDirectory(bytes, native) {
+/** The fallback, with the filter expressed in fflate's own terms. */
+function unzipWithFflate(bytes, wanted) {
+    if (wanted === undefined)
+        return unzipSync(bytes);
+    return unzipSync(bytes, { filter: (file) => wanted(file.name) });
+}
+function walkCentralDirectory(bytes, native, wanted) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const eocd = findEndOfCentralDirectory(view);
     // ZIP64 moves the real counts and offsets into a different record and widens them
@@ -218,21 +236,41 @@ function walkCentralDirectory(bytes, native) {
         const dataAt = localOffset + 30 + localNameLength + localExtraLength;
         if (dataAt + compressedSize > view.byteLength)
             throw new UnsupportedArchive('entry data truncated');
+        // Every check above, and the method check below, runs on EVERY entry — wanted or
+        // not. Not for the sake of refusing the same archives a filtered read refuses,
+        // which it does not: an unwanted member with an unsupported method makes the walk
+        // throw, and the fallback then reads the filtered subset successfully, so filtering
+        // really does open some archives an unfiltered read rejects (pinned in
+        // `test/inflateSeam.test.ts`, and inherited deliberately by `ModelStructureScan`).
+        // The reason is narrower and about trust: these checks are how the walk decides it
+        // has understood the LAYOUT. A member whose data runs off the end of the file, or
+        // whose header says method 3, is evidence the offsets were misread — and the same
+        // arithmetic located the members we do want. So a surprise anywhere hands the whole
+        // archive to fflate rather than returning bytes from an addressing scheme we have
+        // just seen fail. Skipping the checks for unwanted members would be faster on a
+        // damaged file and would trust offsets there is reason to doubt.
+        const keep = wanted === undefined || wanted(name);
         const raw = bytes.subarray(dataAt, dataAt + compressedSize);
         if (method === 0) {
             // Stored. `.slice()` and not the subarray, because the entry must own its
             // buffer — see `ownExactBuffer`. Simulink writes most `.slx` parts this way:
             // one 13.8 MB model measured 347 stored members against 29 deflated.
-            out[name] = raw.slice();
+            if (keep)
+                out[name] = raw.slice();
         }
         else if (method === 8) {
-            const inflated = ownExactBuffer(native.raw(raw));
-            // A length disagreement means the walk misread an offset. Better to hand the
-            // whole archive to fflate than to return bytes that are confidently wrong.
-            if (inflated.byteLength !== uncompressedSize) {
-                throw new UnsupportedArchive('inflated size disagrees with the directory');
+            // The one check that cannot run on every entry, because it needs the inflate it
+            // exists to police. An unread member's declared size therefore goes unverified —
+            // the same amount of trust as not reading the member at all.
+            if (keep) {
+                const inflated = ownExactBuffer(native.raw(raw));
+                // A length disagreement means the walk misread an offset. Better to hand the
+                // whole archive to fflate than to return bytes that are confidently wrong.
+                if (inflated.byteLength !== uncompressedSize) {
+                    throw new UnsupportedArchive('inflated size disagrees with the directory');
+                }
+                out[name] = inflated;
             }
-            out[name] = inflated;
         }
         else {
             throw new UnsupportedArchive(`compression method ${method}`);

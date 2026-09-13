@@ -17,10 +17,23 @@ import { filesFor, resolveCorpus, describeCorpus } from './corpus.mjs';
 import { runCase, formatCase, compareBytes } from './oracle.mjs';
 
 const core = await import('../dist/index.js');
-const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, scanSldd, scanMat } = core;
+const {
+  readSlddContent,
+  slddChunkContent,
+  normalizeRefNames,
+  parseMat,
+  parseModel,
+  scanSldd,
+  scanMat,
+  scanModelStructure,
+} = core;
 // The inflate seam, by a DEEP import: it is not barrel surface, and this harness is
 // internal. Needed so an oracle case can pin the engine — see `mat.names.scan.fflate`.
-const { setNativeInflate } = await import('../dist/datamodel/parser/Inflate.js');
+const { setNativeInflate, unzipEntries } = await import('../dist/datamodel/parser/Inflate.js');
+// Same reason, for the per-member controls below: they have to rebuild the structural scan
+// over a REDUCED part set, which means calling the two pieces it is made of.
+const { parseModelParts } = await import('../dist/datamodel/parser/SlxParser.js');
+const { isZipPackage } = await import('../dist/datamodel/parser/ModelParser.js');
 
 /** Run `fn` with the inflate engine pinned, then hand detection back. */
 function withEngine(engine, fn) {
@@ -79,12 +92,121 @@ const matNames = (path) => parseMat(readAsArrayBuffer(path)).variables.map((v) =
 // THE STEP-3 CANDIDATE, through the public entry point for the same reason as `scanNames`.
 const matScanNames = (path) => scanMat(readAsArrayBuffer(path)).names;
 
+/**
+ * A model's three structural fields as ONE ordered sequence of strings, because that is
+ * what `compareSequences` compares — `Object.is` per index, so an object would only ever
+ * be identity-unequal.
+ *
+ * Every element is TAGGED by the field it came from, which is what makes the flattening
+ * lossless in the way that matters: a reference that turned up in `externalDataSources`
+ * instead would keep the total length and the string, and only the tag says the fields
+ * were confused. The references are stringified WHOLE rather than field by field, so a key
+ * appearing, disappearing or being renamed on that object is a divergence too and not
+ * something this flattening quietly drops.
+ */
+const structureSequence = (s) => [
+  // `<null>` and `=` distinguish "no dictionary" from a dictionary named by an empty
+  // string. The latter should not occur; a tag that could not tell them apart is how it
+  // would go unnoticed if it did.
+  s.dataDictionary === null ? 'dd:<null>' : `dd:=${s.dataDictionary}`,
+  ...s.modelReferences.map((r) => `ref:${JSON.stringify(r)}`),
+  ...s.externalDataSources.map((e) => `eds:${e}`),
+];
+
+// THE MODEL REFERENCE: the full parse, narrowed afterwards. This is the thing step 8
+// claims to be a substitute for, so it is spelled as a caller would have written it before
+// the scanner existed.
+const modelStructure = (path) => {
+  const parsed = parseModel(readAsArrayBuffer(path), path);
+  return structureSequence({
+    dataDictionary: parsed.dataDictionary,
+    modelReferences: parsed.modelReferences,
+    externalDataSources: parsed.externalDataSources,
+  });
+};
+
+// THE STEP-8 CANDIDATE, through the barrel.
+const modelScanStructure = (path) => structureSequence(scanModelStructure(readAsArrayBuffer(path), path));
+
+/**
+ * The parts `ModelStructureScan` asks for, restated here so a control can take one AWAY.
+ *
+ * Duplicated deliberately: a control that imported the real set could not differ from it.
+ * The duplication is self-announcing in one direction — if a member stops being
+ * load-bearing, its control below goes green and the run fails — and blind in the other,
+ * so a member ADDED to the real set needs a control added here by hand.
+ */
+const STRUCTURAL_PARTS = [
+  'simulink/blockDiagram.json',
+  'simulink/blockdiagram.xml',
+  'simulink/graphicalInterface.json',
+  'simulink/graphicalInterface.xml',
+  'simulink/ExternalDataSourceSettings.xml',
+];
+
+/**
+ * The scan with exactly one member withheld — the real thing a control needs to simulate,
+ * against real models, rather than a hand-mutated answer.
+ *
+ * `omit: null` reproduces the scanner itself, which is how this harness's own wiring is
+ * checked: if it disagreed with `scanModelStructure`, every control below would be
+ * measuring something else.
+ */
+const scanOmitting = (omit) => (path) => {
+  const buffer = readAsArrayBuffer(path);
+  const bytes = new Uint8Array(buffer);
+  const wanted = new Set(STRUCTURAL_PARTS.filter((p) => p !== omit));
+  const parsed = isZipPackage(bytes)
+    ? parseModelParts(unzipEntries(bytes, (name) => wanted.has(name)), path)
+    : parseModel(buffer, path);
+  return structureSequence({
+    dataDictionary: parsed.dataDictionary,
+    modelReferences: parsed.modelReferences,
+    externalDataSources: parsed.externalDataSources,
+  });
+};
+
+/**
+ * Which corpus models CARRY each structural part — because a control that withholds a part
+ * from models that never had it is asking a question with no answer.
+ *
+ * This corpus has not one `simulink/graphicalInterface.xml` in 127 models: it is R2020a+
+ * (`graphicalInterface.json`) plus 19 models old enough to inline the interface in
+ * `blockdiagram.xml`. Withholding that member therefore changes nothing here, and a
+ * control expecting it to would fail for the wrong reason — the corpus's vintage spread,
+ * not the scanner. The evidence for that member is in `test/modelStructureScan.test.ts`,
+ * whose R2013b–R2019b fixtures do carry it, and the SKIP line below says so rather than
+ * leaving a green row that reads like coverage.
+ */
+function carriersOf(files) {
+  const carriers = new Map(STRUCTURAL_PARTS.map((p) => [p, []]));
+  for (const path of files) {
+    let names;
+    try {
+      names = Object.keys(unzipEntries(new Uint8Array(readAsArrayBuffer(path)), (n) => carriers.has(n)));
+    } catch {
+      continue; // a model nothing can open is not evidence about any part
+    }
+    for (const n of names) carriers.get(n).push(path);
+  }
+  return carriers;
+}
+
 const corpus = resolveCorpus();
 console.log(describeCorpus(corpus));
 console.log();
 
 const slddFiles = filesFor(corpus, 'sldd-corpus');
 const matFiles = filesFor(corpus, 'mat-corpus');
+const slxFiles = filesFor(corpus, 'slx-corpus');
+const slxCarriers = carriersOf(slxFiles);
+if (slxFiles.length > 0) {
+  console.log(
+    `  slx structural parts, by carrier count: ` +
+      STRUCTURAL_PARTS.map((p) => `${p.split('/').pop()}=${slxCarriers.get(p).length}`).join(' '),
+  );
+  console.log();
+}
 
 // `expectFail` cases are negative controls: the candidate is deliberately wrong, and
 // the RUN fails if the oracle reports agreement.
@@ -145,6 +267,36 @@ const CASES = [
     reference: matNames,
     candidate: withEngine(null, matScanNames),
   },
+  {
+    name: 'slx.structure.deterministic',
+    files: slxFiles,
+    reference: modelStructure,
+    candidate: modelStructure,
+  },
+  // ---- the step-8 claim: a filtered part set IS the full parse, for three fields ----
+  {
+    name: 'slx.structure.scan',
+    files: slxFiles,
+    reference: modelStructure,
+    candidate: modelScanStructure,
+  },
+  {
+    // The SAME claim on the engine a browser gets. The filter has two implementations —
+    // the central-directory walk's `keep` flag natively, fflate's own `filter` option
+    // otherwise — so both are compared against the same reference.
+    name: 'slx.structure.scan.fflate',
+    files: slxFiles,
+    reference: modelStructure,
+    candidate: withEngine(null, modelScanStructure),
+  },
+  {
+    // The harness's own wiring: withholding NOTHING must reproduce the scanner exactly, or
+    // the five controls below are withholding a member from something that is not it.
+    name: 'slx.structure.omitNothing',
+    files: slxFiles,
+    reference: modelScanStructure,
+    candidate: scanOmitting(null),
+  },
   // ---- negative controls, on real files ----------------------------------------
   {
     name: 'control.sldd.dropsLastName',
@@ -187,6 +339,18 @@ const CASES = [
     candidate: (f) => matScanNames(f).slice(0, -1),
     expectFail: true,
   },
+  // One control per structural part, and each one is the real experiment rather than a
+  // stand-in for it: the scan runs over the corpus with that member withheld, and the run
+  // fails if the corpus cannot tell. A member no control can kill does not belong in the
+  // set — this is how `metadata/coreProperties.xml` came out of it.
+  ...STRUCTURAL_PARTS.map((part) => ({
+    name: `control.slx.without.${part.split('/').pop()}`,
+    files: slxCarriers.get(part) ?? [],
+    reference: modelStructure,
+    candidate: scanOmitting(part),
+    expectFail: true,
+    skipReason: `no corpus model carries ${part} — see test/modelStructureScan.test.ts`,
+  })),
 ];
 
 const selected = only ? CASES.filter((c) => c.name.includes(only)) : CASES;
@@ -198,7 +362,7 @@ if (selected.length === 0) {
 let failures = 0;
 for (const spec of selected) {
   if (spec.files.length === 0) {
-    console.log(`  [SKIP] ${spec.name}: corpus role empty`);
+    console.log(`  [SKIP] ${spec.name}: ${spec.skipReason ?? 'corpus role empty'}`);
     continue;
   }
   const result = runCase(spec);

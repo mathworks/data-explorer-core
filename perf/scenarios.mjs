@@ -27,7 +27,7 @@ const nodeApi = await import('../dist/node/index.js');
 // consumer really gets.
 const { unzipEntries, nativeInflateAvailable, setNativeInflate } = await import('../dist/datamodel/parser/Inflate.js');
 
-const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, parseModel, summarizeFiles, scanSldd, scanMat, RowCellPool } = core;
+const { readSlddContent, slddChunkContent, normalizeRefNames, parseMat, parseModel, summarizeFiles, scanSldd, scanMat, scanModelStructure, RowCellPool } = core;
 const { createSession, loadFromPath } = nodeApi;
 
 /** Read a file as a fresh ArrayBuffer. Buffer pooling makes `.buffer` wrong on its
@@ -373,6 +373,82 @@ export function scenarios(corpus) {
         const parsed = parseModel(readAsArrayBuffer(file), base(file));
         return { probe: payload(parsed), retain: parsed };
       },
+    });
+  }
+
+  // ---- SLX structure: step 8's before and after, on the same files ------------------
+  //
+  // The corpus sweep is the HEADLINE pair, and it is a pair rather than one row for the
+  // same reason the two large models are: `slx.deep.corpus` is the cost a host pays today
+  // to draw a model's relationships, and `slx.structure.corpus` is the cost of the three
+  // fields it actually reads. Neither number means anything without the other.
+  //
+  // It sweeps `slx-corpus` (the whole root) and not `slx-small` (7 toy models), because
+  // where these three fields live has moved twice and only a real spread of release
+  // vintages exercises more than one era. See the oracle's carrier census.
+  const structure = (s) =>
+    `${s.dataDictionary === null ? 0 : 1} dd, ${s.modelReferences.length} refs, ` +
+    `${s.externalDataSources.length} eds`;
+
+  const slxCorpus = filesFor(corpus, 'slx-corpus');
+  if (slxCorpus.length > 0) {
+    // The probe counts the PAYLOAD across the sweep, which is what keeps this row honest:
+    // a scanner that returned three empty fields for every model would post a superb time,
+    // and the two large-model rows below cannot catch that because their models genuinely
+    // have nothing in any of the three. This row is where the non-emptiness is visible.
+    const sweep = (read) => () => {
+      let files = 0;
+      let refused = 0;
+      let dd = 0;
+      let refs = 0;
+      let eds = 0;
+      for (const f of slxCorpus) {
+        try {
+          const s = read(f);
+          if (s.dataDictionary !== null) dd++;
+          refs += s.modelReferences.length;
+          eds += s.externalDataSources.length;
+          files++;
+        } catch {
+          refused++;
+        }
+      }
+      return `${files} read, ${refused} refused, ${dd} dd, ${refs} refs, ${eds} eds`;
+    };
+
+    list.push({
+      id: 'slx.deep.corpus',
+      what: `parseModel over ${slxCorpus.length} .slx files -- the cost of three fields today`,
+      role: 'slx-corpus',
+      samples: 2,
+      run: sweep((f) => parseModel(readAsArrayBuffer(f), base(f))),
+    });
+    list.push({
+      id: 'slx.structure.corpus',
+      what: `scanModelStructure over ${slxCorpus.length} .slx files -- the step 8 replacement for slx.deep.corpus`,
+      role: 'slx-corpus',
+      samples: 2,
+      run: sweep((f) => scanModelStructure(readAsArrayBuffer(f), base(f))),
+    });
+  }
+
+  // And the extreme-size case, paired one-for-one with the two `slx.deep.large` rows
+  // above so the ratio is read off the same file. The probe here is legitimately
+  // `0 dd, 0 refs, 0 eds` on both fixtures -- they are generated block XML with no
+  // relationships at all -- so these two rows measure the SKIP and say nothing about the
+  // answer. That evidence is the corpus row above, and `perf/oracle-run.mjs`.
+  for (const [role, id] of [
+    ['slx-large', 'slx.structure.large'],
+    ['slx-large-refs', 'slx.structure.large.refs'],
+  ]) {
+    const file = fileFor(corpus, role);
+    if (!file) continue;
+    list.push({
+      id,
+      what: `scanModelStructure on the ${role} fixture -- the step 8 replacement for ${id.replace('.structure.', '.deep.')}`,
+      role,
+      samples: 2,
+      run: () => structure(scanModelStructure(readAsArrayBuffer(file), base(file))),
     });
   }
 

@@ -36,6 +36,7 @@ export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, projectNameOf
 export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames } from './datamodel/parser/SlddContent.js';
 export { scanSldd, type SlddScanResult } from './datamodel/parser/SlddScan.js';
 export { scanMat, type MatScanResult } from './datamodel/parser/MatScan.js';
+export { scanModelStructure, type ModelStructure } from './datamodel/parser/ModelStructureScan.js';
 export { DATA_PART, DATA_PART_XML, DATA_PART_KEY, TEXT_PARTS, TEXT_CONTENT } from './datamodel/parser/SlddParts.js';
 export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogFromDefinitions, classificationOf, scRenameEdits, scanScJsonText, scanScXml, } from './datamodel/parser/ScCatalog.js';
 export type { ScDefinition, ScNameSite, ScTextEdit, SystemComposerCatalog } from './datamodel/parser/ScCatalog.js';

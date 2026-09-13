@@ -36,8 +36,19 @@ export declare function nativeInflateAvailable(): boolean;
  * looks wrong. Falling back on a malformed archive is deliberate: fflate then raises
  * the SAME diagnostic this package raised before, so error messages callers already
  * match on do not shift under them.
+ *
+ * `wanted`, when given, names the members the caller will actually read, and the rest are
+ * never materialized. What that buys over filtering the RESULT map is mostly memory, and
+ * the honest numbers are worth writing down because the time saving is the smaller half:
+ * reading the five structural members of `.slx` models (`ModelStructureScan`) materializes
+ * 1.80 MB against 44.85 MB over a 127-model corpus, and 1.4 KB against 13.2 MB on the one
+ * 13 MB model in it. In wall clock that is 18x on that model and only 1.3x over the whole
+ * sweep — because Simulink STORES most parts (that corpus: 3061 stored members against
+ * 1817 deflated) and copying a stored member is cheap next to inflating one.
+ *
+ * So: pass a filter to avoid holding 25x the bytes, not because the read is slow.
  */
-export declare function unzipEntries(bytes: Uint8Array): Record<string, Uint8Array>;
+export declare function unzipEntries(bytes: Uint8Array, wanted?: (name: string) => boolean): Record<string, Uint8Array>;
 /**
  * Inflate a zlib-wrapped stream — the framing MAT v5 `miCOMPRESSED` records use.
  *

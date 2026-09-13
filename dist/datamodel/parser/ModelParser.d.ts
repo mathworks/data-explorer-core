@@ -1,5 +1,14 @@
 import type { ParsedSlx } from './SlxParser.js';
 /**
+ * Is this a ZIP OPC package — i.e. a `.slx` rather than either `.mdl` spelling?
+ *
+ * Exported so that the structural scanner dispatches on the SAME test this file does.
+ * Two copies of the magic bytes is two places for the answer to drift, and a scanner
+ * that disagreed with `parseModel` about the format would route a file to a reader it
+ * is not for.
+ */
+export declare function isZipPackage(bytes: Uint8Array): boolean;
+/**
  * Open a Simulink model, whichever of its on-disk forms it is in.
  *
  * A `.slx` is a ZIP OPC package; a `.mdl` is the same package written as text, or
