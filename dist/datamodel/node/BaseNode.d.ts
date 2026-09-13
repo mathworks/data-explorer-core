@@ -1,4 +1,5 @@
 import type { Bracket, ElementOrder } from '../display/Subscript.js';
+import type RowCellPool from './RowCellPool.js';
 export interface PropClass {
     key: string;
     displayName: string;
@@ -127,7 +128,7 @@ export default class BaseNode {
     get valueEditable(): boolean;
     get descriptionEditable(): boolean;
     getPropInfo(PropClassRef: PropClass): PropInfo;
-    toRow(): RowData | null;
+    toRow(pool?: RowCellPool): RowData | null;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[] | null;
     toPIObject(): PIObject | null;

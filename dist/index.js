@@ -32,6 +32,13 @@ export { identifiersIn } from './datamodel/expressions.js';
 export { blockKey, blockLabel, isInsideBlockPath, joinBlockPath } from './datamodel/blockIdentity.js';
 export { createEventBus } from './core/EventBus.js';
 export { createUndoManager } from './core/UndoManager.js';
+// The inflate seam. Every decompression in this package goes through it, and it finds
+// `node:zlib` by itself on Node 22.3+ (`process.getBuiltinModule`), falling back to
+// fflate everywhere else — a browser bundle included. `setNativeInflate` is published
+// because detection cannot cover every host: a consumer on an older Node, or one that
+// imports only this barrel and knows it is in Node, can arm the fast engine explicitly
+// and get ~5x on inflate. Passing `null` forces the fflate path.
+export { setNativeInflate, nativeInflateAvailable } from './datamodel/parser/Inflate.js';
 // Parsers + serializer (datamodel).
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
 // The whole write path for a compressed-binary `.sldd`: serializeBinarySldd rebuilds
@@ -77,6 +84,32 @@ export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, projectNameOf
 // depending on which writer produced the file, so a reader that accepts only strings
 // resolves the sub-dictionaries of one flavour and none of the other.
 export { readSlddContent, slddChunkContent, isJsonTextBytes, normalizeRefNames } from './datamodel/parser/SlddContent.js';
+// The same read, for a caller that wants ONLY the entry names and the referenced
+// sub-dictionaries. Published because that caller exists three times over — two indexes
+// in the extension and `summarizeFiles` here — and each was paying for the whole entry
+// tree to read one string per entry: 3230 ms and 31,345 objects on the larger customer
+// dictionary, against ~100 ms for the scan. It is a strict substitute, not a second
+// format reader: it falls back to `readSlddContent` for anything it has not been proven
+// equivalent on, and that equivalence is checked over the whole corpus by the oracle.
+export { scanSldd } from './datamodel/parser/SlddScan.js';
+// The same trade on the other format a usage index reads. `parseMat` decodes every element
+// of every matrix to hand back a list of names, which is all two of its three callers ever
+// read: 1271 ms over the corpus's `.mat` files against 4.4 ms here. Published because one
+// of those callers is in the extension — its name index calls `parseMat` and reads only
+// `variables[].name` — and it cannot reach a module this barrel does not export. Same
+// discipline as `scanSldd`: a strict substitute that falls back to `parseMat` for anything
+// it has not been proven equivalent on, checked name-by-name over the corpus by the oracle
+// and over the fixtures by the test suite.
+export { scanMat } from './datamodel/parser/MatScan.js';
+// The same trade for the third format, and the one whose caller pays most often: a host
+// that draws a model's relationships rebuilds them on every save, and `parseModel` walks
+// every block to hand back three strings' worth of them. 1600 ms over a 127-model corpus
+// against 75 ms here, for the same 76 dictionary links, 82 references and 13 external
+// sources; 605 ms against 2.0 ms on a 13 MB model, where the parts these three fields come
+// from total 1.4 KB. Unlike the two scanners above this one reads no bytes of its own — it
+// runs the FULL parser over a smaller set of OPC parts, so the answer is the same answer
+// rather than a second derivation of it.
+export { scanModelStructure } from './datamodel/parser/ModelStructureScan.js';
 // WHERE those entries sit — the zip member name and the three-step JSON key path to the
 // one part a dictionary keeps its entries in. Published for the same reason `SC_PART` is,
 // and more sharply: a host that WRITES a dictionary owns the document this package cannot
@@ -119,4 +152,8 @@ export { generateUuid } from './datamodel/node/container/SectionNode.js';
 export { schemaColumnLabels } from './datamodel/node/schemaBridge.js';
 export { kindForClass } from './datamodel/kindMap.js';
 export { getSectionMetadata } from './datamodel/SectionConstants.js';
+// One shared cell per distinct value across a table's rows. A host with its own row
+// builder (the VS Code table stamps its own columns over each node's row) creates one per
+// materialization pass and passes it to `toRow`; `rowsOf` does it internally.
+export { default as RowCellPool } from './datamodel/node/RowCellPool.js';
 //# sourceMappingURL=index.js.map

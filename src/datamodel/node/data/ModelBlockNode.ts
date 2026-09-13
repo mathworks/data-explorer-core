@@ -2,6 +2,7 @@
 
 import BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef, RowData } from '../BaseNode.js';
+import type RowCellPool from '../RowCellPool.js';
 import PropName from '../../prop/PropName.js';
 import PropBlockPath from '../../prop/PropBlockPath.js';
 import { blockKey, blockLabel, joinBlockPath } from '../../blockIdentity.js';
@@ -96,11 +97,15 @@ export default class ModelBlockNode extends BaseNode {
     return false;
   }
 
-  toRow(): RowData | null {
+  // Builds its row from scratch rather than through super, so it shares its own — see
+  // RowCellPool. A model's block list is where the repetition is worst: every block of the
+  // same type spells the same Value, and a model with one parameterized gain per subsystem
+  // spells the same DataType.
+  toRow(pool?: RowCellPool): RowData | null {
     const paramText = this.paramUsages.map((u) => `${u.property}=${u.value}`).join(', ');
     const firstParam = this.paramUsages.length > 0 ? this.paramUsages[0].value : null;
     const paramLink = firstParam && this.paramSourceId ? `${firstParam}@${this.paramSourceId}` : undefined;
-    return {
+    const row: RowData = {
       ID: this.id,
       parent: null,
       Status: '',
@@ -124,6 +129,7 @@ export default class ModelBlockNode extends BaseNode {
       _systemPath: this.systemPath,
       _blockPath: this.blockPath,
     };
+    return pool ? pool.share(row) : row;
   }
 
   getProperties(): PropClass[] {

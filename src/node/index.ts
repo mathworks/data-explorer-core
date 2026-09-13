@@ -7,14 +7,35 @@
 
 import { readFileSync, statSync, readdirSync } from 'node:fs';
 import { basename, join, extname } from 'node:path';
+import { constants as zlibConstants, inflateRawSync, inflateSync } from 'node:zlib';
 // Side-effect import: registers node classes so SectionNode.addEntry and
 // NodeRegistry value-parsing work when consumers import ONLY from this subpath.
 import '../datamodel/node/data/NodeClassMap.js';
+import { setNativeInflate } from '../datamodel/parser/Inflate.js';
 import { createSession as _createSession } from '../core/DataModel.js';
 import { ingest } from '../core/ingest.js';
 import type { Session } from '../core/DataModel.js';
 import type { ISourceNode } from '../core/NodeInterfaces.js';
 import { reasonOf, type ParseWarning } from '../datamodel/parser/ParseWarning.js';
+
+// Arm the fast inflate engine explicitly. `Inflate.ts` can find `node:zlib` on its
+// own through `process.getBuiltinModule`, but that method only exists from Node 22.3,
+// and this package supports consumers on older hosts — the VS Code extension declares
+// `engines.vscode: ^1.90.0`, whose extension host is Node 20. Here a static import is
+// safe precisely because this module is already Node-only, fenced out of the browser
+// bundle by the package's `exports` conditions. Detection still covers the barrel-only
+// consumer, which is the one the extension actually is.
+setNativeInflate({
+  raw: (deflated) => inflateRawSync(deflated),
+  zlib: (wrapped) => inflateSync(wrapped),
+  // Z_SYNC_FLUSH instead of the default Z_FINISH: this one is handed a PREFIX of a
+  // stream on purpose (see `inflateZlibHead`), and Z_FINISH would call the absent tail
+  // an unexpected end of file. Omitting it here would not break anything — the seam
+  // falls back to inflating whole records — it would just quietly cost a Node 20 host
+  // the whole MAT scan speedup, which is the sort of thing that is only ever noticed
+  // as "why is it slower there".
+  zlibHead: (prefix) => inflateSync(prefix, { finishFlush: zlibConstants.Z_SYNC_FLUSH }),
+});
 
 const SUPPORTED = new Set(['.sldd', '.slx', '.mdl', '.mat', '.prj']);
 

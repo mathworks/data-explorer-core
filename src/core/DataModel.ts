@@ -27,6 +27,7 @@ import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 // usage index through. Imported from BaseNode rather than restated here so that renaming
 // a field of NodeUsage breaks the one line that installs the resolver — see UsageResolver.
 import type { RowData, UsageResolver } from '../datamodel/node/BaseNode.js';
+import RowCellPool from '../datamodel/node/RowCellPool.js';
 
 // The session's own vocabulary — what a caller passes in and what these functions hand
 // back — and the compiler that turns one of those types, FindNodesQuery, into the tests
@@ -1329,10 +1330,14 @@ function rowsOf(container: INode): RowData[] {
   const nodes = container && typeof container.flatten === 'function' ? container.flatten() : [];
   const previous = usageBatch;
   usageBatch = collectUsages(nodes);
+  // A cell pool on the same terms as the usage batch above: it lives for this call, the
+  // rows keep the cells it handed them, and it is dropped here rather than kept because
+  // what it indexes is a table the caller may already have closed. See RowCellPool.
+  const pool = new RowCellPool();
   try {
     const rows: RowData[] = [];
     for (const node of nodes) {
-      const row = node.toRow();
+      const row = node.toRow(pool);
       if (row !== null) {
         rows.push(row);
       }

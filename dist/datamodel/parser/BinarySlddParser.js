@@ -42,19 +42,12 @@
 // wants diagnostics has to know to ask. That is the same bargain `SlxParser`'s
 // internal helpers already make, and the reason the parameter is documented on both
 // exported functions rather than left to be discovered.
-import { unzipSync } from 'fflate';
-import { XMLParser } from 'fast-xml-parser';
+import { unzipEntries } from './Inflate.js';
+import { readDictionaryXml } from './XmlReader.js';
 import { reasonOf } from './ParseWarning.js';
 import { SC_PART_XML, catalogFromDefinitions, scPartUnreadableMessage, scanScXml, } from './ScCatalog.js';
 import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
 import { charNeedsShape, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, SAVEOBJ_KEY, } from './XmlUtils.js';
-const xmlParser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: '@_',
-    textNodeName: '#text',
-    isArray: (name) => name === 'Object' || name === 'P' || name === 'Element',
-    trimValues: false,
-});
 /**
  * Read a `Dimension="d1*d2*...*dn"` attribute into every extent it declares.
  *
@@ -112,7 +105,7 @@ export function parseDims(dimension) {
  */
 export function parseBinarySldd(arrayBuffer, warnings) {
     const uint8 = new Uint8Array(arrayBuffer);
-    const entries = unzipSync(uint8);
+    const entries = unzipEntries(uint8);
     const decoder = new TextDecoder();
     const dataXml = entries[DATA_PART_XML];
     if (!dataXml) {
@@ -152,10 +145,10 @@ export function parseBinarySlddParts(xmlString, zipMetadata, warnings) {
     //
     // Two ways it goes wrong, and both used to be silent or worse:
     //
-    //   - fast-xml-parser refuses the document outright for a few malformations (an
-    //     unclosed CDATA is one), and that throw used to escape `parseBinarySldd` and take
-    //     the whole open down, naming no file. A host with four dictionaries open could
-    //     not tell which one it was.
+    //   - the reader refuses the document outright for a few malformations (an unclosed
+    //     CDATA is one — `XmlReader` pins which), and that throw used to escape
+    //     `parseBinarySldd` and take the whole open down, naming no file. A host with four
+    //     dictionaries open could not tell which one it was.
     //   - Far more often it is LENIENT and answers with a document that has no
     //     `DataSource` key: an empty object for a part carrying no markup at all (plain
     //     text, an empty part, raw binary — the shape a truncated or mis-encoded write
@@ -175,7 +168,7 @@ export function parseBinarySlddParts(xmlString, zipMetadata, warnings) {
     let doc = {};
     let refused = false;
     try {
-        doc = xmlParser.parse(xmlString);
+        doc = readDictionaryXml(xmlString);
     }
     catch (err) {
         refused = true;

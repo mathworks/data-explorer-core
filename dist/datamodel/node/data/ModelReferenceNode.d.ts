@@ -1,5 +1,6 @@
 import BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef, RowData } from '../BaseNode.js';
+import type RowCellPool from '../RowCellPool.js';
 export default class ModelReferenceNode extends BaseNode {
     blockPath: string;
     resolved: boolean;
@@ -11,7 +12,7 @@ export default class ModelReferenceNode extends BaseNode {
     get className(): string;
     get nameEditable(): boolean;
     get valueEditable(): boolean;
-    toRow(): RowData | null;
+    toRow(pool?: RowCellPool): RowData | null;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];
 }

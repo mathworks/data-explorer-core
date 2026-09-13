@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import { unzlibSync } from 'fflate';
+import { inflateZlib } from './Inflate.js';
 import { exactInt } from './XmlUtils.js';
 import { reasonOf } from './ParseWarning.js';
 const CLASS_NAMES = {
@@ -743,6 +743,6 @@ function collectUndecoded(variable, path, warnings) {
     }
 }
 function decompressZlib(compressed) {
-    return unzlibSync(compressed);
+    return inflateZlib(compressed);
 }
 //# sourceMappingURL=MatParser.js.map

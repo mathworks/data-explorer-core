@@ -10,6 +10,7 @@
  * time and do not create runtime circular dependencies.
  */
 import type { PropClass, PropInfo, RowData, PIGroupDef, PIObject } from '../datamodel/node/BaseNode.js';
+import type RowCellPool from '../datamodel/node/RowCellPool.js';
 import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 export type { PropClass, PropInfo, RowData, PIGroupDef };
 export type { PIObject as NodePIObject };
@@ -33,7 +34,7 @@ export interface INode {
     readonly isContainer?: boolean;
     status?: string;
     flatten(): INode[];
-    toRow(): RowData | null;
+    toRow(pool?: RowCellPool): RowData | null;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[] | null;
     toPIObject(): PIObject | null;

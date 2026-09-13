@@ -1,10 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
-import { XMLParser } from 'fast-xml-parser';
+import { readProjectXml } from './XmlReader.js';
 import { reasonOf } from './ParseWarning.js';
-const xmlParser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: '@_',
-});
 const PROJECT_PREFIX = 'resources/project/';
 function toArray(v) {
     if (v === undefined || v === null) {
@@ -153,7 +149,7 @@ export function parseProject(files, projectName) {
 function parseInfo(content, relPath, warnings) {
     let doc;
     try {
-        doc = xmlParser.parse(content);
+        doc = readProjectXml(content);
     }
     catch (err) {
         warnings.push({

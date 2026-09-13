@@ -2,6 +2,7 @@
 
 import BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef, RowData } from '../BaseNode.js';
+import type RowCellPool from '../RowCellPool.js';
 import PropName from '../../prop/PropName.js';
 import PropPath from '../../prop/PropPath.js';
 import PropStatus from '../../prop/PropStatus.js';
@@ -67,12 +68,15 @@ export default class DataSourceNode extends BaseNode {
         return false;
     }
 
-    toRow(): RowData | null {
+    // Deliberately calls super WITHOUT the pool and shares at the end instead: it replaces
+    // the Value cell super built, so pooling before the rewrite would index a cell that
+    // does not survive the call and leave the one that does unpooled.
+    toRow(pool?: RowCellPool): RowData | null {
         const row = super.toRow();
         if (row) {
             row.Value = { text: row.Value as string, linkTarget: this.name };
         }
-        return row;
+        return row && pool ? pool.share(row) : row;
     }
 
     getProperties(): PropClass[] {

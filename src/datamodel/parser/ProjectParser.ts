@@ -1,12 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { XMLParser } from 'fast-xml-parser';
+import { readProjectXml } from './XmlReader.js';
 import { reasonOf, type ParseWarning } from './ParseWarning.js';
-
-const xmlParser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: '@_',
-});
 
 /** A member file (or folder) of the project. */
 export interface ProjectFile {
@@ -231,7 +226,7 @@ export function parseProject(files: Record<string, string>, projectName: string)
 function parseInfo(content: string, relPath: string, warnings: ParseWarning[]): XmlInfo | null {
   let doc: Record<string, unknown>;
   try {
-    doc = xmlParser.parse(content) as Record<string, unknown>;
+    doc = readProjectXml(content) as Record<string, unknown>;
   } catch (err) {
     warnings.push({
       code: 'part-unreadable',

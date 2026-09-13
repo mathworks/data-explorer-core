@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { unzlibSync } from 'fflate';
+import { inflateZlib } from './Inflate.js';
 import { exactInt } from './XmlUtils.js';
 import { reasonOf } from './ParseWarning.js';
 import type { ParseWarning } from './ParseWarning.js';
@@ -814,5 +814,5 @@ function collectUndecoded(variable: MatVariable, path: string, warnings: ParseWa
 }
 
 function decompressZlib(compressed: Uint8Array): Uint8Array {
-    return unzlibSync(compressed);
+    return inflateZlib(compressed);
 }

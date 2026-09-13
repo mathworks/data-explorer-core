@@ -1,16 +1,11 @@
 // Copyright 2026 The MathWorks, Inc.
-import { unzipSync } from 'fflate';
-import { XMLParser } from 'fast-xml-parser';
+import { unzipEntries } from './Inflate.js';
+import { readModelXml } from './XmlReader.js';
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { ENUM_BLOCK_PARAMS } from './enumBlockParams.js';
 import { parseMxArray, readMxArrayRecords } from './MxArrayParser.js';
 import { parseMat } from './MatParser.js';
 import { reasonOf } from './ParseWarning.js';
-const xmlParser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: '@_',
-    textNodeName: '#text',
-});
 function decodeText(buf) {
     return new TextDecoder().decode(buf);
 }
@@ -18,7 +13,7 @@ function parseJSON(buf) {
     return JSON.parse(decodeText(buf));
 }
 function parseXml(buf) {
-    return xmlParser.parse(decodeText(buf));
+    return readModelXml(decodeText(buf));
 }
 /**
  * One part, read or reported — every part read below goes through this.
@@ -53,10 +48,11 @@ function readPart(entries, path, lost, warnings) {
         });
         return null;
     }
-    // fast-xml-parser is lenient and answers with an EMPTY object for input carrying no
+    // The XML reader is lenient and answers with an EMPTY object for input carrying no
     // markup at all — plain text, an empty part, binary — and that is the shape a
-    // truncated or mis-encoded write actually takes. Same loss as a throw, so the same
-    // report; ProjectParser.parseInfo already draws this line for the `.prj` store.
+    // truncated or mis-encoded write actually takes (`XmlReader` pins it). Same loss as a
+    // throw, so the same report; ProjectParser.parseInfo already draws this line for the
+    // `.prj` store.
     if (doc === null || typeof doc !== 'object' || Object.keys(doc).length === 0) {
         warnings.push({
             code: 'part-unreadable',
@@ -751,7 +747,7 @@ function extractModelReferences(graphicalInterface) {
     });
 }
 export function parseSlx(buffer, filename) {
-    return parseModelParts(unzipSync(new Uint8Array(buffer)), filename);
+    return parseModelParts(unzipEntries(new Uint8Array(buffer)), filename);
 }
 /**
  * The model behind an OPC part map — everything `parseSlx` does except unzipping.
