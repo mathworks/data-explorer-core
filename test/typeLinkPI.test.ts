@@ -76,4 +76,29 @@ describe('toPIObject carries the Data Type link', () => {
     // Nothing must be invented for a property the layout does not list.
     expect(piProp('DataType', 'adtUint8')).toBeUndefined();
   });
+
+  // The Data Type COLUMN is not always fed by a prop keyed `DataType`. PropBaseType is
+  // keyed `BaseType` and carries `column = 'DataType'`, so an alias's base type reaches
+  // the same column by a different key — and toRow, which gates on the column, links it.
+  // A PI gating on the key instead would leave exactly the divergence this design exists
+  // to prevent, so the gate here derives the column the way toRow does.
+  describe('on a prop that reaches the Data Type column under another key', () => {
+    it('sets valueLink on an alias BaseType that names a definition', () => {
+      expect(piProp('BaseType', 'adtCounter')?.valueLink).toBe('adtUint8@d.sldd');
+    });
+
+    it('agrees with the table cell for that same node', () => {
+      // Against each other, not two independent literals: this is the assertion that
+      // catches a PI gate that has drifted from toRow's.
+      const s = createSession();
+      s.addDataSource('d.sldd', loadJson(DICT));
+      const cell = entryNamed(s, 'adtCounter').toRow()!.DataType as { linkTarget: string };
+      expect(piProp('BaseType', 'adtCounter')?.valueLink).toBe(cell.linkTarget);
+    });
+
+    it('leaves valueLink absent when the base type is a built-in', () => {
+      // adtUint8's base is `uint8`, which no entry defines.
+      expect(piProp('BaseType', 'adtUint8')?.valueLink).toBeUndefined();
+    });
+  });
 });

@@ -677,7 +677,16 @@ export default class BaseNode {
         // for this one, where the value is. Nothing sets `link` today, so this is a new
         // field rather than an overloaded one. Spread conditionally so a property with no
         // link carries no key at all — the PI reads presence.
-        const typeLink = info.key === 'DataType' ? this._typeLinkCell(info.displayValue) : undefined;
+        //
+        // Gated on the COLUMN, derived exactly as toRow derives it (:553-557), NOT on the
+        // prop key: PropBaseType is keyed `BaseType` and declares `column = 'DataType'`, so
+        // an alias's base type reaches this column under another key and the table links it.
+        // A second hard-coded list of prop keys here would be free to drift from that one;
+        // this way a prop marked `column: null` correctly links nothing, and a future prop
+        // that joins the column gets the PI link with no change here.
+        const piColumn = PropClassRef.column;
+        const colKey = piColumn === null ? null : piColumn || info.key;
+        const typeLink = colKey === 'DataType' ? this._typeLinkCell(info.displayValue) : undefined;
         const valueLink =
           typeLink && typeof typeLink === 'object' && typeof typeLink.linkTarget === 'string'
             ? typeLink.linkTarget
