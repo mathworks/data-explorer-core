@@ -274,6 +274,11 @@ export default class BaseNode {
       this.children.push(child);
     }
     child.parent = this;
+    // The STRUCTURAL choke point, and needed in ADDITION to _markSourceDirty: the undo and
+    // redo closures SectionNode.execAddEntry/execRemoveEntry return call this and
+    // removeChild directly, without marking the source dirty. Without this line, undoing
+    // the addition of a type entry leaves a link pointing at an entry that no longer exists.
+    this._invalidateTypeLinkIndex();
     return child;
   }
 
@@ -282,6 +287,8 @@ export default class BaseNode {
     if (idx >= 0) {
       this.children.splice(idx, 1);
       child.parent = null;
+      // See addChild: the undo/redo closures reach here without marking dirty.
+      this._invalidateTypeLinkIndex();
     }
   }
 
@@ -299,6 +306,25 @@ export default class BaseNode {
     return true;
   }
 
+  // Drop the source's cached type-definition index (see core/typeLinkIndex.ts).
+  //
+  // Invalidate-on-write, rebuild-on-read: one assignment here against one shallow walk on
+  // the next row build, versus maintaining the set incrementally and needing every add,
+  // remove, rename and undo path to be right forever. The rebuild also SELF-HEALS a hook
+  // this class forgot to grow — the next unrelated edit corrects it — which an
+  // incrementally-maintained set could not.
+  //
+  // Deliberately unconditional, unlike `dirty` below: a root that is not a source simply
+  // gains a null property nothing reads, and guarding it would be a branch that exists to
+  // protect nothing.
+  _invalidateTypeLinkIndex(): void {
+    let root: BaseNode = this;
+    while (root.parent) {
+      root = root.parent;
+    }
+    (root as unknown as { _typeLinkIndex?: unknown })._typeLinkIndex = null;
+  }
+
   // Flag the owning file as having unsaved changes. The `dirty` flag lives on the
   // source root (SlddNode/MatNode/ModelNode) — the node that knows about a file —
   // so any mutation deep in the tree has to walk up to find it. Silently does
@@ -314,6 +340,10 @@ export default class BaseNode {
     if (source.dirty !== undefined) {
       source.dirty = true;
     }
+    // Every mutation reaches here, so this is where a rename — the edit that actually moves
+    // a link — is caught. A value edit drops the index too, needlessly; the rebuild rides
+    // the row build that edit was already going to cause.
+    this._invalidateTypeLinkIndex();
   }
 
   // The `UsedBy` cell for this node, or undefined when there is nothing to say.
