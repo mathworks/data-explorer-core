@@ -668,6 +668,20 @@ export default class BaseNode {
       for (let i = 0; i < groupDef.items.length; i++) {
         const PropClassRef = groupDef.items[i];
         const info = this.getPropInfo(PropClassRef);
+        // The same forward link the table's Data Type cell carries, from the same
+        // _typeLinkCell — one derivation, so the two panes cannot disagree about which
+        // half of `Bus: artFsAimCmd` is the link.
+        //
+        // `valueLink` and not `link`: the vendored PI's `link` anchors the property NAME
+        // and mutes the value, which is right for a row whose label IS the link and wrong
+        // for this one, where the value is. Nothing sets `link` today, so this is a new
+        // field rather than an overloaded one. Spread conditionally so a property with no
+        // link carries no key at all — the PI reads presence.
+        const typeLink = info.key === 'DataType' ? this._typeLinkCell(info.displayValue) : undefined;
+        const valueLink =
+          typeLink && typeof typeLink === 'object' && typeof typeLink.linkTarget === 'string'
+            ? typeLink.linkTarget
+            : undefined;
         properties.push({
           name: info.key,
           displayName: info.displayName,
@@ -677,6 +691,7 @@ export default class BaseNode {
           editor: null,
           editable: info.editable,
           valid: true,
+          ...(valueLink === undefined ? {} : { valueLink }),
         });
         groupItems.push({ name: info.key, type: 'property' });
         obj[info.key] = info.displayValue;
