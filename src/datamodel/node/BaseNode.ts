@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { buildPILayout } from './schemaBridge.js';
+import { typeLinkCell } from './typeLinkCell.js';
 import { buildOtherRows } from './piOther.js';
 import { subscriptLabel } from '../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../display/Subscript.js';
@@ -53,7 +54,14 @@ export interface RowData {
   // reason as `_valueEditable`: the column renders through a dedicated branch that
   // consumes a plain string.
   _descriptionEditable?: boolean;
-  DataType?: string | { text: string; linkTarget?: string };
+  // A plain string for the far majority of rows, and a cell only when the value NAMES a
+  // type definition in the same source — see typeLinkCell and _typeLinkCell. `prefix`
+  // holds the qualifier of a value like `Bus: artFsAimCmd`, which renders as plain text
+  // before the anchor so the underline marks exactly the name the dictionary holds. A
+  // consumer that renders only `text` still shows the name; it loses the qualifier, which
+  // is why the webview mirror of this type is pinned to it by a compile-time assert
+  // (CoreCellFits, dex-tree-table.ts).
+  DataType?: string | { prefix?: string; text: string; linkTarget?: string };
   Class?: string;
   Kind?: string;
   Description?: string;
@@ -359,6 +367,31 @@ export default class BaseNode {
     return { links: usages.map((u) => ({ text: u.blockName, linkTarget: u.linkTarget })) };
   }
 
+  // The Data Type cell's link, or undefined when the cell stays the plain string it
+  // already is. The forward mirror of _usedByCell above, reached the same way: walk to the
+  // source root, read the callback the session stamped there, and stay silent when there
+  // is none (a bare subtree in a test, a node detached mid-edit).
+  //
+  // Takes the cell TEXT rather than reading `this.dataType`, and that is the whole point
+  // of the method: `row.DataType` is written on two different lines of toRow — the schema
+  // prop loop for a class whose schema lists dataType, the fallback for one whose schema
+  // does not — and re-deriving the value here would be a third reading of it, free to
+  // disagree with both. One post-step over whatever landed in the cell cannot.
+  _typeLinkCell(cellText: unknown): RowData['DataType'] | undefined {
+    if (typeof cellText !== 'string' || cellText === '') {
+      return undefined;
+    }
+    let root: BaseNode = this;
+    while (root.parent) {
+      root = root.parent;
+    }
+    const resolve = (root as unknown as { _typeLinkResolver?: TypeLinkResolver })._typeLinkResolver;
+    if (typeof resolve !== 'function') {
+      return undefined;
+    }
+    return typeLinkCell(cellText, resolve) ?? undefined;
+  }
+
   flatten(): BaseNode[] {
     const result: BaseNode[] = [];
     const stack: BaseNode[] = [this];
@@ -553,6 +586,17 @@ export default class BaseNode {
     const usedBy = this._usedByCell();
     if (usedBy !== undefined) {
       row.UsedBy = usedBy;
+    }
+
+    // The forward projection, and the mirror of UsedBy above. ONE post-step, deliberately
+    // downstream of BOTH lines that write this cell — the schema prop loop and the
+    // fallback — rather than a branch inside each. Two implementations of one rule is the
+    // failure this codebase keeps paying for; a post-step over the finished cell cannot
+    // drift from itself. Assigned only when there IS a link, so an unlinked cell stays the
+    // plain string it has always been and no consumer sees a new shape for an old value.
+    const typeLink = this._typeLinkCell(row.DataType);
+    if (typeLink !== undefined) {
+      row.DataType = typeLink;
     }
 
     return pool ? pool.share(row) : row;
