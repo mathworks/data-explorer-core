@@ -40,7 +40,7 @@ export { scanModelStructure, type ModelStructure } from './datamodel/parser/Mode
 export { DATA_PART, DATA_PART_XML, DATA_PART_KEY, TEXT_PARTS, TEXT_CONTENT } from './datamodel/parser/SlddParts.js';
 export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogFromDefinitions, classificationOf, scRenameEdits, scanScJsonText, scanScXml, } from './datamodel/parser/ScCatalog.js';
 export type { ScDefinition, ScNameSite, ScTextEdit, SystemComposerCatalog } from './datamodel/parser/ScCatalog.js';
-export { buildUsageIndex, summarizeFiles, resolveName } from './datamodel/usage/UsageIndex.js';
+export { buildUsageIndex, buildUsageIndexFromSummaries, mergeFileSummaries, summarizeFiles, resolveName, } from './datamodel/usage/UsageIndex.js';
 export type { UsageIndex, UsageFile, FileSummaries, ModelSummary, DataSummary, ParamOrigin, OriginKind, } from './datamodel/usage/UsageIndex.js';
 export { maskDefining } from './datamodel/maskScope.js';
 export type { MaskScope } from './datamodel/maskScope.js';

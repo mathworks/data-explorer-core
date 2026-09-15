@@ -23,8 +23,15 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strToU8, unzipSync, zipSync } from 'fflate';
-import { buildUsageIndex, summarizeFiles, resolveName, parseModel } from '../src/index.js';
-import type { UsageFile, ModelSummary, DataSummary } from '../src/index.js';
+import {
+  buildUsageIndex,
+  buildUsageIndexFromSummaries,
+  mergeFileSummaries,
+  summarizeFiles,
+  resolveName,
+  parseModel,
+} from '../src/index.js';
+import type { UsageFile, UsageIndex, ModelSummary, DataSummary } from '../src/index.js';
 
 function artifact(rel: string): ArrayBuffer {
   const u8 = new Uint8Array(readFileSync(fileURLToPath(new URL(`./parity/artifacts/${rel}`, import.meta.url))));
@@ -681,6 +688,110 @@ describe('buildUsageIndex — the forward direction, one origin per parameter', 
     const after = buildUsageIndex([...models, file('params.sldd', slddBytes(['Kp']))]);
     expect(before.usagesOf('params.sldd', 'Kp')).toEqual([]);
     expect(after.usagesOf('params.sldd', 'Kp')).toHaveLength(1);
+  });
+});
+
+// A host that wants to parse each file ONCE across many index builds has to keep the
+// summaries and rebuild the maps from them, which needs the two halves of
+// `buildUsageIndex` reachable separately. These pin that the split composes back into the
+// whole — every answer, not a sampled one — and that summarising a folder one file at a
+// time is the same as summarising it together.
+//
+// The alternative, a host building the maps itself, is the mistake usageCells.ts:37-38
+// records: its own copy of a resolution rule credited `mode` in `cfg.mode` and invented a
+// usage for any entry named `mode`. The mask and shadowing rules in buildUsageIndex are
+// core's to hold, so what a host gets is a way to feed them summaries, not a way to
+// reimplement them.
+describe('buildUsageIndexFromSummaries — the same index, from summaries a caller kept', () => {
+  // Every answer both indexes can give, so an equality assertion cannot pass by probing
+  // the wrong keys: the two directions over every model, every block and every
+  // (file, name) the caller handed over.
+  function everyAnswer(index: UsageIndex, names: Record<string, string[]>) {
+    return {
+      models: index.models,
+      reverse: Object.entries(names).flatMap(([srcId, ns]) =>
+        ns.map((name) => [srcId, name, index.usagesOf(srcId, name)] as const),
+      ),
+      forward: index.models.flatMap((m) =>
+        m.blockParams.map((p) => [m.srcId, p.sid, index.paramsOf(m.srcId, p.sid !== '' ? p.sid : p.blockName)] as const),
+      ),
+    };
+  }
+
+  // A model reading three names down a dictionary CHAIN and a MAT-file, so the fixture
+  // exercises the parts of the build that a per-file summary could break: transitive
+  // references, resolution order, and the mask/shadow arms.
+  const corpus = (): UsageFile[] => [
+    file(
+      'm.slx',
+      slxModel({
+        dictionary: 'top.sldd',
+        externals: ['extra.mat'],
+        blocks: block('G', 'Gain', 'Gain', 'Kp') + block('C', 'Constant', 'Value', 'deep*Numeric', '2'),
+      }),
+    ),
+    file('top.sldd', slddBytes(['Kp'], ['leaf.sldd'])),
+    file('leaf.sldd', slddBytes(['deep'])),
+    // mcos/Numeric.mat defines exactly `Numeric`, as the same-stem test above relies on.
+    file('extra.mat', fixtureBytes('mcos/Numeric.mat')),
+  ];
+
+  const CORPUS_NAMES = {
+    'top.sldd': ['Kp', 'deep'],
+    'leaf.sldd': ['deep', 'Kp'],
+    'extra.mat': ['Numeric'],
+    'm.slx': ['Kp'],
+  };
+
+  it('answers exactly as buildUsageIndex does over the same files', () => {
+    const files = corpus();
+    const whole = buildUsageIndex(files);
+    const fromSummaries = buildUsageIndexFromSummaries(summarizeFiles(files));
+    // Not a vacuous comparison: the fixture really does produce answers in both directions.
+    expect(whole.usagesOf('top.sldd', 'Kp')).toHaveLength(1);
+    expect(whole.paramsOf('m.slx', '2')).not.toEqual([]);
+    expect(everyAnswer(fromSummaries, CORPUS_NAMES)).toEqual(everyAnswer(whole, CORPUS_NAMES));
+  });
+
+  it('is the same index when each file was summarised on its own and merged', () => {
+    // The host's actual case: one summary per file, cached as the file was read, merged at
+    // query time. Summarising one file at a time must not differ from summarising the set.
+    const files = corpus();
+    const merged = mergeFileSummaries(files.map((f) => summarizeFiles([f])));
+    expect(everyAnswer(buildUsageIndexFromSummaries(merged), CORPUS_NAMES)).toEqual(
+      everyAnswer(buildUsageIndex(files), CORPUS_NAMES),
+    );
+  });
+
+  it('resolves a basename collision by the order the parts were merged, as one pass does', () => {
+    // `slddByName` is keyed by refBasename and assigned with `.set()`, so two dictionaries
+    // of the same basename in different folders collide and the LAST one wins. A merge
+    // that folded the parts in a different order — or that let an earlier part win — would
+    // give a host a different answer for the same folder, so the rule is pinned here
+    // rather than left to whichever loop runs.
+    const first = file('a/types.sldd', slddBytes(['Kp']), 'a/types.sldd');
+    const second = file('b/types.sldd', slddBytes(['Kp']), 'b/types.sldd');
+    const model = file('m.slx', slxModel({ dictionary: 'types.sldd', blocks: block('G', 'Gain', 'Gain', 'Kp') }));
+    const order = [model, first, second];
+
+    const merged = mergeFileSummaries(order.map((f) => summarizeFiles([f])));
+    // The key is `refBasename` — directory stripped, extension KEPT, lowercased. The
+    // extension stays because a dictionary and a MAT-file of the same stem are two files
+    // that resolve independently.
+    expect(merged.slddByName.get('types.sldd')?.srcId).toBe('b/types.sldd');
+    expect(buildUsageIndexFromSummaries(merged).usagesOf('b/types.sldd', 'Kp')).toHaveLength(1);
+    expect(buildUsageIndexFromSummaries(merged).usagesOf('a/types.sldd', 'Kp')).toEqual([]);
+    // And the same answer the one-pass build gives over the same order.
+    expect(everyAnswer(buildUsageIndexFromSummaries(merged), { 'a/types.sldd': ['Kp'], 'b/types.sldd': ['Kp'] }))
+      .toEqual(everyAnswer(buildUsageIndex(order), { 'a/types.sldd': ['Kp'], 'b/types.sldd': ['Kp'] }));
+  });
+
+  it('merges nothing into an empty index rather than failing', () => {
+    const empty = mergeFileSummaries([]);
+    expect(empty.models).toEqual([]);
+    expect(empty.slddByName.size).toBe(0);
+    expect(empty.matByName.size).toBe(0);
+    expect(buildUsageIndexFromSummaries(empty).usagesOf('any.sldd', 'Kp')).toEqual([]);
   });
 });
 
