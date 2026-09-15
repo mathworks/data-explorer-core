@@ -125,6 +125,18 @@ export interface ISourceNode extends IContainerNode {
      * speak as proof the file was whole. See ParseWarning.
      */
     warnings?: ParseWarning[];
+    /**
+     * The type-definition name index this source's Data Type links resolve against —
+     * cached HERE rather than in a module map keyed by srcId, so it dies with the tree
+     * and there is nothing to clear on re-register, remove or deindexSource. Built
+     * lazily on first ask (see typeLinkIndex.ts) and set back to `null` by every
+     * mutation that could change it (see BaseNode._invalidateTypeLinkIndex).
+     *
+     * Declared on the interface rather than cast in at each use because two layers name
+     * this slot — core writes it, `datamodel/node/` clears it — and a slot two layers
+     * spell by hand is a slot one of them will eventually misspell.
+     */
+    _typeLinkIndex?: ReadonlySet<string> | null;
     getSection(key: string): IContainerNode | null;
 }
 /** Source metadata attached to root source nodes */

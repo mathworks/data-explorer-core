@@ -24,6 +24,7 @@ import RowCellPool from '../datamodel/node/RowCellPool.js';
 // is session code, and each now has a module of its own that says why (see the headers of
 // `sessionTypes.ts` and `findQuery.ts`).
 import { compileCriteria } from './findQuery.js';
+import { typeLinkTargetIn } from './typeLinkIndex.js';
 // A link target split into the entry name it asks for and the source it asks in.
 //
 // Two grammars, and only two: `name@source` names an ENTRY inside a named source, and a
@@ -98,6 +99,12 @@ export function createSession(opts = {}) {
         // `warnings`: every source has nodes whose rows may want the column, and the resolver
         // answering with nothing is what an empty answer looks like.
         sourceNode._usageResolver = usagesForRow;
+        // And the forward direction, on the same seam: the definition a Data Type cell's name
+        // reaches. A CLOSURE rather than a shared function like `usagesForRow`, because this
+        // answer is per-source — the index is the source's own and the link target names the
+        // source's own id — and closing over both here is what makes re-registering a srcId
+        // replace the answer instead of leaving one about the outgoing tree.
+        sourceNode._typeLinkResolver = (typeName) => typeLinkTargetIn(sourceNode, srcId, typeName);
         // Re-registering a srcId REPLACES its tree, so the outgoing tree's nodes have to
         // leave nodeIndex first. `dataSources.set` drops the only reference to the old
         // source, but its node ids stay in nodeIndex forever otherwise — and findNodeById

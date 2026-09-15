@@ -26,7 +26,7 @@ import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 // The row shape rowsOf() returns, and the narrow callback type a node reads the reverse
 // usage index through. Imported from BaseNode rather than restated here so that renaming
 // a field of NodeUsage breaks the one line that installs the resolver — see UsageResolver.
-import type { RowData, UsageResolver } from '../datamodel/node/BaseNode.js';
+import type { RowData, UsageResolver, TypeLinkResolver } from '../datamodel/node/BaseNode.js';
 import RowCellPool from '../datamodel/node/RowCellPool.js';
 
 // The session's own vocabulary — what a caller passes in and what these functions hand
@@ -35,6 +35,7 @@ import RowCellPool from '../datamodel/node/RowCellPool.js';
 // is session code, and each now has a module of its own that says why (see the headers of
 // `sessionTypes.ts` and `findQuery.ts`).
 import { compileCriteria } from './findQuery.js';
+import { typeLinkTargetIn } from './typeLinkIndex.js';
 import type {
   CreateSessionOptions,
   DictionaryReference,
@@ -140,6 +141,13 @@ function registerSource(
   // `warnings`: every source has nodes whose rows may want the column, and the resolver
   // answering with nothing is what an empty answer looks like.
   (sourceNode as unknown as { _usageResolver: UsageResolver })._usageResolver = usagesForRow;
+  // And the forward direction, on the same seam: the definition a Data Type cell's name
+  // reaches. A CLOSURE rather than a shared function like `usagesForRow`, because this
+  // answer is per-source — the index is the source's own and the link target names the
+  // source's own id — and closing over both here is what makes re-registering a srcId
+  // replace the answer instead of leaving one about the outgoing tree.
+  (sourceNode as unknown as { _typeLinkResolver: TypeLinkResolver })._typeLinkResolver = (typeName: string) =>
+    typeLinkTargetIn(sourceNode, srcId, typeName);
   // Re-registering a srcId REPLACES its tree, so the outgoing tree's nodes have to
   // leave nodeIndex first. `dataSources.set` drops the only reference to the old
   // source, but its node ids stay in nodeIndex forever otherwise — and findNodeById
