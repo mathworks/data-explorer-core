@@ -36,6 +36,7 @@ export interface RowData {
     _valueEditable?: boolean;
     _descriptionEditable?: boolean;
     DataType?: string | {
+        prefix?: string;
         text: string;
         linkTarget?: string;
     };
@@ -75,6 +76,22 @@ export type UsageResolver = (nodeId: string) => {
     blockName: string;
     linkTarget: string;
 }[];
+/**
+ * How a node reaches the forward TYPE index, which lives on the SESSION.
+ *
+ * The mirror of UsageResolver above, on the same seam and for the same reason: `UsedBy`
+ * asks "what references this definition", a Data Type cell asks "which definition does
+ * this name reach", and neither question is one a node can answer from inside itself.
+ * Stamped on the source root by registerSource; a node walks up to find it.
+ *
+ * Takes the type NAME, not the cell text: the split of `Bus: artFsAimCmd` into a plain
+ * qualifier and a linked name is a presentation decision that belongs with the cell (see
+ * typeLinkCell), and pushing it across this seam would make the session responsible for
+ * how a column reads. Returns the link target, or null when the name reaches nothing —
+ * null rather than a throw, because a name with no definition behind it is the ordinary
+ * case (every built-in type is one).
+ */
+export type TypeLinkResolver = (typeName: string) => string | null;
 export interface PIGroupDef {
     group: string;
     items: PropClass[];
@@ -121,8 +138,10 @@ export default class BaseNode {
     addChild(child: BaseNode, index?: number): BaseNode;
     removeChild(child: BaseNode): void;
     _replaceWith(newNode: BaseNode): boolean;
+    _invalidateTypeLinkIndex(): void;
     _markSourceDirty(): void;
     _usedByCell(): RowData['UsedBy'] | undefined;
+    _typeLinkCell(cellText: unknown): RowData['DataType'] | undefined;
     flatten(): BaseNode[];
     get displayName(): string;
     get valueEditable(): boolean;

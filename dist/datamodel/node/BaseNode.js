@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import { buildPILayout } from './schemaBridge.js';
+import { typeLinkCell } from './typeLinkCell.js';
 import { buildOtherRows } from './piOther.js';
 import { subscriptLabel } from '../display/Subscript.js';
 // Columns the webview renders through a dedicated, format-specific branch (they
@@ -99,6 +100,11 @@ export default class BaseNode {
             this.children.push(child);
         }
         child.parent = this;
+        // The STRUCTURAL choke point, and needed in ADDITION to _markSourceDirty: the undo and
+        // redo closures SectionNode.execAddEntry/execRemoveEntry return call this and
+        // removeChild directly, without marking the source dirty. Without this line, undoing
+        // the addition of a type entry leaves a link pointing at an entry that no longer exists.
+        this._invalidateTypeLinkIndex();
         return child;
     }
     removeChild(child) {
@@ -106,6 +112,8 @@ export default class BaseNode {
         if (idx >= 0) {
             this.children.splice(idx, 1);
             child.parent = null;
+            // See addChild: the undo/redo closures reach here without marking dirty.
+            this._invalidateTypeLinkIndex();
         }
     }
     _replaceWith(newNode) {
@@ -120,6 +128,24 @@ export default class BaseNode {
         this.parent.children[idx] = newNode;
         this.parent = null;
         return true;
+    }
+    // Drop the source's cached type-definition index (see core/typeLinkIndex.ts).
+    //
+    // Invalidate-on-write, rebuild-on-read: one assignment here against one shallow walk on
+    // the next row build, versus maintaining the set incrementally and needing every add,
+    // remove, rename and undo path to be right forever. The rebuild also SELF-HEALS a hook
+    // this class forgot to grow — the next unrelated edit corrects it — which an
+    // incrementally-maintained set could not.
+    //
+    // Deliberately unconditional, unlike `dirty` below: a root that is not a source simply
+    // gains a null property nothing reads, and guarding it would be a branch that exists to
+    // protect nothing.
+    _invalidateTypeLinkIndex() {
+        let root = this;
+        while (root.parent) {
+            root = root.parent;
+        }
+        root._typeLinkIndex = null;
     }
     // Flag the owning file as having unsaved changes. The `dirty` flag lives on the
     // source root (SlddNode/MatNode/ModelNode) — the node that knows about a file —
@@ -136,6 +162,10 @@ export default class BaseNode {
         if (source.dirty !== undefined) {
             source.dirty = true;
         }
+        // Every mutation reaches here, so this is where a rename — the edit that actually moves
+        // a link — is caught. A value edit drops the index too, needlessly; the rebuild rides
+        // the row build that edit was already going to cause.
+        this._invalidateTypeLinkIndex();
     }
     // The `UsedBy` cell for this node, or undefined when there is nothing to say.
     //
@@ -186,6 +216,30 @@ export default class BaseNode {
         // every host test for each, and the branch it forgets is the one-usage case, which is
         // the common one. One shape, one render path.
         return { links: usages.map((u) => ({ text: u.blockName, linkTarget: u.linkTarget })) };
+    }
+    // The Data Type cell's link, or undefined when the cell stays the plain string it
+    // already is. The forward mirror of _usedByCell above, reached the same way: walk to the
+    // source root, read the callback the session stamped there, and stay silent when there
+    // is none (a bare subtree in a test, a node detached mid-edit).
+    //
+    // Takes the cell TEXT rather than reading `this.dataType`, and that is the whole point
+    // of the method: `row.DataType` is written on two different lines of toRow — the schema
+    // prop loop for a class whose schema lists dataType, the fallback for one whose schema
+    // does not — and re-deriving the value here would be a third reading of it, free to
+    // disagree with both. One post-step over whatever landed in the cell cannot.
+    _typeLinkCell(cellText) {
+        if (typeof cellText !== 'string' || cellText === '') {
+            return undefined;
+        }
+        let root = this;
+        while (root.parent) {
+            root = root.parent;
+        }
+        const resolve = root._typeLinkResolver;
+        if (typeof resolve !== 'function') {
+            return undefined;
+        }
+        return typeLinkCell(cellText, resolve) ?? undefined;
     }
     flatten() {
         const result = [];
@@ -367,6 +421,16 @@ export default class BaseNode {
         if (usedBy !== undefined) {
             row.UsedBy = usedBy;
         }
+        // The forward projection, and the mirror of UsedBy above. ONE post-step, deliberately
+        // downstream of BOTH lines that write this cell — the schema prop loop and the
+        // fallback — rather than a branch inside each. Two implementations of one rule is the
+        // failure this codebase keeps paying for; a post-step over the finished cell cannot
+        // drift from itself. Assigned only when there IS a link, so an unlinked cell stays the
+        // plain string it has always been and no consumer sees a new shape for an old value.
+        const typeLink = this._typeLinkCell(row.DataType);
+        if (typeLink !== undefined) {
+            row.DataType = typeLink;
+        }
         return pool ? pool.share(row) : row;
     }
     getProperties() {
@@ -400,6 +464,28 @@ export default class BaseNode {
             for (let i = 0; i < groupDef.items.length; i++) {
                 const PropClassRef = groupDef.items[i];
                 const info = this.getPropInfo(PropClassRef);
+                // The same forward link the table's Data Type cell carries, from the same
+                // _typeLinkCell — one derivation, so the two panes cannot disagree about which
+                // half of `Bus: artFsAimCmd` is the link.
+                //
+                // `valueLink` and not `link`: the vendored PI's `link` anchors the property NAME
+                // and mutes the value, which is right for a row whose label IS the link and wrong
+                // for this one, where the value is. Nothing sets `link` today, so this is a new
+                // field rather than an overloaded one. Spread conditionally so a property with no
+                // link carries no key at all — the PI reads presence.
+                //
+                // Gated on the COLUMN, derived exactly as toRow derives it (:553-557), NOT on the
+                // prop key: PropBaseType is keyed `BaseType` and declares `column = 'DataType'`, so
+                // an alias's base type reaches this column under another key and the table links it.
+                // A second hard-coded list of prop keys here would be free to drift from that one;
+                // this way a prop marked `column: null` correctly links nothing, and a future prop
+                // that joins the column gets the PI link with no change here.
+                const piColumn = PropClassRef.column;
+                const colKey = piColumn === null ? null : piColumn || info.key;
+                const typeLink = colKey === 'DataType' ? this._typeLinkCell(info.displayValue) : undefined;
+                const valueLink = typeLink && typeof typeLink === 'object' && typeof typeLink.linkTarget === 'string'
+                    ? typeLink.linkTarget
+                    : undefined;
                 properties.push({
                     name: info.key,
                     displayName: info.displayName,
@@ -409,6 +495,7 @@ export default class BaseNode {
                     editor: null,
                     editable: info.editable,
                     valid: true,
+                    ...(valueLink === undefined ? {} : { valueLink }),
                 });
                 groupItems.push({ name: info.key, type: 'property' });
                 obj[info.key] = info.displayValue;
