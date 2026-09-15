@@ -137,7 +137,11 @@ export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogF
 // MAT shadowing and transitive dictionary references, and needs no node trees to do it. The
 // answers are `NodeUsage`, the same shape findUsages returns, so a host renders one cell
 // either way.
-export { buildUsageIndex, summarizeFiles, resolveName } from './datamodel/usage/UsageIndex.js';
+// `buildUsageIndex` is the whole job; its two halves are exported beside it for a host that
+// parses each file once and rebuilds the maps as its query scope changes — summarise per
+// file, `mergeFileSummaries` them in workspace order, `buildUsageIndexFromSummaries`. The
+// halves compose back into the whole, which usageIndex.test.ts pins over every answer.
+export { buildUsageIndex, buildUsageIndexFromSummaries, mergeFileSummaries, summarizeFiles, resolveName, } from './datamodel/usage/UsageIndex.js';
 // The innermost of those scopes, and the only one that is not a file: a masked subsystem's
 // own parameters. On the barrel because `ParamOrigin.maskBlock` hands one out — a host
 // rendering a mask-resolved parameter needs the block's path to name the source of the

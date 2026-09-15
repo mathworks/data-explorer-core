@@ -157,6 +157,22 @@ export declare function resolveName(model: ModelSummary, name: string, slddByNam
     maskBlock?: MaskScope;
 } | null;
 /**
+ * Fold per-file summaries into one, as though `summarizeFiles` had been given the files
+ * together — so a caller that summarised a folder one file at a time gets the same answers
+ * as one that summarised it in a single call.
+ *
+ * The order of `parts` is the order of the files. It matters: `slddByName` and `matByName`
+ * are keyed by `refBasename`, so two dictionaries of that basename in different folders
+ * collide and the LAST one assigned wins, and `resolveName` looks that key up. Folding in a
+ * different order — or letting an earlier part keep the key — would answer differently for
+ * the same folder, which is why this is here and not left to each caller's loop.
+ *
+ * A caller keeping summaries per file is why this exists: the parse is what a usage index
+ * costs, and it is the only part worth keeping. Rebuilding the maps from kept summaries is
+ * a pass over already-parsed block parameters.
+ */
+export declare function mergeFileSummaries(parts: readonly FileSummaries[]): FileSummaries;
+/**
  * Build the index over a set of files.
  *
  * Both directions come out of one pass over the block parameters, because they are one
@@ -164,4 +180,14 @@ export declare function resolveName(model: ModelSummary, name: string, slddByNam
  * resolved.
  */
 export declare function buildUsageIndex(files: UsageFile[]): UsageIndex;
+/**
+ * The second half of `buildUsageIndex`, over summaries a caller already holds.
+ *
+ * Reachable on its own so that a host can parse each file ONCE across many index builds:
+ * it keeps the summaries, and rebuilds the maps from them when its file set or its query
+ * scope changes. What it must NOT do is build the maps itself — the mask rule and the
+ * resolution order below are this package's, and a host's own copy of a resolution rule is
+ * how a `UsedBy` cell came to invent a usage for any entry named `mode`.
+ */
+export declare function buildUsageIndexFromSummaries(summaries: FileSummaries): UsageIndex;
 //# sourceMappingURL=UsageIndex.d.ts.map
