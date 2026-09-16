@@ -44,8 +44,10 @@ import { maskDefining } from '../maskScope.js';
 import type { MaskScope } from '../maskScope.js';
 import { basenameOf, isMatFile, isModelFile, isSlddFile, modelNameOf, refBasename } from '../fileKinds.js';
 import { scanSldd } from '../parser/SlddScan.js';
+import type { SlddScanResult } from '../parser/SlddScan.js';
 import { parseModel } from '../parser/ModelParser.js';
 import { scanMat } from '../parser/MatScan.js';
+import type { MatScanResult } from '../parser/MatScan.js';
 import type { ParsedSlx } from '../parser/SlxParser.js';
 import type { NodeUsage } from '../../core/DataModel.js';
 
@@ -225,50 +227,6 @@ function modelSummary(parsed: ParsedSlx, srcId: string, filename: string): Model
 }
 
 /**
- * A usage summary reads ONE string per entry, so it goes through `scanSldd` rather than
- * `readSlddContent`: 3288 ms to 116 ms on the larger customer dictionary, and 63 MB of
- * retained heap to 2 MB, because the entry tree it used to build was discarded a line
- * later. `scanSldd` falls back to the full parse on any dictionary it cannot prove itself
- * equivalent on, so this is a substitution and not a second reader.
- *
- * Nothing is lost by not passing a `warnings` array: this never passed one either. A
- * usage index is built over a whole folder and drops unreadable files silently by design
- * (see `summarizeFiles`), so there was no channel for a per-part warning to reach.
- */
-function slddSummary(srcId: string, bytes: ArrayBuffer): DataSummary {
-  const { names, refs } = scanSldd(bytes);
-  return {
-    srcId,
-    // `filter(Boolean)` because `scanSldd` reports `''` for an entry with no readable
-    // name, to keep positions aligned for callers that index by position. A Set keyed on
-    // names has no use for that placeholder, and the previous code dropped it too.
-    names: new Set(names.filter(Boolean)),
-    slddRefs: refs.map(refBasename),
-  };
-}
-
-/**
- * The MAT half of the same substitution `slddSummary` makes, for the same reason: this
- * reads one string per variable and `parseMat` was decoding every element of every matrix
- * to supply them — 1271 ms over the corpus's `.mat` files against 4.4 ms here.
- *
- * `scanMat` falls back to the full parse on any file it cannot prove itself equivalent
- * on, so this is a substitution and not a second reader. It discards `parseMat`'s
- * warnings, which this never collected either: a usage index is built over a folder and
- * drops unreadable files silently by design (see `summarizeFiles`).
- */
-function matSummary(srcId: string, bytes: ArrayBuffer): DataSummary {
-  return {
-    srcId,
-    // `filter(Boolean)` because `scanMat` reports '' for a variable with no name, to keep
-    // positions aligned for callers that index by position. A Set keyed on names has no
-    // use for that placeholder, and the previous code dropped it too.
-    names: new Set(scanMat(bytes).names.filter(Boolean)),
-    slddRefs: [],
-  };
-}
-
-/**
  * Parse each file into the summary its kind calls for, dispatching on the FILENAME through
  * the shared kind tests.
  *
@@ -289,9 +247,29 @@ export function summarizeFiles(files: UsageFile[]): FileSummaries {
         // already holds are then the same summary by construction, not by agreement.
         models.push(...summarizeParsedModel(parseModel(file.bytes, file.filename), file.srcId, file.filename).models);
       } else if (isMatFile(file.filename)) {
-        matByName.set(refBasename(file.filename), matSummary(file.srcId, file.bytes));
+        // `scanMat` and not `parseMat`, for the same reason the dictionary branch below
+        // scans: a summary reads one string per variable and the full parse was decoding
+        // every element of every matrix to supply it — 1271 ms over the corpus's `.mat`
+        // files against 4.4 ms. It falls back to `parseMat` on any file it cannot prove
+        // itself equivalent on, so this is a substitution and not a second reader, and it
+        // discards the warnings `parseMat` would collect, which this never collected
+        // either: unreadable files are dropped silently here by design.
+        //
+        // Then through `summarizeMatScan`, as the model branch goes through
+        // `summarizeParsedModel`. The part it returns is keyed the way this map is keyed,
+        // so folding its one entry in is a copy rather than a second keying rule.
+        for (const [name, summary] of summarizeMatScan(scanMat(file.bytes), file.srcId, file.filename).matByName) {
+          matByName.set(name, summary);
+        }
       } else if (isSlddFile(file.filename)) {
-        slddByName.set(refBasename(file.filename), slddSummary(file.srcId, file.bytes));
+        // `scanSldd` and not `readSlddContent`: 3288 ms to 116 ms on the larger customer
+        // dictionary, and 63 MB of retained heap to 2 MB, because the entry tree the full
+        // read builds was discarded a line later. Same substitution discipline as above —
+        // it falls back to the full parse on anything it cannot prove itself equivalent
+        // on — and no `warnings` array for the same reason.
+        for (const [name, summary] of summarizeSlddScan(scanSldd(file.bytes), file.srcId, file.filename).slddByName) {
+          slddByName.set(name, summary);
+        }
       }
     } catch {
       /* unreadable file contributes nothing */
@@ -324,6 +302,87 @@ export function summarizeFiles(files: UsageFile[]): FileSummaries {
  */
 export function summarizeParsedModel(parsed: ParsedSlx, srcId: string, filename: string): FileSummaries {
   return { models: [modelSummary(parsed, srcId, filename)], slddByName: new Map(), matByName: new Map() };
+}
+
+/**
+ * The dictionary branch of `summarizeFiles`, over a scan the caller has ALREADY run.
+ *
+ * Same trade as `summarizeParsedModel`, on the file kind a workspace holds most of. A host
+ * that scans a dictionary for its own purposes — data-explorer-vscode's cheap tier wants
+ * both the raw `refs` the scan carries and this summary out of one read — got the summary
+ * only by handing the bytes to `summarizeFiles`, which scanned them a second time. That
+ * second scan measured 46% of the tier's per-dictionary CPU: 14.6 ms of 31.5 ms on a
+ * 20,000-entry dictionary, spent deriving a `names` list the caller was already holding.
+ *
+ * The answer is a whole `FileSummaries` carrying just this dictionary, keyed by
+ * `refBasename(filename)` exactly as `summarizeFiles` keys it, so it is what
+ * `summarizeFiles([{ srcId, filename, bytes }])` returns for a `.sldd` and
+ * `mergeFileSummaries` folds it in beside the models and MAT-files. usageScanSummary.test.ts
+ * pins that equality over every committed dictionary — and, because `summarizeFiles` routes
+ * through here and so cannot disagree by construction, pins the summary itself against the
+ * FULL reader as well. Two ways to reach one summary is the shape a drift takes; two ways
+ * that share an implementation only move the risk into the implementation.
+ *
+ * `filename` is still required and is still not `srcId`: the map KEY comes off the
+ * basename, case-folded, because the lookups against it are references authored inside a
+ * model (see fileKinds.refBasename), and a srcId may be a path or a URI.
+ *
+ * WHAT THE CALLER MUST NOT DO: hand in a scan of bytes other than the ones `srcId` names.
+ * Nothing here can detect it — a scan is two string arrays — and the result is an index
+ * that credits one file's entries to another, which reads as a confidently wrong Usage
+ * cell rather than as an error.
+ *
+ * No per-file `try`, unlike `summarizeFiles`: there is no file here to be unreadable. A
+ * caller holding a scan has already been told the bytes were readable, and swallowing a
+ * throw would hand back an empty answer for a dictionary that HAD been read.
+ */
+export function summarizeSlddScan(scan: SlddScanResult, srcId: string, filename: string): FileSummaries {
+  return {
+    models: [],
+    slddByName: new Map([
+      [
+        refBasename(filename),
+        {
+          srcId,
+          // `filter(Boolean)` because `scanSldd` reports `''` for an entry with no readable
+          // name, to keep positions aligned for callers that index by position. A Set keyed
+          // on names has no use for that placeholder.
+          names: new Set(scan.names.filter(Boolean)),
+          slddRefs: scan.refs.map(refBasename),
+        },
+      ],
+    ]),
+    matByName: new Map(),
+  };
+}
+
+/**
+ * The MAT half of `summarizeSlddScan`, for a caller that already ran `scanMat` — the same
+ * saved read, on the file kind a model resolves last.
+ *
+ * `slddRefs` is empty and not a field this could fill: a MAT-file inherits nothing, which
+ * is what `DataSummary.slddRefs` says of it.
+ *
+ * The same caution applies — a scan of bytes `srcId` does not name cannot be detected here
+ * — and so does the reason there is no `try`: see `summarizeSlddScan`.
+ */
+export function summarizeMatScan(scan: MatScanResult, srcId: string, filename: string): FileSummaries {
+  return {
+    models: [],
+    slddByName: new Map(),
+    matByName: new Map([
+      [
+        refBasename(filename),
+        {
+          srcId,
+          // `filter(Boolean)` because `scanMat` reports '' for a variable with no name, to
+          // keep positions aligned for callers that index by position.
+          names: new Set(scan.names.filter(Boolean)),
+          slddRefs: [],
+        },
+      ],
+    ]),
+  };
 }
 
 // --- Resolving ---------------------------------------------------------------
