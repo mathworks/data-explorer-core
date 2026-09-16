@@ -25,6 +25,63 @@ import { expectedPropertyText, propertyTextMatches, subPropertyNames } from './e
 
 const T = truth();
 
+/**
+ * MATLAB's serialized property PATH → the Property Inspector key our schema gives it,
+ * for the paths where that key is not MATLAB's own name case-folded.
+ *
+ * `piLookup` matches a MATLAB property name against the last segment of a sheet key,
+ * case-insensitively — which covers the overwhelming majority (`Dimensions` →
+ * `dimensions`, `CoderInfo.StorageClass` → `storageClass`) and silently fails for the
+ * two shapes below. Both are `Simulink.LookupTable` / `Simulink.Breakpoint` properties
+ * that used to reach the sheet as raw "Other" rows under MATLAB's exact spelling, and
+ * now arrive as named schema props:
+ *
+ *   - ABBREVIATION. `AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes`
+ *     is 63 characters; the schema keys it `allowDifferentTableBpSizes`. The registry
+ *     key is an internal identifier — the user-facing label carries MATLAB's own words
+ *     in full — so a case fold was never going to find it.
+ *   - QUALIFICATION. `StructTypeInfo`'s sub-properties are `Name`, `DataScope` and
+ *     `HeaderFileName`, none of which can be a registry key as spelled: `name` is
+ *     already a curated atom (the object's own name) and `dataScope`/`headerFile`
+ *     already belong to the Custom Attributes of a Parameter/Signal. So they are keyed
+ *     `structType*`, qualified by the sub-object they read out of.
+ *
+ * Keying this table by PATH rather than by leaf name is what keeps it honest: mapping a
+ * bare `Name` would make every class's Name row count as StructTypeInfo's.
+ */
+const SCHEMA_KEY_BY_PATH: Record<string, string> = {
+  AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes: 'allowDifferentTableBpSizes',
+  'StructTypeInfo.Name': 'structTypeName',
+  'StructTypeInfo.DataScope': 'structTypeDataScope',
+  'StructTypeInfo.HeaderFileName': 'structTypeHeaderFile',
+};
+
+/**
+ * The PI entry for the MATLAB property at serialized `path`, tried most specific first:
+ *
+ *   1. the path VERBATIM — an unmodeled sub-property reaches the sheet as
+ *      `Other.StructTypeInfo.Name`, which piProperties has already unprefixed, so this
+ *      is the exact-match case and needs no fold at all;
+ *   2. the rename table above;
+ *   3. `piLookup`'s leaf-name case fold, which stays the general rule.
+ *
+ * Step 3 is deliberately loose — it matches on the last segment only, so a bare `Name`
+ * would find any class's Name row — which is why the two more specific steps come first
+ * rather than after it.
+ */
+function piLookupPath(props: Map<string, string>, path: string): { path: string; text: string } | undefined {
+  const verbatim = props.get(path);
+  if (verbatim !== undefined) {
+    return { path, text: verbatim };
+  }
+  const key = SCHEMA_KEY_BY_PATH[path];
+  const renamed = key === undefined ? undefined : props.get(key);
+  if (renamed !== undefined) {
+    return { path: key!, text: renamed };
+  }
+  return piLookup(props, path.slice(path.lastIndexOf('.') + 1));
+}
+
 for (const fmt of ARTIFACT_KINDS) {
   describe('property parity — ' + fmt, () => {
     if (!hasArtifact(fmt)) {
@@ -64,7 +121,7 @@ for (const fmt of ARTIFACT_KINDS) {
         it(name + '.' + prop + ' surfaces with MATLAB\'s value', () => {
           const node = entry(root, name);
           const props = piProperties(node);
-          const found = piLookup(props, prop);
+          const found = piLookupPath(props, prop);
           expect(found, name + '.' + prop + ' is not in the property sheet: ' +
             JSON.stringify([...props.keys()])).toBeTruthy();
           expect(
@@ -89,7 +146,10 @@ for (const fmt of ARTIFACT_KINDS) {
  *   1. its own name is in the sheet, whole or as a path segment —
  *      `Other.CoderInfo.StorageClass` surfaces `CoderInfo`;
  *   2. every sub-property MATLAB's disp lists for it is in the sheet — which is how
- *      a projected prop counts, `CoderInfo.StorageClass` arriving as `storageClass`;
+ *      a projected prop counts, `CoderInfo.StorageClass` arriving as `storageClass`.
+ *      Each sub-name is looked up QUALIFIED by its parent (`StructTypeInfo.Name`, not
+ *      `Name`), which is what lets piLookupPath resolve it by the raw path or the rename
+ *      table before falling back to its loose leaf fold;
  *   3. it is an ARRAY of objects and the node has that many element rows — a Bus's
  *      `Elements` is a 2x1 BusElement array and surfaces as the two child rows.
  */
@@ -99,7 +159,7 @@ function nestedSurfaces(props: Map<string, string>, prop: string, pv: PropTruth,
     if (path.toLowerCase().split('.').includes(want)) { return true; }
   }
   const subs = subPropertyNames(pv);
-  if (subs.length > 0 && subs.every((s) => piLookup(props, s) !== undefined)) { return true; }
+  if (subs.length > 0 && subs.every((s) => piLookupPath(props, prop + '.' + s) !== undefined)) { return true; }
   return pv.numel > 1 && (node.children || []).length === pv.numel;
 }
 
