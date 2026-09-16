@@ -14,5 +14,10 @@
   "setFunction":        { "label": "Set Function",             "sourcePath": "CoderInfo.CustomAttributes.SetFunction",        "type": "string", "editor": "label", "default": "" },
 
   "preserveElementDimensions": { "label": "Preserve Element Dimensions", "sourcePath": "PreserveElementDimensions", "type": "bool", "editor": "label", "default": "" },
-  "addClassNameToEnumNames":   { "label": "Add Class Name To Enum Names", "sourcePath": "AddClassNameToEnumNames",  "type": "bool", "editor": "label", "default": "" }
+  "addClassNameToEnumNames":   { "label": "Add Class Name To Enum Names", "sourcePath": "AddClassNameToEnumNames",  "type": "bool", "editor": "label", "default": "" },
+  "isTunableInCode":           { "label": "Is Tunable In Code",          "sourcePath": "IsTunableInCode",           "type": "bool", "editor": "label", "default": "" },
+
+  "structTypeName":       { "label": "Name",        "sourcePath": "StructTypeInfo.Name",           "type": "string", "editor": "label", "default": "" },
+  "structTypeDataScope":  { "label": "Data Scope",  "sourcePath": "StructTypeInfo.DataScope",      "type": "string", "editor": "label", "default": "Auto" },
+  "structTypeHeaderFile": { "label": "Header File", "sourcePath": "StructTypeInfo.HeaderFileName", "type": "string", "editor": "label", "default": "" }
 }

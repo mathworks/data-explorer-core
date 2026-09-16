@@ -173,11 +173,15 @@ describe('bus element enum props — editing through the session', () => {
     });
 
     it(`an empty ${e.field} clears the property instead of being refused`, () => {
-      // The one non-enumeral value that must get through, because it is what undo of
-      // an edit to an element that never carried the property submits.
+      // The one non-enumeral value that must get through: it is what emptying the cell
+      // submits, and the write-back guard below reads it as absence rather than as a
+      // value. Element `a` carries neither key, and now DISPLAYS MATLAB's default for
+      // it rather than a blank — the display-defaults change. That is why '' is no
+      // longer what undo of an edit here submits (undo would submit 'real'/'Fixed',
+      // both legal), but it is still what a cleared cell submits, so the licence stays.
       const { bus } = archBusSession();
       const elem = elementNamed(bus, 'a');
-      expect(elem[e.field]).toBe('');
+      expect(elem[e.field]).toBe(e.from);
 
       expect(elem.setProperty(e.prop, e.to)).toBe(true);
       expect(elem[e.field]).toBe(e.to);
@@ -186,8 +190,9 @@ describe('bus element enum props — editing through the session', () => {
     });
 
     it(`an element that never carried ${e.field} does not gain the key on save`, () => {
-      // The write-back guard is `'<key>' in sp || this.<field>`, so an untouched
-      // element — or one edited and then cleared — must serialize without the key.
+      // The write-back guard is `'<key>' in sp || (this.<field> && this.<field> !==
+      // <default>)`, so an untouched element — or one edited and then cleared — must
+      // serialize without the key.
       // A phantom key is a spurious diff on every save of a file the user only
       // opened, and for these two it would also be an empty char where MATLAB
       // expects an enumeral.

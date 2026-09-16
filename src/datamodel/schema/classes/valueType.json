@@ -4,11 +4,11 @@
       "dataType",
       "description",
       "dimensions",
-      "dimensionsMode",
+      { "$ref": "dimensionsMode", "default": "Fixed" },
       "complexity",
       "min",
       "max",
-      "unit"
+      { "$ref": "unit", "sourcePath": "Unit" }
     ],
     "layout": [
       { "group": "General", "items": ["name", "dataType", "kind", "class"] },
