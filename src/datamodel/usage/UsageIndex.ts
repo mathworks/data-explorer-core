@@ -284,7 +284,10 @@ export function summarizeFiles(files: UsageFile[]): FileSummaries {
   for (const file of files) {
     try {
       if (isModelFile(file.filename)) {
-        models.push(modelSummary(parseModel(file.bytes, file.filename), file.srcId, file.filename));
+        // Through `summarizeParsedModel`, which is this branch with the parse still in front
+        // of it: a model summarised from bytes here and one summarised from a parse a caller
+        // already holds are then the same summary by construction, not by agreement.
+        models.push(...summarizeParsedModel(parseModel(file.bytes, file.filename), file.srcId, file.filename).models);
       } else if (isMatFile(file.filename)) {
         matByName.set(refBasename(file.filename), matSummary(file.srcId, file.bytes));
       } else if (isSlddFile(file.filename)) {
@@ -295,6 +298,32 @@ export function summarizeFiles(files: UsageFile[]): FileSummaries {
     }
   }
   return { models, slddByName, matByName };
+}
+
+/**
+ * The model branch of `summarizeFiles`, over a structure the caller has ALREADY parsed.
+ *
+ * A host that shows a model's rows ran `parseModel` on those bytes to build them, and
+ * `summarizeFiles` runs it again on the same bytes to summarise the same model — a second
+ * full parse per model open, spent to learn nothing the caller was not holding. This takes
+ * the parse instead of the bytes; nothing else about the summary changes.
+ *
+ * The answer is a whole `FileSummaries` holding just this one model rather than a bare
+ * `ModelSummary`, so it is exactly what `summarizeFiles([{ srcId, filename, bytes }])`
+ * returns for a model and `mergeFileSummaries` folds it in beside the dictionaries and
+ * MAT-files summarised the ordinary way. usageIndex.test.ts pins that equality per fixture,
+ * because two ways to summarise a model is the shape a drift takes.
+ *
+ * `filename` is still required and is still not `srcId`: the model NAME comes off the
+ * basename (see `modelSummary`), and that is the name a block path and every reference
+ * record spell.
+ *
+ * No per-file `try` here, unlike `summarizeFiles`: there is no file to be unreadable. A
+ * caller with a parse in hand has already been told whether the bytes were readable, and
+ * swallowing a throw would hand back an empty answer for a model that HAD been parsed.
+ */
+export function summarizeParsedModel(parsed: ParsedSlx, srcId: string, filename: string): FileSummaries {
+  return { models: [modelSummary(parsed, srcId, filename)], slddByName: new Map(), matByName: new Map() };
 }
 
 // --- Resolving ---------------------------------------------------------------

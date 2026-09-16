@@ -141,7 +141,10 @@ export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogF
 // parses each file once and rebuilds the maps as its query scope changes — summarise per
 // file, `mergeFileSummaries` them in workspace order, `buildUsageIndexFromSummaries`. The
 // halves compose back into the whole, which usageIndex.test.ts pins over every answer.
-export { buildUsageIndex, buildUsageIndexFromSummaries, mergeFileSummaries, summarizeFiles, resolveName, } from './datamodel/usage/UsageIndex.js';
+// `summarizeParsedModel` splits the summarising half the same way for the file a host has
+// OPEN: it already parsed those bytes for the model's own rows, and `summarizeFiles` would
+// parse them a second time to say which blocks use what. Same summary, one parse.
+export { buildUsageIndex, buildUsageIndexFromSummaries, mergeFileSummaries, summarizeFiles, summarizeParsedModel, resolveName, } from './datamodel/usage/UsageIndex.js';
 // The innermost of those scopes, and the only one that is not a file: a masked subsystem's
 // own parameters. On the barrel because `ParamOrigin.maskBlock` hands one out — a host
 // rendering a mask-resolved parameter needs the block's path to name the source of the
