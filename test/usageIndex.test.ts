@@ -28,6 +28,7 @@ import {
   buildUsageIndexFromSummaries,
   mergeFileSummaries,
   summarizeFiles,
+  summarizeParsedModel,
   resolveName,
   parseModel,
 } from '../src/index.js';
@@ -792,6 +793,147 @@ describe('buildUsageIndexFromSummaries — the same index, from summaries a call
     expect(empty.slddByName.size).toBe(0);
     expect(empty.matByName.size).toBe(0);
     expect(buildUsageIndexFromSummaries(empty).usagesOf('any.sldd', 'Kp')).toEqual([]);
+  });
+});
+
+// The same split one file further in, for the model a host has OPEN: it parsed those bytes
+// to build the model's own rows, and `summarizeFiles` parses them a second time to say which
+// blocks use what. `summarizeParsedModel` takes the parse instead.
+//
+// Which makes two ways to summarise one model, and the tests that matter are the ones
+// BETWEEN them — an equality per fixture, not a check that the new path answers plausibly.
+// A summariser reachable two ways that reads a different field on one of them is the failure
+// mode here, and only a comparison catches it.
+describe('summarizeParsedModel — the same summary, from a parse the caller already holds', () => {
+  // A distinct srcId, never the filename: the two are separate arguments and the summary
+  // carries both differently — the srcId verbatim, the NAME off the basename — so a fixture
+  // where they coincided would let either one stand in for the other.
+  const opened = (name: string, bytes: ArrayBuffer): UsageFile => file(name, bytes, `src:${name}`);
+
+  // Every part of a model a summary reads, one fixture each: block parameters with a
+  // dictionary link and externals, a real model workspace (a binary mxarray part, which is
+  // where reading the wrong field of ParsedSlx would show), mask workspaces, a model that
+  // links files but has no blocks, and one that parses to nothing at all.
+  const MODELS: [what: string, load: () => UsageFile][] = [
+    [
+      'block parameters, a linked dictionary and an external MAT',
+      () =>
+        opened(
+          'm.slx',
+          slxModel({
+            dictionary: 'top.sldd',
+            externals: ['extra.mat'],
+            workspaceMat: 'ws.mat',
+            blocks: block('G', 'Gain', 'Gain', 'Kp') + block('C', 'Constant', 'Value', 'deep*Numeric', '2'),
+          }),
+        ),
+    ],
+    // 8 workspace variables, 5 block parameters, and `mdlparams.sldd` recorded as its link.
+    ['a real model workspace, off bytes MATLAB wrote', () => opened('mdlcases.mdl', artifact('mdl/mdlcases.mdl'))],
+    // 3 mask workspaces over 12 block parameters, including a mask parameter that shadows a
+    // model workspace variable of the same name.
+    ['mask workspaces', () => opened('mdlmask.slx', artifact('mdl/mdlmask.slx'))],
+    // Links a dictionary and a MAT-file and has no block parameters at all.
+    ['file links but no block parameters', () => opened('model_with_refs.slx', fixtureBytes('model_with_refs.slx'))],
+    ['a large model workspace and no links', () => opened('cases.slx', artifact('slx/cases.slx'))],
+    // Parses, and yields nothing usable: no blocks, no workspace, no links. Both paths owe
+    // the same empty-ish summary here rather than a throw on either.
+    ['nothing usable — it parses and defines nothing', () => opened('bare.slx', slxModel({ blocks: '' }))],
+  ];
+
+  for (const [what, load] of MODELS) {
+    it(`equals summarizeFiles over the same bytes — ${what}`, () => {
+      const { srcId, filename, bytes } = load();
+      expect(summarizeParsedModel(parseModel(bytes, filename), srcId, filename)).toEqual(
+        summarizeFiles([{ srcId, filename, bytes }]),
+      );
+    });
+  }
+
+  it('really is comparing summaries with something in them', () => {
+    // The equalities above are worthless if every fixture summarises to nothing, so the
+    // three fields that carry a model's scopes are pinned non-empty on the fixtures chosen
+    // for them — and empty on the one chosen to be empty.
+    const summaryFor = (f: UsageFile): ModelSummary =>
+      summarizeParsedModel(parseModel(f.bytes, f.filename), f.srcId, f.filename).models[0];
+
+    const params = summaryFor(MODELS[0][1]());
+    expect(params.blockParams).toHaveLength(2);
+    expect(params.slddRefs).toEqual(['top.sldd']);
+    expect(params.matRefs).toEqual(['extra.mat', 'ws.mat']);
+
+    const workspace = summaryFor(MODELS[1][1]());
+    expect([...workspace.workspaceNames]).toContain('tau');
+    expect(workspace.name).toBe('mdlcases');
+    expect(workspace.srcId).toBe('src:mdlcases.mdl');
+
+    expect(summaryFor(MODELS[2][1]()).masks).toHaveLength(3);
+
+    // And the empty one: still ONE model, named, with every scope empty — what a host gets
+    // for a file it opened and that turned out to define nothing.
+    const bare = summaryFor(MODELS[5][1]());
+    expect(bare).toEqual({
+      srcId: 'src:bare.slx',
+      name: 'bare',
+      workspaceNames: new Set(),
+      slddRefs: [],
+      matRefs: [],
+      masks: [],
+      blockParams: [],
+    });
+  });
+
+  it('has no answer to give for bytes the parser refuses, because there is no parse', () => {
+    // The other half of the empty case, and the one place the two paths CANNOT be compared:
+    // `summarizeFiles` drops an unreadable file silently (its per-file catch), while this
+    // path is never reached for one — the caller's own `parseModel` threw first and it has
+    // nothing to hand over. So the summary this function does not produce is the summary
+    // `summarizeFiles` does not produce either.
+    const junk = strToU8('not a zip').buffer as ArrayBuffer;
+    expect(() => parseModel(junk, 'junk.slx')).toThrow();
+    expect(summarizeFiles([file('junk.slx', junk)])).toEqual({
+      models: [],
+      slddByName: new Map(),
+      matByName: new Map(),
+    });
+  });
+
+  it('composes with the rest of the workspace through mergeFileSummaries', () => {
+    // The whole point of returning a `FileSummaries` rather than a bare `ModelSummary`: the
+    // model is the file the host has open and parsed, the dictionaries and MAT-files beside
+    // it are only ever read as bytes, and the two kinds of part fold together into the index
+    // one pass over all four files would have built.
+    const model = MODELS[0][1]();
+    const rest = [
+      file('top.sldd', slddBytes(['Kp'], ['leaf.sldd'])),
+      file('leaf.sldd', slddBytes(['deep'])),
+      file('extra.mat', fixtureBytes('mcos/Numeric.mat')),
+    ];
+    const merged = mergeFileSummaries([
+      summarizeParsedModel(parseModel(model.bytes, model.filename), model.srcId, model.filename),
+      summarizeFiles(rest),
+    ]);
+    const composed = buildUsageIndexFromSummaries(merged);
+    const whole = buildUsageIndex([model, ...rest]);
+
+    // Not a vacuous comparison: this corpus resolves down a dictionary chain and into a MAT.
+    expect(whole.usagesOf('top.sldd', 'Kp')).toHaveLength(1);
+    expect(whole.usagesOf('leaf.sldd', 'deep')).toHaveLength(1);
+    expect(whole.usagesOf('extra.mat', 'Numeric')).toHaveLength(1);
+    expect(whole.paramsOf(model.srcId, '2')).not.toEqual([]);
+
+    expect(composed.models).toEqual(whole.models);
+    for (const [srcId, name] of [
+      ['top.sldd', 'Kp'],
+      ['leaf.sldd', 'deep'],
+      ['extra.mat', 'Numeric'],
+      [model.srcId, 'Kp'],
+    ] as const) {
+      expect(composed.usagesOf(srcId, name)).toEqual(whole.usagesOf(srcId, name));
+    }
+    for (const sid of ['1', '2']) {
+      expect(composed.paramsOf(model.srcId, sid)).toEqual(whole.paramsOf(model.srcId, sid));
+    }
   });
 });
 

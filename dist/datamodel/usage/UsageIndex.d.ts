@@ -1,4 +1,5 @@
 import type { MaskScope } from '../maskScope.js';
+import type { ParsedSlx } from '../parser/SlxParser.js';
 import type { NodeUsage } from '../../core/DataModel.js';
 /**
  * Where a name a block parameter refers to was defined.
@@ -131,6 +132,29 @@ export interface UsageIndex {
  * refusal to its caller.
  */
 export declare function summarizeFiles(files: UsageFile[]): FileSummaries;
+/**
+ * The model branch of `summarizeFiles`, over a structure the caller has ALREADY parsed.
+ *
+ * A host that shows a model's rows ran `parseModel` on those bytes to build them, and
+ * `summarizeFiles` runs it again on the same bytes to summarise the same model — a second
+ * full parse per model open, spent to learn nothing the caller was not holding. This takes
+ * the parse instead of the bytes; nothing else about the summary changes.
+ *
+ * The answer is a whole `FileSummaries` holding just this one model rather than a bare
+ * `ModelSummary`, so it is exactly what `summarizeFiles([{ srcId, filename, bytes }])`
+ * returns for a model and `mergeFileSummaries` folds it in beside the dictionaries and
+ * MAT-files summarised the ordinary way. usageIndex.test.ts pins that equality per fixture,
+ * because two ways to summarise a model is the shape a drift takes.
+ *
+ * `filename` is still required and is still not `srcId`: the model NAME comes off the
+ * basename (see `modelSummary`), and that is the name a block path and every reference
+ * record spell.
+ *
+ * No per-file `try` here, unlike `summarizeFiles`: there is no file to be unreadable. A
+ * caller with a parse in hand has already been told whether the bytes were readable, and
+ * swallowing a throw would hand back an empty answer for a model that HAD been parsed.
+ */
+export declare function summarizeParsedModel(parsed: ParsedSlx, srcId: string, filename: string): FileSummaries;
 /**
  * Where the name `name` resolves for a block of `model` sitting at `systemPath`, or null
  * if it does not.

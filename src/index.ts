@@ -216,11 +216,15 @@ export type { ScDefinition, ScNameSite, ScTextEdit, SystemComposerCatalog } from
 // parses each file once and rebuilds the maps as its query scope changes — summarise per
 // file, `mergeFileSummaries` them in workspace order, `buildUsageIndexFromSummaries`. The
 // halves compose back into the whole, which usageIndex.test.ts pins over every answer.
+// `summarizeParsedModel` splits the summarising half the same way for the file a host has
+// OPEN: it already parsed those bytes for the model's own rows, and `summarizeFiles` would
+// parse them a second time to say which blocks use what. Same summary, one parse.
 export {
   buildUsageIndex,
   buildUsageIndexFromSummaries,
   mergeFileSummaries,
   summarizeFiles,
+  summarizeParsedModel,
   resolveName,
 } from './datamodel/usage/UsageIndex.js';
 export type {
