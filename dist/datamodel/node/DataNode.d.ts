@@ -52,6 +52,8 @@ export default class DataNode extends BaseNode {
     _resolveProperty(propName: string): string;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _setMinMax(propName: 'Min' | 'Max', stringValue: string): true | SetPropertyResult;
+    static _normalizeMinMax(val: unknown): number | undefined;
+    _rejectUnknownEnumeral(propName: string, stringValue: string): SetPropertyResult | null;
     execAddChild(): ChildAddEdit | null;
     execRemoveChild(_child?: BaseNode): ChildUndoRedo | null;
     _renameField(from: string, to: string): void;

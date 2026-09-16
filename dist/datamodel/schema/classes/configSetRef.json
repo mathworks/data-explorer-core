@@ -1,8 +1,8 @@
 {
     "Simulink.ConfigSetRef": {
-        "props": [],
+        "props": ["sourceName"],
         "layout": [
-            { "group": "General", "items": ["name", "value", "dataType", "kind", "class"] }
+            { "group": "General", "items": ["name", "value", "dataType", "kind", "class", "sourceName", "description"] }
         ]
     }
 }

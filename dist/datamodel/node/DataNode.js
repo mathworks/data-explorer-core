@@ -382,6 +382,71 @@ export default class DataNode extends BaseNode {
         this._markModified();
         return true;
     }
+    // MATLAB's empty bound is `[]`, and `[]` is truthy: left as it arrives it reaches
+    // the table as the text `[]` and the writers as a real value, so a class holding a
+    // bound as a node field normalizes it to `undefined` on the way in — the same
+    // "no bound" _setMinMax above stores for a cleared cell. Shared rather than
+    // per-class so the two ends of that round trip cannot disagree about what an
+    // absent bound is: ParameterNode, BusElementNode and ValueTypeNode all call it, and
+    // the first two each carried an identical private copy until the third needed one.
+    static _normalizeMinMax(val) {
+        if (Array.isArray(val) && val.length === 0) {
+            return undefined;
+        }
+        return val;
+    }
+    // Refuse a value MATLAB's enum does not contain, for any property surfaced as a
+    // dropdown (Complexity, DimensionsMode). Without this the edit reaches the generic
+    // branch for a string field above, which stores whatever text arrived: the table's
+    // own combobox can only offer legal choices, but the Property Inspector has no
+    // combobox and seeds a plain text box, so 'Real' or 'fixed' would be written into a
+    // file MATLAB then refuses to load — the failure an unlock has to rule out before
+    // it is an unlock at all.
+    //
+    // The legal set is read off the prop atom's readOptions — the SAME call the
+    // cell's dropdown is built from (BaseNode.getPropInfo) — rather than restated
+    // here. Two copies of an enum is how a UI ends up offering two choices and
+    // accepting three.
+    //
+    // The wording is MATLAB's own, from a probe of the live object (recorded in
+    // Simulink.BusElement.md): assigning anything else raises "There is no
+    // enumerated value named 'X'." Note this is MATLAB's message for a rejected
+    // ASSIGNMENT; that the values we do accept produce a file MATLAB reopens with
+    // the same values is the live tier's claim to make, and it has not been run
+    // here (test/parity/matlab/writeback.live.test.ts, gated on DEX_MATLAB_CMD).
+    //
+    // Lives here beside _setMinMax, rather than on BusElementNode where it started with
+    // one caller, because Simulink.ValueType's Complexity/DimensionsMode are the same
+    // two closed enums and need the same rule. Copying it would have copied the
+    // ''-is-a-CLEAR licence below, which is precisely the kind of subtlety that rots out
+    // of sync between two copies.
+    _rejectUnknownEnumeral(propName, stringValue) {
+        const prop = this._propFor(propName);
+        if (!prop || prop.editor !== 'select' || !prop.readOptions) {
+            return null;
+        }
+        // The empty string is a CLEAR, not an illegal enumeral — the same licence
+        // _setMinMax takes for '' and '[]'. It has to be, because it is what a user
+        // emptying the cell submits, and because DataModel.editProperty captures the
+        // prior value for UNDO: refusing '' would leave the undo of a clear silently
+        // unapplied. Storing '' restores absence rather than writing an illegal value,
+        // and every write-back gate for these props reads '' as absence too, so the
+        // object goes back out exactly as it came in.
+        if (stringValue === '') {
+            return null;
+        }
+        const options = prop.readOptions(this);
+        if (options.length === 0 || options.indexOf(stringValue) >= 0) {
+            return null;
+        }
+        const current = this[prop.nodeProperty || prop.key];
+        return {
+            error: true,
+            reason: "There is no enumerated value named '" + stringValue + "'.",
+            invalidValue: stringValue,
+            validValue: typeof current === 'string' ? current : '',
+        };
+    }
     // No structural editing by default. The classes that DO manage children (bus,
     // enum type, struct, MATLAB array/cell/string) override both, delegating to
     // childEdit.ts. Returning null here — rather than inheriting a wrapper around
