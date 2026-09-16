@@ -1,4 +1,6 @@
 import type { MaskScope } from '../maskScope.js';
+import type { SlddScanResult } from '../parser/SlddScan.js';
+import type { MatScanResult } from '../parser/MatScan.js';
 import type { ParsedSlx } from '../parser/SlxParser.js';
 import type { NodeUsage } from '../../core/DataModel.js';
 /**
@@ -155,6 +157,50 @@ export declare function summarizeFiles(files: UsageFile[]): FileSummaries;
  * swallowing a throw would hand back an empty answer for a model that HAD been parsed.
  */
 export declare function summarizeParsedModel(parsed: ParsedSlx, srcId: string, filename: string): FileSummaries;
+/**
+ * The dictionary branch of `summarizeFiles`, over a scan the caller has ALREADY run.
+ *
+ * Same trade as `summarizeParsedModel`, on the file kind a workspace holds most of. A host
+ * that scans a dictionary for its own purposes — data-explorer-vscode's cheap tier wants
+ * both the raw `refs` the scan carries and this summary out of one read — got the summary
+ * only by handing the bytes to `summarizeFiles`, which scanned them a second time. That
+ * second scan measured 46% of the tier's per-dictionary CPU: 14.6 ms of 31.5 ms on a
+ * 20,000-entry dictionary, spent deriving a `names` list the caller was already holding.
+ *
+ * The answer is a whole `FileSummaries` carrying just this dictionary, keyed by
+ * `refBasename(filename)` exactly as `summarizeFiles` keys it, so it is what
+ * `summarizeFiles([{ srcId, filename, bytes }])` returns for a `.sldd` and
+ * `mergeFileSummaries` folds it in beside the models and MAT-files. usageScanSummary.test.ts
+ * pins that equality over every committed dictionary — and, because `summarizeFiles` routes
+ * through here and so cannot disagree by construction, pins the summary itself against the
+ * FULL reader as well. Two ways to reach one summary is the shape a drift takes; two ways
+ * that share an implementation only move the risk into the implementation.
+ *
+ * `filename` is still required and is still not `srcId`: the map KEY comes off the
+ * basename, case-folded, because the lookups against it are references authored inside a
+ * model (see fileKinds.refBasename), and a srcId may be a path or a URI.
+ *
+ * WHAT THE CALLER MUST NOT DO: hand in a scan of bytes other than the ones `srcId` names.
+ * Nothing here can detect it — a scan is two string arrays — and the result is an index
+ * that credits one file's entries to another, which reads as a confidently wrong Usage
+ * cell rather than as an error.
+ *
+ * No per-file `try`, unlike `summarizeFiles`: there is no file here to be unreadable. A
+ * caller holding a scan has already been told the bytes were readable, and swallowing a
+ * throw would hand back an empty answer for a dictionary that HAD been read.
+ */
+export declare function summarizeSlddScan(scan: SlddScanResult, srcId: string, filename: string): FileSummaries;
+/**
+ * The MAT half of `summarizeSlddScan`, for a caller that already ran `scanMat` — the same
+ * saved read, on the file kind a model resolves last.
+ *
+ * `slddRefs` is empty and not a field this could fill: a MAT-file inherits nothing, which
+ * is what `DataSummary.slddRefs` says of it.
+ *
+ * The same caution applies — a scan of bytes `srcId` does not name cannot be detected here
+ * — and so does the reason there is no `try`: see `summarizeSlddScan`.
+ */
+export declare function summarizeMatScan(scan: MatScanResult, srcId: string, filename: string): FileSummaries;
 /**
  * Where the name `name` resolves for a block of `model` sitting at `systemPath`, or null
  * if it does not.
