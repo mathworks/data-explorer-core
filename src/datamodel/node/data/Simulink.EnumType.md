@@ -12,9 +12,12 @@
 A Simulink.data.dictionary.EnumTypeDefinition defines a custom enumeration type
 within a data dictionary. In our UI the enum surfaces as an editable entry whose
 Value column shows the DefaultValue (or the first enumeral's name when no default is
-set). Its Property Inspector exposes Name, Value (select editor), DataType (label),
-and Description. The child tree shows individual enumeral rows, each with
-Name/Value/Description.
+set). Its Property Inspector groups (from `schema/classes/enumType.json`) are General
+(Name, Kind, Class), Value Properties (Value — a select editor — Storage Type,
+Description) and Code Generation (Data Scope, Header File, Add Class Name To Enum Names,
+Is Tunable In Code). Everything but Name, Value and Description is a read-only label.
+The child tree shows individual enumeral
+rows, each with Name/Value/Description.
 
 ## Property table
 
@@ -24,10 +27,11 @@ Name/Value/Description.
 | DefaultValue  | char                | public    | yes           | DefaultValue / DefaultValue    | select   | Must be empty or match an existing enumeral Name |
 | DataType      | char                | public    | no (label)    | (not serialized as top-level)  | label    | Any string (free-form) |
 | Description   | char                | public    | yes           | Description / Description      | text     | Any string |
-| DataScope     | char (enum)         | public    | no            | DataScope / DataScope          | —        | 'Auto', 'Exported', 'Imported' |
-| HeaderFile    | char                | public    | no            | HeaderFile / HeaderFile        | —        | Any string |
-| StorageType   | char                | public    | no            | StorageType / StorageType      | —        | Any string |
-| AddClassNameToEnumNames | logical  | public    | no            | AddClassNameToEnumNames        | —        | true/false |
+| DataScope     | char (enum)         | public    | no (label)    | DataScope / DataScope          | label    | 'Auto', 'Exported', 'Imported' |
+| HeaderFile    | char                | public    | no (label)    | HeaderFile / HeaderFile        | label    | Any string |
+| StorageType   | char                | public    | no (label)    | StorageType / StorageType      | label    | Any string |
+| AddClassNameToEnumNames | logical  | public    | no (label)    | AddClassNameToEnumNames        | label    | true/false |
+| IsTunableInCode | logical           | public    | no (label)    | IsTunableInCode / IsTunableInCode | label | true/false; blank when the file omits the key |
 
 ## Non-obvious behavior (the reason this doc exists)
 
@@ -72,6 +76,34 @@ Name/Value/Description.
   → **"Value must be a character vector or a string scalar."**
   This rejection is **unreachable** from our UI (the select editor and text editor
   always deliver strings). Type-guarded by the string editor.
+
+### IsTunableInCode — the row that cannot be gated
+
+- **It goes last in Code Generation because MATLAB appends it last.**
+  `SLEnum.getCodegenPropertyNames()` builds DataScope, HeaderFile and
+  AddClassNameToEnumNames, then appends IsTunableInCode when the `OpaqueEnum` feature
+  is on — which it is in R2027a, where the property reports `valid=1 readonly=0`.
+
+- **The row is always shown.** The feature gate lives in the running MATLAB
+  installation, not in the `.sldd`, and a file carries no trace of whether the release
+  that wrote it had `OpaqueEnum` enabled. So an enum whose bag omits the key gets a
+  BLANK row rather than no row. Hiding it on a heuristic would hide a value other files
+  really carry, and it would hide it twice over: `BaseNode.toPIObject` adds every
+  resolved layout key to `shownKeys`, so the "Other" catch-all suppresses the raw
+  property as well — the same defect the ValueType doc records.
+
+- **`false` is not the same as absent.** `hydrate` substitutes the descriptor's default
+  only when the resolved value is `undefined`, and that default is `''`. An enum that
+  turns tunability off renders `false`; one that never mentioned it renders nothing. A
+  truthiness test anywhere on this path collapses the two.
+
+- **Serialized flat, as a real boolean.** R2027a writes `"IsTunableInCode": true` at the
+  top level — not a nested sub-object and not MATLAB's `'on'`/`'off'` string. The
+  display path stringifies it to `"true"`; both save paths must not, because a `"true"`
+  reaches the binary XML writer as `Class="char"` where a logical belongs.
+
+- Property-Inspector-only: the descriptor is not `projected`, so it contributes no table
+  column. Test: `test/enumIsTunableInCode.test.ts`.
 
 ## Structural editing (add/remove enumerals)
 
@@ -122,6 +154,12 @@ This ensures add/remove stays consistent in the serialized format.
   ("Default value does not match any of the enumeration names") is unreachable.
   Test: `test/parity/fidelity/enumtype.fidelity.test.ts`.
 
+- IsTunableInCode: nothing to mirror. The descriptor declares `editor: 'label'` and
+  `buildPILayout` forces every schema-resolved PI item to a label regardless, so there
+  is no write path to validate — the property is a read-only projection of the source
+  bag, not a node field. What is pinned instead is that reading it for display writes
+  nothing. Test: `test/enumIsTunableInCode.test.ts`.
+
 ## Round-trip coverage
 
 - JSON sldd: parse → edit DefaultValue → serialize → re-parse → value preserved.
@@ -133,6 +171,11 @@ This ensures add/remove stays consistent in the serialized format.
   - Structural add → MATLAB opens file, `__class__` matches. PASS.
   - Structural remove → MATLAB opens file, `__class__` matches. PASS.
   Test: `test/parity/fidelity/enumtype.fidelity.test.ts` (gated on DEX_MATLAB_CMD).
+- IsTunableInCode, in-process only: an enum that carries the key saves it unchanged as a
+  logical on both save paths, an enum that omits it gains no key on either, and the saved
+  bag re-parses to the same displayed value and the same group membership. **No MATLAB
+  re-open gate was run for this property.**
+  Test: `test/enumIsTunableInCode.test.ts`.
 
 ## MATLAB round-trip gate limitations
 
@@ -150,5 +193,8 @@ This ensures add/remove stays consistent in the serialized format.
   stale (MATLAB would reject it). Our UI does not yet cascade a rename into the
   parent's DefaultValue — deferred until enumeral name editing is surfaced.
 
-- **DataScope / HeaderFile / StorageType / AddClassNameToEnumNames**: These
-  properties exist in MATLAB but are not surfaced in our UI editor. Deferred.
+- **DataScope / HeaderFile / StorageType / AddClassNameToEnumNames /
+  IsTunableInCode**: all five are displayed — read-only labels in the Code Generation
+  group, except StorageType, which sits under Value Properties. None is EDITABLE: the
+  Property Inspector has no edit channel, and none of the five is `projected`, so none
+  reaches the table's editable-cell path either. Editability deferred.
