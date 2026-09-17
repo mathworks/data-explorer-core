@@ -1,8 +1,16 @@
 {
   "Simulink.Breakpoint": {
-    "props": [],
+    "props": [
+      { "$ref": "storageClass", "options": ["Auto", "Model default", "ExportedGlobal", "ImportedExtern", "ImportedExternPointer", "BitField", "Const", "Volatile", "ConstVolatile", "Define", "ImportedDefine", "ExportToFile", "ImportFromFile", "FileScope", "Struct", "GetSet", "CompilerFlag"] },
+      "structTypeName",
+      "structTypeDataScope",
+      "structTypeHeaderFile",
+      "supportTunableSize"
+    ],
     "layout": [
-      { "group": "General", "items": ["name", "value", "dataType", "kind", "class", "description"] }
+      { "group": "General", "items": ["name", "value", "dataType", "kind", "class", "description"] },
+      { "group": "Code Generation", "items": ["storageClass", "structTypeName", "structTypeDataScope", "structTypeHeaderFile"] },
+      { "group": "Advanced", "items": ["supportTunableSize"] }
     ]
   }
 }

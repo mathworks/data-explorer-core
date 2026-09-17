@@ -349,12 +349,9 @@ export default class ParameterNode extends DataNode {
         const props = SimulinkObjectNode._propsOf(rawVal);
         return new ParameterNode(name, parent, props, { _rawVal: rawVal, _properties: props });
     }
-    static _normalizeMinMax(val) {
-        if (Array.isArray(val) && val.length === 0) {
-            return undefined;
-        }
-        return val;
-    }
+    // _normalizeMinMax is inherited from DataNode — this class had its own identical copy
+    // until Simulink.ValueType became the third class to need it. Static inheritance keeps
+    // every existing `ParameterNode._normalizeMinMax(...)` call site spelled the same.
     static parse(rawVal, name, parent) {
         const elem = rawVal._elements && rawVal._elements[0];
         const props = ((elem && elem._properties) || {});

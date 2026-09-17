@@ -2,6 +2,7 @@ import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 export default class ConfigSetNode extends SimulinkObjectNode {
+    Description: string;
     get ConfigName(): string;
     active?: boolean;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>);

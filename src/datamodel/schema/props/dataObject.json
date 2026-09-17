@@ -11,5 +11,7 @@
   "sampleTime":    { "label": "Sample Time",    "sourcePath": "SampleTime",    "type": "any",    "editor": "label", "default": "" },
   "samplingMode":  { "label": "Sampling Mode",  "sourcePath": "SamplingMode",  "type": "string", "editor": "label", "default": "" },
   "breakpointsSpecification": { "label": "Breakpoints Specification", "sourcePath": "BreakpointsSpecification", "type": "string", "editor": "label", "default": "Explicit values" },
+  "supportTunableSize": { "label": "Support Tunable Size", "sourcePath": "SupportTunableSize", "type": "bool", "editor": "label", "default": "" },
+  "allowDifferentTableBpSizes": { "label": "Allow Multiple Instances Of Type To Have Different Table Breakpoint Sizes", "sourcePath": "AllowMultipleInstancesOfTypeToHaveDifferentTableBreakpointSizes", "type": "bool", "editor": "label", "default": "" },
   "bank":          { "label": "Bank",           "sourcePath": "Bank",          "type": "any",    "editor": "label", "default": "" }
 }

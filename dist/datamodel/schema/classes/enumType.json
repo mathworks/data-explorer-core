@@ -5,12 +5,13 @@
             "storageType",
             "dataScope",
             "headerFile",
-            "addClassNameToEnumNames"
+            "addClassNameToEnumNames",
+            "isTunableInCode"
         ],
         "layout": [
             { "group": "General", "items": ["name", "kind", "class"] },
             { "group": "Value Properties", "items": ["enumValue", "storageType", "description"] },
-            { "group": "Code Generation", "items": ["dataScope", "headerFile", "addClassNameToEnumNames"] }
+            { "group": "Code Generation", "items": ["dataScope", "headerFile", "addClassNameToEnumNames", "isTunableInCode"] }
         ]
     }
 }

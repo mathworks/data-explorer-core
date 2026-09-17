@@ -1,5 +1,6 @@
 {
   "value":       { "label": "Value",       "sourcePath": "Value",       "type": "any",    "editor": "text" },
   "dataType":    { "label": "Data Type",   "sourcePath": "DataType",    "type": "string", "editor": "label", "default": "" },
-  "description": { "label": "Description", "sourcePath": "Description", "type": "string", "editor": "textArea", "default": "" }
+  "description": { "label": "Description", "sourcePath": "Description", "type": "string", "editor": "textArea", "default": "" },
+  "sourceName":  { "label": "Source Name", "sourcePath": "SourceName",  "type": "string", "editor": "label", "default": "" }
 }
