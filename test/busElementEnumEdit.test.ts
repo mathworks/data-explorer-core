@@ -20,12 +20,14 @@
 //      taught to copy it across, an edit was stored, displayed, and then dropped on
 //      save — an unlock that changes nothing in the file.
 //
-// NOT covered here, and not covered anywhere yet: that MATLAB reopens the file and
-// reads these values back. That is the live tier
-// (test/parity/matlab/writeback.live.test.ts, which now carries a case per
-// property), it is gated on DEX_MATLAB_CMD, and it has never been run against this
-// change — there is no MATLAB on the machine it was written on. Everything below is
-// in-process only.
+// NOT covered here: that MATLAB reopens the file and reads these values back. That is
+// the live tier (test/parity/matlab/writeback.live.test.ts, which carries a case per
+// property), gated on DEX_MATLAB_CMD. It has now been RUN — 2026-09-16, R2027a
+// Prerelease, PASS for both properties in both .sldd formats. So the casing below is
+// no longer an assumption: MATLAB itself accepts 'complex' lower-case and 'Variable'
+// capitalised, and the `illegal` near-misses really are the values it refuses.
+// Everything in this file is still in-process, by design — it is the tier that runs
+// without MATLAB.
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';

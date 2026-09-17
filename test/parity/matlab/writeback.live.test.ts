@@ -16,11 +16,14 @@
 // 29/30/42), shape (defect 25 and Phase 6), element order (Phase 11), and the non-finites.
 //
 // The second array, ELEMENT_ENUM_CASES, covers the two bus-element enum properties item 13
-// made editable. Those cases have NEVER BEEN RUN: they were written on a machine with no
-// MATLAB, so their expectations state what the write is supposed to produce, not what MATLAB
-// was observed to produce. Whoever first runs this file with DEX_MATLAB_CMD set is the one
-// who finds out — and if MATLAB disagrees, the case is right and the writer is wrong until
-// proven otherwise.
+// made editable; the third, VALUE_TYPE_CASES, the Simulink.ValueType value properties.
+//
+// RUN AND PASSING as of 2026-09-16 — MATLAB R2027a Prerelease 27.1.0.3393633, all 32 cases
+// in this file, both .sldd formats. Until then the element-enum cases had never executed
+// (written on a machine with no MATLAB) and the ValueType cases did not exist, so their
+// expectations stated what the write was SUPPOSED to produce. They now state what MATLAB was
+// observed to produce. If a future run disagrees, the case is right and the writer is wrong
+// until proven otherwise.
 //
 // Skipped wholesale when DEX_MATLAB_CMD is unset, so CI and external contributors stay
 // green. Set it to the launcher plus its fixed args, e.g.
@@ -146,6 +149,44 @@ const ELEMENT_ENUM_CASES: Array<{ prop: string; field: string; set: string; why:
   },
 ];
 
+// The Simulink.ValueType value properties this project unlocked alongside the element enums.
+// Same reasoning as ELEMENT_ENUM_CASES, one fixture over: MyValueType in params.sldd, whose
+// bounds MATLAB left empty and whose enums it wrote as 'real' / 'Fixed'.
+//
+// Grouped two-per-case rather than one-per-property on purpose. Each `it` costs a MATLAB
+// launch, and verify_roundtrip.m already prints PASS/FAIL per KEY, so grouping halves the
+// wall clock without losing attribution: a Min that came back wrong names itself in the
+// output whether or not Max shared the launch.
+//
+// Min is 0, not a tidy 5. A zero bound is the value a `|| ''` fallback or a truthiness gate
+// silently drops, and it is indistinguishable from "no bound" everywhere except here — so if
+// the write path ever regresses to a truthy test, this is the case that fails.
+const VALUE_TYPE_CASES: Array<{
+  tag: string;
+  edits: Array<[string, string]>;
+  expect: Record<string, unknown>;
+  why: string;
+}> = [
+  {
+    tag: 'bounds',
+    edits: [
+      ['Min', '0'],
+      ['Max', '100'],
+    ],
+    expect: { Min: 0, Max: 100, __class__: 'Simulink.ValueType' },
+    why: 'the bounds that used to render blank in both panes — Min 0 is the falsy one',
+  },
+  {
+    tag: 'enums',
+    edits: [
+      ['complexity', 'complex'],
+      ['dimensionsMode', 'Variable'],
+    ],
+    expect: { Complexity: 'complex', DimensionsMode: 'Variable', __class__: 'Simulink.ValueType' },
+    why: "MATLAB's own non-uniform casing: 'complex' lower, 'Variable' capitalised",
+  },
+];
+
 // Each case launches MATLAB, so every `it` below needs an explicit timeout: vitest's
 // default is 5s and reports the whole tier as timeouts, which hides whatever MATLAB was
 // about to say. Measured over a full run of this file, 24 launches took 516s — ~21s each
@@ -153,7 +194,14 @@ const ELEMENT_ENUM_CASES: Array<{ prop: string; field: string; set: string; why:
 // start pays for the licence checkout and MATLAB's own startup on top of the work. Hence
 // 120s and not the 60s the other live suites use: they make one or two launches, this one
 // makes two dozen, and only its first is slow.
-const MATLAB_TIMEOUT = 120_000;
+//
+// Raised to 300s after measuring a second machine (2026-09-16), where MATLAB lives on a
+// NETWORK sandbox rather than a local install: the genuinely cold launch took 276s, and
+// warm launches settled at 33s. 120s would have failed the first test of the run and
+// reported it as a timeout, hiding whatever MATLAB was about to say — which is the exact
+// failure this constant already exists to avoid. The steady-state cost is unchanged; a
+// ceiling only matters when it is hit.
+const MATLAB_TIMEOUT = 300_000;
 
 // Both flavours: the two writers spell a typed value independently, which is how defect 30
 // survived the fix for defect 29.
@@ -220,6 +268,27 @@ for (const format of ['json', 'binary'] as const) {
           ['Elements(1).' + c.field]: c.set,
           __class__: 'Simulink.Bus',
         });
+        expect(out).toMatch(/RESULT PASS/);
+      });
+    });
+
+    VALUE_TYPE_CASES.forEach((c) => {
+      it(`MATLAB reads back our edits to MyValueType ${c.tag} — ${c.why}`, { timeout: MATLAB_TIMEOUT }, () => {
+        const uri = 'test://wb-vt-' + format + '-' + c.tag + '.sldd';
+        const model = loadModel(format, 'params.sldd', uri);
+        const node = entryByName(model, uri, 'MyValueType');
+        for (const [prop, value] of c.edits) {
+          expect(node.setProperty(prop, value), prop).toBe(true);
+        }
+        const bytes = serializeModel(model, format);
+        // In-process first, so a failure here is legibly ours and not MATLAB's. Read the node
+        // FIELDS rather than a pane, because the claim is about what reached the file.
+        const reparsed = reparseEntry(bytes, format, 'params.sldd', 'MyValueType');
+        for (const [key, want] of Object.entries(c.expect)) {
+          if (key.startsWith('__')) continue;
+          expect(reparsed[key], `${c.tag}/${key} in-process`).toBe(want);
+        }
+        const out = matlabAssertRoundTrip(bytes, 'MyValueType', c.expect);
         expect(out).toMatch(/RESULT PASS/);
       });
     });

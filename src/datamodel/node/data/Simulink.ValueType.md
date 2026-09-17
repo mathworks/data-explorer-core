@@ -6,8 +6,9 @@
 **MATLAB class:** `Simulink.ValueType`
 **Editable in our UI:** yes (Name, Description, Min, Max, Complexity, DimensionsMode)
 **Verified against:** MATLAB R2027a (probe_class('Simulink.ValueType'))
-**Partly unverified:** the Min / Max / Complexity / DimensionsMode unlock is verified
-in-process only. There is no MATLAB re-open gate for those four — see "Open questions".
+**Re-open gate:** RUN and PASSING as of 2026-09-16 — MATLAB opens a `.sldd` we wrote and
+reads Min / Max / Complexity / DimensionsMode back equal, in both formats. See
+"Open questions" for what that does and does not settle.
 
 ## Overview
 
@@ -142,11 +143,26 @@ produce a file MATLAB will not load.
 
 ## Open questions / deferred
 
-- **MATLAB re-open gate for the newly editable properties — NOT RUN.** Min, Max,
-  Complexity and DimensionsMode are verified in-process (serialize → re-parse) only. No
-  MATLAB was available where the unlock was made, so there is no PASS to record that
-  MATLAB loads the written file and reads the values back. Same status as the
-  `Simulink.BusElement` enum unlock, and worth running in the same pass.
+- **MATLAB re-open gate — RUN, PASS (2026-09-16, R2027a Prerelease 27.1.0.3393633).**
+  Min, Max, Complexity and DimensionsMode were verified end to end: this package wrote the
+  `.sldd`, MATLAB opened it, and MATLAB read every value back equal to what was set —
+  **in both formats**, text JSON and compressed-binary. Cases live in
+  `test/parity/matlab/writeback.live.test.ts` as `VALUE_TYPE_CASES`; run them with
+  `env DEX_MATLAB_CMD="<launcher> matlab" DEX_MATLAB_CWD="<sandbox>" npx vitest run
+  test/parity/matlab/writeback.live.test.ts`.
+
+  Two things the gate settles that no in-process test could:
+
+  - **`Min` is written as 0, not dropped.** The case deliberately uses a zero bound, the
+    value a truthiness gate loses. MATLAB reads back `0`, so the bound reaches the file as a
+    real number rather than an omitted key.
+  - **The enum casing is MATLAB's own.** `'complex'` lower-case and `'Variable'`
+    capitalised both load. This was the standing risk: MATLAB refuses the other spelling of
+    each, so a writer that normalised the case would have produced a file MATLAB cannot
+    open — a failure invisible to every test that reads back through our own parser.
+
+  The `Unit` property is not in the gate because it is not editable here (its schema
+  override is not `projected`); it is read-only and passes through untouched.
 
 - **Dimensions stays read-only**: a positive double vector with a symbolic-char
   alternative. Left a label for the reason `BusElementNode` records — the constraint has
