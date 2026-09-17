@@ -45,7 +45,7 @@ function firstChild(container: any): any {
 }
 
 describe('common "General" identity group — schema-driven classes', () => {
-  it('Variant* / ConfigSet* open with General [Name, value-like, DataType, Kind, Class]', () => {
+  it('Variant* open with General [Name, value-like, DataType, Kind, Class]', () => {
     expect(firstGroup(VariantControlNode.createDefault('vc', null))).toEqual({
       name: 'General',
       items: ['Name', 'Value', 'DataType', 'Kind', 'Class'],
@@ -58,12 +58,29 @@ describe('common "General" identity group — schema-driven classes', () => {
       name: 'General',
       items: ['Name', 'Specification', 'DataType', 'Kind', 'Class'],
     });
-    for (const M of [VariantBankNode, VariantConfigurationDataNode, ConfigSetNode, ConfigSetRefNode]) {
+    for (const M of [VariantBankNode, VariantConfigurationDataNode]) {
       expect(firstGroup(M.createDefault('n', null))).toEqual({
         name: 'General',
         items: ['Name', 'Value', 'DataType', 'Kind', 'Class'],
       });
     }
+  });
+
+  it('ConfigSet* keep the identity five, then their own properties, Description last', () => {
+    // The two config-set classes model MATLAB's ConfigSet.Description, and a reference
+    // also shows the SourceName it points at — so their General group grows past the
+    // identity five rather than being replaced by them. SourceName sits AFTER the five
+    // and not in place of `value`: the fixed opening is what this file pins, and a
+    // reference's source is a property of it rather than its identity. Description stays
+    // last, as everywhere else. Full account in test/configSetSchemaProps.test.ts.
+    expect(firstGroup(ConfigSetNode.createDefault('n', null))).toEqual({
+      name: 'General',
+      items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'Description'],
+    });
+    expect(firstGroup(ConfigSetRefNode.createDefault('n', null))).toEqual({
+      name: 'General',
+      items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'sourceName', 'Description'],
+    });
   });
 
   it('LookupTable / Breakpoint / CustomObject keep Description in General', () => {

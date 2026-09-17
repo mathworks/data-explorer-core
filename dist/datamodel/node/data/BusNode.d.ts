@@ -12,7 +12,6 @@ export declare class BusElementNode extends BaseBusElementNode {
     Dimensions: unknown;
     DimensionsMode: string;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>);
-    static _normalizeMinMax(val: unknown): number | undefined;
     get icon(): string;
     get className(): string;
     get dataType(): string;
@@ -25,7 +24,6 @@ export declare class BusElementNode extends BaseBusElementNode {
         items: (PropClass | typeof PropUnit | typeof PropDescription)[];
     })[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
-    _rejectUnknownEnumeral(propName: string, stringValue: string): SetPropertyResult | null;
     _applyElementOverrides(props: Record<string, unknown>): void;
 }
 export declare class BusNode extends BaseBusNode {

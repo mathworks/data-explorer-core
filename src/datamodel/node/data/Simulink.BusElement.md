@@ -83,11 +83,28 @@ Both are surfaced as `editor: 'select'` dropdowns over MATLAB's own enum
 - `elem.DimensionsMode = 'fixed'` / anything outside the enum →
   **"There is no enumerated value named 'fixed'."**
 - `elem.<either> = ''` → treated as a CLEAR, not a rejection. Not MATLAB's behavior
-  (MATLAB refuses `''` too) but required by ours: an element that never carried the
-  property reads as `''`, so that is the prior value undo submits, and refusing it
-  would leave the undo of a legitimate edit silently unapplied. A cleared property is
-  omitted from the serialized bag entirely, so it cannot reach a file as an empty
-  enumeral.
+  (MATLAB refuses `''` too) but required by ours: `''` is what a user emptying the cell
+  submits, and `DataModel.editProperty` captures the prior value for UNDO, so refusing
+  it would leave the undo of a clear silently unapplied. A cleared property is omitted
+  from the serialized bag entirely — the write-back gate reads `''` as absence — so it
+  cannot reach a file as an empty enumeral.
+
+### Complexity / DimensionsMode — displayed default vs saved key
+
+An element whose file declares neither property DISPLAYS MATLAB's own default for it,
+`real` and `Fixed` (probed on a live `Simulink.BusElement` — the same pair
+`Simulink.ValueType` defaults to, and NOT the `auto` a `Simulink.Signal` uses). MATLAB
+shows a value for both on every element it has, because the object always has one; only
+the file is silent. Before this the fallback was `''`, so the two rows read blank.
+
+These are DISPLAY values only. `_applyElementOverrides` writes each key only when the
+FILE carried it or the live value differs from that same default, so an element the file
+left silent still saves silent: open a dictionary, change nothing, save, and no element
+gains a key. The gate cannot be a truthiness test (`'Complexity' in sp || this.Complexity`,
+which is what it was) — with a non-empty default that is always true, and every untyped
+element in every dictionary would silently gain both keys. The extra `this.X &&` covers
+the CLEAR above, `''` not being a value either enum has.
+Test: `test/busElementDisplayDefaults.test.ts`.
 
 The casing is not normalized in either direction — MATLAB wrote 'real' lower case and
 'Fixed' capitalized, and it refuses the other spelling of each, so a
@@ -126,7 +143,8 @@ value.
   Test: round-trip in `test/parity/fidelity/element.fidelity.test.ts`.
 
 - `BusElementNode.setProperty('complexity'|'dimensionsMode', ...)` routes through
-  `_rejectUnknownEnumeral` (override in BusNode.ts), which reads the legal set off the
+  `_rejectUnknownEnumeral` (on `DataNode`, beside `_setMinMax`; it started here with one
+  caller and moved when `Simulink.ValueType` needed the same rule), which reads the legal set off the
   prop atom's `readOptions` — the same call the dropdown is built from, so the offered
   choices and the accepted values cannot drift — and returns
   `{error, reason: "There is no enumerated value named 'X'."}`.

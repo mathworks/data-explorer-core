@@ -2,7 +2,7 @@
   "Simulink.ConfigSet": {
     "props": [],
     "layout": [
-      { "group": "General", "items": ["name", "value", "dataType", "kind", "class"] }
+      { "group": "General", "items": ["name", "value", "dataType", "kind", "class", "description"] }
     ]
   }
 }

@@ -25,7 +25,6 @@ export default class ParameterNode extends DataNode {
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): ParameterNode;
-    static _normalizeMinMax(val: unknown): number | undefined;
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): ParameterNode;
 }
 //# sourceMappingURL=ParameterNode.d.ts.map

@@ -93,10 +93,16 @@ describe('Tier-4 contract-lock: ConfigSetNode', () => {
     expect(node.displayValue).toBe('');
   });
 
-  it('exposes [PropName, PropDataType] properties', () => {
+  // Description joined the pair when the class started modelling MATLAB's own
+  // ConfigSet.Description — the one property of the four its PI shows that a file
+  // reliably carries (test/configSetSchemaProps.test.ts records why the other three
+  // stay out). Every class in this package that declares a Description field lists
+  // PropDescription here, so the table's Description column reads the field rather
+  // than toRow's fallback.
+  it('exposes [PropName, PropDataType, PropDescription] properties', () => {
     const node = ConfigSetNode.createDefault('cfg1', null);
     const keys = node.getProperties().map((p) => p.key);
-    expect(keys).toEqual(['Name', 'DataType']);
+    expect(keys).toEqual(['Name', 'DataType', 'Description']);
   });
 
   it('icon is settings (inactive by default)', () => {
@@ -121,10 +127,13 @@ describe('Tier-4 contract-lock: ConfigSetRefNode', () => {
     expect(node.displayValue).toBe('');
   });
 
-  it('exposes [PropName, PropDataType] properties', () => {
+  // See the ConfigSetNode lock above. SourceName is deliberately NOT here: it reaches
+  // the Property Inspector through the schema descriptor `sourceName` and has no table
+  // column, so it contributes no prop atom.
+  it('exposes [PropName, PropDataType, PropDescription] properties', () => {
     const node = ConfigSetRefNode.createDefault('cfgref1', null);
     const keys = node.getProperties().map((p) => p.key);
-    expect(keys).toEqual(['Name', 'DataType']);
+    expect(keys).toEqual(['Name', 'DataType', 'Description']);
   });
 
   it('icon is configurationReference (inactive by default)', () => {
