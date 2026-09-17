@@ -146,6 +146,60 @@ This ensures add/remove stays consistent in the serialized format.
 | Add child | `removeChildNode(child)` | `restoreChildNode(child, index)` |
 | Remove child | `restoreChildNode(child, index)` | `removeChildNode(child)` |
 
+### Removing the enumeral that IS the DefaultValue
+
+**Measured in MATLAB R2027a Prerelease 27.1.0.3393633 on 2026-09-17**
+(`test/parity/matlab/probe_enum_removal.m`, `probe_enum_stale_open.m`). The two
+dictionary flavours behave DIFFERENTLY from each other, and both differ from us.
+
+| | Design Data (`Simulink.data.dictionary.EnumTypeDefinition`) | Architectural Data (`Simulink.dictionary.archdata.EnumType`) |
+|---|---|---|
+| remove API | `removeEnumeral(obj, INDEX)` | `removeEnumeral(obj, NAME)` |
+| add API | `appendEnumeral(obj, name, value, desc)` | `addEnumeral(obj, name, value, desc)` |
+| removing the default enumeral | allowed; live `DefaultValue` keeps the **dangling** name | allowed; `DefaultValue` immediately reads the **first surviving** enumeral |
+| is it cleared or re-pointed? | neither — genuinely still stored (it survives removing other enumerals too) | **cleared**: remove the first one too and the default follows to the next survivor |
+| removing a NON-default enumeral | default unchanged | default unchanged |
+| removing the LAST enumeral | allowed, down to zero enumerals | **refused** — `interface_dictionary:api:CannotDeleteLastEnumeral` |
+| assigning a name that does not exist | rejected — `Simulink:DataType:DynamicEnum_InvalidDefaultValue` | rejected — same identifier |
+| on save | the invalid `DefaultValue` key is **dropped from the file** | same: **dropped from the file** |
+| on reload | `DefaultValue` is `''` → effective default is the first enumeral | reads the first enumeral |
+
+So the two converge on the same end state — **the effective default becomes the
+first surviving enumeral** — and neither ever writes a `DefaultValue` naming an
+enumeral the file does not contain. Design data merely defers the tidy-up until
+save; arch data does it at once. Note the asymmetry both share: the name is
+validated on ASSIGNMENT but not re-validated on REMOVAL.
+
+#### What we do instead — an open defect
+
+`removeChildNode` splices the child and never looks at `DefaultValue`, so after
+deleting the enumeral the default named:
+
+- the Value column and PI row still show the **removed** name, because
+  `displayValue` returns `this.DefaultValue` whenever it is non-empty;
+- **no enumeral carries the "current" icon** — `EnumValueNode.icon` compares
+  `parent.DefaultValue === this.name`, and nothing matches any more;
+- the Value dropdown offers the surviving names while displaying one that is not
+  among its own options (`PropEnumValue.readOptions` reads the live children);
+- and `_getSerializedProperties` writes `"DefaultValue": "<removed name>"` into
+  the file, which is the combination MATLAB never produces.
+
+That last one was taken to MATLAB rather than assumed. Verified for BOTH .sldd
+formats, each in its own MATLAB session (opening two dictionaries that define the
+same enum in one session makes MATLAB reuse the first definition and contaminates
+the second result): **MATLAB opens our file without error and silently repairs
+it** — `DefaultValue` reads back `''`, so the effective default becomes the first
+surviving enumeral, and a resave drops the key from the file. In a clean session
+it does not even warn.
+
+So this is a **display and round-trip fidelity defect, not file corruption**:
+nothing is lost or unloadable, but our UI shows a default MATLAB will not honour,
+and the value the user chose changes underneath them when the dictionary is
+reopened in MATLAB. The fix that matches both flavours is one line of intent — on
+removing the enumeral that `DefaultValue` names, clear `DefaultValue` (and restore
+it on undo), which makes our own `displayValue` fall back to `children[0]`, exactly
+what MATLAB reports. **Not yet implemented.**
+
 ## Validation mirrored in code
 
 - `setProperty('Value', <name>)` writes `DefaultValue = name` unconditionally
@@ -186,6 +240,19 @@ This ensures add/remove stays consistent in the serialized format.
   and assert exact child counts in-process. This is a known gate limitation.
 
 ## Open questions / deferred
+
+- **Removing the enumeral that IS the DefaultValue**: measured in MATLAB and
+  written up above — we keep the dangling name, MATLAB moves the default to the
+  first survivor. Open defect, fix identified, not implemented.
+
+- **Removing the LAST enumeral**: `canRemoveChild()` returns true whenever there is
+  at least one child, so our UI will empty an enum out completely. Design data
+  allows that; **Architectural Data refuses it**
+  (`interface_dictionary:api:CannotDeleteLastEnumeral` — "Enumerations must have at
+  least one enumeration member"). We do not distinguish the two flavours here, so
+  for a derived enum we offer a deletion MATLAB would reject. Not yet handled;
+  what MATLAB does when it LOADS an arch-data enum with zero enumerals has not
+  been measured.
 
 - **Enumeral Name editing**: Individual enumeral names can be renamed via the
   tree. If an enumeral is renamed to match the current DefaultValue, no update is
