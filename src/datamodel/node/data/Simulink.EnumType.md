@@ -170,7 +170,7 @@ enumeral the file does not contain. Design data merely defers the tidy-up until
 save; arch data does it at once. Note the asymmetry both share: the name is
 validated on ASSIGNMENT but not re-validated on REMOVAL.
 
-#### What we do instead — an open defect
+#### What we do instead — kept deliberately (decided 2026-09-17)
 
 `removeChildNode` splices the child and never looks at `DefaultValue`, so after
 deleting the enumeral the default named:
@@ -192,13 +192,25 @@ it** — `DefaultValue` reads back `''`, so the effective default becomes the fi
 surviving enumeral, and a resave drops the key from the file. In a clean session
 it does not even warn.
 
-So this is a **display and round-trip fidelity defect, not file corruption**:
-nothing is lost or unloadable, but our UI shows a default MATLAB will not honour,
-and the value the user chose changes underneath them when the dictionary is
-reopened in MATLAB. The fix that matches both flavours is one line of intent — on
-removing the enumeral that `DefaultValue` names, clear `DefaultValue` (and restore
-it on undo), which makes our own `displayValue` fall back to `children[0]`, exactly
-what MATLAB reports. **Not yet implemented.**
+So this is a **display and round-trip fidelity gap, not file corruption**: nothing
+is lost or unloadable, but our UI shows a default MATLAB will not honour, and the
+value the user chose changes underneath them when the dictionary is reopened in
+MATLAB.
+
+**We keep our behaviour as it is.** There is no single MATLAB behaviour to copy:
+design data leaves the name dangling on the live object, arch data clears it at
+once, and the two only agree after a save. Following either one would mean picking
+a winner between two inconsistent references, so we hold the user's chosen name and
+let MATLAB apply its own repair on load — which it does silently, in both formats.
+The change that WOULD align us, if this is ever revisited, is one line of intent:
+on removing the enumeral that `DefaultValue` names, clear `DefaultValue` (and
+restore it on undo), so `displayValue` falls back to `children[0]`. Deliberately
+not implemented — not a backlog item.
+
+Two consequences of that decision are worth knowing before touching this code: the
+"current" icon disappears from every enumeral while the default is dangling, and
+the select editor can display a value outside its own option list. Both are
+expected here, so neither should be "fixed" in isolation.
 
 ## Validation mirrored in code
 
@@ -243,22 +255,28 @@ what MATLAB reports. **Not yet implemented.**
 
 - **Removing the enumeral that IS the DefaultValue**: measured in MATLAB and
   written up above — we keep the dangling name, MATLAB moves the default to the
-  first survivor. Open defect, fix identified, not implemented.
+  first survivor. **Closed, not open**: current behaviour kept on purpose because
+  the two MATLAB flavours disagree with each other.
 
 - **Removing the LAST enumeral**: `canRemoveChild()` returns true whenever there is
   at least one child, so our UI will empty an enum out completely. Design data
   allows that; **Architectural Data refuses it**
   (`interface_dictionary:api:CannotDeleteLastEnumeral` — "Enumerations must have at
   least one enumeration member"). We do not distinguish the two flavours here, so
-  for a derived enum we offer a deletion MATLAB would reject. Not yet handled;
-  what MATLAB does when it LOADS an arch-data enum with zero enumerals has not
-  been measured.
+  for a derived enum we offer a deletion MATLAB would reject. Left as is by the
+  same 2026-09-17 decision — the flavours disagree, so there is no one rule to
+  mirror. What MATLAB does when it LOADS an arch-data enum with zero enumerals has
+  not been measured; measure that first if this is ever reopened, because a file we
+  cannot load would be a different and more serious problem than a deletion MATLAB
+  merely would not have offered.
 
 - **Enumeral Name editing**: Individual enumeral names can be renamed via the
   tree. If an enumeral is renamed to match the current DefaultValue, no update is
   needed. If the DefaultValue's enumeral is renamed, the DefaultValue becomes
-  stale (MATLAB would reject it). Our UI does not yet cascade a rename into the
-  parent's DefaultValue — deferred until enumeral name editing is surfaced.
+  stale (MATLAB would reject it). Our UI does not cascade a rename into the
+  parent's DefaultValue, which leaves the same dangling name that removal does —
+  and by the 2026-09-17 decision that is now the intended stance, not a gap
+  awaiting a cascade.
 
 - **DataScope / HeaderFile / StorageType / AddClassNameToEnumNames /
   IsTunableInCode**: all five are displayed — read-only labels in the Code Generation
