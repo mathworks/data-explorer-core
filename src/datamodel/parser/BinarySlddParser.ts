@@ -538,6 +538,24 @@ function parseCellElement(el: XmlNode): unknown {
   const text = getTextContent(el);
 
   if (isNumericClass(elClass)) {
+    // Complexity is asked BEFORE the shape, the way parsePropContent asks it one level
+    // up. A complex value states its elements as text whatever its shape
+    // (`IsComplex="1" Dimension="1*2">1.0+2.0i 3.0-4.0i`), and the shaped arm below
+    // reads a body with numericBody, whose parseFloat stops at the `+`: every complex
+    // ARRAY in a cell came back with its imaginary parts gone — `{[1+2i 3-4i]}` read
+    // `{[1 3]}` and re-serialized `Class="double" Dimension="1*2">1.0 3.0`, IsComplex
+    // and the imaginary parts both gone from the file. A complex SCALAR was right the
+    // whole time, because MATLAB writes one with no Dimension at all and it reached
+    // this check by falling past the shaped arm; that is the only reason the defect
+    // hid. `_dimensions` rides in the envelope because the cdata form is the only
+    // place a complex value's shape can be stated.
+    if (el['@_IsComplex'] === '1') {
+      const cdata: Record<string, unknown> = { _type: 'cdata', _value: text };
+      if (dimension) {
+        cdata._dimensions = parseDims(dimension);
+      }
+      return cdata;
+    }
     if (dimension) {
       const dimParts = parseDims(dimension);
       const total = dimParts.reduce((a, b) => a * b, 1);
@@ -552,9 +570,6 @@ function parseCellElement(el: XmlNode): unknown {
         return formatTypedVector(rowMajor, elClass);
       }
       return formatMatrix(rowMajor, dimParts, elClass);
-    }
-    if (el['@_IsComplex'] === '1') {
-      return { _type: 'cdata', _value: text };
     }
     return formatTypedScalar(text, elClass);
   }
@@ -573,7 +588,14 @@ function parseCellElement(el: XmlNode): unknown {
     return charValue(text, dimension);
   }
   if (elClass === 'struct') {
-    return structValue(el.Element || [], [1, 1]);
+    // A struct ARRAY in a cell states its shape on the element itself
+    // (`<Element Class="struct" Dimension="1*2">` over one <Element> per element),
+    // exactly as a struct-array PROPERTY states it on the <P> — which is why the
+    // field and property sites were right and this one was not. The hardcoded 1x1
+    // published a 1x2 as `<1x1 struct>`, and because the envelope's dims are what
+    // the writer spells, the save wrote one struct with the elements a level too
+    // deep: both of them unreadable on the next open.
+    return structValue(el.Element || [], dimension ? parseDims(dimension) : [1, 1]);
   }
   if (elClass === 'cell') {
     const childElements = el.Element || [];
@@ -592,7 +614,25 @@ function parseCellElement(el: XmlNode): unknown {
     if (childElements[0]['@_Class'] === 'string') {
       return parseStringValue(childElements[0], dimension);
     }
-    return parseElement(childElements[0]);
+    // An object ARRAY, spelled the way MATLAB spells one in a cell: a classless
+    // `<Element Dimension="1*2">` over one classed <Element> per object. That is the
+    // same shape parsePropContent hands to parseArrayOfElements a level up, so it goes
+    // to the same helper rather than to a fourth copy of the decision. Taking [0]
+    // alone was silent deletion, not a display bug:
+    // `{[Simulink.Parameter(1) Simulink.Parameter(2)]}` showed the FIRST parameter's
+    // value as though the cell held a scalar, and the second object was gone from the
+    // file after any save.
+    if (dimension && childElements.length > 1) {
+      return parseArrayOfElements(childElements, dimension, elClass || null);
+    }
+    if (childElements.length === 1) {
+      return parseElement(childElements[0]);
+    }
+    // Several objects with no declared shape. MATLAB does not write this, but a reader
+    // still has to pick a shape the writer can spell, and Nx1 is the one both the entry
+    // path and the property path pick for the same undimensioned case — parseElement on
+    // [0] would have dropped the rest.
+    return objectArrayValue(childElements, [childElements.length, 1]);
   }
   return text || '';
 }

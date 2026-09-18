@@ -405,6 +405,26 @@ describe('a string Parameter value survives the binary write-back', () => {
 // OBJECT is a classless `<Element>` wrapping the object's own `<Element Class="...">`.
 // That shape is why the tail was right for every other class, and why the fix lifts
 // `string` out of it rather than replacing it.
+/**
+ * The `<Object>` block of one entry, from a chunk either MATLAB or we wrote, with its
+ * LastMod stamp dropped — a rebuild restamps a modified entry, by design, so the stamp is
+ * the one line that cannot match and the only one whose mismatch means nothing.
+ */
+function entryObject(xml: string, name: string): string {
+  const at = xml.indexOf('>' + name + '</P>');
+  expect(at, name).toBeGreaterThan(-1);
+  const open = xml.lastIndexOf('<Object ', at);
+  const block = xml.slice(open, xml.indexOf('</Object>', at) + '</Object>'.length);
+  return block.replace(/\s*<P Name="LastMod"[^>]*>[^<]*<\/P>/, '');
+}
+
+/** MATLAB's own chunk for a fixture, to diff a rebuild against. */
+function matlabChunk(fixture: string): string {
+  const p = fileURLToPath(new URL('./' + fixture, import.meta.url));
+  const zip = unzipSync(new Uint8Array(readFileSync(p)));
+  return new TextDecoder().decode(zip['data/chunk0.xml']);
+}
+
 describe('defect 52: a string in a cell keeps its text, in the file as well as on screen', () => {
   // MATLAB's own value for each, as `getValue()` reports it in probe_cell_string.m's
   // read-back — `cell[1 1] of {string[1 1]}` and so on.
@@ -414,26 +434,6 @@ describe('defect 52: a string in a cell keeps its text, in the file as well as o
     ['cStrTwo', '{"a", "b"}'], // two elements, each wrapped on its own
     ['cMixed', '{1, "a", \'b\'}'], // beside a double and a char, neither of which it may become
   ];
-
-  /**
-   * The `<Object>` block of one entry, from a chunk either MATLAB or we wrote, with its
-   * LastMod stamp dropped — a rebuild restamps a modified entry, by design, so the stamp is
-   * the one line that cannot match and the only one whose mismatch means nothing.
-   */
-  function entryObject(xml: string, name: string): string {
-    const at = xml.indexOf('>' + name + '</P>');
-    expect(at, name).toBeGreaterThan(-1);
-    const open = xml.lastIndexOf('<Object ', at);
-    const block = xml.slice(open, xml.indexOf('</Object>', at) + '</Object>'.length);
-    return block.replace(/\s*<P Name="LastMod"[^>]*>[^<]*<\/P>/, '');
-  }
-
-  /** MATLAB's own chunk for a fixture, to diff a rebuild against. */
-  function matlabChunk(fixture: string): string {
-    const p = fileURLToPath(new URL('./' + fixture, import.meta.url));
-    const zip = unzipSync(new Uint8Array(readFileSync(p)));
-    return new TextDecoder().decode(zip['data/chunk0.xml']);
-  }
 
   it('reads MATLAB\'s own bytes as strings, not as <1x1 string>', () => {
     const sldd = loadFile('../fixtures/cellstr_binary.sldd', 'cellstr_binary.sldd');
@@ -532,5 +532,185 @@ describe('defect 52: a string in a cell keeps its text, in the file as well as o
     for (const name of ['cStrTwo', 'cMixed']) {
       expect(entryObject(ours, name), name).toBe(entryObject(theirs, name));
     }
+  });
+});
+
+// Defects 53, 54 and 55 — the generalization of 52, found by asking what ELSE the cell
+// site is missing rather than what else is wrong with strings. `parseCellElement` is a
+// hand-rolled copy of the class dispatch the entry site (`parseEntryValue`) and the
+// property/field site (`parsePropContent`) share, so every idea added to the shared
+// dispatch has to be added to the copy by hand — and the copy lagged by three:
+//
+//   53  a complex ARRAY in a cell lost its imaginary parts. The copy asked the SHAPE
+//       before the complexity, and a complex body (`1.0+2.0i 3.0-4.0i`) read through
+//       numericBody means parseFloat stopping at the `+`: `{[1+2i 3-4i]}` displayed
+//       `{[1 3]}` and went back out as `Class="double" Dimension="1*2">1.0 3.0`, with
+//       IsComplex gone too. A complex SCALAR was right the whole time — MATLAB writes one
+//       with NO Dimension, so it fell past the shaped arm and reached the IsComplex check.
+//       That control is the only reason this sat undetected.
+//   54  a struct ARRAY in a cell was published as `<1x1 struct>`: the copy passed a
+//       hardcoded [1, 1] where the shared dispatch reads the element's own Dimension. The
+//       display was the harmless half — the envelope's dims are what the writer spells, so
+//       a save wrote ONE struct with the elements a level too deep and the next open found
+//       neither of them.
+//   55  an object ARRAY in a cell showed only its first object, because the copy's tail
+//       took `childElements[0]`. `{[Simulink.Parameter(1) Simulink.Parameter(2)]}` read as
+//       though the cell held a scalar, and every object after the first was gone from the
+//       file on any save.
+//
+// All three are binary-only; the TEXT channel was right for all of them, which is this
+// repo's recurring shape — two channels spelling one value independently. So the invariant
+// is pinned BETWEEN the channels here, not per channel.
+//
+// The fix is one idea, not three: "a dimensioned element set", which the shared dispatch
+// already had in `parseArrayOfElements`. `test/parity/matlab/probe_cell_arrays.m` records
+// the three spellings MATLAB uses for it and wrote both fixtures.
+describe('defects 53-55: an array inside a cell keeps its shape, its parts and its count', () => {
+  // MATLAB's own value for each, from probe_cell_arrays.m's read-back through
+  // `getValue()` — `cell[1 1]{double[1 2]=[1+2i 3-4i]}` and so on.
+  const DEFECTS: Array<[string, string]> = [
+    ['cCplxArr', '{[1+2i 3-4i]}'], // 53, read `{[1 3]}`
+    ['cCplxCol', '{[1+2i; 3-4i]}'], //   ... a column, to show the shape is not the trigger
+    ['cCplxNd', '{<2x2x2 double>}'], //   ... and rank 3
+    ['cStructArr', '{<1x2 struct>}'], // 54, read `{<1x1 struct>}`
+    ['cStructArr2D', '{<2x2 struct>}'], //   ... 2-D, so the dims are read and not counted
+    ['cObjArr', '{<1x2 Simulink.Parameter>}'], // 55, read `{1}` — the first object alone
+  ];
+
+  // The 1x1 of each row above. Each was right BEFORE the fix, and each is why its defect
+  // was invisible; all three must still be right after it.
+  const CONTROLS: Array<[string, string]> = [
+    ['cCplx', '{1+2i}'], // 53's control: no Dimension, so it reached the IsComplex check
+    ['cStruct', '{<1x1 struct>}'], // 54's: the hardcoded 1x1 happened to be the truth
+    ['cObj', '{5}'], // 55's: one child, so taking the first was taking all of them
+    ['cNd', '{<2x3x2 double>}'], // a REAL N-D array still takes the shaped arm
+    ['cStr', '{"a"}'], // and defect 52's case still gets lifted out of the tail
+  ];
+
+  it('reads MATLAB\'s own bytes as the values MATLAB wrote', () => {
+    const sldd = loadFile('../fixtures/cellarr_binary.sldd', 'cellarr_binary.sldd');
+    for (const [name, display] of [...DEFECTS, ...CONTROLS]) {
+      expect(String(findEntry(sldd, name).displayValue), name).toBe(display);
+    }
+
+    // The element rows, because an entry row is assembled FROM them: the class and the
+    // count are what the three defects destroyed, and a summary string can be right for
+    // the wrong reason.
+    const element = (name: string): any => findEntry(sldd, name).children[0];
+    expect(element('cCplxArr').children.map((c: any) => String(c.displayValue))).toEqual([
+      '1+2i',
+      '3-4i',
+    ]);
+    expect(element('cStructArr').children).toHaveLength(2);
+    expect(element('cStructArr2D').children).toHaveLength(4);
+    // Each object, and each object's own value — `{1}` was the first object's value shown
+    // as if it were the cell's, so the count is the assertion that fails without the fix.
+    expect(element('cObjArr').className).toBe('Simulink.Parameter');
+    expect(element('cObjArr').children.map((c: any) => String(c.displayValue))).toEqual(['1', '2']);
+  });
+
+  it('and reads them the same way the TEXT channel does', () => {
+    // The invariant stated between the channels. Whole subtrees, not just the entry rows:
+    // 54 and 55 both left the entry row's SHAPE plausible while the contents underneath
+    // were wrong or missing.
+    const bin = loadFile('../fixtures/cellarr_binary.sldd', 'cellarr_binary.sldd');
+    const txt = loadFile('../fixtures/cellarr_text.sldd', 'cellarr_text.sldd');
+
+    // The walk stops at a SCALAR struct, and nowhere else. That is the one place the two
+    // channels are known to disagree for a reason unrelated to cells: the build of MATLAB
+    // that wrote these fixtures no longer emits `_fields` in a text dictionary, and
+    // StructNode.parse builds a scalar struct's field children from `_fields` alone, so the
+    // text channel shows a scalar struct with no field rows while the binary channel
+    // derives the list from the element bag. Its own defect, its own blast radius (every
+    // struct in every current-MATLAB text .sldd), not asserted either way here.
+    const shown = (root: any, name: string): string[] => {
+      const out: string[] = [];
+      const walk = (n: any, path: string): void => {
+        out.push(path + '  ' + String(n.displayValue) + ' | ' + String(n.dataType ?? '') + ' | ' + String(n.className ?? ''));
+        if (n.dataType === 'struct' && String(n.displayValue) === '<1x1 struct>') {
+          return;
+        }
+        for (const c of n.children ?? []) {
+          walk(c, path + '/' + c.name);
+        }
+      };
+      walk(findEntry(root, name), name);
+      return out;
+    };
+
+    for (const [name] of [...DEFECTS, ...CONTROLS]) {
+      expect(shown(bin, name), name).toEqual(shown(txt, name));
+    }
+    // And a row count, so a walk that silently visited only the entry rows could not pass:
+    // the six defect cases have 32 rows between them (an entry and its element each, plus
+    // 2 + 2 + 8 numeric parts, 2 + 4 struct elements, and 2 objects).
+    expect(DEFECTS.reduce((n, [name]) => n + shown(bin, name).length, 0)).toBe(32);
+  });
+
+  it('writes each array back the way MATLAB spells it', () => {
+    // The silent half. Nothing is edited — before the fix, merely SAVING any of these
+    // dictionaries changed the data, so the rebuild probe_writeback_bin hands MATLAB is
+    // where the loss shows.
+    const xml = rebuildXml('fixtures/cellarr_binary.sldd');
+
+    // 53: the complexity and the shape on the same element, the parts as text.
+    expect(entryObject(xml, 'cCplxArr')).toContain(
+      '<Element Class="double" IsComplex="1" Dimension="1*2">1.0+2.0i 3.0-4.0i</Element>',
+    );
+    // The spelling the defect produced, which is the one that must never reach a file:
+    // a real array where MATLAB wrote a complex one.
+    expect(entryObject(xml, 'cCplxArr')).not.toContain('>1.0 3.0<');
+    expect(entryObject(xml, 'cCplxCol')).toContain('IsComplex="1" Dimension="2*1"');
+    expect(entryObject(xml, 'cCplxNd')).toContain('IsComplex="1" Dimension="2*2*2"');
+
+    // 54: the shape on the element that declares the class, one child per struct — and
+    // NOT a `Class="struct"` with no Dimension, which is what the hardcoded 1x1 wrote and
+    // what put the elements a level too deep.
+    expect(entryObject(xml, 'cStructArr')).toContain('<Element Class="struct" Dimension="1*2">');
+    expect(entryObject(xml, 'cStructArr2D')).toContain('<Element Class="struct" Dimension="2*2">');
+    expect(entryObject(xml, 'cStructArr')).not.toMatch(/<Element Class="struct">/);
+
+    // 55: a CLASSLESS wrapper carrying the shape, over one classed object each. Counted,
+    // because the defect wrote a well-formed wrapper containing only the first object.
+    expect(entryObject(xml, 'cObjArr')).toContain('<Element Dimension="1*2">');
+    expect(entryObject(xml, 'cObjArr').match(/<Element Class="Simulink\.Parameter">/g)).toHaveLength(
+      2,
+    );
+  });
+
+  it('byte for byte MATLAB\'s own, for every entry in the fixture', () => {
+    // The strongest form: the rebuilt entry IS MATLAB's bytes. One difference is normalized
+    // away, and it predates all three defects — on a 1x1 cell we write `Dimension="1*1"`
+    // where MATLAB writes no attribute at all. That is save churn, not data loss (an absent
+    // Dimension is read back as 1x1), and since every entry here is a 1x1 cell, leaving it
+    // unnormalized would mean comparing nothing instead of comparing everything.
+    const ours = rebuildXml('fixtures/cellarr_binary.sldd');
+    const theirs = matlabChunk('fixtures/cellarr_binary.sldd');
+    const churn = (block: string): string =>
+      block.replace(/Class="cell" Dimension="1\*1"/g, 'Class="cell"');
+    for (const [name] of [...DEFECTS, ...CONTROLS]) {
+      expect(churn(entryObject(ours, name)), name).toBe(churn(entryObject(theirs, name)));
+    }
+    // The sibling sites too, unnormalized: they were already right, and a fix that reached
+    // the shared helper would break them here rather than quietly.
+    for (const name of ['sObjArr', 'sStructArr', 'pCplxArr']) {
+      expect(entryObject(ours, name), name).toBe(entryObject(theirs, name));
+    }
+  });
+
+  it('and the rebuilt chunk reopens as the values MATLAB wrote', () => {
+    // End to end: read MATLAB's file, write it back untouched, read that. This is the one
+    // that fails loudest without the fix — 54 and 55 both wrote chunks that PARSE, and
+    // reopen missing their data.
+    const xml = rebuildXml('fixtures/cellarr_binary.sldd');
+    const uri = 'mem://cellarr-reopen';
+    DataModel.removeDataSource(uri);
+    const reopened = DataModel.addDataSource(uri, parseBinarySlddParts(xml, {}), {
+      path: 'cellarr_binary.sldd',
+    });
+    for (const [name, display] of [...DEFECTS, ...CONTROLS]) {
+      expect(String(findByName(reopened, name).displayValue), name).toBe(display);
+    }
+    expect(findByName(reopened, 'cObjArr').children[0].children).toHaveLength(2);
   });
 });
