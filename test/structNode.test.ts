@@ -266,15 +266,18 @@ describe('StructNode.addChildNode', () => {
     expect((node as any).serial._fields).toEqual(['field', 'field1']);
   });
 
-  it('initializes _fields when the struct had none', () => {
-    // An empty struct parsed from a bare { _elements: [{}] } has no _fields
-    // array. addChildNode must create one rather than pushing onto undefined.
+  it('pushes onto the empty list parse derives for a struct with no fields', () => {
+    // A bare { _elements: [{}] } declares no _fields, and parse derives one from the
+    // element bag — empty, here, because the bag is. So the list addChildNode pushes
+    // onto always exists: `serial._fields` is an ARRAY for every parsed struct, which
+    // is what lets serializeElement and the rename/remove/restore hooks read it without
+    // each re-deciding what a missing key means. See structFieldsAcrossBuilds.test.ts.
     const node = StructNode.parse({
       _array_type: 'Struct',
       _dimensions: [1, 1],
       _elements: [{}],
     }, 'S', null);
-    expect((node as any).serial._fields).toBeUndefined();
+    expect((node as any).serial._fields).toEqual([]);
     (node as any).addChildNode();
     expect((node as any).serial._fields).toEqual(['field']);
   });

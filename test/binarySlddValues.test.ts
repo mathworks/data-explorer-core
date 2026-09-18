@@ -598,3 +598,87 @@ describe('parseBinarySlddParts — document-level bookkeeping', () => {
     expect(() => parseBinarySldd(ab)).toThrow('Missing data/chunk0.xml in binary SLDD');
   });
 });
+
+// A `Class`/`IsComplex` attribute is read as a KIND of thing, not matched against a
+// transcript of what one build of MATLAB happened to write. Both rules below were closed
+// enumerations, and each enumeration has a defect on record:
+//
+//   - `isNumericClass` listed its ten class names by hand, and `parseTypedValue` listed
+//     nine of them AGAIN as `case` labels. int64/uint64 were missing from both, so a
+//     64-bit struct FIELD fell through to the bare-text return and the writer, seeing a
+//     bare string, spelled it `Class="char"` — MATLAB reopened the field as a char row of
+//     digits (defect 27). The integer family is now one pattern asked in one place, so it
+//     cannot omit a width and the two sites cannot disagree about one.
+//   - `IsComplex` was compared to the literal `'1'` in three places. A spelling this
+//     reader fails to recognize does not merely mis-display: the value loses its imaginary
+//     parts AND is re-serialized without `IsComplex`, so they leave the file too — defect
+//     53's exact shape. `'true'` is accepted as well now, the same latitude the `logical`
+//     arm has always taken.
+describe('parseBinarySlddParts — class and complexity read as kinds, not spellings', () => {
+  // Every integer width MATLAB has, crossed with all three sites the format nests a typed
+  // value at: an entry's own value, a struct FIELD, and a cell ELEMENT. The crossing is the
+  // point — defect 27 was right at the entry site and wrong at the other two, so a table
+  // that checked one site would have passed throughout.
+  const INT_CLASSES = ['int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64'];
+
+  for (const cls of INT_CLASSES) {
+    it(`keeps the class of a ${cls} at the entry, field and cell sites`, () => {
+      // The CLASS is the assertion, not the serial spelling of the digits: an unsigned
+      // value carries a `U` suffix and a 64-bit one is held as exact text, both of which
+      // are pinned elsewhere. What defect 27 destroyed was the class.
+      const entry = value(`<P Name="Value" Class="${cls}">7</P>`);
+      expect(entry, 'entry value').toMatchObject({ _type: cls });
+      // And the save half, which is how 27 reached the file rather than only the screen:
+      // a value whose class the reader dropped comes back out as Class="char".
+      expect(saved(entry), 'entry value writes its class').toContain(`Class="${cls}"`);
+
+      const field = value(
+        `<P Name="Value" Class="struct"><Element><P Name="f" Class="${cls}">7</P></Element></P>`,
+      ) as Record<string, any>;
+      expect(field._elements[0].f, 'struct field').toMatchObject({ _type: cls });
+
+      const cell = value(
+        `<P Name="Value" Class="cell" Dimension="1*1"><Element Class="${cls}">7</Element></P>`,
+      ) as Record<string, any>;
+      expect(cell._elements[0], 'cell element').toMatchObject({ _type: cls });
+    });
+  }
+
+  it('leaves a class it does not know as text rather than guessing a number', () => {
+    // The pattern is deliberately not a catch-all, and this is the measurement that says
+    // so. Admitting an unknown class into the numeric arms hands the save path a `_type`
+    // it cannot format: `Class="half">1.5` comes back out as `2`, and a class whose body is
+    // not numeric at all comes back out as `0`. Dropping the class and keeping the
+    // characters is the less destructive failure, so it is the one this arm takes — which
+    // is also why `half`, a real MATLAB numeric class, is NOT in the pattern.
+    const field = value(
+      '<P Name="Value" Class="struct"><Element><P Name="f" Class="half">1.5</P></Element></P>',
+    ) as Record<string, any>;
+    expect(field._elements[0].f).toBe('1.5');
+  });
+
+  for (const spelling of ['1', 'true']) {
+    it(`reads IsComplex="${spelling}" as complex at the entry, field and cell sites`, () => {
+      const entry = value(`<P Name="Value" Class="double" IsComplex="${spelling}">1.0+2.0i</P>`);
+      expect(entry, 'entry value').toEqual({ _type: 'cdata', _value: '1.0+2.0i' });
+
+      const field = value(
+        `<P Name="Value" Class="struct"><Element>` +
+          `<P Name="f" Class="double" IsComplex="${spelling}">1.0+2.0i</P></Element></P>`,
+      ) as Record<string, any>;
+      expect(field._elements[0].f, 'struct field').toEqual({ _type: 'cdata', _value: '1.0+2.0i' });
+
+      // The cell element states its shape in the envelope, because the text form is the
+      // only place a complex value's shape can be stated at all (defect 53).
+      const cell = value(
+        `<P Name="Value" Class="cell" Dimension="1*1">` +
+          `<Element Class="double" IsComplex="${spelling}" Dimension="1*2">1.0+2.0i 3.0-4.0i</Element></P>`,
+      ) as Record<string, any>;
+      expect(cell._elements[0], 'cell element').toEqual({
+        _type: 'cdata',
+        _value: '1.0+2.0i 3.0-4.0i',
+        _dimensions: [1, 2],
+      });
+    });
+  }
+});

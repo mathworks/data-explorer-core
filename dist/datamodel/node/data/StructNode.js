@@ -10,7 +10,46 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
+/**
+ * A struct's field names, read from the bytes rather than trusted from a key MATLAB may
+ * not have written.
+ *
+ * `_fields` wins when it is there, because it is the only statement of field ORDER an
+ * envelope carries and a bag's order is otherwise just a JSON object's key order. Absent
+ * it, the names ARE the keys of the element bag — which is what `BinarySlddParser`
+ * (`_fields: Object.keys(parsed[0])`), `McosParser` and `MatlabVariableNode` have all
+ * derived for themselves all along. That is why those three channels were unaffected when
+ * MATLAB stopped writing `_fields` into a text dictionary between builds `27.1.0.3353139`
+ * and `27.1.0.3393633`, and the text channel — the one that passed MATLAB's JSON straight
+ * through and trusted the key — showed every struct with no field rows at all.
+ *
+ * Element 0 rather than a union across elements, deliberately: a struct ARRAY shares one
+ * field list by definition, which is what makes it an array and not a bag of unrelated
+ * structs (see `_renameField`), so element 0 states it. It is also the rule the binary
+ * parser already applies, and a union would be a second rule for the same question.
+ */
+function fieldsOf(rawVal) {
+    if (Array.isArray(rawVal._fields)) {
+        return rawVal._fields;
+    }
+    const elements = rawVal._elements;
+    if (Array.isArray(elements) && elements.length > 0 && elements[0]) {
+        return Object.keys(elements[0]);
+    }
+    return [];
+}
 export default class StructNode extends DataNode {
+    constructor() {
+        super(...arguments);
+        // Whether the parsed envelope DECLARED `_fields`, as opposed to us deriving the list
+        // from its element bag. Only `serializeValue` asks, and only so that a save does not
+        // add the key back to a file MATLAB left it out of: the reader may not depend on
+        // `_fields`, so the writer may not start producing it either, or our saves would
+        // diverge from MATLAB's own for every struct in every current-build dictionary. An
+        // untouched node replays `_rawInput` and never reaches the question; a modified one
+        // has already lost those bytes, which is why this is stored rather than re-read.
+        this._fieldsDeclared = false;
+    }
     get icon() {
         return 'wsTree';
     }
@@ -100,7 +139,7 @@ export default class StructNode extends DataNode {
             _dimensions: d,
             _elements: elements
         };
-        if (this.serial._fields) {
+        if (this._fieldsDeclared) {
             result._fields = fields;
         }
         result._mw_element_type = this.serial._mw_element_type || 'MATLABArray';
@@ -219,14 +258,19 @@ export default class StructNode extends DataNode {
     execAddChild() { return addChildUndoable(this); }
     execRemoveChild(child) { return removeChildUndoable(this, child); }
     static parse(rawVal, name, parent) {
+        // Always an ARRAY, derived if MATLAB did not declare one, so that everything
+        // downstream of here — serializeElement, add/remove/restore, _renameField — reads
+        // one list that is already right rather than re-deciding the question. `fieldsOf`
+        // is the single place that decision is made.
+        const fields = fieldsOf(rawVal);
         const serial = {
             _dimensions: rawVal._dimensions,
-            _fields: rawVal._fields,
+            _fields: fields,
             _mw_element_type: rawVal._mw_element_type
         };
         const node = new StructNode(name, parent, serial);
         node._rawInput = rawVal;
-        const fields = rawVal._fields || [];
+        node._fieldsDeclared = Array.isArray(rawVal._fields);
         const elements = rawVal._elements || [];
         if (elements.length > 1) {
             const dims = rawVal._dimensions || [1, elements.length];
@@ -238,6 +282,10 @@ export default class StructNode extends DataNode {
                 };
                 const elemNode = new StructNode(String(ei), node, elemSerial);
                 elemNode._isElementNode = true;
+                // Same answer as the array root's, so the two cannot come to disagree about
+                // it. An element serializes through serializeElement and so never emits
+                // `_fields` itself; this is here to keep that true by construction.
+                elemNode._fieldsDeclared = node._fieldsDeclared;
                 // Column-major, as MATLAB stores it — see ObjectNode. The label is
                 // DERIVED from this spec by BaseNode.displayName rather than baked
                 // here, so renaming the array relabels its elements.
@@ -264,6 +312,11 @@ export default class StructNode extends DataNode {
             _dimensions: [1, 1],
             _num_fields: 0,
             _field_names: [],
+            // Declared, empty. A struct WE invent has no MATLAB bytes to stay faithful to,
+            // so it keeps writing `_fields` the way it did before the list became
+            // derivable — the emit policy only exists to avoid contradicting a file MATLAB
+            // wrote, and there is no such file here.
+            _fields: [],
             _elements: [{}]
         };
         return StructNode.parse(rawVal, name, parent);
