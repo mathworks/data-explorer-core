@@ -1952,6 +1952,81 @@ READER did with what MATLAB wrote.
       `binaryWriteBackGate.test.ts` excludes that one struct field from its cross-channel
       comparison and says why; nothing asserts the broken behaviour.
 
+## Three more, from asking what ELSE the cell site was missing
+
+52 was found from a report. These three were found by taking its cause seriously and
+asking the generalizing question: *why* was one site missing a branch its two siblings
+had? Because **`parseCellElement` is a hand-rolled copy of the class dispatch the other
+sites share, so every idea added to the shared dispatch has to be added to the copy by
+hand — and the copy lags.** 52 was the missing `string` idea. These are the missing
+"a dimensioned element set" idea, which the shared dispatch has in one place
+(`parseArrayOfElements`) and the copy had in three half-right ways.
+
+All three are binary-only, the text channel being right for all of them; all three are
+wrong on screen **and** lossy in the file, with no edit required; and all three were
+hidden by their own 1x1 control, which is the reason to state them together. Measured by
+`probe_cell_arrays.m`, which records MATLAB's three spellings and wrote
+`cellarr_{text,binary}.sldd`.
+
+53. **A complex ARRAY in a cell lost its imaginary parts.** `{[1+2i 3-4i]}` displayed
+    `{[1 3]}`, and a rebuild wrote `Class="double" Dimension="1*2">1.0 3.0` — `IsComplex`
+    and the imaginary parts both gone from the file.
+
+    The copy asked the SHAPE before the complexity, so a dimensioned element went to the
+    shaped arm, whose `numericBody` runs each token through `parseFloat`, which stops at
+    the `+`. The shared dispatch asks complexity first (`parseEntryValue`, and the struct
+    field path) because a complex value states its elements as text whatever its rank —
+    `IsComplex="1" Dimension="2*2*2">1.0+1.0i …` — so the shape is not the thing to branch
+    on. A complex SCALAR was right the whole time for the one reason that matters here:
+    MATLAB writes one with **no** `Dimension` at all, so it fell past the shaped arm and
+    reached the `IsComplex` check by accident of ordering.
+
+54. **A struct ARRAY in a cell was published as `<1x1 struct>`.** The copy passed a
+    hardcoded `[1, 1]` to `structValue` where the shared dispatch reads the element's own
+    `Dimension`, which MATLAB puts on the element that declares the class
+    (`<Element Class="struct" Dimension="1*2">`, one child `<Element>` per struct) exactly
+    as it puts it on a struct-array `<P>` — which is why the field and property sites were
+    right and this one was not.
+
+    The wrong summary was the harmless half. The envelope's dims are what the writer
+    spells, so a save emitted a `Class="struct"` element with the structs a level too deep
+    and the **next open found neither of them** — 1x2 and 2x2 alike.
+
+55. **An object ARRAY in a cell showed only its first object.** The copy's tail took
+    `childElements[0]`, so `{[Simulink.Parameter(1) Simulink.Parameter(2)]}` displayed
+    `{1}` — the first Parameter's value, presented as though the cell held a scalar — and
+    every object after the first was gone from the file on any save. The text channel
+    showed `{<1x2 Simulink.Parameter>}`.
+
+    MATLAB spells this one a third way again: a **classless** `<Element Dimension="1*2">`
+    over one classed `<Element Class="Simulink.Parameter">` per object. A single object in
+    a cell is that same classless wrapper with no `Dimension` and one child, which is
+    precisely why taking the first child looked correct — for the control.
+
+Fixed as one idea rather than three: complexity is asked before shape, the struct arm
+reads the element's `Dimension`, and the object tail delegates a dimensioned multi-child
+element to `parseArrayOfElements` — the same helper the property path uses — rather than
+becoming a fourth copy of the decision.
+
+Held by five tests in `binaryWriteBackGate.test.ts`, each of which fails with **any one**
+of the three edits reverted (verified by reverting each alone): MATLAB's values read back,
+the two channels asserted against EACH OTHER, the three write spellings, a byte-for-byte
+comparison of every entry against MATLAB's own chunk, and a reopen of the rebuilt chunk.
+The byte comparison normalizes away exactly one difference, the `Dimension="1*1"`
+1x1-cell churn 52 already recorded — every entry in this fixture is a 1x1 cell, so leaving
+it in would mean comparing nothing instead of everything.
+
+Two things this measurement settled and left alone:
+
+- **The writer needed no change.** All three defects were reader-side; once the model
+  carried the right dims, class and count, `MatlabVariableNode._serializeCellXml` and
+  `_serializeArrayXml` already spelled each of the three forms MATLAB's way. That is the
+  byte-identity test's second job.
+- **Struct-array element rows are labelled 0-based** (`0`, `1`, …) where every other
+  container in the tree is 1-based, and for an N-D struct array the two channels disagree
+  about it (text `1…12`, binary `0…11`). Visible in the fixtures here, unrelated to cells,
+  not asserted either way.
+
 ## Known limitations, to verify and document
 
 - **Derived MCOS classes.** A customer class `MyParam < Simulink.Parameter`
