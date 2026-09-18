@@ -4,6 +4,7 @@ import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 export default class StructNode extends DataNode {
     _isElementNode?: boolean;
+    _fieldsDeclared: boolean;
     get icon(): string;
     get className(): string;
     get dataType(): string;

@@ -1947,10 +1947,10 @@ READER did with what MATLAB wrote.
       fields, nested, struct array, every field class) got `_fields` on **none** of them.
       So on current MATLAB a struct in a text `.sldd` shows no field row at all: the
       fields are invisible and uneditable. This is a live defect with a far wider blast
-      radius than 52, it is NOT fixed here, and it is the case the README's own warning
-      describes — MATLAB changed its answer, which is a finding and not a test to fix.
-      `binaryWriteBackGate.test.ts` excludes that one struct field from its cross-channel
-      comparison and says why; nothing asserts the broken behaviour.
+      radius than 52, and it is the case the README's own warning describes — MATLAB
+      changed its answer, which is a finding and not a test to fix. **Fixed separately as
+      defect 56, below**; the cross-channel exclusions it forced in
+      `binaryWriteBackGate.test.ts` are gone with it.
 
 ## Three more, from asking what ELSE the cell site was missing
 
@@ -2026,6 +2026,90 @@ Two things this measurement settled and left alone:
   container in the tree is 1-based, and for an N-D struct array the two channels disagree
   about it (text `1…12`, binary `0…11`). Visible in the fixtures here, unrelated to cells,
   not asserted either way.
+
+## Reading a format that changes: derive from structure, do not trust a spelling
+
+53–55 were the same shape as 52 one level out. **56 is that question asked of the format
+itself**: where does a reader depend on MATLAB spelling something a particular way, such
+that MATLAB changing its mind is silent data loss? The answer turned out to be already
+sitting in the notes above, recorded as a neighbour of 52 and not yet fixed.
+
+56. **A struct in a current-MATLAB text `.sldd` showed no field rows, and a save deleted
+    its fields from the file.** `StructNode.parse` built a struct's children from
+    `rawVal._fields` alone, and build `27.1.0.3393633` stopped writing `_fields` where
+    `27.1.0.3353139` wrote it — so `fields` was `[]`, no field row was built even though
+    `_elements[0]` held every field, and `serializeElement`, which iterates the same list,
+    re-serialized the struct as `_elements: [{}]`. Measured on MATLAB's own bytes: every
+    struct in `cellarr_text.sldd` and `cellstr_text.sldd` (8 of them, including the
+    elements of a struct array and a struct inside a cell) came up empty, while every
+    struct in the older `typed_text.sldd`, `nd_nested.sldd` and `object_props_text.sldd`
+    was correct. No edit to the fields was needed for the loss — any edit under the entry
+    drops `_rawInput` and the re-serialize does the rest.
+
+    **Four parsers build this envelope and three already DERIVED the list** —
+    `BinarySlddParser` (`_fields: Object.keys(parsed[0])`), `McosParser`,
+    `MatlabVariableNode` — so the binary channel was right throughout and only the text
+    channel, which passes MATLAB's JSON straight through, was wrong. That is the whole
+    lesson in one file: *the channel that derived from structure survived the format
+    change; the channel that trusted the key did not.*
+
+    Fixed with `fieldsOf(rawVal)` in `StructNode.ts`, in the one place all four channels
+    funnel through: an explicit `_fields` still wins (it is the only statement of field
+    ORDER an envelope carries), and absent it the names are the keys of element 0 — element
+    0 and not a union, because a struct array shares one field list by definition and that
+    is the rule the binary parser already applied. `serial._fields` is therefore always an
+    array, which is what lets `serializeElement`, `_renameField` and the
+    add/remove/restore hooks read one list that is already right instead of each deciding
+    what a missing key means. `addChildNode`'s `if (!this.serial._fields) { = [] }` was a
+    latent second bug on the same line — it would have built a list holding only the new
+    field — and it is unreachable now.
+
+    The writer stays faithful: `_fieldsDeclared` records whether the INPUT declared the
+    key, and only then is it emitted, so a save does not add `_fields` back to a file
+    MATLAB left it out of. A struct WE invent (`createDefault`) declares an empty one, so
+    its behaviour is unchanged — the emit policy exists to avoid contradicting a MATLAB
+    file, and there is no such file in that case.
+
+    Gated by `structFieldsAcrossBuilds.test.ts`, which asserts both builds' bytes as the
+    SAME assertion (a reader is not allowed to care which build it is reading), walks the
+    text channel against the binary one all the way down, and checks both halves of the
+    write: every field kept, `_fields` not invented, `_fields` preserved where it existed.
+    Reverting the derivation alone fails 11 tests across that file and
+    `binaryWriteBackGate.test.ts`, whose two cross-channel carve-outs for this defect are
+    now gone — the walk stops nowhere and `sStr`'s field is compared like everything else.
+
+Two enumerations hardened in the same pass, both inert against every byte MATLAB has
+written and both closing a failure mode that already happened once:
+
+- **`isNumericClass` is a pattern, not a list, and `parseTypedValue` no longer keeps a
+  second copy of it.** The integer family is `u?int(8|16|32|64)`, so it cannot omit a
+  width, and the nine `case` labels that duplicated the same set are one
+  `isNumericClass(className)` in the `default` arm. Defect 27 was precisely that
+  duplication: int64/uint64 missing from BOTH lists, the value falling through to the
+  bare-text return, the writer spelling it `Class="char"`.
+- **`IsComplex` accepts `"true"` as well as `"1"`**, through one `isComplexAttr` helper
+  rather than three literal comparisons — the same latitude `parseTypedValue`'s `logical`
+  arm has always taken. The asymmetry is the argument: an unrecognized spelling does not
+  merely mis-display, it drops the imaginary parts from the value AND from the next save,
+  which is defect 53's exact shape.
+
+Two findings from that hardening, measured and deliberately NOT acted on:
+
+- **The entry site is permissive in a way that corrupts, and the field site's narrowness is
+  the safer of the two failures.** `parseEntryValue` accepts ANY class and formats it as a
+  number, so `Class="half">1.5` writes back `2` and a class whose body is not numeric at
+  all writes back `0`; `parseTypedValue`'s `default` arm drops the class and keeps the
+  characters. So `half` is deliberately absent from `NUMERIC_CLASS` — admitting it there
+  would trade a wrong type for wrong digits — and the field site was NOT aligned with the
+  entry site, which was the change this audit set out to make until the measurement said
+  otherwise. Nothing in the whole MATLAB-authored binary corpus reaches that arm: the only
+  `<P Class=...>` values anywhere in it are `char`, `double`, `logical`, `cell`, `struct`
+  and the ten numeric classes.
+- **`writeIntoSaveobj` asks `fields.includes(key)` of the same envelope and is NOT
+  affected**, because `SAVEOBJ_KEY` is set only by `BinarySlddParser` — the saveobj
+  envelope is a binary-channel concept and that channel derives its own `_fields`. Checked
+  rather than assumed; it is the one other place in the model layer that reads `_fields` to
+  decide something.
 
 ## Known limitations, to verify and document
 

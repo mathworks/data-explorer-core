@@ -471,21 +471,16 @@ describe('defect 52: a string in a cell keeps its text, in the file as well as o
       const n = findEntry(root, name);
       return [String(n.displayValue), ...n.children.map((c: any) => String(c.displayValue))];
     };
-    for (const [name] of [...CELLS, ['cObj']]) {
+    // sStr, the string-in-a-STRUCT case, is compared on its field too. It used to be
+    // compared on its entry row alone: the build that wrote these fixtures (27.1.0.3393633)
+    // stopped emitting `_fields` in a text dictionary and StructNode.parse built a scalar
+    // struct's field children from `_fields` alone, so the text channel showed this struct
+    // with no field row while the binary channel derived the list from the element bag. That
+    // was its own defect (56) and it is fixed — `fieldsOf` now derives in the one place all
+    // four channels funnel through — so there is nothing left here to carve out.
+    for (const [name] of [...CELLS, ['cObj'], ['sStr']]) {
       expect(shown(bin, name), name).toEqual(shown(txt, name));
     }
-    // sStr is compared on its own row alone, and deliberately not on its field. The channels
-    // DISAGREE there, for a reason that has nothing to do with strings or with cells: the
-    // build of MATLAB that wrote these two fixtures (27.1.0.3393633) no longer emits
-    // `_fields` in a text dictionary, and StructNode.parse builds a scalar struct's field
-    // children from `_fields` alone — so the text channel shows this struct with no field row
-    // at all, while the binary channel derives the list from the element bag
-    // (BinarySlddParser's `_fields: Object.keys(parsed[0])`). That is its own defect, with its
-    // own blast radius — every struct in every current-MATLAB text .sldd — and it is not
-    // asserted either way here.
-    expect(String(findEntry(bin, 'sStr').displayValue)).toBe(
-      String(findEntry(txt, 'sStr').displayValue),
-    );
   });
 
   it('writes every saveobj payload back, rather than an empty envelope', () => {
@@ -616,20 +611,15 @@ describe('defects 53-55: an array inside a cell keeps its shape, its parts and i
     const bin = loadFile('../fixtures/cellarr_binary.sldd', 'cellarr_binary.sldd');
     const txt = loadFile('../fixtures/cellarr_text.sldd', 'cellarr_text.sldd');
 
-    // The walk stops at a SCALAR struct, and nowhere else. That is the one place the two
-    // channels are known to disagree for a reason unrelated to cells: the build of MATLAB
-    // that wrote these fixtures no longer emits `_fields` in a text dictionary, and
-    // StructNode.parse builds a scalar struct's field children from `_fields` alone, so the
-    // text channel shows a scalar struct with no field rows while the binary channel
-    // derives the list from the element bag. Its own defect, its own blast radius (every
-    // struct in every current-MATLAB text .sldd), not asserted either way here.
+    // The walk stops nowhere. It used to stop at a SCALAR struct, which was the one place
+    // the channels disagreed for a reason unrelated to cells: the build that wrote these
+    // fixtures stopped emitting `_fields` in a text dictionary and StructNode.parse built a
+    // scalar struct's field children from `_fields` alone (defect 56, fixed). With that
+    // carve-out gone the assertion reaches the fields of every struct element as well.
     const shown = (root: any, name: string): string[] => {
       const out: string[] = [];
       const walk = (n: any, path: string): void => {
         out.push(path + '  ' + String(n.displayValue) + ' | ' + String(n.dataType ?? '') + ' | ' + String(n.className ?? ''));
-        if (n.dataType === 'struct' && String(n.displayValue) === '<1x1 struct>') {
-          return;
-        }
         for (const c of n.children ?? []) {
           walk(c, path + '/' + c.name);
         }
@@ -642,9 +632,10 @@ describe('defects 53-55: an array inside a cell keeps its shape, its parts and i
       expect(shown(bin, name), name).toEqual(shown(txt, name));
     }
     // And a row count, so a walk that silently visited only the entry rows could not pass:
-    // the six defect cases have 32 rows between them (an entry and its element each, plus
-    // 2 + 2 + 8 numeric parts, 2 + 4 struct elements, and 2 objects).
-    expect(DEFECTS.reduce((n, [name]) => n + shown(bin, name).length, 0)).toBe(32);
+    // the six defect cases have 38 rows between them (an entry and its element each, plus
+    // 2 + 2 + 8 numeric parts, 2 + 4 struct elements and the `a` field of each of those
+    // six, and 2 objects).
+    expect(DEFECTS.reduce((n, [name]) => n + shown(bin, name).length, 0)).toBe(38);
   });
 
   it('writes each array back the way MATLAB spells it', () => {

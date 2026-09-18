@@ -425,7 +425,7 @@ function parseEntryValue(prop) {
     }
     // Numeric scalar or array
     const text = getTextContent(prop);
-    if (prop['@_IsComplex'] === '1') {
+    if (isComplexAttr(prop['@_IsComplex'])) {
         const result = { _type: 'cdata', _value: text };
         if (dimension) {
             result._dimensions = parseDims(dimension);
@@ -474,7 +474,7 @@ function parseCellElement(el) {
         // this check by falling past the shaped arm; that is the only reason the defect
         // hid. `_dimensions` rides in the envelope because the cdata form is the only
         // place a complex value's shape can be stated.
-        if (el['@_IsComplex'] === '1') {
+        if (isComplexAttr(el['@_IsComplex'])) {
             const cdata = { _type: 'cdata', _value: text };
             if (dimension) {
                 cdata._dimensions = parseDims(dimension);
@@ -790,7 +790,7 @@ function parseStructElement(el) {
         }
         // A complex scalar carries its value as text with IsComplex="1" rather than
         // as child elements, so it never reaches the generic content decoder.
-        if (!prop.Element?.length && prop['@_IsComplex'] === '1') {
+        if (!prop.Element?.length && isComplexAttr(prop['@_IsComplex'])) {
             const dimension = prop['@_Dimension'] || null;
             const cdata = { _type: 'cdata', _value: getTextContent(prop) };
             if (dimension) {
@@ -835,21 +835,10 @@ function parseTypedValue(text, className, dimension) {
     }
     switch (className) {
         case 'double':
+            // Its own arm because its answer differs: a double's stored spelling IS a double's,
+            // so it needs no per-class narrowing. Every OTHER numeric class falls to the default
+            // and is recognized there, by the same predicate the shaped arm above used.
             return parseMatlabNum(text);
-        case 'single':
-        case 'int32':
-        case 'uint32':
-        case 'int16':
-        case 'uint16':
-        case 'int8':
-        case 'uint8':
-        // int64/uint64 belong here and not in the `default` arm: the default returns the
-        // bare body text, which the writer can only spell `Class="char"`. The value itself
-        // survived — a 64-bit scalar's stored text IS its exact decimal — so this half of
-        // defect 27 lost the CLASS rather than the digits.
-        case 'int64':
-        case 'uint64':
-            return formatTypedScalar(text, className);
         case 'logical':
             return text === '1' || text === 'true';
         case 'char':
@@ -858,27 +847,53 @@ function parseTypedValue(text, className, dimension) {
             // shape too, and the numeric branch above never claimed it.
             return charValue(text, dimension);
         default:
+            // Asked as a CLASS, not enumerated. This used to be nine more `case` labels, a
+            // second copy of isNumericClass's list — and the bug that copy invites is exactly
+            // defect 27: int64/uint64 were missing from BOTH lists, the value fell through to
+            // the bare-text return below, and the writer, seeing a bare string, spelled it
+            // `Class="char"`. One list, asked in every place the question comes up, is the only
+            // arrangement in which that cannot happen a second time.
+            if (isNumericClass(className)) {
+                return formatTypedScalar(text, className);
+            }
             return text || '';
     }
 }
-// int64 and uint64 were missing from this list AND from parseCellElement's copy of it,
-// which is what made a 64-bit struct FIELD come back as text: parseTypedValue fell
-// through the numeric branch to the `default: return text`, so sTyped's uint64 [7 8]
-// decoded as the string '7 8' and the writer, seeing a bare string, wrote
-// `<P Name="d" Class="char">7 8</P>` — MATLAB reopened the field as a 1x3 char (defect
+// The integer family is matched as a FAMILY rather than listed member by member, because
+// the listing is what failed: int64 and uint64 were missing from this list AND from
+// parseCellElement's copy of it, which is what made a 64-bit struct FIELD come back as
+// text — parseTypedValue fell through the numeric branch to `default: return text`, so
+// sTyped's uint64 [7 8] decoded as the string '7 8' and the writer, seeing a bare string,
+// wrote `<P Name="d" Class="char">7 8</P>`, which MATLAB reopened as a 1x3 char (defect
 // 27). The entry-level path never had the gap, so the same value was right at the top
-// level and wrong one level down.
+// level and wrong one level down. A pattern cannot omit a width.
+//
+// Deliberately NOT a catch-all "unknown class, probably numeric", and `half` is
+// deliberately not in it. The arms this gates parse the body as numbers and the save path
+// then formats from the `_type`, so admitting a class those two do not both understand
+// turns a wrong TYPE into wrong DIGITS. Measured: `Class="half">1.5` admitted this way
+// writes back `2`, and a class whose body is not numeric at all writes back `0`. Losing
+// the class and keeping the characters — what the `default` arm does — is the less
+// destructive of the two failures, so an unrecognized class stays there on purpose. Adding
+// `half` needs the float handling on the save side too, not just a name here.
+const NUMERIC_CLASS = /^(?:double|single|u?int(?:8|16|32|64))$/;
 function isNumericClass(className) {
-    return (className === 'double' ||
-        className === 'single' ||
-        className === 'int32' ||
-        className === 'uint32' ||
-        className === 'int16' ||
-        className === 'uint16' ||
-        className === 'int8' ||
-        className === 'uint8' ||
-        className === 'int64' ||
-        className === 'uint64');
+    return NUMERIC_CLASS.test(className);
+}
+// `IsComplex="1"` is the only spelling MATLAB has been measured writing, and the only one
+// we write. `"true"` is accepted as well — the same latitude parseTypedValue's `logical`
+// arm already takes (`text === '1' || text === 'true'`), and taken here for the reason
+// that arm is not controversial: the cost of not recognizing the attribute is asymmetric.
+// It does not merely degrade the display; the imaginary parts leave the value AND the next
+// save, because a re-serialized element that was not read as complex is not written as
+// complex either. That was defect 53's whole shape. Reading one extra spelling costs
+// nothing today and turns a possible format change from silent data loss into a no-op.
+//
+// Three call sites — an entry value, a cell element and a property — which is why this is
+// a function and not three comparisons: "one rule, three paths, two of them right" is how
+// 52 and 53 both happened.
+function isComplexAttr(attr) {
+    return attr === '1' || attr === 'true';
 }
 // One numeric body, as the CLASS requires: exact decimal text for the tokens a 64-bit
 // integer cannot round-trip through a double, plain numbers for everything else. The
