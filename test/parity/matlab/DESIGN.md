@@ -1887,6 +1887,71 @@ did). The rows themselves are this repo's, and two of the three should never hav
     resolves to the **base workspace**: nothing on disk, so nothing to link to. That row
     stays visible with no link, which is what the renderer fix makes possible.
 
+## A defect found in the other half of 49's value
+
+Reported by a user, the same way 49 and 51 were, and against the same value 49 already
+had under test: `{"a"}`. 49 fixed what the EDIT path wrote for it; this is what the binary
+READER did with what MATLAB wrote.
+
+52. **A `string` in a cell was read as an object, in the binary dictionary only.** `{"a"}`
+    displayed as `{<1x1 string>}` — the summary form, so the text was not merely
+    mis-typed, it was not on screen at all and the cell offered no editor. The text
+    dictionary showed `{"a"}` the whole time, so the same value read two ways depending
+    on which format it had been saved in, which is the shape that made this findable at
+    all: it was reported as "only for binary sldd".
+
+    The cause is one missing branch, and the defect class is this repo's usual one. A
+    `string` is not a JSON value in the XML channel — it is an OBJECT with a `saveobj`
+    payload — and `BinarySlddParser` nests one in three places: `parseEntryValue` for an
+    entry's own value, `parsePropContent` for a struct field or an object property, and
+    `parseCellElement` for a cell element. The first two tested `Class="string"` and
+    called `parseStringValue`; the third never did, so the element fell through to the
+    generic nested-object tail and became an object of class `string` whose text sat in
+    the saveobj bag, where no formatter looks. One rule, three paths, two of them right.
+
+    The display was the visible tip. Nothing decoded that bag back, so **rebuilding the
+    chunk wrote the element out as an empty `<Element Class="string">` and the text was
+    gone from the file** — silent data loss on any save of a dictionary that contained
+    one, with no edit to it required. Proven by re-serializing an UNTOUCHED
+    MATLAB-authored dictionary with the fix stashed: all four string-bearing entries
+    failed to round-trip.
+
+    Fixed by lifting `string` out of the object tail in `parseCellElement`, the same two
+    lines its two siblings already had. `probe_cell_string.m` is the new probe and settles
+    the shape the branch keys on, which is a level deeper than it looks: a cell element
+    holding an object is a **classless** `<Element>` wrapping the object's own
+    `<Element Class="...">`, so the tail was right for every other class and the fix had
+    to be a lift rather than a replacement. Its two fixtures, `cellstr_{text,binary}.sldd`,
+    are one dictionary in both flavours — `{"a"}`, `{["a" "b"]}`, `{"a","b"}`,
+    `{1,"a",'b'}`, `{Simulink.Parameter(5)}`, `struct('f',"a")` — which is what lets the
+    two channels be asserted against EACH OTHER in `binaryWriteBackGate.test.ts` rather
+    than each against its own literal. Three tests in `cellElementShape.test.ts` that had
+    pinned `{<1x1 string>}` as a known limitation of the binary channel, blamed on the
+    undecoded MCOS payload of a `.mat`, were wrong twice over: an `.sldd` carries no MCOS
+    blob, and the write side was already byte-correct. They now assert both channels agree.
+
+    Two neighbours the same measurement turned up, neither of them touched:
+
+    - **We write `Dimension="1*1"` on a 1x1 cell's `<P Name="Value">` where MATLAB writes
+      no attribute at all.** It round-trips (`parseEntryValue` defaults an absent
+      Dimension to 1x1) and MATLAB reads it back correctly, so it is save churn rather
+      than data loss, and it predates this defect — `cObj`'s Parameter cell has it too.
+      The byte-identity assertion in `binaryWriteBackGate.test.ts` is scoped to the two
+      multi-element cells because of it.
+    - **MATLAB has stopped writing `_fields` in a text dictionary, and a scalar struct's
+      field rows depend on it.** `StructNode.parse` builds a 1x1 struct's children from
+      `rawVal._fields` alone; `BinarySlddParser` derives that list itself
+      (`Object.keys(parsed[0])`), so the binary channel is unaffected. The corpus's
+      `text/cases.sldd` carries `_fields` and was written by build
+      `27.1.0.3353139`; a nine-struct probe run against `27.1.0.3393633` (1, 2 and 3
+      fields, nested, struct array, every field class) got `_fields` on **none** of them.
+      So on current MATLAB a struct in a text `.sldd` shows no field row at all: the
+      fields are invisible and uneditable. This is a live defect with a far wider blast
+      radius than 52, it is NOT fixed here, and it is the case the README's own warning
+      describes — MATLAB changed its answer, which is a finding and not a test to fix.
+      `binaryWriteBackGate.test.ts` excludes that one struct field from its cross-channel
+      comparison and says why; nothing asserts the broken behaviour.
+
 ## Known limitations, to verify and document
 
 - **Derived MCOS classes.** A customer class `MyParam < Simulink.Parameter`
@@ -1938,6 +2003,11 @@ did). The rows themselves are this repo's, and two of the three should never hav
   children at all (only its struct branch does today, at `MatParser.ts:307`), so a cell
   element has no object handle to resolve. Pinned as today's answer by the last two tests
   in `matStringOpaque.test.ts`, so a change to it is a deliberate one.
+
+  **This is a `.mat`-only mechanism.** An `.sldd` carries no MCOS blob, so a `<1x1 string>`
+  inside a DICTIONARY cell was never this limitation — it was defect 52, and citing this
+  bullet for it is how that defect came to be pinned in `cellElementShape.test.ts` as
+  expected behaviour instead of being fixed.
 - **A `missing` has no dictionary spelling.** If a decoded string array carrying a
   `missing` were copied into a `.sldd`, the element would serialize as JSON `null`; what
   MATLAB reads that back as was not measured. Not reachable today (a `.mat` string is
