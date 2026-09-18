@@ -388,3 +388,149 @@ describe('a string Parameter value survives the binary write-back', () => {
     expect(findByName(reopened, 'aParam').displayValue).toBe('"abc"');
   });
 });
+
+// Defect 52 — a `string` inside a CELL, in the binary channel only. The report was
+// cosmetic (`{"a"}` displayed as `{<1x1 string>}`) and the write path was not: rebuilt,
+// that element went out as an EMPTY `<Element Class="string">`, so the text was gone from
+// the file. Both halves have one cause, and it is this repo's recurring one. Three sites
+// in BinarySlddParser nest MATLAB's string object — parseEntryValue for an entry's own
+// value, parsePropContent for a struct field or an object property, parseCellElement for a
+// cell element — and only the first two had a `Class="string"` branch. Without it the
+// element fell through to the generic nested-object tail and decoded as an OBJECT of class
+// `string`, whose text sits in the saveobj bag where neither a formatter nor a writer
+// looks: hence the summary on screen and the empty envelope in the file.
+//
+// The fixtures are MATLAB's own, written by `test/parity/matlab/probe_cell_string.m`,
+// which also records the shape the missing branch keys on: a cell element holding an
+// OBJECT is a classless `<Element>` wrapping the object's own `<Element Class="...">`.
+// That shape is why the tail was right for every other class, and why the fix lifts
+// `string` out of it rather than replacing it.
+describe('defect 52: a string in a cell keeps its text, in the file as well as on screen', () => {
+  // MATLAB's own value for each, as `getValue()` reports it in probe_cell_string.m's
+  // read-back — `cell[1 1] of {string[1 1]}` and so on.
+  const CELLS: Array<[string, string]> = [
+    ['cStr', '{"a"}'], // the reported case
+    ['cStrArr', '{["a" "b"]}'], // a string ARRAY in a cell: the shape has to survive too
+    ['cStrTwo', '{"a", "b"}'], // two elements, each wrapped on its own
+    ['cMixed', '{1, "a", \'b\'}'], // beside a double and a char, neither of which it may become
+  ];
+
+  /**
+   * The `<Object>` block of one entry, from a chunk either MATLAB or we wrote, with its
+   * LastMod stamp dropped — a rebuild restamps a modified entry, by design, so the stamp is
+   * the one line that cannot match and the only one whose mismatch means nothing.
+   */
+  function entryObject(xml: string, name: string): string {
+    const at = xml.indexOf('>' + name + '</P>');
+    expect(at, name).toBeGreaterThan(-1);
+    const open = xml.lastIndexOf('<Object ', at);
+    const block = xml.slice(open, xml.indexOf('</Object>', at) + '</Object>'.length);
+    return block.replace(/\s*<P Name="LastMod"[^>]*>[^<]*<\/P>/, '');
+  }
+
+  /** MATLAB's own chunk for a fixture, to diff a rebuild against. */
+  function matlabChunk(fixture: string): string {
+    const p = fileURLToPath(new URL('./' + fixture, import.meta.url));
+    const zip = unzipSync(new Uint8Array(readFileSync(p)));
+    return new TextDecoder().decode(zip['data/chunk0.xml']);
+  }
+
+  it('reads MATLAB\'s own bytes as strings, not as <1x1 string>', () => {
+    const sldd = loadFile('../fixtures/cellstr_binary.sldd', 'cellstr_binary.sldd');
+    for (const [name, display] of CELLS) {
+      expect(String(findEntry(sldd, name).displayValue), name).toBe(display);
+    }
+    // The CLASS as well as the text: decoded as an object the child's whole value was the
+    // summary string, so a text-only assertion could pass on a node with no string in it.
+    expect(findEntry(sldd, 'cStr').children[0].dataType).toBe('string');
+    expect(findEntry(sldd, 'cStrArr').children[0].dataType).toBe('string');
+    // The control that keeps the fix narrow: a non-string object in a cell still goes
+    // through the nested-object tail the string branch was lifted out of.
+    expect(findEntry(sldd, 'cObj').children[0].className).toBe('Simulink.Parameter');
+    // And the sibling site that already had its branch, so a regression there is visible
+    // here too rather than only in the entry-level tests. Asserted on the FIELD, because a
+    // struct entry summarizes: sStr's own display is `<1x1 struct>` whatever its field holds.
+    const f = findEntry(sldd, 'sStr').children[0];
+    expect(f.name).toBe('f');
+    expect(String(f.displayValue)).toBe('"a"');
+    expect(f.dataType).toBe('string');
+  });
+
+  it('and reads them the same way the TEXT channel does', () => {
+    // The invariant the defect broke, stated BETWEEN the channels rather than as two
+    // per-channel expectations: one dictionary saved in either format is one value. Two
+    // separate expectations is what this repo had — the JSON channel was right the whole
+    // time and said nothing about the XML one.
+    const bin = loadFile('../fixtures/cellstr_binary.sldd', 'cellstr_binary.sldd');
+    // Every ELEMENT too, not just the entry row: the element is where the class lives, and
+    // `{<1x1 string>}` differs from `{"a"}` at the entry row only because the element's
+    // display is interpolated into it. A container whose row agreed and whose contents did
+    // not is exactly what this defect was.
+    const txt = loadFile('../fixtures/cellstr_text.sldd', 'cellstr_text.sldd');
+    const shown = (root: any, name: string): string[] => {
+      const n = findEntry(root, name);
+      return [String(n.displayValue), ...n.children.map((c: any) => String(c.displayValue))];
+    };
+    for (const [name] of [...CELLS, ['cObj']]) {
+      expect(shown(bin, name), name).toEqual(shown(txt, name));
+    }
+    // sStr is compared on its own row alone, and deliberately not on its field. The channels
+    // DISAGREE there, for a reason that has nothing to do with strings or with cells: the
+    // build of MATLAB that wrote these two fixtures (27.1.0.3393633) no longer emits
+    // `_fields` in a text dictionary, and StructNode.parse builds a scalar struct's field
+    // children from `_fields` alone — so the text channel shows this struct with no field row
+    // at all, while the binary channel derives the list from the element bag
+    // (BinarySlddParser's `_fields: Object.keys(parsed[0])`). That is its own defect, with its
+    // own blast radius — every struct in every current-MATLAB text .sldd — and it is not
+    // asserted either way here.
+    expect(String(findEntry(bin, 'sStr').displayValue)).toBe(
+      String(findEntry(txt, 'sStr').displayValue),
+    );
+  });
+
+  it('writes every saveobj payload back, rather than an empty envelope', () => {
+    // The silent half, on the rebuild probe_writeback_bin hands MATLAB and with nothing
+    // edited: before the fix, merely SAVING a dictionary that contained a string in a cell
+    // deleted the text.
+    const xml = rebuildXml('fixtures/cellstr_binary.sldd');
+    expect(xml).not.toMatch(/<Element Class="string">\s*<\/Element>/);
+    expect(xml).not.toContain('<Element Class="string"/>');
+    // Counted, because "no empty envelope" is also true of a chunk that dropped the
+    // elements entirely. Six strings in six places: cStr, cStrArr, cStrTwo x2, cMixed,
+    // sStr — every nesting site the format has, in one file.
+    const envelopes = xml.match(/<P Source="saveobj" PropertyType="any" Class="cell"/g) ?? [];
+    expect(envelopes).toHaveLength(6);
+    expect(xml.match(/<P Source="saveobj" PropertyType="any" Class="cell" Dimension="1\*2"/g))
+      .toHaveLength(1); // cStrArr's, the only one that is not 1x1
+  });
+
+  it('and the rebuilt chunk reopens as the values MATLAB wrote', () => {
+    // End to end, which is the assertion that would have failed loudest before the fix:
+    // read MATLAB's file, write it back untouched, read that. Text-level checks can all
+    // pass on a chunk whose envelope is intact but attached to the wrong element.
+    const xml = rebuildXml('fixtures/cellstr_binary.sldd');
+    const uri = 'mem://cellstr-reopen';
+    DataModel.removeDataSource(uri);
+    const reopened = DataModel.addDataSource(uri, parseBinarySlddParts(xml, {}), {
+      path: 'cellstr_binary.sldd',
+    });
+    for (const [name, display] of CELLS) {
+      expect(String(findByName(reopened, name).displayValue), name).toBe(display);
+    }
+  });
+
+  it('byte for byte MATLAB\'s own, for the cells MATLAB writes a Dimension on', () => {
+    // The strongest form available: the rebuilt entry IS MATLAB's bytes. Restricted to the
+    // two multi-element cells because of one difference that predates this defect and has
+    // nothing to do with strings — on a 1x1 cell we write `Dimension="1*1"` where MATLAB
+    // writes no attribute at all (cObj's Simulink.Parameter cell has it too, and it
+    // round-trips: parseEntryValue defaults an absent Dimension to 1x1). That is save
+    // churn, not data loss, and pinning these two keeps the string bytes themselves exact
+    // while leaving that one free.
+    const ours = rebuildXml('fixtures/cellstr_binary.sldd');
+    const theirs = matlabChunk('fixtures/cellstr_binary.sldd');
+    for (const name of ['cStrTwo', 'cMixed']) {
+      expect(entryObject(ours, name), name).toBe(entryObject(theirs, name));
+    }
+  });
+});

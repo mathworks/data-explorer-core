@@ -228,22 +228,20 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
       expect(fresh.children[0].dataType).toBe('char');
     });
 
+    // Both of these used to re-read as `{<1x1 string>}` on the BINARY channel only, and
+    // that was pinned here as a limitation attributed to the undecoded .mat MCOS payload.
+    // It was not that at all: an .sldd carries no MCOS blob, and the write side was
+    // already byte-correct. The reader was missing one branch —
+    // BinarySlddParser.parseCellElement had no Class="string" case, so MATLAB's own
+    // spelling for a string in a cell (a classless <Element> wrapping
+    // <Element Class="string">, confirmed against R2027a by probe_cell_string.m) fell through
+    // to the generic nested-object tail and became an object of class `string`. Both
+    // channels now agree, which is the whole point of running this block over both.
     it('a string array stays a string array', () => {
       const { display, fresh } = editAndReread('{["a"; "b"]}');
       // The edit itself is right in both channels — this is the 2x1 that used to
       // come back as `{["a" "b"]}`.
       expect(display).toBe('{["a"; "b"]}');
-      if (format === 'binary') {
-        // Then the XML channel loses it, and NOT because of anything above: a string
-        // nested in a cell is written as an MCOS payload this repo does not decode
-        // for an unnamed value, so it re-reads as an opaque summary with no text.
-        // That is the known limitation DESIGN.md records for a string in a struct
-        // field or cell element (and it degrades the same way with the shape fix
-        // reverted). Pinned rather than skipped, so the day the payload is decoded
-        // this line fails and the real assertion below takes over.
-        expect(String(fresh.displayValue)).toBe('{<1x1 string>}');
-        return;
-      }
       expect(String(fresh.displayValue)).toBe('{["a"; "b"]}');
       expect(fresh.children[0].dataType).toBe('string');
     });
@@ -251,10 +249,6 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
     it('a 1x1 string stays a string', () => {
       const { display, fresh } = editAndReread('{"a"}');
       expect(display).toBe('{"a"}');
-      if (format === 'binary') {
-        expect(String(fresh.displayValue)).toBe('{<1x1 string>}');
-        return;
-      }
       expect(fresh.children[0].dataType).toBe('string');
       expect(String(fresh.displayValue)).toBe('{"a"}');
     });
@@ -279,14 +273,10 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
         const first = editAndReread(typed);
         const second = editAndReread(first.display);
         expect(second.display, typed).toBe(first.display);
-        // On the binary channel a string element does not survive the write at all
-        // (see 'a string array stays a string array'), so what re-reads is the
-        // opaque summary rather than the value. The DISPLAY invariant above is the
-        // one this test is about and it holds in both channels.
-        if (format === 'binary' && typed.indexOf('"') >= 0) {
-          expect(String(second.fresh.displayValue), typed).toBe('{<1x1 string>}');
-          continue;
-        }
+        // No per-format exception any more: the string cases used to need one on the
+        // binary channel because a string element did not survive the re-read (see the
+        // note above the two string tests). Every shape in this list now re-reads as
+        // the value it displays, in both channels.
         expect(String(second.fresh.displayValue), typed).toBe(first.display);
       }
     });

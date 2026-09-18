@@ -582,6 +582,16 @@ function parseCellElement(el: XmlNode): unknown {
   // Nested object
   const childElements = el.Element;
   if (childElements && childElements.length > 0) {
+    // A nested MATLAB string, decoded to its text through the same helper the entry
+    // path (parseEntryValue) and the property path (parsePropContent) already use —
+    // this was the third nesting site and the only one without the branch, so a
+    // `string` in a cell decoded as a generic OBJECT of class `string` and displayed
+    // as `<1x1 string>` with the text stranded in the saveobj bag. The check has to
+    // come before parseElement below for the same reason it does in parsePropContent:
+    // the object tail is the fall-through, not a case this shape belongs to.
+    if (childElements[0]['@_Class'] === 'string') {
+      return parseStringValue(childElements[0], dimension);
+    }
     return parseElement(childElements[0]);
   }
   return text || '';

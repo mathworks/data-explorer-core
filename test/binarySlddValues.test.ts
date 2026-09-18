@@ -231,6 +231,47 @@ describe('parseBinarySlddParts — cell elements', () => {
     });
   });
 
+  // REGRESSION. A `string` in a cell is the THIRD place this format nests one, and it
+  // was the one place the reader had no branch for it: parseEntryValue has had the
+  // Class="string" check since strings were supported, parsePropContent got its own for
+  // a struct field / object property, and parseCellElement never got one. So the element
+  // fell through to the generic nested-object tail and decoded as an OBJECT of class
+  // `string` — `{"a"}` displayed as `{<1x1 string>}`, with the text stranded inside the
+  // saveobj bag where no formatter looks. The JSON channel showed `{"a"}` the whole time,
+  // so the same dictionary read two ways depending on which format it was saved in.
+  //
+  // The XML below is MATLAB's own bytes, read off a compressed-binary dictionary MATLAB
+  // wrote for `{"a"}` and `{["a" "b"]}` (probe_cell_string.m): a cell element holding an
+  // object is a CLASSLESS <Element> wrapping the object's own <Element Class="...">, which
+  // is why the nested-object test above is right for a Simulink.Parameter and why only
+  // `string` needs lifting out of that tail.
+  it('REGRESSION: decodes a string element to its text, not an object summary', () => {
+    const stringEl = (saveobjAttrs: string, ...chars: string[]): string =>
+      '<Element><Element Class="string">' +
+      `<P Source="saveobj" PropertyType="any" Class="cell"${saveobjAttrs}>` +
+      chars.map((c) => `<Element Class="char">${c}</Element>`).join('') +
+      '</P></Element></Element>';
+
+    // A 1x1 string is the one-element LIST, which is exactly what the entry path and
+    // the JSON channel both produce — so the cell's child is a string-kind node and
+    // _serializeCellXml writes MATLAB's envelope back (see cellElementShape.test.ts).
+    // MATLAB leaves the Dimension off the saveobj cell at 1x1, so that spelling is the
+    // one that has to work.
+    expect(cellElements(stringEl('', 'a'))).toEqual([['a']]);
+    // A string ARRAY keeps its shape in the String envelope, as it does everywhere else.
+    expect(cellElements(stringEl(' Dimension="1*2"', 'a', 'b'))).toEqual([
+      {
+        _array_type: 'String',
+        _dimensions: [1, 2],
+        _elements: ['a', 'b'],
+        _mw_element_type: 'MATLABArray',
+      },
+    ]);
+    // Two string elements side by side: each wrapper is decoded on its own, so the
+    // cell keeps its length. MATLAB writes one wrapper per element (cStrTwo).
+    expect(cellElements(stringEl('', 'a'), stringEl('', 'b'))).toEqual([['a'], ['b']]);
+  });
+
   it('falls back to the element text for a class it does not decode', () => {
     // A cell can hold a type from a release we do not model. Showing the raw text
     // beats dropping the element, which would silently shorten the cell.
