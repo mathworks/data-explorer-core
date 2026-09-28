@@ -41,7 +41,8 @@ const ALLOWED_TYPES: Record<string, string[]> = {
   ],
   arch: [
     'Constant',
-    'Simulink.Signal',
+    // No Simulink.Signal: a signal is design data. Architectural data models
+    // interfaces, and its bus/connection-bus entries are the interface types.
     'Simulink.Bus',
     'Simulink.ConnectionBus',
     'Simulink.ServiceBus',

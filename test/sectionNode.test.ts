@@ -98,6 +98,15 @@ describe('allowsType / getAllowedTypes', () => {
       expect(sectionOf(root, 'arch').allowsType(cls), cls).toBe(true);
     }
   });
+
+  it('keeps a Signal out of Architectural Data', () => {
+    // A signal is design data; architectural data models interfaces, and its
+    // bus and connection-bus entries are the interface types. Neither arch
+    // fixture holds a Simulink.Signal.
+    const root = sldd();
+    expect(sectionOf(root, 'design').allowsType('Simulink.Signal')).toBe(true);
+    expect(sectionOf(root, 'arch').allowsType('Simulink.Signal')).toBe(false);
+  });
 });
 
 describe('addEntry', () => {
@@ -120,7 +129,7 @@ describe('addEntry', () => {
   it('marks an arch entry derived, which is the whole Design/Arch distinction', () => {
     // On disk an arch entry is byte-identical to a design one apart from
     // isderived; getSectionKey reads it back to choose the section.
-    const node = sectionOf(sldd(), 'arch').addEntry('Simulink.Signal', 'sig')!;
+    const node = sectionOf(sldd(), 'arch').addEntry('Simulink.Bus', 'iface')!;
     expect(node.metadata!.namespace).toBe(NS_DESIGN);
     expect(node.metadata!.isderived).toBe('1');
     expect(node.isDerived).toBe(true);
@@ -225,7 +234,7 @@ describe('_uniqueName and the shared Design/Arch namespace', () => {
     // Design and Arch share NS_DESIGN, so this is the collision that would
     // otherwise write a dictionary MATLAB refuses to load.
     const root = sldd();
-    sectionOf(root, 'arch').addEntry('Simulink.Signal', 'shared');
+    sectionOf(root, 'arch').addEntry('Simulink.Bus', 'shared');
     expect(sectionOf(root, 'design')._uniqueName('shared')).toBe('shared1');
     expect(sectionOf(root, 'design').addEntry('Simulink.Signal', 'shared')!.name).toBe('shared1');
     // ...and symmetrically: arch now sees design's 'shared1' too.
@@ -274,7 +283,7 @@ describe('_uniqueName and the shared Design/Arch namespace', () => {
   it('reports every name across both namespace sections', () => {
     const root = sldd();
     sectionOf(root, 'design').addEntry('Simulink.Parameter', 'a');
-    sectionOf(root, 'arch').addEntry('Simulink.Signal', 'b');
+    sectionOf(root, 'arch').addEntry('Simulink.Bus', 'b');
     sectionOf(root, 'config').addEntry('Simulink.ConfigSet', 'c');
     expect(sectionOf(root, 'design')._namespaceEntryNames().sort()).toEqual(['a', 'b']);
     expect(sectionOf(root, 'config')._namespaceEntryNames()).toEqual(['c']);
@@ -365,7 +374,7 @@ describe('execRemoveEntry — undo/redo', () => {
     // would re-add it on the next Ctrl+Z.
     const root = sldd();
     const design = sectionOf(root, 'design');
-    const stranger = sectionOf(root, 'arch').addEntry('Simulink.Signal', 'sig')!;
+    const stranger = sectionOf(root, 'arch').addEntry('Simulink.Bus', 'iface')!;
     expect(design.execRemoveEntry(stranger)).toBeNull();
     expect(sectionOf(root, 'arch').children).toContain(stranger);
   });
