@@ -114,7 +114,7 @@ describe('ValueType defaultName and isDerived icon', () => {
 // into Design Data and into Architectural Data is byte-identical on disk apart from
 // `isderived`, so the icon is the ONLY thing in the tree that says which section an
 // entry belongs to. A class whose ternary collapsed to one glyph would make an arch
-// entry indistinguishable from a design one, and these four are the classes both
+// entry indistinguishable from a design one, and these three are the classes both
 // sections admit (see ALLOWED_TYPES), so they are exactly the ones it can happen to.
 describe('Design Data and Architectural Data icons for the classes both sections admit', () => {
   const CASES: [string, string, string][] = [
@@ -122,9 +122,6 @@ describe('Design Data and Architectural Data icons for the classes both sections
     ['Simulink.NumericType', 'wsNumeric', 'typeNumeric'],
     ['Simulink.AliasType', 'wsAlias', 'typeAlias'],
     ['Simulink.ValueType', 'wsValue', 'typeSignalUI'],
-    // A derived Signal shares the serviceInterfaces glyph with a derived
-    // Simulink.ServiceBus; what matters here is that it is NOT the wsSignal one.
-    ['Simulink.Signal', 'wsSignal', 'serviceInterfaces'],
   ];
 
   it('gives each class a different glyph in each section', () => {
@@ -139,6 +136,18 @@ describe('Design Data and Architectural Data icons for the classes both sections
       expect(arch.icon, className).toBe(archIcon);
       expect(design.icon, `${className} must not share one glyph`).not.toBe(arch.icon);
     }
+  });
+
+  it('still gives a derived Signal the arch glyph, which only parsing can reach now', () => {
+    // Architectural Data no longer ADMITS Simulink.Signal, so addEntry and paste
+    // cannot produce one and this case cannot be driven from the section the way
+    // the three above are. Parsing is unaffected by allowsType, so a dictionary
+    // that already holds an arch signal still loads — and still needs the glyph
+    // that says so, rather than looking like design data.
+    const node = SignalNode.parse(rawVal('Simulink.Signal', {}), 'sig', null);
+    expect(node.icon).toBe('wsSignal');
+    node.metadata = { isderived: '1' };
+    expect(node.icon).toBe('serviceInterfaces');
   });
 
   it('follows the entry when it is moved between the two sections', () => {
