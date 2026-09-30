@@ -731,6 +731,6 @@ function resolveReference(ent) {
         const parts = ref.split(/[/\\]/).filter((p) => p.length > 0);
         name = parts.length > 0 ? parts[parts.length - 1] : ref;
     }
-    return { id, name };
+    return { id, name, path: ref ?? null };
 }
 //# sourceMappingURL=ProjectParser.js.map

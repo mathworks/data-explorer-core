@@ -618,7 +618,12 @@ describe('parseProject — project references', () => {
       store({ root: { r: ['<Info location="uuid-root-ref" type="Reference"/>', '<Info Ref="../Lib/Lib.prj"/>'] } }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'uuid-root-ref', name: 'Lib.prj' }]);
+    expect(parsed.references).toEqual([
+      // The PATH is kept as the store spelled it, not just its basename: a host that
+      // offers to open the referenced project needs somewhere to resolve, and the id
+      // is a UUID.
+      { id: 'uuid-root-ref', name: 'Lib.prj', path: '../Lib/Lib.prj' },
+    ]);
   });
 
   it('falls back to the Ref as the id when the pointer has no location', () => {
@@ -626,7 +631,9 @@ describe('parseProject — project references', () => {
       store({ root: { r: ['<Info type="Reference"/>', '<Info Ref="Sibling/Sibling.prj"/>'] } }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'Sibling/Sibling.prj', name: 'Sibling.prj' }]);
+    expect(parsed.references).toEqual([
+      { id: 'Sibling/Sibling.prj', name: 'Sibling.prj', path: 'Sibling/Sibling.prj' },
+    ]);
   });
 
   it('reports a null name for a reference with no Ref path', () => {
@@ -636,7 +643,7 @@ describe('parseProject — project references', () => {
       store({ root: { r: ['<Info location="uuid-only" type="Reference"/>', '<Info/>'] } }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'uuid-only', name: null }]);
+    expect(parsed.references).toEqual([{ id: 'uuid-only', name: null, path: null }]);
   });
 
   it('drops a reference with neither a location nor a Ref', () => {
@@ -654,7 +661,7 @@ describe('parseProject — project references', () => {
       store({ root: { r: ['<Info location="u" type="Reference"/>', '<Info Ref="///"/>'] } }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'u', name: '///' }]);
+    expect(parsed.references).toEqual([{ id: 'u', name: '///', path: '///' }]);
   });
 
   it('resolves a Windows-style backslash Ref to its basename', () => {
@@ -662,7 +669,9 @@ describe('parseProject — project references', () => {
       store({ root: { r: ['<Info location="u" type="Reference"/>', '<Info Ref="..\\Lib\\Lib.prj"/>'] } }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'u', name: 'Lib.prj' }]);
+    expect(parsed.references).toEqual([
+      { id: 'u', name: 'Lib.prj', path: '..\\Lib\\Lib.prj' },
+    ]);
   });
 });
 
@@ -770,7 +779,9 @@ describe('parseProject — working folders', () => {
       }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'uuid-1', name: 'Lib.prj' }]);
+    expect(parsed.references).toEqual([
+      { id: 'uuid-1', name: 'Lib.prj', path: '../Lib/Lib.prj' },
+    ]);
   });
 });
 

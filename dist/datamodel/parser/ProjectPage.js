@@ -77,7 +77,10 @@ export function buildProjectPage(parsed) {
             ref: w.ref,
         })),
         categories: categoriesOf(parsed),
-        references: parsed.references.map((r) => ({ name: r.name ?? r.id, path: r.name ? r.id : '' })),
+        // The id is deliberately NOT the fallback target: it is a UUID, and a page that
+        // linked it would offer to open a path that cannot exist. A reference the store
+        // gave no path for is shown by name alone.
+        references: parsed.references.map((r) => ({ name: r.name ?? r.id, path: r.path ?? '' })),
         warnings: parsed.warnings,
     };
 }

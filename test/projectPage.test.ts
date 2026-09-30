@@ -248,17 +248,21 @@ describe('buildProjectPage — the remaining sections', () => {
     expect(page.pathFolders).toEqual(['', 'utils']);
   });
 
-  it('falls back to the reference id when the store recorded no path', () => {
+  it('shows a reference by its path, and by name alone when there is none', () => {
+    // The path is what a host resolves to open the referenced project. A reference
+    // the store gave no path for leaves only its UUID, and linking THAT would offer
+    // to open a path that cannot exist — so it is empty, which is how the page knows
+    // not to make it a link.
     const page = buildProjectPage(
       parsed({
         references: [
-          { id: 'uuid-1', name: 'Lib.prj' },
-          { id: 'uuid-2', name: null },
+          { id: 'uuid-1', name: 'Lib.prj', path: '../Lib/Lib.prj' },
+          { id: 'uuid-2', name: null, path: null },
         ],
       }),
     );
     expect(page.references).toEqual([
-      { name: 'Lib.prj', path: 'uuid-1' },
+      { name: 'Lib.prj', path: '../Lib/Lib.prj' },
       { name: 'uuid-2', path: '' },
     ]);
   });

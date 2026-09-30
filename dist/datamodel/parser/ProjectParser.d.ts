@@ -24,6 +24,16 @@ export interface ProjectLabel {
 export interface ProjectReference {
     id: string;
     name: string | null;
+    /**
+     * Where the referenced project lives, as the store spells it — relative to THIS
+     * project's root, so typically `../OtherProject/other.prj`. Null when the store
+     * recorded no path, which leaves `id` (a UUID) as all that is known about it.
+     *
+     * Kept alongside `name` rather than folded into it: `name` is the basename, which
+     * is what a user reads, and this is what a host needs to actually open the thing.
+     * Deriving one from the other only works in that direction.
+     */
+    path: string | null;
 }
 /**
  * A registered entry point: a shortcut, or a file MATLAB runs on open/close.

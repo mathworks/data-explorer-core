@@ -30,6 +30,16 @@ export interface ProjectLabel {
 export interface ProjectReference {
   id: string;
   name: string | null;
+  /**
+   * Where the referenced project lives, as the store spells it — relative to THIS
+   * project's root, so typically `../OtherProject/other.prj`. Null when the store
+   * recorded no path, which leaves `id` (a UUID) as all that is known about it.
+   *
+   * Kept alongside `name` rather than folded into it: `name` is the basename, which
+   * is what a user reads, and this is what a host needs to actually open the thing.
+   * Deriving one from the other only works in that direction.
+   */
+  path: string | null;
 }
 
 /**
@@ -965,5 +975,5 @@ function resolveReference(ent: Entity): ProjectReference | null {
     const parts = ref.split(/[/\\]/).filter((p) => p.length > 0);
     name = parts.length > 0 ? parts[parts.length - 1] : ref;
   }
-  return { id, name };
+  return { id, name, path: ref ?? null };
 }

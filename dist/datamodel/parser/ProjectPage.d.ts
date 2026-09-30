@@ -38,7 +38,11 @@ export interface ProjectPageLocation {
 }
 export interface ProjectPageReference {
     name: string;
-    /** The reference id; a path when the store recorded one. */
+    /**
+     * Where the referenced project lives, relative to this project's root — so
+     * typically `../OtherProject/other.prj`. '' when the store recorded no path, which
+     * is a reference a host cannot open and should not offer a link for.
+     */
     path: string;
 }
 export interface ProjectPage {

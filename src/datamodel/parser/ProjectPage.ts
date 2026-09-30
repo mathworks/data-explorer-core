@@ -63,7 +63,11 @@ export interface ProjectPageLocation {
 
 export interface ProjectPageReference {
   name: string;
-  /** The reference id; a path when the store recorded one. */
+  /**
+   * Where the referenced project lives, relative to this project's root — so
+   * typically `../OtherProject/other.prj`. '' when the store recorded no path, which
+   * is a reference a host cannot open and should not offer a link for.
+   */
   path: string;
 }
 
@@ -157,7 +161,10 @@ export function buildProjectPage(parsed: ParsedProject): ProjectPage {
       ref: w.ref,
     })),
     categories: categoriesOf(parsed),
-    references: parsed.references.map((r) => ({ name: r.name ?? r.id, path: r.name ? r.id : '' })),
+    // The id is deliberately NOT the fallback target: it is a UUID, and a page that
+    // linked it would offer to open a path that cannot exist. A reference the store
+    // gave no path for is shown by name alone.
+    references: parsed.references.map((r) => ({ name: r.name ?? r.id, path: r.path ?? '' })),
     warnings: parsed.warnings,
   };
 }
