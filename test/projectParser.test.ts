@@ -132,14 +132,16 @@ describe('parseProject', () => {
 
     const byPath = new Map(parsed.files.map((f) => [f.path, f]));
 
-    // helper.m: a File with the 'design' label.
-    const helper = byPath.get('helper.m');
+    // helper.m: a File with the 'design' label. Its path is qualified by the folder
+    // it sits in — a File entity's `location` is relative to its PARENT entity, not
+    // to the project root, so the bare name the store records is only half of it.
+    const helper = byPath.get('utils/helper.m');
     expect(helper).toBeDefined();
     expect(helper?.isFolder).toBe(false);
     expect(helper?.labels).toContain('design');
 
-    // projmodel.slx: a File.
-    const model = byPath.get('projmodel.slx');
+    // projmodel.slx: a File, likewise under the folder that holds it.
+    const model = byPath.get('models/projmodel.slx');
     expect(model).toBeDefined();
     expect(model?.isFolder).toBe(false);
 
@@ -182,7 +184,7 @@ describe('parseProject', () => {
     expect(parsed.name).toBe('MyProj');
     // The other file (projmodel.slx) and folders still parse.
     const paths = parsed.files.map((f) => f.path);
-    expect(paths).toContain('projmodel.slx');
+    expect(paths).toContain('models/projmodel.slx');
     expect(paths).toContain('models');
     // Label catalog is unaffected.
     expect(parsed.labels.map((l) => l.name)).toContain('Design');
@@ -204,10 +206,10 @@ describe('parseProject', () => {
     expect(parsed.labels).toEqual([]);
     // Other sections still parse.
     expect(parsed.name).toBe('MyProj');
-    expect(parsed.files.map((f) => f.path)).toContain('helper.m');
+    expect(parsed.files.map((f) => f.path)).toContain('utils/helper.m');
     expect(parsed.pathFolders).toContain('utils');
     // Per-file label assignments (UUIDs) are still surfaced.
-    const helper = parsed.files.find((f) => f.path === 'helper.m');
+    const helper = parsed.files.find((f) => f.path === 'utils/helper.m');
     expect(helper?.labels).toContain('design');
   });
 
@@ -542,7 +544,32 @@ describe('parseProject — the label catalog', () => {
       }),
       'fallback',
     );
-    expect(parsed.labels).toEqual([{ id: 'design', category: 'Classification', name: 'Design' }]);
+    expect(parsed.labels).toEqual([
+      { id: 'design', category: 'Classification', name: 'Design', readOnly: false },
+    ]);
+  });
+
+  it('marks the labels MATLAB owns as read-only, and the project\'s own as not', () => {
+    // The seven Classification labels ship with every project and are marked
+    // ReadOnly in the store; a label the project ADDED is not. That marking is the
+    // only thing separating the two, and it is what lets a page distinguish "this
+    // project defines its own vocabulary" from "this project uses the defaults".
+    // Note the attribute spells itself 'READ_ONLY' on a label and '1' on a category,
+    // so presence is what is read, not any one value.
+    const parsed = parseProject(
+      store({
+        root: { cc: ['<Info location="Root" type="Categories"/>'] },
+        cc: { cat: ['<Info location="c" type="Category"/>', '<Info Name="Classification" ReadOnly="1"/>'] },
+        cat: {
+          builtin: ['<Info location="design" type="Label"/>', '<Info Name="Design" ReadOnly="READ_ONLY"/>'],
+          mine: ['<Info location="mine" type="Label"/>', '<Info Name="ForUser"/>'],
+        },
+      }),
+      'fallback',
+    );
+    const byId = new Map(parsed.labels.map((l) => [l.id, l]));
+    expect(byId.get('design')?.readOnly).toBe(true);
+    expect(byId.get('mine')?.readOnly).toBe(false);
   });
 
   it('names a category by its pointer location when its def has no Name', () => {
@@ -556,7 +583,9 @@ describe('parseProject — the label catalog', () => {
       }),
       'fallback',
     );
-    expect(parsed.labels).toEqual([{ id: 'design', category: 'FileClassCategory', name: 'Design' }]);
+    expect(parsed.labels).toEqual([
+      { id: 'design', category: 'FileClassCategory', name: 'Design', readOnly: false },
+    ]);
   });
 
   it('names a label by its id when its def has no Name, and drops one with neither', () => {
@@ -575,8 +604,8 @@ describe('parseProject — the label catalog', () => {
       'fallback',
     );
     expect(parsed.labels).toEqual([
-      { id: 'lab1', category: 'Cat', name: 'Label One' },
-      { id: 'lab2', category: 'Cat', name: 'lab2' },
+      { id: 'lab1', category: 'Cat', name: 'Label One', readOnly: false },
+      { id: 'lab2', category: 'Cat', name: 'lab2', readOnly: false },
     ]);
   });
 });
@@ -589,7 +618,12 @@ describe('parseProject — project references', () => {
       store({ root: { r: ['<Info location="uuid-root-ref" type="Reference"/>', '<Info Ref="../Lib/Lib.prj"/>'] } }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'uuid-root-ref', name: 'Lib.prj' }]);
+    expect(parsed.references).toEqual([
+      // The PATH is kept as the store spelled it, not just its basename: a host that
+      // offers to open the referenced project needs somewhere to resolve, and the id
+      // is a UUID.
+      { id: 'uuid-root-ref', name: 'Lib.prj', path: '../Lib/Lib.prj' },
+    ]);
   });
 
   it('falls back to the Ref as the id when the pointer has no location', () => {
@@ -597,7 +631,9 @@ describe('parseProject — project references', () => {
       store({ root: { r: ['<Info type="Reference"/>', '<Info Ref="Sibling/Sibling.prj"/>'] } }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'Sibling/Sibling.prj', name: 'Sibling.prj' }]);
+    expect(parsed.references).toEqual([
+      { id: 'Sibling/Sibling.prj', name: 'Sibling.prj', path: 'Sibling/Sibling.prj' },
+    ]);
   });
 
   it('reports a null name for a reference with no Ref path', () => {
@@ -607,7 +643,7 @@ describe('parseProject — project references', () => {
       store({ root: { r: ['<Info location="uuid-only" type="Reference"/>', '<Info/>'] } }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'uuid-only', name: null }]);
+    expect(parsed.references).toEqual([{ id: 'uuid-only', name: null, path: null }]);
   });
 
   it('drops a reference with neither a location nor a Ref', () => {
@@ -625,7 +661,7 @@ describe('parseProject — project references', () => {
       store({ root: { r: ['<Info location="u" type="Reference"/>', '<Info Ref="///"/>'] } }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'u', name: '///' }]);
+    expect(parsed.references).toEqual([{ id: 'u', name: '///', path: '///' }]);
   });
 
   it('resolves a Windows-style backslash Ref to its basename', () => {
@@ -633,6 +669,382 @@ describe('parseProject — project references', () => {
       store({ root: { r: ['<Info location="u" type="Reference"/>', '<Info Ref="..\\Lib\\Lib.prj"/>'] } }),
       'fallback',
     );
-    expect(parsed.references).toEqual([{ id: 'u', name: 'Lib.prj' }]);
+    expect(parsed.references).toEqual([
+      { id: 'u', name: 'Lib.prj', path: '..\\Lib\\Lib.prj' },
+    ]);
+  });
+});
+
+describe('parseProject — nested member paths', () => {
+  it('qualifies a nested file by the folders above it', () => {
+    // A File entity's `location` is relative to its PARENT entity, not to the
+    // project root: `utils/helper.m` is stored as a File named `helper.m` inside a
+    // File named `utils`. Read verbatim, that file and a root-level `helper.m`
+    // produce the same row, so a host cannot open either one reliably.
+    const parsed = parseProject(
+      store({
+        root: { f: ['<Info location="Root" type="Files"/>'] },
+        f: { a: ['<Info location="top" type="File"/>', '<Info/>'] },
+        a: { b: ['<Info location="mid" type="File"/>', '<Info/>'] },
+        b: { c: ['<Info location="leaf.m" type="File"/>', '<Info/>'] },
+      }),
+      'fallback',
+    );
+    expect(parsed.files.map((f) => f.path)).toEqual(['top', 'top/mid', 'top/mid/leaf.m']);
+  });
+});
+
+describe('parseProject — two collections of one type', () => {
+  it('reads the Root Files collection and ignores another one beside it', () => {
+    // A real project carries BOTH `location="Root" type="Files"` (its members) and
+    // `location="ALM" type="Files"` (artifact tracking). Matching on type alone
+    // assigned `files` twice and let store order pick the winner — and the ALM
+    // collection holds no member files at all, only a DIR_SIGNIFIER, so losing that
+    // race produced a project with zero members.
+    const parsed = parseProject(
+      store({
+        root: {
+          rootFiles: ['<Info location="Root" type="Files"/>'],
+          almFiles: ['<Info location="ALM" type="Files"/>'],
+        },
+        rootFiles: { m: ['<Info location="real.m" type="File"/>', '<Info/>'] },
+        almFiles: { d: ['<Info location="1" type="DIR_SIGNIFIER"/>', '<Info/>'] },
+      }),
+      'fallback',
+    );
+    expect(parsed.files.map((f) => f.path)).toEqual(['real.m']);
+  });
+});
+
+describe('parseProject — the project root on the path', () => {
+  it('keeps the empty Ref that names the project root itself', () => {
+    // The root is on the MATLAB path as `Ref=""` and is usually the FIRST folder
+    // MATLAB adds, so testing the Ref for truthiness dropped a real entry from
+    // almost every project. Empty-string is the root's name here; a host renders it.
+    const parsed = parseProject(
+      store({
+        root: { pp: ['<Info location="Root" type="ProjectPath"/>'] },
+        pp: {
+          a: ['<Info location="u1" type="Reference"/>', '<Info Ref="" Type="Relative"/>'],
+          b: ['<Info location="u2" type="Reference"/>', '<Info Ref="utils"/>'],
+        },
+      }),
+      'fallback',
+    );
+    expect(parsed.pathFolders).toEqual(['', 'utils']);
+  });
+});
+
+describe('parseProject — working folders', () => {
+  const workingFolderStore = () =>
+    store({
+      root: { wf: ['<Info location="Root" type="WorkingFolders"/>'] },
+      wf: {
+        a: ['<Info location="SimulinkCacheFolder" type="Reference"/>', '<Info Ref="Cache"/>'],
+        b: ['<Info location="DependencyCacheFile" type="Reference"/>', '<Info Ref="Dep/cache.graphml"/>'],
+        c: ['<Info location="NewInSomeFutureRelease" type="Reference"/>', '<Info Ref="Somewhere"/>'],
+      },
+    });
+
+  it('reads each designated location, keeping the store key verbatim', () => {
+    // The key is NOT translated to a display name here: a newer release can
+    // designate a purpose this version has no label for, and passing the raw key
+    // through lets a host show it rather than silently drop the row.
+    const parsed = parseProject(workingFolderStore(), 'fallback');
+    expect(parsed.workingFolders).toEqual([
+      { key: 'SimulinkCacheFolder', ref: 'Cache' },
+      { key: 'DependencyCacheFile', ref: 'Dep/cache.graphml' },
+      { key: 'NewInSomeFutureRelease', ref: 'Somewhere' },
+    ]);
+  });
+
+  it('does not report them as project references', () => {
+    // These are spelled `type="Reference"`, exactly like a project->project
+    // reference and like a path folder — the collection they sit in is the ONLY
+    // thing separating them. A scan that looked at every collection's Reference
+    // children therefore INVENTED references: this project has none, and the
+    // monophonic_syntethizer project was reported as referencing three.
+    const parsed = parseProject(workingFolderStore(), 'fallback');
+    expect(parsed.references).toEqual([]);
+  });
+
+  it('still finds a reference in a collection it does not model', () => {
+    // The flip side of that fix: the collection holding real references is spelled
+    // differently across releases, so the parser skips the collections it KNOWS are
+    // not references rather than allow-listing the ones it thinks are.
+    const parsed = parseProject(
+      store({
+        root: { c: ['<Info location="Root" type="SomeFutureReferenceCollection"/>'] },
+        c: { r: ['<Info location="uuid-1" type="Reference"/>', '<Info Ref="../Lib/Lib.prj"/>'] },
+      }),
+      'fallback',
+    );
+    expect(parsed.references).toEqual([
+      { id: 'uuid-1', name: 'Lib.prj', path: '../Lib/Lib.prj' },
+    ]);
+  });
+});
+
+describe('parseProject — entry points', () => {
+  /** A store with a two-file shutdown chain, written in the REVERSE of run order. */
+  const chainStore = () =>
+    store({
+      root: { ep: ['<Info location="Root" type="EntryPoints"/>'] },
+      ep: {
+        second: [
+          '<Info location="id-second" type="EntryPoint"/>',
+          '<Info File="b.m" Name="second" Type="Shutdown" Visible="0">' +
+            '<Extension Name="ShutdownPrev" Value="id-first"/></Info>',
+        ],
+        first: [
+          '<Info location="id-first" type="EntryPoint"/>',
+          '<Info File="a.m" Name="first" Type="Shutdown" Visible="0">' +
+            '<Extension Name="ShutdownPrev" Value="HEAD"/></Info>',
+        ],
+      },
+    });
+
+  it('puts a hook in run order, not store order', () => {
+    // MATLAB runs these top-down, and the order lives ONLY in the *Prev chain —
+    // each entry naming its predecessor, HEAD marking the first. Nothing else in
+    // the store recovers it, so presenting these in store order (or sorted by name)
+    // silently misreports the sequence a project shuts down in.
+    const parsed = parseProject(chainStore(), 'fallback');
+    expect(parsed.entryPoints.map((e) => e.name)).toEqual(['first', 'second']);
+  });
+
+  it('yields every entry exactly once when the chain is a cycle', () => {
+    // Nothing in the store prevents it, and a chain walk that trusts the links
+    // would never terminate. Order is then undefined, but completeness is not.
+    const parsed = parseProject(
+      store({
+        root: { ep: ['<Info location="Root" type="EntryPoints"/>'] },
+        ep: {
+          a: [
+            '<Info location="id-a" type="EntryPoint"/>',
+            '<Info File="a.m" Name="a" Type="StartUp"><Extension Name="StartUpPrev" Value="id-b"/></Info>',
+          ],
+          b: [
+            '<Info location="id-b" type="EntryPoint"/>',
+            '<Info File="b.m" Name="b" Type="StartUp"><Extension Name="StartUpPrev" Value="id-a"/></Info>',
+          ],
+        },
+      }),
+      'fallback',
+    );
+    expect(parsed.entryPoints.map((e) => e.name).sort()).toEqual(['a', 'b']);
+  });
+
+  it('keeps an unchained hook file, which is what a single-file hook looks like', () => {
+    // A project with one startup file writes no Extension at all, so the absent
+    // chain is the COMMON case here and not a damaged store.
+    const parsed = parseProject(
+      store({
+        root: { ep: ['<Info location="Root" type="EntryPoints"/>'] },
+        ep: { a: ['<Info location="id-a" type="EntryPoint"/>', '<Info File="s.m" Name="s" Type="StartUp"/>'] },
+      }),
+      'fallback',
+    );
+    expect(parsed.entryPoints).toEqual([
+      { id: 'id-a', name: 's', file: 's.m', kind: 'StartUp', visible: true, groupId: '' },
+    ]);
+  });
+
+  it('orders startup before shutdown, then the shortcuts', () => {
+    const parsed = parseProject(
+      store({
+        root: { ep: ['<Info location="Root" type="EntryPoints"/>'] },
+        ep: {
+          s: ['<Info location="id-s" type="EntryPoint"/>', '<Info File="c.m" Name="shortcut" Type="Basic"/>'],
+          d: ['<Info location="id-d" type="EntryPoint"/>', '<Info File="d.m" Name="down" Type="Shutdown"/>'],
+          u: ['<Info location="id-u" type="EntryPoint"/>', '<Info File="u.m" Name="up" Type="StartUp"/>'],
+        },
+      }),
+      'fallback',
+    );
+    expect(parsed.entryPoints.map((e) => e.name)).toEqual(['up', 'down', 'shortcut']);
+  });
+
+  it("reads Visible as the string it is, and normalizes the 'default' group", () => {
+    // Attributes are not coerced by the reader, so Visible arrives as '1'/'0' —
+    // comparing it to a number or to `false` would make every entry visible.
+    // 'default' is the store's spelling for ungrouped; passed through, a host would
+    // render a shortcuts group literally named default.
+    const parsed = parseProject(
+      store({
+        root: { ep: ['<Info location="Root" type="EntryPoints"/>'] },
+        ep: {
+          a: [
+            '<Info location="id-a" type="EntryPoint"/>',
+            '<Info File="a.m" Name="hidden" Type="Shutdown" Visible="0" GroupUUID="default"/>',
+          ],
+          b: [
+            '<Info location="id-b" type="EntryPoint"/>',
+            '<Info File="b.m" Name="shown" Type="Basic" Visible="1" GroupUUID="grp-1"/>',
+          ],
+        },
+      }),
+      'fallback',
+    );
+    const byName = new Map(parsed.entryPoints.map((e) => [e.name, e]));
+    expect(byName.get('hidden')?.visible).toBe(false);
+    expect(byName.get('hidden')?.groupId).toBe('');
+    expect(byName.get('shown')?.visible).toBe(true);
+    expect(byName.get('shown')?.groupId).toBe('grp-1');
+  });
+
+  it('keeps a shortcut that targets a folder', () => {
+    // An entry point is not always a file: a real project ships shortcuts whose
+    // File attribute names a DIRECTORY, which a host must open differently.
+    const parsed = parseProject(
+      store({
+        root: { ep: ['<Info location="Root" type="EntryPoints"/>'] },
+        ep: { a: ['<Info location="id-a" type="EntryPoint"/>', '<Info File="utilities" Name="utilities" Type="Basic"/>'] },
+      }),
+      'fallback',
+    );
+    expect(parsed.entryPoints[0].file).toBe('utilities');
+  });
+
+  it('skips an entry with neither a name nor a file, and a non-EntryPoint member', () => {
+    const parsed = parseProject(
+      store({
+        root: { ep: ['<Info location="Root" type="EntryPoints"/>'] },
+        ep: {
+          empty: ['<Info location="id-empty" type="EntryPoint"/>', '<Info Type="Basic"/>'],
+          other: ['<Info location="id-other" type="SomethingElse"/>', '<Info File="x.m" Name="x"/>'],
+          good: ['<Info location="id-good" type="EntryPoint"/>', '<Info File="g.m" Name="g" Type="Basic"/>'],
+        },
+      }),
+      'fallback',
+    );
+    expect(parsed.entryPoints.map((e) => e.name)).toEqual(['g']);
+  });
+
+  it('reads the named shortcut groups', () => {
+    const parsed = parseProject(
+      store({
+        root: { g: ['<Info location="Root" type="EntryPointGroups"/>'] },
+        g: {
+          a: ['<Info location="grp-1" type="EntryPointGroup"/>', '<Info Name="Utility"/>'],
+          unnamed: ['<Info location="grp-2" type="EntryPointGroup"/>', '<Info/>'],
+          other: ['<Info location="grp-3" type="NotAGroup"/>', '<Info Name="Ignored"/>'],
+        },
+      }),
+      'fallback',
+    );
+    expect(parsed.entryPointGroups).toEqual([{ id: 'grp-1', name: 'Utility' }]);
+  });
+});
+
+describe('parseProject — the distributed layout', () => {
+  /**
+   * A store in the `distributed` layout: no pointer documents at all. An entity's
+   * location and type are its FILENAME (`<location>.type.<Type>.xml` for the def,
+   * `<location>.type.<Type>/` for the child directory), directories nest the way
+   * the entities do, and the top-level entities sit directly in the store root.
+   */
+  function distStore(files: Record<string, string>): Record<string, string> {
+    const out: Record<string, string> = {
+      [at('Project.xml')]: info('<Info MetadataType="distributed"/>'),
+    };
+    for (const [rel, body] of Object.entries(files)) {
+      out[at(rel)] = info(body);
+    }
+    return out;
+  }
+
+  it('reads a whole project out of filenames', () => {
+    const parsed = parseProject(
+      distStore({
+        'ProjectData.type.Info.xml': '<Info Name="DistProj"/>',
+        'Root.type.Files/top.m.type.File.xml': '<Info><Category UUID="c"><Label UUID="design"/></Category></Info>',
+        'Root.type.Files/utils.type.File/1.type.DIR_SIGNIFIER.xml': '<Info/>',
+        'Root.type.Files/utils.type.File/helper.m.type.File.xml': '<Info/>',
+        'Root.type.ProjectPath/u1.type.Reference.xml': '<Info Ref=""/>',
+        'Root.type.ProjectPath/u2.type.Reference.xml': '<Info Ref="utils"/>',
+        'Root.type.EntryPoints/id-a.type.EntryPoint.xml': '<Info File="utils" Name="utils" Type="Basic"/>',
+      }),
+      'fallback',
+    );
+    expect(parsed.name).toBe('DistProj');
+    expect(parsed.format).toBe('distributed');
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.files.map((f) => f.path)).toEqual(['top.m', 'utils', 'utils/helper.m']);
+    expect(parsed.files.find((f) => f.path === 'utils')?.isFolder).toBe(true);
+    expect(parsed.files.find((f) => f.path === 'top.m')?.labels).toEqual(['design']);
+    expect(parsed.pathFolders).toEqual(['', 'utils']);
+    expect(parsed.entryPoints.map((e) => e.file)).toEqual(['utils']);
+  });
+
+  it('finds a collection that has no def document of its own', () => {
+    // `Root.type.Files/` exists as a directory with no `Root.type.Files.xml` beside
+    // it — normal in this layout, not a loss — so entities must be discovered from
+    // directory names and not only from documents.
+    const parsed = parseProject(
+      distStore({ 'Root.type.Files/only.m.type.File.xml': '<Info/>' }),
+      'fallback',
+    );
+    expect(parsed.files.map((f) => f.path)).toEqual(['only.m']);
+  });
+
+  it('splits a location that contains the type marker itself', () => {
+    // The separator is the LAST `.type.`: a project file may be NAMED `a.type.File`,
+    // whose def is then `a.type.File.type.File.xml`. Splitting on the first
+    // occurrence truncates the name to `a`.
+    const parsed = parseProject(
+      distStore({ 'Root.type.Files/a.type.File.type.File.xml': '<Info/>' }),
+      'fallback',
+    );
+    expect(parsed.files.map((f) => f.path)).toEqual(['a.type.File']);
+  });
+
+  it('infers the layout when the manifest is missing', () => {
+    const noManifest = {
+      [at('ProjectData.type.Info.xml')]: info('<Info Name="Inferred"/>'),
+      [at('Root.type.Files/f.m.type.File.xml')]: info('<Info/>'),
+    };
+    const parsed = parseProject(noManifest, 'fallback');
+    expect(parsed.format).toBe('distributed');
+    expect(parsed.name).toBe('Inferred');
+    expect(parsed.files.map((f) => f.path)).toEqual(['f.m']);
+  });
+});
+
+describe('parseProject — the declared metadata format', () => {
+  it('reports the format it read', () => {
+    expect(parseProject(myProjStore(), 'fallback').format).toBe('fixedPathV2');
+  });
+
+  it('warns and reads nothing for a layout it cannot walk, keeping the name', () => {
+    // Guessing is the one thing not to do here: the collection readers would find
+    // nothing in an unknown layout and return a project that looks complete and
+    // empty — the single outcome a user cannot tell apart from a fact about their
+    // project. The name is still salvaged, since it titles the view.
+    const parsed = parseProject(
+      {
+        [at('Project.xml')]: info('<Info MetadataType="monolithic"/>'),
+        [at('ProjectData.type.Info.xml')]: info('<Info Name="Mono"/>'),
+      },
+      'fallback',
+    );
+    expect(parsed.name).toBe('Mono');
+    expect(parsed.format).toBe('');
+    expect(parsed.files).toEqual([]);
+    expect(parsed.warnings).toHaveLength(1);
+    expect(parsed.warnings[0].code).toBe('source-empty');
+    expect(parsed.warnings[0].message).toContain('monolithic');
+  });
+
+  it('names matlab.toml rather than reporting an empty store', () => {
+    // A toml store holds no XML at all, so it lands in the same place as a store
+    // that did not survive its trip. It is not damaged, and a user told "nothing
+    // readable" would go looking for a corrupt file that does not exist.
+    const parsed = parseProject({ 'resources/project/matlab.toml': '[project]\nname = "T"\n' }, 'TomlProj');
+    expect(parsed.name).toBe('TomlProj');
+    expect(parsed.warnings).toHaveLength(1);
+    expect(parsed.warnings[0].code).toBe('source-empty');
+    expect(parsed.warnings[0].message).toContain('matlab.toml');
+    expect(parsed.warnings[0].part).toBe('resources/project/matlab.toml');
   });
 });
