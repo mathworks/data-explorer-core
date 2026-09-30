@@ -36,7 +36,7 @@ export default class SlddNode extends ContainerNode {
      * reports through one list no matter which flavour it arrived in.
      */
     static parse(json: Record<string, unknown>, filename: string, warnings?: ParseWarning[]): SlddNode;
-    static _parseSystemComposer(parts: Record<string, unknown> | null, warnings?: ParseWarning[]): SystemComposerCatalog | null;
+    static _parseSystemComposer(parts: Record<string, unknown> | null): SystemComposerCatalog | null;
     static getSectionKey(entry: Record<string, unknown>): string;
     serialize(): unknown;
     serializeJson(): Record<string, unknown>;

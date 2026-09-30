@@ -23,7 +23,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { unzipSync } from 'fflate';
+import { unzipSync, zipSync } from 'fflate';
+import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
 // Through the barrel: it is what registers the node classes the entry parser
 // resolves values with.
 import {
@@ -119,6 +120,79 @@ describe('System Composer catalog, read from either format', () => {
     // Which is nearly every `.sldd`: the part is absent, and that is the limit of the
     // file rather than a failure to read it.
     expect(scanScJsonText(textAt('numeric_json.sldd'))).toEqual([]);
+  });
+
+  it('says nothing when the binary catalog member holds no definitions, and agrees with the text form', () => {
+    // The member MATLAB writes into a dictionary System Composer has merely TOUCHED: a
+    // model, a type catalog of nothing but built-in value types, and an interface catalog
+    // holding only its storage context. Measured on a real customer `.sldd` — and it used
+    // to put a "could not be read" banner over a file with nothing wrong with it.
+    //
+    // The kinds below are the point. `Simulink.Bus` is the only class the catalog
+    // disambiguates, and 'Data Interface' is what MATLAB R2027a itself answers for BOTH
+    // buses once this part is gone, so the fallback is agreement rather than degradation.
+    const emptyScXml = '<?xml version="1.0"?>\n'
+      + '<MF0 packageUris="http://schema.mathworks.com/mf0/systemcomposer_property/2.13">\n'
+      + '  <systemcomposer.property.TypeCatalog type="systemcomposer.property.TypeCatalog" uuid="u-tc">\n'
+      + '    <p_BuiltInValueTypes type="systemcomposer.property.ValueTypeDescriptor" uuid="u-d">\n'
+      + '      <p_Name>double</p_Name>\n'
+      + '    </p_BuiltInValueTypes>\n'
+      + '  </systemcomposer.property.TypeCatalog>\n'
+      + '  <systemcomposer.architecture.model.SystemComposerModel type="systemcomposer.architecture.model.SystemComposerModel" uuid="u-m">\n'
+      + '    <p_Name>arch</p_Name>\n'
+      + '    <p_PortInterfaceCatalog type="systemcomposer.architecture.model.interface.InterfaceCatalog" uuid="u-ic">\n'
+      + '      <p_StorageContext>DICTIONARY</p_StorageContext>\n'
+      + '    </p_PortInterfaceCatalog>\n'
+      + '  </systemcomposer.architecture.model.SystemComposerModel>\n'
+      + '</MF0>\n';
+    expect(scanScXml(emptyScXml)).toEqual([]);
+
+    const original = new Uint8Array(readFileSync(fixture('arch_binary.sldd')));
+    const members = unzipSync(original);
+    members[SC_PART_XML] = new TextEncoder().encode(emptyScXml);
+    const rebuilt = zipSync(members);
+    const buf = rebuilt.buffer.slice(
+      rebuilt.byteOffset,
+      rebuilt.byteOffset + rebuilt.byteLength,
+    ) as ArrayBuffer;
+
+    const warnings: ParseWarning[] = [];
+    const sldd = SlddNode.parse(parseBinarySldd(buf), 'arch_binary.sldd', warnings);
+    expect(warnings).toEqual([]);
+    expect(sldd.systemComposer).toBeNull();
+    expect(kindsOf(sldd)).toMatchObject({
+      StructType: 'Data Interface',
+      DataInterface: 'Data Interface',
+      ValueType: 'Value Type',
+      NumericType: 'Numeric Type',
+    });
+  });
+
+  it('is as silent about a missing catalog in one format as in the other', () => {
+    // The one-rule-two-paths pin, and the reason this reader raises nothing at all now:
+    // the text path used to stay quiet where the binary path warned, so the SAME
+    // dictionary said two different things depending on how it had been saved.
+    const textWarnings: ParseWarning[] = [];
+    const json = JSON.parse(textAt('arch_binary_as_text.sldd')) as Record<string, unknown>;
+    const parts = json.__MW_TEXT_PARTS__ as Record<string, unknown>;
+    parts['__MW_TEXT_PART__/simulink/systemcomposer/interfaceDictionary'] = { nothing: 'readable' };
+    const fromText = SlddNode.parse(json, 'arch_binary_as_text.sldd', textWarnings);
+
+    const binWarnings: ParseWarning[] = [];
+    const members = unzipSync(new Uint8Array(readFileSync(fixture('arch_binary.sldd'))));
+    delete members[SC_PART_XML];
+    const rebuilt = zipSync(members);
+    const buf = rebuilt.buffer.slice(
+      rebuilt.byteOffset,
+      rebuilt.byteOffset + rebuilt.byteLength,
+    ) as ArrayBuffer;
+    const fromBinary = SlddNode.parse(parseBinarySldd(buf), 'arch_binary.sldd', binWarnings);
+
+    expect(textWarnings).toEqual([]);
+    expect(binWarnings).toEqual(textWarnings);
+    expect(fromText.systemComposer).toBeNull();
+    expect(fromBinary.systemComposer).toBeNull();
+    expect(kindsOf(fromBinary)).toEqual(kindsOf(fromText));
   });
 
   it('does not take a bus element or a built-in type for a catalog definition', () => {

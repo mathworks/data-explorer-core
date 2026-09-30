@@ -7,7 +7,7 @@ import PropRelease from '../../prop/PropRelease.js';
 import PropFileFormat from '../../prop/PropFileFormat.js';
 import PropNumberOfEntries from '../../prop/PropNumberOfEntries.js';
 import { slddChunkContent } from '../../parser/SlddContent.js';
-import { SC_PART, scPartUnreadableMessage } from '../../parser/ScCatalog.js';
+import { SC_PART } from '../../parser/ScCatalog.js';
 import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.js';
 const SECTION_DEFS = [
     { key: 'design', label: 'Design Data', icon: 'databaseFolderDesign' },
@@ -96,10 +96,10 @@ export default class SlddNode extends ContainerNode {
         // constant, and a reader in the same file spelling it by hand is the two-copies-of-
         // one-name shape SlddParts exists to close. A drift here would not empty the
         // dictionary — the entries arrive through `slddChunkContent` — it would drop only
-        // the System Composer catalog, and drop it QUIETLY: a bag that is not there looks
-        // exactly like a dictionary with no catalog part, which _parseSystemComposer is
-        // deliberately silent about. That is the degrade its own comment below calls the
-        // nastiest partial in this reader.
+        // the System Composer catalog, and drop it QUIETLY, since a bag that is not there is
+        // indistinguishable from a dictionary with no catalog part and nothing warns about
+        // either. What that costs is one Kind on one class (a struct type reads as a data
+        // interface), so the drift is worth naming here even though it is not worth a banner.
         const parts = json[TEXT_PARTS];
         // The shared unwrap (SlddContent), not a local one: the same three-level path is what
         // the usage index reads a dictionary's entries through, and a second copy here is a
@@ -114,7 +114,7 @@ export default class SlddNode extends ContainerNode {
         // over on `__scCatalog`. The textual flavour has no parser between the bytes and
         // here, so its catalog is read out of the parts below.
         node.systemComposer = json.__scCatalog
-            ?? SlddNode._parseSystemComposer(parts, warnings);
+            ?? SlddNode._parseSystemComposer(parts);
         if (!content) {
             // The four sections are built by the constructor, so a content-less dictionary
             // used to open as a perfectly ordinary tree with four empty sections and report
@@ -167,33 +167,22 @@ export default class SlddNode extends ContainerNode {
     }
     // Extract the interface and modeled-data-type classifications from the
     // systemcomposer interface dictionary part, if present.
-    static _parseSystemComposer(parts, warnings) {
+    static _parseSystemComposer(parts) {
         const part = parts && parts[`__MW_TEXT_PART__/${SC_PART}`];
         const content = part && part[TEXT_CONTENT];
         const entries = content && content.entries;
         if (!entries) {
-            // The two reasons for a null catalog are opposites, and only one of them is a
-            // loss. A dictionary with no interfaceDictionary part is every `.sldd` that is
-            // not a System Composer interface dictionary — the overwhelming majority, and
-            // the limit of the file rather than of this reader — so it stays quiet.
+            // Both reasons for a null catalog stay quiet, and they are quiet on the SAME
+            // terms — which is the point, because this used to warn where the binary reader
+            // did not and the two flavours of one dictionary answered differently.
             //
-            // A part that is PRESENT and holds nothing readable is the file claiming the
-            // catalog is there. Losing it silently is the nastiest partial in the dictionary
-            // reader, because the tree still fills in: the catalog is what tells a StructType
-            // from a DataInterface (both are `Simulink.Bus`), so without it every
-            // architectural entry's Kind quietly degrades to its raw Simulink class. That is
-            // a wrong answer that looks exactly like a right one, which is worse than a
-            // missing one.
-            //
-            // `part-unreadable` with the part named, because the dictionary's entries are all
-            // still read and this is one piece of it that is not.
-            if (part) {
-                warnings?.push({
-                    code: 'part-unreadable',
-                    message: scPartUnreadableMessage(SC_PART),
-                    part: SC_PART,
-                });
-            }
+            // A dictionary with no interfaceDictionary part is every `.sldd` that is not a
+            // System Composer interface dictionary: the overwhelming majority. A part that
+            // is present and holds nothing is a catalog with nothing in it — MATLAB writes
+            // exactly that into any dictionary System Composer has merely touched, built-in
+            // value types and no definitions. Neither one loses anything a reader could
+            // report: see the note below `classificationOf` in ScCatalog for the
+            // measurement, and `DERIVED_KIND_BY_CLASS` for the fallback it licenses.
             return null;
         }
         const interfaces = {};

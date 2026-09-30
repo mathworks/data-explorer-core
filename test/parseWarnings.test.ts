@@ -954,6 +954,12 @@ function readContent(content: Record<string, unknown>, filename = 'd.sldd') {
 
 const entryNamesOf = (node: SlddNode) => node.children.flatMap((s) => s.children.map((c) => c.name));
 
+/** The user-facing Kind of one entry, by name — what a missing catalog is felt as. */
+function kindOf(node: SlddNode, name: string): string | undefined {
+  const entry = node.children.flatMap((s) => s.children).find((c) => c.name === name);
+  return (entry as unknown as { kind?: string } | undefined)?.kind;
+}
+
 describe('SlddNode.parse — the warnings channel', () => {
   it('reports nothing for either flavour of a dictionary it read completely', () => {
     expect(readContent(readJson(SLDD_TEXT), 'params.sldd').warnings).toEqual([]);
@@ -996,20 +1002,41 @@ describe('SlddNode.parse — the warnings channel', () => {
     expect(entryNamesOf(node)).toEqual([]);
   });
 
-  it('names the System Composer catalog part when it holds nothing readable', () => {
-    // An architectural dictionary's interface catalog is what tells a StructType from a
-    // DataInterface (both are `Simulink.Bus`), so losing it silently downgrades every
-    // architectural entry's Kind to its raw Simulink class — a wrong answer that looks
-    // like a right one. The part is PRESENT here, which is the file claiming the catalog
-    // is there.
+  it('says nothing when the System Composer catalog part holds no definitions, and falls back the way MATLAB does', () => {
+    // The part is PRESENT and empty here, which MATLAB writes into any dictionary System
+    // Composer has merely touched: built-in value types, no definitions. This used to
+    // raise `part-unreadable`, on the reasoning that the catalog is what tells a
+    // StructType from a DataInterface (both are `Simulink.Bus`). Measured against MATLAB
+    // R2027a, that is not a loss worth reporting — strip the part from a dictionary
+    // holding both and MATLAB reports BOTH as a DataInterface, which is exactly this
+    // fallback. A banner would claim a loss MATLAB itself does not see.
     const arch = readJson(SLDD_ARCH);
     const parts = arch.__MW_TEXT_PARTS__ as Record<string, unknown>;
     parts[`__MW_TEXT_PART__/${INTERFACE_PART}`] = { nothing: 'readable' };
     const { node, warnings } = readContent(arch, 'arch.sldd');
-    expect(codesAndParts(warnings)).toEqual([['part-unreadable', INTERFACE_PART]]);
+    expect(warnings).toEqual([]);
     expect(node.systemComposer).toBeNull();
-    // Every entry is still read: one part's loss is not the dictionary's.
+    // Every entry is still read, and the ONE ambiguous class takes MATLAB's answer.
     expect(entryNamesOf(node).length).toBeGreaterThan(0);
+    expect(kindOf(node, 'StructType')).toBe('Data Interface');
+    expect(kindOf(node, 'DataInterface')).toBe('Data Interface');
+    // Everything else is 1:1 with its Simulink class, so the catalog's absence costs it
+    // nothing — the measurement that made the warning pointless rather than merely noisy.
+    expect(kindOf(node, 'PhysicalInterface')).toBe('Physical Interface');
+    expect(kindOf(node, 'ServiceInterface')).toBe('Service Interface');
+    expect(kindOf(node, 'ValueType')).toBe('Value Type');
+    expect(kindOf(node, 'NumericType')).toBe('Numeric Type');
+    expect(kindOf(node, 'EnumType')).toBe('Enumerated Type');
+    expect(kindOf(node, 'AliasType')).toBe('Alias Type');
+  });
+
+  it('classifies the same dictionary properly when the catalog IS there', () => {
+    // The other side of the fallback above: with the part present the file is the
+    // authority, and it is the only thing that can tell these two apart.
+    const { node, warnings } = readContent(readJson(SLDD_ARCH), 'arch.sldd');
+    expect(warnings).toEqual([]);
+    expect(kindOf(node, 'StructType')).toBe('Struct Type');
+    expect(kindOf(node, 'DataInterface')).toBe('Data Interface');
   });
 
   it('stays silent for a System Composer dictionary read whole, and for one with no catalog', () => {
