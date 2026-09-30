@@ -20,6 +20,7 @@ import {
   matlabTimestampNow,
   pad as xmlPad,
   SAVEOBJ_KEY,
+  CUSTOM_SAVE_KEY,
 } from '../parser/XmlUtils.js';
 
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
@@ -600,11 +601,40 @@ export default class DataNode extends BaseNode {
     return this.serializeValue();
   }
 
+  /**
+   * This node's rawVal with its live property bag written into the first element — the value
+   * half of an entry in an uncompressed-text `.sldd`.
+   *
+   * The envelope is spelled out again on the way out. `_propsOf` lifted a text dictionary's
+   * `_custom_save` into the bag under SAVEOBJ_KEY so everything between parse and save sees
+   * one spelling; here it goes back to being an element-level `_custom_save`, because that is
+   * where MATLAB's loadobj looks and a `_properties._saveobj` is a key MATLAB has no reader
+   * for. The two are the same envelope — see XmlUtils' CUSTOM_SAVE_KEY.
+   *
+   * `_properties` is then OMITTED when the envelope was all it held, because that is what
+   * MATLAB writes: a custom-saving class's element is `{_custom_save: …, _id: …}` with no
+   * property bag at all, and emitting `"_properties": {}` beside the envelope would invent a
+   * key no MATLAB-written dictionary has. A class with no envelope keeps its bag
+   * unconditionally, empty or not — that path is unchanged.
+   */
   _serializeSimulinkObject(propOverrides: Record<string, unknown>): unknown {
     const props = this._mergeProps(propOverrides);
     const result = Object.assign({}, this.serial._rawVal as Record<string, unknown>);
     const rawElements = (result._elements as unknown[]) || [];
-    result._elements = [Object.assign({}, rawElements[0] as Record<string, unknown>, { _properties: props })];
+    const element = Object.assign({}, rawElements[0] as Record<string, unknown>);
+    if (SAVEOBJ_KEY in props) {
+      const siblings = Object.assign({}, props);
+      delete siblings[SAVEOBJ_KEY];
+      element[CUSTOM_SAVE_KEY] = props[SAVEOBJ_KEY];
+      if (Object.keys(siblings).length > 0) {
+        element._properties = siblings;
+      } else {
+        delete element._properties;
+      }
+    } else {
+      element._properties = props;
+    }
+    result._elements = [element];
     return result;
   }
 
@@ -1027,6 +1057,19 @@ export default class DataNode extends BaseNode {
       dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims.join('*') + '"';
 
     let xml = p + '<P' + DataNode.pxAttrs(name) + ' Class="struct"' + dimAttr + '>\n';
+    // An EMPTY struct declares its field names with `<Field Name="…"/>`, and only an empty one
+    // does: MATLAB writes them on every struct property of its own with no `<Element>` and on
+    // none that has one, because an element's `<P Name="…">` children already spell them.
+    // `struct('a', {})` is a 0x0 struct WITH a field called `a`, so this is not decoration —
+    // it is the only place the names of an empty struct's fields can be written, and without
+    // it `Simulink.VariantVariable`'s `Choices` went out as an anonymous empty struct where
+    // MATLAB names Condition and Value. (MATLAB heals that on its own next save, from the
+    // class definition; our reader cannot, which is the half that mattered.)
+    if (elements.length === 0) {
+      for (const field of (value._fields as string[]) || []) {
+        xml += ip + '<Field Name="' + escapeXml(field) + '"/>\n';
+      }
+    }
     for (const elem of elements) {
       xml += ip + '<Element>\n';
       for (const [field, fieldVal] of Object.entries(elem)) {

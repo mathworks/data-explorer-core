@@ -88,7 +88,11 @@ describe('ConfigSetRefNode save path', () => {
     };
     const n = ConfigSetRefNode.parse(raw, 'Ref', null);
     expect(n.SourceName).toBe('sharedConfig');
-    expect(savedProps(n)).toEqual({ SourceName: 'sharedConfig', UseLocalSolver: false });
+    // `Name` arrives alongside even though the parsed bag had none, for the reason
+    // ConfigSetRefNode.ConfigName records: MATLAB treats the entry name and the value's
+    // `Name` as one string and silently renames the ENTRY when they disagree, so a bag with
+    // no Name is a bag whose entry MATLAB is about to rename.
+    expect(savedProps(n)).toEqual({ SourceName: 'sharedConfig', Name: 'Ref', UseLocalSolver: false });
   });
 
   it('leaves SourceName alone when the entry is renamed', () => {
@@ -116,15 +120,24 @@ describe('ConfigSetRefNode save path', () => {
 
   it('reports the class name and the default entry name', () => {
     expect(ConfigSetRefNode.createDefault('r', null).className).toBe('Simulink.ConfigSetRef');
-    expect(ConfigSetRefNode.defaultName).toBe('ConfigSetRef');
+    // MATLAB's own name for a default-constructed Simulink.ConfigSetRef, and the name it
+    // renames any other to. Read from `<P Name="Name" Class="char">Reference</P>` in a
+    // dictionary MATLAB wrote, not from the class name.
+    expect(ConfigSetRefNode.defaultName).toBe('Reference');
   });
 
-  it('writes SourceName into the XML entry, and a rename only into the entry name', () => {
+  it('writes SourceName into the XML entry, and a rename into BOTH the entry name and Name', () => {
     // The XML save path (binary .sldd) goes through _getSerializedProperties
     // rather than serializeValue, so it is a second, independent copy of the
     // "which property owns the name" decision — and the one a compressed
-    // dictionary is written with. The ConfigSet counterpart above asserts the
-    // opposite: there the rename MUST reach the Name property.
+    // dictionary is written with.
+    //
+    // This used to assert the OPPOSITE of its ConfigSet counterpart — that the entry name must
+    // not reach any property — and MATLAB refuted it: given an entry we had named
+    // `ConfigSetRef` with no `Name` written, MATLAB handed the dictionary back with the entry
+    // renamed to `Reference`. The two names are one name for this class as much as for
+    // ConfigSet, so the rename has to reach both. SourceName is the property that still must
+    // NOT move: it names an EXTERNAL config set (the test above pins that).
     const raw = {
       _array_class: 'Simulink.ConfigSetRef',
       _dimensions: [1, 1],
@@ -138,8 +151,7 @@ describe('ConfigSetRefNode save path', () => {
     expect(xml).toContain('<P Name="SourceName" Class="char">sharedConfig</P>');
     // Other properties in the bag are re-emitted untouched alongside it.
     expect(xml).toContain('<P Name="UseLocalSolver" Class="logical">0</P>');
-    // The new entry name must NOT leak into a property.
-    expect(xml).not.toContain('>RenamedRef<');
+    expect(xml).toContain('<P Name="Name" Class="char">RenamedRef</P>');
   });
 
   it('serializes an empty SourceName as an empty char property', () => {

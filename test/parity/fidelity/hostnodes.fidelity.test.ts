@@ -55,9 +55,12 @@ describe('Tier-4 contract-lock: VariantBankCoderInfoNode', () => {
 });
 
 describe('Tier-4 contract-lock: VariantConfigurationDataNode', () => {
-  it('reports className Simulink.VariantConfigurationData', () => {
+  it('reports className Simulink.VariantConfigurations for a new entry', () => {
+    // The CONTAINER class, not the data class: MATLAB's config section rejects
+    // `Simulink.VariantConfigurationData` with SLDD:sldd:ValueClassNotAcceptedInSection, in
+    // both formats. `className` reads `_array_class`, so it reports what was written.
     const node = VariantConfigurationDataNode.createDefault('vcd1', null);
-    expect(node.className).toBe('Simulink.VariantConfigurationData');
+    expect(node.className).toBe('Simulink.VariantConfigurations');
   });
 
   it('valueEditable is explicitly false', () => {

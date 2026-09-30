@@ -344,15 +344,31 @@ function parseEntry(obj, rawXml) {
 // one of them has to emit this exact shape, because it is what tells the SAVE path
 // to write `Class="struct"` back — a struct that loses the envelope is written as
 // `Class="char">[object Object]` and its fields are gone from the file.
-function structValue(elements, dimParts) {
+//
+// `declaredFields` is only consulted when there is no element to read the names off, which is
+// the one case MATLAB states them separately — see `fieldNamesOf`.
+function structValue(elements, dimParts, declaredFields = []) {
     const parsed = elements.map((e) => parseStructElement(e));
     return {
         _array_type: 'Struct',
         _dimensions: dimParts,
         _elements: parsed,
-        _fields: parsed.length > 0 ? Object.keys(parsed[0]) : [],
+        _fields: parsed.length > 0 ? Object.keys(parsed[0]) : declaredFields,
         _mw_element_type: 'MATLABArray',
     };
+}
+/**
+ * The field names a struct declares with `<Field Name="…"/>` children.
+ *
+ * MATLAB writes these on a struct with NO elements and on no other — measured across every
+ * struct-classed `<P>` of a dictionary MATLAB authored: all four empty ones carry them, all
+ * four non-empty ones carry none. The rule behind that is plain once seen: a struct with an
+ * element states its field names as that element's `<P Name="…">` children, and an EMPTY one
+ * has nowhere else to put them. It still HAS them — `struct('a', {})` is a 0x0 struct with a
+ * field called `a` — so this is the only channel for the names of an empty struct's fields.
+ */
+function fieldNamesOf(node) {
+    return (node.Field || []).map((f) => f['@_Name'] || '').filter((n) => n !== '');
 }
 // The SLDD Cell envelope. The dimension DEFAULT differs by caller (an entry value
 // with no Dimension is 1x1; a nested cell is 1xN), so dims are the caller's to
@@ -394,7 +410,7 @@ function parseEntryValue(prop) {
     const elements = prop.Element;
     // Struct: Class="struct" with Element children (no Class on Element)
     if (className === 'struct') {
-        return structValue(elements || [], dimension ? parseDims(dimension) : [1, 1]);
+        return structValue(elements || [], dimension ? parseDims(dimension) : [1, 1], fieldNamesOf(prop));
     }
     // Cell: Class="cell" with Element children
     if (className === 'cell') {
@@ -520,7 +536,7 @@ function parseCellElement(el) {
         // published a 1x2 as `<1x1 struct>`, and because the envelope's dims are what
         // the writer spells, the save wrote one struct with the elements a level too
         // deep: both of them unreadable on the next open.
-        return structValue(el.Element || [], dimension ? parseDims(dimension) : [1, 1]);
+        return structValue(el.Element || [], dimension ? parseDims(dimension) : [1, 1], fieldNamesOf(el));
     }
     if (elClass === 'cell') {
         const childElements = el.Element || [];
@@ -736,6 +752,30 @@ function parsePropContent(prop) {
         return objectArrayValue(childElements, [childElements.length, 1]);
     }
     else {
+        // An EMPTY struct or cell property. MATLAB states the shape on the `<P>` and writes no
+        // `<Element>` under it, so none of the arms above have anything to iterate and this used
+        // to fall through to `parseTypedValue`, whose zero-total branch answers `''` for every
+        // non-numeric class. `''` is a CHAR, so the next save wrote `<P Name="Choices"
+        // Class="char"/>` where the file had said `Class="struct" Dimension="0*1"`: opening a
+        // dictionary and saving it turned every empty struct property into an empty string.
+        //
+        // Which properties those are is what made it serious. An empty struct or cell is the
+        // DEFAULT of exactly the custom-saving classes — `Simulink.VariantVariable`'s `Choices`,
+        // `Simulink.VariantBank`'s `VariantConditions`, all four struct fields of
+        // `Simulink.VariantConfigurations` — and those are the classes whose `loadobj`
+        // destructures the field it is handed. A char there is the shape that made MATLAB build an
+        // empty object (defect 28) and, for `VariantVariable`, the shape that segfaulted it. So a
+        // dictionary MATLAB wrote, opened and saved with no edits at all, came back with its
+        // variant entries hollowed out.
+        const emptyDims = dimension ? parseDims(dimension) : null;
+        if (emptyDims && emptyDims.reduce((a, b) => a * b, 1) === 0) {
+            if (propClass === 'struct') {
+                return structValue([], emptyDims, fieldNamesOf(prop));
+            }
+            if (propClass === 'cell') {
+                return cellValue([], emptyDims);
+            }
+        }
         const text = getTextContent(prop);
         return parseTypedValue(text, propClass, dimension);
     }

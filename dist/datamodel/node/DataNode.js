@@ -4,7 +4,7 @@ import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
-import { charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, } from '../parser/XmlUtils.js';
+import { charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -536,11 +536,42 @@ export default class DataNode extends BaseNode {
         }
         return this.serializeValue();
     }
+    /**
+     * This node's rawVal with its live property bag written into the first element — the value
+     * half of an entry in an uncompressed-text `.sldd`.
+     *
+     * The envelope is spelled out again on the way out. `_propsOf` lifted a text dictionary's
+     * `_custom_save` into the bag under SAVEOBJ_KEY so everything between parse and save sees
+     * one spelling; here it goes back to being an element-level `_custom_save`, because that is
+     * where MATLAB's loadobj looks and a `_properties._saveobj` is a key MATLAB has no reader
+     * for. The two are the same envelope — see XmlUtils' CUSTOM_SAVE_KEY.
+     *
+     * `_properties` is then OMITTED when the envelope was all it held, because that is what
+     * MATLAB writes: a custom-saving class's element is `{_custom_save: …, _id: …}` with no
+     * property bag at all, and emitting `"_properties": {}` beside the envelope would invent a
+     * key no MATLAB-written dictionary has. A class with no envelope keeps its bag
+     * unconditionally, empty or not — that path is unchanged.
+     */
     _serializeSimulinkObject(propOverrides) {
         const props = this._mergeProps(propOverrides);
         const result = Object.assign({}, this.serial._rawVal);
         const rawElements = result._elements || [];
-        result._elements = [Object.assign({}, rawElements[0], { _properties: props })];
+        const element = Object.assign({}, rawElements[0]);
+        if (SAVEOBJ_KEY in props) {
+            const siblings = Object.assign({}, props);
+            delete siblings[SAVEOBJ_KEY];
+            element[CUSTOM_SAVE_KEY] = props[SAVEOBJ_KEY];
+            if (Object.keys(siblings).length > 0) {
+                element._properties = siblings;
+            }
+            else {
+                delete element._properties;
+            }
+        }
+        else {
+            element._properties = props;
+        }
+        result._elements = [element];
         return result;
     }
     /**
@@ -911,6 +942,19 @@ export default class DataNode extends BaseNode {
         // <Element>s under a `2*3` would read back as a six-element array.
         const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims.join('*') + '"';
         let xml = p + '<P' + DataNode.pxAttrs(name) + ' Class="struct"' + dimAttr + '>\n';
+        // An EMPTY struct declares its field names with `<Field Name="…"/>`, and only an empty one
+        // does: MATLAB writes them on every struct property of its own with no `<Element>` and on
+        // none that has one, because an element's `<P Name="…">` children already spell them.
+        // `struct('a', {})` is a 0x0 struct WITH a field called `a`, so this is not decoration —
+        // it is the only place the names of an empty struct's fields can be written, and without
+        // it `Simulink.VariantVariable`'s `Choices` went out as an anonymous empty struct where
+        // MATLAB names Condition and Value. (MATLAB heals that on its own next save, from the
+        // class definition; our reader cannot, which is the half that mattered.)
+        if (elements.length === 0) {
+            for (const field of value._fields || []) {
+                xml += ip + '<Field Name="' + escapeXml(field) + '"/>\n';
+            }
+        }
         for (const elem of elements) {
             xml += ip + '<Element>\n';
             for (const [field, fieldVal] of Object.entries(elem)) {

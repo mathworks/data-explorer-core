@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import DataNode from '../DataNode.js';
+import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
@@ -188,8 +189,13 @@ export class BaseBusNode extends DataNode {
         else if (className === 'Simulink.ConnectionBus') { defaultProps = { Description: '', Elements_internal: [] }; }
         else if (className === 'Simulink.ServiceBus') { defaultProps = { Description: '', Elements_internal: [] }; }
         else { defaultProps = {}; }
-        const rawVal = { _array_class: className, _array_type: 'MATLABArray', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: defaultProps }] };
-        const props = rawVal._elements[0]._properties;
+        // Through the shared helper rather than spelled out again here: this was the fourth
+        // hand-written copy of MATLAB's scalar-object envelope, and it is how the extra
+        // `_array_type: 'MATLABArray'` key outlived its removal from the other three.
+        const rawVal = SimulinkObjectNode._defaultRawVal(className, defaultProps);
+        // The same object the helper was handed — it documents that aliasing as a contract,
+        // because an edit to the node's bag reaches the written bytes through it.
+        const props = defaultProps;
         const serial = { _rawVal: rawVal, _properties: props };
         return new BusNodeClass(name, parent, serial as unknown as Record<string, unknown>);
     }

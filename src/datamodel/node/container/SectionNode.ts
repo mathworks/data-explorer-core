@@ -37,6 +37,22 @@ const ALLOWED_TYPES: Record<string, string[]> = {
     'Simulink.VariantVariable',
     'Simulink.VariantBank',
     'Simulink.VariantBankCoderInfo',
+    // Variant configuration data is DESIGN data, both spellings of it, and that is
+    // MATLAB's rule rather than a preference. It reads like configuration — it is what the
+    // Variant Manager edits — and it used to be listed under `config` for that reason, at
+    // which MATLAB refused the entry outright in BOTH formats:
+    //   SLDD:sldd:ValueClassNotAcceptedInSection
+    //   Values of class 'Simulink.VariantConfigurations' are not supported in the
+    //   'Configurations' section of the dictionary.
+    // The error names the SECTION, and that is the whole of it: a dictionary MATLAB wrote
+    // carries its own `Simulink.VariantConfigurations` entry in the design namespace with
+    // `IsDerived` 0, beside the Parameters and Buses, and `addEntry` into 'Design Data' is
+    // what MATLAB itself accepts. The class name and the saveobj envelope were already
+    // right — they match those bytes field for field — so nothing about the VALUE was ever
+    // the problem, and moving the two names here is the fix. The Configurations section
+    // takes a ConfigSet and a ConfigSetRef, and nothing else.
+    'Simulink.VariantConfigurationData',
+    'Simulink.VariantConfigurations',
     'CustomObject',
   ],
   arch: [
@@ -53,7 +69,10 @@ const ALLOWED_TYPES: Record<string, string[]> = {
     'Simulink.ValueType',
     'Simulink.NumericType',
   ],
-  config: ['Simulink.ConfigSet', 'Simulink.ConfigSetRef', 'Simulink.VariantConfigurationData', 'Simulink.VariantConfigurations'],
+  // Two classes, measured: MATLAB accepts a ConfigSet and a ConfigSetRef here and refuses
+  // everything else by name. See the variant-configuration note in `design` above for the
+  // one that looked like it belonged here and does not.
+  config: ['Simulink.ConfigSet', 'Simulink.ConfigSetRef'],
   other: ['MatlabVariable', 'Simulink.VariantExpression', 'Simulink.VariantVariable', 'CustomObject'],
 };
 

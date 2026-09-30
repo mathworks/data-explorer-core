@@ -40,6 +40,15 @@ const LEAVES = [
   { cls: 'CustomObject', Node: CustomObjectNode, prop: 'Description', icon: 'ws3d', kind: 'CustomObject' },
 ] as const;
 
+// The `_array_class` a NEW entry is written with, where it differs from the class the node
+// reports for a parsed one. Exactly one class differs, and it differs for a reason MATLAB
+// enforced: a dictionary's config section accepts the CONTAINER class
+// `Simulink.VariantConfigurations` and rejects `Simulink.VariantConfigurationData` with
+// `SLDD:sldd:ValueClassNotAcceptedInSection` — see VariantConfigurationDataNode.createDefault.
+const DEFAULT_ARRAY_CLASS: Record<string, string> = {
+  'Simulink.VariantConfigurationData': 'Simulink.VariantConfigurations',
+};
+
 describe('single-property leaf nodes — shared contract', () => {
   for (const { cls, Node, prop, icon, kind } of LEAVES) {
     describe(cls, () => {
@@ -73,7 +82,10 @@ describe('single-property leaf nodes — shared contract', () => {
       it('createDefault produces a node that serializes to a valid wrapper', () => {
         const n = (Node as any).createDefault('n', null);
         expect((Node as any).defaultName).toBe(cls.replace('Simulink.', ''));
-        expect(n.serializeValue()).toMatchObject({ _array_class: cls, _dimensions: [1, 1] });
+        expect(n.serializeValue()).toMatchObject({
+          _array_class: DEFAULT_ARRAY_CLASS[cls] || cls,
+          _dimensions: [1, 1],
+        });
       });
 
       it('emits its property as one <Element> in XML', () => {
@@ -119,9 +131,40 @@ describe('per-class display differences', () => {
     expect(n.toPIObject()).not.toBeNull();
   });
 
-  it('a VariantConfiguration with no parsed value falls back to its data class', () => {
-    const n = VariantConfigurationDataNode.createDefault('n', null) as any;
+  it('a VariantConfiguration with no _array_class at all falls back to its data class', () => {
+    // The fallback is for a bag that never named a class — an SLX-side or hand-built value.
+    // It is NOT what a newly added entry takes: createDefault writes
+    // `Simulink.VariantConfigurations`, because that is the only class the config section
+    // accepts (the test below pins it), so the fallback would hide the one thing that matters.
+    const n = VariantConfigurationDataNode.parse({ _dimensions: [1, 1], _elements: [{ _properties: {} }] }, 'n', null) as any;
     expect(n.className).toBe('Simulink.VariantConfigurationData');
+  });
+
+  it('a NEW VariantConfiguration is written as the container class MATLAB accepts', () => {
+    // MATLAB rejected the old default outright, in BOTH formats:
+    // `SLDD:sldd:ValueClassNotAcceptedInSection`. The container class is what a config section
+    // takes, and it round-trips because NodeClassMap routes both spellings here.
+    const n = VariantConfigurationDataNode.createDefault('n', null) as any;
+    expect(n.className).toBe('Simulink.VariantConfigurations');
+    const saved = n.serializeValue() as Record<string, any>;
+    expect(saved._array_class).toBe('Simulink.VariantConfigurations');
+    // Custom-saving class: its whole state is a saveobj envelope, not a property bag. A bag is
+    // what segfaulted MATLAB for Simulink.VariantVariable.
+    const elem = saved._elements[0] as Record<string, any>;
+    expect(elem._properties).toBeUndefined();
+    const env = elem._custom_save as Record<string, any>;
+    expect(env._fields).toEqual([
+      'Configurations', 'VariantConfigurations', 'Constraints', 'PreferredConfiguration',
+      'DefaultConfigurationName', 'DataDictionaryName', 'DataDictionarySection',
+      'AreSubModelConfigurationsMigrated', 'ComponentConfigurationData', 'Version',
+    ]);
+    expect(env._elements[0].AreSubModelConfigurationsMigrated).toBe(true);
+    expect(env._elements[0].Version).toBe('27.1');
+    // The four empty-struct fields keep their own field names and MATLAB's 1x0 shape, which
+    // only the BINARY file states — MATLAB's text writer flattens all four and loses them.
+    expect(env._elements[0].Constraints).toEqual({
+      _array_type: 'Struct', _dimensions: [1, 0], _elements: [], _fields: ['Name', 'Condition', 'Description'],
+    });
   });
 
   it('CustomObject shows its dimensions rather than a value', () => {

@@ -344,8 +344,22 @@ export default class ParameterNode extends DataNode {
         return this._serializeSimulinkObjectXml(tagName, attrs, indent);
     }
     static get defaultName() { return 'Param'; }
+    // MATLAB's default `Simulink.Parameter` is an EMPTY parameter, and both halves of that were
+    // measured from a dictionary MATLAB authored rather than reasoned about: `Dimensions` is
+    // `[0 0]` (`<P Name="Dimensions" Class="double" Dimension="1*2">0.0 0.0</P>` in binary), and
+    // there is no `Value` at all in the text file — binary spells it `Class="double"
+    // Dimension="0*0"`, the empty double, which is the same value. We used to write
+    // `Dimensions: -1` with `Value: 0`, i.e. a scalar zero of inherited width: a parameter that
+    // is not the one `Simulink.Parameter` gives you, and the only entry the Add gallery produced
+    // carrying a property MATLAB's own default does not have.
+    //
+    // Omitting `Value` from the bag is what stops it being written, and it goes through
+    // `_getSerializedProperties`' `innerValue !== undefined` gate rather than needing a case of
+    // its own — an absent Value leaves `this.Value` undefined, so no `Value` key is emitted in
+    // either format until the user supplies one. Keys are in MATLAB's text order, which is
+    // alphabetical, so a freshly added Parameter's text bytes now match MATLAB's key for key.
     static createDefault(name, parent) {
-        const rawVal = SimulinkObjectNode._defaultRawVal(CLASS_NAME, { CoderInfo: { _object_class: 'Simulink.CoderInfo', _properties: { CSCPackageName: 'Simulink', CustomAttributes: { _object_class: 'SimulinkCSC.AttribClass_Simulink_Default', _properties: {} }, CustomStorageClass: 'Default', ParameterOrSignal: 'Parameter', StorageClass: 'Auto' } }, Complexity: 'real', Dimensions: -1, Value: 0 });
+        const rawVal = SimulinkObjectNode._defaultRawVal(CLASS_NAME, { CoderInfo: SimulinkObjectNode._defaultCoderInfo('Parameter'), Complexity: 'real', Dimensions: [0, 0] });
         const props = SimulinkObjectNode._propsOf(rawVal);
         return new ParameterNode(name, parent, props, { _rawVal: rawVal, _properties: props });
     }

@@ -14,7 +14,11 @@ export default class VariantBankCoderInfoNode extends SimulinkObjectNode {
     // UNGATED, as VariantBankNode's Value is.
     _serializedOverrides() { return { Value: this.Value }; }
     static get defaultName() { return 'VariantBankCoderInfo'; }
-    static createDefault(name, parent) { const rawVal = VariantBankCoderInfoNode._defaultRawVal(CLASS_NAME, { Value: '' }); const props = VariantBankCoderInfoNode._propsOf(rawVal); return new VariantBankCoderInfoNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
+    // A saveobj envelope, as VariantBankNode's is, and the invented `Value` goes the same way.
+    // The only field here whose default is not empty is Qualifier, which MATLAB defaults to the
+    // string 'None' — every field is a plain char, so this class's envelope is spelled
+    // identically in both formats. Measured from a MATLAB-written dictionary.
+    static createDefault(name, parent) { const rawVal = VariantBankCoderInfoNode._defaultCustomSaveRawVal(CLASS_NAME, ['HeaderFile', 'DefinitionFile', 'PreStatement', 'PostStatement', 'Qualifier'], { HeaderFile: '', DefinitionFile: '', PreStatement: '', PostStatement: '', Qualifier: 'None' }); const props = VariantBankCoderInfoNode._propsOf(rawVal); return new VariantBankCoderInfoNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
     static parse(rawVal, name, parent) { const props = VariantBankCoderInfoNode._propsOf(rawVal); return new VariantBankCoderInfoNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
 }
 //# sourceMappingURL=VariantBankCoderInfoNode.js.map

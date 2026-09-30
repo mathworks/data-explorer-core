@@ -9,7 +9,6 @@ export default class VariantVariableNode extends SimulinkObjectNode {
     get displayValue(): string;
     getProperties(): PropClass[];
     _serializedOverrides(): Record<string, unknown>;
-    _getSerializedProperties(): Record<string, unknown>;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): VariantVariableNode;
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): VariantVariableNode;

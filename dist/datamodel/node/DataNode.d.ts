@@ -60,6 +60,22 @@ export default class DataNode extends BaseNode {
     _markModified(): void;
     _stampLastModified(): void;
     serialize(): unknown;
+    /**
+     * This node's rawVal with its live property bag written into the first element — the value
+     * half of an entry in an uncompressed-text `.sldd`.
+     *
+     * The envelope is spelled out again on the way out. `_propsOf` lifted a text dictionary's
+     * `_custom_save` into the bag under SAVEOBJ_KEY so everything between parse and save sees
+     * one spelling; here it goes back to being an element-level `_custom_save`, because that is
+     * where MATLAB's loadobj looks and a `_properties._saveobj` is a key MATLAB has no reader
+     * for. The two are the same envelope — see XmlUtils' CUSTOM_SAVE_KEY.
+     *
+     * `_properties` is then OMITTED when the envelope was all it held, because that is what
+     * MATLAB writes: a custom-saving class's element is `{_custom_save: …, _id: …}` with no
+     * property bag at all, and emitting `"_properties": {}` beside the envelope would invent a
+     * key no MATLAB-written dictionary has. A class with no envelope keeps its bag
+     * unconditionally, empty or not — that path is unchanged.
+     */
     _serializeSimulinkObject(propOverrides: Record<string, unknown>): unknown;
     /**
      * The stored property bag with this node's live values written over it.

@@ -107,6 +107,41 @@ describe('allowsType / getAllowedTypes', () => {
     expect(sectionOf(root, 'design').allowsType('Simulink.Signal')).toBe(true);
     expect(sectionOf(root, 'arch').allowsType('Simulink.Signal')).toBe(false);
   });
+
+  // MATLAB-measured, and the one entry in this list whose home is genuinely surprising.
+  //
+  // Variant configuration data is what the Variant Manager edits, it is called
+  // configuration, and it was listed under `config` for exactly that reason. MATLAB refuses
+  // it there, in BOTH file formats and by name:
+  //
+  //   SLDD:sldd:ValueClassNotAcceptedInSection
+  //   Values of class 'Simulink.VariantConfigurations' are not supported in the
+  //   'Configurations' section of the dictionary.
+  //
+  // A dictionary MATLAB writes carries its own `Simulink.VariantConfigurations` entry in the
+  // DESIGN namespace with IsDerived 0, beside the Parameters and Buses, and `addEntry(…,
+  // 'Design Data')` is the call MATLAB itself accepts. Renaming the class moved the refusal
+  // by nothing, which is how it was pinned on the section.
+  //
+  // Pinned in both directions because the move was a one-line edit that broke no test — the
+  // gap this test closes — and because either half drifting back is a button in the Add
+  // gallery that raises a MATLAB error on the customer's next save, not a visible bug here.
+  it('keeps variant configuration data in Design Data, where MATLAB puts it', () => {
+    const root = sldd();
+    for (const cls of ['Simulink.VariantConfigurationData', 'Simulink.VariantConfigurations']) {
+      expect(sectionOf(root, 'design').allowsType(cls), cls).toBe(true);
+      expect(sectionOf(root, 'config').allowsType(cls), cls).toBe(false);
+    }
+  });
+
+  it('admits exactly two classes in Configurations, which is all MATLAB takes', () => {
+    // Measured the same way, and stated as a closed list: a class added here is a claim
+    // about MATLAB that has to be measured, not a guess that reads plausibly.
+    expect(sectionOf(sldd(), 'config').getAllowedTypes()).toEqual([
+      'Simulink.ConfigSet',
+      'Simulink.ConfigSetRef',
+    ]);
+  });
 });
 
 describe('addEntry', () => {
