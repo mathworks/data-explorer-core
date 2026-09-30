@@ -5,6 +5,7 @@ import { reasonOf, type ParseWarning } from './ParseWarning.js';
 
 /** A member file (or folder) of the project. */
 export interface ProjectFile {
+  /** POSIX path relative to the project ROOT, not to the parent entity. */
   path: string;
   isFolder: boolean;
   /** Label UUIDs assigned to this file (e.g. 'design'). */
@@ -17,6 +18,12 @@ export interface ProjectLabel {
   id: string;
   category: string;
   name: string;
+  /**
+   * Whether MATLAB owns this label. The seven Classification labels ship with
+   * every project and are marked read-only in the store; a label the project
+   * itself added is not, which is the only thing distinguishing the two.
+   */
+  readOnly: boolean;
 }
 
 /** A project-to-project reference. */
@@ -25,13 +32,79 @@ export interface ProjectReference {
   name: string | null;
 }
 
+/**
+ * A registered entry point: a shortcut, or a file MATLAB runs on open/close.
+ *
+ * One store collection covers all three, separated only by `kind`, which is why
+ * they are one type here. `prev` is deliberately NOT exposed: the store encodes run
+ * order as a linked list over these entries, and `entryPoints` is already in that
+ * order (see `orderEntryPoints`), so a consumer never has to know the mechanism.
+ */
+export interface ProjectEntryPoint {
+  /** The entry point's own UUID (its pointer `location`). */
+  id: string;
+  name: string;
+  /** Project-root-relative path. May name a FOLDER — a shortcut can open one. */
+  file: string;
+  /** 'Basic' (a shortcut), 'StartUp', 'Shutdown', or whatever a newer release writes. */
+  kind: string;
+  /** Whether MATLAB shows this in its Shortcuts gallery. Startup/shutdown files are hidden. */
+  visible: boolean;
+  /** The EntryPointGroup id; '' when ungrouped (the store spells that 'default'). */
+  groupId: string;
+}
+
+/** A named group in the Shortcuts gallery. */
+export interface ProjectEntryPointGroup {
+  id: string;
+  name: string;
+}
+
+/**
+ * A folder (or file) the project designates for a particular purpose — simulation
+ * cache, code generation, startup folder, dependency cache.
+ *
+ * `key` is the store's own name for the purpose (`SimulinkCacheFolder`,
+ * `SimulinkCodeGenFolder`, `ProjectStartupFolder`, `DependencyCacheFile`) and is
+ * NOT translated here: a newer release may designate something this version has no
+ * label for, and passing the raw key on lets a host show it rather than drop it.
+ * Note the last of those four names a FILE, so these are not all folders.
+ */
+export interface ProjectWorkingFolder {
+  key: string;
+  /** Project-root-relative path. */
+  ref: string;
+}
+
 export interface ParsedProject {
   name: string;
+  /**
+   * The store's declared `MetadataType` — how the project's metadata is laid out on
+   * disk. '' when the store declares none and the layout could not be inferred.
+   * Two are read: `fixedPathV2` and `distributed`. Anything else is reported through
+   * `warnings` rather than read, because guessing at a layout produces a project
+   * that looks complete and is not.
+   */
+  format: string;
   files: ProjectFile[];
+  /**
+   * Folders added to the MATLAB path, project-root-relative. The project ROOT
+   * itself is spelled '' — the store records it as `Ref=""`, and it is a real entry
+   * (usually the first one MATLAB adds), so dropping it would under-report the path.
+   */
   pathFolders: string[];
   /** The catalog of labels defined in the project. */
   labels: ProjectLabel[];
   references: ProjectReference[];
+  /**
+   * Shortcuts and startup/shutdown files, in this order: startup files in RUN
+   * order, then shutdown files in run order, then everything else (shortcuts) in
+   * store order. Run order is the store's, which is meaningful — MATLAB runs the
+   * files top-down — and is not recoverable from any other field.
+   */
+  entryPoints: ProjectEntryPoint[];
+  entryPointGroups: ProjectEntryPointGroup[];
+  workingFolders: ProjectWorkingFolder[];
   /**
    * What could not be read, empty when everything could. ALWAYS an array: this
    * reader has the channel, so a caller may read `.length` without guarding, and
@@ -42,6 +115,40 @@ export interface ParsedProject {
 
 const PROJECT_PREFIX = 'resources/project/';
 
+/** The store manifest, which declares the layout the rest of the store is in. */
+const MANIFEST = 'Project.xml';
+
+/** The layouts this reader walks. See `ParsedProject.format`. */
+const FIXED_PATH_V2 = 'fixedPathV2';
+const DISTRIBUTED = 'distributed';
+
+/**
+ * Collection types whose `type="Reference"` children are NOT project references.
+ *
+ * A project->project reference and a path folder and a working folder are all
+ * spelled `type="Reference"`, distinguished only by which collection they sit in.
+ * So this is a DENY-list rather than an allow-list of reference collections, and
+ * deliberately: the collection holding real references is spelled differently
+ * across releases, and an allow-list missing a spelling silently drops references,
+ * whereas this list — the collections whose meaning we positively model — cannot.
+ * Before it existed, every WorkingFolders entry was reported as a project
+ * reference, which INVENTED references a project does not have.
+ */
+const NOT_REFERENCE_COLLECTIONS = new Set([
+  'ProjectPath',
+  'WorkingFolders',
+  'Categories',
+  'Files',
+  'EntryPoints',
+  'EntryPointGroups',
+  'Info',
+]);
+
+interface XmlExtension {
+  '@_Name'?: string;
+  '@_Value'?: string;
+}
+
 interface XmlInfo {
   '@_Name'?: string;
   '@_location'?: string;
@@ -49,8 +156,14 @@ interface XmlInfo {
   '@_Ref'?: string;
   '@_Type'?: string;
   '@_DataType'?: string;
+  '@_ReadOnly'?: string;
   '@_UUID'?: string;
+  '@_MetadataType'?: string;
+  '@_File'?: string;
+  '@_Visible'?: string;
+  '@_GroupUUID'?: string;
   Category?: XmlCategory | XmlCategory[];
+  Extension?: XmlExtension | XmlExtension[];
 }
 
 interface XmlCategory {
@@ -62,14 +175,28 @@ interface XmlLabel {
   '@_UUID'?: string;
 }
 
-/** A resolved pointer/def pair within a directory. */
+/**
+ * One entity in the store, normalized across layouts.
+ *
+ * The two layouts differ ONLY in how these three fields are found. `fixedPathV2`
+ * puts `location`/`type` in a pointer document beside the def and names the child
+ * directory by an opaque hash; `distributed` encodes all three in the filename
+ * (`<location>.type.<Type>`) and nests the child directory under its parent. Once
+ * both are read into this shape, every collection reader below is layout-blind.
+ */
 interface Entity {
-  /** The hash/stem: names this entity's own child directory. */
-  hash: string;
-  /** The pointer <Info> (location + type). */
-  pointer: XmlInfo | null;
-  /** The definition <Info> (attributes / nested Category). */
+  /** Store-relative path of this entity's OWN child directory. Also its identity. */
+  dir: string;
+  location: string;
+  type: string;
+  /** The definition `<Info>` (attributes / nested Category). */
   def: XmlInfo | null;
+}
+
+/** Reads the children of an entity, and the top-level entities, for one layout. */
+interface Layout {
+  roots(): Entity[];
+  children(entity: Entity): Entity[];
 }
 
 function toArray<T>(v: T | T[] | undefined): T[] {
@@ -77,6 +204,21 @@ function toArray<T>(v: T | T[] | undefined): T[] {
     return [];
   }
   return Array.isArray(v) ? v : [v];
+}
+
+function emptyResult(name: string, warnings: ParseWarning[]): ParsedProject {
+  return {
+    name,
+    format: '',
+    files: [],
+    pathFolders: [],
+    labels: [],
+    references: [],
+    entryPoints: [],
+    entryPointGroups: [],
+    workingFolders: [],
+    warnings,
+  };
 }
 
 /**
@@ -90,14 +232,7 @@ function toArray<T>(v: T | T[] | undefined): T[] {
  */
 export function parseProject(files: Record<string, string>, projectName: string): ParsedProject {
   const warnings: ParseWarning[] = [];
-  const result: ParsedProject = {
-    name: projectName,
-    files: [],
-    pathFolders: [],
-    labels: [],
-    references: [],
-    warnings,
-  };
+  const result = emptyResult(projectName, warnings);
 
   try {
     // Index every parseable Info doc by its relpath (project-relative).
@@ -120,66 +255,106 @@ export function parseProject(files: Record<string, string>, projectName: string)
       // Every collection below reads out of this index, so an empty one means the
       // whole result is empty — and a `.prj` always has a store, so reaching here
       // is either the wrong kind of file or a store that did not survive its trip.
-      warnings.push({
-        code: 'source-empty',
-        message:
-          'No readable project entries were found under resources/project/, ' +
-          'so this project reads as empty.',
-      });
+      //
+      // Except for one case worth naming separately: a store MATLAB wrote in its
+      // `matlab.toml` format holds no XML at all, so it lands here looking exactly
+      // like damage. It is not damaged, it is a format this reader does not read,
+      // and a user told "nothing readable" would go looking for a corrupt file.
+      const toml = Object.keys(files).find(
+        (k) => k.startsWith(PROJECT_PREFIX) && k.slice(PROJECT_PREFIX.length).endsWith('matlab.toml'),
+      );
+      warnings.push(
+        toml
+          ? {
+              // 'source-empty' rather than a code of its own: the code is the kind of
+              // loss (the source opened and held nothing this reader recognizes) and
+              // the message is which, per ParseWarningCode's note that the codes are
+              // about containers and parts and not about any one format.
+              code: 'source-empty',
+              message:
+                'This project stores its metadata as matlab.toml, which this viewer cannot read yet, ' +
+                'so this project reads as empty. In MATLAB, Project Settings can save it as XML instead.',
+              part: toml,
+            }
+          : {
+              code: 'source-empty',
+              message:
+                'No readable project entries were found under resources/project/, ' +
+                'so this project reads as empty.',
+            },
+      );
       return result;
     }
 
-    // The `root/` directory holds the top-level entry pointers.
-    const rootEntities = readDir(index, 'root');
+    // The manifest declares which layout the rest of the store is in. A store that
+    // declares one we cannot walk is reported and NOT guessed at: the collection
+    // readers below would find nothing in it and return a project that looks
+    // complete and empty, which is the one outcome a user cannot tell from a fact.
+    const declared = index.get(MANIFEST)?.['@_MetadataType'] ?? '';
+    const layoutName = declared || inferLayout(index);
+    if (layoutName !== FIXED_PATH_V2 && layoutName !== DISTRIBUTED) {
+      // The name is still worth salvaging — it is what a host titles the view with,
+      // and it reads out of the index without knowing the layout.
+      result.name = salvageName(index) ?? projectName;
+      warnings.push({
+        code: 'source-empty',
+        message: declared
+          ? `This project's metadata is stored as "${declared}", which this viewer cannot read yet, ` +
+            'so this project reads as empty. In MATLAB, Project Settings can save it as multiple XML files instead.'
+          : 'The layout of this project store was not recognized, so this project reads as empty.',
+        part: PROJECT_PREFIX + MANIFEST,
+      });
+      return result;
+    }
+    result.format = layoutName;
 
-    // Project name: the def whose pointer has location="ProjectData" type="Info".
+    const layout =
+      layoutName === FIXED_PATH_V2 ? fixedPathV2Layout(index) : distributedLayout(index);
+    const rootEntities = layout.roots();
+
+    result.name = resolveNameFrom(rootEntities) ?? projectName;
+
+    // Collections are matched on type AND location. Two collections of one type can
+    // coexist — a real project carries both `location="Root" type="Files"` (its
+    // members) and `location="ALM" type="Files"` (artifact tracking) — so matching
+    // on type alone assigned the field twice and let store iteration order pick the
+    // winner. `Root` is the project's own; anything else belongs to a feature we do
+    // not model, and reading it as the member list is simply wrong.
     for (const ent of rootEntities) {
-      if (ent.pointer?.['@_location'] === 'ProjectData' && ent.pointer?.['@_type'] === 'Info') {
-        const name = ent.def?.['@_Name'];
-        if (name) {
-          result.name = name;
-        }
+      if (ent.location !== 'Root') {
+        continue;
+      }
+      if (ent.type === 'Files') {
+        result.files = readFiles(layout, ent);
+      } else if (ent.type === 'ProjectPath') {
+        result.pathFolders = readPathFolders(layout, ent);
+      } else if (ent.type === 'Categories') {
+        result.labels = readCategories(layout, ent);
+      } else if (ent.type === 'EntryPoints') {
+        result.entryPoints = orderEntryPoints(readEntryPoints(layout, ent));
+      } else if (ent.type === 'EntryPointGroups') {
+        result.entryPointGroups = readEntryPointGroups(layout, ent);
+      } else if (ent.type === 'WorkingFolders') {
+        result.workingFolders = readWorkingFolders(layout, ent);
       }
     }
-    // Some stores also carry the name on a bare def <Info Name="MyProj"/> whose
-    // pointer has no matching location; take it if we still have the fallback.
-    if (result.name === projectName) {
-      for (const ent of rootEntities) {
-        const name = ent.def?.['@_Name'];
-        if (name && !ent.pointer?.['@_type']) {
-          result.name = name;
-          break;
-        }
-      }
-    }
 
     for (const ent of rootEntities) {
-      const type = ent.pointer?.['@_type'];
-      if (type === 'Files') {
-        result.files = readFiles(index, ent.hash);
-      } else if (type === 'ProjectPath') {
-        result.pathFolders = readPathFolders(index, ent.hash);
-      } else if (type === 'Categories') {
-        result.labels = readCategories(index, ent.hash);
-      } else if (type === 'Reference') {
-        // A genuine project->project reference living directly in root.
+      // A genuine project->project reference living directly in root.
+      if (ent.type === 'Reference') {
         const ref = resolveReference(ent);
         if (ref) {
           result.references.push(ref);
         }
-      }
-    }
-
-    // References may also live in their own top-level collection outside the
-    // ProjectPath collection. Scan any root entry whose dir contains
-    // type="Reference" children (but skip the ProjectPath collection itself).
-    for (const ent of rootEntities) {
-      if (ent.pointer?.['@_type'] === 'ProjectPath') {
         continue;
       }
-      const children = readDir(index, ent.hash);
-      for (const child of children) {
-        if (child.pointer?.['@_type'] === 'Reference') {
+      // …or in its own collection. See NOT_REFERENCE_COLLECTIONS for why the set of
+      // collections to skip is spelled out rather than the set to read.
+      if (NOT_REFERENCE_COLLECTIONS.has(ent.type)) {
+        continue;
+      }
+      for (const child of layout.children(ent)) {
+        if (child.type === 'Reference') {
           const ref = resolveReference(child);
           if (ref) {
             result.references.push(ref);
@@ -202,15 +377,72 @@ export function parseProject(files: Record<string, string>, projectName: string)
       code: 'source-unreadable',
       message: `The project store could not be read (${reasonOf(err)}), so this project reads as empty.`,
     });
-    return {
-      name: projectName,
-      files: [],
-      pathFolders: [],
-      labels: [],
-      references: [],
-      warnings,
-    };
+    return emptyResult(projectName, warnings);
   }
+}
+
+/**
+ * Which layout a store with no manifest is in.
+ *
+ * Every store this reader has seen carries `Project.xml`, so this is the fallback
+ * for one that lost it: `root/` is the entry directory `fixedPathV2` and nothing
+ * else uses, and a `.type.` in a top-level name is `distributed`'s own spelling.
+ */
+function inferLayout(index: Map<string, XmlInfo>): string {
+  for (const key of index.keys()) {
+    if (key.startsWith('root/')) {
+      return FIXED_PATH_V2;
+    }
+  }
+  for (const key of index.keys()) {
+    if (!key.includes('/') && key.includes('.type.')) {
+      return DISTRIBUTED;
+    }
+  }
+  return '';
+}
+
+/**
+ * The project name, for a store whose layout could not be walked.
+ *
+ * Kept separate from `resolveNameFrom` because it reads the index directly rather
+ * than the entity tree — there is no tree in this case — and every layout seen so
+ * far spells the document holding the name recognizably enough to find it without
+ * knowing which layout this is.
+ */
+function salvageName(index: Map<string, XmlInfo>): string | null {
+  for (const [key, info] of index.entries()) {
+    if (key === MANIFEST) {
+      continue;
+    }
+    // `distributed` names it ProjectData.type.Info.xml; `fixedPathV2` puts it in a
+    // hash-named def whose pointer says location="ProjectData".
+    if (key.includes('ProjectData') && info['@_Name']) {
+      return info['@_Name'];
+    }
+  }
+  return null;
+}
+
+/** The project name from the root entities, or null to keep the filename fallback. */
+function resolveNameFrom(rootEntities: Entity[]): string | null {
+  for (const ent of rootEntities) {
+    if (ent.location === 'ProjectData' && ent.type === 'Info') {
+      const name = ent.def?.['@_Name'];
+      if (name) {
+        return name;
+      }
+    }
+  }
+  // Some stores also carry the name on a bare def <Info Name="MyProj"/> whose
+  // pointer has no type at all.
+  for (const ent of rootEntities) {
+    const name = ent.def?.['@_Name'];
+    if (name && !ent.type) {
+      return name;
+    }
+  }
+  return null;
 }
 
 /**
@@ -260,51 +492,148 @@ function parseInfo(content: string, relPath: string, warnings: ParseWarning[]): 
   return info as XmlInfo;
 }
 
+// ---------------------------------------------------------------------------------
+// The two layouts.
+
 /**
- * Read all pointer/def entities in a directory (relative to resources/project/).
- * Groups files by hash/stem, treating `p`/`_sp` as pointers and `d`/`_sd` as defs.
+ * `fixedPathV2`: every entity is a POINTER/def pair of documents, and every child
+ * directory sits at the TOP of the store named by an opaque hash — flat, however
+ * deep the logical nesting goes, which is what "fixed path" means. The top-level
+ * entities live in `root/`.
  */
-function readDir(index: Map<string, XmlInfo>, dir: string): Entity[] {
-  if (!dir) {
-    return [];
-  }
-  const prefix = dir + '/';
-  const byHash = new Map<string, Entity>();
+function fixedPathV2Layout(index: Map<string, XmlInfo>): Layout {
+  const readDir = (dir: string): Entity[] => {
+    if (!dir) {
+      return [];
+    }
+    const prefix = dir + '/';
+    const byHash = new Map<string, { pointer: XmlInfo | null; def: XmlInfo | null }>();
 
-  for (const [relPath, info] of index.entries()) {
-    if (!relPath.startsWith(prefix)) {
-      continue;
+    for (const [relPath, info] of index.entries()) {
+      if (!relPath.startsWith(prefix)) {
+        continue;
+      }
+      const rest = relPath.slice(prefix.length);
+      // Only immediate children (no further nesting).
+      if (rest.includes('/')) {
+        continue;
+      }
+      const parsed = parseChildName(rest);
+      if (!parsed) {
+        continue;
+      }
+      const { hash, isPointer } = parsed;
+      let pair = byHash.get(hash);
+      if (!pair) {
+        pair = { pointer: null, def: null };
+        byHash.set(hash, pair);
+      }
+      if (isPointer) {
+        pair.pointer = info;
+      } else {
+        pair.def = info;
+      }
     }
-    const rest = relPath.slice(prefix.length);
-    // Only immediate children (no further nesting).
-    if (rest.includes('/')) {
-      continue;
-    }
-    const parsed = parseChildName(rest);
-    if (!parsed) {
-      continue;
-    }
-    const { hash, isPointer } = parsed;
-    let ent = byHash.get(hash);
-    if (!ent) {
-      ent = { hash, pointer: null, def: null };
-      byHash.set(hash, ent);
-    }
-    if (isPointer) {
-      ent.pointer = info;
-    } else {
-      ent.def = info;
-    }
-  }
 
-  return [...byHash.values()];
+    // Store order (Map preserves insertion), NOT sorted by hash: the hashes are
+    // opaque, so sorting on them would impose an order that means nothing while
+    // discarding the one the store was written in — which is the fallback order for
+    // entry points whose run-order chain is absent.
+    return [...byHash.entries()].map(([hash, pair]) => ({
+      dir: hash,
+      location: pair.pointer?.['@_location'] ?? '',
+      type: pair.pointer?.['@_type'] ?? '',
+      def: pair.def,
+    }));
+  };
+
+  return { roots: () => readDir('root'), children: (e) => readDir(e.dir) };
 }
 
 /**
- * Given a child filename like `8AEH..._sp.xml` or `qaw0...p.xml`, return the
- * hash (stem before the suffix) and whether it is a pointer. Null when the stem
- * carries none of the four recognized suffixes — a file in the store that is not
- * half of a pointer/def pair, which readDir skips.
+ * `distributed`: no pointer documents at all. An entity's location and type are its
+ * FILENAME — `<location>.type.<Type>.xml` for the def, `<location>.type.<Type>/`
+ * for the child directory — and directories nest the way the entities do. The
+ * top-level entities sit directly in the store root.
+ *
+ * A collection may exist as a directory with no def document beside it
+ * (`Root.type.Files/` without `Root.type.Files.xml`), so entities are discovered
+ * from directory names as well as from documents, and a missing def is normal here
+ * rather than a loss.
+ */
+function distributedLayout(index: Map<string, XmlInfo>): Layout {
+  const readDir = (dir: string): Entity[] => {
+    const prefix = dir ? dir + '/' : '';
+    const byStem = new Map<string, XmlInfo | null>();
+
+    for (const [relPath, info] of index.entries()) {
+      if (!relPath.startsWith(prefix)) {
+        continue;
+      }
+      const rest = relPath.slice(prefix.length);
+      if (!rest) {
+        continue;
+      }
+      const slash = rest.indexOf('/');
+      if (slash === -1) {
+        // An immediate document: the entity's def.
+        const stem = rest.slice(0, -'.xml'.length);
+        if (!byStem.has(stem)) {
+          byStem.set(stem, info);
+        } else if (byStem.get(stem) === null) {
+          byStem.set(stem, info);
+        }
+      } else {
+        // Something deeper: the first segment is an entity's child DIRECTORY, and
+        // is how a collection with no def document of its own is found at all.
+        const stem = rest.slice(0, slash);
+        if (!byStem.has(stem)) {
+          byStem.set(stem, null);
+        }
+      }
+    }
+
+    const out: Entity[] = [];
+    for (const [stem, def] of byStem) {
+      const split = splitTypedName(stem);
+      if (!split) {
+        continue;
+      }
+      out.push({ dir: prefix + stem, location: split.location, type: split.type, def });
+    }
+    return out;
+  };
+
+  return { roots: () => readDir(''), children: (e) => readDir(e.dir) };
+}
+
+/**
+ * Split a `distributed` stem into its location and type.
+ *
+ * The LAST `.type.` is the separator, not the first: a location is a filename and
+ * may contain the marker itself (a project file called `foo.type.File` yields the
+ * stem `foo.type.File.type.File`), and splitting on the first would truncate it.
+ * Null for a stem carrying no marker — `Project.xml` and the store's own uuid
+ * document are both of that shape, and neither is an entity.
+ */
+function splitTypedName(stem: string): { location: string; type: string } | null {
+  const marker = '.type.';
+  const at = stem.lastIndexOf(marker);
+  if (at <= 0) {
+    return null;
+  }
+  const type = stem.slice(at + marker.length);
+  if (!type || type.includes('.')) {
+    return null;
+  }
+  return { location: stem.slice(0, at), type };
+}
+
+/**
+ * Given a `fixedPathV2` child filename like `8AEH..._sp.xml` or `qaw0...p.xml`,
+ * return the hash (stem before the suffix) and whether it is a pointer. Null when
+ * the stem carries none of the four recognized suffixes — a file in the store that
+ * is not half of a pointer/def pair, which readDir skips.
  *
  * PRECONDITION: `name` ends in `.xml`. parseProject's index only admits `.xml`
  * paths, and readDir only asks about entries of that index, so re-checking here
@@ -327,49 +656,56 @@ function parseChildName(name: string): { hash: string; isPointer: boolean } | nu
   return null;
 }
 
+// ---------------------------------------------------------------------------------
+// The collections.
+
 /**
  * Read the Files collection. Members are File entities; each File entity's own
- * dir holds its children as pointer/def pairs: a DIR_SIGNIFIER marks a folder,
- * and any nested type="File" children are themselves project files (recurse).
+ * dir holds its children as entities: a DIR_SIGNIFIER marks a folder, and any
+ * nested type="File" children are themselves project files (recurse).
  */
-function readFiles(index: Map<string, XmlInfo>, filesHash: string): ProjectFile[] {
+function readFiles(layout: Layout, collection: Entity): ProjectFile[] {
   const out: ProjectFile[] = [];
   const seen = new Set<string>();
-  const members = readDir(index, filesHash);
-  for (const member of members) {
-    collectFile(index, member, out, seen);
+  for (const member of layout.children(collection)) {
+    collectFile(layout, member, '', out, seen);
   }
   return out;
 }
 
 function collectFile(
-  index: Map<string, XmlInfo>,
+  layout: Layout,
   entity: Entity,
+  parentPath: string,
   out: ProjectFile[],
   seen: Set<string>,
 ): void {
-  if (entity.pointer?.['@_type'] !== 'File') {
+  if (entity.type !== 'File') {
     return;
   }
-  const path = entity.pointer['@_location'];
-  if (!path) {
+  // A file entity's location is relative to its PARENT, not to the project root —
+  // the store nests them the way the filesystem does. Read verbatim, every file
+  // inside a folder reported the bare name that a sibling at the root would, so
+  // `utils/helper.m` and a root-level `helper.m` were indistinguishable.
+  const name = entity.location;
+  if (!name) {
     return;
   }
+  const path = parentPath ? `${parentPath}/${name}` : name;
   // Guard against cycles / repeated hashes.
-  if (seen.has(entity.hash)) {
+  if (seen.has(entity.dir)) {
     return;
   }
-  seen.add(entity.hash);
+  seen.add(entity.dir);
 
-  const children = readDir(index, entity.hash);
+  const children = layout.children(entity);
   let isFolder = false;
   const labels: string[] = [];
   const fileChildren: Entity[] = [];
   for (const child of children) {
-    const ctype = child.pointer?.['@_type'];
-    if (ctype === 'DIR_SIGNIFIER') {
+    if (child.type === 'DIR_SIGNIFIER') {
       isFolder = true;
-    } else if (ctype === 'File') {
+    } else if (child.type === 'File') {
       fileChildren.push(child);
     }
   }
@@ -381,7 +717,7 @@ function collectFile(
 
   // Recurse into nested File children (folder contents).
   for (const child of fileChildren) {
-    collectFile(index, child, out, seen);
+    collectFile(layout, child, path, out, seen);
   }
 }
 
@@ -402,18 +738,21 @@ function dedupe(arr: string[]): string[] {
 }
 
 /**
- * Read the ProjectPath collection. Each entry is a type="Reference" pointer
- * whose def carries `Ref="<folder>"`; that Ref is the path folder name.
+ * Read the ProjectPath collection. Each entry is a type="Reference" whose def
+ * carries `Ref="<folder>"`; that Ref is the path folder, relative to the project
+ * root, and `Ref=""` is the project root itself.
  */
-function readPathFolders(index: Map<string, XmlInfo>, hash: string): string[] {
+function readPathFolders(layout: Layout, collection: Entity): string[] {
   const out: string[] = [];
-  const entries = readDir(index, hash);
-  for (const ent of entries) {
-    if (ent.pointer?.['@_type'] !== 'Reference') {
+  for (const ent of layout.children(collection)) {
+    if (ent.type !== 'Reference') {
       continue;
     }
     const ref = ent.def?.['@_Ref'];
-    if (ref) {
+    // `!== undefined`, not truthiness: the project ROOT is on the path as `Ref=""`,
+    // and it is usually the first folder MATLAB adds, so testing for a non-empty
+    // string dropped a real entry from every project that has one.
+    if (ref !== undefined) {
       out.push(ref);
     }
   }
@@ -424,28 +763,191 @@ function readPathFolders(index: Map<string, XmlInfo>, hash: string): string[] {
  * Read the Categories collection into a flat label catalog. Each Category dir
  * holds type="Label" entries; the label display name is the def's Name.
  */
-function readCategories(index: Map<string, XmlInfo>, hash: string): ProjectLabel[] {
+function readCategories(layout: Layout, collection: Entity): ProjectLabel[] {
   const out: ProjectLabel[] = [];
-  const categories = readDir(index, hash);
-  for (const cat of categories) {
-    if (cat.pointer?.['@_type'] !== 'Category') {
+  for (const cat of layout.children(collection)) {
+    if (cat.type !== 'Category') {
       continue;
     }
-    // Category display name: def Name, else the pointer location (the id).
-    const categoryName = cat.def?.['@_Name'] || cat.pointer?.['@_location'] || '';
-    const labelEntries = readDir(index, cat.hash);
-    for (const labelEnt of labelEntries) {
-      if (labelEnt.pointer?.['@_type'] !== 'Label') {
+    // Category display name: def Name, else the location (the id).
+    const categoryName = cat.def?.['@_Name'] || cat.location || '';
+    for (const labelEnt of layout.children(cat)) {
+      if (labelEnt.type !== 'Label') {
         continue;
       }
-      const id = labelEnt.pointer?.['@_location'] || '';
+      const id = labelEnt.location || '';
       const name = labelEnt.def?.['@_Name'] || id || '';
       if (name) {
-        out.push({ id, category: categoryName, name });
+        // The attribute spells itself 'READ_ONLY' on a label and '1' on a category,
+        // so this tests for PRESENCE rather than for a value — both mean MATLAB owns
+        // it, and a project's own label carries no such marking.
+        const ro = labelEnt.def?.['@_ReadOnly'];
+        out.push({ id, category: categoryName, name, readOnly: ro !== undefined && ro !== '0' });
       }
     }
   }
   return out;
+}
+
+/**
+ * An entry point plus the store's link to its predecessor.
+ *
+ * `prev` stays internal to this module: it is the MECHANISM by which the store
+ * records run order, and `orderEntryPoints` resolves it into the order itself
+ * before anything outside sees an entry point, so no consumer has to walk a linked
+ * list to answer "which startup file runs first".
+ */
+interface ChainedEntryPoint extends ProjectEntryPoint {
+  /** The id of the entry that runs BEFORE this one; 'HEAD' when first, '' when unchained. */
+  prev: string;
+}
+
+/** Read the EntryPoints collection (shortcuts + startup/shutdown files). */
+function readEntryPoints(layout: Layout, collection: Entity): ChainedEntryPoint[] {
+  const out: ChainedEntryPoint[] = [];
+  for (const ent of layout.children(collection)) {
+    if (ent.type !== 'EntryPoint') {
+      continue;
+    }
+    const def = ent.def;
+    const file = def?.['@_File'] ?? '';
+    const name = def?.['@_Name'] ?? '';
+    if (!file && !name) {
+      continue;
+    }
+    const group = def?.['@_GroupUUID'] ?? '';
+    out.push({
+      id: ent.location,
+      name: name || file,
+      file,
+      kind: def?.['@_Type'] ?? '',
+      // Attribute values are never coerced by the reader, so this is the string
+      // '1' or '0' (see XmlReader's contract) — not a number and not a boolean.
+      visible: def?.['@_Visible'] !== '0',
+      // 'default' is the store's spelling for "no group"; a caller grouping by this
+      // field would otherwise render a group literally called default.
+      groupId: group === 'default' ? '' : group,
+      prev: readPrev(def),
+    });
+  }
+  return out;
+}
+
+/**
+ * The predecessor link from an entry point's def.
+ *
+ * It arrives as a nested `<Extension Name="StartUpPrev"|"ShutdownPrev"
+ * Value="<uuid>|HEAD"/>`. `toArray` is required, not defensive: the XML reader's
+ * `isArray` is configured per-dictionary and does not cover this element, so a def
+ * with one Extension yields an object and a def with two yields an array.
+ */
+function readPrev(def: XmlInfo | null | undefined): string {
+  for (const ext of toArray(def?.Extension)) {
+    const name = ext['@_Name'];
+    if (name === 'StartUpPrev' || name === 'ShutdownPrev') {
+      return ext['@_Value'] ?? '';
+    }
+  }
+  return '';
+}
+
+/** Read the EntryPointGroups collection (the named groups of the Shortcuts gallery). */
+function readEntryPointGroups(layout: Layout, collection: Entity): ProjectEntryPointGroup[] {
+  const out: ProjectEntryPointGroup[] = [];
+  for (const ent of layout.children(collection)) {
+    if (ent.type !== 'EntryPointGroup') {
+      continue;
+    }
+    const name = ent.def?.['@_Name'];
+    if (name) {
+      out.push({ id: ent.location, name });
+    }
+  }
+  return out;
+}
+
+/** Read the WorkingFolders collection (cache, code generation, startup folder, …). */
+function readWorkingFolders(layout: Layout, collection: Entity): ProjectWorkingFolder[] {
+  const out: ProjectWorkingFolder[] = [];
+  for (const ent of layout.children(collection)) {
+    if (ent.type !== 'Reference') {
+      continue;
+    }
+    const ref = ent.def?.['@_Ref'];
+    if (!ent.location || ref === undefined) {
+      continue;
+    }
+    out.push({ key: ent.location, ref });
+  }
+  return out;
+}
+
+/**
+ * Put the startup and shutdown files in RUN order.
+ *
+ * The store encodes the order as a linked list, and only as one: each entry names
+ * its PREDECESSOR in a nested `<Extension Name="StartUpPrev"/"ShutdownPrev"
+ * Value="<uuid>"/>`, with `HEAD` marking the first. MATLAB runs the files top-down,
+ * so this order is meaningful and no other field recovers it — sorting these by
+ * name would silently reorder a shutdown sequence.
+ *
+ * Everything unchained keeps its store order and follows: a project with one
+ * startup file writes no Extension at all, and a chain that is broken (a missing
+ * predecessor, a cycle) must still yield every entry exactly once.
+ */
+function orderEntryPoints(entries: ChainedEntryPoint[]): ProjectEntryPoint[] {
+  const out: ChainedEntryPoint[] = [];
+  const taken = new Set<ChainedEntryPoint>();
+
+  for (const kind of ['StartUp', 'Shutdown']) {
+    const hook = entries.filter((e) => e.kind === kind);
+
+    // Index by predecessor so the walk is a lookup per step rather than a scan, and
+    // so a store with two entries claiming the same predecessor (which nothing
+    // prevents) still yields both instead of looping on one.
+    const byPrev = new Map<string, ChainedEntryPoint[]>();
+    for (const e of hook) {
+      const list = byPrev.get(e.prev);
+      if (list) {
+        list.push(e);
+      } else {
+        byPrev.set(e.prev, [e]);
+      }
+    }
+
+    // Follow the chain from HEAD. `taken` is what makes this terminate on a cycle:
+    // a store whose links form a loop would otherwise spin here forever.
+    let cursor = 'HEAD';
+    for (;;) {
+      const step = (byPrev.get(cursor) ?? []).find((e) => !taken.has(e));
+      if (!step) {
+        break;
+      }
+      taken.add(step);
+      out.push(step);
+      cursor = step.id;
+    }
+
+    // Whatever the chain did not reach, in store order. A project with a single
+    // startup file writes no Extension at all and lands here — which is why the
+    // fallback is not an error path but the common one.
+    for (const e of hook) {
+      if (!taken.has(e)) {
+        taken.add(e);
+        out.push(e);
+      }
+    }
+  }
+
+  // Then the shortcuts, which have no order to preserve beyond the store's.
+  for (const e of entries) {
+    if (!taken.has(e)) {
+      out.push(e);
+    }
+  }
+
+  // Drop `prev` on the way out: see ChainedEntryPoint.
+  return out.map(({ prev: _prev, ...rest }) => rest);
 }
 
 /**
@@ -454,8 +956,7 @@ function readCategories(index: Map<string, XmlInfo>, hash: string): ProjectLabel
  */
 function resolveReference(ent: Entity): ProjectReference | null {
   const ref = ent.def?.['@_Ref'];
-  const location = ent.pointer?.['@_location'] || '';
-  const id = location || ref || '';
+  const id = ent.location || ref || '';
   if (!id) {
     return null;
   }

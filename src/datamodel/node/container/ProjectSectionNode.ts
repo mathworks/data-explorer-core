@@ -6,6 +6,9 @@ import ProjectItemNode from '../data/ProjectItemNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { ProjectFile, ProjectLabel, ProjectReference } from '../../parser/ProjectParser.js';
 
+/** What to call the project root in a list of path folders. See addPathEntry. */
+const ROOT_FOLDER_NAME = '(project root)';
+
 export default class ProjectSectionNode extends ContainerNode {
     label: string;
     iconId: string;
@@ -40,7 +43,16 @@ export default class ProjectSectionNode extends ContainerNode {
     }
 
     addPathEntry(folder: string): BaseNode {
-        const name = folder.split(/[/\\]/).filter((p) => p.length > 0).pop() || folder;
+        // The project ROOT is on the path, and the store spells it as the EMPTY
+        // string — so unlike every other entry it has no segment to be named by, and
+        // the usual "show the path itself" fallback leaves a blank row. It is
+        // normally the first folder MATLAB adds, so this is the common first row and
+        // not an edge case. Only '' is the root: a degenerate path like '/' is still
+        // shown verbatim, since that one at least says something.
+        const name =
+            folder === ''
+                ? ROOT_FOLDER_NAME
+                : folder.split(/[/\\]/).filter((p) => p.length > 0).pop() || folder;
         const node = new ProjectItemNode(name, this, {
             itemType: 'Path Folder',
             location: folder,

@@ -56,6 +56,11 @@ export { parseMdl } from './datamodel/parser/MdlParser.js';
 export { parseModel } from './datamodel/parser/ModelParser.js';
 export { parseMat } from './datamodel/parser/MatParser.js';
 export { parseProject } from './datamodel/parser/ProjectParser.js';
+// The view model behind a project's MAIN PAGE, as opposed to a table of its files: a
+// `.prj` has no table worth showing (see ProjectPage.ts), and everything a page shows
+// around the file list — run order, shortcut groups, label coverage — is derived from
+// the parse rather than read from it, so it is derived once here for every host.
+export { buildProjectPage } from './datamodel/parser/ProjectPage.js';
 // Universal ingest (sniff + dispatch) — superset entry over addXSource.
 export { ingest } from './core/ingest.js';
 // Which KIND of file a name refers to. Public because every consumer decides this too —

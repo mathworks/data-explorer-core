@@ -110,6 +110,19 @@ describe('ProjectNode.fromParsed', () => {
     expect(named(node.getSection('path')!.children[0] as any)).toEqual(['/', '/']);
   });
 
+  it('names the project root, which the store records as the empty path', () => {
+    // The root IS on the MATLAB path — usually first — and the store spells it ''.
+    // Alone among path entries it has no segment to be named by, so the "show the
+    // path itself" fallback above would leave a blank, unidentifiable row.
+    const parsed = makeParsed();
+    parsed.pathFolders = ['', 'utils'];
+    const rows = ProjectNode.fromParsed(parsed, 'p.prj').getSection('path')!.children;
+    expect(rows.map((c) => [c.name, (c as any).location])).toEqual([
+      ['(project root)', ''],
+      ['utils', 'utils'],
+    ]);
+  });
+
   it('falls back to the reference id when it has no name', () => {
     const parsed = makeParsed();
     parsed.references = [{ id: 'ref-uuid-2' }];
