@@ -90,6 +90,11 @@ export default class VariantControlNode extends SimulinkObjectNode {
     // the file carried the key — including the empty one setProperty accepts above.
     _serializedOverrides(): Record<string, unknown> { return { Value: this.Value }; }
     static get defaultName(): string { return 'VariantControl'; }
-    static createDefault(name: string, parent: BaseNode | null): VariantControlNode { const rawVal = VariantControlNode._defaultRawVal(CLASS_NAME, { Value: '' }); const props = VariantControlNode._propsOf(rawVal); return new VariantControlNode(name, parent, props, { _rawVal: rawVal, _properties: props } as Record<string, unknown>); }
+    // MEASURED from MATLAB R2027a: a default `Simulink.VariantControl` carries `Value: []` — the
+    // empty DOUBLE — and a `ValueType` of 'Numeric'. We wrote `Value: ''` and no ValueType at all,
+    // and the empty char is the wrong empty for a class whose setter above accepts only integers,
+    // logicals and enumerations: MATLAB reads '' back as a 0x0 char, so the very first thing it
+    // learns about a control we created is a type its own constructor would not have produced.
+    static createDefault(name: string, parent: BaseNode | null): VariantControlNode { const rawVal = VariantControlNode._defaultRawVal(CLASS_NAME, { Value: [], ValueType: 'Numeric' }); const props = VariantControlNode._propsOf(rawVal); return new VariantControlNode(name, parent, props, { _rawVal: rawVal, _properties: props } as Record<string, unknown>); }
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): VariantControlNode { const props = VariantControlNode._propsOf(rawVal); return new VariantControlNode(name, parent, props, { _rawVal: rawVal, _properties: props } as Record<string, unknown>); }
 }

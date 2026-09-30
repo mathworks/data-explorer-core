@@ -39,7 +39,11 @@ describe('VariantControlNode displayValue', () => {
   });
 
   it('formats an empty string Value with MATLAB quotes', () => {
-    const vc = VariantControlNode.createDefault('vc', null);
+    // `parse`, not `createDefault`: MATLAB's own default Value is the empty DOUBLE `[]`, so a
+    // created node no longer holds the empty CHAR this case is about. The empty string is still
+    // reachable — it is what `setProperty('Value', "''")` stores — so the claim stands; only the
+    // node that was standing in for it was wrong.
+    const vc = VariantControlNode.parse(wrap({ Value: '' }), 'vc', null);
     expect(vc.displayValue).toBe("''");
   });
 
@@ -111,9 +115,15 @@ describe('VariantControlNode.setProperty — Value edge cases', () => {
 });
 
 describe('VariantControlNode static helpers', () => {
-  it('createDefault produces a valid node with empty Value', () => {
+  it('createDefault seeds MATLAB\'s own default bag: Value [] and ValueType Numeric', () => {
+    // MEASURED from MATLAB R2027a. This used to assert `Value === ''` and say nothing about
+    // ValueType, which is what the node actually did and not what MATLAB does — the empty CHAR
+    // for a class that accepts only integers, logicals and enumerations, and a missing property
+    // MATLAB always writes. Both were the bug, so both are pinned here rather than restated.
     const vc = VariantControlNode.createDefault('vc', null);
-    expect(vc.Value).toBe('');
+    expect(vc.Value).toEqual([]);
+    expect(vc.displayValue).toBe('[ ]');
+    expect(vc.serial._properties).toEqual({ Value: [], ValueType: 'Numeric' });
     expect(vc.serializeValue()).toMatchObject({ _array_class: 'Simulink.VariantControl' });
   });
 

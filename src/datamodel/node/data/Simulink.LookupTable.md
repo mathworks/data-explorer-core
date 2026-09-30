@@ -140,9 +140,15 @@ would leave the LookupTable assertions green and fail those).
 
 `writeSourcePath` never synthesizes a missing sub-object, so a bag with no `CoderInfo` gets
 a refusal ("Cannot set Storage Class (target property is absent)") even for a value in the
-list. A newly created LookupTable is exactly that bag: unlike `ParameterNode.createDefault`,
-`LookupTableNode.createDefault` seeds no CoderInfo — so the value displays (default 'Auto')
-and is not yet writable, and the refusal says which.
+list — the value displays (default 'Auto') and is not writable, and the refusal says which.
+The common bag it applies to is one read from a JSON `.sldd`, which omits a property sitting
+at its default.
+
+A newly CREATED LookupTable used to be that bag too, because `LookupTableNode.createDefault`
+seeded nothing at all. It no longer is: the default is now MATLAB's own measured bag,
+`CoderInfo` included, so Storage Class is writable on a LookupTable the moment the Add
+gallery makes one. The refusal above is unchanged and still reachable — what changed is that
+you no longer meet it on the entry you just added.
 Test: `test/lookupTableFlatProps.test.ts`.
 
 ## Allowed values (enums / comboboxes)

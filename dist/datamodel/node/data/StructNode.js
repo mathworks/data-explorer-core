@@ -306,17 +306,26 @@ export default class StructNode extends DataNode {
         return node;
     }
     static get defaultName() { return 'Struct'; }
+    // Exactly the four keys MATLAB writes for a 1x1 struct entry, measured from a text
+    // dictionary MATLAB authored (`{"_array_type":"Struct","_dimensions":[1,1],
+    // "_elements":[{}],"_mw_element_type":"MATLABArray"}`) and confirmed by MATLAB resaving the
+    // entry the Add gallery wrote into exactly that.
+    //
+    // Three keys went away and one arrived, and the reasoning was the same for all four. We
+    // used to write `_num_fields: 0` and `_field_names: []`: MATLAB writes NEITHER name
+    // anywhere in either format — 0 occurrences across two dictionaries it wrote itself — and
+    // nothing in this package ever read them back, so they were invented, emitted and ignored,
+    // the same way `_array_type: 'MATLABArray'` was on the object envelope. `_fields: []` went
+    // for a different reason: a TOP-LEVEL struct entry is the one place MATLAB does not declare
+    // its field names (it carries `_mw_element_type` instead, and spells the names only on a
+    // NESTED struct property such as an EnumTypeDefinition's `Enumerals`). Leaving it out is
+    // also what makes `_fieldsDeclared` false, so a field added later is written MATLAB's way —
+    // present in `_elements` and absent from any `_fields` list — rather than ours.
     static createDefault(name, parent) {
         const rawVal = {
             _array_type: 'Struct',
             _dimensions: [1, 1],
-            _num_fields: 0,
-            _field_names: [],
-            // Declared, empty. A struct WE invent has no MATLAB bytes to stay faithful to,
-            // so it keeps writing `_fields` the way it did before the list became
-            // derivable — the emit policy only exists to avoid contradicting a file MATLAB
-            // wrote, and there is no such file here.
-            _fields: [],
+            _mw_element_type: 'MATLABArray',
             _elements: [{}]
         };
         return StructNode.parse(rawVal, name, parent);

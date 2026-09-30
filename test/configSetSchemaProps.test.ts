@@ -281,7 +281,10 @@ describe('the config-set save path keeps what the file had', () => {
       'Ref',
       null,
     );
-    expect(textProps(ref)).toEqual({ SourceName: 'shared', Description: 'd', UseLocalSolver: false });
+    // `Name` is written even though the parsed bag had none — see ConfigSetRefNode.ConfigName:
+    // MATLAB renames the ENTRY to match the value's Name, so leaving it out is what let it
+    // rename ours.
+    expect(textProps(ref)).toEqual({ SourceName: 'shared', Name: 'Ref', Description: 'd', UseLocalSolver: false });
   });
 
   it('names the same keys on both save paths, in every state the gate distinguishes', () => {

@@ -55,11 +55,14 @@
 //
 // Only two options differ, and each is isolated in the test:
 //
-//   `isArray` (dictionary only) forces `Object`, `P` and `Element` to arrays even when
-//   singular. Without it a one-entry dictionary hands back an object where a
+//   `isArray` (dictionary only) forces `Object`, `P`, `Element` and `Field` to arrays even
+//   when singular. Without it a one-entry dictionary hands back an object where a
 //   many-entry one hands back an array, and every walk over it needs its own
 //   `Array.isArray(x) ? x : [x]`. The model and project walkers do carry exactly that
 //   coercion, in about a dozen places each; the dictionary walker does not have to.
+//   `Field` is the fourth for the same reason, not a fourth kind of thing: it is how MATLAB
+//   names the fields of an EMPTY struct property, and a one-field struct would otherwise
+//   read differently from a two-field one.
 //
 //   `trimValues: false` (dictionary only) keeps leading and trailing whitespace in text
 //   AND in attribute values. A dictionary's text is MATLAB's, where `'  abc  '` is a
@@ -136,7 +139,8 @@ function dropLayoutWhitespace(
 
 const dictionaryParser = new XMLParser({
   ...SHAPE,
-  isArray: (name: string) => name === 'Object' || name === 'P' || name === 'Element',
+  isArray: (name: string) =>
+    name === 'Object' || name === 'P' || name === 'Element' || name === 'Field',
   trimValues: false,
   tagValueProcessor: dropLayoutWhitespace,
 });

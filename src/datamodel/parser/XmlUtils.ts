@@ -22,6 +22,29 @@ export function escapeXml(str: string): string {
  */
 export const SAVEOBJ_KEY = '_saveobj';
 
+/**
+ * The SAME envelope, as an uncompressed-text `.sldd` spells it.
+ *
+ * It sits next to SAVEOBJ_KEY because the one thing worth knowing about these two names is
+ * that they name one concept, and a reader who finds only one of them will conclude the
+ * other format has no envelope. That conclusion was actually drawn: defect 46 was diagnosed
+ * as binary-only on the stated reasoning that "the json channel has no envelope", and the
+ * text half went unfixed for that reason. It has one. MATLAB writes it as `_custom_save`,
+ * and puts it in a DIFFERENT PLACE — a sibling of `_properties` on the element, not a key
+ * inside it, and on a custom-saving class there is no `_properties` at all:
+ *
+ *     "_elements": [ { "_custom_save": { "_fields": [...], "_elements": [...] }, "_id": "1" } ]
+ *
+ * So a reader that looks only at `_elements[0]._properties` sees an object with NO
+ * properties and nothing to suggest it is missing anything. `SimulinkObjectNode._propsOf`
+ * therefore lifts it into the bag under SAVEOBJ_KEY, and `DataNode._serializeSimulinkObject`
+ * puts it back where MATLAB expects it; everything in between — `_mergeProps`,
+ * `writeIntoSaveobj`, the display filter that hides keys starting with '_' — then works on
+ * one spelling in both formats, which is the only arrangement in which the two paths cannot
+ * drift apart again.
+ */
+export const CUSTOM_SAVE_KEY = '_custom_save';
+
 // A number as MATLAB spells it. Only the non-finite values differ from
 // String(num), but they differ in a way that matters: MATLAB cannot read the
 // JavaScript spelling 'Infinity' back, and our own MatlabValueParser rejects it

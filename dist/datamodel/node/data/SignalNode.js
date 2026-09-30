@@ -87,7 +87,11 @@ export default class SignalNode extends DataNode {
     }
     static get defaultName() { return 'Signal'; }
     static createDefault(name, parent) {
-        const rawVal = SimulinkObjectNode._defaultRawVal(CLASS_NAME, { CoderInfo: { _object_class: 'Simulink.CoderInfo', _properties: { CSCPackageName: 'Simulink', CustomAttributes: { _object_class: 'SimulinkCSC.AttribClass_Simulink_Default', _properties: {} }, CustomStorageClass: 'Default', ParameterOrSignal: 'Signal', StorageClass: 'Auto' } }, LoggingInfo: { _object_class: 'Simulink.LoggingInfo', _properties: {} } });
+        // Verified property-for-property against MATLAB R2027a's own default `Simulink.Signal`:
+        // these two nested objects, in this order, and nothing else — no Dimensions, no
+        // Complexity, no DataType. Left exactly as it was; only the CoderInfo literal moved to the
+        // shared helper.
+        const rawVal = SimulinkObjectNode._defaultRawVal(CLASS_NAME, { CoderInfo: SimulinkObjectNode._defaultCoderInfo('Signal'), LoggingInfo: { _object_class: 'Simulink.LoggingInfo', _properties: {} } });
         const props = SimulinkObjectNode._propsOf(rawVal);
         return new SignalNode(name, parent, props, { _rawVal: rawVal, _properties: props });
     }

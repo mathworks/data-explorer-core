@@ -276,10 +276,11 @@ describe('the storageClass option list is enforced per class, not shared', () =>
 
   it('refuses the write when the file carries no CoderInfo, rather than synthesizing one', () => {
     // `writeSourcePath` never invents a missing sub-object, so a bag with no CoderInfo gets
-    // a refusal even for a value in the list. Worth pinning because a NEWLY CREATED
-    // LookupTable is exactly that bag: unlike ParameterNode.createDefault, which seeds a
-    // CoderInfo, LookupTableNode.createDefault starts empty. The value is displayable
-    // (default 'Auto') and not yet writable, and the refusal says which.
+    // a refusal even for a value in the list. The bag it applies to is one READ from a JSON
+    // .sldd, which omits a property sitting at its default — not a newly created LookupTable,
+    // which this comment used to cite: LookupTableNode.createDefault seeded nothing at all and
+    // now seeds MATLAB's measured bag, CoderInfo included. The refusal is unchanged; only the
+    // example of how you reach it was wrong.
     const node = lut({});
     const r = node.setProperty('storageClass', 'ExportedGlobal');
     expect(r).not.toBe(true);

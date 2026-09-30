@@ -15,7 +15,12 @@ export default class VariantBankNode extends SimulinkObjectNode {
     // carried the key.
     _serializedOverrides() { return { Value: this.Value }; }
     static get defaultName() { return 'VariantBank'; }
-    static createDefault(name, parent) { const rawVal = VariantBankNode._defaultRawVal(CLASS_NAME, { Value: '' }); const props = VariantBankNode._propsOf(rawVal); return new VariantBankNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
+    // A saveobj envelope, for the reason VariantVariableNode's carries one. MATLAB has no
+    // `Value` property on this class at all, so the `{ Value: '' }` this used to write was pure
+    // invention; under an envelope `_mergeProps` drops an empty override, so the
+    // `_serializedOverrides` above now writes nothing until the user gives Value a value.
+    // Fields, order and defaults measured from a MATLAB-written dictionary.
+    static createDefault(name, parent) { const rawVal = VariantBankNode._defaultCustomSaveRawVal(CLASS_NAME, ['Name', 'Description', 'VariantConditions', 'AllChoicesCoderInfo', 'ActiveChoiceCoderInfo', 'BankCoderInfo'], { Name: '', Description: '', VariantConditions: VariantBankNode._emptyCell(), AllChoicesCoderInfo: '', ActiveChoiceCoderInfo: '', BankCoderInfo: '' }); const props = VariantBankNode._propsOf(rawVal); return new VariantBankNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
     static parse(rawVal, name, parent) { const props = VariantBankNode._propsOf(rawVal); return new VariantBankNode(name, parent, props, { _rawVal: rawVal, _properties: props }); }
 }
 //# sourceMappingURL=VariantBankNode.js.map
