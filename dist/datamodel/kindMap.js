@@ -42,13 +42,20 @@ export const KIND_BY_CLASS = {
     'Simulink.ConfigSetRef': 'Configuration Reference',
 };
 // The default user-facing Kind for a DERIVED (architectural) entry when the
-// SystemComposer catalog doesn't classify it — e.g. a freshly pasted entry, whose
-// new name isn't in the catalog. Architectural data stores interfaces as ordinary
-// Simulink objects, so the same Class means a different Kind there: a derived
-// Simulink.Bus is a Data Interface, a derived Simulink.ConnectionBus a Physical
-// Interface. Classes whose Kind is identical in both sections (e.g.
-// Simulink.ServiceBus → 'Service Interface', value/numeric/alias types) are
-// omitted — KIND_BY_CLASS already yields the right label for them.
+// SystemComposer catalog doesn't classify it — a freshly pasted entry whose new name
+// isn't in the catalog, or a dictionary with no catalog part at all. Architectural data
+// stores interfaces as ordinary Simulink objects, so the same Class means a different
+// Kind there: a derived Simulink.Bus is a Data Interface, a derived
+// Simulink.ConnectionBus a Physical Interface. Classes whose Kind is identical in both
+// sections (e.g. Simulink.ServiceBus → 'Service Interface', value/numeric/alias types)
+// are omitted — KIND_BY_CLASS already yields the right label for them.
+//
+// `Simulink.Bus` is the ONLY class the catalog disambiguates (DataInterface vs
+// StructType; measured 1:1 for every other class over 14,668 derived entries in four
+// real dictionaries), and 'Data Interface' is not a guess: strip the interface
+// dictionary from a `.sldd` holding both and MATLAB R2027a reports both as a
+// DataInterface too. So this row is the catalog-less answer MATLAB gives, which is why
+// a missing catalog is not worth a parse warning. See ScCatalog for the full note.
 export const DERIVED_KIND_BY_CLASS = {
     'Simulink.Bus': 'Data Interface',
     'Simulink.ConnectionBus': 'Physical Interface',

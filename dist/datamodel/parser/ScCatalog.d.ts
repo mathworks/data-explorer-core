@@ -6,7 +6,6 @@ export interface SystemComposerCatalog {
 }
 export declare const SC_TYPE_TO_CLASSIFICATION: Record<string, string>;
 export declare function classificationOf(catalog: SystemComposerCatalog | null | undefined, entryName: string): string | null;
-export declare function scPartUnreadableMessage(part: string): string;
 /** Where a name is written in the source text, as a half-open span. */
 export interface ScNameSite {
     start: number;

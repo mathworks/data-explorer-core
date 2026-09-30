@@ -77,17 +77,27 @@ export function classificationOf(
     return (scType && SC_TYPE_TO_CLASSIFICATION[scType]) || null;
 }
 
-// The message both readers raise when the part is THERE and holds nothing readable.
-// Present-and-unreadable is the file claiming the catalog is there: the tree still
-// fills in, but every architectural entry's Kind quietly degrades to its raw
-// Simulink class — a wrong answer that looks exactly like a right one. Absent is a
-// different thing entirely (every `.sldd` that is not an interface dictionary), and
-// stays quiet.
-export function scPartUnreadableMessage(part: string): string {
-    return `The dictionary part "${part}" holds nothing readable, so `
-        + 'architectural entries are reported by their Simulink class rather than '
-        + 'their System Composer type.';
-}
+// NEITHER reader warns when the catalog yields no definitions, whether the part is
+// absent or present-and-empty. Both used to raise `part-unreadable` here, on the
+// reasoning that a lost catalog silently downgrades every architectural entry's Kind.
+// Measured against MATLAB (R2027a, 2026-09-30), that reasoning was wrong twice over:
+//
+//   - Nothing but `Simulink.Bus` is ambiguous. Over 14,668 derived entries in four real
+//     dictionaries, every other class is 1:1 with its classification, so `IsDerived`
+//     plus the class already yields the identical Kind. `IsDerived` also drives the
+//     Architectural-vs-Design section split on its own (see `getSectionKey`), so a
+//     missing catalog costs nothing there either.
+//   - For `Simulink.Bus`, the fallback IS what MATLAB does. Removing this part from a
+//     dictionary holding a StructType and a DataInterface and reopening it in MATLAB
+//     reports BOTH as `Simulink.dictionary.archdata.DataInterface`
+//     (`getDataTypeNames` empty, `getInterfaceNames` listing both) — which is exactly
+//     `DERIVED_KIND_BY_CLASS['Simulink.Bus'] = 'Data Interface'`. MATLAB does not
+//     regenerate the part on save, and it ignores `simulink/ArchitecturePart.xml`,
+//     which still records the struct type under `DataTypes` and is therefore a truth
+//     we deliberately do NOT read: agreeing with MATLAB beats being right alone.
+//
+// So an empty catalog is a dictionary with nothing to classify, not a damaged one, and
+// a banner over it claims a loss the user cannot act on and that MATLAB does not report.
 
 // The two container keys a definition can be listed under. Scoping by KEY, not by
 // type, is what keeps the catalog to actual definitions: a nested

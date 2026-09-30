@@ -45,7 +45,7 @@
 import { unzipEntries } from './Inflate.js';
 import { readDictionaryXml } from './XmlReader.js';
 import { reasonOf } from './ParseWarning.js';
-import { SC_PART_XML, catalogFromDefinitions, scPartUnreadableMessage, scanScXml, } from './ScCatalog.js';
+import { SC_PART_XML, catalogFromDefinitions, scanScXml } from './ScCatalog.js';
 import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
 import { charNeedsShape, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, SAVEOBJ_KEY, } from './XmlUtils.js';
 /**
@@ -256,7 +256,7 @@ export function parseBinarySlddParts(xmlString, zipMetadata, warnings) {
         __rawXml: xmlString,
         __zipMetadata: zipMetadata,
         __dataSourceAttrs: dataSourceAttrs,
-        ...scCatalogOf(zipMetadata, decoder, warnings),
+        ...scCatalogOf(zipMetadata, decoder),
     };
 }
 /**
@@ -266,30 +266,23 @@ export function parseBinarySlddParts(xmlString, zipMetadata, warnings) {
  * This reader is where it has to happen: the member is XML inside the package, and no
  * layer above ever sees those bytes — `SlddNode.parse` receives the parts bag, which
  * carries the member as raw pass-through bytes in `__zipMetadata`. Without this the
- * catalog was simply absent for the binary flavour, and every architectural entry read
- * as its raw Simulink class: a struct type reported as 'Data Interface', which is a
- * wrong answer that looks exactly like a right one.
+ * catalog was simply absent for the binary flavour, so a struct type read as 'Data
+ * Interface' — which is what MATLAB itself answers with the part gone, but not what it
+ * answers with the part there, and the file is the authority when it has one.
  *
  * Spread into the content bag, so a dictionary with no interface dictionary (nearly
  * all of them) adds no key at all and `SlddNode.parse` falls through to the textual
- * reader as before.
+ * reader as before. A member that is present but yields no definitions takes the same
+ * exit, and deliberately says nothing — see the note below `classificationOf` in
+ * ScCatalog for the MATLAB measurement that settled it.
  */
-function scCatalogOf(zipMetadata, decoder, warnings) {
+function scCatalogOf(zipMetadata, decoder) {
     const member = zipMetadata[SC_PART_XML];
     if (!member) {
         return {};
     }
     const defs = scanScXml(decoder.decode(member));
     if (!defs.length) {
-        // Present and holding no definitions: the package claims the catalog is there, and
-        // the entries all still read, so this is one piece of the dictionary missing rather
-        // than the dictionary. Same code, same words and the same reasoning as the textual
-        // reader's — see SlddNode._parseSystemComposer.
-        warnings?.push({
-            code: 'part-unreadable',
-            message: scPartUnreadableMessage(SC_PART_XML),
-            part: SC_PART_XML,
-        });
         return {};
     }
     return { __scCatalog: catalogFromDefinitions(defs) };

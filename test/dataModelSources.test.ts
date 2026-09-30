@@ -24,7 +24,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { unzipSync, zipSync, strToU8 } from 'fflate';
-import { createSession, ingest } from '../src/index.js';
+import { createSession, ingest, parseBinarySlddParts } from '../src/index.js';
 import type { ParseWarning } from '../src/index.js';
 import { parseSlx } from '../src/datamodel/parser/SlxParser.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
@@ -396,18 +396,42 @@ describe('createSession() — a dictionary that came up short reaches the node, 
 
   it('puts both layers’ warnings on one source, in one list', () => {
     // What the shared sink buys, and the reason it is a sink rather than a field on each
-    // layer's result: a half-written dictionary can lose its content part AND leave an
-    // unreadable System Composer catalog behind, and those two losses are found by two
-    // different layers. A host renders one list per file, so both have to be in it.
+    // layer's result: `ingest` creates the array, the dictionary reader fills it in, and
+    // `addDataSource` hands that same array to `SlddNode.parse`, which appends its OWN
+    // findings before it is attached. A host renders one list per file, so all of it has
+    // to be in that one list — a copy at either seam, or a fresh array inside
+    // `addDataSource`, silently loses whichever layer went first.
+    //
+    // The two halves are asserted separately because no single `.sldd` reaches both any
+    // more. The node layer's only warning is for a dictionary with no content part, and
+    // the binary reader always builds that part, so a file the parser warns about arrives
+    // here with content. The pair used to be reachable through the System Composer
+    // catalog, whose warning was removed once MATLAB R2027a was measured giving the same
+    // answer as the catalog-less fallback — so the second half below hands the adder a
+    // pre-filled sink directly rather than pretending a file produces both.
     const s = createSession();
-    const halfWritten = {
-      __MW_TEXT_PARTS__: {
-        '__MW_TEXT_PART__/simulink/systemcomposer/interfaceDictionary': { nothing: 'readable' },
-      },
-    };
-    const src = s.addDataSource('half.sldd', halfWritten);
+
+    // Real parser output, into a real sink, through the real adder: a dictionary that
+    // says it inherits from another one and does not say which. The array the source
+    // carries must be that very array, which is what "one list" means mechanically.
+    const NAMELESS_REFERENCE = '<?xml version="1.0" encoding="utf-8"?>\n'
+      + '<DataSource FormatVersion="2" MinRelease="R2014a">\n'
+      + '  <Object Class="DD.DICTIONARYREFERENCE"/>\n'
+      + '</DataSource>\n';
+    const fromParser: ParseWarning[] = [];
+    const content = parseBinarySlddParts(NAMELESS_REFERENCE, {}, fromParser);
+    expect(fromParser.map((w) => w.code)).toEqual(['part-unreadable']);
+    const withRef = s.addDataSource('ref.sldd', content, undefined, fromParser);
+    expect(withRef.warnings).toBe(fromParser);
+    expect(withRef.warnings?.map((w) => w.code)).toEqual(['part-unreadable']);
+
+    // And the append, which is the half a fresh array inside `addDataSource` would break:
+    // a sink already holding a parser's finding, plus content the node layer has something
+    // of its own to say about. Both are there, in the order the layers ran.
+    const src = s.addDataSource('half.sldd', { __MW_TEXT_PARTS__: {} }, undefined, [fromParser[0]]);
     expect(src.warnings?.map((w) => w.code)).toEqual(['part-unreadable', 'source-empty']);
-    expect(src.warnings?.map((w) => w.part))
-      .toEqual(['simulink/systemcomposer/interfaceDictionary', undefined]);
+    // The node layer's own carries the filename, because it is about the source and not a
+    // part of it — the one thing that tells a host which open file it belongs to.
+    expect(src.warnings?.[1].message).toContain('half.sldd');
   });
 });
