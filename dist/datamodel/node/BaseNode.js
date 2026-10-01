@@ -253,6 +253,30 @@ export default class BaseNode {
         }
         return result;
     }
+    // Which slot of its parent this node occupies — O(1) where it can be, O(n) where it
+    // has to be, and it decides which by CHECKING.
+    //
+    // An element's `name` already is its 1-based slot: every builder stamps String(i+1),
+    // and _buildArrayChildren is now the only one that does. So the slot can be read
+    // instead of searched. But `name` is data — nothing reindexes it when children are
+    // reordered — so a derived index is a guess until the slot it names is confirmed to
+    // hold THIS node. Confirmed, it is the answer; unconfirmed, the scan still is.
+    //
+    // This replaced a bare `children.indexOf(this)`, which is O(n) per element and so
+    // O(n^2) per array. Measured on the 1000x1000 double that prompted this: 1.5 us at
+    // index 0 rising to 325 us at index 999,999, ~161 s to label one entry, which was
+    // most of the time the file spent failing to open. Eight lines below, the
+    // struct/object-element path was already doing it this way (a stored
+    // `_subscript.index`) and was 2000x faster on the same data — the two paths
+    // answering one question two ways, with only one of them fast.
+    _slotAmongSiblings() {
+        const siblings = this.parent.children;
+        const named = Number(this.name) - 1;
+        if (named >= 0 && named < siblings.length && siblings[named] === this) {
+            return named;
+        }
+        return siblings.indexOf(this);
+    }
     get displayName() {
         if (this.parent &&
             (this.parent._kind === 'cell' || this.parent._kind === 'array' || this.parent._kind === 'string')) {
@@ -271,7 +295,7 @@ export default class BaseNode {
             // strMat in all four formats -- see test/cellElementOrder.test.ts. A square
             // fixture cannot see this: the label SET is right either way, only the
             // label->value pairing is wrong.
-            return subscriptLabel(this.parent.displayName, this.parent.children.indexOf(this), this.parent._dims, this.parent._kind === 'array' ? 'row-major' : 'column-major', this.parent._kind === 'cell' ? '{}' : '()');
+            return subscriptLabel(this.parent.displayName, this._slotAmongSiblings(), this.parent._dims, this.parent._kind === 'array' ? 'row-major' : 'column-major', this.parent._kind === 'cell' ? '{}' : '()');
         }
         // A struct/object-array element: the same derivation, off the spec its parse
         // site recorded. Read live from the parent's CURRENT displayed name, which is
