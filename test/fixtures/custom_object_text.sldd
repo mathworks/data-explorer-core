@@ -1,0 +1,322 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "gearRow",
+						"metadata": {
+							"uuid": "e54c9100-9075-418f-a157-e6ed26ce0bab",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261001T033014.612641",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "GearMode",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_enum_value": {
+										"_type": "int32",
+										"_value": "[0, 1, -1]"
+									},
+									"_id": "1"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "gearValue",
+						"metadata": {
+							"uuid": "e1766a72-9481-4d20-bd8d-0f64922e0e62",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261001T033014.611431",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "GearMode",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_enum_value": {
+										"_type": "int32",
+										"_value": "-1"
+									},
+									"_id": "1"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "partCell",
+						"metadata": {
+							"uuid": "e5e357cb-4c55-4417-ade6-c5ce128681e3",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261001T033014.611249",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								2,
+								2
+							],
+							"_elements": [
+								{
+									"_array_class": "WidgetPart",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "1",
+											"_properties": {
+												"Label": "cell1",
+												"PartId": 101
+											}
+										}
+									]
+								},
+								{
+									"_array_class": "WidgetPart",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "2",
+											"_properties": {
+												"Label": "cell2",
+												"PartId": 102
+											}
+										}
+									]
+								},
+								{
+									"_array_class": "WidgetPart",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "3",
+											"_properties": {
+												"Label": "cell3",
+												"PartId": 103
+											}
+										}
+									]
+								},
+								{
+									"_array_class": "WidgetPart",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "4",
+											"_properties": {
+												"Label": "cell4",
+												"PartId": 104
+											}
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "widget",
+						"metadata": {
+							"uuid": "44b5f868-559a-4d3f-840b-db5d94b7a8f7",
+							"namespace": "42516768-0ace-4981-8ac7-0a9b32cba471",
+							"lastmod": "20261001T033014.610979",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Widget",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Cells": {
+											"_array_type": "Cell",
+											"_dimensions": [
+												1,
+												3
+											],
+											"_elements": [
+												1,
+												"two",
+												true
+											]
+										},
+										"Cplx": {
+											"_type": "cdata",
+											"_value": "  %)30     .    2     8    (    !@@        %    \"     $    !     0         )    \"             A \"0    @            00 \u0000\u0000\u0000"
+										},
+										"Cr": "ab",
+										"Ctrl": "\t\n\u0007\u0001",
+										"EmptyStruct": {
+											"_array_type": "Struct",
+											"_dimensions": [
+												1,
+												1
+											],
+											"_elements": [
+												{}
+											]
+										},
+										"Flag": true,
+										"Hostile": "amp & lt < gt > quot \" apos ' end",
+										"Lf": "a\nb",
+										"Matrix": {
+											"_type": "double",
+											"_value": "Matrix(2,3)\n[[1.0, 2.0, 3.0]; [4.0, 5.0, 6.0]]"
+										},
+										"Mode": {
+											"_enum_value": {
+												"_type": "int32",
+												"_value": "-1"
+											},
+											"_id": "2",
+											"_object_class": "GearMode"
+										},
+										"Nested": {
+											"_array_type": "Struct",
+											"_dimensions": [
+												1,
+												1
+											],
+											"_elements": [
+												{
+													"inner": {
+														"_array_type": "Struct",
+														"_dimensions": [
+															1,
+															1
+														],
+														"_elements": [
+															{
+																"leaf": 7
+															}
+														]
+													}
+												}
+											]
+										},
+										"Nothing": [],
+										"Padded": "  pad me  ",
+										"Part": {
+											"_id": "3",
+											"_object_class": "WidgetPart",
+											"_properties": {
+												"Label": "lead",
+												"PartId": 1
+											}
+										},
+										"Parts": {
+											"_array_class": "WidgetPart",
+											"_dimensions": [
+												1,
+												3
+											],
+											"_elements": [
+												{
+													"_id": "4",
+													"_properties": {
+														"Label": "part1",
+														"PartId": 10
+													}
+												},
+												{
+													"_id": "5",
+													"_properties": {
+														"Label": "part2",
+														"PartId": 20
+													}
+												},
+												{
+													"_id": "6",
+													"_properties": {
+														"Label": "part3",
+														"PartId": 30
+													}
+												}
+											]
+										},
+										"Scalar": 1.5,
+										"Str": [
+											"a string"
+										],
+										"Tab": "a\tb",
+										"Tuning": {
+											"_id": "7",
+											"_object_class": "Simulink.Parameter",
+											"_properties": {
+												"CoderInfo": {
+													"_id": "8",
+													"_object_class": "Simulink.CoderInfo",
+													"_properties": {
+														"CSCPackageName": "Simulink",
+														"CustomAttributes": {
+															"_id": "9",
+															"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+															"_properties": {}
+														},
+														"CustomStorageClass": "Default",
+														"ParameterOrSignal": "Parameter",
+														"StorageClass": "Auto"
+													}
+												},
+												"Complexity": "real",
+												"DataType": "single",
+												"Description": "nested MathWorks object",
+												"Dimensions": [
+													1,
+													1
+												],
+												"Value": 2.5
+											}
+										},
+										"ZeroStruct": {
+											"_type": "struct",
+											"_value": "[]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

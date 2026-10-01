@@ -9,6 +9,18 @@
  */
 export declare function readDictionaryXml(text: string): unknown;
 /**
+ * The same document through the general engine, with no fast path consulted.
+ *
+ * NOT for callers — `readDictionaryXml` is the reader, and reaching past it would give up the
+ * speed for nothing. This exists because the fast reader's entire contract is "identical to the
+ * general engine or `null`", and a test of that cannot go through `readDictionaryXml`: that
+ * would compare the fast reader against itself. The alternative was for the test to build its
+ * own `XMLParser` with a copy of the options above, which passes just as happily when the copy
+ * has gone stale — the one failure that would let the two readers diverge in production while
+ * the test stays green.
+ */
+export declare function readDictionaryXmlGeneric(text: string): unknown;
+/**
  * One part of a `.slx` or `.mdl` package. Engine defaults: text is trimmed, and a lone
  * child stays an object, so a walker over one of these has to coerce to an array itself.
  */

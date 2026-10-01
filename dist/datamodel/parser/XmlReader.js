@@ -85,6 +85,7 @@
 //   stays three characters where the model reader would make it the number 7. Interior
 //   whitespace is untouched either way — trimming is not normalization.
 import { XMLParser } from 'fast-xml-parser';
+import { readDictionaryXmlFast } from './DictionaryXmlFast.js';
 const ATTRIBUTE_PREFIX = '@_';
 const TEXT_KEY = '#text';
 /** The shape every reader produces: attributes under `@_`, text under `#text`. */
@@ -149,6 +150,32 @@ const defaultParser = new XMLParser(SHAPE);
  * caller already does.
  */
 export function readDictionaryXml(text) {
+    // Two engines, ONE contract. `DictionaryXmlFast` reads the subset of XML a dictionary is
+    // actually written in — five element names, quoted attributes, XML's five entities — and
+    // returns `null` for anything else, which is every question about damage, DOCTYPE, CDATA
+    // or a numeric character reference. Those go to the general engine, which is what the
+    // contract above was measured against and still is: the fast reader is held to the
+    // engine's output byte for byte, key order included, over the whole corpus
+    // (`.scratch/probe-differential.mjs`) and case by case in `test/dictionaryXmlFast.test.ts`.
+    //
+    // So this line is a speed change and not a behaviour change. It is written as a fallback
+    // rather than a feature flag because the fallback IS the specification — there is no
+    // configuration in which the fast reader is the only reader, and a dictionary it declines
+    // is read exactly as it was before.
+    return readDictionaryXmlFast(text) ?? readDictionaryXmlGeneric(text);
+}
+/**
+ * The same document through the general engine, with no fast path consulted.
+ *
+ * NOT for callers — `readDictionaryXml` is the reader, and reaching past it would give up the
+ * speed for nothing. This exists because the fast reader's entire contract is "identical to the
+ * general engine or `null`", and a test of that cannot go through `readDictionaryXml`: that
+ * would compare the fast reader against itself. The alternative was for the test to build its
+ * own `XMLParser` with a copy of the options above, which passes just as happily when the copy
+ * has gone stale — the one failure that would let the two readers diverge in production while
+ * the test stays green.
+ */
+export function readDictionaryXmlGeneric(text) {
     return dictionaryParser.parse(text);
 }
 /**
