@@ -112,6 +112,15 @@ import toNumber from 'strnum';
 const NUMBER_OPTIONS = { hex: true, leadingZeros: true, eNotation: true, unicode: false };
 const TEXT_KEY = '#text';
 /**
+ * fast-xml-parser's `maxNestedTags` default, which `XmlReader` does not override.
+ *
+ * Past it the engine throws `Maximum nested tags exceeded` rather than returning a tree, so this
+ * is one of the two numbers in this file copied from the engine's options rather than from the
+ * corpus (`NUMBER_OPTIONS` is the other). Dictionaries nest in single digits; this exists only so
+ * that a document the engine refuses is refused here too.
+ */
+const MAX_NESTED_TAGS = 100;
+/**
  * Attribute keys, pre-prefixed and interned.
  *
  * Not a micro-optimization: `Class` and `Name` occur 6.3 M and 6.0 M times across the corpus,
@@ -163,6 +172,20 @@ const UPPER_X = 0x58; // X
 function isSpace(c) {
     return c === SPACE || c === LF || c === TAB || c === CR;
 }
+/**
+ * The whitespace XML does not have and JavaScript does: `\f`, `\v`, NBSP, the Unicode spaces,
+ * LS/PS and the BOM.
+ *
+ * `isSpace` above is XML's definition and it is the correct one for a reader. It is NOT the one
+ * fast-xml-parser uses: its tag and attribute regexes split on `\s`, so every character in this
+ * set is a separator to the engine and part of a name to this scanner. That asymmetry is the one
+ * way a stricter reader can be WRONG rather than merely narrower, so wherever it can bite, this
+ * reader declines — see `readAttributes` and the declaration. Written as a complement — a
+ * whitespace that is none of XML's four — so it is this runtime's `\s` rather than my
+ * transcription of it, the engine's regexes and this one then being the same table by
+ * construction.
+ */
+const ALIEN_SPACE = /[^\S \t\n\r]/;
 /**
  * The end of the `&...;` token starting at `at`, or `-1` when there is none. The entity decoder
  * looks at most 32 characters past the `&` and gives up if it has not found a `;` by then, so a
@@ -398,7 +421,21 @@ function readAttributes(text, from, limit, keys, vals) {
                 return -1;
             value = decoded;
         }
-        keys[count] = ATTR_KEYS.get(name) ?? `@_${name}`;
+        const interned = ATTR_KEYS.get(name);
+        if (interned === undefined) {
+            // A name the table does not hold is read faithfully, but first: the engine would have
+            // SPLIT it at any `ALIEN_SPACE`, so `<P Value\f="007" Value="b"/>` is two attributes to
+            // this scanner and one to the engine, which folds the duplicate and keeps the last. That
+            // is a non-null disagreement, the one failure the fallback cannot absorb, so decline.
+            // Nothing interned can contain one — that table is written out literally above — so this
+            // test is paid only by a name that is already paying a concatenation.
+            if (ALIEN_SPACE.test(name))
+                return -1;
+            keys[count] = `@_${name}`;
+        }
+        else {
+            keys[count] = interned;
+        }
         vals[count] = value;
         count++;
         k = valueEnd + 1;
@@ -420,7 +457,20 @@ function readAttributes(text, from, limit, keys, vals) {
  * DEPTH and reused: a `<P>` at depth 3 writes over the state of the previous `<P>` at depth 3.
  * The element's own object (`kids[d]`) is of course fresh each time, because it is the output.
  */
-export function readDictionaryXmlFast(text) {
+export function readDictionaryXmlFast(input) {
+    // XML line-ending normalization, with the engine's own expression: `OrderedObjParser.parseXml`
+    // opens with `xmlData = xmlData.replace(/\r\n?/g, "\n")` (marked TODO there, and load-bearing
+    // here). It is not optional leniency — XML 1.0 §2.11 requires a parser to present `\r\n` and a
+    // lone `\r` as `\n` — and a reader that slices raw substrings skips it silently: `<P>a&#13;b`
+    // written as a literal CR came back `'a\r\nb'` here and `'a\nb'` from the engine, a non-null
+    // disagreement in a plain char property. MATLAB writes `&#xD;` for a CR *inside* a value, which
+    // is a reference and survives both (neither decodes it), so this is reachable mainly by a
+    // CRLF-lineended or hand-edited part — and it is a wrong answer either way.
+    //
+    // The guard is the point: a scan for one byte costs a few ms on 74.7 MB and nothing is copied
+    // unless a CR is really there. Declining instead would have been correct and would have cost
+    // the whole file, which is the cliff the numeric-reference branch exists to avoid.
+    const text = input.indexOf('\r') === -1 ? input : input.replace(/\r\n?/g, '\n');
     const n = text.length;
     const root = {};
     // Per-depth element state, grown on demand and then reused. `kidCount` is how the collapse
@@ -529,7 +579,21 @@ export function readDictionaryXmlFast(text) {
                 return null;
             if (!text.startsWith('<?xml', i))
                 return null;
+            // `<?xml` is a declaration only when the name ENDS there. The engine reads a PI name up to
+            // the first `\s` and keys whatever it got, so `<?xmlversion="1.0"?>` is a PI named
+            // `?xmlversion="1.0"` to it — as is `<?xml-foo="1"?>`, and as is a name split by an
+            // `ALIEN_SPACE` this reader would have swallowed. Requiring one of XML's four spaces, or
+            // `?>` immediately, is the narrow reading: `<?xml-stylesheet ...?>` lands here too.
+            if (i + 5 !== pi && !isSpace(text.charCodeAt(i + 5)))
+                return null;
             if (sawRoot || depth !== 0)
+                return null;
+            // A second declaration is not an overwrite. A repeated key ARRAYS in `compress`, so the
+            // engine answers `'?xml': [{...}, {...}]` where overwriting answers the last one and loses
+            // the first. Measured, not assumed — and declined rather than imitated, because a document
+            // with two declarations is malformed in a way no dictionary is, and this reader's special
+            // case for `?xml` does not go through `attach`.
+            if (root['?xml'] !== undefined)
                 return null;
             const keys = [];
             const vals = [];
@@ -578,6 +642,13 @@ export function readDictionaryXmlFast(text) {
             return null;
         if (depth === 0 && sawRoot)
             return null; // a second root is a shape we lack
+        // The engine THROWS past its own nesting limit, and a reader that answers where the engine
+        // raises turns a loud failure into quiet data — the mirror of the `null`-as-empty-document
+        // trap. Only a non-self-closing open counts, because that is where the engine checks (it
+        // pushes no frame for `<P/>`), and the boundary is exact: 101 nested opens parse, the 102nd
+        // throws. See `MAX_NESTED_TAGS`.
+        if (!selfClosing && depth > MAX_NESTED_TAGS)
+            return null;
         const d = depth;
         let ks = attrKey[d];
         if (ks === undefined) {

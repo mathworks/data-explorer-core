@@ -13,5 +13,5 @@
  * DEPTH and reused: a `<P>` at depth 3 writes over the state of the previous `<P>` at depth 3.
  * The element's own object (`kids[d]`) is of course fresh each time, because it is the output.
  */
-export declare function readDictionaryXmlFast(text: string): Record<string, unknown> | null;
+export declare function readDictionaryXmlFast(input: string): Record<string, unknown> | null;
 //# sourceMappingURL=DictionaryXmlFast.d.ts.map

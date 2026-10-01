@@ -254,9 +254,30 @@ const TEXTS = [
   '&#9;&#1;a',
   '&nbsp;',
   'a & b',
+  // Carriage returns, which XML normalizes (`\r\n` and a lone `\r` both become `\n`) and a reader
+  // slicing the raw string does not. These are not bails — they must come back normalized — and
+  // they belong in a generator because the interesting part is the COMBINATION: a CR beside a
+  // reference, a CR that turns a coercible value into a padded one, a CR in layout position.
+  '\r',
+  '\r\n  ',
+  'a\r\nb',
+  'a\rb',
+  'a\r\r\nb',
+  '1\r',
+  '&#xD;\r',
   'Simulink.Parameter',
   '[1 2]',
 ];
+
+/**
+ * Whitespace JavaScript's `\s` counts and XML's four do not.
+ *
+ * Every one of these is a separator to the engine's regexes and part of a name to this reader's
+ * scanner, so wherever one can end a name the reader must decline. Kept out of `ATTR_NAMES` and
+ * injected at low probability instead: at list frequency almost every document would decline and
+ * the stream would stop reaching anything else.
+ */
+const ALIEN_WS = ['\f', '\v', ' ', ' ', '﻿'];
 
 const ATTR_VALUES = [
   '',
@@ -273,6 +294,8 @@ const ATTR_VALUES = [
   'a"b',
   'a>b',
   'a\nb',
+  'a\r\nb',
+  'a\r',
 ];
 
 /** One generated document. */
@@ -286,8 +309,16 @@ function generate(rand: () => number): string {
       // Quote style has to follow the content, or the generator produces nothing but
       // malformations past the first `"` and stops exercising anything else.
       const q = value.includes('"') ? "'" : rand() < 0.15 ? "'" : '"';
-      const sep = rand() < 0.1 ? ' = ' : '=';
-      s += `${pick([' ', '  ', '\t', '\n '])}${pick(ATTR_NAMES)}${sep}${q}${value}${q}`;
+      const name = pick(ATTR_NAMES);
+      // An `ALIEN_WS` in either place a name can end. The engine splits there and this reader
+      // does not, so the engine sees one more attribute than the scanner does.
+      const lead = rand() < 0.04 ? pick(ALIEN_WS) : pick([' ', '  ', '\t', '\n ']);
+      const sep = rand() < 0.04 ? `${pick(ALIEN_WS)}=` : rand() < 0.1 ? ' = ' : '=';
+      s += `${lead}${name}${sep}${q}${value}${q}`;
+      // The same name twice. Where the split above lands inside a repeated name, the engine folds
+      // the duplicate and keeps the last — so the divergence is a key COUNT rather than a key
+      // value, which is the form it was first caught in.
+      if (rand() < 0.03) s += `${rand() < 0.3 ? pick(ALIEN_WS) : ' '}${name}="dup"`;
     }
     return s;
   };
@@ -304,7 +335,10 @@ function generate(rand: () => number): string {
       body = pick(TEXTS);
     } else {
       // Mixed content on purpose: no real dictionary has it, so only a generator will.
-      const indent = rand() < 0.5 ? `\n${'  '.repeat(depth + 1)}` : '';
+      // A CRLF indent now and then, so whole documents arrive line-ended the way a Windows editor
+      // leaves them rather than only carrying a CR inside one value.
+      const indent =
+        rand() < 0.5 ? `${rand() < 0.15 ? '\r\n' : '\n'}${'  '.repeat(depth + 1)}` : '';
       if (rand() < 0.2) body += pick(TEXTS);
       for (let k = 0; k < kids; k++) body += indent + element(depth + 1);
       if (rand() < 0.2) body += pick(TEXTS);
@@ -319,6 +353,18 @@ function generate(rand: () => number): string {
   // Hostile injections, each one a documented bail. They are generated rather than listed so
   // they land in positions a list would not think to put them in.
   if (rand() < 0.08) doc += pick(['<!-- c -->', '<!DOCTYPE DataSource>', '<?pi x?>']);
+  // Processing instructions whose name merely STARTS with `xml`, and a repeat of the declaration.
+  // A prefix test read all of these as the declaration; the engine keys the name it actually read,
+  // and arrays a repeated key rather than overwriting it. The last one is only a repeat when the
+  // line above fired, which is the point of generating it instead of listing it.
+  if (rand() < 0.06) {
+    doc += pick([
+      '<?xmlfoo?>',
+      '<?xml-stylesheet href="a.xsl"?>',
+      '<?xml\fversion="1.0"?>',
+      '<?xml version="1.1"?>',
+    ]);
+  }
   doc += element(0);
   if (rand() < 0.05) doc += pick(['<P/>', 'trailing', '</P>', '<!-- t -->']);
   return doc;

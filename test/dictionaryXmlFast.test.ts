@@ -195,6 +195,29 @@ describe('the XML declaration', () => {
     // Same collapse rule as an element, which is why it is not special-cased.
     expectRead('<?xml?><DataSource/>', { '?xml': '', DataSource: '' });
   });
+
+  it('is only a declaration when the NAME ends at `xml`', () => {
+    // The engine reads a processing instruction's name up to the first `\s` and keys whatever it
+    // got, so each of these is a PI named something else entirely — and a prefix test alone read
+    // all three as the declaration, inventing a `?xml` key the engine never produced. Found by
+    // reasoning out the family the fuzzer had stumbled into, not by the fuzzer.
+    expectDeclined('<?xmlfoo?><DataSource/>', { '?xmlfoo': '', DataSource: '' });
+    expectDeclined('<?xml-foo="1"?><DataSource/>', { '?xml-foo="1"': '', DataSource: '' });
+    expectDeclined('<?xml-stylesheet href="a.xsl"?><DataSource/>', {
+      '?xml-stylesheet': { '@_href': 'a.xsl' },
+      DataSource: '',
+    });
+  });
+
+  it('declines a SECOND declaration rather than overwriting the first', () => {
+    // A repeated key arrays in `compress`, so the engine keeps both and overwriting would lose
+    // one. Declined rather than imitated: two declarations is a shape no dictionary has.
+    expectDeclined('<?xml version="1.0"?><?xml version="1.0"?><DataSource/>', {
+      '?xml': [{ '@_version': '1.0' }, { '@_version': '1.0' }],
+      DataSource: '',
+    });
+    expectDeclined('<?xml?><?xml?><DataSource/>', { '?xml': ['', ''], DataSource: '' });
+  });
 });
 
 describe('text coercion', () => {
@@ -490,6 +513,60 @@ describe('whitespace', () => {
   });
 });
 
+describe('line endings, which XML normalizes and a raw slice does not', () => {
+  // XML 1.0 §2.11: a parser presents `\r\n` and a lone `\r` as `\n`, and the engine implements
+  // exactly that with one `replace(/\r\n?/g, "\n")` before it parses. A reader that hands back
+  // slices of the original string skips the step without noticing — which is what this one did
+  // until an adversarial probe compared the two on `<P>a\rb</P>`. Every case here FAILED before
+  // the pre-pass existed, returning the carriage return it was given.
+  //
+  // Reachable in practice by a CRLF-lineended or hand-edited part, not by MATLAB: for a CR
+  // *inside* a value MATLAB writes `&#xD;`, a reference neither reader decodes, which is why the
+  // corpus differential over 469.4 MB could not see this.
+
+  it('turns CRLF and a lone CR into a single LF, in text', () => {
+    expectRead('<P>a\r\nb</P>', { P: ['a\nb'] });
+    expectRead('<P>a\rb</P>', { P: ['a\nb'] });
+    expectRead('<P>\r</P>', { P: ['\n'] });
+  });
+
+  it('collapses only `\\r\\n`, so a doubled CR stays two line endings', () => {
+    // The engine's regex is `\r\n?`, which is not the same as "delete every CR": `\r\r\n` is a CR
+    // (-> LF) followed by a CRLF (-> LF). A `replace(/\r/g, '\n')` would agree here and a
+    // `replace(/\r\n/g, '\n')` would not, so both near-misses are pinned.
+    expectRead('<P>a\r\r\nb</P>', { P: ['a\n\nb'] });
+    expectRead('<P>a\n\rb</P>', { P: ['a\n\nb'] });
+  });
+
+  it('normalizes inside an attribute value too', () => {
+    // Attribute values are NOT whitespace-normalized to spaces — fast-xml-parser's line doing
+    // that is commented out in its own source — so the LF survives as an LF.
+    expectRead('<P Name="a\r\nb"/>', { P: [{ '@_Name': 'a\nb' }] });
+    expectRead('<P Name="a\r"/>', { P: [{ '@_Name': 'a\n' }] });
+  });
+
+  it('normalizes BEFORE the padding test, so a trailing CR still defeats coercion', () => {
+    // `1\r` is padded, and a padded value is handed back raw and uncoerced. The order matters in
+    // both directions: normalizing after would compare `'1\r'` against `'1'` and reach the same
+    // answer by luck, while trimming CR as layout would coerce it to the number 1.
+    expectRead('<P>1\r</P>', { P: ['1\n'] });
+    expectRead('<P>1\r\n</P>', { P: ['1\n'] });
+    expectRead('<P> \r </P>', { P: [' \n '] });
+  });
+
+  it('leaves `&#xD;` standing beside a literal it normalized', () => {
+    // The two halves of the same character, one of which is text and one of which is not.
+    expectRead('<P>&#xD;\r</P>', { P: ['&#xD;\n'] });
+  });
+
+  it('reads a CRLF-lineended document, layout and all', () => {
+    expectRead('<DataSource>\r\n  <P Name="a">1</P>\r\n</DataSource>', {
+      DataSource: { P: [{ '#text': 1, '@_Name': 'a' }] },
+    });
+    expectRead('<P>\r<Element/></P>', { P: [{ Element: [''] }] });
+  });
+});
+
 describe('the per-depth state is reused, so a stale slot must not leak', () => {
   // `readDictionaryXmlFast` indexes seven parallel arrays by DEPTH and writes over them rather
   // than allocating a frame per element — 13.8 M allocations saved on the largest dictionary,
@@ -660,12 +737,90 @@ describe('what it declines, and what the seam still answers', () => {
       expectDeclined('<P Name=x/>', { P: [''] });
     });
 
+    it('declines a name split by whitespace only JAVASCRIPT counts as whitespace', () => {
+      // The one way a stricter reader can be WRONG rather than narrower. `isSpace` is XML's four
+      // characters, which is correct; the engine's regexes split on `\s`, which also includes
+      // `\f`, `\v`, NBSP and the Unicode spaces. So the engine sees TWO attributes where this
+      // scanner sees one name with a form feed inside it — and when the halves repeat a name,
+      // the engine folds the duplicate and keeps the last, so even the key COUNT differs.
+      expectDeclined('<P Value\f="007" Value="b"/>', { P: [{ '@_Value': 'b' }] });
+      expectDeclined('<P Value ="007" Value="b"/>', { P: [{ '@_Value': 'b' }] });
+      expectDeclined('<P Value\f="1"/>', { P: [{ '@_Value': '1' }] });
+      expectDeclined('<P \fValue="1"/>', { P: [{ '@_Value': '1' }] });
+      expectDeclined('<P Value﻿="1"/>', { P: [{ '@_Value': '1' }] });
+      expectDeclined('<P Value="1"\f/>', { P: [{ '@_Value': '1' }] });
+      // The same hole on the declaration's attributes, which is where it was actually found: the
+      // element path happened to decline already, because the tag name then holds the character.
+      expectDeclined('<?xml\fversion="1.0"?><DataSource/>', {
+        '?xml': { '@_version': '1.0' },
+        DataSource: '',
+      });
+    });
+
+    it('still reads an attribute name that is merely UNKNOWN', () => {
+      // The control for the test above, and the one that matters for real files: the decline is
+      // keyed on the alien whitespace, not on the name being absent from `ATTR_KEYS`. MATLAB
+      // writes `Format="decimal"` for a char value XML cannot hold plainly, and that attribute
+      // appears in none of the 32 corpus dictionaries — it must still be copied faithfully.
+      expectRead('<P Name="Ctrl" Class="char" Dimension="1*5" Format="decimal">9 10 13 7 1</P>', {
+        P: [
+          {
+            '#text': '9 10 13 7 1',
+            '@_Name': 'Ctrl',
+            '@_Class': 'char',
+            '@_Dimension': '1*5',
+            '@_Format': 'decimal',
+          },
+        ],
+      });
+    });
+
     it('declines a `>` inside an attribute value', () => {
       // A known, accepted limitation rather than a bug: finding the tag's end needs the
       // attributes parsed and parsing them needs the tag's end. No dictionary attribute
       // (`Class`, `Name`, `Dimension`, `Source`, ...) has ever held one, and the cost of
       // being wrong is a fallback.
       expectDeclined('<P Name="a>b"/>', { P: [{ '@_Name': 'a>b' }] });
+    });
+  });
+
+  describe('the engine’s nesting limit, past which it throws rather than answers', () => {
+    // `maxNestedTags` defaults to 100 and `XmlReader` does not override it. A reader that keeps
+    // going past the point where the engine raises is the mirror image of a caller reading `null`
+    // as "empty document": a loud failure becomes quiet data. Dictionaries nest in single digits,
+    // so nothing here is about real files — it is about the contract holding at the edge.
+    const deep = (d: number, inner = 'x'): string =>
+      '<P>'.repeat(d) + inner + '</P>'.repeat(d);
+
+    it('reads the deepest document the engine reads', () => {
+      // 101 opens, not 100: the engine checks its stack BEFORE pushing, so the limit admits one
+      // more level than the number suggests. Compared against the live engine rather than a
+      // literal, which at this depth would be 101 lines of nesting and would pin the shape
+      // instead of the boundary — the shape is pinned by every other case in this file.
+      for (const d of [99, 100, 101]) {
+        const fast = readDictionaryXmlFast(deep(d));
+        expect(fast, `depth ${d} should still be read`).not.toBeNull();
+        expect(fast, `depth ${d}`).toEqual(readDictionaryXmlGeneric(deep(d)));
+      }
+    });
+
+    it('declines one level past it, where the engine throws', () => {
+      for (const d of [102, 103, 150]) {
+        expect(readDictionaryXmlFast(deep(d)), `depth ${d}`).toBeNull();
+        expect(() => readDictionaryXmlGeneric(deep(d))).toThrow(/Maximum nested tags/);
+        expect(() => readDictionaryXml(deep(d))).toThrow(/Maximum nested tags/);
+      }
+    });
+
+    it('does not count a self-closing tag, because the engine pushes no frame for one', () => {
+      // The off-by-one that a `depth > limit` check placed one line earlier would introduce: at
+      // the limit exactly, `<P/>` is still fine and `<P></P>` is not. Declining here would cost
+      // nothing in practice and would still be a divergence from "identical or null" in the only
+      // direction that is allowed — but it would mean the boundary was copied, not understood.
+      const edge = '<P>'.repeat(101) + '<P/>'.repeat(5) + '</P>'.repeat(101);
+      const fast = readDictionaryXmlFast(edge);
+      expect(fast).not.toBeNull();
+      expect(fast).toEqual(readDictionaryXmlGeneric(edge));
     });
   });
 
