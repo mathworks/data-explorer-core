@@ -143,6 +143,7 @@ export default class BaseNode {
     _usedByCell(): RowData['UsedBy'] | undefined;
     _typeLinkCell(cellText: unknown): RowData['DataType'] | undefined;
     flatten(): BaseNode[];
+    private _slotAmongSiblings;
     get displayName(): string;
     get valueEditable(): boolean;
     get descriptionEditable(): boolean;

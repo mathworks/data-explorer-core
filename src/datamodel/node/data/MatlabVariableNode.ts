@@ -23,6 +23,7 @@ import { encodeCdata } from '../../parser/MatWriter.js';
 import {
   EMPTY_CELL,
   EMPTY_NUMERIC,
+  MAX_EXPANDED_ELEMENTS,
   effectiveDims,
   elementCount,
   needsSummary,
@@ -835,12 +836,33 @@ export default class MatlabVariableNode extends DataNode {
     return formatMatrixSerial(elements, dims, type || this._scalarType || 'double');
   }
 
-  _buildArrayChildren(): void {
-    if (this._elements.length <= 1) {
+  // THE ONLY PLACE AN ARRAY GROWS ONE CHILD PER ELEMENT. Every parse path — text,
+  // binary, .mat, complex, typed vector, typed array — calls this instead of writing
+  // its own loop. Six of them used to write their own, with the `length > 1` guard
+  // spelled three times and missing three times; the comment at the .mat flat-array
+  // site already said why ("every element builder states the rule the same way, so
+  // none of them can drift out of step with the container again") but said it by
+  // convention, which lasted exactly until there were two rules to agree on. The
+  // second rule is the cap, and a cap honoured by five builders out of six is not a
+  // cap at all.
+  //
+  // The two guards are the same shape and mean opposite things: a scalar has nothing
+  // BELOW it to expand, an array past MAX_EXPANDED_ELEMENTS has too much. Both leave
+  // `_elements` as the one copy of the value, which every reader here already falls
+  // back to — see the cap's own note in DisplayConvention for why it has to be
+  // all-or-nothing, and `_buildCellChildren` for why cells are exempt.
+  //
+  // `elementType` is for the one container whose elements are NOT of its own class:
+  // a complex array stores `_scalarType` 'double' (that is what it serializes as)
+  // while each element is a 'complex' scalar. Defaulting to elementClass(_scalarType)
+  // keeps every other caller honest by silence.
+  _buildArrayChildren(elementType?: string): void {
+    if (this._elements.length <= 1 || this._elements.length > MAX_EXPANDED_ELEMENTS) {
       return;
     }
+    const type = elementType || elementClass(this._scalarType);
     for (let i = 0; i < this._elements.length; i++) {
-      const child = MatlabVariableNode._createScalar(this._elements[i], elementClass(this._scalarType), String(i + 1), this);
+      const child = MatlabVariableNode._createScalar(this._elements[i], type, String(i + 1), this);
       this.addChild(child);
     }
   }
@@ -862,7 +884,7 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   _buildStringChildren(): void {
-    if (this._elements.length <= 1) {
+    if (this._elements.length <= 1 || this._elements.length > MAX_EXPANDED_ELEMENTS) {
       return;
     }
     for (let i = 0; i < this._elements.length; i++) {
@@ -870,6 +892,13 @@ export default class MatlabVariableNode extends DataNode {
     }
   }
 
+  // NOT capped, unlike the two above, and this is the reason: a cell's children are
+  // its ONLY copy. Its elements arrive as an argument and are never kept in
+  // `_elements` — a cell element is a whole node, not a scalar — so there is nothing
+  // to fall back to. `_serializeCellXml` says what the cap would cost here: with no
+  // children it writes `Dimension="0*0"`, i.e. it would save the value away. A huge
+  // cell is also far rarer than a huge numeric matrix, which is the shape that
+  // actually arrives. Pinned by test/largeArrayNotExpanded.test.ts.
   _buildCellChildren(elements: unknown[]): void {
     for (let i = 0; i < elements.length; i++) {
       const child = NodeRegistry.parseValue(elements[i], String(i + 1), this);
@@ -2014,10 +2043,7 @@ export default class MatlabVariableNode extends DataNode {
         node._elements = (arr as { re: number; im: number }[]).map(function (c) {
           return c.im >= 0 ? c.re + '+' + c.im + 'i' : c.re + '' + c.im + 'i';
         });
-        node._elements.forEach(function (el, i) {
-          const child = MatlabVariableNode._createScalar(el, 'complex', String(i + 1), node);
-          node.addChild(child);
-        });
+        node._buildArrayChildren('complex');
       }
       return node;
     }
@@ -2048,10 +2074,7 @@ export default class MatlabVariableNode extends DataNode {
         })
       : values;
 
-    node._elements.forEach(function (el, i) {
-      const child = MatlabVariableNode._createScalar(el, elementClass(node._scalarType), String(i + 1), node);
-      node.addChild(child);
-    });
+    node._buildArrayChildren();
     return node;
   }
 
@@ -2358,10 +2381,7 @@ export default class MatlabVariableNode extends DataNode {
     node._scalarType = 'double';
     node._dims = dims;
     node._elements = parts;
-    parts.forEach(function (el, i) {
-      const child = MatlabVariableNode._createScalar(el, 'complex', String(i + 1), node);
-      node.addChild(child);
-    });
+    node._buildArrayChildren('complex');
     return node;
   }
 
@@ -2388,12 +2408,7 @@ export default class MatlabVariableNode extends DataNode {
       node._elements = parts.map(parseMatlabNum);
     }
     node._dims = [1, node._elements.length];
-    if (node._elements.length > 1) {
-      node._elements.forEach(function (el, i) {
-        const child = MatlabVariableNode._createScalar(el, elementClass(node._scalarType), String(i + 1), node);
-        node.addChild(child);
-      });
-    }
+    node._buildArrayChildren();
     return node;
   }
 
@@ -2445,15 +2460,10 @@ export default class MatlabVariableNode extends DataNode {
     // is a different value; nothing was removed from a stored `[]`.
     node._dims = rawVal.length === 0 ? [0, 0] : [1, rawVal.length];
     node._scalarType = 'double';
-    if (rawVal.length > 1) {
-      rawVal.forEach(function (el, i) {
-        // elementClass, not the 'double' literal, even though the class above IS
-        // 'double': every element builder states the rule the same way, so none of
-        // them can drift out of step with the container again.
-        const child = MatlabVariableNode._createScalar(el, elementClass(node._scalarType), String(i + 1), node);
-        node.addChild(child);
-      });
-    }
+    // _buildArrayChildren, not a loop here: it owns the element class, the
+    // single-element guard and the expansion cap, so this path cannot drift out of
+    // step with the container or with the other five parse paths again.
+    node._buildArrayChildren();
     return node;
   }
 
@@ -2475,12 +2485,7 @@ export default class MatlabVariableNode extends DataNode {
     node._elements = parsed.elements;
     node._dims = parsed.dims.slice();
     node._scalarType = parsed.type;
-    if (parsed.elements.length > 1) {
-      parsed.elements.forEach(function (el, i) {
-        const child = MatlabVariableNode._createScalar(el, elementClass(node._scalarType), String(i + 1), node);
-        node.addChild(child);
-      });
-    }
+    node._buildArrayChildren();
     return node;
   }
 

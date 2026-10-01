@@ -24,6 +24,38 @@ export const SUMMARY_MAX_CHARS = 1000;
 // and string arrays.
 export const SUMMARY_MAX_ELEMENTS = 10;
 
+// How many elements an array will expand into child nodes. Past this it expands
+// into NONE, and the value is visible only as the summary the two budgets above
+// produce.
+//
+// This is a different kind of limit from those two. They choose how to RENDER a
+// value that is being shown either way; this one declines to build the nodes at
+// all, because at this scale building them is what stops the file opening. A
+// dictionary entry holding a 1000x1000 double is 1,000,000 elements: expanding it
+// cost 1,000,001 nodes and ~690 MB for that one entry, and a host's table
+// projection of the subtree is ~413 MB of rows. Measured on the file that prompted
+// this — the 2.5 minutes it spent before failing were all in the expansion, not in
+// the parse, which took one second.
+//
+// NOT a ParseWarning, by ParseWarning's own rule: the value was read completely and
+// is saved completely, and "a reader that meets the limit of the FILE has read it
+// correctly and must stay quiet". Nothing was lost to report. It is the same silent
+// decline the host's grid panel already makes above its own 4096-element cap.
+//
+// 10,000 rather than a rounder 4,096 or 65,536 for one reason worth stating: it must
+// stay ABOVE the host's grid cap. The grid renders only when it has one child per
+// element (`children.length === count`, at most 4,096), so a cap at or below that
+// would leave a griddable matrix with no children and silently kill the grid for
+// exactly the matrices it exists for. Above it, the two limits compose: <=4,096 gets
+// rows and a grid, <=10,000 gets rows, past that the summary alone.
+//
+// The cap is ALL-OR-NOTHING and must stay that way. `_elements` and the child nodes
+// are two copies of one value, and every reader of it — the `Value` getter, each
+// serializer — spells the choice `children.length > 0 ? children.map(...) : _elements`.
+// A partial expansion would therefore be read through its children and would save
+// the first N elements as the whole value. See test/largeArrayNotExpanded.test.ts.
+export const MAX_EXPANDED_ELEMENTS = 10000;
+
 // A space inside the brackets. This deviates from mat2str (`[]`) deliberately,
 // and matches what the object-property path has always emitted. There is no
 // MATLAB spelling to match either way: checked against R2027a, mat2str([]) is
