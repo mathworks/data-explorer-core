@@ -1,0 +1,246 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "btAlias",
+						"metadata": {
+							"uuid": "7e329469-bb37-4927-bcaa-d50ebaa75075",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261001T033014.666878",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.AliasType",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"BaseType": "uint8",
+										"DataScope": "Auto",
+										"Description": "alias of uint8",
+										"HeaderFile": ""
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "btBus",
+						"metadata": {
+							"uuid": "32d4cca6-d185-41d0-8076-16b5f999697b",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261001T033014.667733",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Bus",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"DataScope": "Auto",
+										"Description": "four elements, four cases",
+										"Elements_internal": {
+											"_array_class": "Simulink.BusElement",
+											"_dimensions": [
+												4,
+												1
+											],
+											"_elements": [
+												{
+													"_id": "2",
+													"_properties": {
+														"Complexity": "real",
+														"Dimensions": 1,
+														"DimensionsMode": "Fixed",
+														"DocUnits": "",
+														"Name": "plain"
+													}
+												},
+												{
+													"_id": "3",
+													"_properties": {
+														"Complexity": "real",
+														"DataType_internal": "btAlias",
+														"Dimensions": 1,
+														"DimensionsMode": "Fixed",
+														"DocUnits": "",
+														"Name": "aliased"
+													}
+												},
+												{
+													"_id": "4",
+													"_properties": {
+														"Complexity": "real",
+														"DataType_internal": "Enum: GearMode",
+														"Dimensions": 1,
+														"DimensionsMode": "Fixed",
+														"DocUnits": "",
+														"Name": "geared"
+													}
+												},
+												{
+													"_id": "5",
+													"_properties": {
+														"Complexity": "complex",
+														"Dimensions": [
+															2,
+															3
+														],
+														"DimensionsMode": "Fixed",
+														"DocUnits": "",
+														"Name": "matrix"
+													}
+												}
+											]
+										},
+										"HeaderFile": "",
+										"PreserveElementDimensions": false
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "btEnumDef",
+						"metadata": {
+							"uuid": "09759b9f-a1eb-4703-b45b-f4c1e38aa50c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261001T033014.668533",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.data.dictionary.EnumTypeDefinition",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"DefaultValue": "OFF",
+										"Description": "a dictionary-defined enum",
+										"Enumerals": {
+											"_array_type": "Struct",
+											"_dimensions": [
+												1,
+												2
+											],
+											"_elements": [
+												{
+													"Description": "off state",
+													"Name": "OFF",
+													"Value": "0"
+												},
+												{
+													"Description": "on state",
+													"Name": "ON",
+													"Value": "1"
+												}
+											],
+											"_fields": [
+												"Name",
+												"Value",
+												"Description"
+											]
+										},
+										"StorageType": "int32"
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "btNumeric",
+						"metadata": {
+							"uuid": "b0b3099d-7150-4d4e-9a2b-624ca90ddd8f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261001T033014.667311",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.NumericType",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Bias": 0,
+										"DataScope": "Auto",
+										"DataTypeMode": "Fixed-point: binary point scaling",
+										"DataTypeOverride": "Inherit",
+										"Description": "fixdt(1,16,3)",
+										"FixedExponent": -3,
+										"HeaderFile": "",
+										"IsAlias": false,
+										"SignednessBool": true,
+										"SlopeAdjustmentFactor": 1,
+										"WordLength": 16
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "btValueType",
+						"metadata": {
+							"uuid": "f8dfcb42-c723-4b9a-a5f7-b0fca67f83d2",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261001T033014.668177",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.ValueType",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"DataType": "btAlias",
+										"Description": "a value type over an alias",
+										"Dimensions": [
+											1,
+											4
+										]
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}
