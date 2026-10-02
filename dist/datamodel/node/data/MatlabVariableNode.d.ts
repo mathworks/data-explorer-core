@@ -22,6 +22,7 @@ export default class MatlabVariableNode extends DataNode {
     _mcosValue: unknown;
     _mcosDimensions: number[] | null;
     _preCollapseDims: number[] | null;
+    _elementType: string | null;
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
     get Value(): unknown;
     set Value(v: unknown);
@@ -41,6 +42,31 @@ export default class MatlabVariableNode extends DataNode {
     _formatArray(): string;
     _formatCell(): string;
     _formatString(): string;
+    /**
+     * Every element's label and displayed value — the two strings an element ROW
+     * carries — whether or not this array was expanded into element children.
+     *
+     * The consuming extension's Variable Editor grid is drawn from these. It used to
+     * read them off the child nodes, which tied a read-only panel the user opens
+     * deliberately to a decision made for the TABLE: MAX_EXPANDED_ELEMENTS stops a
+     * 1000x1000 from becoming a million rows nobody scrolls, and took the grid's data
+     * with it. This accessor is the separation. The table's limit stays where it is,
+     * and the panel asks for the elements when it is opened — so the cost of a million
+     * of them is paid by the gesture that wanted them, and by nothing else.
+     *
+     * `label` is the subscript form, from the same function BaseNode.displayName calls
+     * and with the same order/bracket rules; `value` is the element's displayValue.
+     * Where the children DO exist they ARE the answer — not a second derivation of it —
+     * so the two paths cannot drift apart. test/displayElements.test.ts pins that
+     * agreement rather than either path alone.
+     *
+     * null for a kind that has no elements (a scalar, a struct, an object): an empty
+     * list is a different and also true answer, meaning an array with nothing in it.
+     */
+    displayElements(): Array<{
+        label: string;
+        value: string;
+    }> | null;
     get descriptionEditable(): boolean;
     getProperties(): PropClass[];
     getPILayout(): {

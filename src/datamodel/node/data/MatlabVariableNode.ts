@@ -17,6 +17,8 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
+import { subscriptLabel } from '../../display/Subscript.js';
+import type { Bracket, ElementOrder } from '../../display/Subscript.js';
 import { parseMatrix, type MatVariable } from '../../parser/MatParser.js';
 import { uudecode } from '../../parser/CdataCodec.js';
 import { encodeCdata } from '../../parser/MatWriter.js';
@@ -141,6 +143,13 @@ export default class MatlabVariableNode extends DataNode {
   // The [1,n]/[n,1] orientation an array had before a removal collapsed it to a
   // scalar, so undo can restore the shape and not just the values.
   _preCollapseDims: number[] | null;
+  // The class each ELEMENT of this array is, where that is not elementClass of the
+  // array's own type. Recorded by _buildArrayChildren from the argument its caller
+  // passes, and recorded even when the cap stops it building anything — because
+  // displayElements has to format the elements of an array that was never expanded,
+  // and a complex array is the one shape whose elements it cannot infer (see the
+  // `elementType` note on _buildArrayChildren).
+  _elementType: string | null;
 
   constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>) {
     super(name, parent, serial);
@@ -158,6 +167,7 @@ export default class MatlabVariableNode extends DataNode {
     this._mcosValue = undefined;
     this._mcosDimensions = null;
     this._preCollapseDims = null;
+    this._elementType = null;
   }
 
   // ---- Display: what the table columns show ----
@@ -566,6 +576,71 @@ export default class MatlabVariableNode extends DataNode {
     return overCharBudget(text) ? summaryForm(d, 'string') : text;
   }
 
+  /**
+   * Every element's label and displayed value — the two strings an element ROW
+   * carries — whether or not this array was expanded into element children.
+   *
+   * The consuming extension's Variable Editor grid is drawn from these. It used to
+   * read them off the child nodes, which tied a read-only panel the user opens
+   * deliberately to a decision made for the TABLE: MAX_EXPANDED_ELEMENTS stops a
+   * 1000x1000 from becoming a million rows nobody scrolls, and took the grid's data
+   * with it. This accessor is the separation. The table's limit stays where it is,
+   * and the panel asks for the elements when it is opened — so the cost of a million
+   * of them is paid by the gesture that wanted them, and by nothing else.
+   *
+   * `label` is the subscript form, from the same function BaseNode.displayName calls
+   * and with the same order/bracket rules; `value` is the element's displayValue.
+   * Where the children DO exist they ARE the answer — not a second derivation of it —
+   * so the two paths cannot drift apart. test/displayElements.test.ts pins that
+   * agreement rather than either path alone.
+   *
+   * null for a kind that has no elements (a scalar, a struct, an object): an empty
+   * list is a different and also true answer, meaning an array with nothing in it.
+   */
+  displayElements(): Array<{ label: string; value: string }> | null {
+    if (this._kind !== 'array' && this._kind !== 'cell' && this._kind !== 'string') {
+      return null;
+    }
+    if (this.children.length > 0) {
+      return this.children.map(function (c) {
+        return { label: c.displayName, value: c.displayValue };
+      });
+    }
+    const name = this.displayName;
+    const dims = this._dims;
+    // BaseNode.displayName's own split, for the reason recorded there: only numeric
+    // is row-major, because only the numeric branch of the parse is transposed.
+    const order: ElementOrder = this._kind === 'array' ? 'row-major' : 'column-major';
+    const bracket: Bracket = this._kind === 'cell' ? '{}' : '()';
+    // ONE scratch element node, re-seeded per element rather than one node per
+    // element: a million allocations to read a million numbers is most of the cost
+    // this accessor exists to avoid. Going through a real element node's own getter
+    // is what guarantees the text is what an expanded child would have shown — the
+    // numeric precision, the char and string budgets, and the `<unavailable>`
+    // sentinel are all rules in _formatScalar/_formatString, and a second formatter
+    // here would be a second answer.
+    const scratch =
+      this._kind === 'string'
+        ? this._makeStringElement('1', '')
+        : MatlabVariableNode._createScalar(0, this._elementType || elementClass(this._scalarType), '1', null);
+    const isString = scratch._kind === 'string';
+    const out: Array<{ label: string; value: string }> = new Array(this._elements.length);
+    for (let i = 0; i < this._elements.length; i++) {
+      // In place, both of them: the scratch's own array is reused so that reading N
+      // elements allocates nothing per element beyond the answer itself.
+      if (isString) {
+        scratch._elements[0] = this._elements[i];
+      } else {
+        scratch._scalarValue = this._elements[i];
+      }
+      out[i] = {
+        label: subscriptLabel(name, i, dims, order, bracket),
+        value: scratch.displayValue,
+      };
+    }
+    return out;
+  }
+
   // ---- Property set + Property Inspector layout ----
 
   // A plain variable goes out as `{name, metadata, value}` — there is no property bag
@@ -857,10 +932,14 @@ export default class MatlabVariableNode extends DataNode {
   // while each element is a 'complex' scalar. Defaulting to elementClass(_scalarType)
   // keeps every other caller honest by silence.
   _buildArrayChildren(elementType?: string): void {
+    // Recorded BEFORE either guard, so the array the cap refuses to expand still
+    // knows what its elements are. displayElements is the reader (below); it is the
+    // one path that has to format an element with no element node to read it off.
+    const type = elementType || elementClass(this._scalarType);
+    this._elementType = type;
     if (this._elements.length <= 1 || this._elements.length > MAX_EXPANDED_ELEMENTS) {
       return;
     }
-    const type = elementType || elementClass(this._scalarType);
     for (let i = 0; i < this._elements.length; i++) {
       const child = MatlabVariableNode._createScalar(this._elements[i], type, String(i + 1), this);
       this.addChild(child);
@@ -883,6 +962,14 @@ export default class MatlabVariableNode extends DataNode {
     return child;
   }
 
+  // Every string-array parse path calls this — the inline literal, the structured
+  // `_array_type: 'String'` form, and the bare JSON list of strings. The latter two
+  // used to build the identical child inline instead, which is how they came to be
+  // the two element loops the cap did NOT reach: a 10,000-element string array from
+  // either of them expanded in full while the same array written as a literal did
+  // not. That is the shape of defect this choke point exists to make impossible, so
+  // the lesson is the one _buildArrayChildren's note already records — a rule obeyed
+  // by most of the paths is not a rule.
   _buildStringChildren(): void {
     if (this._elements.length <= 1 || this._elements.length > MAX_EXPANDED_ELEMENTS) {
       return;
@@ -2522,19 +2609,7 @@ export default class MatlabVariableNode extends DataNode {
     node._elements = (rawVal._elements as unknown[]) || [];
     node._dims = (rawVal._dimensions as number[]) || [1, node._elements.length];
     node._scalarType = 'string';
-
-    if (node._elements.length > 1) {
-      node._elements.forEach(function (el, i) {
-        const child = new MatlabVariableNode(String(i + 1), node, { _dimensions: [1, 1] });
-        child._kind = 'string';
-        child._elements = [el as string];
-        child._dims = [1, 1];
-        child._scalarValue = el;
-        child._scalarType = 'string';
-        node.addChild(child);
-      });
-    }
-
+    node._buildStringChildren();
     return node;
   }
 
@@ -2546,19 +2621,7 @@ export default class MatlabVariableNode extends DataNode {
     node._elements = rawVal;
     node._dims = [1, rawVal.length];
     node._scalarType = 'string';
-
-    if (rawVal.length > 1) {
-      rawVal.forEach(function (el, i) {
-        const child = new MatlabVariableNode(String(i + 1), node, { _dimensions: [1, 1] });
-        child._kind = 'string';
-        child._elements = [el];
-        child._dims = [1, 1];
-        child._scalarValue = el;
-        child._scalarType = 'string';
-        node.addChild(child);
-      });
-    }
-
+    node._buildStringChildren();
     return node;
   }
 }

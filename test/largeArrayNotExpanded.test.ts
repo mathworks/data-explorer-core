@@ -78,6 +78,47 @@ describe('an array past the cap', () => {
   });
 });
 
+describe('a string array past the cap', () => {
+  // The cap reached five of the seven element loops in this file when it was written.
+  // The two it missed were the string-array parses that built their element inline
+  // instead of calling _buildStringChildren — so a 10,000-element string array
+  // expanded in full from the structured form and from a bare JSON list, while the
+  // identical array written as an inline literal did not. One of the three spellings
+  // obeyed the cap. All three call the choke point now; these two tests are what
+  // would notice a fourth spelling arriving with its own loop.
+  const strings = (n: number) => {
+    const out: string[] = new Array(n);
+    for (let i = 0; i < n; i++) out[i] = 's' + (i + 1);
+    return out;
+  };
+
+  it('builds no element children when it arrives as the structured form', () => {
+    const count = MAX_EXPANDED_ELEMENTS + 1;
+    const n = parse({ _array_type: 'String', _dimensions: [1, count], _elements: strings(count) });
+    expect(n._kind).toBe('string');
+    expect(n.children.length).toBe(0);
+    // And loses nothing by it, which is the half that makes the cap safe.
+    expect(n._elements.length).toBe(count);
+    expect((n.Value as string[])[count - 1]).toBe('s' + count);
+  });
+
+  it('builds no element children when it arrives as a bare list of strings', () => {
+    const count = MAX_EXPANDED_ELEMENTS + 1;
+    const n = parse(strings(count));
+    expect(n._kind).toBe('string');
+    expect(n.children.length).toBe(0);
+    expect(n._elements.length).toBe(count);
+  });
+
+  it('still expands at the cap, from both spellings', () => {
+    const count = MAX_EXPANDED_ELEMENTS;
+    const structured = parse({ _array_type: 'String', _dimensions: [1, count], _elements: strings(count) });
+    const bare = parse(strings(count));
+    expect(structured.children.length).toBe(count);
+    expect(bare.children.length).toBe(count);
+  });
+});
+
 describe('an array at the cap', () => {
   it('expands every element, so the boundary is inclusive', () => {
     const n = parse(rowVector(MAX_EXPANDED_ELEMENTS));
