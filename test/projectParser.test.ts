@@ -545,7 +545,7 @@ describe('parseProject — the label catalog', () => {
       'fallback',
     );
     expect(parsed.labels).toEqual([
-      { id: 'design', category: 'Classification', name: 'Design', readOnly: false },
+      { id: 'design', category: 'Classification', name: 'Design', readOnly: false, declaredFiles: [] },
     ]);
   });
 
@@ -593,7 +593,7 @@ describe('parseProject — the label catalog', () => {
       'fallback',
     );
     expect(parsed.labels).toEqual([
-      { id: 'design', category: 'FileClassCategory', name: 'Design', readOnly: false },
+      { id: 'design', category: 'FileClassCategory', name: 'Design', readOnly: false, declaredFiles: [] },
     ]);
   });
 
@@ -615,8 +615,8 @@ describe('parseProject — the label catalog', () => {
     // By category then name, not in store order: see the sort in parseProject —
     // one project in two metadata layouts handed its catalog over in two orders.
     expect(parsed.labels).toEqual([
-      { id: 'lab2', category: 'Cat', name: 'lab2', readOnly: false },
-      { id: 'lab1', category: 'Cat', name: 'Label One', readOnly: false },
+      { id: 'lab2', category: 'Cat', name: 'lab2', readOnly: false, declaredFiles: [] },
+      { id: 'lab1', category: 'Cat', name: 'Label One', readOnly: false, declaredFiles: [] },
     ]);
   });
 });
@@ -1164,8 +1164,8 @@ describe('parseProject — the monolithic layout', () => {
   it('reads the label catalog and its category name', () => {
     const parsed = parseProject(monoStore(MONO_BODY), 'fallback');
     expect(parsed.labels).toEqual([
-      { id: 'design', category: 'Classification', name: 'Design', readOnly: true },
-      { id: 'test', category: 'Classification', name: 'Test', readOnly: true },
+      { id: 'design', category: 'Classification', name: 'Design', readOnly: true, declaredFiles: [] },
+      { id: 'test', category: 'Classification', name: 'Test', readOnly: true, declaredFiles: [] },
     ]);
   });
 
@@ -1323,12 +1323,15 @@ describe('parseProject — one project, three layouts', () => {
     // so the thing being compared has to be known to hold the project.
     expect(fixed).toEqual({
       name: 'Parity',
+      membersEnumerated: true,
       files: [
         { path: 'utils', isFolder: true, labels: [] },
         { path: 'utils/helper.m', isFolder: false, labels: ['design'] },
       ],
       pathFolders: ['utils'],
-      labels: [{ id: 'design', category: 'Classification', name: 'Design', readOnly: true }],
+      labels: [
+        { id: 'design', category: 'Classification', name: 'Design', readOnly: true, declaredFiles: [] },
+      ],
       references: [],
       entryPoints: [
         {
@@ -1396,17 +1399,5 @@ describe('parseProject — the declared metadata format', () => {
     expect(parsed.files).toEqual([]);
     expect(parsed.warnings).toHaveLength(1);
     expect(parsed.warnings[0].code).toBe('source-empty');
-  });
-
-  it('names matlab.toml rather than reporting an empty store', () => {
-    // A toml store holds no XML at all, so it lands in the same place as a store
-    // that did not survive its trip. It is not damaged, and a user told "nothing
-    // readable" would go looking for a corrupt file that does not exist.
-    const parsed = parseProject({ 'resources/project/matlab.toml': '[project]\nname = "T"\n' }, 'TomlProj');
-    expect(parsed.name).toBe('TomlProj');
-    expect(parsed.warnings).toHaveLength(1);
-    expect(parsed.warnings[0].code).toBe('source-empty');
-    expect(parsed.warnings[0].message).toContain('matlab.toml');
-    expect(parsed.warnings[0].part).toBe('resources/project/matlab.toml');
   });
 });

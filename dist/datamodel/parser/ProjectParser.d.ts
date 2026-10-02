@@ -19,6 +19,17 @@ export interface ProjectLabel {
      * itself added is not, which is the only thing distinguishing the two.
      */
     readOnly: boolean;
+    /**
+     * The files or patterns this label was declared AGAINST, as written.
+     *
+     * Empty on every XML layout, and that is a fact about those layouts rather than a
+     * gap: a store assigns labels the other way round, per member file
+     * (`ProjectFile.labels`), so the catalog entry has nothing to point back at. The
+     * `matlab.toml` format inverts it — the label declares its files, and the format
+     * records no member list for them to have been declared on — which is why this
+     * field exists at all and why it is the only place those paths can live.
+     */
+    declaredFiles: string[];
 }
 /** A project-to-project reference. */
 export interface ProjectReference {
@@ -84,8 +95,33 @@ export interface ParsedProject {
      * Three are read: `fixedPathV2`, `distributed` and `monolithic`. Anything else is
      * reported through `warnings` rather than read, because guessing at a layout
      * produces a project that looks complete and is not.
+     *
+     * Plus `toml`, which is the one value here that is NOT a declared `MetadataType`:
+     * a `matlab.toml` project has no store and nothing in it to declare, so the value
+     * is this package's own name for the format (see TomlProject.ts). It is in the same
+     * field because what a consumer does with it is the same — a page titles the view
+     * with it, a host decides what it can write back — and a second field would make
+     * every one of them ask twice.
      */
     format: string;
+    /**
+     * Whether this FORMAT records a member list — not whether any members were found.
+     *
+     * The distinction is the whole point of the field. `files: []` from an XML store is a
+     * claim about the project: the store enumerates its members and enumerated none, so
+     * "0 files" is true. `files: []` from a `matlab.toml` is a claim about the format:
+     * it records no member list at all (MATLAB's rule is that the project root's files
+     * ARE the members, which is about the filesystem and not about the document), so "0
+     * files" would be a sentence the reader is not entitled to say. A host showing a
+     * count or an empty-state message needs to tell those two apart, and nothing else in
+     * this result does.
+     *
+     * True on every XML path, `emptyResult` included: a damaged store enumerated nothing,
+     * which is a different thing from a format that enumerates nothing, and the
+     * `memberCount: 0` a host already shows for a damaged store is correct and must not
+     * change.
+     */
+    membersEnumerated: boolean;
     files: ProjectFile[];
     /**
      * Folders added to the MATLAB path, project-root-relative. The project ROOT
@@ -113,13 +149,19 @@ export interface ParsedProject {
     warnings: ParseWarning[];
 }
 /**
- * Parse a MATLAB/Simulink Project content store.
+ * Parse a MATLAB/Simulink Project definition.
  *
- * `files` maps POSIX relpaths (relative to the project root) to file text.
- * Only entries under `resources/project/` are read. Never throws: on any
- * failure it returns a minimally-populated result with the fallback name — and
- * says so in `result.warnings`, which is the only thing separating that result
- * from a project which genuinely holds nothing.
+ * `files` maps POSIX relpaths (relative to the project root) to file text. Of an XML
+ * store only entries under `resources/project/` are read; a `matlab.toml` is read
+ * wherever in the map it is, and is the whole definition when present. Never throws: on
+ * any failure it returns a minimally-populated result with the fallback name — and says
+ * so in `result.warnings`, which is the only thing separating that result from a project
+ * which genuinely holds nothing.
+ *
+ * `projectName` is the name for a definition that records none, and should come from
+ * `projectFallbackName` rather than from a reduction of the caller's own: for a
+ * `matlab.toml` the answer is the parent FOLDER, and stripping an extension there names
+ * every such project "matlab".
  */
 export declare function parseProject(files: Record<string, string>, projectName: string): ParsedProject;
 //# sourceMappingURL=ProjectParser.d.ts.map

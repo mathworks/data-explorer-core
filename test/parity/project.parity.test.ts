@@ -15,8 +15,11 @@
 //                       entity: a `…d.xml` definition and a `…p.xml` pointer.
 //   MultiFile           the same idea, declared `distributed`, one doc per entity.
 //   Toml                a matlab.toml at the project ROOT — and no resources/ and
-//                       NO .prj marker at all. Not read, and not openable either:
-//                       with no .prj there is nothing for a host to be pointed at.
+//                       NO .prj marker at all. Read, by a reader of its own
+//                       (parser/TomlProject.ts), because there is no store here to
+//                       walk; a host is pointed at the matlab.toml itself, the
+//                       marker it would otherwise open having been deleted with
+//                       resources/.
 //
 // Everything here is written by test/parity/matlab/gen_project.m; nothing in this
 // file launches MATLAB, and project_truth.json is the only source of expected
@@ -32,8 +35,9 @@
 //     (`proj.Files`, `proj.StartupFiles`, `proj.Categories`, …) recorded per
 //     format from the CONVERTED project — so MATLAB itself is the one saying all
 //     four shapes describe the same project.
-//   - ACROSS LAYOUTS: the three XML parses are equal but for the format token.
-//     This is the claim multi-layout support makes, and the one a
+//   - ACROSS LAYOUTS: the three XML parses are equal but for the format token, and
+//     the TOML parse agrees with them field by field on everything the TOML format
+//     records. This is the claim multi-layout support makes, and the one a
 //     wrong-but-consistent reader cannot satisfy.
 //
 // WHY THIS CORPUS EXISTS AT ALL, given a 1,371-line projectParser.test.ts: every
@@ -57,6 +61,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parseProject } from '../../src/datamodel/parser/ProjectParser.js';
 import type { ParsedProject } from '../../src/datamodel/parser/ProjectParser.js';
+import { TOML_PROJECT_FILE } from '../../src/datamodel/fileKinds.js';
 
 const DIR = fileURLToPath(new URL('./artifacts/project/', import.meta.url));
 
@@ -181,13 +186,22 @@ const XML_LAYOUTS = LAYOUTS.filter((l) => !l.toml);
 const rootOf = (format: string): string => join(DIR, format, 'parityProject');
 
 /**
- * The project store, read the way the host reads it: every `*.xml` under
- * `resources/project/`, keyed by POSIX relpath from the project ROOT. Mirrors
- * `readProjectStore` in the vscode extension (src/host/projectStore.ts), which is
- * the only caller that builds one of these from a directory.
+ * The project store, read the way the host reads it: a `matlab.toml` at the project
+ * root, plus every `*.xml` under `resources/project/`, keyed by POSIX relpath from
+ * the project ROOT. Mirrors `readProjectStore` in the vscode extension
+ * (src/host/projectStore.ts), which is the only caller that builds one of these
+ * from a directory.
+ *
+ * The two never coexist — the conversion into Toml deletes `resources/` — so this
+ * collects both and lets `parseProject` dispatch, which is exactly the position the
+ * host is in when it is handed a project folder.
  */
 function storeOf(root: string): Record<string, string> {
   const out: Record<string, string> = {};
+  const toml = join(root, TOML_PROJECT_FILE);
+  if (existsSync(toml)) {
+    out[TOML_PROJECT_FILE] = readFileSync(toml, 'utf8');
+  }
   const base = join(root, 'resources', 'project');
   if (!existsSync(base)) {
     return out;
@@ -246,11 +260,14 @@ describe('project definition-file parity', () => {
     it(`${layout.format} is on disk in the shape that format writes`, () => {
       const root = rootOf(layout.format);
       const store = storeOf(root);
-      expect(Object.keys(store).length).toBe(layout.storeDocs);
+      // The XML half of what the host collected, which is what `storeDocs` counts: a
+      // `matlab.toml` is in the same map and is not a store document.
+      expect(Object.keys(store).filter((k) => k.endsWith('.xml')).length).toBe(layout.storeDocs);
+      expect(TOML_PROJECT_FILE in store).toBe(layout.toml);
 
       const entries = readdirSync(root);
       expect(entries.some((n) => n.endsWith('.prj'))).toBe(layout.marker);
-      expect(entries.includes('matlab.toml')).toBe(layout.toml);
+      expect(entries.includes(TOML_PROJECT_FILE)).toBe(layout.toml);
       expect(existsSync(join(root, 'resources', 'project'))).toBe(layout.storeDocs > 0);
     });
   }
@@ -416,36 +433,125 @@ describe('project definition-file parity', () => {
     });
   }
 
-  // ---- Toml: a format this reader does not read, and need not --------------
+  // ---- Toml: the one format that is not a store at all ---------------------
 
   describe('Toml', () => {
     const root = rootOf('Toml');
+    const t = TRUTH.formats.Toml;
+    const parsed = parse('Toml');
 
-    it('has no .prj and no store, so there is nothing for a host to open', () => {
+    it('has no .prj and no store: one matlab.toml at the root is the definition', () => {
       // The answer to "where did the .prj go": the conversion deletes it along
-      // with resources/, and `matlab.toml` at the root is the entire project
-      // definition. A project in this shape never reaches this parser, because the
-      // extension is registered against `.prj` — this is a missing FILE TYPE, not
-      // a parse gap.
+      // with resources/. So a host cannot be pointed at a marker here, and the
+      // file it opens is the definition itself — which is also why nothing in
+      // this layout reaches the store walk `parseProject` otherwise is.
       expect(readdirSync(root).some((n) => n.endsWith('.prj'))).toBe(false);
       expect(existsSync(join(root, 'resources'))).toBe(false);
-      expect(existsSync(join(root, 'matlab.toml'))).toBe(true);
-      expect(readFileSync(join(root, 'matlab.toml'), 'utf8')).toContain('name = "parityProject"');
+      expect(existsSync(join(root, TOML_PROJECT_FILE))).toBe(true);
+      expect(readFileSync(join(root, TOML_PROJECT_FILE), 'utf8')).toContain(
+        'name = "parityProject"',
+      );
     });
 
-    it('reads as empty, through the generic warning and not the matlab.toml one', () => {
-      const parsed = parse('Toml');
+    it('reads whole, and reports the format as this package names it', () => {
+      expect(parsed.warnings).toEqual([]);
+      expect(parsed.name).toBe(t.name);
+      expect(parsed.name).not.toBe(FALLBACK_NAME);
+      // The one `format` value that is NOT a declared `MetadataType`: there is no
+      // store here to declare one, so it is this package's own name for the format.
+      expect(t.definitionFilesType).toBe('Toml');
+      expect(parsed.format).toBe('toml');
+    });
+
+    it('enumerates NO members, where every XML layout does', () => {
+      // `files: []` means something different here than it does anywhere else in
+      // this suite, and `membersEnumerated` is the field that says which. MATLAB's
+      // rule for this format is that the files in the project root ARE the members
+      // — about the filesystem, not about the document — so a member list is a
+      // sentence this reader is not entitled to say. MATLAB itself reports nine
+      // members for the converted project; the document names none of them.
+      expect(parsed.membersEnumerated).toBe(false);
       expect(parsed.files).toEqual([]);
-      expect(parsed.warnings.map((w) => w.code)).toEqual(['source-empty']);
-      // Deliberate: the parser's matlab.toml-specific message is keyed on a
-      // `resources/project/matlab.toml` entry, and R2027a writes the file at the
-      // project ROOT with no resources/ at all. That branch is for a store an
-      // older release wrote, so this case lands on the generic message.
-      expect(parsed.warnings[0].message).toContain('No readable project entries were found');
+      expect(t.files.length).toBe(9);
+
+      const xml = parse('SingleFile');
+      expect(xml.membersEnumerated).toBe(true);
+      expect(xml.files.length).toBe(TRUTH.formats.SingleFile.files.length);
+    });
+
+    it('holds what MATLAB says the converted project holds, less its member list', () => {
+      expect(parsed.pathFolders).toEqual(t.pathFolders);
+      expect(filesOfKind(parsed, 'StartUp')).toEqual(t.startupFiles);
+      expect(filesOfKind(parsed, 'Shutdown')).toEqual(t.shutdownFiles);
+      expect(filesOfKind(parsed, 'Basic')).toEqual(t.shortcuts);
+      expect(parsed.references.map((r) => r.path)).toEqual(t.references.map((r) => r.path));
+      const wf = new Map(parsed.workingFolders.map((w) => [w.key, w.ref]));
+      expect(wf.get('ProjectStartupFolder')).toBe(t.projectStartupFolder);
+      expect(wf.get('SimulinkCacheFolder')).toBe(t.simulinkCacheFolder);
+      expect(wf.get('SimulinkCodeGenFolder')).toBe(t.simulinkCodeGenFolder);
+    });
+
+    it('defines the one label category that survived, with the file it declares', () => {
+      // The inverted assignment, and the only place those paths can live: an XML
+      // store records labels per MEMBER file, and this format has no member list,
+      // so the label carries the files instead. `readOnly: false` on it is not a
+      // reading of an attribute — the format records no ownership, which is why
+      // MATLAB's own conversion dropped the read-only category entirely.
+      expect(parsed.labels).toEqual([
+        {
+          id: 'Review/Checked',
+          category: 'Review',
+          name: 'Checked',
+          readOnly: false,
+          declaredFiles: ['utils/helper.m'],
+        },
+      ]);
+      // The same relationship the XML layout records the other way round, which is
+      // what makes the `declaredFiles` list a reading of this project rather than
+      // of this document.
+      expect(assignedLabels(parse('SingleFile'), 'utils/helper.m')).toContain('Review/Checked');
+    });
+
+    it('reads as the same project as the XML layouts, on everything the format records', () => {
+      // Not `toEqual` on the whole parse, as the three XML layouts are compared to
+      // each other, and the exclusions are the point:
+      //   - the IDS. Conversion preserves MATLAB's UUIDs between XML layouts, so
+      //     those compare; this format records no UUID anywhere, so every id here
+      //     is synthetic (`StartUp:startup_one.m`, `Review/Checked`, the
+      //     dependency's own key) and a comparison on one would be a comparison of
+      //     two unrelated naming schemes.
+      //   - `files`, `membersEnumerated` and the label CATALOG, which the format
+      //     does not record — measured above, and in the lossiness test below.
+      // Everything else must agree, entry-point ORDER included: run order is a
+      // linked list in a store and an array here, and the two must come out the
+      // same sequence.
+      const shape = (p: ParsedProject): unknown => ({
+        name: p.name,
+        pathFolders: p.pathFolders,
+        entryPoints: p.entryPoints.map((e) => ({
+          name: e.name,
+          file: e.file,
+          kind: e.kind,
+          visible: e.visible,
+          groupId: e.groupId,
+        })),
+        entryPointGroups: p.entryPointGroups,
+        workingFolders: p.workingFolders,
+        references: p.references.map((r) => ({ name: r.name, path: r.path })),
+      });
+      for (const layout of XML_LAYOUTS) {
+        expect(shape(parsed), layout.format).toEqual(shape(parse(layout.format)));
+      }
+      // And the shortcut's NAME agrees for a reason worth stating: the XML store
+      // carries a `Name` attribute MATLAB fills with the file's stem, and this
+      // format has only the key — so the two agree because MATLAB writes the key as
+      // that same stem, not because either side derived the other.
+      expect(parsed.entryPoints.filter((e) => e.kind === 'Basic').map((e) => e.name)).toEqual([
+        'main',
+      ]);
     });
 
     it('is LOSSY, and MATLAB says so in its own words', () => {
-      const t = TRUTH.formats.Toml;
       expect(t.convertWarningId).toBe('MATLAB:Project:Issues:LabelDataLoss');
       expect(t.convertWarning).toContain('Unable to preserve label data');
 

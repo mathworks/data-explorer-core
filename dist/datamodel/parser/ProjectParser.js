@@ -1,6 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 import { readProjectXml, ATTRIBUTE_PREFIX, TEXT_KEY } from './XmlReader.js';
+import { isTomlProjectFile } from '../fileKinds.js';
 import { reasonOf } from './ParseWarning.js';
+import { parseTomlProject } from './TomlProject.js';
 const PROJECT_PREFIX = 'resources/project/';
 /** The store manifest, which declares the layout the rest of the store is in. */
 const MANIFEST = 'Project.xml';
@@ -46,6 +48,9 @@ function emptyResult(name, warnings) {
     return {
         name,
         format: '',
+        // True even here: this is an XML store that could not be walked, and an XML store
+        // is a format that enumerates its members. See the field.
+        membersEnumerated: true,
         files: [],
         pathFolders: [],
         labels: [],
@@ -57,18 +62,39 @@ function emptyResult(name, warnings) {
     };
 }
 /**
- * Parse a MATLAB/Simulink Project content store.
+ * Parse a MATLAB/Simulink Project definition.
  *
- * `files` maps POSIX relpaths (relative to the project root) to file text.
- * Only entries under `resources/project/` are read. Never throws: on any
- * failure it returns a minimally-populated result with the fallback name — and
- * says so in `result.warnings`, which is the only thing separating that result
- * from a project which genuinely holds nothing.
+ * `files` maps POSIX relpaths (relative to the project root) to file text. Of an XML
+ * store only entries under `resources/project/` are read; a `matlab.toml` is read
+ * wherever in the map it is, and is the whole definition when present. Never throws: on
+ * any failure it returns a minimally-populated result with the fallback name — and says
+ * so in `result.warnings`, which is the only thing separating that result from a project
+ * which genuinely holds nothing.
+ *
+ * `projectName` is the name for a definition that records none, and should come from
+ * `projectFallbackName` rather than from a reduction of the caller's own: for a
+ * `matlab.toml` the answer is the parent FOLDER, and stripping an extension there names
+ * every such project "matlab".
  */
 export function parseProject(files, projectName) {
     const warnings = [];
     const result = emptyResult(projectName, warnings);
     try {
+        // The TOML format first, before any of the store walking below, because it is not a
+        // layout of the store this function walks — it is the absence of one. MATLAB writes
+        // the file at the project ROOT and deletes `resources/` with the `.prj`, so the key
+        // is normally just `matlab.toml`; matched by basename anyway, since a host building
+        // this map from a directory may well key it by a longer path.
+        //
+        // INSIDE the try, not above it, and that is not incidental: `files` itself is
+        // whatever a host handed over, and `parseProject(null)` is a documented case that
+        // must come back as a `source-unreadable` result rather than a throw. The catch is
+        // what makes that true, so nothing may touch `files` outside it.
+        for (const [relPath, content] of Object.entries(files)) {
+            if (isTomlProjectFile(relPath)) {
+                return parseTomlProject(content, projectName);
+            }
+        }
         // Index every parseable Info doc by its relpath (project-relative).
         const index = new Map();
         // The one document of a `monolithic` store, when this store is one. A store holds
@@ -107,27 +133,14 @@ export function parseProject(files, projectName) {
             // whole result is empty — and a `.prj` always has a store, so reaching here
             // is either the wrong kind of file or a store that did not survive its trip.
             //
-            // Except for one case worth naming separately: a store MATLAB wrote in its
-            // `matlab.toml` format holds no XML at all, so it lands here looking exactly
-            // like damage. It is not damaged, it is a format this reader does not read,
-            // and a user told "nothing readable" would go looking for a corrupt file.
-            const toml = Object.keys(files).find((k) => k.startsWith(PROJECT_PREFIX) && k.slice(PROJECT_PREFIX.length).endsWith('matlab.toml'));
-            warnings.push(toml
-                ? {
-                    // 'source-empty' rather than a code of its own: the code is the kind of
-                    // loss (the source opened and held nothing this reader recognizes) and
-                    // the message is which, per ParseWarningCode's note that the codes are
-                    // about containers and parts and not about any one format.
-                    code: 'source-empty',
-                    message: 'This project stores its metadata as matlab.toml, which this viewer cannot read yet, ' +
-                        'so this project reads as empty. In MATLAB, Project Settings can save it as XML instead.',
-                    part: toml,
-                }
-                : {
-                    code: 'source-empty',
-                    message: 'No readable project entries were found under resources/project/, ' +
-                        'so this project reads as empty.',
-                });
+            // A `matlab.toml` definition used to land here too, looking exactly like damage
+            // for want of a reader; it now returns at the top of this function, so what is
+            // left under this branch really is a store holding nothing readable.
+            warnings.push({
+                code: 'source-empty',
+                message: 'No readable project entries were found under resources/project/, ' +
+                    'so this project reads as empty.',
+            });
             return result;
         }
         // Which layout the store is in. The KIND of store is settled structurally, by
@@ -742,7 +755,15 @@ function readCategories(layout, collection) {
                 // which the project page draws as a built-in. A missing attribute is
                 // writable, which is how a hand-made label in an older store spells it.
                 const ro = labelEnt.def?.['@_ReadOnly'];
-                out.push({ id, category: categoryName, name, readOnly: ro === 'READ_ONLY' || ro === '1' });
+                out.push({
+                    id,
+                    category: categoryName,
+                    name,
+                    readOnly: ro === 'READ_ONLY' || ro === '1',
+                    // Always empty from a store: it assigns labels per member file, so the
+                    // catalog entry has no file list of its own. See `ProjectLabel.declaredFiles`.
+                    declaredFiles: [],
+                });
             }
         }
     }

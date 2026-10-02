@@ -161,17 +161,32 @@ describe('the seams that are already clean stay clean', () => {
     expect(describeEdges(outboundFrom('datamodel/display'))).toEqual([]);
   });
 
-  it('keeps datamodel/parser/ reaching for nothing but blockIdentity', () => {
-    // The one allowed edge, twice: `MdlParser` and `SlxParser` both have to name what
-    // kind of block they just read, and `datamodel/blockIdentity.ts` is the shared
-    // table they name it against. Allowing it widens the seam by nothing measurable —
-    // that module imports nothing at all, so it travels alone.
-    const allowed = 'datamodel/blockIdentity.ts';
-    const strays = outboundFrom('datamodel/parser').filter((e) => e.to !== allowed);
+  it('keeps datamodel/parser/ reaching for nothing but blockIdentity and fileKinds', () => {
+    // TWO allowed modules, and both are the same kind of thing: a table of rules about
+    // names that the parsers share with code outside this folder.
+    //
+    // `datamodel/blockIdentity.ts` came first — `MdlParser` and `SlxParser` both have
+    // to name what kind of block they just read, and that is the shared table they name
+    // it against. `datamodel/fileKinds.ts` was added deliberately, when the project
+    // reader learned the `matlab.toml` format: the NAME of a project marker and the stem
+    // reduction over a path are shared with `core/ingest` and with every host, and the
+    // whole point `fileKinds` makes — its header is about eight copies of
+    // `endsWith('.sldd')` that disagreed on case — is that a rule like that lives in one
+    // place. Re-spelling `'matlab.toml'` inside the parser folder to keep this test at
+    // one allowed module would be the exact defect that module was written to end.
+    //
+    // Both widen the seam by nothing measurable: neither imports anything at all, so
+    // each travels alone. And this adds no folder-level edge — `datamodel/parser ->
+    // datamodel` already exists, via `blockIdentity`.
+    const allowed = ['datamodel/blockIdentity.ts', 'datamodel/fileKinds.ts'];
+    const strays = outboundFrom('datamodel/parser').filter((e) => !allowed.includes(e.to));
     expect(describeEdges(strays)).toEqual([]);
-    // Not a count of them — a check that the exemption is still USED, so the test
-    // cannot start passing because the seam quietly stopped existing.
-    expect(outboundFrom('datamodel/parser').length, `and ${allowed} is still reached`).toBeGreaterThan(0);
+    // Not a count of them — a check that each exemption is still USED, so the test
+    // cannot start passing because the seam quietly stopped existing. Per module, not in
+    // total: one of the two going unreached is exactly how an allowance outlives the
+    // reason for it.
+    const reached = new Set(outboundFrom('datamodel/parser').map((e) => e.to));
+    expect([...reached].sort(), 'and both allowed modules are still reached').toEqual(allowed);
   });
 });
 
