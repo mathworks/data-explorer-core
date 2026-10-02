@@ -65,8 +65,13 @@ export function buildProjectPage(parsed) {
         name: parsed.name,
         format: parsed.format,
         formatLabel: FORMAT_LABEL[parsed.format] ?? parsed.format,
-        memberCount: parsed.files.length,
-        labelledCount: parsed.files.filter((f) => f.labels.length > 0).length,
+        // `null`, not the length of an empty list: a format that records no member list has
+        // no number to report here, and reporting one derived from `files: []` would state
+        // something about the project that the document never said. See the two fields.
+        memberCount: parsed.membersEnumerated ? parsed.files.length : null,
+        labelledCount: parsed.membersEnumerated
+            ? parsed.files.filter((f) => f.labels.length > 0).length
+            : null,
         startup: runsOf(STARTUP),
         shutdown: runsOf(SHUTDOWN),
         shortcuts: shortcutsOf(parsed.entryPoints, groupNames),
@@ -124,8 +129,16 @@ function shortcutsOf(entryPoints, groupNames) {
  * (written by a release that knew it, or by a hand-edited store). Such an id is
  * counted under a category named for it, so the coverage figure stays consistent
  * with `labelledCount` instead of quietly excluding files it includes.
+ *
+ * Which is also why there are no counts AT ALL when the format records no member list:
+ * the assignments the counts are made of are the thing that format does not have, so
+ * every `count` here is `null` and the ordering falls back to the name. The catalog
+ * itself survives — a `matlab.toml` declares its labels plainly, with the files each was
+ * declared against — so the page still lists them, just without a number none of them
+ * has. See `ProjectPage.memberCount` for why that is not 0.
  */
 function categoriesOf(parsed) {
+    const enumerated = parsed.membersEnumerated;
     const counts = new Map();
     for (const file of parsed.files) {
         // Per file, not per assignment: `parsed.files` already de-duplicates a file's
@@ -150,20 +163,38 @@ function categoriesOf(parsed) {
         push(l.category, {
             id: l.id,
             name: l.name,
-            count: counts.get(l.id) ?? 0,
+            count: enumerated ? counts.get(l.id) ?? 0 : null,
             custom: !l.readOnly,
+            declaredFiles: l.declaredFiles,
         });
     }
-    for (const [id, count] of counts) {
-        if (!defined.has(id)) {
-            push('', { id, name: id, count, custom: true });
+    // The synthetic pass: ids the members carry that the catalog does not define. Guarded
+    // on `enumerated` rather than left to come out empty on its own — `counts` is built
+    // from `parsed.files`, which is empty for an unenumerated format, so the loop would
+    // not run anyway, and a reader should not have to derive that to know this pass has
+    // nothing to reconcile when there are no assignments to reconcile it against.
+    if (enumerated) {
+        for (const [id, count] of counts) {
+            if (!defined.has(id)) {
+                // No `declaredFiles`: this id exists only because a member carries it, so there
+                // is no catalog entry it could have been declared on.
+                push('', { id, name: id, count, custom: true, declaredFiles: [] });
+            }
         }
     }
     // Used labels first, then by name: the seven built-ins ship with every project
     // and most stay at zero, so catalog order buries the two or three that say
     // something about THIS project under five that say nothing about any.
+    //
+    // Name alone when the counts are `null`, which they are all together or not at all
+    // since they come from the one `enumerated`: an unknown usage is not a zero usage, so
+    // there is nothing to put first, and `count ?? 0` here would quietly order every label
+    // as if it were known to be unused. The `null` test is also what proves to the type
+    // checker that the subtraction only ever sees numbers.
     for (const labels of byCategory.values()) {
-        labels.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+        labels.sort((a, b) => a.count === null || b.count === null
+            ? a.name.localeCompare(b.name)
+            : b.count - a.count || a.name.localeCompare(b.name));
     }
     return [...byCategory.entries()].map(([name, labels]) => ({ name, labels }));
 }

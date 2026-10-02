@@ -194,6 +194,9 @@ describe('buildProjectPage — labels and coverage', () => {
       name: 'ghost',
       count: 1,
       custom: true,
+      // Nothing declared this id — it exists only because a member carries it — so
+      // there is no catalog entry it could have been declared on.
+      declaredFiles: [],
     });
   });
 
@@ -214,6 +217,140 @@ describe('buildProjectPage — labels and coverage', () => {
 
   it('has no categories at all for a project that defines no labels', () => {
     expect(buildProjectPage(parsed()).categories).toEqual([]);
+  });
+
+  it('leaves declaredFiles empty for every label out of an XML store', () => {
+    // An XML store assigns labels the other way round, per member file, so a catalog
+    // entry there has no file list of its own and `count` is the whole story. A page
+    // that found paths here would be showing something no store recorded.
+    const page = buildProjectPage(
+      parsed({
+        labels: catalog,
+        files: [{ path: 'a.m', isFolder: false, labels: ['design'] }],
+      }),
+    );
+    expect(page.categories.flatMap((c) => c.labels).map((l) => l.declaredFiles)).toEqual([
+      [],
+      [],
+      [],
+      [],
+    ]);
+  });
+
+  it('still reports 0 members for an XML store that could not be walked', () => {
+    // The one case the nullability must NOT swallow: a damaged store enumerated
+    // nothing, which is a true 0, as against a format that enumerates nothing. The
+    // parser says so by keeping `membersEnumerated` true even in `emptyResult`, and a
+    // host already shows that 0 — so this is behaviour to preserve, not to unify.
+    const page = buildProjectPage(parsed({ format: '', files: [] }));
+    expect(page.memberCount).toBe(0);
+    expect(page.labelledCount).toBe(0);
+  });
+});
+
+describe('buildProjectPage — a format that records no member list', () => {
+  // A `matlab.toml` project. MATLAB's rule for it is "every file under the project root
+  // is a member", which is a statement about the filesystem and not a list in the
+  // document, and the maintainer's decision is to declare only what the file declares —
+  // no folder walk to synthesize one. So the page's job here is to show NO count, and
+  // every assertion below is really the same assertion: a zero would be a false claim
+  // about a project that may well hold hundreds of files.
+
+  /** Labels as the TOML format carries them: each declaring its own files. */
+  const declared = [
+    {
+      id: 'Status/Draft',
+      category: 'Status',
+      name: 'Draft',
+      readOnly: false,
+      declaredFiles: ['models/*.slx', 'src/a.m'],
+    },
+    {
+      id: 'Status/Reviewed',
+      category: 'Status',
+      name: 'Reviewed',
+      readOnly: false,
+      declaredFiles: [],
+    },
+    {
+      id: 'Status/Archived',
+      category: 'Status',
+      name: 'Archived',
+      readOnly: false,
+      declaredFiles: ['old/'],
+    },
+  ];
+
+  /** A parse from a format that enumerates no members: no files, by the format. */
+  const unenumerated = (over: Partial<ParsedProject> = {}) =>
+    parsed({ format: 'toml', membersEnumerated: false, files: [], ...over });
+
+  it('reports no member count and no coverage instead of zeros', () => {
+    // `null` is what makes a renderer branch: the webview's `esc()` takes
+    // `string | number`, so a `null` arriving there fails to compile at the call site.
+    // A 0 — or a -1 sentinel — would have type-checked and printed a lie.
+    const page = buildProjectPage(unenumerated({ labels: declared }));
+    expect(page.memberCount).toBeNull();
+    expect(page.labelledCount).toBeNull();
+  });
+
+  it('reports every label usage as unknown rather than as unused', () => {
+    // A defined-but-unused label legitimately counts 0 in an XML store, so 0 here would
+    // be indistinguishable from that — and it would contradict the chip beside it, which
+    // is about to list the three paths the label was declared against.
+    const page = buildProjectPage(unenumerated({ labels: declared }));
+    const labels = page.categories.flatMap((c) => c.labels);
+    expect(labels).toHaveLength(3);
+    expect(labels.every((l) => l.count === null)).toBe(true);
+  });
+
+  it('carries the files each label was declared against through verbatim', () => {
+    // These paths are what the page shows IN PLACE OF the coverage fraction, so they
+    // must arrive exactly as the document wrote them — a glob is a glob, a trailing
+    // slash means a folder, and nothing here is entitled to resolve either.
+    const page = buildProjectPage(unenumerated({ labels: declared }));
+    const byName = new Map(page.categories[0].labels.map((l) => [l.name, l.declaredFiles]));
+    expect(byName.get('Draft')).toEqual(['models/*.slx', 'src/a.m']);
+    expect(byName.get('Archived')).toEqual(['old/']);
+    // Declaring nothing is a real state of a hand-edited file, and the label still
+    // belongs on the page: the project defined it.
+    expect(byName.get('Reviewed')).toEqual([]);
+  });
+
+  it('orders the labels by name alone when there is no usage to order by', () => {
+    // "Used first" has no meaning without counts, and `count ?? 0` would make the sort
+    // a no-op that leaves catalog order — so the fallback is explicit. Catalog order
+    // here is Draft, Reviewed, Archived and declared-file order would be Draft,
+    // Archived, Reviewed; neither is what alphabetical gives.
+    const page = buildProjectPage(unenumerated({ labels: declared }));
+    expect(page.categories[0].labels.map((l) => l.name)).toEqual([
+      'Archived',
+      'Draft',
+      'Reviewed',
+    ]);
+  });
+
+  it('treats every label in this format as one the project declared', () => {
+    // Not this file's doing — the format records no ownership, so the reader marks them
+    // all writable — but the page is where that shows, as the absence of the built-in
+    // styling a read-only Classification label gets.
+    const page = buildProjectPage(unenumerated({ labels: declared }));
+    expect(page.categories[0].labels.every((l) => l.custom)).toBe(true);
+  });
+
+  it('leaves the rest of the page exactly as any other format builds it', () => {
+    // Only the three count fields are conditional. A reader of this change should not
+    // have to wonder whether the hooks or the path folders went missing with them.
+    const page = buildProjectPage(
+      unenumerated({
+        pathFolders: ['', 'utils'],
+        entryPoints: [ep({ name: 'build', file: 'build.m', kind: 'StartUp', visible: false })],
+      }),
+    );
+    expect(page.formatLabel).toBe('matlab.toml');
+    expect(page.pathFolders).toEqual(['', 'utils']);
+    expect(page.startup).toEqual([{ name: 'build', file: 'build.m' }]);
+    expect(page.categories).toEqual([]);
   });
 });
 
