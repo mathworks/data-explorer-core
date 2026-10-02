@@ -1,0 +1,587 @@
+{
+  "release": "2027a",
+  "version": "27.1.0.3390505 (R2027a) Prerelease",
+  "formats": {
+    "SingleFile": {
+      "name": "parityProject",
+      "definitionFilesType": "SingleFile",
+      "files": [
+        {
+          "path": "main.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "shutdown_parity.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "startup_one.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "startup_two.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "utils",
+          "isFolder": true,
+          "labels": []
+        },
+        {
+          "path": "utils/helper.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Review",
+              "name": "Checked",
+              "data": "by parity"
+            },
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "utils/notes.txt",
+          "isFolder": false,
+          "labels": []
+        }
+      ],
+      "pathFolders": [
+        "utils"
+      ],
+      "startupFiles": [
+        "startup_one.m",
+        "startup_two.m"
+      ],
+      "shutdownFiles": [
+        "shutdown_parity.m"
+      ],
+      "shortcuts": [
+        "main.m"
+      ],
+      "references": [
+        {
+          "path": "../parityLib",
+          "storedLocation": "../parityLib",
+          "type": "Relative"
+        }
+      ],
+      "simulinkCacheFolder": "cache",
+      "simulinkCodeGenFolder": "codegen",
+      "projectStartupFolder": "utils",
+      "categories": [
+        {
+          "name": "Classification",
+          "dataType": "none",
+          "singleValued": true,
+          "labels": [
+            {
+              "name": "Artifact",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Convenience",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Derived",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Design",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "None",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Other",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Test",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            }
+          ],
+          "readOnly": true,
+          "removeError": "MATLAB:project:management:CanNotModifyReadOnlyCategory"
+        },
+        {
+          "name": "Review",
+          "dataType": "char",
+          "singleValued": false,
+          "labels": [
+            {
+              "name": "Checked",
+              "readOnly": false,
+              "removeError": ""
+            }
+          ],
+          "readOnly": false,
+          "removeError": ""
+        }
+      ],
+      "convertWarning": "",
+      "convertWarningId": ""
+    },
+    "FixedPathMultiFile": {
+      "name": "parityProject",
+      "definitionFilesType": "FixedPathMultiFile",
+      "files": [
+        {
+          "path": "main.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "shutdown_parity.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "startup_one.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "startup_two.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "utils",
+          "isFolder": true,
+          "labels": []
+        },
+        {
+          "path": "utils/helper.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Review",
+              "name": "Checked",
+              "data": "by parity"
+            },
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "utils/notes.txt",
+          "isFolder": false,
+          "labels": []
+        }
+      ],
+      "pathFolders": [
+        "utils"
+      ],
+      "startupFiles": [
+        "startup_one.m",
+        "startup_two.m"
+      ],
+      "shutdownFiles": [
+        "shutdown_parity.m"
+      ],
+      "shortcuts": [
+        "main.m"
+      ],
+      "references": [
+        {
+          "path": "../parityLib",
+          "storedLocation": "../parityLib",
+          "type": "Relative"
+        }
+      ],
+      "simulinkCacheFolder": "cache",
+      "simulinkCodeGenFolder": "codegen",
+      "projectStartupFolder": "utils",
+      "categories": [
+        {
+          "name": "Classification",
+          "dataType": "none",
+          "singleValued": true,
+          "labels": [
+            {
+              "name": "Artifact",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Convenience",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Derived",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Design",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "None",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Other",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Test",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            }
+          ],
+          "readOnly": true,
+          "removeError": "MATLAB:project:management:CanNotModifyReadOnlyCategory"
+        },
+        {
+          "name": "Review",
+          "dataType": "char",
+          "singleValued": false,
+          "labels": [
+            {
+              "name": "Checked",
+              "readOnly": false,
+              "removeError": ""
+            }
+          ],
+          "readOnly": false,
+          "removeError": ""
+        }
+      ],
+      "convertWarning": "",
+      "convertWarningId": ""
+    },
+    "MultiFile": {
+      "name": "parityProject",
+      "definitionFilesType": "MultiFile",
+      "files": [
+        {
+          "path": "main.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "shutdown_parity.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "startup_one.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "startup_two.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "utils",
+          "isFolder": true,
+          "labels": []
+        },
+        {
+          "path": "utils/helper.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Review",
+              "name": "Checked",
+              "data": "by parity"
+            },
+            {
+              "category": "Classification",
+              "name": "Design",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "utils/notes.txt",
+          "isFolder": false,
+          "labels": []
+        }
+      ],
+      "pathFolders": [
+        "utils"
+      ],
+      "startupFiles": [
+        "startup_one.m",
+        "startup_two.m"
+      ],
+      "shutdownFiles": [
+        "shutdown_parity.m"
+      ],
+      "shortcuts": [
+        "main.m"
+      ],
+      "references": [
+        {
+          "path": "../parityLib",
+          "storedLocation": "../parityLib",
+          "type": "Relative"
+        }
+      ],
+      "simulinkCacheFolder": "cache",
+      "simulinkCodeGenFolder": "codegen",
+      "projectStartupFolder": "utils",
+      "categories": [
+        {
+          "name": "Classification",
+          "dataType": "none",
+          "singleValued": true,
+          "labels": [
+            {
+              "name": "Artifact",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Convenience",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Derived",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Design",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "None",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Other",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            },
+            {
+              "name": "Test",
+              "readOnly": true,
+              "removeError": "MATLAB:project:management:CanNotModifyReadOnlyLabel"
+            }
+          ],
+          "readOnly": true,
+          "removeError": "MATLAB:project:management:CanNotModifyReadOnlyCategory"
+        },
+        {
+          "name": "Review",
+          "dataType": "char",
+          "singleValued": false,
+          "labels": [
+            {
+              "name": "Checked",
+              "readOnly": false,
+              "removeError": ""
+            }
+          ],
+          "readOnly": false,
+          "removeError": ""
+        }
+      ],
+      "convertWarning": "",
+      "convertWarningId": ""
+    },
+    "Toml": {
+      "name": "parityProject",
+      "definitionFilesType": "Toml",
+      "files": [
+        {
+          "path": "cache",
+          "isFolder": true,
+          "labels": []
+        },
+        {
+          "path": "codegen",
+          "isFolder": true,
+          "labels": []
+        },
+        {
+          "path": "main.m",
+          "isFolder": false,
+          "labels": []
+        },
+        {
+          "path": "shutdown_parity.m",
+          "isFolder": false,
+          "labels": []
+        },
+        {
+          "path": "startup_one.m",
+          "isFolder": false,
+          "labels": []
+        },
+        {
+          "path": "startup_two.m",
+          "isFolder": false,
+          "labels": []
+        },
+        {
+          "path": "utils",
+          "isFolder": true,
+          "labels": []
+        },
+        {
+          "path": "utils/helper.m",
+          "isFolder": false,
+          "labels": [
+            {
+              "category": "Review",
+              "name": "Checked",
+              "data": ""
+            }
+          ]
+        },
+        {
+          "path": "utils/notes.txt",
+          "isFolder": false,
+          "labels": []
+        }
+      ],
+      "pathFolders": [
+        "utils"
+      ],
+      "startupFiles": [
+        "startup_one.m",
+        "startup_two.m"
+      ],
+      "shutdownFiles": [
+        "shutdown_parity.m"
+      ],
+      "shortcuts": [
+        "main.m"
+      ],
+      "references": [
+        {
+          "path": "../parityLib",
+          "storedLocation": "../parityLib",
+          "type": "Relative"
+        }
+      ],
+      "simulinkCacheFolder": "cache",
+      "simulinkCodeGenFolder": "codegen",
+      "projectStartupFolder": "utils",
+      "categories": [
+        {
+          "name": "Review",
+          "dataType": "none",
+          "singleValued": false,
+          "labels": [
+            {
+              "name": "Checked",
+              "readOnly": false,
+              "removeError": ""
+            }
+          ],
+          "readOnly": false,
+          "removeError": ""
+        }
+      ],
+      "convertWarning": "\nUnable to preserve label data during the conversion.",
+      "convertWarningId": "MATLAB:Project:Issues:LabelDataLoss"
+    }
+  }
+}

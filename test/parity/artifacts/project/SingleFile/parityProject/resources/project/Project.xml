@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project MetadataType="monolithic">
+    <Categories Location="Root">
+        <Category Location="1f00e37e-f779-415c-8b96-5e3f57b00c35">
+            <Info DataType="String" Name="Review" ReadOnly="0" SingleValued="0"/>
+            <Label Location="ac078aad-f263-4f8c-a2a6-ea4a4f8dad95">
+                <Info Name="Checked" ReadOnly="WRITABLE"/>
+            </Label>
+        </Category>
+        <Category Location="FileClassCategory">
+            <Info DataType="None" Name="Classification" ReadOnly="1" SingleValued="1"/>
+            <Label Location="artifact">
+                <Info Name="Artifact" ReadOnly="READ_ONLY"/>
+            </Label>
+            <Label Location="convenience">
+                <Info Name="Convenience" ReadOnly="READ_ONLY"/>
+            </Label>
+            <Label Location="derived">
+                <Info Name="Derived" ReadOnly="READ_ONLY"/>
+            </Label>
+            <Label Location="design">
+                <Info Name="Design" ReadOnly="READ_ONLY"/>
+            </Label>
+            <Label Location="none">
+                <Info Name="None" ReadOnly="READ_ONLY"/>
+            </Label>
+            <Label Location="other">
+                <Info Name="Other" ReadOnly="READ_ONLY"/>
+            </Label>
+            <Label Location="test">
+                <Info Name="Test" ReadOnly="READ_ONLY"/>
+            </Label>
+        </Category>
+    </Categories>
+    <EntryPoints Location="Root">
+        <EntryPoint Location="30b2777f-af37-4333-a3d7-a68eecb802f8">
+            <Info File="startup_two.m" Icon="" Name="startup_two" Type="StartUp" Visible="0">
+                <Extension Name="StartUpPrev" Value="f03c7c63-31e0-4540-9f36-acacd046434b"/>
+            </Info>
+        </EntryPoint>
+        <EntryPoint Location="45a99c9f-6fa8-4eca-be28-4dfd51cca0d1">
+            <Info File="shutdown_parity.m" Icon="" Name="shutdown_parity" Type="Shutdown" Visible="0"/>
+        </EntryPoint>
+        <EntryPoint Location="61ded932-6fed-4e75-9fa0-4def51703dbf">
+            <Info File="main.m" Icon="" Name="main" Type="Basic" Visible="1"/>
+        </EntryPoint>
+        <EntryPoint Location="f03c7c63-31e0-4540-9f36-acacd046434b">
+            <Info File="startup_one.m" Icon="" Name="startup_one" Type="StartUp" Visible="0"/>
+        </EntryPoint>
+    </EntryPoints>
+    <Files Location="Root">
+        <File Location="main.m">
+            <Info>
+                <Category UUID="FileClassCategory">
+                    <Label UUID="design"/>
+                </Category>
+            </Info>
+        </File>
+        <File Location="shutdown_parity.m">
+            <Info>
+                <Category UUID="FileClassCategory">
+                    <Label UUID="design"/>
+                </Category>
+            </Info>
+        </File>
+        <File Location="startup_one.m">
+            <Info>
+                <Category UUID="FileClassCategory">
+                    <Label UUID="design"/>
+                </Category>
+            </Info>
+        </File>
+        <File Location="startup_two.m">
+            <Info>
+                <Category UUID="FileClassCategory">
+                    <Label UUID="design"/>
+                </Category>
+            </Info>
+        </File>
+        <File Location="utils">
+            <Info/>
+            <DIR_SIGNIFIER Location="1">
+                <Info/>
+            </DIR_SIGNIFIER>
+            <File Location="helper.m">
+                <Info>
+                    <Category UUID="FileClassCategory">
+                        <Label UUID="design"/>
+                    </Category>
+                    <Category UUID="1f00e37e-f779-415c-8b96-5e3f57b00c35">
+                        <Label UUID="ac078aad-f263-4f8c-a2a6-ea4a4f8dad95"/>
+                    </Category>
+                </Info>
+                <LabelData Location="Data">
+                    <Info>
+                        <Label UUID="ac078aad-f263-4f8c-a2a6-ea4a4f8dad95" Value="by parity"/>
+                    </Info>
+                </LabelData>
+            </File>
+            <File Location="notes.txt">
+                <Info/>
+            </File>
+        </File>
+    </Files>
+    <Info Location="ProjectData">
+        <Info Name="parityProject"/>
+    </Info>
+    <ProjectPath Location="Root">
+        <Reference Location="96d67236-3566-430d-8c39-263475250d70">
+            <Info Ref="utils" Type="Relative"/>
+        </Reference>
+    </ProjectPath>
+    <References Location="Root">
+        <Reference Location="00504e7b-916d-4ebf-adfe-9c471e63aa29">
+            <Info Ref="../parityLib" Type="Relative"/>
+        </Reference>
+    </References>
+    <WorkingFolders Location="Root">
+        <Reference Location="ProjectStartupFolder">
+            <Info Ref="utils" Type="Relative"/>
+        </Reference>
+        <Reference Location="SimulinkCacheFolder">
+            <Info Ref="cache" Type="Relative"/>
+        </Reference>
+        <Reference Location="SimulinkCodeGenFolder">
+            <Info Ref="codegen" Type="Relative"/>
+        </Reference>
+    </WorkingFolders>
+</project>
