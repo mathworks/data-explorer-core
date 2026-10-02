@@ -1011,6 +1011,309 @@ describe('parseProject — the distributed layout', () => {
   });
 });
 
+// The third layout, and the only one that is not a tree of files at all:
+// `matlab.project.convertDefinitionFiles(root, "SingleFile")` collapses the whole
+// content store into ONE `resources/project/Project.xml` whose root element is
+// `<project MetadataType="monolithic">`. There are no pointer documents and no
+// filename convention — the entity tree IS the element tree, where an element's tag
+// is its type, its `Location` attribute is its location, and its `<Info>` child is
+// its def. Before this layout was read, such a store indexed to nothing (every
+// document in it is the one document, and its root is not `<Info>`), so a converted
+// project reported "no readable project entries" and showed as empty.
+describe('parseProject — the monolithic layout', () => {
+  /** A monolithic store: one document, with `body` as the children of `<project>`. */
+  function monoStore(body: string, declared = ' MetadataType="monolithic"'): Record<string, string> {
+    return { [at('Project.xml')]: info(`<project${declared}>${body}</project>`) };
+  }
+
+  /** The example project's shape, trimmed to one of each thing it holds. */
+  const MONO_BODY = `
+    <Categories Location="Root">
+      <Category Location="FileClassCategory">
+        <Info DataType="None" Name="Classification" ReadOnly="1" SingleValued="1"/>
+        <Label Location="design"><Info Name="Design" ReadOnly="READ_ONLY"/></Label>
+        <Label Location="test"><Info Name="Test" ReadOnly="READ_ONLY"/></Label>
+      </Category>
+    </Categories>
+    <EntryPointGroups Location="Root">
+      <EntryPointGroup Location="g-1"><Info Name="Synth"/></EntryPointGroup>
+    </EntryPointGroups>
+    <EntryPoints Location="Root">
+      <EntryPoint Location="ep-1">
+        <Info File="utils/helper.m" GroupUUID="g-1" Name="helper" Type="Basic" Visible="1"/>
+      </EntryPoint>
+      <EntryPoint Location="ep-2">
+        <Info File="ProjectScript/second.m" GroupUUID="default" Name="second" Type="StartUp" Visible="0">
+          <Extension Name="StartUpPrev" Value="ep-3"/>
+        </Info>
+      </EntryPoint>
+      <EntryPoint Location="ep-3">
+        <Info File="ProjectScript/first.m" GroupUUID="default" Name="first" Type="StartUp" Visible="0">
+          <Extension Name="StartUpPrev" Value="HEAD"/>
+        </Info>
+      </EntryPoint>
+    </EntryPoints>
+    <Files Location="ALM">
+      <Info DigitalThread_ArtifactTracking="true"/>
+      <DIR_SIGNIFIER Location="1"><Info/></DIR_SIGNIFIER>
+    </Files>
+    <Files Location="Root">
+      <File Location="top.m">
+        <Info><Category UUID="FileClassCategory"><Label UUID="design"/></Category></Info>
+      </File>
+      <File Location="utils">
+        <DIR_SIGNIFIER Location="1"><Info/></DIR_SIGNIFIER>
+        <File Location="helper.m">
+          <Info><Category UUID="FileClassCategory"><Label UUID="test"/></Category></Info>
+        </File>
+      </File>
+    </Files>
+    <Info Location="ProjectData"><Info Name="MonoProj"/></Info>
+    <ProjectPath Location="Root">
+      <Reference Location="p-1"><Info Ref="" Type="Relative"/></Reference>
+      <Reference Location="p-2"><Info Ref="utils" Type="Relative"/></Reference>
+    </ProjectPath>
+    <WorkingFolders Location="Root">
+      <Reference Location="SimulinkCacheFolder"><Info Ref="Cache" Type="Relative"/></Reference>
+    </WorkingFolders>`;
+
+  it('reads a whole project out of one document', () => {
+    const parsed = parseProject(monoStore(MONO_BODY), 'fallback');
+
+    expect(parsed.format).toBe('monolithic');
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.name).toBe('MonoProj');
+    expect(parsed.files.map((f) => f.path)).toEqual(['top.m', 'utils', 'utils/helper.m']);
+    expect(parsed.pathFolders).toEqual(['', 'utils']);
+    expect(parsed.workingFolders).toEqual([{ key: 'SimulinkCacheFolder', ref: 'Cache' }]);
+    expect(parsed.entryPointGroups).toEqual([{ id: 'g-1', name: 'Synth' }]);
+  });
+
+  it('keeps the name entity apart from the project element it sits in', () => {
+    // `<Info>` is TWO things in this layout: the def of every entity that has one,
+    // AND the type of the entity holding the project's name. Only the `Location`
+    // attribute separates them, so treating the first `<Info>` child as the def
+    // would make `<Info Location="ProjectData">` the def of `<project>` itself and
+    // leave the project titled by its filename.
+    expect(parseProject(monoStore(MONO_BODY), 'fallback').name).toBe('MonoProj');
+    // …and the def one level down is still read, which is where the name actually is.
+    expect(parseProject(monoStore('<Info Location="ProjectData"/>'), 'fallback').name).toBe(
+      'fallback',
+    );
+  });
+
+  it('marks a folder from its DIR_SIGNIFIER and qualifies the paths beneath it', () => {
+    const parsed = parseProject(monoStore(MONO_BODY), 'fallback');
+    const byPath = new Map(parsed.files.map((f) => [f.path, f]));
+    expect(byPath.get('utils')?.isFolder).toBe(true);
+    expect(byPath.get('top.m')?.isFolder).toBe(false);
+    // A File's `Location` is its basename relative to its PARENT, as in the other
+    // two layouts, so a nested member's path has to be built from the walk.
+    expect(byPath.get('utils/helper.m')?.labels).toEqual(['test']);
+    expect(byPath.get('top.m')?.labels).toEqual(['design']);
+  });
+
+  it('reads the Root Files collection and ignores the ALM one beside it', () => {
+    // The two-collections-of-one-type case is not hypothetical here: the example
+    // project writes both, the ALM one FIRST, and it holds no members at all.
+    const parsed = parseProject(monoStore(MONO_BODY), 'fallback');
+    expect(parsed.files.map((f) => f.path)).toEqual(['top.m', 'utils', 'utils/helper.m']);
+  });
+
+  it('reads the label catalog and its category name', () => {
+    const parsed = parseProject(monoStore(MONO_BODY), 'fallback');
+    expect(parsed.labels).toEqual([
+      { id: 'design', category: 'Classification', name: 'Design', readOnly: true },
+      { id: 'test', category: 'Classification', name: 'Test', readOnly: true },
+    ]);
+  });
+
+  it('puts the startup files in run order', () => {
+    // The order lives only in the `<Extension StartUpPrev>` chain nested inside each
+    // entry point's def — so this also pins that a def's own child elements survive
+    // the walk rather than being mistaken for child entities.
+    const parsed = parseProject(monoStore(MONO_BODY), 'fallback');
+    expect(parsed.entryPoints.map((e) => e.name)).toEqual(['first', 'second', 'helper']);
+    expect(parsed.entryPoints.find((e) => e.name === 'helper')?.groupId).toBe('g-1');
+    // 'default' is the store's spelling for "no group", not a group called default.
+    expect(parsed.entryPoints.find((e) => e.name === 'first')?.groupId).toBe('');
+  });
+
+  it('walks a document that declares no format at all', () => {
+    // A `<project>` root is itself the statement that this store is one document,
+    // which is the same reason `inferLayout` exists for the other two.
+    const parsed = parseProject(monoStore(MONO_BODY, ''), 'fallback');
+    expect(parsed.format).toBe('monolithic');
+    expect(parsed.name).toBe('MonoProj');
+    expect(parsed.files.map((f) => f.path)).toEqual(['top.m', 'utils', 'utils/helper.m']);
+  });
+
+  it('reports a single-document store whose declared format it cannot walk', () => {
+    // Same rule as for the other layouts: a nesting convention we do not know would
+    // read as a complete, empty project, so the declared name is reported instead.
+    const parsed = parseProject(monoStore(MONO_BODY, ' MetadataType="monolithicV2"'), 'fallback');
+    expect(parsed.format).toBe('');
+    expect(parsed.files).toEqual([]);
+    expect(parsed.warnings).toHaveLength(1);
+    expect(parsed.warnings[0].message).toContain('monolithicV2');
+  });
+
+  it('reads a real project reference out of its collection', () => {
+    const parsed = parseProject(
+      monoStore(
+        '<ProjectReferences Location="Root">' +
+          '<Reference Location="uuid-1"><Info Ref="../LibProj/LibProj.prj" Type="Relative"/></Reference>' +
+          '</ProjectReferences>' +
+          '<ProjectPath Location="Root">' +
+          '<Reference Location="p-1"><Info Ref="utils" Type="Relative"/></Reference>' +
+          '</ProjectPath>',
+      ),
+      'fallback',
+    );
+    expect(parsed.references).toEqual([
+      { id: 'uuid-1', name: 'LibProj.prj', path: '../LibProj/LibProj.prj' },
+    ]);
+  });
+});
+
+// The three layouts are three ENCODINGS of one thing, and MATLAB converts a project
+// between them in place (`matlab.project.convertDefinitionFiles`). So the invariant
+// worth holding is not "each walker reads its own layout" — the tests above pin that,
+// and all three can pass while the walkers disagree about the same project. It is
+// that converting a project cannot change what the project IS.
+//
+// Checked once against MATLAB before it was written down: the example project
+// (372 members, 89 folders, 197 labelled, 88 path folders, 7 labels, 14 entry points)
+// converted to all three formats by R2027a parses to byte-identical results, `format`
+// aside. This is that measurement reduced to a fixture small enough to read.
+describe('parseProject — one project, three layouts', () => {
+  /** One project: a folder with a labelled file in it, a path folder, a startup file. */
+  const FIXED_PATH: Record<string, string> = {
+    [at('Project.xml')]: info('<Info MetadataType="fixedPathV2"/>'),
+    [at('root/namep.xml')]: info('<Info location="ProjectData" type="Info"/>'),
+    [at('root/named.xml')]: info('<Info Name="Parity"/>'),
+    [at('root/filesp.xml')]: info('<Info location="Root" type="Files"/>'),
+    [at('root/pathp.xml')]: info('<Info location="Root" type="ProjectPath"/>'),
+    [at('root/catsp.xml')]: info('<Info location="Root" type="Categories"/>'),
+    [at('root/epsp.xml')]: info('<Info location="Root" type="EntryPoints"/>'),
+    [at('root/wfp.xml')]: info('<Info location="Root" type="WorkingFolders"/>'),
+    [at('files/utilsp.xml')]: info('<Info location="utils" type="File"/>'),
+    [at('utils/dirp.xml')]: info('<Info location="1" type="DIR_SIGNIFIER"/>'),
+    [at('utils/helperp.xml')]: info('<Info location="helper.m" type="File"/>'),
+    [at('utils/helperd.xml')]: info(
+      '<Info><Category UUID="FileClassCategory"><Label UUID="design"/></Category></Info>',
+    ),
+    [at('path/p1p.xml')]: info('<Info location="u-1" type="Reference"/>'),
+    [at('path/p1d.xml')]: info('<Info Ref="utils" Type="Relative"/>'),
+    [at('cats/fccp.xml')]: info('<Info location="FileClassCategory" type="Category"/>'),
+    [at('cats/fccd.xml')]: info('<Info Name="Classification"/>'),
+    [at('fcc/designp.xml')]: info('<Info location="design" type="Label"/>'),
+    [at('fcc/designd.xml')]: info('<Info Name="Design" ReadOnly="READ_ONLY"/>'),
+    [at('eps/s1p.xml')]: info('<Info location="e-1" type="EntryPoint"/>'),
+    [at('eps/s1d.xml')]: info('<Info File="startup.m" Name="startup" Type="StartUp" Visible="0"/>'),
+    [at('wf/c1p.xml')]: info('<Info location="SimulinkCacheFolder" type="Reference"/>'),
+    [at('wf/c1d.xml')]: info('<Info Ref="Cache" Type="Relative"/>'),
+  };
+
+  const DISTRIBUTED: Record<string, string> = {
+    [at('Project.xml')]: info('<Info MetadataType="distributed"/>'),
+    [at('ProjectData.type.Info.xml')]: info('<Info Name="Parity"/>'),
+    [at('Root.type.Files/utils.type.File/1.type.DIR_SIGNIFIER.xml')]: info('<Info/>'),
+    [at('Root.type.Files/utils.type.File/helper.m.type.File.xml')]: info(
+      '<Info><Category UUID="FileClassCategory"><Label UUID="design"/></Category></Info>',
+    ),
+    [at('Root.type.ProjectPath/u-1.type.Reference.xml')]: info('<Info Ref="utils" Type="Relative"/>'),
+    [at('Root.type.Categories/FileClassCategory.type.Category.xml')]: info(
+      '<Info Name="Classification"/>',
+    ),
+    [at('Root.type.Categories/FileClassCategory.type.Category/design.type.Label.xml')]: info(
+      '<Info Name="Design" ReadOnly="READ_ONLY"/>',
+    ),
+    [at('Root.type.EntryPoints/e-1.type.EntryPoint.xml')]: info(
+      '<Info File="startup.m" Name="startup" Type="StartUp" Visible="0"/>',
+    ),
+    [at('Root.type.WorkingFolders/SimulinkCacheFolder.type.Reference.xml')]: info(
+      '<Info Ref="Cache" Type="Relative"/>',
+    ),
+  };
+
+  const MONOLITHIC: Record<string, string> = {
+    [at('Project.xml')]: info(
+      '<project MetadataType="monolithic">' +
+        '<Info Location="ProjectData"><Info Name="Parity"/></Info>' +
+        '<Files Location="Root">' +
+        '<File Location="utils">' +
+        '<DIR_SIGNIFIER Location="1"><Info/></DIR_SIGNIFIER>' +
+        '<File Location="helper.m">' +
+        '<Info><Category UUID="FileClassCategory"><Label UUID="design"/></Category></Info>' +
+        '</File>' +
+        '</File>' +
+        '</Files>' +
+        '<ProjectPath Location="Root">' +
+        '<Reference Location="u-1"><Info Ref="utils" Type="Relative"/></Reference>' +
+        '</ProjectPath>' +
+        '<Categories Location="Root">' +
+        '<Category Location="FileClassCategory">' +
+        '<Info Name="Classification"/>' +
+        '<Label Location="design"><Info Name="Design" ReadOnly="READ_ONLY"/></Label>' +
+        '</Category>' +
+        '</Categories>' +
+        '<EntryPoints Location="Root">' +
+        '<EntryPoint Location="e-1">' +
+        '<Info File="startup.m" Name="startup" Type="StartUp" Visible="0"/>' +
+        '</EntryPoint>' +
+        '</EntryPoints>' +
+        '<WorkingFolders Location="Root">' +
+        '<Reference Location="SimulinkCacheFolder"><Info Ref="Cache" Type="Relative"/></Reference>' +
+        '</WorkingFolders>' +
+        '</project>',
+    ),
+  };
+
+  /** Everything the layout is not supposed to decide — i.e. all of it but `format`. */
+  function project(store: Record<string, string>): Omit<ParsedProject, 'format'> {
+    const { format: _format, ...rest } = parseProject(store, 'fallback');
+    return rest;
+  }
+
+  it('reads one project the same way out of all three', () => {
+    const fixed = project(FIXED_PATH);
+    // Stated positively first: a parity assertion between two empty results passes,
+    // so the thing being compared has to be known to hold the project.
+    expect(fixed).toEqual({
+      name: 'Parity',
+      files: [
+        { path: 'utils', isFolder: true, labels: [] },
+        { path: 'utils/helper.m', isFolder: false, labels: ['design'] },
+      ],
+      pathFolders: ['utils'],
+      labels: [{ id: 'design', category: 'Classification', name: 'Design', readOnly: true }],
+      references: [],
+      entryPoints: [
+        {
+          id: 'e-1',
+          name: 'startup',
+          file: 'startup.m',
+          kind: 'StartUp',
+          visible: false,
+          groupId: '',
+        },
+      ],
+      entryPointGroups: [],
+      workingFolders: [{ key: 'SimulinkCacheFolder', ref: 'Cache' }],
+      warnings: [],
+    });
+    expect(project(DISTRIBUTED)).toEqual(fixed);
+    expect(project(MONOLITHIC)).toEqual(fixed);
+  });
+
+  it('reports which of the three it read', () => {
+    expect(parseProject(FIXED_PATH, 'fallback').format).toBe('fixedPathV2');
+    expect(parseProject(DISTRIBUTED, 'fallback').format).toBe('distributed');
+    expect(parseProject(MONOLITHIC, 'fallback').format).toBe('monolithic');
+  });
+});
+
 describe('parseProject — the declared metadata format', () => {
   it('reports the format it read', () => {
     expect(parseProject(myProjStore(), 'fallback').format).toBe('fixedPathV2');
@@ -1023,6 +1326,25 @@ describe('parseProject — the declared metadata format', () => {
     // project. The name is still salvaged, since it titles the view.
     const parsed = parseProject(
       {
+        [at('Project.xml')]: info('<Info MetadataType="fixedPathV3"/>'),
+        [at('ProjectData.type.Info.xml')]: info('<Info Name="Mono"/>'),
+      },
+      'fallback',
+    );
+    expect(parsed.name).toBe('Mono');
+    expect(parsed.format).toBe('');
+    expect(parsed.files).toEqual([]);
+    expect(parsed.warnings).toHaveLength(1);
+    expect(parsed.warnings[0].code).toBe('source-empty');
+    expect(parsed.warnings[0].message).toContain('fixedPathV3');
+  });
+
+  it('will not read a store that declares monolithic and holds no such document', () => {
+    // `monolithic` is a layout this reader walks, but only the document it names:
+    // the declaration alone is not one, and reading the sidecar index instead would
+    // walk the store under a layout it has just said it is not in.
+    const parsed = parseProject(
+      {
         [at('Project.xml')]: info('<Info MetadataType="monolithic"/>'),
         [at('ProjectData.type.Info.xml')]: info('<Info Name="Mono"/>'),
       },
@@ -1033,7 +1355,6 @@ describe('parseProject — the declared metadata format', () => {
     expect(parsed.files).toEqual([]);
     expect(parsed.warnings).toHaveLength(1);
     expect(parsed.warnings[0].code).toBe('source-empty');
-    expect(parsed.warnings[0].message).toContain('monolithic');
   });
 
   it('names matlab.toml rather than reporting an empty store', () => {

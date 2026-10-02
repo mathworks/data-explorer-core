@@ -1,4 +1,17 @@
 /**
+ * The two keys that are not an element name, exported because one walker has to tell
+ * them apart from one.
+ *
+ * Every other reader here knows the key it wants (`@_Name`, `#text`) and spells it,
+ * which needs no constant. `ProjectParser`'s monolithic layout is the exception: an
+ * element's CHILDREN are named by their entity type, so it enumerates the keys it
+ * does not know and has to recognize these two by shape. That is the engine's shape
+ * and so it belongs here, next to the options that produce it, rather than as a
+ * second `'@_'` in a file that would not otherwise care.
+ */
+export declare const ATTRIBUTE_PREFIX = "@_";
+export declare const TEXT_KEY = "#text";
+/**
  * A `.sldd`'s XML part. `Object`, `P` and `Element` are always arrays; whitespace inside a
  * value is preserved exactly as written, and whitespace between two tags is not stored at
  * all (`dropLayoutWhitespace`).

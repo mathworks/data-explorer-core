@@ -81,9 +81,9 @@ export interface ParsedProject {
     /**
      * The store's declared `MetadataType` — how the project's metadata is laid out on
      * disk. '' when the store declares none and the layout could not be inferred.
-     * Two are read: `fixedPathV2` and `distributed`. Anything else is reported through
-     * `warnings` rather than read, because guessing at a layout produces a project
-     * that looks complete and is not.
+     * Three are read: `fixedPathV2`, `distributed` and `monolithic`. Anything else is
+     * reported through `warnings` rather than read, because guessing at a layout
+     * produces a project that looks complete and is not.
      */
     format: string;
     files: ProjectFile[];

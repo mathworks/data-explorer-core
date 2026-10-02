@@ -86,8 +86,19 @@
 //   whitespace is untouched either way — trimming is not normalization.
 import { XMLParser } from 'fast-xml-parser';
 import { readDictionaryXmlFast } from './DictionaryXmlFast.js';
-const ATTRIBUTE_PREFIX = '@_';
-const TEXT_KEY = '#text';
+/**
+ * The two keys that are not an element name, exported because one walker has to tell
+ * them apart from one.
+ *
+ * Every other reader here knows the key it wants (`@_Name`, `#text`) and spells it,
+ * which needs no constant. `ProjectParser`'s monolithic layout is the exception: an
+ * element's CHILDREN are named by their entity type, so it enumerates the keys it
+ * does not know and has to recognize these two by shape. That is the engine's shape
+ * and so it belongs here, next to the options that produce it, rather than as a
+ * second `'@_'` in a file that would not otherwise care.
+ */
+export const ATTRIBUTE_PREFIX = '@_';
+export const TEXT_KEY = '#text';
 /** The shape every reader produces: attributes under `@_`, text under `#text`. */
 const SHAPE = {
     ignoreAttributes: false,
