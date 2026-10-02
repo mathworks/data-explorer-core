@@ -436,6 +436,22 @@ export function parseProject(files: Record<string, string>, projectName: string)
 
     result.files.sort((a, b) => a.path.localeCompare(b.path));
     result.pathFolders.sort((a, b) => a.localeCompare(b));
+    // The same reason as those two, reached by the parity corpus rather than by a
+    // customer: a store's order is its DIRECTORY order, so one project converted
+    // between metadata layouts handed the page its label catalog and its working
+    // folders in two different orders. Neither carries an order worth keeping — the
+    // catalog is a set, which the page re-sorts by use anyway, and the working
+    // folders are keyed by purpose — so they are made deterministic here, where the
+    // layouts meet, instead of in each consumer.
+    //
+    // NOT the entry points, which are in run order (`orderEntryPoints`), and not
+    // the references, whose store order has not been measured against the order
+    // MATLAB reports; sorting either would be inventing an order rather than
+    // settling one.
+    result.labels.sort(
+      (a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name),
+    );
+    result.workingFolders.sort((a, b) => a.key.localeCompare(b.key));
 
     return result;
   } catch (err) {
@@ -985,11 +1001,14 @@ function readCategories(layout: Layout, collection: Entity): ProjectLabel[] {
       const id = labelEnt.location || '';
       const name = labelEnt.def?.['@_Name'] || id || '';
       if (name) {
-        // The attribute spells itself 'READ_ONLY' on a label and '1' on a category,
-        // so this tests for PRESENCE rather than for a value — both mean MATLAB owns
-        // it, and a project's own label carries no such marking.
+        // The attribute has its own vocabulary per element — 'READ_ONLY'/'WRITABLE'
+        // on a label, '1'/'0' on a category — so test the AFFIRMATIVE values, not
+        // presence. Presence was the old rule, and a real project's `WRITABLE`
+        // disproved it: the label a user added read back as one of MATLAB's own,
+        // which the project page draws as a built-in. A missing attribute is
+        // writable, which is how a hand-made label in an older store spells it.
         const ro = labelEnt.def?.['@_ReadOnly'];
-        out.push({ id, category: categoryName, name, readOnly: ro !== undefined && ro !== '0' });
+        out.push({ id, category: categoryName, name, readOnly: ro === 'READ_ONLY' || ro === '1' });
       }
     }
   }
@@ -1094,13 +1113,22 @@ function readWorkingFolders(layout: Layout, collection: Entity): ProjectWorkingF
  *
  * The store encodes the order as a linked list, and only as one: each entry names
  * its PREDECESSOR in a nested `<Extension Name="StartUpPrev"/"ShutdownPrev"
- * Value="<uuid>"/>`, with `HEAD` marking the first. MATLAB runs the files top-down,
- * so this order is meaningful and no other field recovers it — sorting these by
- * name would silently reorder a shutdown sequence.
+ * Value="<uuid>"/>`. MATLAB runs the files top-down, so this order is meaningful
+ * and no other field recovers it — sorting these by name would silently reorder a
+ * shutdown sequence.
  *
- * Everything unchained keeps its store order and follows: a project with one
- * startup file writes no Extension at all, and a chain that is broken (a missing
- * predecessor, a cycle) must still yield every entry exactly once.
+ * THE FIRST ENTRY IS SPELLED TWO WAYS, and that is the whole difficulty. A
+ * long-lived project says `Value="HEAD"` explicitly; a project that just added two
+ * startup files and never reordered them writes no Extension on the first one at
+ * all, and only the SECOND entry carries a link. So "first" is not a value to look
+ * for, it is a position: an entry no other entry of its kind points at. Reading
+ * `HEAD` as the only head left every project of the second shape in document
+ * order, which is the order the store happens to serialize UUIDs in — reversed, in
+ * the parity fixture, against the order MATLAB reports running them.
+ *
+ * Everything the chains do not reach keeps its store order and follows, so a
+ * broken chain (a missing predecessor, a cycle) still yields every entry exactly
+ * once.
  */
 function orderEntryPoints(entries: ChainedEntryPoint[]): ProjectEntryPoint[] {
   const out: ChainedEntryPoint[] = [];
@@ -1122,27 +1150,34 @@ function orderEntryPoints(entries: ChainedEntryPoint[]): ProjectEntryPoint[] {
       }
     }
 
-    // Follow the chain from HEAD. `taken` is what makes this terminate on a cycle:
-    // a store whose links form a loop would otherwise spin here forever.
-    let cursor = 'HEAD';
-    for (;;) {
-      const step = (byPrev.get(cursor) ?? []).find((e) => !taken.has(e));
-      if (!step) {
-        break;
+    const take = (e: ChainedEntryPoint): boolean => {
+      if (taken.has(e)) {
+        return false;
       }
-      taken.add(step);
-      out.push(step);
-      cursor = step.id;
+      taken.add(e);
+      out.push(e);
+      return true;
+    };
+
+    // Every head, in store order, each followed to the end of its chain. A head is
+    // an entry whose `prev` names no entry of this kind: `HEAD`, the empty string,
+    // and a dangling UUID all say the same thing about where it sits. `taken` is
+    // what makes this terminate on a cycle, which nothing in the store prevents.
+    const ids = new Set(hook.map((e) => e.id));
+    for (const head of hook) {
+      if (ids.has(head.prev)) {
+        continue;
+      }
+      let cursor: ChainedEntryPoint | undefined = head;
+      while (cursor && take(cursor)) {
+        cursor = (byPrev.get(cursor.id) ?? []).find((e) => !taken.has(e));
+      }
     }
 
-    // Whatever the chain did not reach, in store order. A project with a single
-    // startup file writes no Extension at all and lands here — which is why the
-    // fallback is not an error path but the common one.
+    // Whatever is left is in a cycle: no head reaches it. Store order, so it is
+    // reported rather than dropped.
     for (const e of hook) {
-      if (!taken.has(e)) {
-        taken.add(e);
-        out.push(e);
-      }
+      take(e);
     }
   }
 

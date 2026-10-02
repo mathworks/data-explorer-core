@@ -11,17 +11,17 @@
 // printing a per-variable diff. A non-zero exit is NOT necessarily a bug in our code — it
 // may be a MATLAB behaviour change, which is exactly the thing worth knowing about.
 //
-// It compares truth.json and mdl_truth.json, never container bytes. Only the JSON is
-// byte-reproducible; cases.mat, cases.slx, both cases.sldd and every file in mdl/ differ
-// on EVERY run, because MATLAB stamps each entry — and each model save — with a fresh
-// uuid and timestamp. Comparing containers would report drift every single time and train
-// the reader to ignore it.
+// It compares the truth JSON, never container bytes. Only the JSON is byte-reproducible;
+// cases.mat, cases.slx, both cases.sldd, every file in mdl/ and every store document under
+// project/ differ on EVERY run, because MATLAB stamps each entry — and each model save, and
+// each project entity — with a fresh uuid and timestamp. Comparing containers would report
+// drift every single time and train the reader to ignore it.
 //
-// All four corpora are regenerated, because each can go stale independently: gen_truth.m
+// All five corpora are regenerated, because each can go stale independently: gen_truth.m
 // for the value corpus, gen_mdl.m for the `.mdl` container corpus, gen_mask.m for the mask
-// fixture, and gen_block_params.m for the option-list table. That is four MATLAB launches,
-// three of which load Simulink — and the last one copies every block in two libraries — so
-// expect this to take many minutes.
+// fixture, gen_block_params.m for the option-list table, and gen_project.m for the project
+// corpus. That is five MATLAB launches, three of which load Simulink — and one of those
+// copies every block in two libraries — so expect this to take many minutes.
 //
 // The mask corpus is the one most worth this check. Its expectations are entirely
 // `Simulink.findVars`' behaviour — which mask parameter types hold an expression, which
@@ -50,6 +50,7 @@ const COMMITTED_MDL = join(ARTIFACTS, 'mdl', 'mdl_truth.json');
 const COMMITTED_MASK = join(HERE, '..', '..', 'fixtures', 'mask_truth.json');
 // The one generated file that is not a fixture: the parser imports it at parse time.
 const COMMITTED_ENUM = join(HERE, '..', '..', '..', 'src', 'datamodel', 'parser', 'enumBlockParams.ts');
+const COMMITTED_PROJECT = join(ARTIFACTS, 'project', 'project_truth.json');
 const LAUNCH = process.env.DEX_MATLAB_CMD || '';
 
 if (!LAUNCH) {
@@ -96,6 +97,10 @@ regenerate('gen_truth.m');
 regenerate('gen_mdl.m');
 regenerateFn(`gen_mask('${out}')`);
 regenerate('gen_block_params.m');
+// gen_project.m is a function too, and writes a whole directory rather than one file, so
+// it gets the subdirectory the committed copy lives in — which is also what makes the two
+// trees comparable by name below.
+regenerateFn(`gen_project('${join(out, 'project')}')`);
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const fresh = readJson(join(out, 'truth.json'));
@@ -245,6 +250,36 @@ if (!existsSync(COMMITTED_ENUM)) {
       console.log('\nDRIFT enumBlockParams.' + bt);
       console.log('  committed:   ' + (oldEnum.get(bt) ?? '<absent>'));
       console.log('  regenerated: ' + (freshEnum.get(bt) ?? '<absent>'));
+    }
+  }
+}
+
+// The project corpus. Compared per FORMAT and per section: the claim its suite makes is
+// that all four definition-file shapes describe the same project, so a release that
+// changed one conversion would otherwise print a wall of diffs with no indication of
+// which layout moved. `project_truth.json` holds no uuid and no timestamp — two runs of
+// one release came out byte-identical — so every diff here is a real change of answer.
+if (!existsSync(COMMITTED_PROJECT)) {
+  console.log('\n(no committed project_truth.json; skipping the project corpus)');
+} else {
+  const freshProj = readJson(join(out, 'project', 'project_truth.json'));
+  const oldProj = readJson(COMMITTED_PROJECT);
+  const formats = new Set([
+    ...Object.keys(oldProj.formats ?? {}),
+    ...Object.keys(freshProj.formats ?? {}),
+  ]);
+  for (const fmt of formats) {
+    const a = oldProj.formats?.[fmt] ?? {};
+    const b = freshProj.formats?.[fmt] ?? {};
+    for (const section of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      const sa = JSON.stringify(a[section] ?? null);
+      const sb = JSON.stringify(b[section] ?? null);
+      if (sa !== sb) {
+        drift++;
+        console.log('\nDRIFT project.' + fmt + '.' + section);
+        console.log('  committed:   ' + sa);
+        console.log('  regenerated: ' + sb);
+      }
     }
   }
 }

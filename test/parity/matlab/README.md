@@ -14,9 +14,11 @@ a stale corpus is identifiable without rerunning anything.
 Everything under `../artifacts/` is **generated**. Do not hand-edit it, and never
 write an expected value by hand when MATLAB can be asked for it.
 
-There is a second corpus alongside this one, with its own generator and its own
-question: [The `.mdl` corpus](#the-mdl-corpus), which is about containers rather
-than values.
+There are three more corpora alongside this one, each with its own generator and
+its own question. [The `.mdl` corpus](#the-mdl-corpus) is about containers rather
+than values; [the `.slx` layout corpus](#the-slx-layout-corpus) about part layouts
+rather than containers; [the project corpus](#the-project-corpus) about a file that
+holds no values at all.
 
 MATLAB is a fixture generator, not a test dependency. It cannot run in GitHub CI,
 so a fully MATLAB-gated suite would never actually run for this repo: MATLAB
@@ -59,10 +61,11 @@ and writes to `../artifacts/mdl/` and nowhere else. Nothing writes to
 | `gen_mdl.m` | the entry point for the SECOND, separate corpus: the `.mdl` flavours and their `.slx` twins — see [The `.mdl` corpus](#the-mdl-corpus) |
 | `gen_mask.m` | the masked-subsystem fixture — see [The mask fixture](#the-mask-fixture). Writes outside `../artifacts/`: its truth pair goes to `test/fixtures/` |
 | `gen_block_params.m` | the option-list parameter table — see [The block-parameter gate](#the-block-parameter-gate). The only generator that writes into **`src/`**, because the parser imports its output at parse time |
+| `gen_project.m` | one project in all four definition-file formats — see [The project corpus](#the-project-corpus). The only generator whose output is a tree of openable projects rather than files |
 | `probe_*.m`, `probe_writeback*.mjs` | one-question probes — see the table below. None of them writes to `artifacts/` |
 | `wbcompare.m` | the comparison both write-back gates share: `fullsig`, which walks a value to every leaf spelling class, size, complexity and exact value |
 | `DESIGN.md` | the display convention, the coverage matrix, and the numbered defects this suite exists to pin |
-| `drift.mjs` | regenerate ALL FOUR into a temp directory and diff `truth.json`, `mdl_truth.json`, `mask_truth.json` and `enumBlockParams.ts` against what is committed — the check for MATLAB-release drift |
+| `drift.mjs` | regenerate ALL FIVE into a temp directory and diff `truth.json`, `mdl_truth.json`, `mask_truth.json`, `enumBlockParams.ts` and `project_truth.json` against what is committed — the check for MATLAB-release drift |
 | `STRING_MCOS.md` | how MATLAB stores a `string` in a `.mat`: the metadata segment the parser skipped, the packed `uint64` payload, and what could not be determined |
 | `../artifacts/truth.json` | the expectations, for every format at once |
 | `../artifacts/meta.json` | `version` and `release` of the MATLAB that wrote the corpus |
@@ -71,6 +74,7 @@ and writes to `../artifacts/mdl/` and nowhere else. Nothing writes to
 | `../artifacts/text/cases.sldd` | 73 entries in Design Data, `FileFormat = 'uncompressed-text'` |
 | `../artifacts/binary/cases.sldd` | the same 73, `FileFormat = 'compressed-binary'` |
 | `../artifacts/mdl/` | the `.mdl` corpus — six model files and `mdl_truth.json`, all written by `gen_mdl.m` |
+| `../artifacts/project/` | the project corpus — four whole project trees and `project_truth.json`, all written by `gen_project.m` |
 
 **`text/params.sldd` and `binary/params.sldd` are not part of this corpus.** They
 are the older, hand-made fidelity fixtures used by `test/parity/fidelity/*.test.ts`,
@@ -79,8 +83,10 @@ suites share the `artifacts/` tree only so that
 `roundTripHarness.loadModel(format, fixture, uri)`, which resolves
 `../artifacts/{text|binary}/<fixture>`, works on both unchanged.
 
-`.prj` has no case file: a project carries no data objects, so parity for it is
-structural only.
+`.prj` has no case file in *this* corpus: a project carries no data objects, so
+there is nothing for `truth.json` to say about one. Parity for a project is
+structural, and it has a corpus of its own — see
+[The project corpus](#the-project-corpus).
 
 ### The probes
 
@@ -665,6 +671,148 @@ workspace variables with their exact values, both config sets with the right one
 active, the model reference, the linked dictionary, and the external-`.mat` pointer
 — reads identically out of all five layouts.
 
+## The project corpus
+
+A fourth corpus, written by `gen_project.m` into `../artifacts/project/`. It asks the
+question neither value corpus can: a `.prj` holds no data objects, so parity for a
+project is **structural** — does the same project read back the same way out of every
+shape its metadata can be stored in?
+
+There are **four** shapes, chosen by
+`matlab.project.convertDefinitionFiles(root, matlab.project.DefinitionFiles.<Format>)`.
+Three are XML trees this package reads; the fourth is a `matlab.toml` it does not.
+Measured by converting one project four times and harvesting the whole tree each time:
+
+| format | `MetadataType` | what is on disk under `resources/project/` | `.prj` | XML docs |
+|---|---|---|---|---|
+| `SingleFile` | `monolithic` | **one** `Project.xml`, every collection inside it, rooted at `<project>` rather than `<Info>` | yes | 1 |
+| `FixedPathMultiFile` | `fixedPathV2` | the manifest, `rootp.xml`, and 11 uuid-named directories holding **two** sidecars per entity — `…d.xml` the definition, `…p.xml` the pointer | yes | 66 |
+| `MultiFile` | `distributed` | the manifest, `ProjectData.type.Info.xml`, and `Root.type.<Collection>/` directories holding one human-named doc per entity | yes | 30 |
+| `Toml` | — | **nothing: there is no `resources/`.** A single 423-byte `matlab.toml` at the project root is the entire definition | **no** | 0 |
+
+**The missing `.prj` in the Toml row is MATLAB's doing and is expected.** The conversion
+deletes `resources/` *and* the `<name>.prj` marker; `loadProject` still opens the folder.
+So a Toml project is a missing **file type** for a host registered on `.prj`, not a parse
+gap — which is why the reader's `matlab.toml` branch is reached by no file in this corpus,
+and is asserted as such rather than left looking live.
+
+230 files and 38 KB all told, which is the point of generating a small project rather
+than reusing a real one: the 108 MB project that turned the first defect up cannot be
+committed, and every `<Format>/parityProject/parityProject.prj` here is a real project a
+host can be pointed at.
+
+### What is in the project
+
+One of everything the seven collection readers look for, because a collection with no
+entry is a reader with no test: seven members — four files at the root, the `utils/`
+folder, and the two files in it, one of them a non-code `notes.txt` — one built-in label
+assignment and one custom category carrying data, a path folder, a relative reference to
+a second project (`parityLib`, beside the root, so the reference points outside it),
+**two** startup files and a shutdown file, a shortcut, and all three working folders.
+
+Two startup files on purpose. Run order is a linked list in the store and MATLAB reports
+it as an ordered array, so one file of each kind would leave the ordering unasserted —
+and the ordering is exactly where a defect was.
+
+### Ownership is recorded by refusal
+
+The label catalog's interesting bit is who owns each entry: MATLAB's seven built-in
+`Classification` labels, in a read-only category, versus the one `Review/Checked` this
+project added. **There is no property that says.** `properties(matlab.project.Category)` is `{SingleValued, DataType, Name,
+LabelDefinitions}`, and a `LabelDefinition` is `{Name, FilePatterns, CategoryName}`.
+
+What MATLAB does say is a refusal: removing one of its own throws
+`MATLAB:project:management:CanNotModifyReadOnlyLabel`, or `...CanNotModifyReadOnlyCategory`
+for the category. So `recordCategories` asks — on a throwaway copy, after the fixture
+tree has been read, because the attempt that *succeeds* removes the definition it asked
+about — and writes **the error identifier** down beside each answer. A refusal for some
+other reason must not read as "MATLAB owns this", and recording the id is what makes that
+visible in the fixture instead of quietly true.
+
+### What the real bytes disproved
+
+This generator exists because the project suite's stores were hand-typed from reading a
+real project, which is the one thing this README says never to do. Over a thousand lines
+of them agreed with the parser on three things that are false, and the first real store
+disagreed on all three:
+
+- **`ReadOnly` has a vocabulary per element** — `READ_ONLY`/`WRITABLE` on a label
+  `<Info>`, `1`/`0` on a category's. The old rule tested the attribute's *presence*, so a
+  real project's explicit `WRITABLE` read as read-only and a user's own label was drawn
+  on the project page as one of MATLAB's built-ins.
+- **"first in the chain" is spelled two ways.** Run order is nested
+  `<Extension Name="StartUpPrev" Value="<uuid>|HEAD"/>`, and a freshly built project puts
+  **no Extension at all** on its first entry where an older one writes `Value="HEAD"`. The
+  walk started only at the literal `HEAD`, so the common shape came out in reverse.
+- **Two collections came back in store order**, which differs per layout — so the label
+  catalog and the working-folder list were layout-dependent, and the project page rendered
+  the latter in whatever order the file happened to hold.
+
+All three are fixed, and pinned both here and as unit tests in
+`test/projectParser.test.ts`.
+
+The hand-typed stores in that file **stay**, and are not a duplicate of this corpus: what
+they cover is damage, which a real conversion cannot be made to produce — a document that
+is not XML, a File entity that is its own child, a chain that is a cycle, a store
+declaring a layout nobody can walk. The corpus covers what MATLAB really writes; the unit
+tests cover what a reader must survive. Neither substitutes for the other, and only the
+first kind may state a convention.
+
+### What the Toml conversion loses, in MATLAB's own words
+
+Recorded per format as `convertWarning`/`convertWarningId`, so the lossiness is MATLAB's
+statement rather than our inference from a diff. Three of the four convert silently; the
+fourth warns `MATLAB:Project:Issues:LabelDataLoss`:
+
+> Unable to preserve label data during the conversion.
+
+Which undersells it. Against the `SingleFile` record, the Toml project has: no
+`Classification` category at all — all seven built-in labels and every assignment of
+`Design` gone; `Review` surviving, but with `DataType` `char` demoted to `none` and
+`Checked`'s data `'by parity'` emptied; and `cache/` and `codegen/` promoted to project
+*members*, 7 files becoming 9. Everything else — the startup order, the shutdown file,
+the shortcut, the reference and its `Relative` type, the path folder, all three working
+folders — survives intact.
+
+### Regenerate
+
+```bash
+mw -using Bmain matlab -nodesktop -batch \
+  "addpath('$PWD/test/parity/matlab'); gen_project('$PWD/test/parity/artifacts/project')"
+```
+
+Prints `GEN_PROJECT OK`. It is a **function**, like `gen_mask.m`, so it takes the output
+directory as an argument rather than off a pre-set `outdir`; point it somewhere harmless
+to diff against what is committed, which is what `drift.mjs` does.
+
+**`project_truth.json` is byte-reproducible** — two runs of one release came out
+identical, since it records no uuid and no timestamp — but the stores are not: every
+entity gets a fresh uuid on every conversion, which in `fixedPathV2` is the *file name*
+too. Compare the truth, not the trees.
+
+One thing in the generator's log that looks like a failure and is not: the ownership
+probe copies only `parityProject`, so its `../parityLib` reference no longer resolves and
+MATLAB prints `No project found in the specified location`. The categories are read from
+the loaded project regardless, and the committed fixtures and truth are unaffected.
+
+### What `project.parity.test.ts` asserts
+
+The same three kinds of claim as the `.slx` corpus:
+
+- **the layout is real** — per format, the store's document count, whether a `.prj`
+  exists, whether a `matlab.toml` exists, and the declared `MetadataType` in the place
+  that layout declares it. Without this the cross-layout comparison could pass vacuously
+  on a corpus accidentally regenerated in one format.
+- **against MATLAB truth** — the name (read from the store, with a deliberately wrong
+  `projectName` passed in so the assertion cannot pass on the input), `definitionFilesType`
+  against our `format`, the members and which are folders, each file's labels, the catalog
+  with its ownership, the path folders, the run order of both hooks, the shortcut, the
+  reference and the basename we derive its name from, and the three working folders.
+- **across layouts** — the three XML layouts must parse to **deeply equal** results, and
+  that assertion is licensed by MATLAB itself: it is made only because those three
+  conversions reported no warning. The Toml one did, so it is compared against its own
+  record instead.
+
 ## Tiers, and which need `DEX_MATLAB_CMD`
 
 **Tier 1 — committed truth, no MATLAB, runs in CI on every PR.** Reads
@@ -679,6 +827,7 @@ format sniffing is exercised too) and `loadTruth.ts`:
 | `lossless.test.ts` | the stored value is MATLAB's exact value, and serialize -> reparse is a fixed point |
 | `mdl.parity.test.ts` | the `.mdl` corpus: each flavour against MATLAB's truth, and each against its `.slx` twin |
 | `slxLayouts.parity.test.ts` | the `.slx` layout corpus: each era's part layout is real, each file against MATLAB's truth, and each against the current release's rows |
+| `project.parity.test.ts` | the project corpus: each definition-file layout is real, each against MATLAB's truth, and the three XML layouts deeply equal to one another |
 
 `lossless` is deliberately separate from `display`: display is lossy by design (a
 summary, a threshold), storage must not be, and only a storage-level assertion

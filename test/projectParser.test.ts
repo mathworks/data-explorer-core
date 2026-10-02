@@ -554,14 +554,21 @@ describe('parseProject — the label catalog', () => {
     // ReadOnly in the store; a label the project ADDED is not. That marking is the
     // only thing separating the two, and it is what lets a page distinguish "this
     // project defines its own vocabulary" from "this project uses the defaults".
-    // Note the attribute spells itself 'READ_ONLY' on a label and '1' on a category,
-    // so presence is what is read, not any one value.
+    //
+    // THE ATTRIBUTE HAS A VOCABULARY PER ELEMENT: 'READ_ONLY'/'WRITABLE' on a
+    // label, '1'/'0' on a category. `WRITABLE` is the case that matters and the one
+    // no hand-typed fixture here had ever contained — the rule used to be presence,
+    // which read a project's own label as one of MATLAB's and drew it on the page as
+    // a built-in. Measured on a MATLAB-written project: see
+    // test/parity/project.parity.test.ts, where the same claim is held to MATLAB's
+    // refusal to remove its own labels.
     const parsed = parseProject(
       store({
         root: { cc: ['<Info location="Root" type="Categories"/>'] },
         cc: { cat: ['<Info location="c" type="Category"/>', '<Info Name="Classification" ReadOnly="1"/>'] },
         cat: {
           builtin: ['<Info location="design" type="Label"/>', '<Info Name="Design" ReadOnly="READ_ONLY"/>'],
+          writable: ['<Info location="checked" type="Label"/>', '<Info Name="Checked" ReadOnly="WRITABLE"/>'],
           mine: ['<Info location="mine" type="Label"/>', '<Info Name="ForUser"/>'],
         },
       }),
@@ -569,6 +576,8 @@ describe('parseProject — the label catalog', () => {
     );
     const byId = new Map(parsed.labels.map((l) => [l.id, l]));
     expect(byId.get('design')?.readOnly).toBe(true);
+    expect(byId.get('checked')?.readOnly).toBe(false);
+    // An older store writes no attribute at all on a label the project added.
     expect(byId.get('mine')?.readOnly).toBe(false);
   });
 
@@ -603,9 +612,11 @@ describe('parseProject — the label catalog', () => {
       }),
       'fallback',
     );
+    // By category then name, not in store order: see the sort in parseProject —
+    // one project in two metadata layouts handed its catalog over in two orders.
     expect(parsed.labels).toEqual([
-      { id: 'lab1', category: 'Cat', name: 'Label One', readOnly: false },
       { id: 'lab2', category: 'Cat', name: 'lab2', readOnly: false },
+      { id: 'lab1', category: 'Cat', name: 'Label One', readOnly: false },
     ]);
   });
 });
@@ -751,10 +762,12 @@ describe('parseProject — working folders', () => {
     // designate a purpose this version has no label for, and passing the raw key
     // through lets a host show it rather than silently drop the row.
     const parsed = parseProject(workingFolderStore(), 'fallback');
+    // By key, not in store order — these are keyed by purpose and the store's own
+    // order is its directory order, which differs between metadata layouts.
     expect(parsed.workingFolders).toEqual([
-      { key: 'SimulinkCacheFolder', ref: 'Cache' },
       { key: 'DependencyCacheFile', ref: 'Dep/cache.graphml' },
       { key: 'NewInSomeFutureRelease', ref: 'Somewhere' },
+      { key: 'SimulinkCacheFolder', ref: 'Cache' },
     ]);
   });
 
@@ -811,6 +824,34 @@ describe('parseProject — entry points', () => {
     // silently misreports the sequence a project shuts down in.
     const parsed = parseProject(chainStore(), 'fallback');
     expect(parsed.entryPoints.map((e) => e.name)).toEqual(['first', 'second']);
+  });
+
+  it('puts a hook in run order when the first file is unchained rather than HEAD', () => {
+    // The OTHER spelling of first, and the common one: a project that added two
+    // startup files and never reordered them writes no Extension on the first at
+    // all — only the second carries a link. Reading `HEAD` as the only head found
+    // no head here and fell back to document order, which is the order the store
+    // serializes UUIDs in: reversed, in the project MATLAB wrote for
+    // test/parity/project.parity.test.ts, against the order MATLAB runs them.
+    const parsed = parseProject(
+      store({
+        root: { ep: ['<Info location="Root" type="EntryPoints"/>'] },
+        ep: {
+          // Written second-first, as the monolithic document does.
+          two: [
+            '<Info location="id-two" type="EntryPoint"/>',
+            '<Info File="startup_two.m" Name="startup_two" Type="StartUp" Visible="0">' +
+              '<Extension Name="StartUpPrev" Value="id-one"/></Info>',
+          ],
+          one: [
+            '<Info location="id-one" type="EntryPoint"/>',
+            '<Info File="startup_one.m" Name="startup_one" Type="StartUp" Visible="0"/>',
+          ],
+        },
+      }),
+      'fallback',
+    );
+    expect(parsed.entryPoints.map((e) => e.name)).toEqual(['startup_one', 'startup_two']);
   });
 
   it('yields every entry exactly once when the chain is a cycle', () => {
