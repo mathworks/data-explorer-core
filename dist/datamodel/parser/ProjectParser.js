@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import { readProjectXml } from './XmlReader.js';
+import { readProjectXml, ATTRIBUTE_PREFIX, TEXT_KEY } from './XmlReader.js';
 import { reasonOf } from './ParseWarning.js';
 const PROJECT_PREFIX = 'resources/project/';
 /** The store manifest, which declares the layout the rest of the store is in. */
@@ -7,6 +7,14 @@ const MANIFEST = 'Project.xml';
 /** The layouts this reader walks. See `ParsedProject.format`. */
 const FIXED_PATH_V2 = 'fixedPathV2';
 const DISTRIBUTED = 'distributed';
+const MONOLITHIC = 'monolithic';
+/**
+ * The root element of a `monolithic` store's single document.
+ *
+ * Lowercase, and the only root element in any layout that is not `<Info>` — which is
+ * what makes it the structural signal for "this one document is the whole store".
+ */
+const MONOLITHIC_ROOT = 'project';
 /**
  * Collection types whose `type="Reference"` children are NOT project references.
  *
@@ -63,6 +71,10 @@ export function parseProject(files, projectName) {
     try {
         // Index every parseable Info doc by its relpath (project-relative).
         const index = new Map();
+        // The one document of a `monolithic` store, when this store is one. A store holds
+        // either this or the index and never both: the monolithic document IS the store,
+        // so there are no sidecars left to index.
+        let monolith = null;
         for (const [relPath, content] of Object.entries(files)) {
             if (!relPath.startsWith(PROJECT_PREFIX)) {
                 continue;
@@ -70,13 +82,27 @@ export function parseProject(files, projectName) {
             if (!relPath.endsWith('.xml')) {
                 continue;
             }
-            const info = parseInfo(content, relPath, warnings);
+            const doc = readStoreDoc(content, relPath, warnings);
+            if (!doc) {
+                continue;
+            }
+            const info = infoRootOf(doc);
             if (info) {
                 // Store keyed relative to resources/project/ for simpler dir math.
                 index.set(relPath.slice(PROJECT_PREFIX.length), info);
+                continue;
+            }
+            // A `<project>` root rather than an `<Info>` one: a whole store in one nested
+            // document. First one wins — a store has exactly one, and preferring the first
+            // keeps the choice from depending on `files`' iteration order.
+            if (!monolith) {
+                const root = doc[MONOLITHIC_ROOT];
+                if (root !== null && typeof root === 'object') {
+                    monolith = root;
+                }
             }
         }
-        if (index.size === 0) {
+        if (!monolith && index.size === 0) {
             // Every collection below reads out of this index, so an empty one means the
             // whole result is empty — and a `.prj` always has a store, so reaching here
             // is either the wrong kind of file or a store that did not survive its trip.
@@ -104,15 +130,23 @@ export function parseProject(files, projectName) {
                 });
             return result;
         }
-        // The manifest declares which layout the rest of the store is in. A store that
-        // declares one we cannot walk is reported and NOT guessed at: the collection
-        // readers below would find nothing in it and return a project that looks
-        // complete and empty, which is the one outcome a user cannot tell from a fact.
-        const declared = index.get(MANIFEST)?.['@_MetadataType'] ?? '';
-        const layoutName = declared || inferLayout(index);
-        if (layoutName !== FIXED_PATH_V2 && layoutName !== DISTRIBUTED) {
+        // Which layout the store is in. The KIND of store is settled structurally, by
+        // the root element, before the declared `MetadataType` is consulted at all: a
+        // monolithic store's manifest IS the store, so there is no separate document to
+        // ask, and a `<project>` root is the only root that is not `<Info>`.
+        //
+        // A store that declares a layout we cannot walk is reported and NOT guessed at:
+        // the collection readers below would find nothing in it and return a project
+        // that looks complete and empty, which is the one outcome a user cannot tell
+        // from a fact about their own project.
+        const declared = (monolith ?? index.get(MANIFEST))?.['@_MetadataType'] ?? '';
+        const layoutName = declared || (monolith ? MONOLITHIC : inferLayout(index));
+        const layout = layoutFor(layoutName, monolith, index);
+        if (!layout) {
             // The name is still worth salvaging — it is what a host titles the view with,
-            // and it reads out of the index without knowing the layout.
+            // and it reads out of the index without knowing the layout. A monolithic store
+            // has no index to salvage from, and needs none: its document is named after
+            // the project, so `projectName` is already the name a user would expect.
             result.name = salvageName(index) ?? projectName;
             warnings.push({
                 code: 'source-empty',
@@ -125,7 +159,6 @@ export function parseProject(files, projectName) {
             return result;
         }
         result.format = layoutName;
-        const layout = layoutName === FIXED_PATH_V2 ? fixedPathV2Layout(index) : distributedLayout(index);
         const rootEntities = layout.roots();
         result.name = resolveNameFrom(rootEntities) ?? projectName;
         // Collections are matched on type AND location. Two collections of one type can
@@ -198,11 +231,34 @@ export function parseProject(files, projectName) {
     }
 }
 /**
+ * The walker for a layout, or null for one this reader does not walk.
+ *
+ * `monolithic` is answered from the document and not from the name: a store that
+ * DECLARES monolithic and holds no `<project>` document has nothing to walk, and
+ * falling back to the sidecar index would read it under a layout it has just said it
+ * is not in. That is the same refusal the other two names get for an unknown value,
+ * reached by a different route.
+ */
+function layoutFor(name, monolith, index) {
+    if (name === MONOLITHIC) {
+        return monolith ? monolithicLayout(monolith) : null;
+    }
+    if (name === FIXED_PATH_V2) {
+        return fixedPathV2Layout(index);
+    }
+    if (name === DISTRIBUTED) {
+        return distributedLayout(index);
+    }
+    return null;
+}
+/**
  * Which layout a store with no manifest is in.
  *
  * Every store this reader has seen carries `Project.xml`, so this is the fallback
  * for one that lost it: `root/` is the entry directory `fixedPathV2` and nothing
  * else uses, and a `.type.` in a top-level name is `distributed`'s own spelling.
+ * `monolithic` is not inferred here — it is settled before this is called, since its
+ * document is the manifest and cannot be missing without the store being gone.
  */
 function inferLayout(index) {
     for (const key of index.keys()) {
@@ -259,16 +315,16 @@ function resolveNameFrom(rootEntities) {
     return null;
 }
 /**
- * One `<Info>` document, or null when there is nothing here to index.
+ * One store document parsed, or null when it is CORRUPT — truncated, wrongly
+ * encoded, half-written — in which case the entities it described are lost and it
+ * warns.
  *
- * Null covers two cases that must NOT be reported alike. A document that fails to
- * parse, or that yields no elements at all, is CORRUPT — truncated, wrongly
- * encoded, half-written — and the entity it described is lost, so it warns. A
- * document that parses into elements but has no `<Info>` root is a sidecar this
- * version does not model; newer releases add them, and warning on one would put a
- * count on every project written by a release newer than this reader.
+ * Kept apart from `infoRootOf` because the two answer different questions and only
+ * this one is a loss. A document that parses and is simply not an `<Info>` sidecar
+ * is either the monolithic store or a sidecar this version does not model, and
+ * neither is damage.
  */
-function parseInfo(content, relPath, warnings) {
+function readStoreDoc(content, relPath, warnings) {
     let doc;
     try {
         doc = readProjectXml(content);
@@ -293,6 +349,17 @@ function parseInfo(content, relPath, warnings) {
         });
         return null;
     }
+    return doc;
+}
+/**
+ * The `<Info>` root of a store document, or null for a document that has none.
+ *
+ * Null is NOT a loss and does not warn: it is every monolithic store (whose root is
+ * `<project>`) and every sidecar this version does not model. Newer releases add the
+ * latter, and warning on one would put a count on every project written by a release
+ * newer than this reader.
+ */
+function infoRootOf(doc) {
     const info = doc.Info;
     if (info === undefined || info === null) {
         return null;
@@ -411,6 +478,92 @@ function distributedLayout(index) {
         return out;
     };
     return { roots: () => readDir(''), children: (e) => readDir(e.dir) };
+}
+/**
+ * `monolithic`: the whole content store is ONE document and the entity tree IS the
+ * element tree. There are no pointer documents and no filename convention, because
+ * there are no filenames — an element's TAG is its type, its `Location` attribute is
+ * its location, and its `<Info>` child is its def. MATLAB writes this layout for
+ * `matlab.project.convertDefinitionFiles(root, "SingleFile")`.
+ *
+ * `dir` keeps its role as an entity's identity (see `Entity.dir`), but there is no
+ * directory to name: it is the element's PATH within the document, `Files[1]/File[0]`,
+ * built as the walk descends. Unique by construction, and the `nodes` map is what
+ * turns one back into the element it names — the two file-tree layouts re-scan their
+ * index for that, which this layout has no index to do.
+ */
+function monolithicLayout(root) {
+    const nodes = new Map([['', root]]);
+    const readChildren = (dir) => {
+        const node = nodes.get(dir);
+        if (!node) {
+            return [];
+        }
+        const def = defOf(node);
+        const out = [];
+        for (const [tag, value] of Object.entries(node)) {
+            // Element children only. The engine's shape puts attributes under a prefix and
+            // text under one reserved key, so these two are every key that is not a child.
+            if (tag.startsWith(ATTRIBUTE_PREFIX) || tag === TEXT_KEY) {
+                continue;
+            }
+            const children = toArray(value);
+            for (let i = 0; i < children.length; i++) {
+                const child = children[i];
+                // An entity's def is not also one of its children. Compared by IDENTITY and
+                // not by tag, because `<Info>` is BOTH things in this layout: the def of
+                // every entity that has one, and the type of the entity holding the
+                // project's name. See `defOf`.
+                if (child === def) {
+                    continue;
+                }
+                const childDir = dir ? `${dir}/${tag}[${i}]` : `${tag}[${i}]`;
+                const element = asElement(child);
+                nodes.set(childDir, element);
+                out.push({
+                    dir: childDir,
+                    location: element['@_Location'] ?? '',
+                    type: tag,
+                    def: defOf(element),
+                });
+            }
+        }
+        return out;
+    };
+    return { roots: () => readChildren(''), children: (e) => readChildren(e.dir) };
+}
+/**
+ * A child node of the monolithic tree as an element.
+ *
+ * An element carrying neither attributes nor children parses as the empty STRING and
+ * not as an object (see XmlReader's contract). It is still an ENTITY, and one that
+ * matters: a bare `<DIR_SIGNIFIER/>` is of that shape, and `DIR_SIGNIFIER` is the
+ * only thing that marks a project member as a folder — so reading it as nothing
+ * would turn a folder into a file. Answering with an empty element instead keeps it
+ * in the walk with no location and no def, which is a state the two file-tree
+ * layouts already produce for an entity whose def is missing.
+ */
+function asElement(node) {
+    return node !== null && typeof node === 'object' ? node : {};
+}
+/**
+ * The def of a monolithic entity: its `<Info>` child, or null when it has none.
+ *
+ * `<Info>` means two things here and only `Location` separates them. Every entity's
+ * def is an `<Info>` child with attributes and no `Location`; the entity holding the
+ * project's NAME is itself an `<Info Location="ProjectData">`, whose def is the
+ * `<Info Name="..."/>` nested one level inside it. Taking the first `<Info>` child
+ * blindly would make that entity the def of `<project>` itself, which both loses the
+ * name and drops the entity `resolveNameFrom` looks for.
+ */
+function defOf(node) {
+    for (const child of toArray(node.Info)) {
+        const info = asElement(child);
+        if (info['@_Location'] === undefined) {
+            return info;
+        }
+    }
+    return null;
 }
 /**
  * Split a `distributed` stem into its location and type.
