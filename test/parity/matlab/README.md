@@ -701,6 +701,13 @@ than reusing a real one: the 108 MB project that turned the first defect up cann
 committed, and every `<Format>/parityProject/parityProject.prj` here is a real project a
 host can be pointed at.
 
+Two facts fell out of the trees rather than the truth. **`FixedPathMultiFile` is what a
+new project gets** — `parityLib` is never converted and is in that layout — so it is the
+shape most `.prj` files in the wild are in, and `convertDefinitionFiles` is the opt-out
+rather than the opt-in. And **the conversion does not recurse into referenced projects**:
+each format's `parityLib` is still `fixedPathV2`, with its own `.prj` and its own store,
+which is why a Toml project can hold a reference to an XML one.
+
 ### What is in the project
 
 One of everything the seven collection readers look for, because a collection with no
