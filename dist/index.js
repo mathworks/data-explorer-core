@@ -56,6 +56,13 @@ export { parseMdl } from './datamodel/parser/MdlParser.js';
 export { parseModel } from './datamodel/parser/ModelParser.js';
 export { parseMat } from './datamodel/parser/MatParser.js';
 export { parseProject } from './datamodel/parser/ProjectParser.js';
+// The reader for the fourth definition format, whose whole definition is one
+// `matlab.toml` and which therefore has no store map to hand `parseProject`. Exported
+// beside it for the consumer that has already read the file — a host that watched it
+// change, or that holds the text in an editor buffer — and would otherwise have to wrap
+// it back up in a one-entry map to get at the same result. `parseProject` still
+// dispatches to this when it finds the file, so a host with a folder keeps one call.
+export { parseTomlProject } from './datamodel/parser/TomlProject.js';
 // The view model behind a project's MAIN PAGE, as opposed to a table of its files: a
 // `.prj` has no table worth showing (see ProjectPage.ts), and everything a page shows
 // around the file list — run order, shortcut groups, label coverage — is derived from
@@ -79,7 +86,19 @@ export { ingest } from './core/ingest.js';
 // takes a project NAME, not a filename, so every caller has to strip the `.prj` first —
 // this package before it builds a project's node tree, a host before it builds its own
 // index over the same parse. The result is a label a user reads on both sides.
-export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, projectNameOf, isModelFile, isSlddFile, isMatFile, isProjectFile, } from './datamodel/fileKinds.js';
+// `projectFallbackName` is what that reduction BECAME in R2026b, and the reason it is here
+// rather than left to each caller. A project is now identified by an extension OR by a
+// name: `matlab.toml` at the root is a whole project definition, and every project in that
+// format spells its definition file identically — so the strip that answers `MyProj` for a
+// marker answers "matlab" for all of them, and a host doing it itself would title every
+// such project the same. The rule that works is the parent FOLDER's name, it needs the
+// PATH rather than the basename, and it is one rule on two sides exactly as the other three
+// are. `isProjectFile` is name-aware for the same reason — `isTomlProjectFile` and
+// `TOML_PROJECT_FILE` are published so a host can tell WHICH of the two it has (they take
+// different bytes: a zip store, or one text document) without spelling the name a fourth
+// time, and without reaching for `.toml` as an extension, which would make every
+// `Cargo.toml` in a workspace a MATLAB project.
+export { extOf, basenameOf, refBasename, modelNameOf, refModelExt, projectNameOf, projectFallbackName, isModelFile, isSlddFile, isMatFile, isProjectFile, isTomlProjectFile, TOML_PROJECT_FILE, } from './datamodel/fileKinds.js';
 // Reading a `.sldd` without a session: which of the two on-disk formats the bytes are,
 // where the content sits inside the result, and what a reference means. Public because a
 // consumer that scans dictionaries WITHOUT opening them — to index a folder, to resolve a

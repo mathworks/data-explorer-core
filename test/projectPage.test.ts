@@ -18,6 +18,7 @@ function parsed(over: Partial<ParsedProject> = {}): ParsedProject {
   return {
     name: 'Proj',
     format: 'fixedPathV2',
+    membersEnumerated: true,
     files: [],
     pathFolders: [],
     labels: [],
@@ -122,10 +123,10 @@ describe('buildProjectPage — the shortcuts gallery', () => {
 
 describe('buildProjectPage — labels and coverage', () => {
   const catalog = [
-    { id: 'design', category: 'Classification', name: 'Design', readOnly: true },
-    { id: 'test', category: 'Classification', name: 'Test', readOnly: true },
-    { id: 'unused', category: 'Classification', name: 'Unused', readOnly: true },
-    { id: 'mine', category: 'Classification', name: 'ForUser', readOnly: false },
+    { id: 'design', category: 'Classification', name: 'Design', readOnly: true, declaredFiles: [] },
+    { id: 'test', category: 'Classification', name: 'Test', readOnly: true, declaredFiles: [] },
+    { id: 'unused', category: 'Classification', name: 'Unused', readOnly: true, declaredFiles: [] },
+    { id: 'mine', category: 'Classification', name: 'ForUser', readOnly: false, declaredFiles: [] },
   ];
 
   it('counts members per label and reports coverage', () => {
@@ -200,8 +201,8 @@ describe('buildProjectPage — labels and coverage', () => {
     const page = buildProjectPage(
       parsed({
         labels: [
-          { id: 'design', category: 'Classification', name: 'Design', readOnly: true },
-          { id: 'rev', category: 'Review', name: 'Reviewed', readOnly: false },
+          { id: 'design', category: 'Classification', name: 'Design', readOnly: true, declaredFiles: [] },
+          { id: 'rev', category: 'Review', name: 'Reviewed', readOnly: false, declaredFiles: [] },
         ],
         files: [{ path: 'a.m', isFolder: false, labels: ['design', 'rev'] }],
       }),

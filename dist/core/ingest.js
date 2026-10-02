@@ -7,7 +7,7 @@
 // in the Node-only `src/node/` subpath; this layer never touches the filesystem.
 import { strFromU8 } from 'fflate';
 import { unzipEntries } from '../datamodel/parser/Inflate.js';
-import { basenameOf, extOf, isMatFile, isModelFile, isProjectFile, isSlddFile } from '../datamodel/fileKinds.js';
+import { basenameOf, extOf, isMatFile, isModelFile, isProjectFile, isSlddFile, isTomlProjectFile, TOML_PROJECT_FILE, } from '../datamodel/fileKinds.js';
 import { readSlddContent } from '../datamodel/parser/SlddContent.js';
 function toArrayBuffer(content) {
     if (content instanceof ArrayBuffer)
@@ -60,6 +60,24 @@ export function ingest(session, content, opts) {
     if (isMatFile(filename)) {
         return session.addMatSource(id, requireBinary(content, ext), meta);
     }
+    // A `matlab.toml` project BEFORE the `.prj` branch, because the two arrive as
+    // different kinds of bytes entirely: a `.prj` is a zip whose entries are the store,
+    // and this is one TOML document that is the whole definition. `isProjectFile` is true
+    // for both (R2026b gave a project two spellings), so unzipping first would meet a
+    // text file and fail with "invalid zip data" on a project that is perfectly healthy.
+    if (isTomlProjectFile(filename)) {
+        // Bytes are decoded rather than refused: a host reading a file off disk hands over
+        // bytes without caring which of the five formats it just read, and this is the one
+        // project format whose content is text. An already-parsed object is the one shape
+        // this cannot take — there is no parsed form of a project the way there is of a
+        // dictionary — and `requireBinary` is what says so.
+        const text = typeof content === 'string' ? content : strFromU8(new Uint8Array(requireBinary(content, ext)));
+        // The definition map a project source takes, with its one entry under the name
+        // `parseProject` dispatches on. The key is the FILE NAME and not `filename`, which
+        // may be a whole path: either would dispatch (the match is by basename), but the
+        // part this names in a warning should be the file, not the host's path to it.
+        return session.addProjectSource(id, { [TOML_PROJECT_FILE]: text }, meta);
+    }
     if (isProjectFile(filename)) {
         const entries = unzipEntries(new Uint8Array(requireBinary(content, ext)));
         const files = {};
@@ -67,6 +85,10 @@ export function ingest(session, content, opts) {
             files[name] = strFromU8(bytesU8);
         return session.addProjectSource(id, files, meta);
     }
-    throw new Error(`ingest: unsupported extension "${ext}" for "${filename}" (expected .sldd/.slx/.mdl/.mat/.prj)`);
+    // The list names the four extensions AND the one file NAME, because a project is now
+    // identified either way (see isProjectFile) — and a list that reads as exhaustive while
+    // omitting one of the five things this function accepts is worse than no list.
+    throw new Error(`ingest: unsupported extension "${ext}" for "${filename}" ` +
+        `(expected .sldd/.slx/.mdl/.mat/.prj, or a file named ${TOML_PROJECT_FILE})`);
 }
 //# sourceMappingURL=ingest.js.map

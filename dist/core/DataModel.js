@@ -12,7 +12,7 @@ import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js
 // The name reductions and the expression reading, from the leaf modules that hold the
 // single copy of each. This file used to spell all three itself; the usage index needs
 // the same three, and a rule stated twice is a rule that drifts (see fileKinds).
-import { basenameOf, isMatFile, isSlddFile, modelNameOf, projectNameOf, refBasename } from '../datamodel/fileKinds.js';
+import { basenameOf, isMatFile, isSlddFile, modelNameOf, projectFallbackName, refBasename } from '../datamodel/fileKinds.js';
 import { identifiersIn } from '../datamodel/expressions.js';
 import { blockKey, blockLabel, joinBlockPath } from '../datamodel/blockIdentity.js';
 import { maskDefining } from '../datamodel/maskScope.js';
@@ -341,16 +341,23 @@ export function createSession(opts = {}) {
     }
     function addProjectSource(srcId, files, meta) {
         // srcId may be a full path or an opaque URI, so prefer meta.path when the host
-        // supplied one; either way the node is labelled with the basename, .prj included,
-        // because the tree shows a file. parseProject wants a project NAME rather than a
-        // filename for its fallback, hence the strip — note ProjectNode.fromParsed labels
-        // itself from the basename and never reads parsed.name, so the stripped form only
-        // shows up if a host calls parseProject itself.
-        // No `|| srcId` guard on the reduction: `basenameOf` returns the whole string when it
-        // finds no separator to cut at, so it is falsy only for input that was already empty —
+        // supplied one; either way the node is labelled with the basename, `.prj` or
+        // `matlab.toml` included, because the tree shows a file. parseProject wants a project
+        // NAME rather than a filename for its fallback, hence the reduction — note
+        // ProjectNode.fromParsed labels itself from the basename and never reads parsed.name,
+        // so the reduced form only shows up if a host calls parseProject itself.
+        //
+        // `projectFallbackName` over the whole PATH, not `projectNameOf` over the basename:
+        // the two agree on a `.prj`, and on a `matlab.toml` only the first one gets an answer
+        // worth showing. Every project in that format has a definition file of the same name,
+        // so stripping an extension titles all of them "matlab"; the rule that does not is the
+        // parent FOLDER's name, which needs the path and not the basename.
+        // No `|| srcId` guard on it: `basenameOf` returns the whole string when it finds no
+        // separator to cut at, so the basename is falsy only for input that was already empty —
         // in which case srcId is the empty string too and the fallback returned it unchanged.
-        const basename = basenameOf((meta && meta.path) || srcId);
-        const parsed = parseProject(files, projectNameOf(basename));
+        const path = (meta && meta.path) || srcId;
+        const basename = basenameOf(path);
+        const parsed = parseProject(files, projectFallbackName(path));
         const projectNode = ProjectNode.fromParsed(parsed, basename);
         return registerSource(srcId, projectNode, meta, parsed.warnings);
     }

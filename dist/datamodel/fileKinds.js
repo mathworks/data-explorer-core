@@ -91,9 +91,39 @@ export function isSlddFile(filename) {
 export function isMatFile(filename) {
     return extOf(filename) === '.mat';
 }
-/** True if `filename` names a MATLAB project. */
+/**
+ * The name of the one file a TOML-format project's entire definition lives in.
+ *
+ * The ONE place this name is spelled in the package, and it earns that because it is
+ * not only a kind test: `ingest` keys the content it hands a session on it,
+ * `parseProject` dispatches on finding it among a store's entries, and
+ * `parseTomlProject` names it in the warnings it reports. Three independent literals
+ * that must agree is the shape this module exists to prevent.
+ */
+export const TOML_PROJECT_FILE = 'matlab.toml';
+/** True if `filename` names a TOML-format project definition. */
+export function isTomlProjectFile(filename) {
+    return basenameOf(filename).toLowerCase() === TOML_PROJECT_FILE;
+}
+/**
+ * True if `filename` names a MATLAB project.
+ *
+ * The only kind test here that answers from EITHER an extension or a NAME, because
+ * R2026b gave a project two spellings: the long-standing `<name>.prj` marker beside a
+ * `resources/project/` store, and `matlab.toml` at the project root with no marker and
+ * no store at all (`matlab.project.DefinitionFiles.Toml` deletes both). Both are a
+ * project to a host listing a folder, admitting a drop or labelling a tab, so both are
+ * a project here.
+ *
+ * It is that NAME and emphatically not the `.toml` EXTENSION, which is the whole reason
+ * `isTomlProjectFile` exists rather than another line beside `.prj`. TOML is the
+ * configuration format of half the tooling a MATLAB repository sits beside, so admitting
+ * the extension would make every `Cargo.toml`, `pyproject.toml` and `ruff.toml` in a
+ * workspace a MATLAB project — offered for opening, parsed as a project definition, and
+ * then reported as a project that declares nothing.
+ */
 export function isProjectFile(filename) {
-    return extOf(filename) === '.prj';
+    return extOf(filename) === '.prj' || isTomlProjectFile(filename);
 }
 /**
  * A project file name with its `.prj` removed — the project's NAME, as distinct from the
@@ -114,5 +144,42 @@ export function isProjectFile(filename) {
  */
 export function projectNameOf(filename) {
     return filename.replace(/\.prj$/i, '');
+}
+/**
+ * The name to call a project whose own definition records none, given the path of the
+ * marker file that definition was found through.
+ *
+ * `projectNameOf`'s warning is exactly why this is one function here rather than a rule
+ * each host re-derives: the reduction is made on two paths that must not disagree —
+ * this package makes it when adding a project source to a session, a host makes it
+ * again for whatever index it builds over `parseProject` — and the result is a label a
+ * user reads on both, so a drift shows up as one project appearing under two names.
+ * Until R2026b the rule was small enough to be invisible and was duplicated anyway;
+ * what made it worth naming is that it is no longer one rule.
+ *
+ * For a `matlab.toml` the name is the basename of the marker's PARENT FOLDER, because
+ * the file is called `matlab.toml` in every project that has one — the stem reduction
+ * that serves a marker (`MyProj.prj` -> `MyProj`) answers "matlab" for all of them, and
+ * a host stripping the extension itself would title every such project identically. The
+ * parent folder is what MATLAB calls a project it was handed the root of.
+ *
+ * Anything else delegates to `projectNameOf`, so `.prj` behaviour is bit-for-bit what
+ * it was before this existed.
+ *
+ * Pure string work, splitting on both separators so a Windows path needs no cleanup —
+ * and deliberately NOT `node:path`, because this module is reachable from the browser
+ * barrel (see test/moduleBoundaries.test.ts).
+ */
+export function projectFallbackName(markerPath) {
+    if (!isTomlProjectFile(markerPath)) {
+        return projectNameOf(basenameOf(markerPath));
+    }
+    const segments = markerPath.split(/[\\/]/).filter((segment) => segment.length > 0);
+    const parent = segments.length >= 2 ? segments[segments.length - 2] : '';
+    // '' when there is no parent segment to read, and the same for the two segments that
+    // are a direction rather than a name: a path written relative to the cwd has `.` or
+    // `..` where the folder name would be, and titling a project with either is worse
+    // than admitting there is no name here to be had.
+    return parent === '.' || parent === '..' ? '' : parent;
 }
 //# sourceMappingURL=fileKinds.js.map
