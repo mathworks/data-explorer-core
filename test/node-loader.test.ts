@@ -147,4 +147,31 @@ describe('node loader', () => {
     expect(loaded.map((n) => n.name)).toEqual(['legacy.MDL', 'upper.SLDD']);
     expect(errors).toEqual([]);
   });
+
+  it('loadDirectory finds a TOML project by NAME, and no other .toml', () => {
+    // The one supported file an extension set cannot express. A project converted with
+    // `matlab.project.DefinitionFiles.Toml` has no `.prj` and no `resources/` — its whole
+    // definition is a file called `matlab.toml` — so a scan filtering on extensions alone
+    // reads a real project directory as holding nothing, which is how this started.
+    //
+    // The marker is MATLAB-WRITTEN, copied from the parity artifact rather than typed
+    // here: a hand-authored TOML standing in for what MATLAB writes is how a reader comes
+    // to depend on a spelling MATLAB never uses.
+    const dir = mkdtempSync(join(tmpdir(), 'dex-toml-dir-'));
+    copyFileSync(
+      fileURLToPath(new URL('./parity/artifacts/project/Toml/parityProject/matlab.toml', import.meta.url)),
+      join(dir, 'matlab.toml'),
+    );
+    // The hazard the NAME test exists for, written so its absence below is the filter
+    // rejecting it and not an empty directory: `.toml` is the config format of half the
+    // tooling a MATLAB repository sits beside.
+    writeFileSync(join(dir, 'Cargo.toml'), '[package]\nname = "not-a-matlab-project"\n');
+    writeFileSync(join(dir, 'pyproject.toml'), '[project]\nname = "also-not"\n');
+
+    const skipped: ParseWarning[] = [];
+    const loaded = loadDirectory(createSession(), dir, skipped);
+
+    expect(loaded.map((n) => n.name)).toEqual(['matlab.toml']);
+    expect(skipped).toEqual([]); // listed AND opened — a listing that then fails is worse
+  });
 });

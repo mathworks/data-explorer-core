@@ -14,6 +14,7 @@ import { setNativeInflate } from '../datamodel/parser/Inflate.js';
 import { createSession as _createSession } from '../core/DataModel.js';
 import { ingest } from '../core/ingest.js';
 import { reasonOf } from '../datamodel/parser/ParseWarning.js';
+import { isTomlProjectFile } from '../datamodel/fileKinds.js';
 // Arm the fast inflate engine explicitly. `Inflate.ts` can find `node:zlib` on its
 // own through `process.getBuiltinModule`, but that method only exists from Node 22.3,
 // and this package supports consumers on older hosts — the VS Code extension declares
@@ -33,6 +34,24 @@ setNativeInflate({
     zlibHead: (prefix) => inflateSync(prefix, { finishFlush: zlibConstants.Z_SYNC_FLUSH }),
 });
 const SUPPORTED = new Set(['.sldd', '.slx', '.mdl', '.mat', '.prj']);
+/**
+ * Whether a directory entry is something `loadFromPath` can open.
+ *
+ * An extension set AND a name test, because one supported file is identified by its
+ * NAME: a TOML-format project's entire definition is a file called `matlab.toml`, with
+ * no `.prj` marker and no `resources/` left to find it by. Matching `.toml` instead
+ * would call every `Cargo.toml` and `pyproject.toml` in a folder a MATLAB project —
+ * see `isTomlProjectFile`, which is why that predicate exists.
+ *
+ * It is that shared predicate and deliberately not a literal here, because this is the
+ * second path over the same rule: `ingest` dispatches a project on `isProjectFile`, so
+ * a scan that disagrees either hides a file that opens fine or lists one nothing can
+ * open. Keeping the extensions as a set is still right — they are this module's own
+ * business, and `ingest` sniffs CONTENT rather than extension for all of them.
+ */
+function isSupportedName(name) {
+    return SUPPORTED.has(extname(name).toLowerCase()) || isTomlProjectFile(name);
+}
 // Re-export createSession so Node consumers can import everything from one place.
 export const createSession = _createSession;
 export function loadFromPath(session, path) {
@@ -65,7 +84,7 @@ export function loadFromPath(session, path) {
  * minus the stderr write. Same shape as SlddNode.parse's sink.
  */
 export function loadDirectory(session, dir, skipped) {
-    const names = readdirSync(dir).filter((n) => SUPPORTED.has(extname(n).toLowerCase())).sort();
+    const names = readdirSync(dir).filter(isSupportedName).sort();
     const out = [];
     for (const name of names) {
         try {
