@@ -63,13 +63,26 @@ function make_complex_fixtures()
   %             mat2str answers `complex(9223372036854775807,1)`.
   %   pStruct   a Simulink.Parameter whose Value is a STRUCT, struct('a', 1+2i, 'b',
   %             [3+4i 5-6i]): complex numbers one level inside a property.
+  %   pMixedNF  [1+2i complex(NaN,0) 3-4i]: ONE non-finite element among finite ones,
+  %             which is all it takes to decide how the whole array is read. mat2str
+  %             answers `[1+2i NaN+0i 3-4i]`; its second ELEMENT is real to MATLAB, as
+  %             pZeroIm's is.
+  %   pInt16Row, pSingleCol  a complex ARRAY of a class other than double —
+  %             int16([1+2i 3-4i 5+6i]) and single([0.5+1.5i; 2.5-3.5i]), both exact in
+  %             their class. pInt8, pSingle and pInt64 are scalars, and a scalar's class
+  %             is not shown anywhere, so only an array asks whether the class survives.
+  %   pThird    complex(1/3, 0.1): parts with no short decimal form, so a spelling that
+  %             dropped a digit would show. mat2str answers `0.333333333333333+0.1i`,
+  %             fifteen significant digits, which is mat2str's own precision rather than
+  %             the double's; zThird, the same value as a plain variable, is its control.
   % Two more in the .mat only, because a dictionary cannot hold the first and the second
   % would bring a second class of node into the cross-venue comparison:
   %   pArr      a 1x2 Simulink.Parameter ARRAY, [Parameter(1+1i) Parameter(2-2i)]. An
   %             object array cannot be a dictionary entry (make_class_fixtures.m).
   %   holder    a ComplexHolder (ComplexHolder.m, beside this file): a custom class with a
   %             complex scalar Z, a struct S with complex field f, a cell C of a complex
-  %             scalar and a complex row, and a complex 2x2 Zm.
+  %             scalar and a complex row, a complex 2x2 Zm, a complex row N with a NaN
+  %             element, and an int16 complex row I.
   % No complex EMPTY is here, and that is MATLAB's answer rather than an omission: a
   % Simulink.Parameter(complex(zeros(1,0))) and a plain complex(zeros(1,0)) both stay
   % complex 1x0 through a .mat and a binary dictionary, but the text dictionary reads
@@ -116,7 +129,7 @@ function make_complex_fixtures()
   %                      Simulink.LookupTable: Table and Breakpoints, each a record of
   %                      this same form. Simulink.lookuptable.Table and .Breakpoint:
   %                      Value (a field_truth record), DataType, Min, Max, Unit,
-  %                      FieldName, Description. ComplexHolder: Z, S, C and Zm, each a
+  %                      FieldName, Description. ComplexHolder: Z, S, C, Zm, N and I, each a
   %                      field_truth record.
   %   field_truth        a numeric value's value_truth record; a scalar struct's
   %                      {class 'struct', fields, values: one field_truth per field};
@@ -195,10 +208,15 @@ function M = mat_catalog()
     'pNonFinite', @(L) L.pNonFinite, 'Simulink.Parameter', '',       'nonFinite'
     'pInt64',   @(L) L.pInt64,     'Simulink.Parameter',   '',       'int64'
     'pStruct',  @(L) L.pStruct,    'Simulink.Parameter',   '',       'struct'
+    'pMixedNF', @(L) L.pMixedNF,   'Simulink.Parameter',   '',       'mixedNF'
+    'pInt16Row', @(L) L.pInt16Row, 'Simulink.Parameter',   '',       'int16Row'
+    'pSingleCol', @(L) L.pSingleCol, 'Simulink.Parameter', '',       'singleCol'
+    'pThird',   @(L) L.pThird,     'Simulink.Parameter',   '',       'third'
     'mptP',     @(L) L.mptP,       'mpt.Parameter',        '',       'mpt'
     'lut',      @(L) L.lut,        'Simulink.LookupTable', '',       'lut'
     'z',        @(L) L.z,          'double',               '',       'z'
     'zRow',     @(L) L.zRow,       'double',               '',       'zRow'
+    'zThird',   @(L) L.zThird,     'double',               '',       'zThird'
     's',        @(L) L.s,          'struct',               '',       ''
     's.p',      @(L) L.s.p,        'Simulink.Parameter',   'spTop',  'sp'
     's.v',      @(L) L.s.v,        'Simulink.Parameter',   'svTop',  'sv'
@@ -221,6 +239,8 @@ function W = ws_catalog()
   W = {
     'pScalar', @(V) V.pScalar, 'Simulink.Parameter', '',        'scalar'
     'pRow',    @(V) V.pRow,    'Simulink.Parameter', '',        'row'
+    'pMixedNF', @(V) V.pMixedNF, 'Simulink.Parameter', '',      'mixedNF'
+    'pInt16Row', @(V) V.pInt16Row, 'Simulink.Parameter', '',    'int16Row'
     'z',       @(V) V.z,       'double',             '',        'z'
     'cfg',     @(V) V.cfg,     'struct',             '',        ''
     'cfg.p',   @(V) V.cfg.p,   'Simulink.Parameter', 'cfgPTop', 'cfgP'
@@ -270,6 +290,17 @@ function v = build(key)
       v = Simulink.Parameter(int64(complex(intmax('int64'), 1)));
     case 'struct'
       v = Simulink.Parameter(struct('a', 1+2i, 'b', [3+4i 5-6i]));
+    case 'mixedNF'
+      v = Simulink.Parameter([1+2i complex(NaN, 0) 3-4i]);
+    case 'int16Row'
+      % Simulink.Parameter sets DataType to 'int16' itself, as it does for pInt8.
+      v = Simulink.Parameter(int16([1+2i 3-4i 5+6i]));
+    case 'singleCol'
+      v = Simulink.Parameter(single([0.5+1.5i; 2.5-3.5i]));
+    case 'third'
+      v = Simulink.Parameter(complex(1/3, 0.1));
+    case 'zThird'
+      v = complex(1/3, 0.1);
     case 'arr'
       v = [Simulink.Parameter(1+1i), Simulink.Parameter(2-2i)];
     case 'holder'
@@ -278,6 +309,8 @@ function v = build(key)
       v.S = struct('f', 1-2i);
       v.C = {1+2i, [3+4i 5+6i]};
       v.Zm = [1+1i 2+2i; 3+3i 4+4i];
+      v.N = [1+2i complex(NaN, 0) 3-4i];
+      v.I = int16([1+2i 3-4i]);
     case 'mpt'
       v = mpt.Parameter;
       v.Value = 6-7i;
@@ -812,7 +845,7 @@ function t = class_fields(t, x)
   elseif isa(x, 'Simulink.lookuptable.Table') || isa(x, 'Simulink.lookuptable.Breakpoint')
     names = {'Value', 'DataType', 'Min', 'Max', 'Unit', 'FieldName', 'Description'};
   elseif isa(x, 'ComplexHolder')
-    names = {'Z', 'S', 'C', 'Zm'};
+    names = {'Z', 'S', 'C', 'Zm', 'N', 'I'};
   elseif isa(x, 'Simulink.LookupTable')
     t.Table = truth_of(x.Table);
     bps = x.Breakpoints;

@@ -116,6 +116,11 @@ const ELEMENT_MAT2STR_DIFFERS: Record<string, string> = {
   // mat2str of a complex int64 is a constructor call, because `9223372036854775807+1i`
   // would be evaluated in double.
   'complex(9223372036854775807,1)': '9223372036854775807+1i',
+  // mat2str writes 15 significant digits unless asked for more; a part prints as every
+  // number in this package does, with the digits that make it the same double. pThird's
+  // real part is 1/3, which JavaScript spells 0.3333333333333333, and so does a plain .mat
+  // variable holding it (zThird).
+  '0.333333333333333+0.1i': '0.3333333333333333+0.1i',
 };
 
 /** The elements as this package shows them, in MATLAB's column-major order. */
@@ -189,6 +194,10 @@ function expectValueNode(node: any, v: ValueTruth, path: string): string {
     expect(node.children, path).toHaveLength(0);
     return whole;
   }
+  // The array's own class, which MATLAB's class() gives — `<1x3 int16>`, not double. An
+  // element is a complex scalar, which shows double in every venue, as a complex scalar
+  // of any class does.
+  expect(node.className, path).toBe(v.class);
   expect(node.children, path).toHaveLength(v.numel);
   for (const child of node.children) {
     const label = child.toRow().Name.label;
@@ -204,17 +213,11 @@ function expectValueNode(node: any, v: ValueTruth, path: string): string {
 }
 
 // The values whose presentation is NOT the one above, by venue: what each shows instead,
-// and why. Pinned exactly rather than skipped, so a change to any of them is seen. Every
-// one is a non-finite part, and none is a regression: each of the three venues shows the
-// same value its own way, and before this the MCOS one showed `[object Object]`.
+// and why. Pinned exactly rather than skipped, so a change to any of them is seen. None is
+// in the .mat or the workspace, whose MCOS values are graded against MATLAB everywhere,
+// and none is a regression: each is a dictionary showing its own copy of the value its own
+// way, as it did before.
 const PINNED: [file: string, path: string, shows: string, why: string][] = [
-  [
-    'complex_objects.mat',
-    'pNonFinite',
-    "'Inf-Infi NaN+1i 1NaNi -Inf+2i'",
-    'MATLAB\'s words for a non-finite part are not in parseCdata\'s text test, so the value falls ' +
-      'to its quoted-char fallback, as the binary dictionary\'s copy of it does',
-  ],
   [
     'complex.sldd',
     'pNonFinite',
@@ -228,6 +231,20 @@ const PINNED: [file: string, path: string, shows: string, why: string][] = [
     "'Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i'",
     'MATLAB\'s own text, quoted as a char: parseCdata\'s text test does not admit `Inf` or `NaN`',
   ],
+  [
+    'complex_binary.sldd',
+    'pMixedNF',
+    "'1.0+2.0i NaN+0.0i 3.0-4.0i'",
+    'the same: one NaN part is enough for the whole of MATLAB\'s text to be quoted as a char',
+  ],
+  [
+    'complex_binary.sldd',
+    'pThird',
+    '0.33333333333333331+0.1i',
+    'MATLAB\'s own text, which a binary dictionary shows as written apart from a trailing `.0`: ' +
+      'seventeen significant digits where every other venue shows the shortest spelling of the double',
+  ],
+  ['complex_binary.sldd', 'zThird', '0.33333333333333331+0.1i', 'the same text, for the plain variable'],
 ];
 const pinnedAt = (file: string, path: string) => PINNED.find(([f, p]) => f === file && p === path);
 
@@ -302,9 +319,7 @@ function expectParameter(node: any, t: TruthRecord, path: string, fixture: strin
     return;
   }
   expect(node.children.map((c: any) => c.name), path).toEqual(['Value']);
-  const valueNode = node.children[0];
-  expect(valueNode.className, path).toBe('double');
-  expectValueNode(valueNode, v, `${path}.Value`);
+  expectValueNode(node.children[0], v, `${path}.Value`);
 }
 
 // The keys every truth record has; any other key of a custom object's record is one of
@@ -363,6 +378,11 @@ describe('a plain complex value beside them is the control', () => {
     for (const [path, t] of Object.entries(fx.truth.paths)) {
       if (!isPlainComplex(t)) continue;
       it(`${fx.file}: ${path} = ${t.mat2str}`, () => {
+        const pinned = pinnedAt(fx.file, path);
+        if (pinned) {
+          expect(nodeAt(variables, path).displayValue, `${path}: ${pinned[3]}`).toBe(pinned[2]);
+          return;
+        }
         expectValueNode(nodeAt(variables, path), t as ValueTruth, path);
       });
     }
@@ -424,10 +444,12 @@ describe('every value presents the same in the .mat as in each other venue that 
         const a = nodeAt(mat, path);
         const b = nodeAt(variables, path);
         if (pins.some(Boolean)) {
-          // Both pinned, or the comparison below would say what the pin says less exactly.
-          expect(pins.every(Boolean), `${path}: pinned in one venue only`).toBe(true);
-          expect(a.displayValue).toBe(pins[0]![2]);
-          expect(b.displayValue).toBe(pins[1]![2]);
+          // A pinned venue is held to its pin, and an unpinned one has been graded against
+          // MATLAB above; what is left to say is that the pin is still needed.
+          [a, b].forEach((n, i) => pins[i] && expect(n.displayValue, path).toBe(pins[i]![2]));
+          expect(presentation(b, b.displayName), `${path}: pinned, and no longer different`).not.toEqual(
+            presentation(a, a.displayName),
+          );
           return;
         }
         expect(presentation(b, b.displayName)).toEqual(presentation(a, a.displayName));

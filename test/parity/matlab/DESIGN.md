@@ -2128,11 +2128,14 @@ Two findings from that hardening, measured and deliberately NOT acted on:
     Fixed with one arm, `complexPropertyValue`, ahead of the numeric ones: the value leaves
     the decoder in the compressed-binary dictionary's own complex form, `{_type: 'cdata',
     _value: '1+2i 5+6i 3+4i 7+8i', _dimensions: [2, 2]}` — column-major, every extent, no
-    shape on a scalar — so it takes `MatlabVariableNode.parseCdata`'s route, the one the
-    binary dictionary's Value takes, and presents as it does there. The spelling is
-    `XmlUtils.formatComplexNum`, which is the `im >= 0 ? re+'+'+im+'i' : re+im+'i'` rule a
-    plain `.mat` variable and a typed literal already use, with formatMatlabNum's parts. An
-    EMPTY complex value is left to the numeric arm's `[]`, as before.
+    shape on a scalar, `_class` on a class other than double — so it takes
+    `MatlabVariableNode.parseCdata`'s route, the one the binary dictionary's Value takes.
+    The spelling is `XmlUtils.formatComplexNum`, which is the `im >= 0 ? re+'+'+im+'i' :
+    re+im+'i'` rule a plain `.mat` variable and a typed literal already use, with
+    formatMatlabNum's parts; so the digits are the plain `.mat` variable's (complex(1/3,
+    0.1) is `0.3333333333333333+0.1i` in both), which is not always the binary
+    dictionary's text — that is MATLAB's own, `0.33333333333333331+0.1i`, and is shown as
+    written. An EMPTY complex value is left to the numeric arm's `[]`, as before.
 
     Graded by `complexMcosFixtures.test.ts` against MATLAB R2027a's answers for
     `test/fixtures/mcos/complex_objects.mat`, `complex_ws.slx`, and the same values as
@@ -2152,17 +2155,34 @@ Two findings from that hardening, measured and deliberately NOT acted on:
     first file fails 75 of its 178 tests and the guard flags the two MCOS fixtures above
     and nothing else.
 
-    **Non-finite parts are left as the venues already show them, and the three disagree.**
-    For `[complex(Inf,-Inf) complex(NaN,1) complex(1,NaN) complex(-Inf,2)]` the text
-    dictionary (a MAT stream, so the `.mat` arm) shows `[Infinity-Infinityi NaN+1i 1NaNi
-    -Infinity+2i]`; the binary dictionary stores MATLAB's text `Inf-Infi NaN+1.0i 1.0NaNi
-    -Inf+2.0i`, which parseCdata's text test (`/^[\d.eE+\-i\s]+$/`) refuses, so it shows as
-    a quoted char; and the MCOS value, now in the same form, does the same. Admitting
-    `Inf`/`NaN` in that test would fix the binary and MCOS venues together, but it changes
-    what a binary dictionary shows, which this change leaves alone — and MATLAB does not
-    read its own text back: `complex_binary_sldd.truth.json` records the reopened value as
-    `[Inf-1i*Inf NaN+1i 1 NaN]`, two complex elements turned into real ones. All three
-    answers are pinned in `complexMcosFixtures.test.ts`, MATLAB's included.
+    **A non-finite part.** parseCdata's text test (`/^[\d.eE+\-i\s]+$/`) refuses `Inf` and
+    `NaN`, and a value it refuses falls to a quoted char. In the first version of this fix
+    the MCOS value took that fallback too, so ONE NaN element was enough to turn a whole
+    array into a char: `[1+2i complex(NaN,0) 3-4i]` showed `'1+2i NaN+0i 3-4i'`, class char,
+    no rows, where the plain `.mat` variable beside it shows three complex doubles. The
+    decoder now marks text it wrote with a non-finite part `_nonFinite`, and parseCdata
+    reads marked text as elements when every one of them parses
+    (`MatlabVariableNode._isOwnNonFiniteText`): the value shows `[1+2i NaN+0i 3-4i]` with
+    three rows, in a `.mat`, a model workspace, a struct field or a custom class's property.
+    The binary dictionary's own non-finite text is left as it was, quoted: MATLAB writes
+    complex(1, NaN) there as `1.0NaNi` and does not read its own text back —
+    `complex_binary_sldd.truth.json` records the reopened pNonFinite as `[Inf-1i*Inf NaN+1i
+    1 NaN]`, two complex elements turned into real ones — so what that text means is an
+    open question this fix does not answer. The text dictionary (a MAT stream, so the
+    `.mat` arm) shows `[Infinity-Infinityi NaN+1i 1NaNi -Infinity+2i]`, JavaScript's word
+    for an infinite part, as a plain `.mat` variable does. Both dictionary spellings are
+    pinned in `complexMcosFixtures.test.ts`.
+
+    **The class of a complex array.** The envelope said nothing about class, and
+    `_parseCdataText` classed every complex array `double`: an int16 Value showed `<1x60
+    double>`, with Data Type double on its Value row, in a `.mat`, a workspace AND a binary
+    dictionary, where MATLAB, a plain `.mat` variable and a text dictionary all say int16.
+    Both producers of the envelope now record a class other than double as `_class`
+    (`XmlUtils.complexClassTag`: single and the integer classes; a sparse array's file
+    class 'sparse' is not one, since MATLAB's class() of it is double) — BinarySlddParser
+    from the `<P Class="int16" IsComplex="1">` attribute, the decoder from the variable —
+    and the array takes it. A complex SCALAR still shows double in every venue, as it did:
+    the node's complex-scalar type has no class of its own to show.
 
 ## Known limitations, to verify and document
 

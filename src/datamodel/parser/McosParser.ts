@@ -2,7 +2,7 @@
 
 import { parseMatrix, MatVariable } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
-import { formatComplexNum, formatMatlabNum, isExactToken, transposeToColumnMajorND } from './XmlUtils.js';
+import { complexClassTag, formatComplexNum, formatMatlabNum, isExactToken, transposeToColumnMajorND } from './XmlUtils.js';
 
 // Decodes the binary MCOS (MATLAB Class Object System) blob embedded in .slx and
 // .mat files into per-variable property bags shaped EXACTLY like the SLDD (JSON)
@@ -356,10 +356,11 @@ const isComplexPair = (x: unknown): x is ComplexPair =>
 /**
  * A complex numeric property in the form a compressed-binary dictionary gives the same
  * property: `{ _type: 'cdata', _value: '<elements>' }`, the elements column-major and
- * space-separated, with `_dimensions` (every extent) on anything but a scalar —
- * BinarySlddParser's `<P IsComplex="1">` arm, with MATLAB's `.0` already dropped.
- * Undefined for anything else, including an EMPTY complex value, which keeps the `[]`
- * the numeric arm below has always given it.
+ * space-separated, with `_dimensions` (every extent) on anything but a scalar and
+ * `_class` on anything but a double (complexClassTag) — BinarySlddParser's
+ * `<P IsComplex="1">` arm, with MATLAB's `.0` already dropped. Undefined for anything
+ * else, including an EMPTY complex value, which keeps the `[]` the numeric arm below has
+ * always given it.
  *
  * MatParser carries a complex element as `{ re, im }`, row-major within each page, and
  * nothing below this decoder reads that pair: the matrix arm String()-coerced each one
@@ -367,11 +368,20 @@ const isComplexPair = (x: unknown): x is ComplexPair =>
  * (`[ ]`), and every other shape went through as the bare pairs, which the node layer
  * printed as `[[object Object]]`. So a Simulink.Parameter whose Value is 3+4i showed
  * that, in a .mat and in a model workspace alike. In this form the value takes the
- * route the binary dictionary's does — MatlabVariableNode.parseCdata — and presents as
- * it does there: `3+4i`, `[1+2i 3+4i 5+6i]` with one element row each, `<2x2x2 double>`.
- * That includes a value with an Inf or NaN part, whose text parseCdata does not read as
- * numbers and shows quoted, as it shows the binary dictionary's copy (test/parity/matlab/
- * DESIGN.md, defect 57).
+ * route the binary dictionary's does — MatlabVariableNode.parseCdata — and shows `3+4i`,
+ * `[1+2i 3+4i 5+6i]` with one element row each, `<2x2x2 double>`, `<1x60 int16>`.
+ *
+ * Each element is formatComplexNum's spelling of the numbers MATLAB's bytes hold, which
+ * is the plain .mat variable's spelling of the same value: complex(1/3, 0.1) is
+ * `0.3333333333333333+0.1i` here and there. It is not always the binary dictionary's
+ * text, which is MATLAB's own and differs in digits and in sign where MATLAB writes more
+ * (`0.33333333333333331+0.1i`, `1.0E-20+2.0E+21i`, `1-0i`).
+ *
+ * An Inf or NaN part is the other place the two differ, and the reason for
+ * `_nonFinite`: parseCdata does not read the binary dictionary's non-finite text as
+ * numbers (see MatlabVariableNode._isOwnNonFiniteText for why), and the marker is what
+ * lets it read this text, so [1+2i NaN 3-4i] shows the three complex doubles the plain
+ * .mat variable shows rather than one quoted char.
  *
  * Exported for its unit tests; resolveValue is the one caller.
  */
@@ -391,8 +401,18 @@ export function complexPropertyValue(cell: MatVariable): Record<string, unknown>
   if (pairs.length > 1 || dims.length > 2) {
     value._dimensions = dims;
   }
+  const cls = complexClassTag(cell.className);
+  if (cls) {
+    value._class = cls;
+  }
+  if (colMajor.some((c) => !isFinitePart(c.re) || !isFinitePart(c.im))) {
+    value._nonFinite = true;
+  }
   return value;
 }
+
+// An exact 64-bit token (a string) is always finite.
+const isFinitePart = (x: unknown): boolean => typeof x !== 'number' || Number.isFinite(x);
 
 // Turn a parsed mxArray value into a property value in the SLDD-shaped form the
 // data model expects. Object handles recurse into nested { _object_class,

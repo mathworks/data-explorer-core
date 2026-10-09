@@ -38,6 +38,35 @@ export declare const SAVEOBJ_KEY = "_saveobj";
 export declare const CUSTOM_SAVE_KEY = "_custom_save";
 export declare function formatMatlabNum(num: unknown): string;
 export declare function formatComplexNum(re: unknown, im: unknown): string;
+/**
+ * formatComplexNum's inverse: one complex element's text back into its two parts, or null
+ * for text that is not one. It reads every spelling this package holds an element in —
+ * its own (`3+4i`, `1NaNi`, `-Inf+2i`), a binary dictionary's (`3.0+4.0i`,
+ * `1.0E-20+2.0E+21i`), a plain .mat variable's (`1+Infinityi`) — so the writers can
+ * rebuild the value from any of them. Under a 64-bit integer class a part keeps its
+ * exact decimal text (parseExactNum), as every other read of such a value does.
+ *
+ * The NaN and Inf parts are why this exists. The pattern the writers used before,
+ * `^([-\d.eE+]+)([+-][\d.eE+]+)i$`, matched neither, and the element it did not match
+ * was written as 0+0i.
+ */
+export declare function parseComplexNum(text: string, type?: string): {
+    re: number | string;
+    im: number | string;
+} | null;
+/**
+ * The `_class` a complex value's `{ _type: 'cdata' }` envelope carries: its MATLAB class
+ * when that is single or an integer class, and undefined for double — and for anything
+ * that is not a numeric class at all, a sparse array's 'sparse' included, which MATLAB
+ * itself calls double. Both producers of the plain-text envelope, BinarySlddParser (from
+ * the `<P Class="int16" IsComplex="1">` attribute) and McosParser.complexPropertyValue
+ * (from the decoded variable), set it the same way, and the node layer reads it to
+ * class an array (MatlabVariableNode._parseCdataText) and the binary writer to spell
+ * `Class=` (DataNode._serializeTypedPropertyXml). Without it, every complex value in
+ * either was a double: an int16 Value showed `<1x60 double>` and was written back
+ * `Class="double"`.
+ */
+export declare function complexClassTag(className: unknown): string | undefined;
 export declare function parseMatlabNum(text: string): number;
 export declare function parseNumericBody(text: string): number[];
 /**

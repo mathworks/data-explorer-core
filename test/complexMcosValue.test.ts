@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { complexPropertyValue, decodeMcosBlob, type OpaqueVarRef } from '../src/datamodel/parser/McosParser.js';
 import { parseMat, type MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { parseBinarySldd } from '../src/datamodel/parser/BinarySlddParser.js';
-import { formatComplexNum } from '../src/datamodel/parser/XmlUtils.js';
+import { formatComplexNum, parseComplexNum } from '../src/datamodel/parser/XmlUtils.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -38,6 +38,13 @@ describe('formatComplexNum spells one element', () => {
     [1, -0, '1+0i'],
     [1.5, 0.25, '1.5+0.25i'],
     [0.1, 0.2, '0.1+0.2i'],
+    // Every digit the double needs, and no more: 1/3 is not 0.333333333333333 (mat2str's
+    // fifteen) and not 0.33333333333333331 (the binary dictionary's seventeen), but what a
+    // plain .mat variable holding complex(1/3, 0.1) shows.
+    [1 / 3, 0.1, '0.3333333333333333+0.1i'],
+    [2 / 3, -Math.PI, '0.6666666666666666-3.141592653589793i'],
+    // A single, widened to the double it is: the plain .mat variable's digits too.
+    [Math.fround(0.1), Math.fround(0.2), '0.10000000149011612+0.20000000298023224i'],
     // String()'s exponent form, as every other number in this package prints.
     [1e-20, 2e21, '1e-20+2e+21i'],
     // MATLAB's words for the non-finite parts, not JavaScript's `Infinity`.
@@ -55,6 +62,48 @@ describe('formatComplexNum spells one element', () => {
       expect(formatComplexNum(re, im)).toBe(text);
     });
   }
+
+  it('and parseComplexNum reads every one of them back as the same two parts', () => {
+    for (const [re, im, text] of CASES) {
+      const exact = typeof re === 'string' ? 'int64' : undefined;
+      // -0 prints as 0, so it comes back as 0.
+      const want = { re: Object.is(re, -0) ? 0 : re, im: Object.is(im, -0) ? 0 : im };
+      expect(parseComplexNum(text, exact), text).toEqual(want);
+    }
+  });
+});
+
+describe('parseComplexNum reads the spellings the other venues hold an element in', () => {
+  const CASES: [text: string, re: number | string, im: number | string][] = [
+    // A binary dictionary's, MATLAB's own.
+    ['3.0+4.0i', 3, 4],
+    ['1.0E-20+2.0E+21i', 1e-20, 2e21],
+    ['0.33333333333333331+0.1i', 1 / 3, 0.1],
+    ['1.0NaNi', 1, NaN],
+    ['-Inf+2.0i', -Infinity, 2],
+    ['1-0i', 1, -0],
+    // A plain .mat variable's, which writes String() for a part.
+    ['1+Infinityi', 1, Infinity],
+    ['-Infinity-Infinityi', -Infinity, -Infinity],
+    ['NaNNaNi', NaN, NaN],
+    ['1e+300-1e-300i', 1e300, -1e-300],
+  ];
+  for (const [text, re, im] of CASES) {
+    it(text, () => {
+      expect(parseComplexNum(text)).toEqual({ re, im });
+    });
+  }
+
+  it('keeps an exact 64-bit part as its text only under a 64-bit class', () => {
+    expect(parseComplexNum('9223372036854775807+1i', 'int64')).toEqual({ re: '9223372036854775807', im: 1 });
+    expect(parseComplexNum('9223372036854775807+1i', 'int16')).toEqual({ re: 9223372036854775807, im: 1 });
+  });
+
+  it('refuses what is not one element', () => {
+    for (const text of ['3', '4i', '3+4', '123i', '1+2i 3+4i', 'abc', '', 'Inf', '1+2j']) {
+      expect(parseComplexNum(text), text).toBeNull();
+    }
+  });
 });
 
 describe('complexPropertyValue: the binary dictionary\'s complex form', () => {
@@ -92,20 +141,90 @@ describe('complexPropertyValue: the binary dictionary\'s complex form', () => {
     });
   });
 
-  it('spells every numeric class the same way, as the binary dictionary\'s body does', () => {
+  it('spells every numeric class the same way, as the binary dictionary\'s body does, and names it', () => {
     for (const cls of ['single', 'int8', 'uint16', 'int64']) {
-      expect(complexPropertyValue(complexVar(cls, [1, 2], [c(3, -4), c(-1, 0)]))?._value, cls).toBe('3-4i -1+0i');
+      expect(complexPropertyValue(complexVar(cls, [1, 2], [c(3, -4), c(-1, 0)])), cls).toEqual({
+        _type: 'cdata',
+        _value: '3-4i -1+0i',
+        _dimensions: [1, 2],
+        _class: cls,
+      });
     }
     expect(complexPropertyValue(complexVar('int64', [1, 1], [c('9223372036854775807', 1)]))).toEqual({
       _type: 'cdata',
       _value: '9223372036854775807+1i',
+      _class: 'int64',
     });
   });
 
   it('takes a complex sparse value, which MatParser presents dense and paired', () => {
-    // [0 1+1i; 2-2i 0], as readSparse lays it out: dense, row-major.
+    // [0 1+1i; 2-2i 0], as readSparse lays it out: dense, row-major. No `_class`: the
+    // FILE's word is 'sparse', and MATLAB's class() is double.
     const sp = complexVar('sparse', [2, 2], [c(0, 0), c(1, 1), c(2, -2), c(0, 0)]);
     expect(complexPropertyValue(sp)).toEqual({ _type: 'cdata', _value: '0+0i 2-2i 1+1i 0+0i', _dimensions: [2, 2] });
+  });
+
+  it('marks text holding an Inf or NaN part, and nothing else', () => {
+    expect(complexPropertyValue(complexVar('double', [1, 3], [c(1, 2), c(NaN, 0), c(3, -4)]))).toEqual({
+      _type: 'cdata',
+      _value: '1+2i NaN+0i 3-4i',
+      _dimensions: [1, 3],
+      _nonFinite: true,
+    });
+    expect(complexPropertyValue(complexVar('double', [1, 1], [c(1, Infinity)]))).toEqual({
+      _type: 'cdata',
+      _value: '1+Infi',
+      _nonFinite: true,
+    });
+    // An exact 64-bit token is text and finite.
+    expect(complexPropertyValue(complexVar('int64', [1, 1], [c('9223372036854775807', 1)]))?._nonFinite).toBeUndefined();
+  });
+
+  it('a marked value reads as the complex doubles it is; the same text unmarked does not', () => {
+    // [1+2i NaN 3-4i]. Unmarked, this is how a binary dictionary's own non-finite text
+    // reads (MatlabVariableNode._isOwnNonFiniteText says why), and how the decoder's read
+    // before the marker: one quoted char, class char, no element rows.
+    const marked = complexPropertyValue(complexVar('double', [1, 3], [c(1, 2), c(NaN, 0), c(3, -4)]))!;
+    const node: any = NodeRegistry.parseValue(marked, 'Value', null);
+    expect([node.displayValue, node.className]).toEqual(['[1+2i NaN+0i 3-4i]', 'double']);
+    expect(node.children.map((k: any) => k.displayValue)).toEqual(['1+2i', 'NaN+0i', '3-4i']);
+    const { _nonFinite, ...unmarked } = marked;
+    expect(_nonFinite).toBe(true);
+    const plain: any = NodeRegistry.parseValue(unmarked, 'Value', null);
+    expect([plain.displayValue, plain.className, plain.children.length]).toEqual(["'1+2i NaN+0i 3-4i'", 'char', 0]);
+    // A scalar too, and a part that is NaN and Inf at once.
+    for (const [pair, shows] of [
+      [c(NaN, NaN), 'NaNNaNi'],
+      [c(1, Infinity), '1+Infi'],
+      [c(-Infinity, NaN), '-InfNaNi'],
+    ] as const) {
+      const one: any = NodeRegistry.parseValue(complexPropertyValue(complexVar('double', [1, 1], [pair])), 'V', null);
+      expect([one.displayValue, one.className], shows).toEqual([shows, 'double']);
+    }
+  });
+
+  it('a marked envelope whose text is not elements is still not read as numbers', () => {
+    const node: any = NodeRegistry.parseValue({ _type: 'cdata', _value: '1+2i junk', _nonFinite: true }, 'V', null);
+    expect(node.className).toBe('char');
+  });
+
+  it('a class other than double classes the array the node layer builds', () => {
+    for (const cls of ['single', 'int8', 'uint8', 'int16', 'uint32', 'int64', 'uint64']) {
+      const v = complexPropertyValue(complexVar(cls, [1, 2], [c(1, 2), c(3, -4)]));
+      const node: any = NodeRegistry.parseValue(v, 'Value', null);
+      expect([node.className, node.dataType, node.displayValue], cls).toEqual([cls, cls, '[1+2i 3-4i]']);
+      // The elements stay complex scalars, which show double in every venue.
+      expect(node.children.map((k: any) => k.className), cls).toEqual(['double', 'double']);
+    }
+    const big: any = NodeRegistry.parseValue(
+      complexPropertyValue(complexVar('int16', [1, 60], Array.from({ length: 60 }, (_, k) => c(k + 1, 1)))),
+      'Value',
+      null,
+    );
+    expect(big.displayValue).toBe('<1x60 int16>');
+    // A scalar's class is shown nowhere, here or in any other venue.
+    const one: any = NodeRegistry.parseValue(complexPropertyValue(complexVar('int8', [1, 1], [c(3, -4)])), 'V', null);
+    expect([one.className, one.displayValue]).toEqual(['double', '3-4i']);
   });
 
   it('leaves alone what it is not: real, empty, and a complex flag with no pairs under it', () => {
@@ -184,18 +303,37 @@ describe('on MATLAB\'s bytes, the decoder\'s complex Value is the binary diction
 
   it('decodes every object the .mat holds', () => {
     expect([...mat.keys()].sort()).toEqual(
-      ['c1Top', 'c2Top', 'holder', 'lut', 'mptP', 'pArr', 'pCol', 'pFrac', 'pInt64', 'pInt8', 'pMat', 'pNd',
-        'pNegIm', 'pNonFinite', 'pRow', 'pScalar', 'pSingle', 'pStruct', 'pZeroIm', 'pZeroRe', 'spTop',
-        'svTop'].sort(),
+      ['c1Top', 'c2Top', 'holder', 'lut', 'mptP', 'pArr', 'pCol', 'pFrac', 'pInt16Row', 'pInt64', 'pInt8', 'pMat',
+        'pMixedNF', 'pNd', 'pNegIm', 'pNonFinite', 'pRow', 'pScalar', 'pSingle', 'pSingleCol', 'pStruct', 'pThird',
+        'pZeroIm', 'pZeroRe', 'spTop', 'svTop'].sort(),
     );
-    expect(params).toHaveLength(19);
+    expect(params).toHaveLength(23);
   });
+
+  // Where the decoder's text is not MATLAB's binary text, and why. Every other Value is
+  // equal to the binary reader's once MATLAB's `.0` is dropped, `_class` included.
+  const TEXT_DIFFERS: Record<string, [ours: string, matlab: string]> = {
+    // Seventeen significant digits in MATLAB's text, the double's shortest spelling in ours.
+    pThird: ['0.3333333333333333+0.1i', '0.33333333333333331+0.1i'],
+  };
 
   for (const name of params) {
     it(`${name}.Value`, () => {
-      const ours = mat.get(name)!.Value;
+      const ours = { ...(mat.get(name)!.Value as Record<string, unknown>) };
+      const theirs = withoutPointZero(bin.get(name)!.Value) as Record<string, unknown>;
       expect(JSON.stringify(ours), name).toContain('"_type":"cdata"');
-      expect(ours).toEqual(withoutPointZero(bin.get(name)!.Value));
+      // The decoder's own marker, which the binary reader never sets: on exactly the values
+      // with a non-finite part.
+      const nonFinite = /Inf|NaN/.test(JSON.stringify(ours));
+      expect(ours._nonFinite, name).toBe(nonFinite ? true : undefined);
+      delete ours._nonFinite;
+      const differs = TEXT_DIFFERS[name];
+      if (differs) {
+        expect([ours._value, theirs._value]).toEqual(differs);
+        expect({ ...ours, _value: undefined }).toEqual({ ...theirs, _value: undefined });
+        return;
+      }
+      expect(ours).toEqual(theirs);
     });
   }
 

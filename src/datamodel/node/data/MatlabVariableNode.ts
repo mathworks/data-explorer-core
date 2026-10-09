@@ -46,6 +46,8 @@ import {
   formatMatrixSerial,
   parseMatlabNum,
   parseExactNum,
+  parseComplexNum,
+  complexClassTag,
   needsExactInt,
   exactForClass,
   transposeToColumnMajorND,
@@ -2469,7 +2471,7 @@ export default class MatlabVariableNode extends DataNode {
 
   static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode {
     const valStr = rawVal._value as string;
-    if (/^[\d.eE+\-i\s]+$/.test(valStr)) {
+    if (/^[\d.eE+\-i\s]+$/.test(valStr) || MatlabVariableNode._isOwnNonFiniteText(rawVal)) {
       return MatlabVariableNode._parseCdataText(rawVal, name, parent);
     }
     try {
@@ -2503,6 +2505,29 @@ export default class MatlabVariableNode extends DataNode {
     }
   }
 
+  /**
+   * Complex text with an Inf or NaN part that this package wrote itself, which the test
+   * above does not admit: McosParser.complexPropertyValue marks the envelope `_nonFinite`
+   * when it spells such a part, and every element has to read as one.
+   *
+   * The test stays closed to the binary dictionary's own non-finite text on purpose.
+   * MATLAB writes complex(1, NaN) there as `1.0NaNi` and its own reader takes
+   * `1.0NaNi -Inf+2.0i` back as two REAL elements (complex_binary_sldd.truth.json's
+   * pNonFinite), so what that text means is an open question, and that copy keeps the
+   * quoted-char fallback below (test/parity/matlab/DESIGN.md, defect 57). The decoder's
+   * text has no such question — it is formatComplexNum's spelling of numbers MATLAB's own
+   * .mat bytes hold — and through the fallback a single NaN turned a whole complex array
+   * into one char: `[1+2i NaN 3-4i]` showed `'1+2i NaN+0i 3-4i'`, class char, no rows,
+   * where the plain .mat variable beside it showed three complex doubles.
+   */
+  static _isOwnNonFiniteText(rawVal: Record<string, unknown>): boolean {
+    if (rawVal._nonFinite !== true || typeof rawVal._value !== 'string') {
+      return false;
+    }
+    const parts = rawVal._value.trim().split(/\s+/);
+    return parts.length > 0 && parts.every((t) => parseComplexNum(t) !== null);
+  }
+
   static _parseCdataText(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode {
     const colMajorParts = (rawVal._value as string)
       .trim()
@@ -2529,7 +2554,12 @@ export default class MatlabVariableNode extends DataNode {
     const node = new MatlabVariableNode(name, parent, rawVal);
     node._rawInput = rawVal;
     node._kind = 'array';
-    node._scalarType = 'double';
+    // The value's own class where the envelope records one (complexClassTag), which is how
+    // the container summarizes and types itself — `<1x60 int16>`, as a plain .mat
+    // variable and a text dictionary show the same value. It was 'double' for every
+    // complex array, whatever MATLAB's class() said. The elements stay 'complex' scalars,
+    // as they are in every venue.
+    node._scalarType = complexClassTag(rawVal._class) ?? 'double';
     node._dims = dims;
     node._elements = parts;
     node._buildArrayChildren('complex');

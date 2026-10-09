@@ -51,6 +51,7 @@ import { SC_PART_XML, catalogFromDefinitions, scanScXml } from './ScCatalog.js';
 import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
 import {
   charNeedsShape,
+  complexClassTag,
   formatDoubleXml,
   formatMatlabNum,
   formatMatrixSerial,
@@ -508,11 +509,7 @@ function parseEntryValue(prop: XmlNode): unknown {
   // Numeric scalar or array
   const text = getTextContent(prop);
   if (isComplexAttr(prop['@_IsComplex'])) {
-    const result: Record<string, unknown> = { _type: 'cdata', _value: text };
-    if (dimension) {
-      result._dimensions = parseDims(dimension);
-    }
-    return result;
+    return complexCdata(text, dimension, className);
   }
   const type = className || 'double';
   if (dimension) {
@@ -560,11 +557,7 @@ function parseCellElement(el: XmlNode): unknown {
     // hid. `_dimensions` rides in the envelope because the cdata form is the only
     // place a complex value's shape can be stated.
     if (isComplexAttr(el['@_IsComplex'])) {
-      const cdata: Record<string, unknown> = { _type: 'cdata', _value: text };
-      if (dimension) {
-        cdata._dimensions = parseDims(dimension);
-      }
-      return cdata;
+      return complexCdata(text, dimension, elClass);
     }
     if (dimension) {
       const dimParts = parseDims(dimension);
@@ -910,12 +903,7 @@ function parseStructElement(el: XmlNode): Record<string, unknown> {
     // A complex scalar carries its value as text with IsComplex="1" rather than
     // as child elements, so it never reaches the generic content decoder.
     if (!prop.Element?.length && isComplexAttr(prop['@_IsComplex'])) {
-      const dimension = prop['@_Dimension'] || null;
-      const cdata: Record<string, unknown> = { _type: 'cdata', _value: getTextContent(prop) };
-      if (dimension) {
-        cdata._dimensions = parseDims(dimension);
-      }
-      result[prop['@_Name']!] = cdata;
+      result[prop['@_Name']!] = complexCdata(getTextContent(prop), prop['@_Dimension'] || null, prop['@_Class']);
     } else {
       result[prop['@_Name']!] = parsePropContent(prop);
     }
@@ -1025,6 +1013,23 @@ function isNumericClass(className: string): boolean {
 // 52 and 53 both happened.
 function isComplexAttr(attr: string | undefined): boolean {
   return attr === '1' || attr === 'true';
+}
+
+// The value an `IsComplex` element or property reads as, at all three of those sites: its
+// body as MATLAB wrote it, its shape when it states one, and its class when that is not
+// double (complexClassTag). The class rides in the envelope because nothing else of the
+// `<P>` does: without it `Class="int16" IsComplex="1" Dimension="1*60"` read as a 1x60
+// double, and went back into the file as `Class="double"`.
+function complexCdata(text: string, dimension: string | null, className: string | null | undefined): Record<string, unknown> {
+  const cdata: Record<string, unknown> = { _type: 'cdata', _value: text };
+  if (dimension) {
+    cdata._dimensions = parseDims(dimension);
+  }
+  const cls = complexClassTag(className);
+  if (cls) {
+    cdata._class = cls;
+  }
+  return cdata;
 }
 
 // One numeric body, as the CLASS requires: exact decimal text for the tokens a 64-bit
