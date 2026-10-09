@@ -2,7 +2,8 @@
 
 import ContainerNode from '../ContainerNode.js';
 import MatlabVariableNode from '../data/MatlabVariableNode.js';
-import { decodeMcosObjects, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
+import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
+import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
@@ -139,9 +140,10 @@ export default class MatNode extends ContainerNode {
     const node = new MatNode(filename);
     node.header = parsed.header;
 
-    // A .mat file keeps the MCOS blob in an anonymous trailing element.
+    // A .mat file keeps the MCOS blob in an anonymous trailing element. Every opaque in
+    // the file, nested or not, comes back carrying its own decode.
     const anonElement = parsed.variables.find((v) => v._anonymous);
-    const mcosData = decodeMcosObjects(anonElement?._rawBytes, parsed.variables);
+    attachMcosDecoded(anonElement?._rawBytes, parsed.variables);
 
     for (const variable of parsed.variables) {
       if ((variable as unknown as { _anonymous?: boolean })._anonymous) {
@@ -149,7 +151,7 @@ export default class MatNode extends ContainerNode {
         continue;
       }
       if (variable.isOpaque) {
-        const mcosNode = modelOpaqueMcosVariable(variable, mcosData?.get(variable.name), node, parsed.warnings);
+        const mcosNode = modelOpaqueMcosVariable(variable, mcosDecodedFor(variable), node, parsed.warnings);
         if (mcosNode) {
           node.addChild(mcosNode);
           continue;

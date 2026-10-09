@@ -2150,18 +2150,67 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   now hold the parser to it, and the layout suite's config assertion compares class and
   source rather than name alone. See "Where a config set records what it *is*" in
   `README.md`.
-- **An MCOS object NESTED in a struct field or a cell element shows a summary, not its
-  contents.** `test/fixtures/strings_nested.mat` (MATLAB-authored, `probe_string.m`) has a
-  struct with a `Simulink.Parameter` field and a string field, and a cell holding both:
-  each presents as `<1x1 Simulink.Parameter>` / `<1x1 string>` with no property rows and no
-  text. The cause is not string-specific. Only NAMED variables reach the decoder —
-  `decodeMcosObjects` filters `v.isOpaque && v.name` — and a nested opaque is built by
-  `MatlabVariableNode._createOpaque` from a `MatVariable` that has no name, so the shared
-  blob is never consulted for it. Closing it means threading the blob into the nested
-  constructors, and additionally making `MatParser`'s cell branch set `_rawBytes` on cell
-  children at all (only its struct branch does today, at `MatParser.ts:307`), so a cell
-  element has no object handle to resolve. Pinned as today's answer by the last two tests
-  in `matStringOpaque.test.ts`, so a change to it is a deliberate one.
+- **An MCOS object NESTED in a struct field or a cell element showed a summary, not its
+  contents — now closed.** `test/fixtures/strings_nested.mat` (MATLAB-authored,
+  `probe_string.m`) has a struct with a `Simulink.Parameter` field and a string field, and
+  a cell holding both: each presented as `<1x1 Simulink.Parameter>` / `<1x1 string>` with
+  no property rows and no text. The cause was not string-specific. Only NAMED variables
+  reached the decoder — `decodeMcosObjects` filters `v.isOpaque && v.name` — and a cell
+  element had no object handle at all: `MatParser` read a class-17 element's name, marker
+  and class name and stopped before its fourth part, the handle, which only a struct
+  field's kept raw bytes still carried. **Closed**, in three layers:
+
+  1. `MatParser` keeps every opaque's handle, at any depth, as `mcosHandle` — and only a
+     handle in the one shape MATLAB writes. The fourth part has to be a `uint32` matrix
+     lying inside the opaque element, its data stored as an integer type, and every word
+     of it (rank, extents, ids) a whole non-negative number. The words are taken in the
+     order they are stored, which is the order MATLAB reads them in whatever shape the
+     matrix declares (a crafted 2x3 handle read row-major turned a scalar into an empty
+     shell and an array into a scalar). It is read through a view of exactly that part,
+     so no id can come from the next element's bytes, and an opaque in a struct field or
+     a cell element is itself held to its container's end, so its handle cannot come
+     from the container's neighbour either. Anything else sets
+     `mcosHandle` to `null`: read, and refused. The handle readers live in
+     `McosHandle.ts`, shared with `McosParser`, so the two cannot disagree on what a
+     handle is.
+  2. `McosParser.decodeMcosVariables` decodes a list of variables per VARIABLE rather than
+     per name, under the unchanged rules (ids in range, and now integers; every object's
+     class the declared one). It takes the parsed handle, and falls back to the old
+     raw-byte scan only for a variable no handle-aware parser read (`mcosHandle`
+     undefined — a host's own parse): a `null` is final, because the scan reads words,
+     not elements, and would accept the very handle the parser refused.
+     `decodeMcosBlob`'s by-name form is a wrapper over it.
+
+     The parsed handle is therefore the AUTHORITY, for a top-level variable as much as a
+     nested one, and the scan is only for variables no handle-aware parser has read. In a
+     MATLAB-written file the two always agree — every top-level object in every `.mat`
+     and model fixture is checked equal — but in a crafted file where they disagree, a
+     top-level variable now resolves through the parsed handle, so the parent commit
+     (which had only the scan) and this one can give different answers. And because
+     results are keyed per variable rather than per name, two top-level objects sharing
+     one name — which MATLAB never writes — now each get their own object, where the
+     parent commit gave both the last one's.
+  3. `MatNode` and `ModelNode` decode every opaque in the tree in one call
+     (`attachMcosDecoded`) and keep each result in a side table keyed by its variable
+     (`mcosDecodedTable`, a `WeakMap`) rather than on the variable, which may be a host's
+     own object. `MatlabVariableNode.parseMatVariable`, the one dispatch every nested
+     value goes through, reads that table and builds a decoded object through
+     `NodeRegistry` as the node its top-level twin gets.
+
+  A decoded object in a MAT struct field also takes its siblings' name rule — not
+  renameable — through a parent-side `fixesChildNames`.
+
+  Pinned in `nestedMcos.test.ts` (each layer, and the malformed handles), and in
+  `nestedMcosFixtures.test.ts` against MATLAB R2027a's own answers for
+  `test/fixtures/mcos/nested_objects.mat` and `nested_ws.slx`, whose every nested object
+  has a top-level twin. The two `matStringOpaque.test.ts` tests that pinned the summary
+  were flipped deliberately. Still open, on purpose: the CONTAINER's own presentation —
+  its one-line literal and its Variable Editor grid (`displayElements`) alike — which
+  prints every object element exactly as it did before — `<1x1 Class>`, whatever the
+  element's shape, so a 1x3 string, a 1x2 Parameter array and a 0x0 string are all
+  `<1x1 …>` there (`{<1x1 Simulink.Parameter>, <1x1 string>, 9}`) — until MATLAB's own
+  display of a container of objects, recorded beside each pin in
+  `nestedMcosFixtures.test.ts`, decides what it should say.
 
   **This is a `.mat`-only mechanism.** An `.sldd` carries no MCOS blob, so a `<1x1 string>`
   inside a DICTIONARY cell was never this limitation — it was defect 52, and citing this

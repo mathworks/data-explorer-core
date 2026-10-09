@@ -460,33 +460,36 @@ describe('a string held as an object PROPERTY', () => {
 });
 
 describe('a string nested in a struct or a cell', () => {
-  // A KNOWN GAP, pinned rather than fixed. A string that is a struct field or a cell
-  // element does not arrive through the named-variable path at all: it is an opaque
-  // MatVariable built by MatlabVariableNode._createOpaque, and decodeMcosObjects only
-  // ever sees variables that have a NAME. So it presents as a summary.
+  // A string that is a struct field or a cell element is decoded exactly as a named one
+  // is. It used to present as a bare `<1x1 string>`: only NAMED variables reached the
+  // decoder, a nested opaque has no name, and a cell element had no object handle to
+  // resolve at all. Now MatParser keeps every opaque's handle, MatNode decodes every
+  // opaque in the tree in one call, and MatlabVariableNode.parseMatVariable builds the
+  // decoded one — see test/nestedMcos.test.ts, which pins each of those layers.
   //
-  // This is not string-specific — a nested Simulink.Parameter presents as a summary with
-  // no property rows in the same file, for the same reason. Closing it means threading
-  // the blob down into the nested constructors (and making MatParser's cell branch set
-  // _rawBytes at all, which today only its struct branch does). Recorded in
-  // test/parity/matlab/DESIGN.md; this test says what today's answer is, so a change to
-  // it is a deliberate one.
+  // The expected text is probe_string.m's own: mixStruct.s = "inStruct", mixCell{2} =
+  // "inCell". The pins below used to assert the summary, and were flipped deliberately
+  // when nested objects started resolving.
   const nested = loadFile('../fixtures/strings_nested.mat');
 
-  it('shows the shape and the type but not the text', () => {
+  it('shows the text, the shape and the type', () => {
     const field = findEntry(nested, 's');
     expect(field.dataType).toBe('string');
     expect(field.icon).toBe('wsString');
-    expect(field.displayValue).toBe('<1x1 string>');
+    expect(field.dims).toEqual([1, 1]);
+    expect(field.displayValue).toBe('"inStruct"');
 
     const cellEl = findEntry(nested, 'mixCell').children[1];
     expect(cellEl.dataType).toBe('string');
-    expect(cellEl.displayValue).toBe('<1x1 string>');
+    expect(cellEl.icon).toBe('wsString');
+    expect(cellEl.displayValue).toBe('"inCell"');
   });
 
-  it('shows the same for a nested Simulink object, which is why this is not a string bug', () => {
-    expect(findEntry(nested, 'p').className).toBe('Simulink.Parameter');
-    expect(findEntry(nested, 'p').displayValue).toBe('<1x1 Simulink.Parameter>');
-    expect(findEntry(nested, 'p').children.length).toBe(0);
+  it('shows the same for a nested Simulink object, which was never a string bug', () => {
+    // MATLAB's Simulink.Parameter(7), as the Parameter node a top-level one is.
+    const p = findEntry(nested, 'p');
+    expect(p.className).toBe('Simulink.Parameter');
+    expect(p.constructor).toBe(findEntry(mixed, 'mixParam').constructor);
+    expect(p.displayValue).toBe('7');
   });
 });

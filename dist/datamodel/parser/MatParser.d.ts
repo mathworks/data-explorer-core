@@ -11,6 +11,10 @@ export interface MatVariable {
     _modified?: boolean;
     _anonymous?: boolean;
     isOpaque?: boolean;
+    mcosHandle?: {
+        dims: number[];
+        ids: number[];
+    } | null;
     undecoded?: string;
 }
 export interface ParsedMat {

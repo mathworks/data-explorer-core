@@ -4,7 +4,9 @@ import * as NodeRegistry from '../NodeRegistry.js';
 import type { NodeClassType, NodeParser } from '../NodeRegistry.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
+import type { MatVariable } from '../../parser/MatParser.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
+import { modelOpaqueMcosVariable, type McosDecoded } from './mcosTypedNode.js';
 import ConstantNode from './ConstantNode.js';
 import StructNode from './StructNode.js';
 import ObjectNode from './ObjectNode.js';
@@ -159,10 +161,27 @@ export function wrapDerivedVariable(node: DataNode): DataNode {
     return node;
 }
 
+// A decoded MCOS object nested in a struct field or a cell element, built exactly as
+// MatNode and ModelNode build a top-level one but under the name it is shown by. Here
+// rather than in MatlabVariableNode, which reaches it through the registry, for the
+// cycle NodeRegistry.modelMcosVariable records.
+//
+// No warnings sink: parseMatVariable is handed none. A nested object whose typed view
+// throws degrades to the opaque node exactly as a top-level one does, but without the
+// `part-unreadable` warning a top-level one files.
+export function modelMcosVariable(
+    variable: MatVariable,
+    decoded: McosDecoded,
+    name: string,
+    parent: BaseNode | null,
+): DataNode | null {
+    return modelOpaqueMcosVariable(variable, decoded, parent, undefined, name);
+}
+
 // Installing into NodeRegistry is what makes this module's side-effect import
 // (from the barrel and from src/node) load-bearing: every node class reaches the
 // class map through the registry, so nothing else needs to import this file.
-const api = { getClass, parseValue, getRegisteredClasses, wrapDerivedVariable };
+const api = { getClass, parseValue, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable };
 NodeRegistry.init(api);
 
 export default api;

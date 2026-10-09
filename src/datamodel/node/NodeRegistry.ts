@@ -2,6 +2,8 @@
 
 import type BaseNode from './BaseNode.js';
 import type DataNode from './DataNode.js';
+import type { MatVariable } from '../parser/MatParser.js';
+import type { McosDecoded } from './data/mcosTypedNode.js';
 
 export interface NodeClassMapAPI {
     parseValue(rawVal: unknown, name: string, parent: BaseNode | null): DataNode;
@@ -12,6 +14,13 @@ export interface NodeClassMapAPI {
     // by its own class without SectionNode importing it (avoids a cycle). Returns
     // the node unchanged if it isn't a plain MATLAB variable.
     wrapDerivedVariable(node: DataNode): DataNode;
+    // Model an MCOS object nested in a struct field or a cell element of a .mat file or
+    // a model workspace, once its container has decoded it, as the node the same object
+    // gets at top level. MatlabVariableNode.parseMatVariable calls this from its opaque
+    // arm, so it reaches mcosTypedNode without importing it — mcosTypedNode imports
+    // MatlabVariableNode, so the direct import would be a cycle. Null means "model it as
+    // the opaque variable it is".
+    modelMcosVariable(variable: MatVariable, decoded: McosDecoded, name: string, parent: BaseNode | null): DataNode | null;
 }
 
 // Anything that can turn a parsed value into a node. This is all the structural
@@ -59,4 +68,13 @@ export function wrapDerivedVariable(node: DataNode): DataNode {
     return classMap!.wrapDerivedVariable(node);
 }
 
-export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable };
+export function modelMcosVariable(
+    variable: MatVariable,
+    decoded: McosDecoded,
+    name: string,
+    parent: BaseNode | null,
+): DataNode | null {
+    return classMap!.modelMcosVariable(variable, decoded, name, parent);
+}
+
+export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable };

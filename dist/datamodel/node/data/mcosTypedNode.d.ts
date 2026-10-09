@@ -11,5 +11,6 @@ export interface McosDecoded {
     stringElements?: (string | null)[] | null;
 }
 export declare function decodeMcosObjects(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): Map<string, McosDecoded> | null;
-export declare function modelOpaqueMcosVariable(variable: MatVariable, decoded: McosDecoded | undefined, parent: BaseNode, warnings?: ParseWarning[]): DataNode | null;
+export declare function attachMcosDecoded(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): void;
+export declare function modelOpaqueMcosVariable(variable: MatVariable, decoded: McosDecoded | undefined, parent: BaseNode | null, warnings?: ParseWarning[], name?: string): DataNode | null;
 //# sourceMappingURL=mcosTypedNode.d.ts.map
