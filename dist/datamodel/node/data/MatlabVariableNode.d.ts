@@ -127,6 +127,18 @@ export default class MatlabVariableNode extends DataNode {
      * disagreement would mean writing a cdata stream built from a non-complex `_var`.
      */
     _isComplexValue(): boolean;
+    /**
+     * The MATLAB class of a complex value: what its writers spell, where the node's own
+     * type says nothing about it. An ARRAY carries it as its `_scalarType` (int16, single,
+     * …), as every reader sets it. A SCALAR's type is 'complex', which has no class, so the
+     * class is read off what the value was read from, while that is still the value: the
+     * variable a .mat or a text dictionary's stream gave (`_matVar`), or the envelope a
+     * binary dictionary or the MCOS decoder gave (`_rawInput`). A value edit clears both
+     * (_applyParsed), and an edited complex scalar is a double, as the literal typed for it
+     * is in MATLAB. Not `_var`: a rename marks the snapshot stale without changing the
+     * value, and the rebuilt variable is where this class is needed, not where it is read.
+     */
+    _complexClass(): string;
     _serializeCdata(): unknown | null;
     _serializeScalar(): unknown;
     _serializeArray(): unknown;

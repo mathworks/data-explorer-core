@@ -164,6 +164,16 @@ export declare function charTextFromCodes(rowMajorCodes: number[], dims: number[
  */
 export declare function formatMxCharSerial(text: string, dims: number[]): string;
 export declare function formatComplexXml(complexStr: string): string;
+/**
+ * A complex value's body as a binary dictionary's `<P Class="…" IsComplex="1">` carries it,
+ * for its class: a float class's parts each read as a float (formatComplexXml's `.0`), an
+ * integer class's parts as the integers they are. MATLAB writes `Class="int8"
+ * IsComplex="1">3-4i` and `Class="int64" IsComplex="1">9223372036854775807+1i`, and the
+ * `.0` form, `9223372036854775807.0+1.0i`, is not that value. An infinity is `Inf`, the
+ * only word MATLAB writes for one, whichever reader's text it came from (a plain .mat
+ * variable's element says `Infinity`).
+ */
+export declare function formatComplexBodyXml(text: string, className: string): string;
 export declare function transposeToColumnMajor<T>(rowMajor: T[], rows: number, cols: number): T[];
 export declare function transposeToColumnMajorND<T>(rowMajor: T[], dims: number[]): T[];
 export declare function transposeFromColumnMajorND<T>(colMajor: T[], dims: number[]): T[];

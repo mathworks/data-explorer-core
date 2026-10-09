@@ -439,6 +439,19 @@ export function formatMxCharSerial(text, dims) {
 export function formatComplexXml(complexStr) {
     return complexStr.replace(/\.\d+(?:[eE][+-]?\d+)?|\d+\.?\d*(?:[eE][+-]?\d+)?/g, (num) => (/[.eE]/.test(num) ? num : num + '.0'));
 }
+/**
+ * A complex value's body as a binary dictionary's `<P Class="…" IsComplex="1">` carries it,
+ * for its class: a float class's parts each read as a float (formatComplexXml's `.0`), an
+ * integer class's parts as the integers they are. MATLAB writes `Class="int8"
+ * IsComplex="1">3-4i` and `Class="int64" IsComplex="1">9223372036854775807+1i`, and the
+ * `.0` form, `9223372036854775807.0+1.0i`, is not that value. An infinity is `Inf`, the
+ * only word MATLAB writes for one, whichever reader's text it came from (a plain .mat
+ * variable's element says `Infinity`).
+ */
+export function formatComplexBodyXml(text, className) {
+    const body = text.trim().replace(/Infinity/g, 'Inf');
+    return className === 'double' || className === 'single' ? formatComplexXml(body) : body;
+}
 export function transposeToColumnMajor(rowMajor, rows, cols) {
     if (rows <= 1) {
         return rowMajor;

@@ -2184,6 +2184,41 @@ Two findings from that hardening, measured and deliberately NOT acted on:
     and the array takes it. A complex SCALAR still shows double in every venue, as it did:
     the node's complex-scalar type has no class of its own to show.
 
+58. **A complex value written into a binary dictionary lost its shape and its class.**
+    `DataNode._serializeTypedPropertyXml` wrote the plain-text complex form
+    (`{_type: 'cdata', _value, _dimensions}`, what BinarySlddParser reads and what defect
+    57's decoder builds) as `Class="double" IsComplex="1">` + body, and nothing else: no
+    Dimension, and double whatever the class. MATLAB read every such array back as its
+    FIRST element — `[1+2i 3+4i 5+6i]` as 1+2i, a 2x2 and a 2x2x2 likewise — and
+    int64(complex(intmax('int64'), 1)) as the double 9.22337203685478e+18+1i. Pre-existing
+    and silent: a save that edits nothing rebuilds every entry, so merely saving MATLAB's
+    own `complex_binary.sldd` changed 17 of its 29 entries, and so did editing any other
+    property of an entry (its Value is replayed, not rebuilt). The cell-element writer
+    beside it was worse, writing a complex element of a cell inside an object's property as
+    `<Element Class="cdata">1</Element>`. Both now go through `DataNode._complexTextXml`:
+    the envelope's `_class` (defect 57) or double, `IsComplex="1"`, every extent unless the
+    value is a scalar, the body for its class (`XmlUtils.formatComplexBodyXml`: a float's
+    parts with `.0`, an integer's as integers — MATLAB writes `Class="int8"
+    IsComplex="1">3-4i`), and an empty body closed as MATLAB closes one. The node's own XML
+    writer, which every edited value and every MAT stream reaches, took `Class="double"`
+    the same way and now asks `MatlabVariableNode._complexClass`; and it wrote an entry
+    whose complex text it could not read — a binary dictionary's own non-finite text, shown
+    as a quoted char — as `Class="char"`, so it now replays unedited complex text through
+    the same writer.
+
+    Graded by `complexBinaryWriteBack.test.ts` against the XML MATLAB wrote into
+    `complex_binary.sldd`: a save with no edit, a save after editing each Parameter's
+    Description, and each complex Parameter of `complex_objects.mat` added to the
+    dictionary, every one of them tag for tag (pThird's digits apart, which name the same
+    double). 49 of its 81 tests fail without the fix. Over the 7 corpus binary dictionaries
+    that hold a complex value, a no-op save wrote 18 of their 33 complex properties
+    differently from MATLAB before, and writes all 33 as MATLAB did now. MATLAB R2027a read the three resulting
+    dictionaries back with `getValue`: 0 of 29 entries differ from MATLAB's own after the
+    no-op save and after the edit (17 of 29 did before), and 1 of 52 after the additions
+    (31 did before). The one is pNonFinite out of the `.mat`, whose bytes are MATLAB's own
+    bytes for the same value and which MATLAB reads back as it reads its own: `1.0NaNi
+    -Inf+2.0i` as two real elements (defect 57).
+
 ## Known limitations, to verify and document
 
 - **Derived MCOS classes.** A customer class `MyParam < Simulink.Parameter`

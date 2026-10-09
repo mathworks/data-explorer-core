@@ -15,10 +15,10 @@ import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import { parseMatrix } from '../../parser/MatParser.js';
-import { uudecode } from '../../parser/CdataCodec.js';
+import { isMatCdata, uudecode } from '../../parser/CdataCodec.js';
 import { encodeCdata } from '../../parser/MatWriter.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, summaryForm, } from '../../display/DisplayConvention.js';
-import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
+import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
 // The pure rules about a MATLAB VALUE — what class an edit leaves behind, when a
@@ -1323,6 +1323,25 @@ export default class MatlabVariableNode extends DataNode {
             : this._elements;
         return elems.length > 0 && typeof elems[0] === 'string' && String(elems[0]).includes('i');
     }
+    /**
+     * The MATLAB class of a complex value: what its writers spell, where the node's own
+     * type says nothing about it. An ARRAY carries it as its `_scalarType` (int16, single,
+     * …), as every reader sets it. A SCALAR's type is 'complex', which has no class, so the
+     * class is read off what the value was read from, while that is still the value: the
+     * variable a .mat or a text dictionary's stream gave (`_matVar`), or the envelope a
+     * binary dictionary or the MCOS decoder gave (`_rawInput`). A value edit clears both
+     * (_applyParsed), and an edited complex scalar is a double, as the literal typed for it
+     * is in MATLAB. Not `_var`: a rename marks the snapshot stale without changing the
+     * value, and the rebuilt variable is where this class is needed, not where it is read.
+     */
+    _complexClass() {
+        if (this._kind === 'array') {
+            return complexClassTag(this._scalarType) ?? 'double';
+        }
+        const fromVar = this._matVar ? this._matVar.className : undefined;
+        const fromEnvelope = this._rawInput?._class;
+        return complexClassTag(fromVar) ?? complexClassTag(fromEnvelope) ?? 'double';
+    }
     // A value with no literal spelling — rank >= 3, or complex at any rank — as the
     // `{_type: 'cdata'}` byte stream MATLAB uses for it. `_var` is the same live-tree
     // rebuild the .mat and .slx writers use, so an edit anywhere below this node is
@@ -1526,6 +1545,18 @@ export default class MatlabVariableNode extends DataNode {
     // can't share the JSON traversal — stores matrix elements in COLUMN-major order,
     // hence transposeToColumnMajorND on the way out.
     serializeXml(tagName, attrs, indent) {
+        // Complex text nobody edited goes back as the text it was read from, through the
+        // writer that spells complex text (DataNode._complexTextXml). For a value the node
+        // read as numbers that is the same bytes the arms below would write; it matters for
+        // the value it could not read — a binary dictionary's own text with a NaN or Inf part,
+        // which parseCdata shows as a quoted char (see _isOwnNonFiniteText) — which the char
+        // arm used to write back as `Class="char"`, so a save that edited nothing turned
+        // MATLAB's [Inf NaN -2 5000i] into a char row.
+        const raw = this._rawInput;
+        if (raw && raw._type === 'cdata' && !isMatCdata(raw) && this.status !== 'Modified') {
+            const attrStr = attrs && attrs.Name ? ' Name="' + escapeXml(attrs.Name) + '"' : '';
+            return DataNode._complexTextXml(tagName, attrStr, raw, indent);
+        }
         switch (this._kind) {
             case 'scalar':
                 return this._serializeScalarXml(tagName, attrs, indent);
@@ -1591,12 +1622,15 @@ export default class MatlabVariableNode extends DataNode {
             return p + '<' + tagName + attrStr + ' Class="logical">' + (val ? '1' : '0') + '</' + tagName + '>';
         }
         if (type === 'complex') {
+            const cls = this._complexClass();
             return (p +
                 '<' +
                 tagName +
                 attrStr +
-                ' Class="double" IsComplex="1">' +
-                formatComplexXml(String(val)) +
+                ' Class="' +
+                cls +
+                '" IsComplex="1">' +
+                formatComplexBodyXml(String(val), cls) +
                 '</' +
                 tagName +
                 '>');
@@ -1644,14 +1678,17 @@ export default class MatlabVariableNode extends DataNode {
         if (type === 'complex' ||
             (elems.length > 0 && typeof elems[0] === 'string' && elems[0].includes('i'))) {
             const colMajor = transposeToColumnMajorND(elems, dims);
+            const cls = this._complexClass();
             const formatted = colMajor.map(function (v) {
-                return formatComplexXml(String(v));
+                return formatComplexBodyXml(String(v), cls);
             });
             return (p +
                 '<' +
                 tagName +
                 attrStr +
-                ' Class="double" IsComplex="1" Dimension="' +
+                ' Class="' +
+                cls +
+                '" IsComplex="1" Dimension="' +
                 dimAttr +
                 '">' +
                 formatted.join(' ') +

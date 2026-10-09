@@ -162,6 +162,23 @@ export default class DataNode extends BaseNode {
     static _stringEnvelopeXml(elements: unknown[], dims: number[], indent: number): string;
     static _serializeStringPropertyXml(name: string, elements: unknown[], dims: number[], indent: number): string;
     static _serializeTypedPropertyXml(name: string, value: Record<string, unknown>, indent: number): string;
+    /**
+     * A complex value in its plain-text form — `{_type: 'cdata', _value: '1+2i 5+6i 3+4i
+     * 7+8i', _dimensions: [2, 2], _class?}`, what BinarySlddParser reads out of a binary
+     * dictionary and McosParser.complexPropertyValue builds for a .mat or a model workspace
+     * — as the one XML element a binary dictionary holds it in: its class, `IsComplex="1"`,
+     * every extent unless it is a scalar (MATLAB writes none on one), and the body for its
+     * class. Shared by the property writer and the cell-element writer.
+     *
+     * Both used to drop half of that. The property writer wrote `Class="double"
+     * IsComplex="1"` and nothing else whatever the value was, so any save that wrote a
+     * complex Value it had not edited lost its shape and its class: MATLAB read
+     * `[1+2i 3+4i 5+6i]` back as 1+2i, a 2x2 and a 2x2x2 as their first element, and
+     * int64(complex(intmax('int64'), 1)) as the double 9.22337203685478e+18+1i — on a
+     * no-op save of MATLAB's own file, and on editing any other property of the entry.
+     * The cell-element writer wrote `Class="cdata"`, a class MATLAB does not have.
+     */
+    static _complexTextXml(tag: string, attrs: string, value: Record<string, unknown>, indent: number): string;
     static _serializeObjectPropertyXml(name: string, value: Record<string, unknown>, indent: number, ownerNode: DataNode | null): string;
     static _serializeStructPropertyXml(name: string, value: Record<string, unknown>, indent: number): string;
     static _serializeCellPropertyXml(name: string, value: Record<string, unknown>, indent: number): string;
