@@ -2141,19 +2141,21 @@ Two findings from that hardening, measured and deliberately NOT acted on:
     `test/fixtures/mcos/complex_objects.mat`, `complex_ws.slx`, and the same values as
     entries in `complex.sldd` (text) and `complex_binary.sldd` (binary), all written by
     `make_complex_fixtures.m`: every element against MATLAB's own `mat2str` of it, with the
-    four places mat2str's spelling is not of that form listed beside MATLAB's answer; every
-    nested object against a top-level twin; every value in the `.mat` against each other
-    venue. The `.mat` also holds the two positions a dictionary cannot — a Parameter
+    five places mat2str's spelling is not of that form listed beside MATLAB's answer (one
+    is pThird, complex(1/3, 0.1), where mat2str's fifteen significant digits are its own
+    precision and not the double's — so the digits are graded against MATLAB's exact
+    parts, and a spelling that dropped one fails); every array's class against MATLAB's;
+    every nested object against a top-level twin; every value in the `.mat` against each
+    other venue. The `.mat` also holds the two positions a dictionary cannot — a Parameter
     ARRAY, and a custom class (`ComplexHolder.m`) with a complex scalar, struct field,
-    cell and matrix — and a Parameter whose Value is a struct of complex fields is in all
-    three. `complexMcosValue.test.ts` grades the decoder's bag against the binary reader's
-    for the same entry on MATLAB's bytes — the LookupTable's Table.Value included, which
-    `LookupTableNode` does not display in any venue — and the shapes no fixture has
-    (sparse, every class, an exact int64 token). `noObjectObject.test.ts` opens every
-    `.sldd`, `.slx`, `.mdl` and `.mat` in the repo and asserts no displayed text, row,
-    property or grid cell in any of them is `[object Object]`. With the arm removed, the
-    first file fails 75 of its 178 tests and the guard flags the two MCOS fixtures above
-    and nothing else.
+    cell, matrix, NaN row and int16 row — and a Parameter whose Value is a struct of
+    complex fields is in all three. `complexMcosValue.test.ts` grades the decoder's bag
+    against the binary reader's for the same entry on MATLAB's bytes — the LookupTable's
+    Table.Value included — and the shapes no fixture has (sparse, every class, an exact
+    int64 token). `noObjectObject.test.ts` opens every `.sldd`, `.slx`, `.mdl` and `.mat` in
+    the repo and asserts no displayed text, row, property, grid cell or Property Inspector
+    value in any of them is `[object Object]`. With the arm removed, the first file fails
+    86 of its 207 tests and the guard flags the two MCOS fixtures above and nothing else.
 
     **A non-finite part.** parseCdata's text test (`/^[\d.eE+\-i\s]+$/`) refuses `Inf` and
     `NaN`, and a value it refuses falls to a quoted char. In the first version of this fix
@@ -2389,6 +2391,17 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   of the four channels carry no property data for it at all — defect 40. Recorded from
   the raw bags, because MATLAB does not call `Choices` a property and parity therefore
   passes.
+- **A REAL array inside an MCOS object is classed double.** `McosParser.buildMatrixValue`
+  writes `_type: 'double'` and a row goes through as a bare list, so `single([0.1 0.3])`
+  as a Parameter's Value shows Data Type double on its Value row in a `.mat`, where both
+  dictionaries say single. Defect 57 gives a COMPLEX value its class (`_class`); the real
+  arms predate it and are left as they were.
+- **A single shows the double it widens to, out of a `.mat`.** MatParser reads a float32
+  into a JavaScript number, and every `.mat` arm prints that: complex(single(0.1), 0.2)
+  is `0.10000000149011612+0.20000000298023224i` in a plain `.mat` variable, in an MCOS
+  object and in a text dictionary (whose stream is read by the same arm), where a binary
+  dictionary shows MATLAB's own text, `0.1+0.2i`, and MATLAB's display `0.1000 + 0.2000i`.
+  The shortest spelling of the float32 would change every one of those venues at once.
 - **The Inspector's "Other" group does not flatten a nested object out of a binary
   dictionary.** The binary reader spells one `{_array_class, _elements: [{_properties}]}`
   and the group flattens only `{_object_class, _properties}`, so a LookupTable's Table
