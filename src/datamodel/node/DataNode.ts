@@ -6,6 +6,7 @@ import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
+import { textDictionaryForm } from '../parser/MatWriter.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
 import {
   charTextFromCodes,
@@ -592,14 +593,38 @@ export default class DataNode extends BaseNode {
   }
 
   serialize(): unknown {
+    // serialize() is what a text dictionary is written from — SlddNode.serializeJson, and
+    // a host splicing one entry's JSON into the file — and serializeValue's replay of an
+    // untouched value can hold complex TEXT, a binary dictionary's form (or the MCOS
+    // decoder's), which MATLAB reads back out of a text dictionary as []. So in one, it
+    // goes out as MATLAB's MAT stream. Everywhere else it stays as it is: a binary
+    // dictionary is written from serializeXml, where the text IS its form, and a payload
+    // copied out of one keeps it for whichever dictionary it lands in.
+    const raw = this.serializeValue();
+    const value = this._ownerFormat() === 'json' ? textDictionaryForm(raw) : raw;
     if (this.isEntry) {
       return {
         name: this.name,
         metadata: this.metadata,
-        value: this.serializeValue(),
+        value,
       };
     }
-    return this.serializeValue();
+    return value;
+  }
+
+  /**
+   * The format of the file this node is in, as the nearest container above it states it
+   * (SlddNode: 'json' for a text dictionary, 'xml' for a binary one), or undefined for a
+   * node in no file — a payload being built, a value the XML writer re-reads.
+   */
+  _ownerFormat(): string | undefined {
+    for (let n: BaseNode | null = this.parent; n; n = n.parent) {
+      const format = (n as { sourceFormat?: unknown }).sourceFormat;
+      if (typeof format === 'string') {
+        return format;
+      }
+    }
+    return undefined;
   }
 
   /**

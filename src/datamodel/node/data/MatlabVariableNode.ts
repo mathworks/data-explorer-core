@@ -40,6 +40,7 @@ import {
   formatDoubleXml,
   formatNumericXml,
   formatComplexBodyXml,
+  formatComplexNum,
   formatMatlabNum,
   formatMxCharSerial,
   formatNumLiteral,
@@ -48,6 +49,7 @@ import {
   parseExactNum,
   parseComplexNum,
   complexClassTag,
+  isExactToken,
   needsExactInt,
   exactForClass,
   transposeToColumnMajorND,
@@ -1397,6 +1399,8 @@ export default class MatlabVariableNode extends DataNode {
       this.status !== 'Modified' &&
       !(this._rawInput as Record<string, unknown>)?._emptyDims
     ) {
+      // Complex TEXT included, which is not a text dictionary's form: DataNode.serialize
+      // turns it into one on the way into such a file (MatWriter.textDictionaryForm).
       return this._rawInput;
     }
     // Rank >= 3 leaves the literal grammar behind entirely: there is no spelling
@@ -1461,7 +1465,10 @@ export default class MatlabVariableNode extends DataNode {
             return (c as MatlabVariableNode)._scalarValue;
           })
         : this._elements;
-    return elems.length > 0 && typeof elems[0] === 'string' && String(elems[0]).includes('i');
+    // ANY element, not the first: the element editor takes only a real number, so after
+    // x(1) = 7 the first element is the number 7 and the rest are still complex, and
+    // asking the first alone wrote [7+0i NaN+0i 3-4i] out as the real [7 0 3].
+    return elems.some((e) => typeof e === 'string' && e.includes('i'));
   }
 
   /**
@@ -1837,14 +1844,13 @@ export default class MatlabVariableNode extends DataNode {
           })
         : this._elements;
 
-    if (
-      type === 'complex' ||
-      (elems.length > 0 && typeof elems[0] === 'string' && (elems[0] as string).includes('i'))
-    ) {
-      const colMajor = transposeToColumnMajorND(elems as string[], dims);
+    if (this._isComplexValue()) {
+      const colMajor = transposeToColumnMajorND(elems, dims);
       const cls = this._complexClass();
       const formatted = colMajor.map(function (v) {
-        return formatComplexBodyXml(String(v), cls);
+        // An element edited to a real number is that number plus 0i (see _buildVarObject).
+        const text = typeof v === 'number' || isExactToken(v) ? formatComplexNum(v, 0) : String(v);
+        return formatComplexBodyXml(text, cls);
       });
       return (
         p +
@@ -2041,11 +2047,15 @@ export default class MatlabVariableNode extends DataNode {
         v.dimensions = this._textDims(typeof this._scalarValue === 'string' ? (this._scalarValue as string) : '');
       }
       if (this._scalarType === 'complex') {
-        v.className = 'double';
+        // The class the value has (_complexClass), and its parts read by the one reader
+        // of complex text, which knows Inf and NaN: the pattern this used,
+        // `^([-\d.eE+]+)([+-][\d.eE+]+)i$`, matched neither, so complex(1, Inf) went out
+        // as the real 0 and an int8 one as a double.
+        v.className = this._complexClass();
         v.isComplex = true;
-        const m = String(this._scalarValue).match(/^([-\d.eE+]+)([+-][\d.eE+]+)i$/);
-        if (m) {
-          v.value = [{ re: parseFloat(m[1]), im: parseFloat(m[2]) }];
+        const pair = parseComplexNum(String(this._scalarValue), v.className);
+        if (pair) {
+          v.value = [pair];
         }
       }
     } else if (this._kind === 'array') {
@@ -2056,11 +2066,18 @@ export default class MatlabVariableNode extends DataNode {
             })
           : this._elements;
       if (this._isComplexValue()) {
-        v.className = 'double';
+        // As the scalar arm above: a NaN or Inf element used to become 0+0i here, and
+        // an int16 array a double one. An element edited to a real number (the element
+        // editor takes only those) is that number plus 0i, as MATLAB makes x(2) = 9 of a
+        // complex x; it was 0+0i.
+        const cls = this._complexClass();
+        v.className = cls;
         v.isComplex = true;
-        v.value = (elems as string[]).map(function (s) {
-          const m = String(s).match(/^([-\d.eE+]+)([+-][\d.eE+]+)i$/);
-          return m ? { re: parseFloat(m[1]), im: parseFloat(m[2]) } : { re: 0, im: 0 };
+        v.value = (elems as unknown[]).map(function (s) {
+          if (typeof s === 'number' || isExactToken(s)) {
+            return { re: s, im: 0 };
+          }
+          return parseComplexNum(String(s), cls) ?? { re: 0, im: 0 };
         });
       } else {
         v.value = elems.length === 1 ? elems[0] : elems;

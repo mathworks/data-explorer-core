@@ -2219,6 +2219,44 @@ Two findings from that hardening, measured and deliberately NOT acted on:
     bytes for the same value and which MATLAB reads back as it reads its own: `1.0NaNi
     -Inf+2.0i` as two real elements (defect 57).
 
+59. **A complex value put into a text dictionary in complex TEXT reopened as `[]`.** An
+    untouched value writes itself back by replaying the form it was read in, and complex
+    text — a binary dictionary's form, and the MCOS decoder's (defect 57) — is one MATLAB
+    reads back out of a TEXT dictionary as an empty double, defect 24's signature. So a
+    Parameter pasted into a text dictionary out of a binary one, or copied in out of a
+    `.mat` or a model workspace, went into the file as `{"_type": "cdata", "_value":
+    "3+4i"}`: of 50 such entries in a probe (24 out of `complex_objects.mat`, 24 out of
+    `complex_binary.sldd`, 2 edited), MATLAB reopened all 50 wrongly, 47 of them as `[]`.
+    Pre-existing for the binary source, which a host reaches by copy and paste. The replay
+    happens at every depth — a struct's bag, a LookupTable's Table — so the conversion is
+    at the one place a text dictionary's JSON comes from: `DataNode.serialize`, for a node
+    whose file is a text dictionary (`_ownerFormat() === 'json'`), passes its value through
+    `MatWriter.textDictionaryForm`, which turns every complex text into the MAT stream
+    MATLAB writes for it (`complexTextVariable` reads the text with
+    `XmlUtils.parseComplexNum`, so MATLAB's binary `1.0NaNi` converts as well) and leaves
+    the rest, including MATLAB's own streams, as it was. serializeValue still replays the
+    text, which the binary dictionary's writer needs (defect 58).
+
+    Three losses on the way to a stream went with it. `_buildVarObject`, which an edited
+    value is rebuilt by, read each element with `^([-\d.eE+]+)([+-][\d.eE+]+)i$`, which
+    matches neither Inf nor NaN (such an element became 0+0i), classed every complex value
+    double, and read an element edited to a real number as 0+0i; it now asks
+    `parseComplexNum` and `_complexClass` and keeps a real element as itself plus 0i.
+    `_isComplexValue` asked only the FIRST element, so after `x(1) = 7` the whole array
+    was written as a real one, `[7 0 3]`; it asks every element. And MatWriter's
+    `exactPart` wrote every NaN as 0 (`Number(x) || 0`), for real values as well as
+    complex ones; a number now goes into the stream as itself.
+
+    Graded by `complexTextWriteBack.test.ts`: every complex Parameter and LookupTable of
+    `complex_objects.mat` and of `complex_binary.sldd`, put into `complex.sldd`, saved and
+    reopened, holds a MAT stream with MATLAB's class, shape and numbers wherever MATLAB's
+    own entry of that name holds one, and presents exactly as that entry does; an element
+    edit keeps an int16 class and a NaN part. 53 of its 56 tests fail without the fix.
+    MATLAB R2027a read the saved dictionary back: 0 of its 79 entries (the 29 MATLAB wrote
+    and those 50) differ from the value MATLAB wrote, where all 50 did before — pNonFinite
+    out of the binary dictionary included, whose text MATLAB's own binary reader gets
+    wrong — and an untouched save of `complex.sldd` is 0 of 29, as before.
+
 ## Known limitations, to verify and document
 
 - **Derived MCOS classes.** A customer class `MyParam < Simulink.Parameter`
@@ -2336,13 +2374,6 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   of the four channels carry no property data for it at all — defect 40. Recorded from
   the raw bags, because MATLAB does not call `Choices` a property and parity therefore
   passes.
-- **`MatWriter` writes a NaN as 0.** `exactPart` coerces with `Number(x) || 0`, and NaN is
-  falsy, so every double or single NaN the byte packer re-encodes comes out as zero:
-  `encodeMatVariable` of `[1 NaN Inf]` parses back as `[1 0 Inf]`. Found while choosing the
-  form defect 57's value takes (a MAT stream would have shown complex(NaN, 1) as `0+1i`),
-  and not fixed there because it is the write path: an edited N-D or complex value going
-  into a text dictionary, a modified `.mat` variable. Measured on the packer alone; no
-  MATLAB read-back of an affected save has been made.
 - **A complex EMPTY in a binary dictionary shows as an empty quoted char.** MATLAB writes
   `<P Class="double" IsComplex="1" Dimension="1*0"/>`; the empty body fails parseCdata's
   text test and its stream decode, so the value is `''` where the same Parameter in a

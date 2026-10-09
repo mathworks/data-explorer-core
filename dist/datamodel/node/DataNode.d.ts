@@ -61,6 +61,12 @@ export default class DataNode extends BaseNode {
     _stampLastModified(): void;
     serialize(): unknown;
     /**
+     * The format of the file this node is in, as the nearest container above it states it
+     * (SlddNode: 'json' for a text dictionary, 'xml' for a binary one), or undefined for a
+     * node in no file — a payload being built, a value the XML writer re-reads.
+     */
+    _ownerFormat(): string | undefined;
+    /**
      * This node's rawVal with its live property bag written into the first element — the value
      * half of an entry in an uncompressed-text `.sldd`.
      *
