@@ -50,6 +50,24 @@ export function formatMatlabNum(num) {
     }
     return String(num);
 }
+// One complex element as this package spells it: `3+4i`, `1-2i`, `0+5i`, `3+0i`. Each
+// part as formatMatlabNum spells it, and between them the imaginary part's own sign, or
+// '+' when `im >= 0`. For a finite part that is the rule a plain .mat variable's
+// elements and a typed-in complex literal already follow
+// (MatlabVariableNode._createFromMatNumeric, MatlabValueParser.parseComplex), which
+// write String() for the parts and so differ only in spelling an infinity 'Infinity'.
+//
+// `NaN >= 0` is false, so a NaN imaginary part gets no '+': complex(1, NaN) is `1NaNi`,
+// which is what the .mat arm already shows for it, and also how MATLAB's own writer
+// spells the element: a compressed-binary dictionary stores [complex(Inf,-Inf)
+// complex(NaN,1) complex(1,NaN) complex(-Inf,2)] as `Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i`
+// (R2027a, complex_binary.sldd's pNonFinite) — though MATLAB's reader does not take that
+// text back as the value it wrote (complex_binary_sldd.truth.json).
+// A part may be an exact decimal token (an int64 beyond 2^53, see exactInt); Number()
+// reads its sign.
+export function formatComplexNum(re, im) {
+    return formatMatlabNum(re) + (Number(im) >= 0 ? '+' : '') + formatMatlabNum(im) + 'i';
+}
 // The inverse: a number as it appears in a .sldd, falling back to 0 for text
 // that is not a number at all. parseFloat reads MATLAB's Inf/-Inf/NaN as NaN,
 // and the `|| 0` idiom then silently turns each of them into zero — so the

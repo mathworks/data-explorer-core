@@ -56,6 +56,19 @@ What a container shows for itself does not change: a cell's one-line literal and
 its Variable Editor grid (`displayElements`) both print every object element as
 `<1x1 Class>`, as before nested objects resolved, whatever the element's shape.
 
+## Complex values
+
+The bag this factory is handed carries a complex property value in the
+compressed-binary dictionary's own form, `{_type: 'cdata', _value: '1+2i 3+4i',
+_dimensions: [1, 2]}`, built by `McosParser.complexPropertyValue` wherever the decoder
+resolves a value — a Parameter's Value, a struct field or cell element inside one, a
+custom class's property, an object array's elements. So the node it routes to reads
+the value exactly as it reads the same property out of a binary dictionary, and shows
+`3+4i` and `[1+2i 3+4i]` with one row per element; before, the decoder passed
+MatParser's `{re, im}` pairs through and the node showed `[object Object]`. Graded
+against MATLAB R2027a by `test/complexMcosFixtures.test.ts` in four venues, and at the
+decoder by `test/complexMcosValue.test.ts`.
+
 ## Host / factory status
 
 - This is NOT a node class — it is a routing utility.

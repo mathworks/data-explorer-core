@@ -37,6 +37,7 @@ export declare const SAVEOBJ_KEY = "_saveobj";
  */
 export declare const CUSTOM_SAVE_KEY = "_custom_save";
 export declare function formatMatlabNum(num: unknown): string;
+export declare function formatComplexNum(re: unknown, im: unknown): string;
 export declare function parseMatlabNum(text: string): number;
 export declare function parseNumericBody(text: string): number[];
 /**

@@ -2111,6 +2111,59 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   rather than assumed; it is the one other place in the model layer that reads `_fields` to
   decide something.
 
+## A defect found by putting a complex number inside an object
+
+57. **A complex value inside an MCOS object showed `[object Object]`, in a `.mat` and in
+    a model workspace.** A `Simulink.Parameter` whose Value is `3+4i` showed
+    `[[object Object]]`; with Value `[1+2i 3+4i 5+6i]` it showed three of them, on its
+    own cell, its Value row and each element row; a 2x2 or N-D Value showed `[ ]` and no
+    rows at all. The same Parameter in either dictionary showed `3+4i`. MatParser carries a
+    complex element as `{re, im}`, and `McosParser.resolveValue` had no complex arm: the
+    pairs went on as they were, and every formatter below String()-coerced them. The
+    resolver is the one place every property value passes, so the pairs reached each
+    position it builds: a top-level object, one nested in a struct field or a cell element,
+    a struct field or a cell element inside a property, an object array's elements, a
+    custom class's property, a `LookupTable`'s Table.
+
+    Fixed with one arm, `complexPropertyValue`, ahead of the numeric ones: the value leaves
+    the decoder in the compressed-binary dictionary's own complex form, `{_type: 'cdata',
+    _value: '1+2i 5+6i 3+4i 7+8i', _dimensions: [2, 2]}` — column-major, every extent, no
+    shape on a scalar — so it takes `MatlabVariableNode.parseCdata`'s route, the one the
+    binary dictionary's Value takes, and presents as it does there. The spelling is
+    `XmlUtils.formatComplexNum`, which is the `im >= 0 ? re+'+'+im+'i' : re+im+'i'` rule a
+    plain `.mat` variable and a typed literal already use, with formatMatlabNum's parts. An
+    EMPTY complex value is left to the numeric arm's `[]`, as before.
+
+    Graded by `complexMcosFixtures.test.ts` against MATLAB R2027a's answers for
+    `test/fixtures/mcos/complex_objects.mat`, `complex_ws.slx`, and the same values as
+    entries in `complex.sldd` (text) and `complex_binary.sldd` (binary), all written by
+    `make_complex_fixtures.m`: every element against MATLAB's own `mat2str` of it, with the
+    four places mat2str's spelling is not of that form listed beside MATLAB's answer; every
+    nested object against a top-level twin; every value in the `.mat` against each other
+    venue. The `.mat` also holds the two positions a dictionary cannot — a Parameter
+    ARRAY, and a custom class (`ComplexHolder.m`) with a complex scalar, struct field,
+    cell and matrix — and a Parameter whose Value is a struct of complex fields is in all
+    three. `complexMcosValue.test.ts` grades the decoder's bag against the binary reader's
+    for the same entry on MATLAB's bytes — the LookupTable's Table.Value included, which
+    `LookupTableNode` does not display in any venue — and the shapes no fixture has
+    (sparse, every class, an exact int64 token). `noObjectObject.test.ts` opens every
+    `.sldd`, `.slx`, `.mdl` and `.mat` in the repo and asserts no displayed text, row,
+    property or grid cell in any of them is `[object Object]`. With the arm removed, the
+    first file fails 75 of its 178 tests and the guard flags the two MCOS fixtures above
+    and nothing else.
+
+    **Non-finite parts are left as the venues already show them, and the three disagree.**
+    For `[complex(Inf,-Inf) complex(NaN,1) complex(1,NaN) complex(-Inf,2)]` the text
+    dictionary (a MAT stream, so the `.mat` arm) shows `[Infinity-Infinityi NaN+1i 1NaNi
+    -Infinity+2i]`; the binary dictionary stores MATLAB's text `Inf-Infi NaN+1.0i 1.0NaNi
+    -Inf+2.0i`, which parseCdata's text test (`/^[\d.eE+\-i\s]+$/`) refuses, so it shows as
+    a quoted char; and the MCOS value, now in the same form, does the same. Admitting
+    `Inf`/`NaN` in that test would fix the binary and MCOS venues together, but it changes
+    what a binary dictionary shows, which this change leaves alone — and MATLAB does not
+    read its own text back: `complex_binary_sldd.truth.json` records the reopened value as
+    `[Inf-1i*Inf NaN+1i 1 NaN]`, two complex elements turned into real ones. All three
+    answers are pinned in `complexMcosFixtures.test.ts`, MATLAB's included.
+
 ## Known limitations, to verify and document
 
 - **Derived MCOS classes.** A customer class `MyParam < Simulink.Parameter`
@@ -2228,6 +2281,19 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   of the four channels carry no property data for it at all — defect 40. Recorded from
   the raw bags, because MATLAB does not call `Choices` a property and parity therefore
   passes.
+- **`MatWriter` writes a NaN as 0.** `exactPart` coerces with `Number(x) || 0`, and NaN is
+  falsy, so every double or single NaN the byte packer re-encodes comes out as zero:
+  `encodeMatVariable` of `[1 NaN Inf]` parses back as `[1 0 Inf]`. Found while choosing the
+  form defect 57's value takes (a MAT stream would have shown complex(NaN, 1) as `0+1i`),
+  and not fixed there because it is the write path: an edited N-D or complex value going
+  into a text dictionary, a modified `.mat` variable. Measured on the packer alone; no
+  MATLAB read-back of an affected save has been made.
+- **A complex EMPTY in a binary dictionary shows as an empty quoted char.** MATLAB writes
+  `<P Class="double" IsComplex="1" Dimension="1*0"/>`; the empty body fails parseCdata's
+  text test and its stream decode, so the value is `''` where the same Parameter in a
+  `.mat` shows `[ ]`. Measured on a probe, not a committed fixture: the text dictionary
+  reads a complex empty back as a real 0x0, so no one catalog row can hold it (see
+  `make_complex_fixtures.m`).
 - **Truth can go stale** against a future MATLAB release. `drift.mjs` is the
   mitigation (both corpora: `truth.json` and `mdl_truth.json`); it is a developer
   action, not a CI gate.
