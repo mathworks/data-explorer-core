@@ -1,0 +1,356 @@
+{
+  "version": "27.1.0.3400455 (R2027a) Prerelease",
+  "release": "2027a",
+  "file": "nested_ws.slx",
+  "model": "nested_ws",
+  "dataSource": "Model File",
+  "variables": [
+    "cfg",
+    "kTop",
+    "labelTop"
+  ],
+  "workspaceParts": [
+    "simulink/modelWorkspace.mxarray"
+  ],
+  "parts": [
+    "[Content_Types].xml",
+    "_rels/.rels",
+    "metadata/coreProperties.xml",
+    "metadata/mwcoreProperties.xml",
+    "metadata/mwcorePropertiesExtension.xml",
+    "metadata/mwcorePropertiesReleaseInfo.xml",
+    "simulink/_rels/blockDiagram.json.rels",
+    "simulink/_rels/configSetInfo.json.rels",
+    "simulink/blockDiagram.json",
+    "simulink/configSet0.json",
+    "simulink/configSetInfo.json",
+    "simulink/graphicalInterface.json",
+    "simulink/hdlParams.xml",
+    "simulink/modelDictionary.xml",
+    "simulink/modelWorkspace.mxarray",
+    "simulink/systems/system_root.xml"
+  ],
+  "paths": {
+    "cfg": {
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "k: [1×1 Simulink.Parameter]\n    label: \"ws text\"",
+      "fields": [
+        "k",
+        "label"
+      ]
+    },
+    "cfg.k": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 5\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 5,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "cfg.label": {
+      "class": "string",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "ws text",
+      "text": [
+        "ws text"
+      ],
+      "ismissing": [
+        false
+      ],
+      "lengths": [
+        7
+      ]
+    },
+    "kTop": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 5\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 5,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "5",
+          "mat2str": "5"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "labelTop": {
+      "class": "string",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "ws text",
+      "text": [
+        "ws text"
+      ],
+      "ismissing": [
+        false
+      ],
+      "lengths": [
+        7
+      ]
+    }
+  },
+  "twins": [
+    {
+      "nested": "cfg.k",
+      "twin": "kTop",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "cfg.label",
+      "twin": "labelTop",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    }
+  ]
+}

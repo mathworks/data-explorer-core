@@ -237,6 +237,15 @@ export default class BaseNode {
     return false;
   }
 
+  // True when NO child of this node can be renamed, whatever class the child is. The
+  // same parent-side shape as isObjectPropertyBag, for a container whose own rule about
+  // its children's names would otherwise reach only the children of its own class —
+  // MatlabVariableNode, whose fields are fixed, and whose struct can hold a decoded MCOS
+  // object built as a ParameterNode or a BusNode.
+  get fixesChildNames(): boolean {
+    return false;
+  }
+
   get nameEditable(): boolean {
     if (this.isIndexedName) {
       return false;
@@ -246,6 +255,9 @@ export default class BaseNode {
     }
     // A class property name is fixed by the class definition.
     if (this.parent?.isObjectPropertyBag) {
+      return false;
+    }
+    if (this.parent?.fixesChildNames) {
       return false;
     }
     return true;

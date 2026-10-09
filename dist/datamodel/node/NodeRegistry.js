@@ -15,5 +15,8 @@ export function getRegisteredClasses() {
 export function wrapDerivedVariable(node) {
     return classMap.wrapDerivedVariable(node);
 }
-export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable };
+export function modelMcosVariable(variable, decoded, name, parent) {
+    return classMap.modelMcosVariable(variable, decoded, name, parent);
+}
+export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable };
 //# sourceMappingURL=NodeRegistry.js.map

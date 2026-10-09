@@ -2,6 +2,7 @@
 import { inflateZlib } from './Inflate.js';
 import { exactInt } from './XmlUtils.js';
 import { reasonOf } from './ParseWarning.js';
+import { isObjectHandle, objectHandleFromValue } from './McosHandle.js';
 const CLASS_NAMES = {
     1: 'cell', 2: 'struct', 3: 'object', 4: 'char',
     5: 'sparse', 6: 'double', 7: 'single', 8: 'int8',
@@ -291,15 +292,95 @@ function readSparse(view, offset, end, dimensions, isComplex, nzmax) {
     }
     return dense;
 }
-function parseOpaque(view, offset, _end) {
+// A class-17 (MCOS opaque) element is four parts after its array flags: the variable
+// name, the type-system marker ("MCOS"), the class name, and the object handle — a
+// complete miMATRIX holding the uint32 words McosHandle.ts describes.
+function parseOpaque(view, offset, end) {
     const nameSub = readSubelement(view, offset);
     offset += nameSub.totalSize;
     const name = readString(view, nameSub);
     const markerSub = readSubelement(view, offset);
     offset += markerSub.totalSize;
     const classSub = readSubelement(view, offset);
+    offset += classSub.totalSize;
     const className = readString(view, classSub);
-    return { name, className, dimensions: [1, 1], isComplex: false, isLogical: false, value: null, fields: null, isOpaque: true };
+    return {
+        name, className, dimensions: [1, 1], isComplex: false, isLogical: false, value: null, fields: null, isOpaque: true,
+        mcosHandle: readOpaqueHandle(view, offset, end),
+    };
+}
+// The handle part of a class-17 element, or null when it is not there in the one shape
+// a handle has. The part itself has to lie inside the opaque element, and everything
+// inside the part is then read through a view of exactly the part: a subelement in it
+// that declares more bytes than the part holds is a damaged part, and reading on would
+// take the next element's bytes for ids — readSubelement clamps to its view, not to the
+// matrix it is reading.
+//
+// Two checks come BEFORE the words are read:
+//
+//   - The array class. A handle is a uint32 matrix and nothing else is one. (It also
+//     kept a part that is itself a class-17 element from recursing back into parseOpaque
+//     while the words went through parseMatrix; they no longer do, so nothing here can
+//     recurse at all.)
+//   - The data's own type: an integer one. A uint32 array may still have its data stored
+//     as doubles, and a fractional id read from there is not a handle MATLAB wrote.
+//     objectHandleFromValue refuses a fractional word too; this refuses the storage.
+//
+// The words are taken in the order they are STORED, which is the order MATLAB reads a
+// handle in, whatever shape its matrix declares. They are deliberately not read through
+// parseMatrix, whose numeric arm hands a matrix back row-major: harmless for the Nx1
+// MATLAB writes, but a matrix declared 2x3 came back transposed, and its words then said
+// another rank and other ids — a scalar read as an empty shell, an array as a scalar.
+function readOpaqueHandle(view, offset, end) {
+    if (offset + 8 > end) {
+        return null;
+    }
+    const handleSub = readSubelement(view, offset);
+    if (handleSub.type !== MI_MATRIX || handleSub.dataOffset + handleSub.bytes > end) {
+        return null;
+    }
+    const part = new DataView(view.buffer, view.byteOffset + handleSub.dataOffset, handleSub.bytes);
+    const flagsSub = readSubelement(part, 0);
+    if (flagsSub.bytes < 2 || CLASS_NAMES[part.getUint8(flagsSub.dataOffset)] !== 'uint32') {
+        return null;
+    }
+    // Array flags, dimensions and name, then the data.
+    let at = flagsSub.totalSize;
+    const dimsSub = readSubelement(part, at);
+    at += dimsSub.totalSize;
+    at += readSubelement(part, at).totalSize;
+    const dataSub = readSubelement(part, at);
+    if (!INTEGER_DATA_TYPES.has(dataSub.type)) {
+        return null;
+    }
+    // As many words as the declared dimensions hold — readNumericArray clamps that to the
+    // bytes present — in their linear order.
+    let declared = 1;
+    for (let i = 0; i + 4 <= dimsSub.bytes; i += 4) {
+        declared *= Math.max(0, part.getInt32(dimsSub.dataOffset + i, true));
+    }
+    const words = readNumericArray(part, dataSub, declared);
+    const matrix = {
+        name: '', className: 'uint32', dimensions: [words.length, 1], isComplex: false, isLogical: false, value: words, fields: null,
+    };
+    return isObjectHandle(matrix) ? objectHandleFromValue(words) : null;
+}
+const INTEGER_DATA_TYPES = new Set([MI_INT8, MI_UINT8, MI_INT16, MI_UINT16, MI_INT32, MI_UINT32, MI_INT64, MI_UINT64]);
+// The byte count a struct field or a cell element is parsed with: what its own tag
+// declares — except that an MCOS OPAQUE is held to the end of the container holding it.
+// An opaque that declares itself longer than its container would otherwise read the
+// bytes that follow the container, another element's, as its object handle. In a
+// well-formed file every child lies inside its parent, so this changes nothing there.
+//
+// Only the opaque, deliberately. Bounding every child the same way would also change
+// what the LAST element of a cut-short stream reads — a numeric field straddling its
+// parent's end is read whole today, and matWriter.test.ts's truncated `structNd` relies
+// on that — which is a question about truncation, not about object handles. Only the
+// parse is bounded: `_rawBytes` keeps the element's padded size, which the writer replays.
+function childLength(view, sub, tagOffset, end) {
+    const flagsSub = readSubelement(view, tagOffset + 8);
+    const isOpaque = flagsSub.bytes >= 2 && view.getUint8(flagsSub.dataOffset) === 17;
+    return isOpaque ? Math.max(0, Math.min(sub.bytes, end - (tagOffset + 8))) : sub.bytes;
 }
 export function parseMatrix(view, baseOffset, length) {
     let offset = baseOffset;
@@ -476,7 +557,7 @@ export function parseMatrix(view, baseOffset, length) {
                     const fieldStart = offset;
                     const fieldMatrixSub = readSubelement(view, offset);
                     if (fieldMatrixSub.type === MI_MATRIX) {
-                        const child = parseMatrix(view, offset + 8, fieldMatrixSub.bytes);
+                        const child = parseMatrix(view, offset + 8, childLength(view, fieldMatrixSub, offset, end));
                         // totalSize rounds the payload up to an 8-byte boundary, so
                         // on a file that ends mid-padding it can name more bytes
                         // than exist. The writer replays these bytes verbatim, so
@@ -505,7 +586,7 @@ export function parseMatrix(view, baseOffset, length) {
         for (let i = 0; i < totalElements && offset < end; i++) {
             const cellSub = readSubelement(view, offset);
             if (cellSub.type === MI_MATRIX) {
-                const child = parseMatrix(view, offset + 8, cellSub.bytes);
+                const child = parseMatrix(view, offset + 8, childLength(view, cellSub, offset, end));
                 cells.push(child);
             }
             else {

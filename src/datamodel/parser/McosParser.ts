@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import { parseMatrix, MatVariable } from './MatParser.js';
+import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
 import { formatMatlabNum, isExactToken } from './XmlUtils.js';
 
 // Decodes the binary MCOS (MATLAB Class Object System) blob embedded in .slx and
@@ -40,9 +41,10 @@ import { formatMatlabNum, isExactToken } from './XmlUtils.js';
 //   • Object-handle heap cells are uint32 arrays with v[0] == 0xDD000000; v[4] is
 //     the referenced object id (nested objects / children recurse through this).
 //
-// A named opaque variable's OWN raw bytes carry an object handle whose v[4] is its
-// ROOT object id in the object table — this is how one blob with many objects maps
-// each named variable to its own object graph.
+// Every opaque element — a named variable, and equally a struct field or a cell
+// element — carries its own object handle whose v[4] is its ROOT object id in the
+// object table — this is how one blob with many objects maps each variable to its
+// own object graph. MatParser keeps that handle as `mcosHandle` (McosHandle.ts).
 //
 // Correctness over coverage: anything that cannot be resolved with confidence is
 // left out rather than guessed.
@@ -114,7 +116,6 @@ interface DecodeContext {
 }
 
 const MI_MATRIX = 14;
-const MCOS_HANDLE_MAGIC = 3707764736; // 0xDD000000
 const MAX_RECURSION_DEPTH = 32;
 
 // A MATLAB `string`-typed value is stored as its own MCOS object whose text lives in
@@ -320,40 +321,9 @@ function parseMetaTable(cells: (MatVariable | null)[]): MetaTable | null {
 
 // ---- Value resolution ---------------------------------------------------------
 
-// The handle PREFIX check: a uint32 array long enough to carry the shortest legal
-// handle, [magic, ndims, rows, cols, id], and tagged with the magic. This is the
-// single place that shape is decided — objectHandleFromValue takes it as a
-// precondition rather than re-deriving it, so the two cannot drift apart on what
-// counts as a handle.
-function isObjectHandle(cell: MatVariable): boolean {
-  if (cell.className !== 'uint32') return false;
-  const v = cell.value;
-  return Array.isArray(v) && v.length >= 5 && v[0] === MCOS_HANDLE_MAGIC;
-}
-
-// Parse an object handle already decoded into a uint32 value array (as it appears
-// for a NESTED object-valued property inside a block), laid out exactly like the
-// raw-byte form: [magic, ndims, dim0, dim1, …, objId0, objId1, …]. A scalar handle
-// is [magic, 2, 1, 1, id]; an N-element array is [magic, 2, N, 1, id0..idN-1]. Returns
-// the dimensions and the FULL id list so a nested object ARRAY (e.g. a Bus's
-// Elements_internal, or any object-array property) keeps every element, not just its
-// first.
-//
-// PRECONDITION: isObjectHandle(cell) — so `v` is a magic-tagged uint32 array of at
-// least 5 elements. Null here means the DIMENSION words are not self-consistent
-// (the count they describe does not fit the ids present), which a damaged blob can
-// produce; the caller falls back to reading v[4] as a scalar id.
-function objectHandleFromValue(v: number[]): { dims: number[]; ids: number[] } | null {
-  const ndims = v[1];
-  if (ndims < 1 || ndims > 8 || 2 + ndims > v.length) return null;
-  const dims: number[] = [];
-  for (let d = 0; d < ndims; d++) dims.push(v[2 + d]);
-  const count = dims.reduce((a, b) => a * b, 1);
-  if (count < 1 || 2 + ndims + count > v.length) return null;
-  const ids: number[] = [];
-  for (let k = 0; k < count; k++) ids.push(v[2 + ndims + k]);
-  return { dims, ids };
-}
+// isObjectHandle and objectHandleFromValue, which the resolver below reads a nested
+// object property's handle with, live in McosHandle.ts: MatParser reads every
+// class-17 element's own handle with the same two, so the two cannot disagree.
 
 function buildMatrixValue(dims: number[], elements: (number | string)[]): unknown {
   const rows = dims[0];
@@ -727,37 +697,12 @@ function stringObjectValue(objId: number, ctx: DecodeContext): unknown {
   };
 }
 
-// ---- Named-variable -> root object id -----------------------------------------
+// ---- Variable -> root object id -----------------------------------------------
 
 function splitClassName(fullClassName: string): { packageName: string; shortClassName: string } {
   const lastDot = fullClassName.lastIndexOf('.');
   if (lastDot === -1) return { packageName: '', shortClassName: fullClassName };
   return { packageName: fullClassName.substring(0, lastDot), shortClassName: fullClassName.substring(lastDot + 1) };
-}
-
-// A named opaque variable's own element bytes contain an object handle laid out as
-// uint32 words: [magic, ndims, dim0, dim1, …, objId0, objId1, …]. For a scalar this
-// is [magic, 2, 1, 1, objId]; for an N-element array it is [magic, 2, N, 1, id0..idN-1]
-// (object ids in column-major order). Returns the dimensions and the full id list so
-// an object ARRAY expands into one node per element, not just its first object.
-function objectHandleFromRaw(rawBytes: Uint8Array | null | undefined): { dims: number[]; ids: number[] } | null {
-  if (!rawBytes || rawBytes.length < 4) return null;
-  const view = new DataView(rawBytes.buffer, rawBytes.byteOffset, rawBytes.byteLength);
-  for (let o = 0; o + 8 <= rawBytes.length; o += 4) {
-    if (view.getUint32(o, true) !== MCOS_HANDLE_MAGIC) continue;
-    const word = (i: number): number => view.getUint32(o + i * 4, true);
-    const ndims = word(1);
-    // Defensive: a sane handle has 1..8 dims that fit within the remaining words.
-    if (ndims < 1 || ndims > 8 || o + (2 + ndims) * 4 > rawBytes.length) return null;
-    const dims: number[] = [];
-    for (let d = 0; d < ndims; d++) dims.push(word(2 + d));
-    const count = dims.reduce((a, b) => a * b, 1);
-    if (count < 1 || o + (2 + ndims + count) * 4 > rawBytes.length) return null;
-    const ids: number[] = [];
-    for (let k = 0; k < count; k++) ids.push(word(2 + ndims + k));
-    return { dims, ids };
-  }
-  return null;
 }
 
 export interface OpaqueVarRef {
@@ -766,9 +711,24 @@ export interface OpaqueVarRef {
   rawBytes?: Uint8Array | null;
 }
 
-export function decodeMcosBlob(anonRawBytes: Uint8Array, opaqueVars: OpaqueVarRef[]): Map<string, McosObjectData> {
-  const result = new Map<string, McosObjectData>();
-  if (!anonRawBytes || anonRawBytes.length === 0 || opaqueVars.length === 0) return result;
+// What the decoder reads off one opaque variable: the class it declares, and the
+// handle naming its objects — the one MatParser parsed out of the element (or its
+// refusal of one), or, for a variable no parser of handles read, its raw bytes to scan.
+export type McosVariableRef = Pick<MatVariable, 'name' | 'className' | 'mcosHandle' | '_rawBytes'>;
+
+// Decode every variable in `variables` against one blob, and answer PER VARIABLE.
+//
+// Keyed by the variable object rather than by its name, because a name is not what
+// tells two of them apart: an MCOS object in a struct field or a cell element has none
+// (the MAT format names only top-level variables), and the same file can hold any
+// number of them. A variable that is absent from the result could not be resolved with
+// confidence — the rules below are the same for a nested object as for a named one.
+export function decodeMcosVariables<V extends McosVariableRef>(
+  anonRawBytes: Uint8Array,
+  variables: readonly V[],
+): Map<V, McosObjectData> {
+  const result = new Map<V, McosObjectData>();
+  if (!anonRawBytes || anonRawBytes.length === 0 || variables.length === 0) return result;
 
   const cells = extractCells(anonRawBytes);
   if (!cells) return result;
@@ -785,14 +745,22 @@ export function decodeMcosBlob(anonRawBytes: Uint8Array, opaqueVars: OpaqueVarRe
 
   const ctx: DecodeContext = { cells, meta, defaults };
 
-  for (const v of opaqueVars) {
-    const handle = objectHandleFromRaw(v.rawBytes);
+  for (const v of variables) {
+    // The parsed handle first: MatParser keeps one for every class-17 element at any
+    // depth, and it is the only one a cell element has, since a cell element keeps no
+    // raw bytes to scan. The scan is the fallback for a variable no parser of handles
+    // read (`undefined`), and only for that one: a `null` is MatParser having read the
+    // element and REFUSED its handle, and the scan — which reads words, not elements —
+    // would find the same magic word and accept what the parser just turned down.
+    const handle = v.mcosHandle !== undefined ? v.mcosHandle : objectHandleFromRaw(v._rawBytes);
     if (!handle || handle.ids.length === 0) continue;
 
     // Confidence check: EVERY element object's class must match the variable's
     // declared class. If any doesn't, we mis-located the object graph — skip the
     // whole variable rather than surface a partial/guessed array.
-    const idsInRange = handle.ids.every((id) => id > 0 && id < meta.objects.length);
+    // Integers only: MatParser refuses a fractional id, but a handle can also come from a
+    // host's own parse, and an id of 1.5 is in range and names no row.
+    const idsInRange = handle.ids.every((id) => Number.isInteger(id) && id > 0 && id < meta.objects.length);
     if (!idsInRange) continue;
     const classesMatch = handle.ids.every((id) => {
       const cls = meta.classes[meta.objects[id].classId];
@@ -816,7 +784,7 @@ export function decodeMcosBlob(anonRawBytes: Uint8Array, opaqueVars: OpaqueVarRe
       payload?.dims ??
       (handle.dims.length >= 2 ? handle.dims.slice() : [1, handle.dims[0] ?? elements.length]);
     const { packageName, shortClassName } = splitClassName(v.className);
-    result.set(v.name, {
+    result.set(v, {
       name: v.name,
       className: v.className,
       packageName,
@@ -829,5 +797,19 @@ export function decodeMcosBlob(anonRawBytes: Uint8Array, opaqueVars: OpaqueVarRe
     });
   }
 
+  return result;
+}
+
+// The by-name form, for a caller holding named top-level variables only: each one's
+// handle is found by scanning its raw bytes, and a later variable of the same name
+// replaces an earlier one, as it always has.
+export function decodeMcosBlob(anonRawBytes: Uint8Array, opaqueVars: OpaqueVarRef[]): Map<string, McosObjectData> {
+  const refs = opaqueVars.map((v): McosVariableRef => ({ name: v.name, className: v.className, _rawBytes: v.rawBytes }));
+  const decoded = decodeMcosVariables(anonRawBytes, refs);
+  const result = new Map<string, McosObjectData>();
+  for (const ref of refs) {
+    const data = decoded.get(ref);
+    if (data) result.set(ref.name, data);
+  }
   return result;
 }

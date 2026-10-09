@@ -1,10 +1,13 @@
 import type BaseNode from './BaseNode.js';
 import type DataNode from './DataNode.js';
+import type { MatVariable } from '../parser/MatParser.js';
+import type { McosDecoded } from './data/mcosTypedNode.js';
 export interface NodeClassMapAPI {
     parseValue(rawVal: unknown, name: string, parent: BaseNode | null): DataNode;
     getClass(className: string): NodeClassType | null;
     getRegisteredClasses(): string[];
     wrapDerivedVariable(node: DataNode): DataNode;
+    modelMcosVariable(variable: MatVariable, decoded: McosDecoded, name: string, parent: BaseNode | null): DataNode | null;
 }
 export interface NodeParser {
     parse(rawVal: unknown, name: string, parent: BaseNode | null): DataNode;
@@ -18,12 +21,14 @@ export declare function parseValue(rawVal: unknown, name: string, parent: BaseNo
 export declare function getClass(className: string): NodeClassType | null;
 export declare function getRegisteredClasses(): string[];
 export declare function wrapDerivedVariable(node: DataNode): DataNode;
+export declare function modelMcosVariable(variable: MatVariable, decoded: McosDecoded, name: string, parent: BaseNode | null): DataNode | null;
 declare const _default: {
     init: typeof init;
     parseValue: typeof parseValue;
     getClass: typeof getClass;
     getRegisteredClasses: typeof getRegisteredClasses;
     wrapDerivedVariable: typeof wrapDerivedVariable;
+    modelMcosVariable: typeof modelMcosVariable;
 };
 export default _default;
 //# sourceMappingURL=NodeRegistry.d.ts.map

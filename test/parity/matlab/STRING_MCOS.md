@@ -171,12 +171,13 @@ So the property path is live, and the decoder renders it: `Vehicle.Name` → `"M
 `decodes a MATLAB string-typed property value out of its own payload cell` in
 `test/mcosParser.test.ts`.
 
-What is genuinely not reached is a string nested in a **struct field or cell element**,
-and not because of the payload: such an opaque has no variable name, so
-`decodeMcosObjects`' `variables.filter(v => v.isOpaque && v.name)` never sees it. That
-is a nested-MCOS gap shared with every other class — see DESIGN.md's "Known
-limitations" — and it is pinned by `a string nested in a struct or a cell` against
-`test/fixtures/strings_nested.mat`.
+A string nested in a **struct field or cell element** used to be the one place it was
+not reached, and not because of the payload: such an opaque has no variable name, so
+`decodeMcosObjects`' `variables.filter(v => v.isOpaque && v.name)` never saw it. That was
+a nested-MCOS gap shared with every other class, and it is now closed for all of them —
+see DESIGN.md's "Known limitations". `a string nested in a struct or a cell` pins the
+text against `test/fixtures/strings_nested.mat`: `mixStruct.s` → `"inStruct"`,
+`mixCell{2}` → `"inCell"`.
 
 ## The blocker, since removed: the layout was right and the text still came out wrong
 
@@ -286,7 +287,10 @@ And the text itself, per PLAN.md Task 9.3 (DESIGN.md defect 33):
 Pinned by 31 tests in `test/matStringOpaque.test.ts`: all eleven probe cases against
 `strings_truth.json` (text, code units, order, labels, display), the six formerly
 mojibake'd cases by name, four-way parity across `.mat` / `.slx` / text `.sldd` / binary
-`.sldd`, the `-v7` flavour, the property path, the read-only contract, and the nested gap.
+`.sldd`, the `-v7` flavour, the property path, the read-only contract, and a string nested
+in a struct field and in a cell element, which now shows its text like a named one. The
+nested strings of every shape, against MATLAB R2027a and beside their top-level twins, are
+pinned in `test/nestedMcosFixtures.test.ts`.
 
 **The type-1 segment is parsed but its properties are NOT lifted into any property bag.**
 Only the string payload is read out of it. `aVariant`'s saveobj state lives there too, and

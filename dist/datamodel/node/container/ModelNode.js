@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 import ContainerNode from '../ContainerNode.js';
 import ModelSectionNode from './ModelSectionNode.js';
-import { decodeMcosObjects, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
+import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
+import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
 import PropName from '../../prop/PropName.js';
 import PropRelease from '../../prop/PropRelease.js';
 import { blockKey } from '../../blockIdentity.js';
@@ -179,14 +180,15 @@ export default class ModelNode extends ContainerNode {
         const wsVars = parsed.workspace;
         const trailingElements = wsVars._trailingElements;
         // An .slx model workspace keeps the MCOS blob in its own trailing-element list.
-        const mcosData = decodeMcosObjects(trailingElements?.[0], wsVars);
+        // Every opaque in the workspace, nested or not, comes back carrying its own decode.
+        attachMcosDecoded(trailingElements?.[0], wsVars);
         for (const entry of wsVars) {
             if (entry.isOpaque) {
                 // `parsed.warnings` is the very array addModelSource hands to registerSource
                 // after this returns, so a degrade appended here reaches the source node. It is
                 // the same list the part readers wrote into: one list per file, whichever layer
                 // the loss was found in.
-                const mcosNode = modelOpaqueMcosVariable(entry, mcosData?.get(entry.name), wsSection, parsed.warnings);
+                const mcosNode = modelOpaqueMcosVariable(entry, mcosDecodedFor(entry), wsSection, parsed.warnings);
                 if (mcosNode) {
                     wsSection.addChild(mcosNode);
                     continue;

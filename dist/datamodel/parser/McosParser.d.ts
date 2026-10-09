@@ -1,3 +1,4 @@
+import { MatVariable } from './MatParser.js';
 export interface McosObjectData {
     name: string;
     className: string;
@@ -16,5 +17,7 @@ export interface OpaqueVarRef {
     className: string;
     rawBytes?: Uint8Array | null;
 }
+export type McosVariableRef = Pick<MatVariable, 'name' | 'className' | 'mcosHandle' | '_rawBytes'>;
+export declare function decodeMcosVariables<V extends McosVariableRef>(anonRawBytes: Uint8Array, variables: readonly V[]): Map<V, McosObjectData>;
 export declare function decodeMcosBlob(anonRawBytes: Uint8Array, opaqueVars: OpaqueVarRef[]): Map<string, McosObjectData>;
 //# sourceMappingURL=McosParser.d.ts.map

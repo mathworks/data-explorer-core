@@ -1,0 +1,4852 @@
+{
+  "version": "27.1.0.3400455 (R2027a) Prerelease",
+  "release": "2027a",
+  "file": "nested_objects.mat",
+  "header": "MATLAB 5.0 MAT-file",
+  "variables": [
+    {
+      "name": "aliasTop",
+      "class": "Simulink.AliasType",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "busTop",
+      "class": "Simulink.Bus",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "c",
+      "class": "cell",
+      "size": [
+        1,
+        4
+      ]
+    },
+    {
+      "name": "c1Top",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "c2Top",
+      "class": "string",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "c4_1Top",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "cArr",
+      "class": "cell",
+      "size": [
+        1,
+        4
+      ]
+    },
+    {
+      "name": "cArr1Top",
+      "class": "string",
+      "size": [
+        1,
+        3
+      ]
+    },
+    {
+      "name": "cArr2Top",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "cArr3Top",
+      "class": "string",
+      "size": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "cArr4Top",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "cNest",
+      "class": "cell",
+      "size": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "cNest1_1Top",
+      "class": "string",
+      "size": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "cNest2_1Top",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "missTop",
+      "class": "string",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "objArrTop",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "pTop",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "qTop",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "s",
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "s2",
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "s2cs1Top",
+      "class": "string",
+      "size": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "sa",
+      "class": "struct",
+      "size": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "sa1pTop",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "sa2pTop",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "sigTop",
+      "class": "Simulink.Signal",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "strTop",
+      "class": "string",
+      "size": [
+        1,
+        1
+      ]
+    },
+    {
+      "name": "strsTop",
+      "class": "string",
+      "size": [
+        2,
+        2
+      ]
+    },
+    {
+      "name": "vtTop",
+      "class": "Simulink.ValueType",
+      "size": [
+        1,
+        1
+      ]
+    }
+  ],
+  "paths": {
+    "aliasTop": {
+      "class": "Simulink.AliasType",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "AliasType with properties:\n\n    Description: ''\n      DataScope: 'Auto'\n     HeaderFile: ''\n       BaseType: 'uint8'",
+      "BaseType": "uint8",
+      "Description": "",
+      "properties": {
+        "BaseType": {
+          "class": "char",
+          "size": [
+            1,
+            5
+          ],
+          "numel": 5,
+          "isempty": false,
+          "disp": "uint8",
+          "mat2str": "'uint8'"
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataScope": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "Auto",
+          "mat2str": "'Auto'"
+        },
+        "HeaderFile": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "busTop": {
+      "class": "Simulink.Bus",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Bus with properties:\n\n                  Description: ''\n                    DataScope: 'Auto'\n                   HeaderFile: ''\n                    Alignment: -1\n    PreserveElementDimensions: 0\n                     Elements: [2×1 Simulink.BusElement]",
+      "busElements": [
+        {
+          "Name": "a",
+          "DataType": "double",
+          "Dimensions": 1,
+          "Complexity": "real"
+        },
+        {
+          "Name": "b",
+          "DataType": "int8",
+          "Dimensions": 1,
+          "Complexity": "real"
+        }
+      ],
+      "Description": "",
+      "properties": {
+        "Alignment": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "-1",
+          "mat2str": "-1"
+        },
+        "PreserveElementDimensions": {
+          "class": "logical",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "0",
+          "mat2str": "false"
+        },
+        "Elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            2,
+            1
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "2×1 BusElement array with properties:\n\n    Min\n    Max\n    DimensionsMode\n    Description\n    Unit\n    Name\n    DataType\n    Complexity\n    Dimensions",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataScope": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "Auto",
+          "mat2str": "'Auto'"
+        },
+        "HeaderFile": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "c": {
+      "class": "cell",
+      "size": [
+        1,
+        4
+      ],
+      "numel": 4,
+      "isobject": false,
+      "isempty": false,
+      "disp": "{1×1 Simulink.Parameter}    {[\"txt\"]}    {[42]}    {1×1 cell}",
+      "elementClasses": [
+        "Simulink.Parameter",
+        "string",
+        "double",
+        "cell"
+      ]
+    },
+    "c1Top": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 11\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 11,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "11",
+          "mat2str": "11"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "c2Top": {
+      "class": "string",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "txt",
+      "text": [
+        "txt"
+      ],
+      "ismissing": [
+        false
+      ],
+      "lengths": [
+        3
+      ]
+    },
+    "c4_1Top": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 12\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 12,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "12",
+          "mat2str": "12"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "cArr": {
+      "class": "cell",
+      "size": [
+        1,
+        4
+      ],
+      "numel": 4,
+      "isobject": false,
+      "isempty": false,
+      "disp": "Columns 1 through 3\n\n    {[\"a\"    \"b\"    \"c\"]}    {1×2 Simulink.Parameter}    {0×0 string}\n\n  Column 4\n\n    {1×1 Simulink.Parameter}",
+      "elementClasses": [
+        "string",
+        "Simulink.Parameter",
+        "string",
+        "Simulink.Parameter"
+      ]
+    },
+    "cArr1Top": {
+      "class": "string",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "isobject": true,
+      "isempty": false,
+      "disp": "\"a\"    \"b\"    \"c\"",
+      "text": [
+        "a",
+        "b",
+        "c"
+      ],
+      "ismissing": [
+        false,
+        false,
+        false
+      ],
+      "lengths": [
+        1,
+        1,
+        1
+      ]
+    },
+    "cArr2Top": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "isobject": true,
+      "isempty": false,
+      "disp": "1×2 Parameter array with properties:\n\n    Value\n    Complexity\n    Dimensions\n    CoderInfo\n    Description\n    DataType\n    Min\n    Max\n    Unit",
+      "elements": [
+        {
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isobject": true,
+          "isempty": false,
+          "disp": "Parameter with properties:\n\n          Value: 1\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+          "Value": 1,
+          "DataType": "auto",
+          "Min": [],
+          "Max": [],
+          "Unit": "",
+          "Description": "",
+          "Dimensions": [
+            1,
+            1
+          ],
+          "Complexity": "real",
+          "properties": {
+            "Value": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "1",
+              "mat2str": "1"
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "real",
+              "mat2str": "'real'"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                2
+              ],
+              "numel": 2,
+              "isempty": false,
+              "disp": "1     1",
+              "mat2str": "[1 1]"
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+              "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "auto",
+              "mat2str": "'auto'"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            }
+          }
+        },
+        {
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isobject": true,
+          "isempty": false,
+          "disp": "Parameter with properties:\n\n          Value: 2\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+          "Value": 2,
+          "DataType": "auto",
+          "Min": [],
+          "Max": [],
+          "Unit": "",
+          "Description": "",
+          "Dimensions": [
+            1,
+            1
+          ],
+          "Complexity": "real",
+          "properties": {
+            "Value": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "2",
+              "mat2str": "2"
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "real",
+              "mat2str": "'real'"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                2
+              ],
+              "numel": 2,
+              "isempty": false,
+              "disp": "1     1",
+              "mat2str": "[1 1]"
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+              "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "auto",
+              "mat2str": "'auto'"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            }
+          }
+        }
+      ]
+    },
+    "cArr3Top": {
+      "class": "string",
+      "size": [
+        0,
+        0
+      ],
+      "numel": 0,
+      "isobject": true,
+      "isempty": true,
+      "disp": "",
+      "text": [],
+      "ismissing": [],
+      "lengths": []
+    },
+    "cArr4Top": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 3\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 3,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "cArr{1}": {
+      "class": "string",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "isobject": true,
+      "isempty": false,
+      "disp": "\"a\"    \"b\"    \"c\"",
+      "text": [
+        "a",
+        "b",
+        "c"
+      ],
+      "ismissing": [
+        false,
+        false,
+        false
+      ],
+      "lengths": [
+        1,
+        1,
+        1
+      ]
+    },
+    "cArr{2}": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "isobject": true,
+      "isempty": false,
+      "disp": "1×2 Parameter array with properties:\n\n    Value\n    Complexity\n    Dimensions\n    CoderInfo\n    Description\n    DataType\n    Min\n    Max\n    Unit",
+      "elements": [
+        {
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isobject": true,
+          "isempty": false,
+          "disp": "Parameter with properties:\n\n          Value: 1\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+          "Value": 1,
+          "DataType": "auto",
+          "Min": [],
+          "Max": [],
+          "Unit": "",
+          "Description": "",
+          "Dimensions": [
+            1,
+            1
+          ],
+          "Complexity": "real",
+          "properties": {
+            "Value": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "1",
+              "mat2str": "1"
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "real",
+              "mat2str": "'real'"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                2
+              ],
+              "numel": 2,
+              "isempty": false,
+              "disp": "1     1",
+              "mat2str": "[1 1]"
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+              "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "auto",
+              "mat2str": "'auto'"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            }
+          }
+        },
+        {
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isobject": true,
+          "isempty": false,
+          "disp": "Parameter with properties:\n\n          Value: 2\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+          "Value": 2,
+          "DataType": "auto",
+          "Min": [],
+          "Max": [],
+          "Unit": "",
+          "Description": "",
+          "Dimensions": [
+            1,
+            1
+          ],
+          "Complexity": "real",
+          "properties": {
+            "Value": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "2",
+              "mat2str": "2"
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "real",
+              "mat2str": "'real'"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                2
+              ],
+              "numel": 2,
+              "isempty": false,
+              "disp": "1     1",
+              "mat2str": "[1 1]"
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+              "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "auto",
+              "mat2str": "'auto'"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            }
+          }
+        }
+      ]
+    },
+    "cArr{3}": {
+      "class": "string",
+      "size": [
+        0,
+        0
+      ],
+      "numel": 0,
+      "isobject": true,
+      "isempty": true,
+      "disp": "",
+      "text": [],
+      "ismissing": [],
+      "lengths": []
+    },
+    "cArr{4}": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 3\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 3,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "3",
+          "mat2str": "3"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "cNest": {
+      "class": "cell",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "isobject": false,
+      "isempty": false,
+      "disp": "{1×1 cell}    {1×1 cell}",
+      "elementClasses": [
+        "cell",
+        "cell"
+      ]
+    },
+    "cNest1_1Top": {
+      "class": "string",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "isobject": true,
+      "isempty": false,
+      "disp": "\"p\"    \"q\"",
+      "text": [
+        "p",
+        "q"
+      ],
+      "ismissing": [
+        false,
+        false
+      ],
+      "lengths": [
+        1,
+        1
+      ]
+    },
+    "cNest2_1Top": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 4\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 4,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "4",
+          "mat2str": "4"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "cNest{1}": {
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "{[\"p\"    \"q\"]}",
+      "elementClasses": [
+        "string"
+      ]
+    },
+    "cNest{1}{1}": {
+      "class": "string",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "isobject": true,
+      "isempty": false,
+      "disp": "\"p\"    \"q\"",
+      "text": [
+        "p",
+        "q"
+      ],
+      "ismissing": [
+        false,
+        false
+      ],
+      "lengths": [
+        1,
+        1
+      ]
+    },
+    "cNest{2}": {
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "{1×1 Simulink.Parameter}",
+      "elementClasses": [
+        "Simulink.Parameter"
+      ]
+    },
+    "cNest{2}{1}": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 4\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 4,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "4",
+          "mat2str": "4"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "c{1}": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 11\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 11,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "11",
+          "mat2str": "11"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "c{2}": {
+      "class": "string",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "txt",
+      "text": [
+        "txt"
+      ],
+      "ismissing": [
+        false
+      ],
+      "lengths": [
+        3
+      ]
+    },
+    "c{3}": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "42",
+      "mat2str": "42"
+    },
+    "c{4}": {
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "{1×1 Simulink.Parameter}",
+      "elementClasses": [
+        "Simulink.Parameter"
+      ]
+    },
+    "c{4}{1}": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 12\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 12,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "12",
+          "mat2str": "12"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "missTop": {
+      "class": "string",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "<missing>",
+      "text": [
+        null
+      ],
+      "ismissing": [
+        true
+      ],
+      "lengths": [
+        null
+      ]
+    },
+    "objArrTop": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "isobject": true,
+      "isempty": false,
+      "disp": "1×2 Parameter array with properties:\n\n    Value\n    Complexity\n    Dimensions\n    CoderInfo\n    Description\n    DataType\n    Min\n    Max\n    Unit",
+      "elements": [
+        {
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isobject": true,
+          "isempty": false,
+          "disp": "Parameter with properties:\n\n          Value: 1\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+          "Value": 1,
+          "DataType": "auto",
+          "Min": [],
+          "Max": [],
+          "Unit": "",
+          "Description": "",
+          "Dimensions": [
+            1,
+            1
+          ],
+          "Complexity": "real",
+          "properties": {
+            "Value": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "1",
+              "mat2str": "1"
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "real",
+              "mat2str": "'real'"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                2
+              ],
+              "numel": 2,
+              "isempty": false,
+              "disp": "1     1",
+              "mat2str": "[1 1]"
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+              "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "auto",
+              "mat2str": "'auto'"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            }
+          }
+        },
+        {
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isobject": true,
+          "isempty": false,
+          "disp": "Parameter with properties:\n\n          Value: 2\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+          "Value": 2,
+          "DataType": "auto",
+          "Min": [],
+          "Max": [],
+          "Unit": "",
+          "Description": "",
+          "Dimensions": [
+            1,
+            1
+          ],
+          "Complexity": "real",
+          "properties": {
+            "Value": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "2",
+              "mat2str": "2"
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "real",
+              "mat2str": "'real'"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                2
+              ],
+              "numel": 2,
+              "isempty": false,
+              "disp": "1     1",
+              "mat2str": "[1 1]"
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+              "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "auto",
+              "mat2str": "'auto'"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            }
+          }
+        }
+      ]
+    },
+    "pTop": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 7\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 7,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "7",
+          "mat2str": "7"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "qTop": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 2.5000\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: 'nested q'\n       DataType: 'single'\n            Min: 0\n            Max: 10\n           Unit: 'm'",
+      "Value": 2.5,
+      "DataType": "single",
+      "Min": 0,
+      "Max": 10,
+      "Unit": "m",
+      "Description": "nested q",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "2.5000",
+          "mat2str": "2.5"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            1,
+            8
+          ],
+          "numel": 8,
+          "isempty": false,
+          "disp": "nested q",
+          "mat2str": "'nested q'"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            6
+          ],
+          "numel": 6,
+          "isempty": false,
+          "disp": "single",
+          "mat2str": "'single'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "0",
+          "mat2str": "0"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "10",
+          "mat2str": "10"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "m",
+          "mat2str": "'m'"
+        }
+      }
+    },
+    "s": {
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "p: [1×1 Simulink.Parameter]\n       sub: [1×1 struct]\n       str: \"hello\"\n      strs: [2×2 string]\n      miss: <missing>\n       bus: [1×1 Simulink.Bus]\n        vt: [1×1 Simulink.ValueType]\n     alias: [1×1 Simulink.AliasType]\n       sig: [1×1 Simulink.Signal]\n    objArr: [1×2 Simulink.Parameter]",
+      "fields": [
+        "p",
+        "sub",
+        "str",
+        "strs",
+        "miss",
+        "bus",
+        "vt",
+        "alias",
+        "sig",
+        "objArr"
+      ]
+    },
+    "s.alias": {
+      "class": "Simulink.AliasType",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "AliasType with properties:\n\n    Description: ''\n      DataScope: 'Auto'\n     HeaderFile: ''\n       BaseType: 'uint8'",
+      "BaseType": "uint8",
+      "Description": "",
+      "properties": {
+        "BaseType": {
+          "class": "char",
+          "size": [
+            1,
+            5
+          ],
+          "numel": 5,
+          "isempty": false,
+          "disp": "uint8",
+          "mat2str": "'uint8'"
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataScope": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "Auto",
+          "mat2str": "'Auto'"
+        },
+        "HeaderFile": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "s.bus": {
+      "class": "Simulink.Bus",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Bus with properties:\n\n                  Description: ''\n                    DataScope: 'Auto'\n                   HeaderFile: ''\n                    Alignment: -1\n    PreserveElementDimensions: 0\n                     Elements: [2×1 Simulink.BusElement]",
+      "busElements": [
+        {
+          "Name": "a",
+          "DataType": "double",
+          "Dimensions": 1,
+          "Complexity": "real"
+        },
+        {
+          "Name": "b",
+          "DataType": "int8",
+          "Dimensions": 1,
+          "Complexity": "real"
+        }
+      ],
+      "Description": "",
+      "properties": {
+        "Alignment": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "-1",
+          "mat2str": "-1"
+        },
+        "PreserveElementDimensions": {
+          "class": "logical",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "0",
+          "mat2str": "false"
+        },
+        "Elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            2,
+            1
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "2×1 BusElement array with properties:\n\n    Min\n    Max\n    DimensionsMode\n    Description\n    Unit\n    Name\n    DataType\n    Complexity\n    Dimensions",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataScope": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "Auto",
+          "mat2str": "'Auto'"
+        },
+        "HeaderFile": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "s.miss": {
+      "class": "string",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "<missing>",
+      "text": [
+        null
+      ],
+      "ismissing": [
+        true
+      ],
+      "lengths": [
+        null
+      ]
+    },
+    "s.objArr": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "isobject": true,
+      "isempty": false,
+      "disp": "1×2 Parameter array with properties:\n\n    Value\n    Complexity\n    Dimensions\n    CoderInfo\n    Description\n    DataType\n    Min\n    Max\n    Unit",
+      "elements": [
+        {
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isobject": true,
+          "isempty": false,
+          "disp": "Parameter with properties:\n\n          Value: 1\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+          "Value": 1,
+          "DataType": "auto",
+          "Min": [],
+          "Max": [],
+          "Unit": "",
+          "Description": "",
+          "Dimensions": [
+            1,
+            1
+          ],
+          "Complexity": "real",
+          "properties": {
+            "Value": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "1",
+              "mat2str": "1"
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "real",
+              "mat2str": "'real'"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                2
+              ],
+              "numel": 2,
+              "isempty": false,
+              "disp": "1     1",
+              "mat2str": "[1 1]"
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+              "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "auto",
+              "mat2str": "'auto'"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            }
+          }
+        },
+        {
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isobject": true,
+          "isempty": false,
+          "disp": "Parameter with properties:\n\n          Value: 2\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+          "Value": 2,
+          "DataType": "auto",
+          "Min": [],
+          "Max": [],
+          "Unit": "",
+          "Description": "",
+          "Dimensions": [
+            1,
+            1
+          ],
+          "Complexity": "real",
+          "properties": {
+            "Value": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "2",
+              "mat2str": "2"
+            },
+            "Complexity": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "real",
+              "mat2str": "'real'"
+            },
+            "Dimensions": {
+              "class": "double",
+              "size": [
+                1,
+                2
+              ],
+              "numel": 2,
+              "isempty": false,
+              "disp": "1     1",
+              "mat2str": "[1 1]"
+            },
+            "CoderInfo": {
+              "class": "Simulink.CoderInfo",
+              "size": [
+                1,
+                1
+              ],
+              "numel": 1,
+              "isempty": false,
+              "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+              "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+            },
+            "Description": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            },
+            "DataType": {
+              "class": "char",
+              "size": [
+                1,
+                4
+              ],
+              "numel": 4,
+              "isempty": false,
+              "disp": "auto",
+              "mat2str": "'auto'"
+            },
+            "Min": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Max": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "[]"
+            },
+            "Unit": {
+              "class": "char",
+              "size": [
+                0,
+                0
+              ],
+              "numel": 0,
+              "isempty": true,
+              "disp": "",
+              "mat2str": "''"
+            }
+          }
+        }
+      ]
+    },
+    "s.p": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 7\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 7,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "7",
+          "mat2str": "7"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "s.sig": {
+      "class": "Simulink.Signal",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Signal with properties:\n\n        Dimensions: -1\n    DimensionsMode: 'auto'\n        Complexity: 'auto'\n        SampleTime: -1\n      InitialValue: ''\n         CoderInfo: [1×1 Simulink.CoderInfo]\n       Description: ''\n          DataType: 'single'\n               Min: []\n               Max: []\n              Unit: ''",
+      "DataType": "single",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": -1,
+      "Complexity": "auto",
+      "properties": {
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "-1",
+          "mat2str": "-1"
+        },
+        "DimensionsMode": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "SampleTime": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "-1",
+          "mat2str": "-1"
+        },
+        "SamplingMode": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "InitialValue": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "LoggingInfo": {
+          "class": "Simulink.LoggingInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "LoggingInfo with properties:\n\n        DataLogging: 0\n           NameMode: 0\n        LoggingName: ''\n       DecimateData: 0\n         Decimation: 2\n    LimitDataPoints: 0\n          MaxPoints: 5000",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            6
+          ],
+          "numel": 6,
+          "isempty": false,
+          "disp": "single",
+          "mat2str": "'single'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "s.str": {
+      "class": "string",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "hello",
+      "text": [
+        "hello"
+      ],
+      "ismissing": [
+        false
+      ],
+      "lengths": [
+        5
+      ]
+    },
+    "s.strs": {
+      "class": "string",
+      "size": [
+        2,
+        2
+      ],
+      "numel": 4,
+      "isobject": true,
+      "isempty": false,
+      "disp": "\"a\"    \"b\"\n    \"c\"    \"d\"",
+      "text": [
+        "a",
+        "c",
+        "b",
+        "d"
+      ],
+      "ismissing": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "lengths": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    "s.sub": {
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "q: [1×1 Simulink.Parameter]",
+      "fields": [
+        "q"
+      ]
+    },
+    "s.sub.q": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 2.5000\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: 'nested q'\n       DataType: 'single'\n            Min: 0\n            Max: 10\n           Unit: 'm'",
+      "Value": 2.5,
+      "DataType": "single",
+      "Min": 0,
+      "Max": 10,
+      "Unit": "m",
+      "Description": "nested q",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "2.5000",
+          "mat2str": "2.5"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            1,
+            8
+          ],
+          "numel": 8,
+          "isempty": false,
+          "disp": "nested q",
+          "mat2str": "'nested q'"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            6
+          ],
+          "numel": 6,
+          "isempty": false,
+          "disp": "single",
+          "mat2str": "'single'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "0",
+          "mat2str": "0"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "10",
+          "mat2str": "10"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "m",
+          "mat2str": "'m'"
+        }
+      }
+    },
+    "s.vt": {
+      "class": "Simulink.ValueType",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "ValueType with properties:\n\n          DataType: 'int16'\n               Min: []\n               Max: []\n              Unit: ''\n        Complexity: 'real'\n        Dimensions: [1 3]\n    DimensionsMode: 'Fixed'\n       Description: ''",
+      "DataType": "int16",
+      "Dimensions": [
+        1,
+        3
+      ],
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Complexity": "real",
+      "properties": {
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            5
+          ],
+          "numel": 5,
+          "isempty": false,
+          "disp": "int16",
+          "mat2str": "'int16'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     3",
+          "mat2str": "[1 3]"
+        },
+        "DimensionsMode": {
+          "class": "char",
+          "size": [
+            1,
+            5
+          ],
+          "numel": 5,
+          "isempty": false,
+          "disp": "Fixed",
+          "mat2str": "'Fixed'"
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "s2": {
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "cs: {[\"x\"    \"y\"]}",
+      "fields": [
+        "cs"
+      ]
+    },
+    "s2.cs": {
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "{[\"x\"    \"y\"]}",
+      "elementClasses": [
+        "string"
+      ]
+    },
+    "s2.cs{1}": {
+      "class": "string",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "isobject": true,
+      "isempty": false,
+      "disp": "\"x\"    \"y\"",
+      "text": [
+        "x",
+        "y"
+      ],
+      "ismissing": [
+        false,
+        false
+      ],
+      "lengths": [
+        1,
+        1
+      ]
+    },
+    "s2cs1Top": {
+      "class": "string",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "isobject": true,
+      "isempty": false,
+      "disp": "\"x\"    \"y\"",
+      "text": [
+        "x",
+        "y"
+      ],
+      "ismissing": [
+        false,
+        false
+      ],
+      "lengths": [
+        1,
+        1
+      ]
+    },
+    "sa": {
+      "class": "struct",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "isobject": false,
+      "isempty": false,
+      "disp": "1×2 struct array with fields:\n\n    p",
+      "fields": [
+        "p"
+      ]
+    },
+    "sa(1)": {
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "p: [1×1 Simulink.Parameter]",
+      "fields": [
+        "p"
+      ]
+    },
+    "sa(1).p": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 21\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 21,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "21",
+          "mat2str": "21"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "sa(2)": {
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": false,
+      "isempty": false,
+      "disp": "p: [1×1 Simulink.Parameter]",
+      "fields": [
+        "p"
+      ]
+    },
+    "sa(2).p": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 22\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 22,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "22",
+          "mat2str": "22"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "sa1pTop": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 21\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 21,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "21",
+          "mat2str": "21"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "sa2pTop": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Parameter with properties:\n\n          Value: 22\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'auto'\n            Min: []\n            Max: []\n           Unit: ''",
+      "Value": 22,
+      "DataType": "auto",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": [
+        1,
+        1
+      ],
+      "Complexity": "real",
+      "properties": {
+        "Value": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "22",
+          "mat2str": "22"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     1",
+          "mat2str": "[1 1]"
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "sigTop": {
+      "class": "Simulink.Signal",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "Signal with properties:\n\n        Dimensions: -1\n    DimensionsMode: 'auto'\n        Complexity: 'auto'\n        SampleTime: -1\n      InitialValue: ''\n         CoderInfo: [1×1 Simulink.CoderInfo]\n       Description: ''\n          DataType: 'single'\n               Min: []\n               Max: []\n              Unit: ''",
+      "DataType": "single",
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Dimensions": -1,
+      "Complexity": "auto",
+      "properties": {
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "-1",
+          "mat2str": "-1"
+        },
+        "DimensionsMode": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "SampleTime": {
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "-1",
+          "mat2str": "-1"
+        },
+        "SamplingMode": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "auto",
+          "mat2str": "'auto'"
+        },
+        "InitialValue": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "LoggingInfo": {
+          "class": "Simulink.LoggingInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "LoggingInfo with properties:\n\n        DataLogging: 0\n           NameMode: 0\n        LoggingName: ''\n       DecimateData: 0\n         Decimation: 2\n    LimitDataPoints: 0\n          MaxPoints: 5000",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "CoderInfo": {
+          "class": "Simulink.CoderInfo",
+          "size": [
+            1,
+            1
+          ],
+          "numel": 1,
+          "isempty": false,
+          "disp": "CoderInfo with properties:\n\n    StorageClass: 'Auto'",
+          "mat2str_error": "Input matrix must be a numeric array, character array, or string array."
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            6
+          ],
+          "numel": 6,
+          "isempty": false,
+          "disp": "single",
+          "mat2str": "'single'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    },
+    "strTop": {
+      "class": "string",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "hello",
+      "text": [
+        "hello"
+      ],
+      "ismissing": [
+        false
+      ],
+      "lengths": [
+        5
+      ]
+    },
+    "strsTop": {
+      "class": "string",
+      "size": [
+        2,
+        2
+      ],
+      "numel": 4,
+      "isobject": true,
+      "isempty": false,
+      "disp": "\"a\"    \"b\"\n    \"c\"    \"d\"",
+      "text": [
+        "a",
+        "c",
+        "b",
+        "d"
+      ],
+      "ismissing": [
+        false,
+        false,
+        false,
+        false
+      ],
+      "lengths": [
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    "vtTop": {
+      "class": "Simulink.ValueType",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "isobject": true,
+      "isempty": false,
+      "disp": "ValueType with properties:\n\n          DataType: 'int16'\n               Min: []\n               Max: []\n              Unit: ''\n        Complexity: 'real'\n        Dimensions: [1 3]\n    DimensionsMode: 'Fixed'\n       Description: ''",
+      "DataType": "int16",
+      "Dimensions": [
+        1,
+        3
+      ],
+      "Min": [],
+      "Max": [],
+      "Unit": "",
+      "Description": "",
+      "Complexity": "real",
+      "properties": {
+        "DataType": {
+          "class": "char",
+          "size": [
+            1,
+            5
+          ],
+          "numel": 5,
+          "isempty": false,
+          "disp": "int16",
+          "mat2str": "'int16'"
+        },
+        "Min": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Max": {
+          "class": "double",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "[]"
+        },
+        "Unit": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        },
+        "Complexity": {
+          "class": "char",
+          "size": [
+            1,
+            4
+          ],
+          "numel": 4,
+          "isempty": false,
+          "disp": "real",
+          "mat2str": "'real'"
+        },
+        "Dimensions": {
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "numel": 2,
+          "isempty": false,
+          "disp": "1     3",
+          "mat2str": "[1 3]"
+        },
+        "DimensionsMode": {
+          "class": "char",
+          "size": [
+            1,
+            5
+          ],
+          "numel": 5,
+          "isempty": false,
+          "disp": "Fixed",
+          "mat2str": "'Fixed'"
+        },
+        "Description": {
+          "class": "char",
+          "size": [
+            0,
+            0
+          ],
+          "numel": 0,
+          "isempty": true,
+          "disp": "",
+          "mat2str": "''"
+        }
+      }
+    }
+  },
+  "twins": [
+    {
+      "nested": "s.p",
+      "twin": "pTop",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "s.sub.q",
+      "twin": "qTop",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "s.str",
+      "twin": "strTop",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "s.strs",
+      "twin": "strsTop",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "s.miss",
+      "twin": "missTop",
+      "isHandle": false,
+      "isequal": false,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "s.bus",
+      "twin": "busTop",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "s.vt",
+      "twin": "vtTop",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "s.alias",
+      "twin": "aliasTop",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "s.sig",
+      "twin": "sigTop",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "s.objArr",
+      "twin": "objArrTop",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "c{1}",
+      "twin": "c1Top",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "c{2}",
+      "twin": "c2Top",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "c{4}{1}",
+      "twin": "c4_1Top",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "sa(1).p",
+      "twin": "sa1pTop",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "sa(2).p",
+      "twin": "sa2pTop",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "cArr{1}",
+      "twin": "cArr1Top",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "cArr{2}",
+      "twin": "cArr2Top",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "cArr{3}",
+      "twin": "cArr3Top",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "cArr{4}",
+      "twin": "cArr4Top",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "cNest{1}{1}",
+      "twin": "cNest1_1Top",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "cNest{2}{1}",
+      "twin": "cNest2_1Top",
+      "isHandle": true,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    },
+    {
+      "nested": "s2.cs{1}",
+      "twin": "s2cs1Top",
+      "isHandle": false,
+      "isequal": true,
+      "isequaln": true,
+      "sameHandle": false,
+      "recordsEqual": true
+    }
+  ]
+}

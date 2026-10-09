@@ -3,7 +3,8 @@
 import ContainerNode from '../ContainerNode.js';
 import type { TableColumnConfig } from '../ContainerNode.js';
 import ModelSectionNode from './ModelSectionNode.js';
-import { decodeMcosObjects, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
+import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
+import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { BlockParamUsage, ParsedConfigSet } from '../../parser/SlxParser.js';
@@ -266,7 +267,8 @@ export default class ModelNode extends ContainerNode {
     const wsVars = parsed.workspace;
     const trailingElements = (wsVars as unknown as { _trailingElements?: Uint8Array[] })._trailingElements;
     // An .slx model workspace keeps the MCOS blob in its own trailing-element list.
-    const mcosData = decodeMcosObjects(trailingElements?.[0], wsVars);
+    // Every opaque in the workspace, nested or not, comes back carrying its own decode.
+    attachMcosDecoded(trailingElements?.[0], wsVars);
 
     for (const entry of wsVars) {
       if (entry.isOpaque) {
@@ -274,7 +276,7 @@ export default class ModelNode extends ContainerNode {
         // after this returns, so a degrade appended here reaches the source node. It is
         // the same list the part readers wrote into: one list per file, whichever layer
         // the loss was found in.
-        const mcosNode = modelOpaqueMcosVariable(entry, mcosData?.get(entry.name), wsSection, parsed.warnings);
+        const mcosNode = modelOpaqueMcosVariable(entry, mcosDecodedFor(entry), wsSection, parsed.warnings);
         if (mcosNode) {
           wsSection.addChild(mcosNode);
           continue;

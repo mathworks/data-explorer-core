@@ -12,6 +12,7 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
+import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import { parseMatrix } from '../../parser/MatParser.js';
 import { uudecode } from '../../parser/CdataCodec.js';
@@ -219,6 +220,14 @@ export default class MatlabVariableNode extends DataNode {
         }
         return matlabVariableKind(this.isDerived);
     }
+    // The rule just below, said from the parent's side so a child of ANOTHER class obeys
+    // it too: a decoded MCOS object in a struct field is a ParameterNode or a BusNode, and
+    // without this its name alone among the fields offered a rename. That rename could
+    // not reach the file either — it does not mark the struct's `_var` stale, so the
+    // struct would go on describing the field by its old name.
+    get fixesChildNames() {
+        return true;
+    }
     get nameEditable() {
         if (this.parent && this.parent instanceof MatlabVariableNode) {
             return false;
@@ -423,7 +432,7 @@ export default class MatlabVariableNode extends DataNode {
                 // non-square cell's literal: MATLAB's {1 2 3; 4 5 6} printed as
                 // {1, 4, 2; 5, 3, 6}. See test/cellElementOrder.test.ts.
                 const child = this.children[c * rows + r];
-                vals.push(child ? child.displayValue : EMPTY_NUMERIC);
+                vals.push(child ? this._cellLiteralElement(child) : EMPTY_NUMERIC);
             }
             rowStrs.push(vals.join(', '));
         }
@@ -432,6 +441,32 @@ export default class MatlabVariableNode extends DataNode {
         // strings is a 1200-character table cell. Angle brackets, not the old
         // '{1x4 cell}' — only the angle form reads as a summary downstream.
         return overCharBudget(text) ? summaryForm(this._dims, 'cell') : text;
+    }
+    // One element as this cell's one-line literal spells it: its own displayValue, except
+    // for an MCOS object read out of a .mat file or a model workspace, which keeps EXACTLY
+    // the token it printed here before the container decoded nested objects — `<1x1
+    // Class>`, whatever the object's shape: `{<1x1 Simulink.Parameter>, 9}`, not `{42, 9}`,
+    // and `<1x1 string>` for a 1x3 string or a 0x0 one. The element's own row shows the
+    // object, shape and all; what MATLAB prints for a container of objects is a separate
+    // question, and this literal is deliberately left as it was until that one is answered.
+    // `[1, 1]` is therefore not a guess at a shape: it is the old token, which never had
+    // one, because an undecoded opaque was never told its dimensions.
+    //
+    // Only a cell parsed out of MAT bytes (`_matVar` set) is affected, and in one of those
+    // every element node is parseMatVariable's: a node of any class but this one is a
+    // decoded object, and an opaque one of this class is an object decoded or not. A cell
+    // from a dictionary builds its elements through the registry and is left alone. A cell
+    // nested in this one prints its own literal by the same rule.
+    _cellLiteralElement(child) {
+        if (this._matVar) {
+            if (!(child instanceof MatlabVariableNode)) {
+                return summaryForm([1, 1], child.className);
+            }
+            if (child._isOpaque) {
+                return summaryForm([1, 1], child._opaqueClassName || 'double');
+            }
+        }
+        return child.displayValue;
     }
     _formatString() {
         const d = this._dims;
@@ -483,6 +518,12 @@ export default class MatlabVariableNode extends DataNode {
      * so the two paths cannot drift apart. test/displayElements.test.ts pins that
      * agreement rather than either path alone.
      *
+     * One exception, and it is the cell literal's: an MCOS object in a cell parsed out of
+     * MAT bytes is spelled as _cellLiteralElement spells it, `<1x1 Class>`, because the
+     * grid is part of the cell's own presentation and that did not change when nested
+     * objects started to decode. The element's ROW shows the object; the grid and the
+     * one-line literal show what they always did, and agree with each other.
+     *
      * null for a kind that has no elements (a scalar, a struct, an object): an empty
      * list is a different and also true answer, meaning an array with nothing in it.
      */
@@ -491,9 +532,10 @@ export default class MatlabVariableNode extends DataNode {
             return null;
         }
         if (this.children.length > 0) {
-            return this.children.map(function (c) {
-                return { label: c.displayName, value: c.displayValue };
-            });
+            return this.children.map((c) => ({
+                label: c.displayName,
+                value: this._kind === 'cell' ? this._cellLiteralElement(c) : c.displayValue,
+            }));
         }
         const name = this.displayName;
         const dims = this._dims;
@@ -1831,8 +1873,23 @@ export default class MatlabVariableNode extends DataNode {
     // is what lets an untouched variable round-trip byte-for-byte (see the _var
     // getter). These are statics rather than constructor overloads because the shape
     // isn't known until the value has been inspected.
+    // Returns a DataNode rather than a MatlabVariableNode for the opaque arm's sake: a
+    // decoded MCOS object is whatever node its class has — a ParameterNode, a BusNode —
+    // and every other arm still answers a MatlabVariableNode.
     static parseMatVariable(variable, name, parent) {
         if (variable.isOpaque) {
+            // An MCOS object the container decoded (attachMcosDecoded) — a struct field or a
+            // cell element, since a top-level one is built by the container itself — becomes
+            // the node the same object gets at top level, under the field name or cell index
+            // it was given. Without a decode, or if that builds nothing, it is the opaque
+            // summary it always was.
+            const decoded = mcosDecodedFor(variable);
+            if (decoded) {
+                const node = NodeRegistry.modelMcosVariable(variable, decoded, name, parent);
+                if (node) {
+                    return node;
+                }
+            }
             return MatlabVariableNode._createOpaque(variable, name, parent);
         }
         // A variable the parser RECORDED WITHOUT DECODING (MatParser's `undecoded`): a
@@ -1885,8 +1942,10 @@ export default class MatlabVariableNode extends DataNode {
         node._dims = variable.dimensions.slice();
         return node;
     }
-    static createFromMcosDecoded(variable, decoded, parent) {
-        const node = new MatlabVariableNode(variable.name, parent, {});
+    static createFromMcosDecoded(variable, decoded, parent, 
+    // The variable's own name, unless it is nested: then the field name or cell index.
+    name = variable.name) {
+        const node = new MatlabVariableNode(name, parent, {});
         node._isOpaque = true;
         node._opaqueClassName = variable.className;
         node._rawBytes = variable._rawBytes || null;
@@ -2216,6 +2275,9 @@ export default class MatlabVariableNode extends DataNode {
                 throw new Error('cdata is not a MAT matrix element');
             }
             const variable = parseMatrix(dv, 16, tagSize);
+            // Always a MatlabVariableNode here: only the opaque arm builds anything else, and
+            // only for a variable a container attached a decode to (mcosDecodedTable), which
+            // one parsed out of a cdata stream a line above has not had the chance to be.
             const node = MatlabVariableNode.parseMatVariable(variable, name, parent);
             // parseMatVariable's factories set _matVar/_rawBytes but not _rawInput, and
             // an untouched node writes itself back by replaying _rawInput verbatim. Set

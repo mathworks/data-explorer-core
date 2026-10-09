@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
-import { decodeMcosBlob, STRING_CLASS_NAME } from '../../parser/McosParser.js';
+import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME } from '../../parser/McosParser.js';
+import { setMcosDecoded } from './mcosDecodedTable.js';
 import { reasonOf } from '../../parser/ParseWarning.js';
 // Bridges the binary (MCOS) decode path to the same typed data-model nodes the
 // SLDD (JSON) path builds, so a Simulink object resolves to the SAME node class
@@ -108,12 +109,62 @@ warnings) {
 // its own trailing-element list — hence `blobBytes` rather than a container-specific
 // lookup. Returns null when there is nothing to decode (no opaque objects, or no
 // blob), which callers treat as "every object stays an empty shell".
+//
+// The by-name form: NAMED top-level opaques only. MatNode and ModelNode decode through
+// attachMcosDecoded below instead, which reaches the nested objects this cannot key.
 export function decodeMcosObjects(blobBytes, variables) {
     const opaque = variables.filter((v) => v.isOpaque && v.name);
     if (opaque.length === 0 || !blobBytes) {
         return null;
     }
     return decodeMcosBlob(blobBytes, opaque.map((v) => ({ name: v.name, className: v.className, rawBytes: v._rawBytes })));
+}
+// Decode EVERY opaque in a parsed tree against the container's MCOS blob, in one call,
+// and attach each one's result to it in mcosDecodedTable: the top-level variables, and
+// equally the struct fields (of a scalar struct and of every element of a struct
+// array) and the cell elements below them, at any depth. A nested object has no name
+// to be looked up by, so the result is keyed by the variable itself — which is also
+// what lets MatlabVariableNode.parseMatVariable, the one dispatch every nested value
+// goes through, build it without being handed anything new. The variables themselves
+// are not touched; see mcosDecodedTable for why.
+//
+// A variable left without one could not be resolved with confidence, or there was no
+// blob; the node layer then models it exactly as it did before this existed. That
+// includes a variable decoded by an EARLIER attach that this one does not repeat, so a
+// tree attached twice reflects only the second. Walked with an explicit stack, because
+// a struct nested a few thousand deep is a legal file.
+export function attachMcosDecoded(blobBytes, variables) {
+    const opaque = [];
+    const stack = variables.slice();
+    while (stack.length > 0) {
+        const v = stack.pop();
+        if (v.isOpaque) {
+            opaque.push(v);
+            continue;
+        }
+        if (v.fields) {
+            for (const field of Object.values(v.fields)) {
+                if (Array.isArray(field)) {
+                    for (const element of field)
+                        stack.push(element);
+                }
+                else {
+                    stack.push(field);
+                }
+            }
+        }
+        if (v.className === 'cell' && Array.isArray(v.value)) {
+            // A slot MatParser could not read is a null, not a variable.
+            for (const cell of v.value) {
+                if (cell)
+                    stack.push(cell);
+            }
+        }
+    }
+    const decoded = blobBytes && opaque.length > 0 ? decodeMcosVariables(blobBytes, opaque) : null;
+    for (const variable of opaque) {
+        setMcosDecoded(variable, decoded?.get(variable));
+    }
 }
 // Model ONE opaque MCOS variable, or null to say "not an MCOS object — model it the
 // container's normal way". Shared verbatim by MatNode (.mat) and ModelNode (.slx
@@ -134,16 +185,20 @@ export function decodeMcosObjects(blobBytes, variables) {
 export function modelOpaqueMcosVariable(variable, decoded, parent, 
 // Forwarded, not consumed: the only loss on this path is the one buildTypedNodeFromMcos
 // can report, and cases 2 and 3 below are fallbacks that show the class correctly.
-warnings) {
+warnings, 
+// The node's name. A top-level variable's own; for an object nested in a struct field
+// or a cell element — which has no name of its own in the file — the field name or
+// the cell index it is shown under (MatlabVariableNode.parseMatVariable).
+name = variable.name) {
     if (variable.className === STRING_CLASS_NAME && decoded) {
-        return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent);
+        return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent, name);
     }
-    const typed = buildTypedNodeFromMcos(variable.className, variable.name, parent, decoded?.properties, decoded?.elements, decoded?.dimensions, warnings);
+    const typed = buildTypedNodeFromMcos(variable.className, name, parent, decoded?.properties, decoded?.elements, decoded?.dimensions, warnings);
     if (typed) {
         return typed;
     }
     if (decoded) {
-        return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent);
+        return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent, name);
     }
     return null;
 }
