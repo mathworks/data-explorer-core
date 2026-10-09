@@ -37,8 +37,8 @@
 // The tests hold all of it to byte equality against MATLAB's own eighteen cdata
 // streams, so a wrong guess here fails loudly rather than shipping a file MATLAB
 // reads as empty.
-import { isExactToken, transposeToColumnMajorND } from './XmlUtils.js';
-import { uuencode } from './CdataCodec.js';
+import { complexClassTag, isExactToken, parseComplexNum, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
+import { isMatCdata, uuencode } from './CdataCodec.js';
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
  * object array), or a class MatParser could not name. Thrown rather than
@@ -279,8 +279,16 @@ function flatValues(value) {
 // A complex int64/uint64 carries one in `re`/`im` as well: MatParser builds `{re, im}` out
 // of the same readNumericArray both parts come from, so `Number(...) || 0` here would round
 // the real part of `complex(intmax('int64'), 1)` one step after the reader kept it exact.
+//
+// A number is written as it is, NaN included. `Number(x) || 0` is false for NaN, so every
+// NaN this packer wrote — a double's, a single's, either part of a complex value's — went
+// into the stream as 0: [1 NaN Inf] read back as [1 0 Inf]. The fallback is for what is
+// not a number at all.
 function exactPart(x) {
     if (isExactToken(x)) {
+        return x;
+    }
+    if (typeof x === 'number') {
         return x;
     }
     return Number(x) || 0;
@@ -402,5 +410,91 @@ export function encodeMatVariable(v) {
  */
 export function encodeCdata(v) {
     return uuencode(concat([new Uint8Array(CDATA_PREAMBLE), encodeMatVariable(v)]));
+}
+/**
+ * A complex value's plain-text form — `{_type: 'cdata', _value: '1+2i 5+6i 3+4i 7+8i',
+ * _dimensions, _class?}`, what BinarySlddParser reads out of a binary dictionary and
+ * McosParser.complexPropertyValue builds — as the variable it stands for, or null when it
+ * is not that form or a token in it is not one complex element. Read off the text, so a
+ * value the node layer could not read as numbers (a binary dictionary's own non-finite
+ * text, shown quoted) still converts: XmlUtils.parseComplexNum reads every spelling,
+ * MATLAB's `1.0NaNi` included.
+ */
+export function complexTextVariable(raw) {
+    const env = raw;
+    if (!env || env._type !== 'cdata' || typeof env._value !== 'string' || isMatCdata(env)) {
+        return null;
+    }
+    const cls = complexClassTag(env._class) ?? 'double';
+    const text = env._value.trim();
+    const tokens = text === '' ? [] : text.split(/\s+/);
+    const dims = Array.isArray(env._dimensions) ? env._dimensions.slice() : [1, tokens.length];
+    if (elementCountOf(dims) !== tokens.length) {
+        return null;
+    }
+    const pairs = tokens.map((t) => parseComplexNum(t, cls));
+    if (pairs.some((pair) => pair === null)) {
+        return null;
+    }
+    return {
+        name: '',
+        className: cls,
+        dimensions: dims,
+        isComplex: true,
+        isLogical: false,
+        // The text is column-major; a variable is row-major within each page, as MatParser
+        // builds one and numericBody above expects.
+        value: transposeFromColumnMajorND(pairs, dims),
+        fields: null,
+    };
+}
+/**
+ * A value as an uncompressed-text dictionary must hold it: every complex value in its
+ * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there,
+ * and everything else as it was. A copy wherever something changed, so the bag a node
+ * replays is never touched; the same object where nothing did.
+ *
+ * MATLAB reads the plain-text form back out of a TEXT dictionary as an empty double
+ * (defect 24's signature), and it is the form a binary dictionary and the MCOS decoder
+ * hold a complex value in, which an untouched value replays: a Parameter pasted out of a
+ * binary dictionary, or copied out of a .mat, went into a text one as
+ * `{"_type": "cdata", "_value": "3+4i"}` and MATLAB reopened it as []. At any depth,
+ * because the replay is whole bags too — a struct's, a cell's, a LookupTable's Table.
+ */
+export function textDictionaryForm(x) {
+    if (x === null || typeof x !== 'object') {
+        return x;
+    }
+    if (Array.isArray(x)) {
+        let changed = false;
+        const out = x.map((e) => {
+            const t = textDictionaryForm(e);
+            changed = changed || t !== e;
+            return t;
+        });
+        return changed ? out : x;
+    }
+    const o = x;
+    if (o._type === 'cdata') {
+        const variable = complexTextVariable(o);
+        if (!variable) {
+            return o;
+        }
+        try {
+            return { _type: 'cdata', _value: encodeCdata(variable) };
+        }
+        catch {
+            return o;
+        }
+    }
+    let out = null;
+    for (const k of Object.keys(o)) {
+        const t = textDictionaryForm(o[k]);
+        if (t !== o[k]) {
+            out = out ?? { ...o };
+            out[k] = t;
+        }
+    }
+    return out ?? o;
 }
 //# sourceMappingURL=MatWriter.js.map

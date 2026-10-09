@@ -15,10 +15,10 @@ import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import { parseMatrix } from '../../parser/MatParser.js';
-import { uudecode } from '../../parser/CdataCodec.js';
+import { isMatCdata, uudecode } from '../../parser/CdataCodec.js';
 import { encodeCdata } from '../../parser/MatWriter.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, summaryForm, } from '../../display/DisplayConvention.js';
-import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
+import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
 // The pure rules about a MATLAB VALUE — what class an edit leaves behind, when a
@@ -1259,6 +1259,8 @@ export default class MatlabVariableNode extends DataNode {
         if (this._rawInput !== undefined &&
             this.status !== 'Modified' &&
             !this._rawInput?._emptyDims) {
+            // Complex TEXT included, which is not a text dictionary's form: DataNode.serialize
+            // turns it into one on the way into such a file (MatWriter.textDictionaryForm).
             return this._rawInput;
         }
         // Rank >= 3 leaves the literal grammar behind entirely: there is no spelling
@@ -1321,7 +1323,29 @@ export default class MatlabVariableNode extends DataNode {
                 return c._scalarValue;
             })
             : this._elements;
-        return elems.length > 0 && typeof elems[0] === 'string' && String(elems[0]).includes('i');
+        // ANY element, not the first: the element editor takes only a real number, so after
+        // x(1) = 7 the first element is the number 7 and the rest are still complex, and
+        // asking the first alone wrote [7+0i NaN+0i 3-4i] out as the real [7 0 3].
+        return elems.some((e) => typeof e === 'string' && e.includes('i'));
+    }
+    /**
+     * The MATLAB class of a complex value: what its writers spell, where the node's own
+     * type says nothing about it. An ARRAY carries it as its `_scalarType` (int16, single,
+     * …), as every reader sets it. A SCALAR's type is 'complex', which has no class, so the
+     * class is read off what the value was read from, while that is still the value: the
+     * variable a .mat or a text dictionary's stream gave (`_matVar`), or the envelope a
+     * binary dictionary or the MCOS decoder gave (`_rawInput`). A value edit clears both
+     * (_applyParsed), and an edited complex scalar is a double, as the literal typed for it
+     * is in MATLAB. Not `_var`: a rename marks the snapshot stale without changing the
+     * value, and the rebuilt variable is where this class is needed, not where it is read.
+     */
+    _complexClass() {
+        if (this._kind === 'array') {
+            return complexClassTag(this._scalarType) ?? 'double';
+        }
+        const fromVar = this._matVar ? this._matVar.className : undefined;
+        const fromEnvelope = this._rawInput?._class;
+        return complexClassTag(fromVar) ?? complexClassTag(fromEnvelope) ?? 'double';
     }
     // A value with no literal spelling — rank >= 3, or complex at any rank — as the
     // `{_type: 'cdata'}` byte stream MATLAB uses for it. `_var` is the same live-tree
@@ -1526,6 +1550,18 @@ export default class MatlabVariableNode extends DataNode {
     // can't share the JSON traversal — stores matrix elements in COLUMN-major order,
     // hence transposeToColumnMajorND on the way out.
     serializeXml(tagName, attrs, indent) {
+        // Complex text nobody edited goes back as the text it was read from, through the
+        // writer that spells complex text (DataNode._complexTextXml). For a value the node
+        // read as numbers that is the same bytes the arms below would write; it matters for
+        // the value it could not read — a binary dictionary's own text with a NaN or Inf part,
+        // which parseCdata shows as a quoted char (see _isOwnNonFiniteText) — which the char
+        // arm used to write back as `Class="char"`, so a save that edited nothing turned
+        // MATLAB's [Inf NaN -2 5000i] into a char row.
+        const raw = this._rawInput;
+        if (raw && raw._type === 'cdata' && !isMatCdata(raw) && this.status !== 'Modified') {
+            const attrStr = attrs && attrs.Name ? ' Name="' + escapeXml(attrs.Name) + '"' : '';
+            return DataNode._complexTextXml(tagName, attrStr, raw, indent);
+        }
         switch (this._kind) {
             case 'scalar':
                 return this._serializeScalarXml(tagName, attrs, indent);
@@ -1591,12 +1627,15 @@ export default class MatlabVariableNode extends DataNode {
             return p + '<' + tagName + attrStr + ' Class="logical">' + (val ? '1' : '0') + '</' + tagName + '>';
         }
         if (type === 'complex') {
+            const cls = this._complexClass();
             return (p +
                 '<' +
                 tagName +
                 attrStr +
-                ' Class="double" IsComplex="1">' +
-                formatComplexXml(String(val)) +
+                ' Class="' +
+                cls +
+                '" IsComplex="1">' +
+                formatComplexBodyXml(String(val), cls) +
                 '</' +
                 tagName +
                 '>');
@@ -1641,17 +1680,21 @@ export default class MatlabVariableNode extends DataNode {
                 return c._scalarValue;
             })
             : this._elements;
-        if (type === 'complex' ||
-            (elems.length > 0 && typeof elems[0] === 'string' && elems[0].includes('i'))) {
+        if (this._isComplexValue()) {
             const colMajor = transposeToColumnMajorND(elems, dims);
+            const cls = this._complexClass();
             const formatted = colMajor.map(function (v) {
-                return formatComplexXml(String(v));
+                // An element edited to a real number is that number plus 0i (see _buildVarObject).
+                const text = typeof v === 'number' || isExactToken(v) ? formatComplexNum(v, 0) : String(v);
+                return formatComplexBodyXml(text, cls);
             });
             return (p +
                 '<' +
                 tagName +
                 attrStr +
-                ' Class="double" IsComplex="1" Dimension="' +
+                ' Class="' +
+                cls +
+                '" IsComplex="1" Dimension="' +
                 dimAttr +
                 '">' +
                 formatted.join(' ') +
@@ -1826,11 +1869,15 @@ export default class MatlabVariableNode extends DataNode {
                 v.dimensions = this._textDims(typeof this._scalarValue === 'string' ? this._scalarValue : '');
             }
             if (this._scalarType === 'complex') {
-                v.className = 'double';
+                // The class the value has (_complexClass), and its parts read by the one reader
+                // of complex text, which knows Inf and NaN: the pattern this used,
+                // `^([-\d.eE+]+)([+-][\d.eE+]+)i$`, matched neither, so complex(1, Inf) went out
+                // as the real 0 and an int8 one as a double.
+                v.className = this._complexClass();
                 v.isComplex = true;
-                const m = String(this._scalarValue).match(/^([-\d.eE+]+)([+-][\d.eE+]+)i$/);
-                if (m) {
-                    v.value = [{ re: parseFloat(m[1]), im: parseFloat(m[2]) }];
+                const pair = parseComplexNum(String(this._scalarValue), v.className);
+                if (pair) {
+                    v.value = [pair];
                 }
             }
         }
@@ -1841,11 +1888,18 @@ export default class MatlabVariableNode extends DataNode {
                 })
                 : this._elements;
             if (this._isComplexValue()) {
-                v.className = 'double';
+                // As the scalar arm above: a NaN or Inf element used to become 0+0i here, and
+                // an int16 array a double one. An element edited to a real number (the element
+                // editor takes only those) is that number plus 0i, as MATLAB makes x(2) = 9 of a
+                // complex x; it was 0+0i.
+                const cls = this._complexClass();
+                v.className = cls;
                 v.isComplex = true;
                 v.value = elems.map(function (s) {
-                    const m = String(s).match(/^([-\d.eE+]+)([+-][\d.eE+]+)i$/);
-                    return m ? { re: parseFloat(m[1]), im: parseFloat(m[2]) } : { re: 0, im: 0 };
+                    if (typeof s === 'number' || isExactToken(s)) {
+                        return { re: s, im: 0 };
+                    }
+                    return parseComplexNum(String(s), cls) ?? { re: 0, im: 0 };
                 });
             }
             else {
@@ -2261,7 +2315,7 @@ export default class MatlabVariableNode extends DataNode {
     }
     static parseCdata(rawVal, name, parent) {
         const valStr = rawVal._value;
-        if (/^[\d.eE+\-i\s]+$/.test(valStr)) {
+        if (/^[\d.eE+\-i\s]+$/.test(valStr) || MatlabVariableNode._isOwnNonFiniteText(rawVal)) {
             return MatlabVariableNode._parseCdataText(rawVal, name, parent);
         }
         try {
@@ -2295,6 +2349,28 @@ export default class MatlabVariableNode extends DataNode {
             return node;
         }
     }
+    /**
+     * Complex text with an Inf or NaN part that this package wrote itself, which the test
+     * above does not admit: McosParser.complexPropertyValue marks the envelope `_nonFinite`
+     * when it spells such a part, and every element has to read as one.
+     *
+     * The test stays closed to the binary dictionary's own non-finite text on purpose.
+     * MATLAB writes complex(1, NaN) there as `1.0NaNi` and its own reader takes
+     * `1.0NaNi -Inf+2.0i` back as two REAL elements (complex_binary_sldd.truth.json's
+     * pNonFinite), so what that text means is an open question, and that copy keeps the
+     * quoted-char fallback below (test/parity/matlab/DESIGN.md, defect 57). The decoder's
+     * text has no such question — it is formatComplexNum's spelling of numbers MATLAB's own
+     * .mat bytes hold — and through the fallback a single NaN turned a whole complex array
+     * into one char: `[1+2i NaN 3-4i]` showed `'1+2i NaN+0i 3-4i'`, class char, no rows,
+     * where the plain .mat variable beside it showed three complex doubles.
+     */
+    static _isOwnNonFiniteText(rawVal) {
+        if (rawVal._nonFinite !== true || typeof rawVal._value !== 'string') {
+            return false;
+        }
+        const parts = rawVal._value.trim().split(/\s+/);
+        return parts.length > 0 && parts.every((t) => parseComplexNum(t) !== null);
+    }
     static _parseCdataText(rawVal, name, parent) {
         const colMajorParts = rawVal._value
             .trim()
@@ -2321,7 +2397,12 @@ export default class MatlabVariableNode extends DataNode {
         const node = new MatlabVariableNode(name, parent, rawVal);
         node._rawInput = rawVal;
         node._kind = 'array';
-        node._scalarType = 'double';
+        // The value's own class where the envelope records one (complexClassTag), which is how
+        // the container summarizes and types itself — `<1x60 int16>`, as a plain .mat
+        // variable and a text dictionary show the same value. It was 'double' for every
+        // complex array, whatever MATLAB's class() said. The elements stay 'complex' scalars,
+        // as they are in every venue.
+        node._scalarType = complexClassTag(rawVal._class) ?? 'double';
         node._dims = dims;
         node._elements = parts;
         node._buildArrayChildren('complex');

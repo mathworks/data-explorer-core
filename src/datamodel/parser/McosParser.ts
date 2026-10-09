@@ -2,7 +2,7 @@
 
 import { parseMatrix, MatVariable } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
-import { formatMatlabNum, isExactToken } from './XmlUtils.js';
+import { complexClassTag, formatComplexNum, formatMatlabNum, isExactToken, transposeToColumnMajorND } from './XmlUtils.js';
 
 // Decodes the binary MCOS (MATLAB Class Object System) blob embedded in .slx and
 // .mat files into per-variable property bags shaped EXACTLY like the SLDD (JSON)
@@ -56,8 +56,10 @@ export interface McosObjectData {
   shortClassName: string;
   // Reconstructed `_properties` bag in the same shape the SLDD path produces:
   // scalars as numbers/strings/booleans, matrices as a Matrix(r,c) value object,
-  // nested objects as { _object_class, _properties }. For an object ARRAY this
-  // mirrors elements[0] (back-compat for callers that only read a scalar).
+  // complex values as the binary dictionary's { _type: 'cdata' } text
+  // (complexPropertyValue), nested objects as { _object_class, _properties }. For an
+  // object ARRAY this mirrors elements[0] (back-compat for callers that only read a
+  // scalar).
   properties: Record<string, unknown>;
   // One `_properties` bag per array element, in column-major order (MATLAB's).
   // Length is the product of `dimensions`; a scalar object has exactly one entry.
@@ -343,6 +345,75 @@ function buildMatrixValue(dims: number[], elements: (number | string)[]): unknow
   return { _type: 'double', _value: 'Matrix(' + rows + ',' + cols + ')\n' + rowStrs.join('\n') };
 }
 
+interface ComplexPair {
+  re: unknown;
+  im: unknown;
+}
+
+const isComplexPair = (x: unknown): x is ComplexPair =>
+  x !== null && typeof x === 'object' && 're' in x && 'im' in x;
+
+/**
+ * A complex numeric property in the form a compressed-binary dictionary gives the same
+ * property: `{ _type: 'cdata', _value: '<elements>' }`, the elements column-major and
+ * space-separated, with `_dimensions` (every extent) on anything but a scalar and
+ * `_class` on anything but a double (complexClassTag) — BinarySlddParser's
+ * `<P IsComplex="1">` arm, with MATLAB's `.0` already dropped. Undefined for anything
+ * else, including an EMPTY complex value, which keeps the `[]` the numeric arm below has
+ * always given it.
+ *
+ * MatParser carries a complex element as `{ re, im }`, row-major within each page, and
+ * nothing below this decoder reads that pair: the matrix arm String()-coerced each one
+ * to '[object Object]' inside a Matrix(r,c) body, which then parsed as no numbers at all
+ * (`[ ]`), and every other shape went through as the bare pairs, which the node layer
+ * printed as `[[object Object]]`. So a Simulink.Parameter whose Value is 3+4i showed
+ * that, in a .mat and in a model workspace alike. In this form the value takes the
+ * route the binary dictionary's does — MatlabVariableNode.parseCdata — and shows `3+4i`,
+ * `[1+2i 3+4i 5+6i]` with one element row each, `<2x2x2 double>`, `<1x60 int16>`.
+ *
+ * Each element is formatComplexNum's spelling of the numbers MATLAB's bytes hold, which
+ * is the plain .mat variable's spelling of the same value: complex(1/3, 0.1) is
+ * `0.3333333333333333+0.1i` here and there. It is not always the binary dictionary's
+ * text, which is MATLAB's own and differs in digits and in sign where MATLAB writes more
+ * (`0.33333333333333331+0.1i`, `1.0E-20+2.0E+21i`, `1-0i`).
+ *
+ * An Inf or NaN part is the other place the two differ, and the reason for
+ * `_nonFinite`: parseCdata does not read the binary dictionary's non-finite text as
+ * numbers (see MatlabVariableNode._isOwnNonFiniteText for why), and the marker is what
+ * lets it read this text, so [1+2i NaN 3-4i] shows the three complex doubles the plain
+ * .mat variable shows rather than one quoted char.
+ *
+ * Exported for its unit tests; resolveValue is the one caller.
+ */
+export function complexPropertyValue(cell: MatVariable): Record<string, unknown> | undefined {
+  if (!cell.isComplex || !Array.isArray(cell.value)) return undefined;
+  const pairs = cell.value as unknown[];
+  if (pairs.length === 0 || !pairs.every(isComplexPair)) return undefined;
+  const dims = cell.dimensions && cell.dimensions.length >= 2 ? cell.dimensions.slice() : [1, pairs.length];
+  // MatParser's transpose undone, so the text is in MATLAB's own storage order, which
+  // is the order parseCdata reads a cdata body in.
+  const colMajor = transposeToColumnMajorND(pairs as ComplexPair[], dims);
+  const value: Record<string, unknown> = {
+    _type: 'cdata',
+    _value: colMajor.map((c) => formatComplexNum(c.re, c.im)).join(' '),
+  };
+  // A scalar carries no shape, as MATLAB's own binary scalar has no Dimension attribute.
+  if (pairs.length > 1 || dims.length > 2) {
+    value._dimensions = dims;
+  }
+  const cls = complexClassTag(cell.className);
+  if (cls) {
+    value._class = cls;
+  }
+  if (colMajor.some((c) => !isFinitePart(c.re) || !isFinitePart(c.im))) {
+    value._nonFinite = true;
+  }
+  return value;
+}
+
+// An exact 64-bit token (a string) is always finite.
+const isFinitePart = (x: unknown): boolean => typeof x !== 'number' || Number.isFinite(x);
+
 // Turn a parsed mxArray value into a property value in the SLDD-shaped form the
 // data model expects. Object handles recurse into nested { _object_class,
 // _properties }; structs and cells recurse into { _array_type: 'Struct'|'Cell', … }.
@@ -395,6 +466,13 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
   }
   if (cls === 'char') {
     return typeof val === 'string' ? val : '';
+  }
+  // Before the numeric arms below, every one of which would pass the { re, im } pairs
+  // on to a node that cannot read them. Any numeric class, sparse included: MatParser
+  // pairs the parts of each the same way.
+  const complex = complexPropertyValue(cell);
+  if (complex) {
+    return complex;
   }
   if (cell.isLogical) {
     if (Array.isArray(val)) return val.map((x) => !!x);

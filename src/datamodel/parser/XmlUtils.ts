@@ -56,6 +56,79 @@ export function formatMatlabNum(num: unknown): string {
     return String(num);
 }
 
+// One complex element as this package spells it: `3+4i`, `1-2i`, `0+5i`, `3+0i`. Each
+// part as formatMatlabNum spells it, and between them the imaginary part's own sign, or
+// '+' when `im >= 0`. For a finite part that is the rule a plain .mat variable's
+// elements and a typed-in complex literal already follow
+// (MatlabVariableNode._createFromMatNumeric, MatlabValueParser.parseComplex), which
+// write String() for the parts and so differ only in spelling an infinity 'Infinity'.
+//
+// `NaN >= 0` is false, so a NaN imaginary part gets no '+': complex(1, NaN) is `1NaNi`,
+// which is what the .mat arm already shows for it, and also how MATLAB's own writer
+// spells the element: a compressed-binary dictionary stores [complex(Inf,-Inf)
+// complex(NaN,1) complex(1,NaN) complex(-Inf,2)] as `Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i`
+// (R2027a, complex_binary.sldd's pNonFinite) — though MATLAB's reader does not take that
+// text back as the value it wrote (complex_binary_sldd.truth.json).
+// A part may be an exact decimal token (an int64 beyond 2^53, see exactInt); Number()
+// reads its sign.
+export function formatComplexNum(re: unknown, im: unknown): string {
+    return formatMatlabNum(re) + (Number(im) >= 0 ? '+' : '') + formatMatlabNum(im) + 'i';
+}
+
+// One part of a complex element: a decimal, `Inf`, or `NaN`, unsigned. `Infinity` too,
+// because that is what a plain .mat variable's elements say for an infinite part
+// (MatlabVariableNode._createFromMatNumeric writes String()).
+const COMPLEX_PART = '(?:Inf(?:inity)?|NaN|(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?)';
+// A whole element: the real part with an optional sign, then the imaginary part, which
+// has its own sign — except a NaN, which formatComplexNum and MATLAB's binary writer
+// both write with none (`1NaNi`).
+const COMPLEX_ELEMENT = new RegExp('^([+-]?' + COMPLEX_PART + ')([+-]' + COMPLEX_PART + '|NaN)i$');
+
+/**
+ * formatComplexNum's inverse: one complex element's text back into its two parts, or null
+ * for text that is not one. It reads every spelling this package holds an element in —
+ * its own (`3+4i`, `1NaNi`, `-Inf+2i`), a binary dictionary's (`3.0+4.0i`,
+ * `1.0E-20+2.0E+21i`), a plain .mat variable's (`1+Infinityi`) — so the writers can
+ * rebuild the value from any of them. Under a 64-bit integer class a part keeps its
+ * exact decimal text (parseExactNum), as every other read of such a value does.
+ *
+ * The NaN and Inf parts are why this exists. The pattern the writers used before,
+ * `^([-\d.eE+]+)([+-][\d.eE+]+)i$`, matched neither, and the element it did not match
+ * was written as 0+0i.
+ */
+export function parseComplexNum(text: string, type?: string): { re: number | string; im: number | string } | null {
+    const m = COMPLEX_ELEMENT.exec(text.trim());
+    if (!m) {
+        return null;
+    }
+    const part = (s: string): number | string => {
+        // A sign means nothing on a NaN, and parseMatlabNum knows only the bare word.
+        const t = s.replace(/Infinity$/, 'Inf').replace(/^[+-](?=NaN$)/, '');
+        return needsExactInt(type) ? parseExactNum(t) : parseMatlabNum(t);
+    };
+    return { re: part(m[1]), im: part(m[2]) };
+}
+
+// The numeric classes besides double, which is the class a complex value has when its
+// envelope says nothing.
+const NON_DOUBLE_NUMERIC_CLASS = /^(?:single|u?int(?:8|16|32|64))$/;
+
+/**
+ * The `_class` a complex value's `{ _type: 'cdata' }` envelope carries: its MATLAB class
+ * when that is single or an integer class, and undefined for double — and for anything
+ * that is not a numeric class at all, a sparse array's 'sparse' included, which MATLAB
+ * itself calls double. Both producers of the plain-text envelope, BinarySlddParser (from
+ * the `<P Class="int16" IsComplex="1">` attribute) and McosParser.complexPropertyValue
+ * (from the decoded variable), set it the same way, and the node layer reads it to
+ * class an array (MatlabVariableNode._parseCdataText) and the binary writer to spell
+ * `Class=` (DataNode._serializeTypedPropertyXml). Without it, every complex value in
+ * either was a double: an int16 Value showed `<1x60 double>` and was written back
+ * `Class="double"`.
+ */
+export function complexClassTag(className: unknown): string | undefined {
+    return typeof className === 'string' && NON_DOUBLE_NUMERIC_CLASS.test(className) ? className : undefined;
+}
+
 // The inverse: a number as it appears in a .sldd, falling back to 0 for text
 // that is not a number at all. parseFloat reads MATLAB's Inf/-Inf/NaN as NaN,
 // and the `|| 0` idiom then silently turns each of them into zero — so the
@@ -391,6 +464,20 @@ export function formatComplexXml(complexStr: string): string {
         /\.\d+(?:[eE][+-]?\d+)?|\d+\.?\d*(?:[eE][+-]?\d+)?/g,
         (num) => (/[.eE]/.test(num) ? num : num + '.0'),
     );
+}
+
+/**
+ * A complex value's body as a binary dictionary's `<P Class="…" IsComplex="1">` carries it,
+ * for its class: a float class's parts each read as a float (formatComplexXml's `.0`), an
+ * integer class's parts as the integers they are. MATLAB writes `Class="int8"
+ * IsComplex="1">3-4i` and `Class="int64" IsComplex="1">9223372036854775807+1i`, and the
+ * `.0` form, `9223372036854775807.0+1.0i`, is not that value. An infinity is `Inf`, the
+ * only word MATLAB writes for one, whichever reader's text it came from (a plain .mat
+ * variable's element says `Infinity`).
+ */
+export function formatComplexBodyXml(text: string, className: string): string {
+    const body = text.trim().replace(/Infinity/g, 'Inf');
+    return className === 'double' || className === 'single' ? formatComplexXml(body) : body;
 }
 
 export function transposeToColumnMajor<T>(rowMajor: T[], rows: number, cols: number): T[] {

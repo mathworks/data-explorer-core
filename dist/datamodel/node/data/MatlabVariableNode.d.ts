@@ -127,6 +127,18 @@ export default class MatlabVariableNode extends DataNode {
      * disagreement would mean writing a cdata stream built from a non-complex `_var`.
      */
     _isComplexValue(): boolean;
+    /**
+     * The MATLAB class of a complex value: what its writers spell, where the node's own
+     * type says nothing about it. An ARRAY carries it as its `_scalarType` (int16, single,
+     * …), as every reader sets it. A SCALAR's type is 'complex', which has no class, so the
+     * class is read off what the value was read from, while that is still the value: the
+     * variable a .mat or a text dictionary's stream gave (`_matVar`), or the envelope a
+     * binary dictionary or the MCOS decoder gave (`_rawInput`). A value edit clears both
+     * (_applyParsed), and an edited complex scalar is a double, as the literal typed for it
+     * is in MATLAB. Not `_var`: a rename marks the snapshot stale without changing the
+     * value, and the rebuilt variable is where this class is needed, not where it is read.
+     */
+    _complexClass(): string;
     _serializeCdata(): unknown | null;
     _serializeScalar(): unknown;
     _serializeArray(): unknown;
@@ -168,6 +180,22 @@ export default class MatlabVariableNode extends DataNode {
     static parseEmptyStruct(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseTypedScalar(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
+    /**
+     * Complex text with an Inf or NaN part that this package wrote itself, which the test
+     * above does not admit: McosParser.complexPropertyValue marks the envelope `_nonFinite`
+     * when it spells such a part, and every element has to read as one.
+     *
+     * The test stays closed to the binary dictionary's own non-finite text on purpose.
+     * MATLAB writes complex(1, NaN) there as `1.0NaNi` and its own reader takes
+     * `1.0NaNi -Inf+2.0i` back as two REAL elements (complex_binary_sldd.truth.json's
+     * pNonFinite), so what that text means is an open question, and that copy keeps the
+     * quoted-char fallback below (test/parity/matlab/DESIGN.md, defect 57). The decoder's
+     * text has no such question — it is formatComplexNum's spelling of numbers MATLAB's own
+     * .mat bytes hold — and through the fallback a single NaN turned a whole complex array
+     * into one char: `[1+2i NaN 3-4i]` showed `'1+2i NaN+0i 3-4i'`, class char, no rows,
+     * where the plain .mat variable beside it showed three complex doubles.
+     */
+    static _isOwnNonFiniteText(rawVal: Record<string, unknown>): boolean;
     static _parseCdataText(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseTypedVector(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     /**

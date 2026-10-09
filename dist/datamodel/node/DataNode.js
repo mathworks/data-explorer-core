@@ -3,8 +3,9 @@ import BaseNode from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
+import { textDictionaryForm } from '../parser/MatWriter.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
-import { charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexXml, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, } from '../parser/XmlUtils.js';
+import { charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -527,14 +528,37 @@ export default class DataNode extends BaseNode {
         }
     }
     serialize() {
+        // serialize() is what a text dictionary is written from — SlddNode.serializeJson, and
+        // a host splicing one entry's JSON into the file — and serializeValue's replay of an
+        // untouched value can hold complex TEXT, a binary dictionary's form (or the MCOS
+        // decoder's), which MATLAB reads back out of a text dictionary as []. So in one, it
+        // goes out as MATLAB's MAT stream. Everywhere else it stays as it is: a binary
+        // dictionary is written from serializeXml, where the text IS its form, and a payload
+        // copied out of one keeps it for whichever dictionary it lands in.
+        const raw = this.serializeValue();
+        const value = this._ownerFormat() === 'json' ? textDictionaryForm(raw) : raw;
         if (this.isEntry) {
             return {
                 name: this.name,
                 metadata: this.metadata,
-                value: this.serializeValue(),
+                value,
             };
         }
-        return this.serializeValue();
+        return value;
+    }
+    /**
+     * The format of the file this node is in, as the nearest container above it states it
+     * (SlddNode: 'json' for a text dictionary, 'xml' for a binary one), or undefined for a
+     * node in no file — a payload being built, a value the XML writer re-reads.
+     */
+    _ownerFormat() {
+        for (let n = this.parent; n; n = n.parent) {
+            const format = n.sourceFormat;
+            if (typeof format === 'string') {
+                return format;
+            }
+        }
+        return undefined;
     }
     /**
      * This node's rawVal with its live property bag written into the first element — the value
@@ -840,8 +864,7 @@ export default class DataNode extends BaseNode {
             if (isMatCdata(value)) {
                 return NodeRegistry.parseValue(value, name, null).serializeXml('P', { Name: name }, indent);
             }
-            const formatted = formatComplexXml(raw);
-            return p + '<P' + DataNode.pxAttrs(name) + ' Class="double" IsComplex="1">' + formatted + '</P>';
+            return DataNode._complexTextXml('P', DataNode.pxAttrs(name), value, indent);
         }
         // Rank 3 and up spells its header Matrix(2,3,2) — MATLAB's own binary
         // dictionary writes such an entry as Dimension="2*3*2" with a flat
@@ -890,6 +913,31 @@ export default class DataNode extends BaseNode {
         }
         const num = DataNode._numToken(raw, type);
         return p + '<P' + DataNode.pxAttrs(name) + ' Class="' + type + '">' + formatNumericXml(num, type) + '</P>';
+    }
+    /**
+     * A complex value in its plain-text form — `{_type: 'cdata', _value: '1+2i 5+6i 3+4i
+     * 7+8i', _dimensions: [2, 2], _class?}`, what BinarySlddParser reads out of a binary
+     * dictionary and McosParser.complexPropertyValue builds for a .mat or a model workspace
+     * — as the one XML element a binary dictionary holds it in: its class, `IsComplex="1"`,
+     * every extent unless it is a scalar (MATLAB writes none on one), and the body for its
+     * class. Shared by the property writer and the cell-element writer.
+     *
+     * Both used to drop half of that. The property writer wrote `Class="double"
+     * IsComplex="1"` and nothing else whatever the value was, so any save that wrote a
+     * complex Value it had not edited lost its shape and its class: MATLAB read
+     * `[1+2i 3+4i 5+6i]` back as 1+2i, a 2x2 and a 2x2x2 as their first element, and
+     * int64(complex(intmax('int64'), 1)) as the double 9.22337203685478e+18+1i — on a
+     * no-op save of MATLAB's own file, and on editing any other property of the entry.
+     * The cell-element writer wrote `Class="cdata"`, a class MATLAB does not have.
+     */
+    static _complexTextXml(tag, attrs, value, indent) {
+        const cls = complexClassTag(value._class) ?? 'double';
+        const dims = Array.isArray(value._dimensions) ? value._dimensions : null;
+        const dimAttr = dims && !(dims.length <= 2 && dims[0] === 1 && dims[1] === 1) ? ' Dimension="' + dims.join('*') + '"' : '';
+        const open = xmlPad(indent) + '<' + tag + attrs + ' Class="' + cls + '" IsComplex="1"' + dimAttr;
+        const body = formatComplexBodyXml(String(value._value ?? ''), cls);
+        // An empty body is MATLAB's complex empty, `<P … Dimension="1*0"/>`.
+        return body === '' ? open + '/>' : open + '>' + body + '</' + tag + '>';
     }
     static _serializeObjectPropertyXml(name, value, indent, ownerNode) {
         const p = xmlPad(indent);
@@ -1000,6 +1048,14 @@ export default class DataNode extends BaseNode {
             const obj = elem;
             const type = obj._type;
             const raw = String(obj._value);
+            // The property writer's two cdata cases, for the same reasons: a MAT byte stream is
+            // written by the node it reads back as, and complex text as itself.
+            if (type === 'cdata') {
+                if (isMatCdata(obj)) {
+                    return NodeRegistry.parseValue(obj, '', null).serializeXml('Element', {}, indent);
+                }
+                return DataNode._complexTextXml('Element', '', obj, indent);
+            }
             const mxChar = DataNode._mxCharXml(obj);
             if (mxChar) {
                 return p + '<Element Class="char"' + mxChar.dimAttr + '>' + mxChar.body + '</Element>';
