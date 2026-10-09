@@ -2257,6 +2257,21 @@ Two findings from that hardening, measured and deliberately NOT acted on:
     out of the binary dictionary included, whose text MATLAB's own binary reader gets
     wrong — and an untouched save of `complex.sldd` is 0 of 29, as before.
 
+60. **The Property Inspector showed a `cdata` value as its raw text.** The "Other" group
+    (`piOther.buildOtherRows`), which lists every property the curated layout does not,
+    printed a typed value's `_value` as it stood, and a cdata `_value` is never display
+    text: complex text is MATLAB's storage order with no shape, so a LookupTable's
+    Table.Value `[1+2i 3+4i; 5+6i 7+8i]` read `1+2i 5+6i 3+4i 7+8i` out of a `.mat` (and
+    `Matrix(2,2)` over four `[object Object]`s before defect 57's fix), and a text
+    dictionary's MAT stream read as its six-bit characters. Each is now read — the text as
+    its elements, the stream by MatParser — and laid out as the same group lays out a real
+    value of its shape (`[1+2i, 3+4i, 5+6i]` beside the real Breakpoints' `[1, 2, 3]`, a
+    matrix as its `Matrix(r,c)` literal, N-D as `<2x2x2 double>`). None of the guard's
+    channels reached this one, so `noObjectObject.test.ts` now also reads `toPIObject`:
+    run against 1.36.0's source it flags the MCOS fixture's Parameters there too. Graded by
+    `piOther.test.ts` and by the LookupTable rows of `complexMcosFixtures.test.ts`; over
+    the 345 corpus files, no row of the group changes.
+
 ## Known limitations, to verify and document
 
 - **Derived MCOS classes.** A customer class `MyParam < Simulink.Parameter`
@@ -2374,6 +2389,11 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   of the four channels carry no property data for it at all — defect 40. Recorded from
   the raw bags, because MATLAB does not call `Choices` a property and parity therefore
   passes.
+- **The Inspector's "Other" group does not flatten a nested object out of a binary
+  dictionary.** The binary reader spells one `{_array_class, _elements: [{_properties}]}`
+  and the group flattens only `{_object_class, _properties}`, so a LookupTable's Table
+  shows as one empty row there where the `.mat` and the text dictionary list its
+  properties. Not about complex numbers, and pinned as it is in `complexMcosFixtures`.
 - **A complex EMPTY in a binary dictionary shows as an empty quoted char.** MATLAB writes
   `<P Class="double" IsComplex="1" Dimension="1*0"/>`; the empty body fails parseCdata's
   text test and its stream decode, so the value is `''` where the same Parameter in a

@@ -61,6 +61,8 @@ interface TruthRecord extends Partial<ValueTruth> {
   Complexity?: string;
   // An object array.
   elements?: TruthRecord[];
+  // A LookupTable's Table object.
+  Table?: TruthRecord;
 }
 
 interface Truth {
@@ -461,9 +463,10 @@ describe('every value presents the same in the .mat as in each other venue that 
 // ---- What is not a Parameter -----------------------------------------------------
 //
 // A LookupTable's numbers are a property of its Table object, one level further down,
-// and LookupTableNode shows none of its Table in any venue — its own cell is empty and it
-// has no rows — so there is nothing complex here to spell. Pinned so that is seen to stay
-// true, and to stay the same in every venue.
+// and LookupTableNode shows none of its Table in the tree in any venue — its own cell is
+// empty and it has no rows. The Property Inspector does: its "Other" group flattens the
+// Table one level, and Table.Value is the complex value. Both are pinned, the tree so it is
+// seen to stay empty and the same in every venue, and the Inspector for what it shows.
 describe('a LookupTable with a complex Table presents as it does everywhere', () => {
   for (const fx of FIXTURES) {
     const variables = fx.variables();
@@ -475,6 +478,23 @@ describe('a LookupTable with a complex Table presents as it does everywhere', ()
         expect(node.children).toHaveLength(0);
         const a = nodeAt(MAT.variables(), path);
         expect(presentation(node, node.displayName)).toEqual(presentation(a, a.displayName));
+        // The Inspector's Table.Value is MATLAB's value laid out as the same group lays
+        // out the real Breakpoints beside it (`[1, 2, 3]`). It was MATLAB's storage text
+        // out of the .mat (`1+2i 3+4i 5+6i`, a 2x2 in column order) and the stream's own
+        // characters out of the text dictionary.
+        const other = node.toPIObject().objects[0];
+        const v = t.Table!.Value as ValueTruth;
+        expect(v.size[0], 'a row, which the Other group writes `[a, b, c]`').toBe(1);
+        const want = '[' + elementsOf(v, `${path}.Table.Value`).join(', ') + ']';
+        if (fx.file === 'complex_binary.sldd') {
+          // The binary reader spells a nested object `{_array_class, _elements}`, which
+          // the Other group does not flatten, so it shows the Table as an empty row —
+          // in this venue, for every nested object, and not about complex numbers.
+          expect(other['Other.Table']).toBe('');
+          return;
+        }
+        expect(other['Other.Table.Value']).toBe(want);
+        expect(other['Other.Breakpoints.Value']).toBe('[1, 2, 3]');
       });
     }
   }

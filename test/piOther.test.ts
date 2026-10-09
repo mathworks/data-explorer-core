@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import { describe, it, expect } from 'vitest';
 import { buildOtherRows } from '../src/datamodel/node/piOther.js';
+import { encodeCdata } from '../src/datamodel/parser/MatWriter.js';
 
 describe('buildOtherRows — PI "Other" catch-all', () => {
   it('returns [] for a non-object bag', () => {
@@ -146,5 +147,62 @@ describe('buildOtherRows — PI "Other" catch-all', () => {
     const before = JSON.stringify(bag);
     buildOtherRows(bag, new Set());
     expect(JSON.stringify(bag)).toBe(before);
+  });
+});
+
+// A `cdata` value is never display text as it stands: complex text is MATLAB's storage
+// (column-major) order with no shape, and a text dictionary's MAT stream is six-bit
+// characters. The Inspector showed both as they were — a LookupTable's Table.Value
+// [1+2i 3+4i; 5+6i 7+8i] read `1+2i 5+6i 3+4i 7+8i` out of a .mat, and the stream's own
+// characters out of a text dictionary. Each is laid out as the same channel shows a real
+// value of its shape: a real row arrives as a bare list (`[1, 2, 3]`) and a real matrix as
+// its typed `Matrix(r,c)` literal.
+describe('buildOtherRows — a cdata value is read, not printed', () => {
+  const shows = (Value: unknown) => buildOtherRows({ Table: { _object_class: 'T', _properties: { Value } } }, new Set())[0].value;
+  const stream = (v: Record<string, unknown>) => ({
+    _type: 'cdata',
+    _value: encodeCdata({ name: '', isLogical: false, fields: null, isComplex: false, ...v } as any),
+  });
+
+  it('complex text, as the binary dictionary and the MCOS decoder hold it', () => {
+    expect(shows({ _type: 'cdata', _value: '3+4i' })).toBe('3+4i');
+    // MATLAB's own text, `.0` and all, as the node layer reads it.
+    expect(shows({ _type: 'cdata', _value: '3.0+4.0i' })).toBe('3+4i');
+    expect(shows({ _type: 'cdata', _value: '1+2i 3+4i 5+6i', _dimensions: [1, 3] })).toBe('[1+2i, 3+4i, 5+6i]');
+    expect(shows({ _type: 'cdata', _value: '1+2i 3+4i 5+6i', _dimensions: [3, 1] })).toBe('Matrix(3,1)\n[1+2i]\n[3+4i]\n[5+6i]');
+    // Column-major text, rows in row order.
+    expect(shows({ _type: 'cdata', _value: '1+2i 5+6i 3+4i 7+8i', _dimensions: [2, 2] })).toBe(
+      'Matrix(2,2)\n[1+2i, 3+4i]\n[5+6i, 7+8i]',
+    );
+    expect(shows({ _type: 'cdata', _value: '1+1i 2+2i 3+3i 4+4i 5+5i 6+6i 7+7i 8+8i', _dimensions: [2, 2, 2] })).toBe('<2x2x2 double>');
+    expect(shows({ _type: 'cdata', _value: '1+1i 2+2i', _dimensions: [1, 1, 2], _class: 'int16' })).toBe('<1x1x2 int16>');
+    expect(shows({ _type: 'cdata', _value: '', _dimensions: [1, 0] })).toBe('[]');
+  });
+
+  it('a text dictionary\'s MAT stream, laid out the same way', () => {
+    const c = (re: number, im: number) => ({ re, im });
+    // [1+2i 3+4i; 5+6i 7+8i]: a MatVariable is row-major.
+    expect(shows(stream({ className: 'double', dimensions: [2, 2], isComplex: true, value: [c(1, 2), c(3, 4), c(5, 6), c(7, 8)] }))).toBe(
+      'Matrix(2,2)\n[1+2i, 3+4i]\n[5+6i, 7+8i]',
+    );
+    expect(shows(stream({ className: 'double', dimensions: [1, 3], isComplex: true, value: [c(1, 2), c(3, 4), c(5, 6)] }))).toBe(
+      '[1+2i, 3+4i, 5+6i]',
+    );
+    expect(shows(stream({ className: 'double', dimensions: [1, 1], isComplex: true, value: [c(1, Infinity)] }))).toBe('1+Infi');
+    // A real one, as its real siblings show: the stream is what a text dictionary holds
+    // for an N-D value of any kind.
+    expect(shows(stream({ className: 'double', dimensions: [2, 2], value: [1, 2, 3, 4] }))).toBe('Matrix(2,2)\n[1, 2]\n[3, 4]');
+    expect(shows(stream({ className: 'int8', dimensions: [2, 3, 2], value: Array.from({ length: 12 }, (_, k) => k) }))).toBe(
+      '<2x3x2 int8>',
+    );
+    // Not a number: its summary.
+    expect(shows(stream({ className: 'char', dimensions: [2, 2, 2], value: 'abcdefgh' }))).toBe('<2x2x2 char>');
+  });
+
+  it('a stream that does not decode shows nothing rather than its characters; other text shows as it is', () => {
+    expect(shows({ _type: 'cdata', _value: '  %)30 not a stream' })).toBe('');
+    expect(shows({ _type: 'cdata', _value: 'not complex text' })).toBe('not complex text');
+    // A count the shape does not hold is not that value.
+    expect(shows({ _type: 'cdata', _value: '1+2i 3+4i', _dimensions: [1, 3] })).toBe('1+2i 3+4i');
   });
 });

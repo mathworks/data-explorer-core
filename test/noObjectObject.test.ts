@@ -67,6 +67,14 @@ function textsOf(node: any): [channel: string, text: string][] {
     const grid = node.displayElements();
     if (grid) out.push(['grid', JSON.stringify(grid)]);
   }
+  // The Property Inspector, whose "Other" group shows every raw property the curated
+  // layout does not — so a value that reaches no other channel reaches this one. Before
+  // the complex MCOS fix it showed `[object Object]` 69 times across the repo's fixtures,
+  // and none of the channels above saw one of them.
+  if (typeof node.toPIObject === 'function') {
+    const pi = node.toPIObject();
+    if (pi) out.push(['inspector', JSON.stringify(pi.objects)]);
+  }
   return out;
 }
 
