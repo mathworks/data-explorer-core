@@ -715,18 +715,56 @@ describe('parseMat — sparse arrays (class 5)', () => {
   });
 
   it('reads a sparse matrix of any declared size, since what it holds is its non-zeros', () => {
-    // sparse(2000, 2000) with one non-zero: 30 bytes of index arrays declaring four
-    // million elements. This is the shape a real sparse matrix has — its declared size
-    // says nothing about how much data is present — and `sparse(1e6, 1e6)` laid out
+    // sparse(2000, 2000) with one non-zero, declaring four million elements: its declared
+    // size says nothing about how much data is present, and `sparse(1e6, 1e6)` laid out
     // densely would ask for `new Array(1e12)`. Until 1.36.3 such a matrix was refused past
     // a million elements, as `<2000x2000 sparse double, not decoded>`; held as its
     // non-zeros, it costs what it holds, at any size.
+    //
+    // This input's jc holds three column starts where 2000 columns need 2001 — a short
+    // index, so a damaged array rather than the shape MATLAB writes (that is its full-jc
+    // twin below). The reader reads it as far as the index goes, and says it read short.
     const v = only(matFile([sparseVar({ name: 'big', dimensions: [2000, 2000], ir: [0], jc: [0, 1, 1], real: [5] })]));
     expect([v.className, v.isSparse, v.value, v.undecoded]).toEqual(['double', true, '<2000x2000 sparse double>', undefined]);
     expect([[...v.sparse!.row], [...v.sparse!.col], [...v.sparse!.re]]).toEqual([[0], [0], [5]]);
+    expect(parseMat(matFile([sparseVar({ name: 'big', dimensions: [2000, 2000], ir: [0], jc: [0, 1, 1], real: [5] })])).warnings).toEqual([
+      {
+        code: 'part-unreadable',
+        message: '"big" declares 2000 columns and its column index holds 2, so only the non-zeros of those were read.',
+        part: 'big',
+      },
+    ]);
     // Under the old limit, the same shape of file decodes as it always did.
     expect(only(matFile([sparseVar({ name: 'ok', dimensions: [1000, 1000], ir: [0], jc: [0, 1, 1], real: [5] })])).undecoded)
       .toBeUndefined();
+    // The real matrix: every column start present. The same non-zero, read without a word.
+    const real = parseMat(matFile([sparseVar({ name: 'big', dimensions: [2000, 2000], ir: [0], jc: [0, ...new Array(2000).fill(1)], real: [5] })]));
+    expect([real.warnings, real.variables[0].value, [...real.variables[0].sparse!.row], [...real.variables[0].sparse!.re]]).toEqual([
+      [],
+      '<2000x2000 sparse double>',
+      [0],
+      [5],
+    ]);
+  });
+
+  it('reads a sparse matrix truncated after its name as all zeros, of the class its flags say, and says so', () => {
+    // No ir, no jc, no pr: the honest reading of a sparse array whose non-zeros are absent
+    // is a matrix of zeros — complex when its flags say complex — and its 4 columns are
+    // backed by no column index at all.
+    for (const complex of [false, true]) {
+      const parsed = parseMat(matFile([matrix([arrayFlags(CLASS.SPARSE, { complex, nzmax: 1 }), dims([3, 4]), varName('t')])]));
+      const v = parsed.variables[0];
+      expect([v.value, v.isComplex, v.sparse!.row.length, v.sparse!.im === null, v.sparse!.backedColumns], `complex ${complex}`).toEqual([
+        '<3x4 sparse double>',
+        complex,
+        0,
+        !complex,
+        0,
+      ]);
+      expect(parsed.warnings.map((w) => [w.part, w.message]), `complex ${complex}`).toEqual([
+        ['t', '"t" declares 4 columns and its column index holds 0, so only the non-zeros of those were read.'],
+      ]);
+    }
   });
 
   it('survives a sparse file truncated at every offset past the header', () => {
@@ -1028,7 +1066,9 @@ describe('parseMat — old-style (class 3) objects', () => {
   it('does not render a large sparse matrix this way: it is read, whatever its size', () => {
     // A sparse matrix was the other user of the same channel, past a million elements,
     // until it came to be held as its non-zeros: it is its summary and its rows now, as
-    // every sparse matrix is.
+    // every sparse matrix is. This input's jc is short (three starts for 2000 columns), so
+    // it is a damaged array: read as far as its index goes, reported, and its row read-only,
+    // since no writer could write the index its dims declare.
     const session = createSession();
     const mat = session.addMatSource(
       'big.mat',
@@ -1042,6 +1082,14 @@ describe('parseMat — old-style (class 3) objects', () => {
     ]);
     expect(node.valueEditable).toBe(false);
     expect([node.className, node.dataType]).toEqual(['double', 'double']);
+    expect([mat.warnings.map((w: any) => w.part), node.children[0].valueEditable]).toEqual([['big'], false]);
+    // Its full-jc twin, the shape MATLAB writes: the same, with nothing to report and its
+    // row editable.
+    const real = session.addMatSource(
+      'real.mat',
+      matFile([sparseVar({ name: 'big', dimensions: [2000, 2000], ir: [0], jc: [0, ...new Array(2000).fill(1)], real: [5] })]),
+    ) as any;
+    expect([real.warnings, real.children[0].displayValue, real.children[0].children[0].valueEditable]).toEqual([undefined, '<2000x2000 sparse double>', true]);
   });
 });
 

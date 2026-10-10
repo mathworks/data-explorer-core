@@ -120,6 +120,12 @@ describe('a damaged column count in an MCOS-held sparse array opens, as what its
           ['Value(9999999,2)', '8', false],
         ],
       ]);
+      // Every row under a hex value is read-only, so those `false`s say nothing of the array
+      // itself: what does is that no writer would take it.
+      expect(pTall._valueNode._sparseRefusal()).toBe(
+        `a sparse array declaring ${cols} columns is backed for 2, and its column index would be words no byte of its source held`,
+      );
+      expect(() => encodeMatStream(pTall._valueNode._var)).toThrow(MatWriteError);
       // Untouched, it is written back byte for byte: a save never re-encodes it.
       const [saved, saveMs] = timed(() => session.serializeSource(root.name)!.bytes!);
       expect(saveMs).toBeLessThan(1000);
@@ -141,6 +147,8 @@ describe('a damaged column count in an MCOS-held sparse array opens, as what its
         ['Value(9999999,2)', '8', false],
       ],
     ]);
+    // Not hex: the rows are read-only for this array's own sake, and say why.
+    expect(value.children[0].setProperty('Value', '9')).toMatchObject({ error: true, reason: expect.stringMatching(/cannot be written once edited/) });
     expect(mat.warnings?.map((w: any) => w.part)).toEqual(['pTall.Value']);
     // A copy into a dictionary: its Value is the element it was read from.
     const copied = JSON.parse(JSON.stringify(pTall.serializeValue()))._elements[0]._properties.Value;
@@ -217,6 +225,8 @@ describe('a sparse MCOS property of a class nothing writes sparse shows what its
         ['Value(9999999,2)', '8', false],
       ],
     ]);
+    // Read-only as every row under a hex value is; and refused for its class as well.
+    expect(pTall._valueNode._sparseRefusal()).toBe('no sparse MAT class for "int8"');
   });
 
   it('in a .mat, where a copy into a dictionary keeps its bytes', () => {
@@ -229,6 +239,11 @@ describe('a sparse MCOS property of a class nothing writes sparse shows what its
         ['Value(9999999,2)', '8', false],
       ],
     ]);
+    // Not hex: read-only because nothing could write an edit of an int8 sparse array.
+    expect(pTall._valueNode.children[0].setProperty('Value', '9')).toMatchObject({
+      error: true,
+      reason: expect.stringMatching(/no sparse MAT class for "int8"/),
+    });
     const copied = JSON.parse(JSON.stringify(pTall.serializeValue()))._elements[0]._properties.Value;
     expect(copied._type).toBe('cdata');
     expect(hex([...uudecode(copied._value)])).toContain(hex(INT8));
