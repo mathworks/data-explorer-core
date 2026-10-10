@@ -433,7 +433,7 @@ function cellBody(v, d, budget) {
         const c = cells[i];
         // A slot the reader could not read stays a hole. Dropping it would slide
         // every later element one position early.
-        parts.push(c ? encodeElement(c, budget) : emptyDoubleBytes());
+        parts.push(c ? memberElement(c, budget) : emptyDoubleBytes());
     }
     return parts;
 }
@@ -481,7 +481,7 @@ function structBody(v, d, budget) {
             // A MATLAB struct array is homogeneous, so every element has every field.
             // An element that lost one (a whole-value edit clears its children) keeps
             // its slot as an empty double rather than shifting the ones after it.
-            parts.push(one ? encodeElement(one, budget) : emptyDoubleBytes());
+            parts.push(one ? memberElement(one, budget) : emptyDoubleBytes());
         }
     }
     return parts;
@@ -656,6 +656,24 @@ export function encodeMatVariable(v) {
         throw e;
     }
 }
+/**
+ * A member of a cell or a struct. A sparse array that carries the bytes it was read from —
+ * which the node layer hands over only until an element row edits it
+ * (MatlabVariableNode._buildVarObject) — is that element, as _matStream writes one standing
+ * alone: its own bytes are the value, they cost what the file held, and they are MATLAB's
+ * where a re-encode would be this writer's. Re-encoded from its non-zeros instead, each
+ * 48-byte member of a cell of 80,000 declaring 0x256 is 1,104 bytes, 257 words of index no
+ * byte held, and the cell is refused. Anything else is encoded, out of the write's budget.
+ */
+function memberElement(v, budget) {
+    if (v.isSparse && v._rawBytes) {
+        const own = ownElement(v._rawBytes);
+        if (own) {
+            return own;
+        }
+    }
+    return encodeElement(v, budget);
+}
 /** encodeMatVariable within an encode already under way, sharing its budget. */
 function encodeElement(v, budget) {
     if (v.isOpaque) {
@@ -718,6 +736,15 @@ export function encodeMatStream(v) {
  * way, and its subsystem lives elsewhere in the file, so it is refused.
  */
 export function matStreamOfElement(raw) {
+    const own = ownElement(raw);
+    return own ? concat([new Uint8Array(CDATA_PREAMBLE), own]) : null;
+}
+/**
+ * The miMATRIX element `raw` holds as read, with its name subelement replaced by the empty
+ * one an element has in a stream, a cell or a struct; null when the bytes are not a whole
+ * one this can re-frame (see matStreamOfElement).
+ */
+function ownElement(raw) {
     if (raw.length < 8) {
         return null;
     }
@@ -749,7 +776,7 @@ export function matStreamOfElement(raw) {
         return null;
     }
     const body = concat([raw.slice(8, nameAt), emptyName(), raw.slice(nameAt + name, end)]);
-    return concat([new Uint8Array(CDATA_PREAMBLE), u32le(MI_MATRIX), u32le(body.length), body]);
+    return concat([u32le(MI_MATRIX), u32le(body.length), body]);
 }
 /**
  * A complex value's plain-text form — `{_type: 'cdata', _value: '1+2i 5+6i 3+4i 7+8i',

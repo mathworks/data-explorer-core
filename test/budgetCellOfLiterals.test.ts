@@ -38,7 +38,7 @@ describe('a cell of 80,000 0x256 literals', () => {
       false,
       [0, 256],
     ]);
-    // About 0.8 GB standing alone.
+    // 1.0 GB in this process.
     expect(peakMB()).toBeLessThan(1536);
   });
 });

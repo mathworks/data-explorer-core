@@ -267,7 +267,13 @@ its cdata or hex, and one out of a `.mat` or a model workspace is copied as the 
 was read from (`_matStream`), until an element row edits it. A value typed in whole is the full
 array MATLAB makes of the literal. A cell holding a sparse array goes into a binary
 dictionary as one hex stream, as MATLAB writes it; a struct as XML with each sparse field
-its own hex element, which MATLAB reads back sparse. Pinned in
+its own hex element, which MATLAB reads back sparse. A cell or a struct written whole as one
+stream writes each sparse member nothing has edited as the element it was read from too —
+out of a `.mat`, a stream, a text dictionary's cdata or a binary one's hex
+(`MatWriter.memberElement`, `_keepStreamElement`) — so such a member costs what its file
+held and nothing of the unbacked budget: the 11 KB `.mat` holding a cell of 80,000 0x256
+arrays is one stream of 3.8 MB. Pinned in `test/sparseMemberBytes.test.ts`,
+`test/budgetCellOf80000Mat.test.ts` and `test/budgetCellNested.test.ts`. Pinned in
 `test/sparseFixtures.test.ts`, against MATLAB's own answers in all four venues,
 `test/sparseNonzeros.test.ts` and `test/matWriter.test.ts`.
 

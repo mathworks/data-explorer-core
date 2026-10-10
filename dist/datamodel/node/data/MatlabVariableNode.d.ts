@@ -236,6 +236,14 @@ export default class MatlabVariableNode extends DataNode {
     _serializeCellXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _serializeStringXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     get _var(): MatVariable;
+    /**
+     * For a sparse array read out of a MAT stream — a text dictionary's cdata, a binary one's
+     * hex — the element in it, as one read out of a file keeps it (MatParser's `_rawBytes`):
+     * while nothing edits the array it is what it is written as, alone (_matStream) and as a
+     * member of a cell or a struct written whole (MatWriter.memberElement). Without it, a cell
+     * of 80,000 of them pasted into a binary dictionary re-encoded each one from its non-zeros.
+     */
+    _keepStreamElement(stream: Uint8Array): void;
     _buildVarObject(): MatVariable;
     static parseMatVariable(variable: MatVariable, name: string, parent: BaseNode | null): DataNode;
     static _createOpaque(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;

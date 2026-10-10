@@ -1035,6 +1035,12 @@ export default class MatlabVariableNode extends DataNode {
     let node: BaseNode | null = this;
     while (node instanceof MatlabVariableNode) {
       node._varStale = true;
+      // Whatever changed below a sparse array changed its non-zeros, however it got there,
+      // so the bytes it was read from are no longer it (_matStream, _buildVarObject). Its
+      // own rename is not below it, and leaves them its value.
+      if (node !== this && node._sparse) {
+        node._sparseEdited = true;
+      }
       node = node.parent;
     }
     super._markModified();
@@ -2378,9 +2384,31 @@ export default class MatlabVariableNode extends DataNode {
   // for the parts of the write path that still replay bytes for untouched values.
   get _var(): MatVariable {
     if (this._matVar && !this._varStale) {
+      // A sparse array read out of a stream holds the element it was read from on the node
+      // (_keepStreamElement), not on the variable the reader made of it.
+      if (this._sparse && this._rawBytes && !this._matVar._rawBytes) {
+        return { ...this._matVar, _rawBytes: this._rawBytes };
+      }
       return this._matVar;
     }
     return this._buildVarObject();
+  }
+
+  /**
+   * For a sparse array read out of a MAT stream — a text dictionary's cdata, a binary one's
+   * hex — the element in it, as one read out of a file keeps it (MatParser's `_rawBytes`):
+   * while nothing edits the array it is what it is written as, alone (_matStream) and as a
+   * member of a cell or a struct written whole (MatWriter.memberElement). Without it, a cell
+   * of 80,000 of them pasted into a binary dictionary re-encoded each one from its non-zeros.
+   */
+  _keepStreamElement(stream: Uint8Array): void {
+    if (!this._sparse || this._rawBytes || stream.length < 16) {
+      return;
+    }
+    const end = 16 + new DataView(stream.buffer, stream.byteOffset, stream.byteLength).getUint32(12, true);
+    if (end <= stream.length) {
+      this._rawBytes = stream.subarray(8, end);
+    }
   }
 
   _buildVarObject(): MatVariable {
@@ -2396,7 +2424,9 @@ export default class MatlabVariableNode extends DataNode {
       isLogical: this._scalarType === 'logical',
       value: null,
       fields: null,
-      _rawBytes: this._rawBytes,
+      // Not for a sparse array anything below has edited: a writer that finds them writes a
+      // sparse array as the bytes it was read from (MatWriter.memberElement).
+      _rawBytes: this._sparse && this._sparseEdited ? null : this._rawBytes,
       _modified: this.status === 'Modified',
     };
     if (this._isOpaque) {
@@ -3030,6 +3060,9 @@ export default class MatlabVariableNode extends DataNode {
       NodeRegistry.attachMcosDecoded(decoded.trailingElements[0], [outer]);
       const node = MatlabVariableNode.parseMatVariable(outer, name, parent);
       node._adoptEncoded(encoded);
+      if (node instanceof MatlabVariableNode) {
+        node._keepStreamElement(stream.bytes);
+      }
       return node;
     } catch (e) {
       recordDecodeFailure('its MAT stream did not decode (' + (e instanceof Error ? e.message : String(e)) + ')');
@@ -3207,7 +3240,8 @@ export default class MatlabVariableNode extends DataNode {
     try {
       // The six-bit text is a MAT stream (MatParser.decodeMatStream reads it, as it reads
       // every venue's); one that is not shows as the char it is, below.
-      const stream = decodeMatStream(uudecode(valStr));
+      const bytes = uudecode(valStr);
+      const stream = decodeMatStream(bytes);
       if (!stream.ok) {
         throw new Error('cdata is not a MAT stream: ' + stream.reason);
       }
@@ -3220,6 +3254,7 @@ export default class MatlabVariableNode extends DataNode {
       // an untouched node writes itself back by replaying _rawInput verbatim. Set
       // it so a cdata entry nobody edited still round-trips byte-identical.
       node._rawInput = rawVal;
+      node._keepStreamElement(bytes);
       return node;
     } catch (_e) {
       const node = new MatlabVariableNode(name, parent, rawVal);
