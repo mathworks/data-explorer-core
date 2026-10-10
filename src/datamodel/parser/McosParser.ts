@@ -2,7 +2,16 @@
 
 import { parseMatrix, MatVariable } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
-import { complexClassTag, formatComplexNum, formatMatlabNum, isExactToken, transposeToColumnMajorND } from './XmlUtils.js';
+import { encodeCdata, matStreamOfElement } from './MatWriter.js';
+import { uuencode } from './CdataCodec.js';
+import {
+  complexClassTag,
+  formatComplexNum,
+  formatMatlabNum,
+  formatMatrixSerial,
+  isExactToken,
+  transposeToColumnMajorND,
+} from './XmlUtils.js';
 
 // Decodes the binary MCOS (MATLAB Class Object System) blob embedded in .slx and
 // .mat files into per-variable property bags shaped EXACTLY like the SLDD (JSON)
@@ -327,22 +336,13 @@ function parseMetaTable(cells: (MatVariable | null)[]): MetaTable | null {
 // object property's handle with, live in McosHandle.ts: MatParser reads every
 // class-17 element's own handle with the same two, so the two cannot disagree.
 
+// The typed Matrix() literal, in the one spelling MATLAB reads back
+// (XmlUtils.formatMatrixSerial: bracketed rows joined by '; '). Its rows used to be
+// joined by newlines, the form MATLAB reads as an empty [] — so a Simulink.Parameter's
+// matrix Value copied out of a .mat, a workspace or a binary dictionary's hex into a text
+// dictionary came back empty. Inf and NaN are spelled as MATLAB spells them.
 function buildMatrixValue(dims: number[], elements: (number | string)[]): unknown {
-  const rows = dims[0];
-  const cols = dims[1];
-  const rowStrs: string[] = [];
-  for (let r = 0; r < rows; r++) {
-    const vals: string[] = [];
-    for (let c = 0; c < cols; c++) {
-      // These elements are raw IEEE-754 doubles out of the blob, so Inf and NaN
-      // reach here as themselves; formatMatlabNum spells them the way MATLAB
-      // does, where String() would write the unreadable 'Infinity'.
-      vals.push(formatMatlabNum(elements[r * cols + c]));
-    }
-    rowStrs.push('[' + vals.join(', ') + ']');
-  }
-  // Same shape the SLDD path emits, so displayValue formats identically.
-  return { _type: 'double', _value: 'Matrix(' + rows + ',' + cols + ')\n' + rowStrs.join('\n') };
+  return { _type: 'double', _value: formatMatrixSerial(elements, dims, 'double') };
 }
 
 interface ComplexPair {
@@ -457,25 +457,68 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
   }
   if (cls === 'cell') {
     const elems = Array.isArray(val) ? (val as (MatVariable | null)[]) : [];
+    const resolved = elems.map((e) => resolveValue(e, ctx, path, depth));
+    const handle = functionHandleText(resolved);
+    if (handle !== null) {
+      return { _type: 'function_handle', _value: handle };
+    }
     return {
       _array_type: 'Cell',
       _dimensions: cell.dimensions || [1, elems.length],
-      _elements: elems.map((e) => resolveValue(e, ctx, path, depth)),
+      _elements: resolved,
       _mw_element_type: 'MATLABArray',
     };
   }
   if (cls === 'char') {
     return typeof val === 'string' ? val : '';
   }
+  // A sparse array, before every arm below: each of them spells a full array, so a
+  // Simulink.Parameter's sparse Value in a .mat, a model workspace or a binary dictionary
+  // arrived full — one row per element and a dense literal, where its text dictionary's
+  // twin, a stream, showed the sparse array it is — and a copy of the Parameter into a
+  // dictionary wrote it full. It is handed over as that stream: the cdata a text
+  // dictionary holds for the same Value, character for character (MatWriter.encodeSparse
+  // writes MATLAB's own bytes for one), read by the node layer as the twin's is. One the
+  // encoder refuses — too large for the reader to have decoded — takes the arms below,
+  // as it did.
+  if (cell.isSparse) {
+    // One too large for MatParser to have decoded has no values to encode, but the bytes
+    // it was read from are that very stream (MatWriter.matStreamOfElement): handed over
+    // as them, it is the placeholder its text twin shows, and is copied into a dictionary
+    // as MATLAB wrote it. Spelled by the arms below it was an empty array.
+    if (cell.undecoded) {
+      const stream = cell._rawBytes ? matStreamOfElement(cell._rawBytes) : null;
+      if (stream) {
+        return { _type: 'cdata', _value: uuencode(stream) };
+      }
+    }
+    try {
+      return { _type: 'cdata', _value: encodeCdata(cell) };
+    } catch {
+      // As before.
+    }
+  }
   // Before the numeric arms below, every one of which would pass the { re, im } pairs
-  // on to a node that cannot read them. Any numeric class, sparse included: MatParser
-  // pairs the parts of each the same way.
+  // on to a node that cannot read them. Any numeric class: MatParser pairs the parts of
+  // each the same way.
   const complex = complexPropertyValue(cell);
   if (complex) {
     return complex;
   }
   if (cell.isLogical) {
-    if (Array.isArray(val)) return val.map((x) => !!x);
+    if (Array.isArray(val)) {
+      // A logical MATRIX states its shape, in the typed literal BinarySlddParser reads a
+      // binary dictionary's own logical matrix into (logicalValue): a bare list of
+      // booleans is a row, so a 2x2 logical Value came back a 1x4 — MATLAB's
+      // sparse([2;1], [1;2], [true;true], 2, 2) in a Simulink.Parameter showed
+      // `[false true true false]`, where the text dictionary's twin of it showed
+      // `[false true; true false]`. A vector is still the bare list it always was.
+      const dims = cell.dimensions && cell.dimensions.length >= 2 ? cell.dimensions : [1, val.length];
+      if (dims.length > 2 || (dims[0] > 1 && dims[1] > 1)) {
+        return { _type: 'logical', _value: formatMatrixSerial(val.map((x) => (x ? '1' : '0')), dims, 'logical') };
+      }
+      return val.map((x) => !!x);
+    }
     return !!val;
   }
   // Numeric classes (double, single, intN, uintN). An int64/uint64 whose magnitude a
@@ -496,21 +539,75 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
   return undefined;
 }
 
-// A parsed struct mxArray -> the SLDD Struct value shape (single-element bag of
-// fields), so StructNode.parse builds the same nested field rows the JSON path does.
+// The marker word MATLAB writes ahead of a function handle stored as an MCOS property.
+const FUNCTION_HANDLE_MARKER = 0xdd000000;
+
+/**
+ * The text of a function handle, when a property's cell is MATLAB's spelling of one, or
+ * null. A function-handle property of an MCOS object is not a value of its own class in
+ * the subsystem: it is a 2x1 cell, the marker word 0xDD000000 and then a struct whose
+ * `function_handle` field holds `function` (the text: 'sin', or '@(x) x + 1'), `type` and
+ * `file` beside the saving MATLAB's matlabroot — measured on dexsparse.FhAlias (`Fh = @sin`)
+ * in test/fixtures/sparse/sparse_binary.sldd, whose binary dictionary stores the whole
+ * object as hex for that one property. Read as the cell it is, the property showed
+ * `{3707764736; <1x1 struct>}` with the build machine's path one level down, where MATLAB
+ * shows `@sin`.
+ *
+ * The answer is the `{_type: 'function_handle', _value}` literal a TEXT dictionary holds
+ * the same property as (its twin of FhAlias spells `"Fh": {"_type": "function_handle",
+ * "_value": "sin"}`), so both dictionaries — and a .mat or a model workspace holding the
+ * object — decode it to one node.
+ *
+ * An ANONYMOUS handle's `function` is not its text as it stands: MATLAB prefixes it with
+ * the `sf%<n>@` of the scope it was made in — `sf%0@(y)y*2` for `@(y) y*2`, type
+ * 'anonymous' beside it — where func2str, MATLAB's display and the text dictionary's twin
+ * all say `@(y)y*2` (R2027a, an AliasType subclass holding one, in a binary dictionary, a
+ * text one and a .mat). Shown as it stood, it read `@sf%0@(y)y*2`. The prefix goes, and
+ * the `@` that opens the anonymous function's own text stays; nothing else is rewritten.
+ */
+function functionHandleText(elements: unknown[]): string | null {
+  if (elements.length !== 2 || elements[0] !== FUNCTION_HANDLE_MARKER) {
+    return null;
+  }
+  const outer = elements[1] as Record<string, unknown> | null;
+  const fields = outer && outer._array_type === 'Struct' ? (outer._elements as Record<string, unknown>[] | undefined)?.[0] : null;
+  const fh = fields?.function_handle as Record<string, unknown> | undefined;
+  const inner = fh && fh._array_type === 'Struct' ? (fh._elements as Record<string, unknown>[] | undefined)?.[0] : null;
+  if (!inner || typeof inner.function !== 'string') {
+    return null;
+  }
+  return inner.type === 'anonymous' ? inner.function.replace(ANONYMOUS_SCOPE_PREFIX, '@') : inner.function;
+}
+
+// The scope prefix of an anonymous handle's stored text, `sf%0@` in `sf%0@(y)y*2`.
+const ANONYMOUS_SCOPE_PREFIX = /^sf%\d+@/;
+
+// A parsed struct mxArray -> the SLDD Struct value shape (one bag of fields per
+// element), so StructNode.parse builds the same nested field rows the JSON path does.
+//
+// Every element of a struct ARRAY, in MatParser's column-major order (fields[f][e]): this
+// used to read element 1 alone while reporting the array's size, so an EnumTypeDefinition, which
+// holds its enumerals as a 1xN struct array, showed its first enumeral and no other — out
+// of a .mat, and out of a binary dictionary's hex value, where its text twin had them all.
 function buildStructValue(cell: MatVariable, ctx: DecodeContext, path: Set<number>, depth: number): unknown {
   const fields = cell.fields || {};
-  const element: Record<string, unknown> = {};
-  const fieldNames: string[] = [];
-  for (const [fieldName, fieldVar] of Object.entries(fields)) {
-    const fv = Array.isArray(fieldVar) ? fieldVar[0] : fieldVar;
-    element[fieldName] = resolveValue(fv, ctx, path, depth);
-    fieldNames.push(fieldName);
+  const dims = cell.dimensions || [1, 1];
+  const count = dims.reduce((a, b) => a * b, 1);
+  const fieldNames = Object.keys(fields);
+  const elements: Record<string, unknown>[] = [];
+  for (let e = 0; e < count; e++) {
+    const element: Record<string, unknown> = {};
+    for (const fieldName of fieldNames) {
+      const fieldVar = fields[fieldName];
+      const fv = Array.isArray(fieldVar) ? fieldVar[e] : e === 0 ? fieldVar : undefined;
+      element[fieldName] = fv ? resolveValue(fv, ctx, path, depth) : undefined;
+    }
+    elements.push(element);
   }
   return {
     _array_type: 'Struct',
-    _dimensions: cell.dimensions || [1, 1],
-    _elements: [element],
+    _dimensions: dims,
+    _elements: elements,
     _fields: fieldNames,
     _mw_element_type: 'MATLABArray',
   };

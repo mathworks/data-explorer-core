@@ -117,7 +117,9 @@ export default class StructNode extends DataNode {
         return elem;
     }
     serializeValue() {
-        if (this._rawInput !== undefined && this.status !== 'Modified') {
+        // Untouched, or only renamed (DataNode.setProperty keeps `_rawInput` across a
+        // rename, and every other edit drops it): see MatlabVariableNode.serializeValue.
+        if (this._rawInput !== undefined) {
             return this._rawInput;
         }
         const d = this.dims;
@@ -208,8 +210,9 @@ export default class StructNode extends DataNode {
             }
         }
     }
+    // Neither gate opens inside a value still in its encoded stream (DataNode._encodedReadOnly).
     canRemoveChild() {
-        return this._isScalarStruct && !this._isElementNode && this.children.length > 0;
+        return !this._encodedReadOnly && this._isScalarStruct && !this._isElementNode && this.children.length > 0;
     }
     removeChildNode(child) {
         const idx = this.children.indexOf(child);
@@ -235,7 +238,7 @@ export default class StructNode extends DataNode {
         this._markModified();
     }
     canAddChild() {
-        return this._isScalarStruct && !this._isElementNode;
+        return !this._encodedReadOnly && this._isScalarStruct && !this._isElementNode;
     }
     addChildNode() {
         const baseName = 'field';

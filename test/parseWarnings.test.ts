@@ -108,6 +108,33 @@ const REFUSED = new Map<string, string>([
   ['strings_v73.mat', 'MAT-file version 7.3 (HDF5) is not supported'],
 ]);
 
+/**
+ * The warnings a file in the corpus is MEANT to carry, each the reader telling the truth
+ * about a limit of its own rather than complaining about the file. Two: sparse_values.mat
+ * holds spTall, MATLAB's sparse(…, 10000000, 2) with two non-zeros, put there by
+ * make_sparse_fixtures.m precisely because its declared size is past what MatParser
+ * materializes (SPARSE_MAX_DENSE_ELEMENTS), so the variable is recorded and not decoded —
+ * and says so; and hexobj_values.mat holds the same array as cTall's first element
+ * (make_hex_object_fixtures.m). Asserted, not skipped, exactly as REFUSED is: the files'
+ * other warnings, and the absence of these, still fail the sweep.
+ */
+const EXPECTED = new Map<string, string[]>([
+  [
+    'sparse_values.mat',
+    [
+      'part-unreadable [spTall] "spTall" was not decoded: sparse array of 20000000 elements: larger than this '
+        + 'reader materializes (1000000 elements), and its non-zeros are not read.',
+    ],
+  ],
+  [
+    'hexobj_values.mat',
+    [
+      'part-unreadable [cTall{1}] "cTall{1}" was not decoded: sparse array of 20000000 elements: larger than this '
+        + 'reader materializes (1000000 elements), and its non-zeros are not read.',
+    ],
+  ],
+]);
+
 describe('the whole fixture corpus parses with no warnings at all', () => {
   it('reports nothing for any real .slx, .mdl or .mat in the repo', () => {
     // THE guard for this item. Every file swept here was written by MATLAB (or, for
@@ -141,6 +168,11 @@ describe('the whole fixture corpus parses with no warnings at all', () => {
           : parseSlx(bytesAt(file), basename(file));
       // Always an array, never undefined — see the comment on the field itself.
       expect(Array.isArray(parsed.warnings)).toBe(true);
+      const expected = EXPECTED.get(basename(file));
+      if (expected) {
+        expect(lines(file, parsed.warnings), shown(file)).toEqual(expected.map((w) => `${shown(file)}: ${w}`));
+        continue;
+      }
       reported.push(...lines(file, parsed.warnings));
     }
     expect(reported).toEqual([]);
@@ -592,7 +624,7 @@ describe('parseMat — the warnings channel', () => {
     expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', 'big']]);
     expect(parsed.warnings[0].message).toContain('larger than this reader materializes');
     expect(parsed.variables[0].undecoded).toContain('larger than this reader materializes');
-    expect(parsed.variables[0].value).toBe('<2000x2000 sparse, not decoded>');
+    expect(parsed.variables[0].value).toBe('<2000x2000 sparse double, not decoded>');
   });
 
   it('names the pre-MCOS object it records without decoding', () => {

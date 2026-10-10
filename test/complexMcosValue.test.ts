@@ -158,9 +158,11 @@ describe('complexPropertyValue: the binary dictionary\'s complex form', () => {
   });
 
   it('takes a complex sparse value, which MatParser presents dense and paired', () => {
-    // [0 1+1i; 2-2i 0], as readSparse lays it out: dense, row-major. No `_class`: the
-    // FILE's word is 'sparse', and MATLAB's class() is double.
-    const sp = complexVar('sparse', [2, 2], [c(0, 0), c(1, 1), c(2, -2), c(0, 0)]);
+    // [0 1+1i; 2-2i 0], as readSparse lays it out: dense, row-major. No `_class`: its
+    // class is MATLAB's class(), double, which a double says by saying nothing. (It used
+    // to arrive as 'sparse', the MAT file's word, which complexClassTag also let pass
+    // unstated — so the envelope is the same either way.)
+    const sp = { ...complexVar('double', [2, 2], [c(0, 0), c(1, 1), c(2, -2), c(0, 0)]), isSparse: true };
     expect(complexPropertyValue(sp)).toEqual({ _type: 'cdata', _value: '0+0i 2-2i 1+1i 0+0i', _dimensions: [2, 2] });
   });
 

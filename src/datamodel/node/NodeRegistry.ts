@@ -21,6 +21,11 @@ export interface NodeClassMapAPI {
     // MatlabVariableNode, so the direct import would be a cycle. Null means "model it as
     // the opaque variable it is".
     modelMcosVariable(variable: MatVariable, decoded: McosDecoded, name: string, parent: BaseNode | null): DataNode | null;
+    // Decode every MCOS object in a parsed MAT stream against the stream's own subsystem
+    // (mcosTypedNode.attachMcosDecoded), for a value MatlabVariableNode decodes itself — a
+    // binary dictionary's encoded value — rather than a container. Through the registry
+    // for the cycle modelMcosVariable records.
+    attachMcosDecoded(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): void;
 }
 
 // Anything that can turn a parsed value into a node. This is all the structural
@@ -77,4 +82,8 @@ export function modelMcosVariable(
     return classMap!.modelMcosVariable(variable, decoded, name, parent);
 }
 
-export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable };
+export function attachMcosDecoded(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): void {
+    classMap!.attachMcosDecoded(blobBytes, variables);
+}
+
+export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded };

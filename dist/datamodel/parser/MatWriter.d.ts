@@ -16,6 +16,25 @@ export declare function encodeMatVariable(v: MatVariable): Uint8Array;
  */
 export declare function encodeCdata(v: MatVariable): string;
 /**
+ * The MAT stream of one value — `getByteStreamFromArray(value)`: the 8-byte preamble and
+ * one miMATRIX element. A text dictionary carries it uuencoded (encodeCdata), a binary
+ * one as hex (EncodedValue.hexValue).
+ */
+export declare function encodeMatStream(v: MatVariable): Uint8Array;
+/**
+ * The MAT stream of a value whose miMATRIX element is at hand AS READ (MatVariable's
+ * `_rawBytes`), or null when the bytes are not a whole one this can re-frame.
+ *
+ * For the value nothing here can re-encode because the reader never decoded it — a
+ * sparse array past MatParser's dense limit — and which a copy out of a .mat or a model
+ * workspace into a dictionary would otherwise write as the text of its placeholder. Its bytes are the value; the one thing in them a stream does not carry is
+ * the variable's NAME, which a .mat writes into the element and a stream leaves empty, so
+ * the name subelement is replaced by the empty one and the element's size restated.
+ * Everything else is copied byte for byte. An MCOS opaque (class 17) is not framed this
+ * way, and its subsystem lives elsewhere in the file, so it is refused.
+ */
+export declare function matStreamOfElement(raw: Uint8Array): Uint8Array | null;
+/**
  * A complex value's plain-text form — `{_type: 'cdata', _value: '1+2i 5+6i 3+4i 7+8i',
  * _dimensions, _class?}`, what BinarySlddParser reads out of a binary dictionary and
  * McosParser.complexPropertyValue builds — as the variable it stands for, or null when it

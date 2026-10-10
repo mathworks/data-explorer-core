@@ -173,6 +173,69 @@ describe('MatWriter reproduces the streams MATLAB wrote', () => {
   });
 });
 
+// Every sparse stream of test/fixtures/sparse/sparse_text.sldd (make_sparse_fixtures.m),
+// at any depth: the bare ones, a struct field's, a cell element's and three
+// Simulink.Parameter Values. MATLAB writes a sparse array as its non-zeros, class 5 (or
+// 7 for single) with flag 0x10, and this writer has to write those same bytes: an edited
+// sparse array used to go out as a full one, or as a literal MATLAB read back as a
+// different value.
+function sparseStreams(rel: string): Stream[] {
+  const json = JSON.parse(readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8'));
+  const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+  const found: Stream[] = [];
+  const visit = (x: any, at: string): void => {
+    if (!x || typeof x !== 'object') return;
+    if (x._type === 'cdata' && typeof x._value === 'string' && !/^[\d.eE+\-i\s]+$/.test(x._value)) {
+      if (readStream(x._value).variable.isSparse) found.push({ file: rel.replace(/^\.\//, ''), name: at, value: x._value });
+      return;
+    }
+    for (const [k, y] of Object.entries(x)) visit(y, at + '.' + k);
+  };
+  for (const e of entries) visit(e.value, e.name);
+  return found;
+}
+
+const SPARSE_STREAMS = sparseStreams('./fixtures/sparse/sparse_text.sldd');
+
+describe('MatWriter writes a sparse array as MATLAB does', () => {
+  for (const s of SPARSE_STREAMS) {
+    it(`writes ${s.name} byte-for-byte`, () => {
+      const { variable } = readStream(s.value);
+      // spTall is past the reader's dense limit: its values were never read, so there is
+      // nothing to write it from, and the writer says so rather than writing the placeholder.
+      if (variable.undecoded) {
+        expect(() => encodeCdata(variable)).toThrow(MatWriteError);
+        return;
+      }
+      expect(encodeCdata(variable)).toBe(s.value);
+    });
+  }
+
+  it('covers every kind of sparse array the fixture holds', () => {
+    const kinds = new Set(
+      SPARSE_STREAMS.map((s) => {
+        const v = readStream(s.value).variable;
+        return v.className + (v.isComplex ? '/complex' : '');
+      }),
+    );
+    expect(kinds).toEqual(new Set(['double', 'double/complex', 'logical', 'single']));
+    expect(SPARSE_STREAMS.length).toBeGreaterThanOrEqual(15);
+  });
+
+  it('keeps a NaN and drops a -0: a non-zero is anything but 0', () => {
+    // MATLAB's own rule (nnz(sparse([NaN -0 0 3])) is 2), and what an element typed as -0
+    // has to come to. nzmax is the non-zero count, at byte 20: the element's tag, the array
+    // flags' tag, then class, flags, two reserved bytes and nzmax.
+    const v: MatVariable = {
+      name: '', className: 'double', dimensions: [1, 4], isComplex: false, isLogical: false, isSparse: true,
+      value: [NaN, -0, 0, 3], fields: null,
+    };
+    const el = encodeMatVariable(v);
+    expect(new DataView(el.buffer, el.byteOffset, el.byteLength).getUint32(20, true)).toBe(2);
+    expect(readElement(el).value).toEqual([NaN, 0, 0, 3]);
+  });
+});
+
 describe('MatWriter refuses what the format cannot carry', () => {
   const base: MatVariable = {
     name: '',
@@ -190,6 +253,20 @@ describe('MatWriter refuses what the format cannot carry', () => {
 
   it('throws on a class it has no MAT code for', () => {
     expect(() => encodeMatVariable({ ...base, className: 'unknown' })).toThrow(MatWriteError);
+  });
+
+  it('throws on a sparse array it cannot write: not decoded, not two-dimensional, or of a class sparse storage has none for', () => {
+    // MATLAB's class() of a sparse double is 'double', which is what MatParser says, so
+    // the sparse arm has to be asked for by isSparse — and the full double the arms below
+    // would produce is a different variable. What it cannot write it refuses.
+    const sparse = { ...base, dimensions: [2, 2], value: [1, 0, 0, 2], isSparse: true };
+    expect(() => encodeMatVariable({ ...sparse, undecoded: 'too large', value: '<2x2 double, not decoded>' })).toThrow(MatWriteError);
+    expect(() => encodeMatVariable({ ...sparse, dimensions: [1, 2, 2] })).toThrow(new MatWriteError('a sparse array has two dimensions, not [1,2,2]'));
+    expect(() => encodeMatVariable({ ...sparse, className: 'int8' })).toThrow(new MatWriteError('no sparse MAT class for "int8"'));
+    expect(() => encodeMatVariable({ ...sparse, value: [1, 0, 2] })).toThrow(MatWriteError);
+    // And what it can, it writes as sparse storage, not as the full array.
+    const written = readElement(encodeMatVariable(sparse));
+    expect([written.isSparse, written.className, written.value]).toEqual([true, 'double', [1, 0, 0, 2]]);
   });
 
   it('throws when the element count contradicts the declared dimensions', () => {

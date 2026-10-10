@@ -766,7 +766,7 @@ end
 - [ ] **Step 2: Run it**
 
 ```bash
-cd /Users/weiwang/projects/data-explorer-core
+cd <your data-explorer-core checkout>
 mw -using Bmain matlab -nodesktop -batch "run('$PWD/test/parity/matlab/gen_truth.m')"
 ```
 

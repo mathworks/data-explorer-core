@@ -1,7 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
-import { modelOpaqueMcosVariable } from './mcosTypedNode.js';
+import { attachMcosDecoded, modelOpaqueMcosVariable } from './mcosTypedNode.js';
+import { isEncodedValue } from '../../parser/EncodedValue.js';
 import ConstantNode from './ConstantNode.js';
 import StructNode from './StructNode.js';
 import ObjectNode from './ObjectNode.js';
@@ -97,7 +98,20 @@ export function getClass(className) {
     return CLASS_MAP[className] || null;
 }
 export function parseValue(rawVal, name, parent) {
+    // A binary dictionary's encoded byte stream, ahead of every shape test: none of them
+    // is about bytes, and the typed-scalar one would read the text as a number.
+    if (isEncodedValue(rawVal)) {
+        return MatlabVariableNode.parseEncoded(rawVal, name, parent);
+    }
     const obj = asObject(rawVal);
+    // An MCOS object whose class the subsystem does not name (McosParser.buildObjectValue
+    // answers `_object_class: ''`): the chain's `_object_class` test is falsy for it, and
+    // the primitive catch-all then printed the bag itself, `[object Object]` — measured
+    // on a binary dictionary's Simulink.loadsave.ArrayPlaceholder, MATLAB's stand-in for a
+    // value whose class it could not load, whose ArrayElements is such an object.
+    if (obj && obj._object_class === '') {
+        return MatlabVariableNode.createUnnamedObject(obj, name, parent);
+    }
     if (obj && obj._array_class) {
         // General array rule: a value object with MORE THAN ONE element is a
         // vector/matrix of objects (e.g. a 3x1 Simulink.Parameter, a 20x1
@@ -136,7 +150,9 @@ export function getRegisteredClasses() {
 // after rebinding isderived, so a variable pasted into arch becomes a Constant and
 // one pasted back into design reparses as a plain variable.
 export function wrapDerivedVariable(node) {
-    if (node.constructor === MatlabVariableNode && !node._isOpaque) {
+    // A value still in its encoded stream is not a Constant's scalar, whatever it decodes
+    // to; it stays the read-only node that writes the stream back.
+    if (node.constructor === MatlabVariableNode && !node._isOpaque && !node._encoded) {
         return ConstantNode.fromVariable(node);
     }
     return node;
@@ -155,7 +171,7 @@ export function modelMcosVariable(variable, decoded, name, parent) {
 // Installing into NodeRegistry is what makes this module's side-effect import
 // (from the barrel and from src/node) load-bearing: every node class reaches the
 // class map through the registry, so nothing else needs to import this file.
-const api = { getClass, parseValue, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable };
+const api = { getClass, parseValue, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded };
 NodeRegistry.init(api);
 export default api;
 //# sourceMappingURL=NodeClassMap.js.map

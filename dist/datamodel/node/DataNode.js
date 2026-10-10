@@ -1,9 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
-import BaseNode from './BaseNode.js';
+import BaseNode, { encodedHolderOf } from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
 import { textDictionaryForm } from '../parser/MatWriter.js';
+import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
 import { charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
@@ -99,6 +100,39 @@ function writeIntoSaveobj(envelope, key, val) {
     return Object.assign({}, env, {
         _elements: [Object.assign({}, el, { [key]: val })],
     });
+}
+/**
+ * An entry's metadata as a TEXT dictionary spells it.
+ *
+ * The two readers file the same facts under different keys: a text dictionary's own entry
+ * is `{uuid, namespace, lastmod, modifiedby, isderived}`, and BinarySlddParser reads a
+ * binary one's into `{uuid, namespace, lastModifiedDate, lastModifiedBy, isderived,
+ * _rawLastMod}` — the ISO date it displays, and the raw timestamp it writes back. An entry
+ * pasted from a binary dictionary into a text one kept the binary keys, and MATLAB will
+ * not open a text dictionary holding them: "Failed to open file", for the whole file,
+ * measured on R2027a with a plain double pasted that way. So in a text dictionary the raw
+ * timestamp is `lastmod` and the author `modifiedby`, in MATLAB's own order, and the ISO
+ * date — a display form of the same timestamp — is not written. Metadata that is already
+ * a text dictionary's comes back as the same object.
+ */
+function textDictionaryMetadata(md) {
+    if (!md || !('lastModifiedDate' in md || 'lastModifiedBy' in md || '_rawLastMod' in md)) {
+        return md;
+    }
+    const out = {};
+    const lastmod = md.lastmod ?? md._rawLastMod;
+    const modifiedby = md.modifiedby ?? md.lastModifiedBy;
+    for (const [key, val] of [['uuid', md.uuid], ['namespace', md.namespace], ['lastmod', lastmod], ['modifiedby', modifiedby], ['isderived', md.isderived]]) {
+        if (val !== undefined) {
+            out[key] = val;
+        }
+    }
+    for (const [key, val] of Object.entries(md)) {
+        if (!(key in out) && key !== 'lastModifiedDate' && key !== 'lastModifiedBy' && key !== '_rawLastMod') {
+            out[key] = val;
+        }
+    }
+    return out;
 }
 /**
  * The ENTRY `node` belongs to — itself when it IS one, null when nothing above it is.
@@ -230,6 +264,10 @@ export default class DataNode extends BaseNode {
         return prop.nodeProperty || prop.key;
     }
     setProperty(propName, stringValue) {
+        const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
+        if (encodedRefusal) {
+            return encodedRefusal;
+        }
         // A schema-projected, editable property (e.g. the Code Generation columns
         // Storage Class / Alignment) writes back into serial._properties along its
         // schema sourcePath — including the nested CoderInfo sub-object. Returns null
@@ -302,7 +340,23 @@ export default class DataNode extends BaseNode {
             if (typeof entryRenamed === 'function') {
                 entryRenamed.call(this.parent, oldName, stringValue);
             }
+            // A rename is the one edit that leaves this node's VALUE as it was, so what that
+            // value was read from is still the value: the encoded stream, and the raw value the
+            // replaying writers hand back (MatlabVariableNode and StructNode serializeValue). An
+            // entry renamed and saved writes its value as it was read. _markModified drops both
+            // for every other edit, and still drops them here on every node ABOVE this one,
+            // whose raw value spells this node's old name (a struct's, for a field).
+            //
+            // Dropping the raw value too re-wrote the value from the node, which is lossless
+            // only for a value the node can write: a renamed sparse array went out full, a
+            // 1000x1000 one as `{}`, a sparse column as a row, and one too large to decode as the
+            // text of its own placeholder — in a binary dictionary unescaped, inside a
+            // Class="double" element, which made MATLAB refuse to open the whole file.
+            const encoded = this._encoded;
+            const raw = this._rawInput;
             this._markModified();
+            this._encoded = encoded;
+            this._rawInput = raw;
             return true;
         }
         // Same shape as the name guard: a node that has nowhere to serialize a Description
@@ -483,17 +537,29 @@ export default class DataNode extends BaseNode {
     // that destination rather than re-reading `isEntry`, so the two cannot come to disagree
     // about where the stretch ends (see owningEntryOf, which walks `parent` and nothing
     // else, which is what makes the comparison reachable at all).
+    //
+    // The same holds for an encoded stream (`_encoded`), and with more at stake: a node
+    // holding one writes the stream and nothing else, so a stale one would discard every
+    // edit below it on save. A value read from a stream is read-only (_refuseEncodedEdit and
+    // BaseNode's editability), so nothing should reach here from inside one; this is the
+    // second line, for whatever does. The rename that keeps it is DataNode.setProperty's.
     _markModified() {
         const entry = this.owningEntry;
         for (let node = this; node && node !== entry; node = node.parent) {
             if (node._rawInput !== undefined) {
                 node._rawInput = undefined;
             }
+            if (node._encoded !== undefined) {
+                node._encoded = undefined;
+            }
         }
         if (entry) {
             entry.status = 'Modified';
             if (entry._rawInput !== undefined) {
                 entry._rawInput = undefined;
+            }
+            if (entry._encoded !== undefined) {
+                entry._encoded = undefined;
             }
             entry._stampLastModified();
         }
@@ -536,11 +602,15 @@ export default class DataNode extends BaseNode {
         // dictionary is written from serializeXml, where the text IS its form, and a payload
         // copied out of one keeps it for whichever dictionary it lands in.
         const raw = this.serializeValue();
-        const value = this._ownerFormat() === 'json' ? textDictionaryForm(raw) : raw;
+        const json = this._ownerFormat() === 'json';
+        const value = json ? textDictionaryForm(raw) : raw;
         if (this.isEntry) {
             return {
                 name: this.name,
-                metadata: this.metadata,
+                // The metadata too, for the same reason: an entry read out of a binary dictionary
+                // carries the binary reader's keys, and MATLAB refuses to open a text dictionary
+                // holding one (see textDictionaryMetadata).
+                metadata: json ? textDictionaryMetadata(this.metadata) : this.metadata,
                 value,
             };
         }
@@ -648,6 +718,92 @@ export default class DataNode extends BaseNode {
     serializeValue() {
         return null;
     }
+    /**
+     * Make `encoded` — the byte stream this node was decoded from — what the node writes, for
+     * as long as nothing changes the value (_markModified drops it; a rename keeps it).
+     *
+     * Every writer of a value is a method of the node's class: `serializeValue` for a text
+     * dictionary, a copy payload and a parent's property bag, `serializeXml` for a binary
+     * dictionary. A stream can decode into a node of ANY class — a sparse array is a
+     * MatlabVariableNode, a Simulink.Parameter holding one is a ParameterNode, an object of a
+     * class this package does not know is an ObjectNode — and every one of those classes
+     * has its own pair. So the replay is installed on the instance, in front of whichever
+     * pair its class has, rather than added to each class: one place, which a class written
+     * tomorrow cannot forget to call. The class's own writer is looked up when it is called,
+     * not captured here, so a node whose class changes after it is built (ConstantNode
+     * reclasses a derived variable in place) still falls back to the right one.
+     *
+     * What each one hands back:
+     *   - serializeValue: the envelope itself. DataNode.serialize turns it into the MAT
+     *     stream a TEXT dictionary carries for the same value (MatWriter.textDictionaryForm),
+     *     and a binary one writes it back through the property and cell-element writers'
+     *     encoded arms below — so a copy payload is right for whichever dictionary it lands in.
+     *   - serializeXml: the element as it was read, attribute for attribute and byte for byte,
+     *     under whatever name and tag the caller is writing it at.
+     */
+    _adoptEncoded(encoded) {
+        this._encoded = encoded;
+        const own = this;
+        own.serializeValue = function () {
+            if (this._encoded) {
+                return this._encoded;
+            }
+            return Object.getPrototypeOf(this).serializeValue.call(this);
+        };
+        own.serializeXml = function (tagName, attrs, indent) {
+            if (this._encoded) {
+                const nameAttrs = attrs && attrs.Name !== undefined ? DataNode.pxAttrs(attrs.Name) : '';
+                return encodedXml(tagName, nameAttrs, this._encoded, indent);
+            }
+            return Object.getPrototypeOf(this).serializeXml.call(this, tagName, attrs, indent);
+        };
+    }
+    /**
+     * The refusal for an edit to a value that is still an encoded byte stream, or null when
+     * the edit may go ahead. Every setProperty asks this first, the overrides included.
+     *
+     * A value read from a stream is written back AS the stream (_adoptEncoded), and nothing
+     * in this package can write a new one for all it may hold: MatWriter writes a sparse
+     * array's stream, but not a function handle's or an MCOS object's subsystem, and the XML
+     * this package can spell for the decoded value is not the value — `Class="sparse"` makes
+     * MATLAB's reader crash outright, and a dense matrix is a different variable. So an edit
+     * anywhere at or under such a node is refused, and the one edit that leaves the value
+     * alone is let through: renaming the node that holds the stream, whose name lives
+     * outside it.
+     */
+    /**
+     * The encoded element a compressed-binary dictionary has to hold this ENTRY's value as,
+     * when it has no XML spelling and its bytes are at hand — or null, for every value whose
+     * own serializeXml is the right answer. Asked by serializeEntryToXml; see the
+     * MatlabVariableNode override for the one case there is.
+     */
+    _binaryEncoded() {
+        return null;
+    }
+    /**
+     * Is this node at or under one whose value is still an encoded stream? The structural
+     * gates (canAddChild, canRemoveChild) of every class that has them ask this, for the
+     * reason _refuseEncodedEdit gives: a child added or removed there could not reach the file.
+     */
+    get _encodedReadOnly() {
+        return !!encodedHolderOf(this);
+    }
+    _refuseEncodedEdit(propName, stringValue) {
+        const holder = encodedHolderOf(this);
+        if (!holder) {
+            return null;
+        }
+        if (holder === this && this._resolveProperty(propName) === 'name') {
+            return null;
+        }
+        return {
+            error: true,
+            reason: `'${holder.displayName}' is stored as an encoded MATLAB value that this editor can show but not write, ` +
+                'so it is read-only.',
+            invalidValue: stringValue,
+            validValue: this._resolveProperty(propName) === 'name' ? this.name : this.displayValue,
+        };
+    }
     serializeXml(tagName, attrs, indent) {
         if (this.serial && this.serial._rawVal && this.serial._rawVal._array_class) {
             return this._serializeSimulinkObjectXml(tagName, attrs, indent);
@@ -740,6 +896,10 @@ export default class DataNode extends BaseNode {
         }
         if (typeof value === 'object') {
             const obj = value;
+            // A value still in the byte stream it was read as (EncodedValue): written as read.
+            if (isEncodedValue(obj)) {
+                return encodedXml('P', DataNode.pxAttrs(name), obj, indent);
+            }
             if (obj._type && obj._value !== undefined) {
                 return DataNode._serializeTypedPropertyXml(name, obj, indent);
             }
@@ -865,6 +1025,16 @@ export default class DataNode extends BaseNode {
                 return NodeRegistry.parseValue(value, name, null).serializeXml('P', { Name: name }, indent);
             }
             return DataNode._complexTextXml('P', DataNode.pxAttrs(name), value, indent);
+        }
+        // This package's text-dictionary literal for an edited sparse double matrix — which a
+        // text dictionary written before MatWriter could write a sparse stream still holds —
+        // read back into the node it stands for, which writes a sparse array the one way a
+        // binary dictionary holds it (MatlabVariableNode.serializeXml). Spelled by the arms
+        // below it was `Class="sparse"`, which makes MATLAB's reader segfault, and a complex
+        // element's imaginary part was dropped on the way: a Simulink.Parameter pasted from a
+        // text dictionary into a binary one, its sparse Value edited, crashed MATLAB on read.
+        if (type === 'sparse') {
+            return NodeRegistry.parseValue(value, name, null).serializeXml('P', { Name: name }, indent);
         }
         // Rank 3 and up spells its header Matrix(2,3,2) — MATLAB's own binary
         // dictionary writes such an entry as Dimension="2*3*2" with a flat
@@ -1044,6 +1214,9 @@ export default class DataNode extends BaseNode {
             });
             return p + '<Element Class="double" Dimension="1*' + elem.length + '">' + formatted.join(' ') + '</Element>';
         }
+        if (isEncodedValue(elem)) {
+            return encodedXml('Element', '', elem, indent);
+        }
         if (typeof elem === 'object' && elem !== null && elem._type) {
             const obj = elem;
             const type = obj._type;
@@ -1055,6 +1228,10 @@ export default class DataNode extends BaseNode {
                     return NodeRegistry.parseValue(obj, '', null).serializeXml('Element', {}, indent);
                 }
                 return DataNode._complexTextXml('Element', '', obj, indent);
+            }
+            // And its sparse case, for its reason: never `Class="sparse"`.
+            if (type === 'sparse') {
+                return NodeRegistry.parseValue(obj, '', null).serializeXml('Element', {}, indent);
             }
             const mxChar = DataNode._mxCharXml(obj);
             if (mxChar) {

@@ -78,6 +78,11 @@ export class BusElementNode extends BaseBusElementNode {
     // real double scalar value"). Without this override the edit falls through to
     // DataNode's generic numeric path, which wrongly accepts Inf/NaN.
     setProperty(propName, stringValue) {
+        // A value still in the encoded stream it was read from is read-only (DataNode._refuseEncodedEdit).
+        const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
+        if (encodedRefusal) {
+            return encodedRefusal;
+        }
         if (propName === 'Min' || propName === 'Max') {
             return this._setMinMax(propName, stringValue);
         }

@@ -1,8 +1,8 @@
-import { parseMatrix } from './MatParser.js';
 import type { MatVariable } from './MatParser.js';
 /**
  * The record framing of an mxarray stream: the one outer MI_MATRIX, plus whatever
- * data elements follow it (MCOS metadata for opaque objects).
+ * data elements follow it (MCOS metadata for opaque objects) — MatParser.decodeMatStream's
+ * answer, with null for a stream it refuses.
  *
  * Split out from `parseMxArray` because a `.slx` and a `.mdl` disagree on what the
  * outer matrix CONTAINS while agreeing on the framing around it. In a `.slx`'s
@@ -12,7 +12,7 @@ import type { MatVariable } from './MatParser.js';
  * that part lives in the callers — see MdlParser.
  */
 export declare function readMxArrayRecords(buffer: ArrayBufferLike): {
-    outer: ReturnType<typeof parseMatrix> | null;
+    outer: MatVariable | null;
     trailingElements: Uint8Array[];
 };
 /**

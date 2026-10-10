@@ -126,9 +126,21 @@ export default class ParameterNode extends DataNode {
         if (edited) {
             valueNode._markModified();
         }
-        if (valueNode.children.length > 0) {
+        if (ParameterNode._needsValueRow(valueNode)) {
             this.addChild(valueNode);
         }
+    }
+
+    // A Value row when expanding it reveals something: element rows or fields — or a
+    // sparse array's Variable Editor grid, which a host offers on the Value row and which
+    // lists every element even where there are no rows (an all-zero one). Without it an
+    // all-zero sparse Value had no row and no grid. One too large to decode has no grid.
+    static _needsValueRow(valueNode: BaseNode): boolean {
+        if (valueNode.children.length > 0) {
+            return true;
+        }
+        const v = valueNode as unknown as { _isSparse?: boolean; _undecoded?: boolean };
+        return !!v._isSparse && !v._undecoded;
     }
 
     // Re-decide the Value row after an element or field was added to / removed from
@@ -140,7 +152,7 @@ export default class ParameterNode extends DataNode {
         if (child !== this._valueNode) {
             return;
         }
-        if (child.children.length > 0) {
+        if (ParameterNode._needsValueRow(child)) {
             if (this.children.length === 0) {
                 this.addChild(child);
             }
@@ -170,6 +182,11 @@ export default class ParameterNode extends DataNode {
     // resolved by the inherited BaseNode.getPILayout via buildPILayout.
 
     setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+        // A value still in the encoded stream it was read from is read-only (DataNode._refuseEncodedEdit).
+        const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
+        if (encodedRefusal) {
+            return encodedRefusal;
+        }
         if (propName === 'Value') {
             const raw = MatlabValueParser.parse(stringValue);
             if (!raw) {

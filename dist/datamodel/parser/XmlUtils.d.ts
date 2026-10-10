@@ -55,6 +55,13 @@ export declare function parseComplexNum(text: string, type?: string): {
     im: number | string;
 } | null;
 /**
+ * MATLAB's nnz() test of one element, in whichever form a layer holds it: a number, a
+ * boolean, an exact 64-bit token, a `{ re, im }` pair, or complex text (`'0-3i'`). NaN is a
+ * non-zero and -0 is not, as MATLAB has both — sparse(NaN) holds one element, sparse(-0)
+ * none — and as MatWriter's sparse encoder decides what it stores.
+ */
+export declare function isNonzeroElement(x: unknown): boolean;
+/**
  * The `_class` a complex value's `{ _type: 'cdata' }` envelope carries: its MATLAB class
  * when that is single or an integer class, and undefined for double — and for anything
  * that is not a numeric class at all, a sparse array's 'sparse' included, which MATLAB

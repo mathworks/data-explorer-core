@@ -165,17 +165,95 @@ A value the `.sldd` schema cannot spell is stored as `{ _type: "cdata", _value:
 - **Uuencoded bytes** (six bits per printable character, offset by `0x20`), which
   is what an *uncompressed-text* dictionary emits. The bytes are an 8-byte
   preamble followed by ONE MAT-file `miMATRIX` element, so `parseCdata`
-  uudecodes, reads the tag at offset 8, and hands the payload at offset 16 to
-  `MatParser.parseMatrix` / `parseMatVariable` — the same reader the `.mat` path
-  uses. Real MATLAB puts far more than complex doubles here: the R2027a corpus
-  stores `cellNd` (2x3x2 cell), `nd2x3x2` (rank-3 real double) and `structNd`
-  (2x3x2 struct array) this way, alongside `cplxScalar` and `cplxVec`.
+  uudecodes (`CdataCodec.uudecode`) and hands the bytes to
+  `MatParser.decodeMatStream`, then `parseMatVariable` — the one stream reader
+  every venue uses: the Property Inspector's Other group, a binary dictionary's
+  hex values, a classic `.mdl`'s MatData record and a `.slx` workspace part go
+  through it too, each removing only its own wrapper first (pinned in
+  `test/matStreamSites.test.ts`). Real MATLAB puts far more than complex
+  doubles here: the R2027a corpus stores `cellNd` (2x3x2 cell), `nd2x3x2`
+  (rank-3 real double) and `structNd` (2x3x2 struct array) this way, alongside
+  `cplxScalar` and `cplxVec`.
 
 An undecodable payload degrades to a `char` scalar rather than being dropped, and
 an untouched cdata entry writes back byte-identically by replaying `_rawInput`.
 
 Pinned in `test/cdataParse.test.ts` (against `truth.json` and the real
 `artifacts/text/cases.sldd`).
+
+### A binary dictionary's hex values are the same stream, read-only
+A compressed-binary dictionary writes a value XML cannot spell — a sparse array or a
+function handle anywhere inside it — as
+`<P Name="Value" Class="<class(value)>" Encoding="hex" EncodedLength="<bytes>">`, whose
+text is the same MAT stream a text dictionary carries as cdata. `BinarySlddParser`
+hands it over verbatim as `{ _type: 'encoded', _attrs, _value }`
+(`parser/EncodedValue.ts`), and `parseEncoded` decodes it through the cdata path's
+reader, with the stream's own MCOS subsystem for an object. The node it builds can be
+of any class (a `ParameterNode` for a `Simulink.Parameter`), and it:
+
+- writes the element back byte for byte (`DataNode._adoptEncoded`) until a value edit,
+  which a rename is not;
+- is read-only at and under it (`_refuseEncodedEdit`, `_encodedReadOnly`), since
+  nothing here writes a new stream for everything one can hold (an MCOS object's
+  subsystem, a function handle);
+- goes into a text dictionary as the equivalent cdata (`MatWriter.textDictionaryForm`);
+- shows `<CLASS, not decoded>` when the stream does not read, and a part-unreadable
+  warning says why, never a number;
+- is written back unchanged when the stream reads but does not decode, and the rest of
+  the dictionary opens.
+
+An untouched text-dictionary stream that holds a sparse array, an MCOS object or a
+function handle goes into a binary dictionary as the hex MATLAB writes for it
+(`_binaryEncoded`), and so does a renamed one. Pinned in
+`test/encodedValueWriteBack.test.ts` and `test/encodedValueDecode.test.ts`.
+
+### A sparse array's class is its element class
+`class()` of a sparse double is `double` (`logical`, `single`; complex is still
+`double`), so that is the Class and the Data Type.
+The storage is `_isSparse` (from `MatVariable.isSparse`), and `MatWriter.encodeSparse`
+writes it as MATLAB does, byte for byte: its non-zeros. So an edited sparse array is
+that stream — cdata in a text dictionary, hex in a binary one, at an entry and in a
+struct field, a cell element or a Parameter's Value, never `Class="sparse"`, which
+MATLAB's reader crashes on. A value typed in whole is the full array MATLAB makes of
+the literal. A cell holding a sparse array goes into a binary dictionary as one hex
+stream, as MATLAB writes it; a struct as XML with each sparse field its own hex element,
+which MATLAB reads back sparse. A sparse array too large to decode is written as the
+stream it was read from. Pinned in `test/sparseFixtures.test.ts`, against MATLAB's own
+answers in all four venues, and `test/matWriter.test.ts`.
+
+A rename leaves a value as it was read (`DataNode.setProperty` keeps `_rawInput`), in
+every venue: a renamed value is not rebuilt from its node.
+
+A sparse property of an MCOS object — a Simulink.Parameter's Value in a `.mat`, a model
+workspace or a binary dictionary's hex — is handed over by `McosParser.resolveValue` as
+the cdata stream a text dictionary holds for the same value, so it is sparse there too
+and is copied into a dictionary as MATLAB's own stream (cdata, or hex in a binary one).
+
+### A sparse array shows its summary, and its non-zeros as its rows
+- **Summary, always:** `<10x10 sparse double>`, `<3x3 sparse logical>` — the storage,
+  then the class, and no "complex", as no summary says it
+  (`DisplayConvention.sparseSummaryForm`). At every size, a 1x1 and an empty one
+  included, and inside a cell's literal (`{<1x3 sparse double>, [9 10]}`); one too
+  large to decode is `<10000000x2 sparse double, not decoded>`. It is never a dense
+  literal, which is a deliberate departure from MATLAB's struct and cell displays, which
+  print a small one inline. Like every summary it offers no cell editor.
+- **Element rows:** one per non-zero (`XmlUtils.isNonzeroElement`, MATLAB's `nnz` rule:
+  NaN counts, -0 does not), in MATLAB's column-major order, labelled with both
+  subscripts, `x(1,3)` for a vector too, as MATLAB's own display lists them
+  (`BaseNode.ElementSubscript.full`). An all-zero one has none. The row budget counts
+  non-zeros. A 1x1 sparse array is an array with one row, not a scalar, so that its
+  value is visible somewhere.
+- **The value is every element:** `_elements` stays the dense row-major list, which is
+  what the writers, `Value`, `_var` and the complex test read (`_liveElements`), and
+  each row records its own slot in it (`_sparseSlots`), which is where its edit goes.
+  The Variable Editor's grid (`displayElements`) lists every element, zeros included.
+- **Editing:** a row edits as an element row did; no Add or Remove, so nothing in the
+  tree adds a non-zero or shortens a sparse vector. A cell whose literal shows an
+  element as a summary — a sparse one, or a large array, a struct, an object — offers no
+  in-cell editor and refuses a whole-value edit (`_literalRoundTrips`): read back as text
+  the summary is char cells, and undo restores the text. Its elements edit as before.
+
+Pinned in `test/sparseFixtures.test.ts` and `test/sparsePresentation.test.ts`.
 
 ## Validation mirrored in code
 

@@ -26,7 +26,9 @@
 // see test/parity/mdl.parity.test.ts and test/parity/matlab/gen_mdl.m.
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { configSetIdentity, isExpressionMaskType, isParamReference, normalizeBlockName, parseModelParts, valueReferencesData, } from './SlxParser.js';
-import { parseMxArray, readMxArrayRecords } from './MxArrayParser.js';
+import { parseMxArray } from './MxArrayParser.js';
+import { decodeMatStream } from './MatParser.js';
+import { uudecode } from './CdataCodec.js';
 export function parseMdl(buffer, filename) {
     const bytes = new Uint8Array(buffer);
     // What the OPC text framing itself claimed and could not deliver, which is a
@@ -942,9 +944,12 @@ function classicWorkspace(root, model, warnings) {
         });
         return empty;
     }
-    const stream = uudecode(encoded);
-    const { outer, trailingElements } = readMxArrayRecords(stream.buffer);
-    if (!outer || !outer.fields) {
+    // The record's characters are the six-bit text a text dictionary's cdata is, which the
+    // one decoder reads; a line break inside them is layout, not data.
+    const stream = uudecode(encoded.replace(/[\r\n]/g, ''));
+    const decoded = decodeMatStream(stream);
+    const outer = decoded.ok ? decoded.variable : null;
+    if (!decoded.ok || !outer || !outer.fields) {
         // The record is present and decodes to something that is not an mxarray: wrong
         // magic, too short, or an outer element that is not a matrix. Unlike the `.slx`
         // mxarray part, an EMPTY workspace cannot land here — MATLAB writes no
@@ -971,7 +976,7 @@ function classicWorkspace(root, model, warnings) {
         return parseMxArray(stream.buffer);
     }
     const result = [];
-    result._trailingElements = trailingElements;
+    result._trailingElements = decoded.trailingElements;
     const names = elementsOf(outer.fields.Name);
     const values = elementsOf(outer.fields.Value);
     for (let i = 0; i < names.length && i < values.length; i++) {
@@ -988,34 +993,5 @@ function classicWorkspace(root, model, warnings) {
 // workspace with a single variable takes that second form.
 function elementsOf(field) {
     return Array.isArray(field) ? field : [field];
-}
-/**
- * Undo the uuencoding of a MatData record: six bits per character, biased by 32,
- * most significant group first.
- *
- * This is the body encoding of historic `uuencode` without its per-line length
- * prefixes — MATLAB emits one unbroken run and lets the quoted-value wrapping do
- * the line breaking. Note that a SPACE encodes zero and is data, not padding: the
- * stream begins `\x00\x01IM`, which is written as two leading spaces.
- */
-function uudecode(text) {
-    const out = new Uint8Array(Math.ceil((text.length * 6) / 8));
-    let acc = 0;
-    let bits = 0;
-    let n = 0;
-    for (let i = 0; i < text.length; i++) {
-        const code = text.charCodeAt(i);
-        if (code === LF || code === CR)
-            continue;
-        acc = (acc << 6) | ((code - 32) & 0x3f);
-        bits += 6;
-        if (bits >= 8) {
-            bits -= 8;
-            out[n++] = (acc >> bits) & 0xff;
-        }
-    }
-    // Exact-length, because readMxArrayRecords is handed `.buffer` and would
-    // otherwise be given the slack bytes as part of the stream.
-    return out.slice(0, n);
 }
 //# sourceMappingURL=MdlParser.js.map

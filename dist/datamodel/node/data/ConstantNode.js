@@ -37,6 +37,11 @@ export default class ConstantNode extends MatlabVariableNode {
         }
         return super.valueEditable;
     }
+    // No encoded-value refusal of its own (DataNode._refuseEncodedEdit), unlike the other
+    // overrides: a value still in its encoded stream never becomes a Constant
+    // (NodeClassMap.wrapDerivedVariable leaves it the node that writes the stream back), and
+    // a Constant is only ever an entry, so none is ever under one either. Both arms below end
+    // in a setProperty that asks anyway.
     setProperty(propName, stringValue) {
         if (propName === 'Value') {
             const parsed = MatlabValueParser.parse(stringValue);

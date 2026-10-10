@@ -95,7 +95,7 @@ const EXPECTED: Record<string, Expected> = {
   ParamMat: {
     className: 'Simulink.Parameter',
     props: {
-      Value: { _type: 'double', _value: 'Matrix(2,3)\n[1, 2, 3]\n[4, 5, 6]' },
+      Value: { _type: 'double', _value: 'Matrix(2,3)\n[[1.0, 2.0, 3.0]; [4.0, 5.0, 6.0]]' },
       Description: 'matrix',
     },
   },
@@ -137,10 +137,13 @@ describe('decodeMcosBlob — direct decoder contract (.mat, one object per file)
   });
 
   it('emits a matrix Value as the SLDD Matrix(r,c) string form (row-major)', () => {
+    // In the spelling MATLAB reads back (XmlUtils.formatMatrixSerial): its rows joined by
+    // newlines, which this was, MATLAB reads as an empty [] — so the Value of a
+    // Parameter copied out of a .mat into a text dictionary came back empty.
     const obj = decodeMat('ParamMat').get('ParamMat')!;
     expect(obj.properties.Value).toEqual({
       _type: 'double',
-      _value: 'Matrix(2,3)\n[1, 2, 3]\n[4, 5, 6]',
+      _value: 'Matrix(2,3)\n[[1.0, 2.0, 3.0]; [4.0, 5.0, 6.0]]',
     });
   });
 
