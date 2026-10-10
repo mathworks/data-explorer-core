@@ -163,6 +163,30 @@ describe('a damaged sparse array costs what its bytes hold, not what it declares
     expect(entries(v.sparse)).toEqual([[2, 1, 4]]);
   });
 
+  it('row indices in a narrower integer type are each read, at their own width', () => {
+    // sparse([1; 2; 3]). MATLAB writes ir as miINT32, but the format lets it be any integer
+    // type, and one counted at four bytes apiece lost the rest: miUINT8 read none of three.
+    for (const type of [MI.INT8, MI.UINT8, MI.INT16, MI.UINT16, MI.INT32, MI.UINT32]) {
+      const v = only(
+        matFile([
+          matrix([
+            arrayFlags(CLASS.SPARSE, { nzmax: 3 }),
+            dims([3, 1]),
+            varName('x'),
+            numericData(type, [0, 1, 2]),
+            numericData(MI.INT32, [0, 3]),
+            numericData(MI.DOUBLE, [1, 2, 3]),
+          ]),
+        ]),
+      );
+      expect(entries(v.sparse), `ir type ${type}`).toEqual([
+        [1, 1, 1],
+        [2, 1, 2],
+        [3, 1, 3],
+      ]);
+    }
+  });
+
   it('a dense list costs what it holds, not the size it declares', () => {
     // A 40-character `Matrix(40000,40000)` literal holding one element used to visit all
     // 1.6e9 cells; Matrix(1000000,1000000) would have taken minutes.

@@ -251,7 +251,9 @@ function readSparse(view, offset, end, dimensions, isComplex, nzmax) {
         const irSub = readSubelement(view, offset);
         offset += irSub.totalSize;
         if (INTEGER_DATA_TYPES.has(irSub.type)) {
-            const irCount = Math.floor(irSub.bytes / 4);
+            // At the type's own width: counted at four bytes apiece, an ir of miUINT8 read
+            // none of its rows and one of miINT16 half of them.
+            const irCount = Math.floor(irSub.bytes / ELEMENT_WIDTH[irSub.type]);
             ir = readNumericArray(view, irSub, nzmax > 0 ? Math.min(nzmax, irCount) : irCount).map(Number);
         }
     }

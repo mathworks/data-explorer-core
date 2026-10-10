@@ -217,7 +217,7 @@ non-zeros, opens with its two rows — it was refused past a million elements, a
 `<10000000x2 sparse double, not decoded>`, until 1.36.3 — and spBig, 1000x1000 with five,
 holds five entries rather than a million zeros. A damaged one costs what its bytes hold:
 the column walk covers the columns `jc` holds, its index arrays are read only as
-integers, and out-of-order or repeated rows are sorted, the last kept. A dense list — this
+integers (each at its own width), and out-of-order or repeated rows are sorted, the last kept. A dense list — this
 package's `sparse` literal, a host's own variable — is read in what it holds too, not in
 what its dims declare (`sparseFromDense`).
 
