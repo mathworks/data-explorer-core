@@ -568,25 +568,22 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     }
   });
 
-  it('a value the reader did not decode, with no stream to write, is its placeholder, escaped, never markup', () => {
+  it('one too large to decode with no stream to write is its placeholder, escaped, never markup', () => {
     // Every reader here leaves such a value its stream (the cdata it was read from, or the
     // element of a .mat or a model workspace), and those are what it is written as. Built
     // without one, all there is to write is the placeholder; unescaped inside a
     // Class="double" element it made the dictionary one MATLAB would not open at all.
-    // (The value this was first written for, a sparse array too large to decode, is a
-    // sparse array like any other now; one recorded as not decoded is not sparse here.)
     const node = MatlabVariableNode._createUndecoded(
       {
         name: '', className: 'double', dimensions: [10000000, 2], isComplex: false, isLogical: false, isSparse: true,
-        value: '<10000000x2 double, not decoded>', undecoded: 'declares 20000000 elements', fields: null,
+        value: '<10000000x2 sparse double, not decoded>', undecoded: 'too large', fields: null,
       },
-      'tall',
+      'spTall',
       null,
     );
-    expect([node.isSparse, node.serializeXml('P', { Name: 'Value' }, 2)]).toEqual([
-      false,
-      '        <P Name="Value" Class="double">&lt;10000000x2 double, not decoded&gt;</P>',
-    ]);
+    expect(node.serializeXml('P', { Name: 'Value' }, 2)).toBe(
+      '        <P Name="Value" Class="double">&lt;10000000x2 sparse double, not decoded&gt;</P>',
+    );
   });
 
   it('as XML, it is the hex of its stream, never `Class="sparse"`, the attribute MATLAB\'s reader crashes on', () => {

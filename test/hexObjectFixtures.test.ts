@@ -211,10 +211,12 @@ describe('a sparse array of 20 million elements, inside an MCOS property or a ce
     }
     const xml = serializeEntryToXml(binary.getSection('design').children.find((e: any) => e.name === 'pTallCopy'));
     expect(xml).toMatch(/<P Name="Value" Class="double" Encoding="hex" EncodedLength="\d+">/);
+    expect(xml).not.toContain('not decoded');
     expect(xml).not.toContain('sparse');
     // A cell holding one is one hex stream, now that MatWriter can write the whole cell:
     // MATLAB's own, byte for byte.
     const cell = serializeEntryToXml(binary.getSection('design').children.find((e: any) => e.name === 'cTallCopy'));
     expect(valueTag(cell, 'cTallCopy')).toBe(valueTag(MATLAB_CHUNK, 'cTall'));
+    expect(cell).not.toContain('not decoded');
   });
 });

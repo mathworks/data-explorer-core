@@ -721,9 +721,12 @@ describe('parseMat — sparse arrays (class 5)', () => {
     // densely would ask for `new Array(1e12)`. Until 1.36.3 such a matrix was refused past
     // a million elements, as `<2000x2000 sparse double, not decoded>`; held as its
     // non-zeros, it costs what it holds, at any size.
-    const v = only(matFile([sparseVar({ name: 'big', dimensions: [2000, 2000], ir: [0], jc: [0, 1, 1, ...new Array(1998).fill(1)], real: [5] })]));
+    const v = only(matFile([sparseVar({ name: 'big', dimensions: [2000, 2000], ir: [0], jc: [0, 1, 1], real: [5] })]));
     expect([v.className, v.isSparse, v.value, v.undecoded]).toEqual(['double', true, '<2000x2000 sparse double>', undefined]);
     expect([[...v.sparse!.row], [...v.sparse!.col], [...v.sparse!.re]]).toEqual([[0], [0], [5]]);
+    // Under the old limit, the same shape of file decodes as it always did.
+    expect(only(matFile([sparseVar({ name: 'ok', dimensions: [1000, 1000], ir: [0], jc: [0, 1, 1], real: [5] })])).undecoded)
+      .toBeUndefined();
   });
 
   it('survives a sparse file truncated at every offset past the header', () => {

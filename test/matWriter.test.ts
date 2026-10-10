@@ -299,7 +299,15 @@ describe('MatWriter refuses what the format cannot carry', () => {
     expect(() => encodeMatVariable({ ...sparse, value: [1, 0, 2] })).toThrow(MatWriteError);
     // And what it can, it writes as sparse storage, not as the full array.
     const written = readElement(encodeMatVariable(sparse));
-    expect([written.isSparse, written.className, written.value, [...written.sparse!.re]]).toEqual([true, 'double', '<2x2 sparse double>', [1, 2]]);
+    const s = written.sparse!;
+    expect([written.isSparse, written.className, written.value, [...s.row], [...s.col], [...s.re]]).toEqual([
+      true,
+      'double',
+      '<2x2 sparse double>',
+      [0, 1],
+      [0, 1],
+      [1, 2],
+    ]);
   });
 
   it('throws when the element count contradicts the declared dimensions', () => {
