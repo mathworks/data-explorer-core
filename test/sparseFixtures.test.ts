@@ -644,9 +644,13 @@ function sparseValues(venue: (typeof VENUES)[number], variables: any): [string, 
   return out;
 }
 
+// These walk every cell of each sparse fixture's dense grid, spBig's million included, so they
+// outrun vitest's 5 s default on CI's slower runners (about 6 s there); give them headroom.
+const GRID_TIMEOUT = 60_000;
+
 describe('a sparse array\'s rows are its non-zeros, and that is all that changed about it', () => {
   for (const venue of VENUES) {
-    it(`${venue.name}: the Variable Editor's grid still has every element, under MATLAB's subscripts`, () => {
+    it(`${venue.name}: the Variable Editor's grid still has every element, under MATLAB's subscripts`, { timeout: GRID_TIMEOUT }, () => {
       // displayElements is the grid's data, and the grid places each cell by its label and
       // gives up on a matrix with a cell unlabelled — so it lists every element, zeros
       // included, where the tree lists the non-zeros. Every row is one of its entries.
@@ -703,7 +707,7 @@ describe('a sparse array\'s rows are its non-zeros, and that is all that changed
     }
   });
 
-  it('a renamed .mat or workspace variable is written as the value it holds', async () => {
+  it('a renamed .mat or workspace variable is written as the value it holds', { timeout: GRID_TIMEOUT }, async () => {
     // A rename makes the variable rebuild itself from the node (_var), which read its
     // elements off its child rows — the non-zeros alone, now.
     const { encodeMatVariable } = await import('../src/datamodel/parser/MatWriter.js');
