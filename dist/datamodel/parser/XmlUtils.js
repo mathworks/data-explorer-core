@@ -467,9 +467,17 @@ export function formatComplexXml(complexStr) {
  * `.0` form, `9223372036854775807.0+1.0i`, is not that value. An infinity is `Inf`, the
  * only word MATLAB writes for one, whichever reader's text it came from (a plain .mat
  * variable's element says `Infinity`).
+ *
+ * And a NaN imaginary part is `+NaNi`, signed. Unsigned is how formatComplexNum spells
+ * one, and how MATLAB itself writes complex(1, NaN) into a binary dictionary, `1.0NaNi` —
+ * but MATLAB's reader (R2027a) takes that for the real 1 and reads every element after it
+ * one place early, where it reads `1.0+NaNi` back as complex(1, NaN). Measured on
+ * complex_binary.sldd's pNonFinite, [complex(Inf,-Inf) complex(NaN,1) complex(1,NaN)
+ * complex(-Inf,2)], saved each way: MATLAB read `1.0NaNi` back as [Inf-Infi NaN+1i 1 NaN],
+ * as it reads its own file, and `1.0+NaNi` as the value it is.
  */
 export function formatComplexBodyXml(text, className) {
-    const body = text.trim().replace(/Infinity/g, 'Inf');
+    const body = text.trim().replace(/Infinity/g, 'Inf').replace(/([^\s+-])NaNi(?=\s|$)/g, '$1+NaNi');
     return className === 'double' || className === 'single' ? formatComplexXml(body) : body;
 }
 export function transposeToColumnMajor(rowMajor, rows, cols) {
