@@ -1,0 +1,159 @@
+// Copyright 2026 The MathWorks, Inc.
+//
+// What one write puts out that no data it was handed backs (MatWriter.UNBACKED_BYTES_BUDGET):
+// the column index of a sparse array past the columns its source backs, four bytes a column,
+// and the empty double a cell or a struct array writes for each element it declares and does
+// not hold, 56 bytes apiece. One budget of 16 MiB for a whole value, shared by every array and
+// container in it, charged before anything is allocated, and refused past it with a
+// MatWriteError a caller can catch. The numbers here are the budget's, written out, so that
+// moving it is a change to this file: each boundary is a shape just under it that is written
+// and one just over it that is not.
+//
+// One budget for the value, not an allowance per array: an allowance of 256 free columns per
+// array let a cell of 80,000 sparse arrays of 0x256, an 11 KB .mat, write 80 MB of index, and
+// copied, pasted into a binary dictionary and saved, it was a fatal out-of-memory.
+import { describe, it, expect } from 'vitest';
+import {
+  encodeMatStream,
+  MatWriteError,
+  oneWrite,
+  spendUnbacked,
+} from '../src/datamodel/parser/MatWriter.js';
+import type { MatVariable } from '../src/datamodel/parser/MatParser.js';
+import type { SparseData } from '../src/datamodel/parser/SparseData.js';
+
+const none = (): SparseData => ({ row: new Int32Array(0), col: new Int32Array(0), re: new Float64Array(0), im: null });
+/** A sparse array of `dims` holding nothing, with nothing behind its columns: a literal's, or a host's. */
+const sparse = (dims: number[], s: SparseData = none()): MatVariable => ({
+  name: '', className: 'double', dimensions: dims, isComplex: false, isLogical: false, isSparse: true, value: null, fields: null, sparse: s,
+});
+/** A 1xN host array with one entry: N - 1 columns no data backs. */
+const host = (cols: number): MatVariable =>
+  sparse([1, cols], { row: Int32Array.from([0]), col: Int32Array.from([0]), re: Float64Array.from([5]), im: null });
+const cell = (members: (MatVariable | null)[], dims = [1, members.length]): MatVariable => ({
+  name: '', className: 'cell', dimensions: dims, isComplex: false, isLogical: false, value: members, fields: null,
+});
+const structArray = (n: number, f: (MatVariable | null)[]): MatVariable => ({
+  name: '', className: 'struct', dimensions: [1, n], isComplex: false, isLogical: false, value: null, fields: { f: f as MatVariable[] },
+});
+const many = (n: number, f: () => MatVariable) => Array.from({ length: n }, f);
+/**
+ * The stream of a sparse array holding nothing: preamble and tag, 16 bytes; flags, dims and
+ * name, 40; empty ir and pr, 16; and its index of cols + 1 words, padded to eight bytes.
+ */
+const streamOf = (cols: number) => 72 + 8 + 8 * Math.ceil((4 * (cols + 1)) / 8);
+
+/** What encodeMatStream does with `v`: the stream's length, or 'refused' for a MatWriteError. */
+function encode(v: MatVariable): number | 'refused' {
+  try {
+    return encodeMatStream(v).length;
+  } catch (e) {
+    if (e instanceof MatWriteError) return 'refused';
+    throw e;
+  }
+}
+const timed = <T>(f: () => T): [T, number] => {
+  const t0 = performance.now();
+  const out = f();
+  return [out, performance.now() - t0];
+};
+
+describe('one sparse array: 4,194,304 columns no data backs are written, and one more is not', () => {
+  it('a 0xN array, backed for none of its columns', () => {
+    expect(encode(sparse([0, 4194304]))).toBe(streamOf(4194304));
+    const [refused, ms] = timed(() => encode(sparse([0, 4194305])));
+    expect([refused, ms < 100]).toEqual(['refused', true]);
+  });
+
+  it('a host\'s 1xN with one entry, which backs one column', () => {
+    expect(encode(host(4194305))).not.toBe('refused');
+    expect(encode(host(4194306))).toBe('refused');
+    // A host's 1x2e6 with three entries: 7,999,988 bytes, within it.
+    expect(encode(sparse([1, 2e6], { row: Int32Array.from([0, 0, 0]), col: Int32Array.from([0, 1e6, 2e6 - 1]), re: Float64Array.from([1, 2, 3]), im: null }))).not.toBe('refused');
+  });
+
+  it('what a source does back never counts', () => {
+    // A file's own index, recorded by the reader, backs every column it held.
+    const backed = sparse([0, 4194305], { ...none(), backedColumns: 4194305 });
+    expect(encode(backed)).toBe(streamOf(4194305));
+  });
+});
+
+describe('one budget for the whole value, shared by every array and container in it', () => {
+  it('a cell of 16,384 0x256 arrays is written, and of 16,385 refused, at once', () => {
+    // 1,024 bytes of index apiece.
+    expect(encode(cell(many(16384, () => sparse([0, 256]))))).not.toBe('refused');
+    const [refused, ms] = timed(() => encode(cell(many(16385, () => sparse([0, 256])))));
+    expect([refused, ms < 1000]).toEqual(['refused', true]);
+  });
+
+  it('a cell of 80,000 of them, 82 MB of index, is refused at once', () => {
+    const [refused, ms] = timed(() => encode(cell(many(80000, () => sparse([0, 256])))));
+    expect([refused, ms < 1000]).toEqual(['refused', true]);
+  });
+
+  it('nested: two cells of 8,192 inside one are written, 8,192 and 8,193 are not', () => {
+    const inner = (n: number) => cell(many(n, () => sparse([0, 256])));
+    expect(encode(cell([inner(8192), inner(8192)]))).not.toBe('refused');
+    expect(encode(cell([inner(8192), inner(8193)]))).toBe('refused');
+  });
+
+  it('a cell\'s holes: one declaring 299,594 elements and holding one is written, 299,595 is not', () => {
+    // 56 bytes a hole: 299,593 of them is 16,777,208 bytes, 299,594 is 16,777,264.
+    expect(encode(cell([sparse([0, 0])], [1, 299594]))).not.toBe('refused');
+    expect(encode(cell([sparse([0, 0])], [1, 299595]))).toBe('refused');
+  });
+
+  it('a cell declaring 1e8 elements around one, which was 1e8 empty doubles, is refused before any is made', () => {
+    const [refused, ms] = timed(() => encode(cell([sparse([0, 5])], [1, 1e8])));
+    expect([refused, ms < 100]).toEqual(['refused', true]);
+  });
+
+  it('a struct array\'s holes the same, field by field', () => {
+    expect(encode(structArray(299594, [sparse([0, 0])]))).not.toBe('refused');
+    expect(encode(structArray(299595, [sparse([0, 0])]))).toBe('refused');
+    const [refused, ms] = timed(() => encode(structArray(1e8, [sparse([0, 0])])));
+    expect([refused, ms < 100]).toEqual(['refused', true]);
+  });
+
+  it('columns and holes come out of the same budget', () => {
+    // 16,383 arrays of 1,024 bytes, and 18 holes of 56: 16,777,200 bytes. One hole more is
+    // 16,777,256.
+    const members = many(16383, () => sparse([0, 256]));
+    expect(encode(cell(members, [1, 16383 + 18]))).not.toBe('refused');
+    expect(encode(cell(members, [1, 16383 + 19]))).toBe('refused');
+  });
+});
+
+describe('one write: what a writer splits one value into shares the budget', () => {
+  it('every encode inside oneWrite draws on one budget; outside it, each has its own', () => {
+    // 8 MiB of index each: two fit in one write, and then not a byte more.
+    const half = () => sparse([0, 2097152]);
+    expect(oneWrite(() => [encode(half()), encode(half()), encode(sparse([0, 1]))])).toEqual([
+      streamOf(2097152),
+      streamOf(2097152),
+      'refused',
+    ]);
+    expect([encode(half()), encode(half()), encode(half())].includes('refused')).toBe(false);
+    // Nested, it is the write already under way.
+    expect(oneWrite(() => [encode(half()), oneWrite(() => encode(half())), encode(sparse([0, 1]))])[2]).toBe('refused');
+  });
+
+  it('an encode that is refused writes nothing, so it takes nothing', () => {
+    // The refused cell had charged 16,384 arrays' index before the one that did not fit.
+    expect(oneWrite(() => [encode(cell(many(16385, () => sparse([0, 256])))), encode(cell(many(16384, () => sparse([0, 256]))))])).toEqual([
+      'refused',
+      expect.any(Number),
+    ]);
+  });
+
+  it('spendUnbacked draws on the same budget, and takes nothing when it says no', () => {
+    expect(oneWrite(() => [spendUnbacked(16777216), spendUnbacked(1)])).toEqual([true, false]);
+    expect(oneWrite(() => [spendUnbacked(16777217), spendUnbacked(16777216)])).toEqual([false, true]);
+    expect(oneWrite(() => [spendUnbacked(8388608), encode(sparse([0, 2097152])), encode(sparse([0, 1]))])).toEqual([
+      true,
+      streamOf(2097152),
+      'refused',
+    ]);
+  });
+});

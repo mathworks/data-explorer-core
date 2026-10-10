@@ -1067,8 +1067,9 @@ describe('parseMat — old-style (class 3) objects', () => {
     // A sparse matrix was the other user of the same channel, past a million elements,
     // until it came to be held as its non-zeros: it is its summary and its rows now, as
     // every sparse matrix is. This input's jc is short (three starts for 2000 columns), so
-    // it is a damaged array: read as far as its index goes, reported, and its row read-only,
-    // since no writer could write the index its dims declare.
+    // it is a damaged array: read as far as its index goes, and reported. Its row is
+    // editable: the index its dims declare past the two columns it held is 8 KB, which one
+    // write's budget of 16 MiB covers.
     const session = createSession();
     const mat = session.addMatSource(
       'big.mat',
@@ -1082,7 +1083,7 @@ describe('parseMat — old-style (class 3) objects', () => {
     ]);
     expect(node.valueEditable).toBe(false);
     expect([node.className, node.dataType]).toEqual(['double', 'double']);
-    expect([mat.warnings.map((w: any) => w.part), node.children[0].valueEditable]).toEqual([['big'], false]);
+    expect([mat.warnings.map((w: any) => w.part), node.children[0].valueEditable]).toEqual([['big'], true]);
     // Its full-jc twin, the shape MATLAB writes: the same, with nothing to report and its
     // row editable.
     const real = session.addMatSource(

@@ -17,8 +17,8 @@ import { subscriptLabel } from '../../display/Subscript.js';
 import { decodeMatStream } from '../../parser/MatParser.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
-import { encodeMatStream, matStreamOfElement, sparseWriteRefusal } from '../../parser/MatWriter.js';
-import { cloneSparse, complexElement, emptySparse, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
+import { encodeMatStream, matStreamOfElement, sparseWriteRefusal, spendUnbacked } from '../../parser/MatWriter.js';
+import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
@@ -1634,12 +1634,27 @@ export default class MatlabVariableNode extends DataNode {
      * A sparse array's every element, row-major, as a full array's are held — for the writers'
      * fallbacks alone (_serializeArray, _serializeArrayXml), which spell a value as a literal
      * when it has no stream: a sparse array MatWriter will not write, of a class or a rank
-     * MATLAB never stores sparse, which only a damaged file holds. Null past
+     * MATLAB never stores sparse, which only a damaged file holds, or one past what one write
+     * may put out that no data backs (MatWriter.UNBACKED_BYTES_BUDGET). Null past
      * SparseData.MAX_DENSE_ELEMENTS, where there is nothing to spell the elements with. Never
      * the value itself, which is the non-zeros.
+     *
+     * Every element it does not hold is a zero no data backs, so they come out of the write's
+     * budget (MatWriter.spendUnbacked), at eight bytes apiece, what each costs in the list;
+     * null when the budget has not that much left. A budget spent is what refuses an array
+     * that is not damaged at all — the 4,199th 1000x1000 of one entry in a host's cell, each
+     * 3,996 bytes of index no data backs — and without this each one past it was written as a
+     * million zeros.
      */
     _sparseFallback() {
-        return this._sparse ? sparseToDense(this._sparse, this._dims) : null;
+        if (!this._sparse) {
+            return null;
+        }
+        const elements = Math.max(0, this._dims[0] || 0) * Math.max(0, this._dims[1] || 0);
+        if (elements > MAX_DENSE_ELEMENTS || !spendUnbacked(8 * (elements - this._sparse.row.length))) {
+            return null;
+        }
+        return sparseToDense(this._sparse, this._dims);
     }
     _serializeScalar() {
         if (this._scalarType === 'string') {

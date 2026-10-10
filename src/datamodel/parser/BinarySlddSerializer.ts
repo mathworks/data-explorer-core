@@ -9,6 +9,7 @@
 import { zipSync } from 'fflate';
 import { escapeXml, matlabTimestampNow } from './XmlUtils.js';
 import { encodedXml } from './EncodedValue.js';
+import { oneWrite } from './MatWriter.js';
 import { DATA_PART_XML } from './SlddParts.js';
 import type SlddNode from '../node/container/SlddNode.js';
 import type DataNode from '../node/DataNode.js';
@@ -76,9 +77,13 @@ export function serializeEntryToXml(entryNode: DataNode): string {
     xml += '        <P Name="IsDerived" Class="char">' + ((meta.isderived as string) || '0') + '</P>\n';
     // A value whose only binary spelling is hex, and whose bytes the node still holds
     // (DataNode._binaryEncoded), goes in as the hex MATLAB writes for it; everything else
-    // writes itself. A value READ from hex replays it through serializeXml already.
-    const encoded = entryNode._binaryEncoded?.();
-    xml += (encoded ? encodedXml('P', ' Name="Value"', encoded, 2) : entryNode.serializeXml('P', { Name: 'Value' }, 2)) + '\n';
+    // writes itself. A value READ from hex replays it through serializeXml already. Either
+    // way it is one write of one value (MatWriter.oneWrite): a cell refused as one stream,
+    // and written as XML instead, does not get a fresh budget for each element.
+    xml += oneWrite(() => {
+        const encoded = entryNode._binaryEncoded?.();
+        return encoded ? encodedXml('P', ' Name="Value"', encoded, 2) : entryNode.serializeXml('P', { Name: 'Value' }, 2);
+    }) + '\n';
     xml += '    </Object>\n';
     return xml;
 }

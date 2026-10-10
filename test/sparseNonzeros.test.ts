@@ -237,8 +237,9 @@ describe('a damaged sparse array costs what its bytes hold, not what it declares
     );
     expect(parseMs).toBeLessThan(100);
     // One element under a header that claims a trillion: what it holds is shown, and its
-    // row is read-only, since no writer could write the column index the header declares.
-    expect([node.displayValue, rowsOf(node)]).toEqual(['<1000000x1000000 sparse double>', [['big(1,1)', '1', false]]]);
+    // row is editable, since the column index the header declares past the one column it
+    // backs is 4 MB, which one write's budget of 16 MiB covers.
+    expect([node.displayValue, rowsOf(node)]).toEqual(['<1000000x1000000 sparse double>', [['big(1,1)', '1', true]]]);
     // And a host's dense list the same.
     const [hostNode, hostMs] = timed((): any =>
       MatlabVariableNode.parseMatVariable(
@@ -248,7 +249,7 @@ describe('a damaged sparse array costs what its bytes hold, not what it declares
       ),
     );
     expect(hostMs).toBeLessThan(100);
-    expect(rowsOf(hostNode)).toEqual([['h(1,2)', '7', false]]);
+    expect(rowsOf(hostNode)).toEqual([['h(1,2)', '7', true]]);
   });
 });
 

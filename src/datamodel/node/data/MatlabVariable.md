@@ -232,11 +232,28 @@ an array is written back as the bytes it was read from. Pinned in
 `test/sparseDamaged.test.ts`, in a binary dictionary, a text one and a `.mat`.
 
 What backs a column is the file's own column index, or, for a source with none (this
-package's `sparse` literal, a host's dense list), an element: never the declared count
-alone, since a column index is cols + 1 words whatever the rows. A few columns are free
-for any array (`UNBACKED_COLUMNS_ALLOWED`, 256), so sparse(0, 5), which holds nothing,
-stays sparse wherever it is pasted, while `Matrix(0,134217728)\n[]` is refused before
-anything is allocated. Few, because they are free per array and a file can hold many.
+package's `sparse` literal, a host's dense list or non-zeros), an element: never the
+declared count alone, since a column index is cols + 1 words whatever the rows. What a
+write puts out that nothing backs — those columns, four bytes each; the empty double a cell
+or a struct array writes for each element it declares and does not hold, 56 bytes each; and
+the zeros of a sparse array written full (`_sparseFallback`) — comes out of ONE budget of
+16 MiB for the whole value (`MatWriter.UNBACKED_BYTES_BUDGET`), shared by every array and
+container in it and charged before anything is allocated; past it the encode is refused
+with a catchable `MatWriteError`, and what the refused encode had charged is given back.
+What the value holds never counts. One value is one write however many streams it is
+written as (`MatWriter.oneWrite`, around `DataNode.serialize` and each binary entry's
+Value): a cell refused as one stream and written as XML instead, each sparse element the hex
+of its own, does not get a budget per element. So sparse(0, 5), a host's 1x2e6 with three
+entries, a host's dense 0x1000 and `Matrix(1000,1000)\n[]` are written sparse, while
+`Matrix(0,134217728)\n[]`, a cell of 80,000 0x256 arrays and a cell declaring 1e8 elements
+and holding one are refused, at once. A refused value is written the way a value with no
+stream is (`_serializeArray`, `_serializeArrayXml`): a 0xN array as the full empty of its
+shape, and one whose zeros the budget will not cover as its summary. In a binary dictionary
+the cell of 80,000 is written as XML whose first 16,384 elements are the hex of their own
+streams and the rest the full empty of theirs. An array whose own unbacked index is past
+the budget can never be written, so its rows are read-only (`_sparseRefusal`). Pinned in
+`test/unbackedBudget.test.ts`, `test/unbackedBudgetVenues.test.ts` and
+`test/budgetCellOfLiterals.test.ts`.
 
 ### A sparse array's class is its element class
 `class()` of a sparse double is `double` (`logical`, `single`; complex is still

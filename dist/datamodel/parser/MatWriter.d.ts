@@ -9,6 +9,25 @@ export declare class MatWriteError extends Error {
     constructor(message: string);
 }
 /**
+ * The most bytes one write (oneWrite; outside one, each encodeMatVariable, encodeMatStream,
+ * encodeCdata) puts out that no data it was handed backs. Sized by measuring the worst case
+ * it allows, one value spending all of it — a host's 1x4194305 copied, pasted into a text and
+ * a binary dictionary and saved, cdata and hex included — on node 24: a peak of 0.32 GB for
+ * the copy, 0.67 GB for the text save and 0.73 GB for the binary one, where twice this
+ * peaked at 1.0 and 1.1 GB. Pinned at its value in test/unbackedBudget.test.ts.
+ */
+export declare const UNBACKED_BYTES_BUDGET: number;
+/**
+ * Runs `write` as one write of one value: every encode in it, and every spendUnbacked, shares
+ * one UNBACKED_BYTES_BUDGET. Inside a write already under way it is that write.
+ */
+export declare function oneWrite<T>(write: () => T): T;
+/**
+ * Takes `bytes` of the write's budget for something a writer spells that no data backs, or,
+ * when not that much is left, takes nothing and says no.
+ */
+export declare function spendUnbacked(bytes: number): boolean;
+/**
  * Why encodeSparse refuses `v`, or null when it writes it. Read off the shape, the class and
  * what the non-zeros say backs them — never the non-zeros themselves — so it is asked of a
  * node before it offers an editor (MatlabVariableNode._sparseRefusal): an array no edit of
@@ -21,12 +40,18 @@ export declare class MatWriteError extends Error {
  * index held fewer columns than its dims declare has a damaged dims word (`new Array(2^31)`
  * for one corrupted cols word of a 3 KB hex value, a fatal out-of-memory no caller could
  * catch), and `Matrix(0,134217728)\n[]`, credited its header's columns, was a 512 MB index
- * from 52 characters. A few columns any array may declare for free, so that sparse(0, 5)
- * stays sparse (UNBACKED_COLUMNS_ALLOWED). And no stream holds a column index past what its
- * uint32 size word can say. A value MATLAB wrote is none of these.
+ * from 52 characters. The columns past the backed ones are written out of the write's
+ * budget (UNBACKED_BYTES_BUDGET), so sparse(0, 5) and a host's 1x2e6 with three entries are
+ * written, and refused here is only an array whose unbacked index alone is past all of it.
+ * And no stream holds a column index past what its uint32 size word can say. A value MATLAB
+ * wrote is none of these.
  */
 export declare function sparseWriteRefusal(v: Pick<MatVariable, 'undecoded' | 'dimensions' | 'className' | 'isLogical' | 'sparse' | 'value'>): string | null;
-/** The bytes of one complete `miMATRIX` element: tag, then the matrix body. */
+/**
+ * The bytes of one complete `miMATRIX` element: tag, then the matrix body. It writes no more
+ * than UNBACKED_BYTES_BUDGET that the value does not back, out of the write's budget when one
+ * is under way (oneWrite).
+ */
 export declare function encodeMatVariable(v: MatVariable): Uint8Array;
 /**
  * The `_value` string of a text .sldd `{"_type": "cdata"}` entry: the 8-byte

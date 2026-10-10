@@ -3,7 +3,7 @@ import BaseNode, { encodedHolderOf } from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
-import { textDictionaryForm } from '../parser/MatWriter.js';
+import { oneWrite, textDictionaryForm } from '../parser/MatWriter.js';
 import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
 import { charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, } from '../parser/XmlUtils.js';
@@ -601,20 +601,24 @@ export default class DataNode extends BaseNode {
         // goes out as MATLAB's MAT stream. Everywhere else it stays as it is: a binary
         // dictionary is written from serializeXml, where the text IS its form, and a payload
         // copied out of one keeps it for whichever dictionary it lands in.
-        const raw = this.serializeValue();
-        const json = this._ownerFormat() === 'json';
-        const value = json ? textDictionaryForm(raw) : raw;
-        if (this.isEntry) {
-            return {
-                name: this.name,
-                // The metadata too, for the same reason: an entry read out of a binary dictionary
-                // carries the binary reader's keys, and MATLAB refuses to open a text dictionary
-                // holding one (see textDictionaryMetadata).
-                metadata: json ? textDictionaryMetadata(this.metadata) : this.metadata,
-                value,
-            };
-        }
-        return value;
+        //
+        // One write of one value (MatWriter.oneWrite), however many streams it is written as.
+        return oneWrite(() => {
+            const raw = this.serializeValue();
+            const json = this._ownerFormat() === 'json';
+            const value = json ? textDictionaryForm(raw) : raw;
+            if (this.isEntry) {
+                return {
+                    name: this.name,
+                    // The metadata too, for the same reason: an entry read out of a binary dictionary
+                    // carries the binary reader's keys, and MATLAB refuses to open a text dictionary
+                    // holding one (see textDictionaryMetadata).
+                    metadata: json ? textDictionaryMetadata(this.metadata) : this.metadata,
+                    value,
+                };
+            }
+            return value;
+        });
     }
     /**
      * The format of the file this node is in, as the nearest container above it states it

@@ -24,7 +24,6 @@ import { createSession, parseMat } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { uudecode, uuencode } from '../src/datamodel/parser/CdataCodec.js';
 import { encodeMatStream, matStreamOfElement, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
-import { UNBACKED_COLUMNS_ALLOWED } from '../src/datamodel/parser/SparseData.js';
 import { matFile, sparseVar } from './tools/matBytes.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -124,7 +123,7 @@ describe('a damaged column count in an MCOS-held sparse array opens, as what its
       // Every row under a hex value is read-only, so those `false`s say nothing of the array
       // itself: what does is that no writer would take it.
       expect(pTall._valueNode._sparseRefusal()).toBe(
-        `a sparse array declaring ${cols} columns is backed for 2, and its column index would be words no byte of its source held`,
+        `a sparse array declaring ${cols} columns is backed for 2, and the rest of its column index, ${4 * (cols - 2)} bytes no data backs, is more than one write may put out (16777216)`,
       );
       expect(() => encodeMatStream(pTall._valueNode._var)).toThrow(MatWriteError);
       // Untouched, it is written back byte for byte: a save never re-encodes it.
@@ -257,9 +256,10 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
   // counts what its jc held). A source with no index — this package's own `sparse` literal,
   // a host's dense list — backs a column only with an element: `Matrix(0,134217728)\n[]`,
   // 52 characters, was credited every column its header declared, and pasted into a binary
-  // dictionary and saved it ran the process out of memory (7.1 GB, 18.6 s, fatal). Beyond
-  // that, any array has a few columns for free (UNBACKED_COLUMNS_ALLOWED), so sparse(0, 5),
-  // which MATLAB holds valid, stays sparse wherever it is pasted.
+  // dictionary and saved it ran the process out of memory (7.1 GB, 18.6 s, fatal). The rest
+  // of the index comes out of one write's budget of 16 MiB (MatWriter.UNBACKED_BYTES_BUDGET;
+  // test/unbackedBudget.test.ts), so sparse(0, 5), which MATLAB holds valid, stays sparse
+  // wherever it is pasted.
   const BIG = 134217728;
   const FORMS: { label: string; dims: number[]; jc: number[]; held: boolean }[] = [
     // `held`: whether a file's own index for it, as MATLAB writes one, is this jc.
@@ -269,8 +269,8 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
     { label: '0x0', dims: [0, 0], jc: [0], held: true },
   ];
   const literalOf = (d: number[]) => ({ _type: 'sparse', _value: `Matrix(${d[0]},${d[1]})\n[]` });
-  // A source of no bytes backs no column, but a few come free.
-  const backedWithoutBytes = (d: number[]) => d[1] <= UNBACKED_COLUMNS_ALLOWED;
+  // A source of no bytes backs no column; the budget writes up to 4,194,304 of them.
+  const backedWithoutBytes = (d: number[]) => 4 * d[1] <= 16777216;
   // The pasted entry's own Value element, in what was saved.
   const pastedValue = (saved: string): string => {
     const at = saved.indexOf('<P Name="Name" Class="char">pasted</P>');
@@ -301,17 +301,17 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
       sparse: { row: Int32Array.from([0]), col: Int32Array.from([0]), re: Float64Array.from([5]), im: null, ...extra },
     });
     expect(() => encodeMatStream(host(1))).not.toThrow();
-    expect(() => encodeMatStream(host(1000000))).toThrow(MatWriteError);
-    expect(() => encodeMatStream(host(1000000, { backedColumns: 1000000 }))).not.toThrow();
-    // A few columns come free, and no more.
-    expect(() => encodeMatStream(host(UNBACKED_COLUMNS_ALLOWED))).not.toThrow();
-    expect(() => encodeMatStream(host(UNBACKED_COLUMNS_ALLOWED + 1))).toThrow(MatWriteError);
+    // The rest come out of the budget, 16 MiB: 4,194,304 columns past its one.
+    expect(() => encodeMatStream(host(4194305))).not.toThrow();
+    expect(() => encodeMatStream(host(4194306))).toThrow(MatWriteError);
+    // Unless it says its own index backs them.
+    expect(() => encodeMatStream(host(4194306, { backedColumns: 4194306 }))).not.toThrow();
     // And a dense list handed to the writer itself: with no rows, it backs no column.
     const dense = (d: number[]) => ({ name: '', className: 'double', dimensions: d, isComplex: false, isLogical: false, isSparse: true, value: [], fields: null });
     const [, ms] = timed(() => expect(() => encodeMatStream(dense([0, BIG]))).toThrow(MatWriteError));
     expect(ms).toBeLessThan(1000);
-    expect(() => encodeMatStream(dense([0, UNBACKED_COLUMNS_ALLOWED + 1]))).toThrow(MatWriteError);
-    for (const d of [[0, 5], [5, 0], [0, 0], [0, UNBACKED_COLUMNS_ALLOWED]]) {
+    expect(() => encodeMatStream(dense([0, 4194305]))).toThrow(MatWriteError);
+    for (const d of [[0, 5], [5, 0], [0, 0], [0, 4194304]]) {
       expect(() => encodeMatStream(dense(d)), d.join('x')).not.toThrow();
     }
   });

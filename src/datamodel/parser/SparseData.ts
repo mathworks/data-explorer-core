@@ -39,10 +39,13 @@ import { parseComplexNum, parseMatlabNum } from './XmlUtils.js';
  * this package's `sparse` literal — one column per element it holds. Never the dims alone:
  * a writer writes every column's start whatever the rows, so `Matrix(0,134217728)\n[]`,
  * credited the columns its header declared, was a 512 MB index from 52 characters, and a
- * dims word one corrupted byte turned from 2 columns to 2^31-1 was 8 GB. MatWriter refuses
- * an array that declares more columns than are backed, past the few any array has for free
- * (UNBACKED_COLUMNS_ALLOWED; sparseWriteRefusal), and the node layer offers it no editor. Absent, as on non-zeros a host builds itself, only the
- * entries back columns, one apiece (backedColumnsOf); a host that knows better says so here.
+ * dims word one corrupted byte turned from 2 columns to 2^31-1 was 8 GB. The rest of the
+ * index, the columns past the backed ones, is written out of one budget per encode, shared
+ * with every other array and container in it (MatWriter.UNBACKED_BYTES_BUDGET): an array
+ * whose unbacked index alone is past it can never be written, so MatWriter refuses it
+ * (sparseWriteRefusal) and the node layer offers it no editor. Absent, as on non-zeros a host
+ * builds itself, the entries back columns, one apiece (backedColumnsOf), and the rest come
+ * out of the budget like anyone's; a host that knows better says so here.
  */
 export interface SparseData {
   row: Int32Array;
@@ -54,10 +57,12 @@ export interface SparseData {
 
 /**
  * The most elements this package lays out densely for a sparse array: the writers' fallback,
- * for an array MatWriter cannot write as one (a class or a rank MATLAB never stores
- * sparse), spells every element, and past this many it has nothing to spell them with. A
- * million is the size the reader used to refuse a sparse array past, and the size a 1000x1000
- * is.
+ * for an array MatWriter will not write as one (a class or a rank MATLAB never stores
+ * sparse, or a value past the unbacked-bytes budget), spells every element, and past this
+ * many it has nothing to spell them with. A million is the size the reader used to refuse a
+ * sparse array past, and the size a 1000x1000 is. The zeros come out of the write's budget
+ * too (MatlabVariableNode._sparseFallback), so a value of many such arrays is not a million
+ * zeros apiece.
  */
 export const MAX_DENSE_ELEMENTS = 1000000;
 
@@ -78,21 +83,6 @@ export function cloneSparse(s: SparseData): SparseData {
   }
   return copy;
 }
-
-/**
- * How many columns any sparse array may declare with nothing behind them. A column index is
- * cols + 1 words whatever the rows, so sparse(0, 5) — valid, and holding nothing — has six
- * that no element backs; up to this many are written for free, so such an array stays
- * sparse wherever it goes.
- *
- * Small, because it is free per ARRAY, and a value or a file can hold many arrays. Measured
- * on a cell of `Matrix(0,N)` literals pasted into a binary dictionary and saved: with a
- * million free columns, 25 of them (1.4 KB of text) took 15 s and 7.3 GB, and 50 ran the
- * process out of memory. With 256, 10000 of them (480 KB) take 1.5 s and 1 GB, against
- * 0.2 s and 260 MB for the same cell at 5 columns: the free columns cost a few times what
- * the arrays already cost, and no more.
- */
-export const UNBACKED_COLUMNS_ALLOWED = 256;
 
 /** The columns `s` is backed for: what its source recorded, or one per entry it holds. */
 export function backedColumnsOf(s: SparseData): number {

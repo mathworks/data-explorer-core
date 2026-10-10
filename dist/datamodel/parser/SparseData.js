@@ -19,10 +19,12 @@
 import { parseComplexNum, parseMatlabNum } from './XmlUtils.js';
 /**
  * The most elements this package lays out densely for a sparse array: the writers' fallback,
- * for an array MatWriter cannot write as one (a class or a rank MATLAB never stores
- * sparse), spells every element, and past this many it has nothing to spell them with. A
- * million is the size the reader used to refuse a sparse array past, and the size a 1000x1000
- * is.
+ * for an array MatWriter will not write as one (a class or a rank MATLAB never stores
+ * sparse, or a value past the unbacked-bytes budget), spells every element, and past this
+ * many it has nothing to spell them with. A million is the size the reader used to refuse a
+ * sparse array past, and the size a 1000x1000 is. The zeros come out of the write's budget
+ * too (MatlabVariableNode._sparseFallback), so a value of many such arrays is not a million
+ * zeros apiece.
  */
 export const MAX_DENSE_ELEMENTS = 1000000;
 /** A sparse array of nothing but zeros, backed for `backedColumns` columns when known. */
@@ -41,20 +43,6 @@ export function cloneSparse(s) {
     }
     return copy;
 }
-/**
- * How many columns any sparse array may declare with nothing behind them. A column index is
- * cols + 1 words whatever the rows, so sparse(0, 5) — valid, and holding nothing — has six
- * that no element backs; up to this many are written for free, so such an array stays
- * sparse wherever it goes.
- *
- * Small, because it is free per ARRAY, and a value or a file can hold many arrays. Measured
- * on a cell of `Matrix(0,N)` literals pasted into a binary dictionary and saved: with a
- * million free columns, 25 of them (1.4 KB of text) took 15 s and 7.3 GB, and 50 ran the
- * process out of memory. With 256, 10000 of them (480 KB) take 1.5 s and 1 GB, against
- * 0.2 s and 260 MB for the same cell at 5 columns: the free columns cost a few times what
- * the arrays already cost, and no more.
- */
-export const UNBACKED_COLUMNS_ALLOWED = 256;
 /** The columns `s` is backed for: what its source recorded, or one per entry it holds. */
 export function backedColumnsOf(s) {
     return s.backedColumns ?? s.row.length;
