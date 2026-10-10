@@ -127,10 +127,10 @@ export function buildTypedNodeFromMcos(
 
 /**
  * One warning per value under a decoded object that the reader recorded without
- * decoding — a sparse array too large to materialize, in a Simulink.Parameter's Value or
- * any other property — named the way MATLAB names it (`pTall.Value`, `h.M{2}`), with the
- * reader's reason, as MatParser reports the same value at the top of a .mat or in a
- * struct field. A property is decoded with the object, after the file's own walk, so
+ * decoding — an array declaring more elements than its bytes hold, in a
+ * Simulink.Parameter's Value or any other property — named the way MATLAB names it
+ * (`p.Value`, `h.M{2}`), with the reader's reason, as MatParser reports the same value at
+ * the top of a .mat or in a struct field. A property is decoded with the object, after the file's own walk, so
  * nothing else reports it, and the row alone said only `not decoded`.
  */
 function reportUndecoded(node: BaseNode, path: string, warnings: ParseWarning[]): void {

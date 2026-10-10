@@ -18,8 +18,9 @@ import { decodeMatStream } from '../../parser/MatParser.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
 import { encodeMatStream, matStreamOfElement } from '../../parser/MatWriter.js';
+import { cloneSparse, complexElement, emptySparse, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
-import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, isNonzeroElement, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
+import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
 // The pure rules about a MATLAB VALUE — what class an edit leaves behind, when a
@@ -95,8 +96,7 @@ export default class MatlabVariableNode extends DataNode {
         this._matVar = null;
         this._varStale = false;
         this._isOpaque = false;
-        this._isSparse = false;
-        this._sparseSlots = null;
+        this._sparse = null;
         this._undecoded = false;
         this._opaqueClassName = null;
         this._mcosProperties = null;
@@ -116,8 +116,10 @@ export default class MatlabVariableNode extends DataNode {
         if (this._kind === 'scalar') {
             return this._scalarValue;
         }
+        // A sparse array's elements are not held, its non-zeros are (_sparse), so its value is
+        // its summary, as MatVariable.value is for one.
         if (this._kind === 'array') {
-            return this._liveElements();
+            return this._sparse ? this._formatArray() : this._liveElements();
         }
         if (this._kind === 'string') {
             return this._elements;
@@ -129,19 +131,29 @@ export default class MatlabVariableNode extends DataNode {
             this._scalarValue = v;
         }
     }
+    // Empty for a sparse array, which holds its non-zeros and not its elements (isSparse).
     get elements() {
         return this._elements;
     }
     /**
+     * MATLAB's issparse(): is this a sparse array? One is held as its non-zeros alone
+     * (parser/SparseData), shows its summary, `<10x10 sparse double>`, has one element row per
+     * non-zero, labelled `name(r,c)` in column-major order, and has no Variable Editor grid:
+     * displayElements answers null for it. This is how a host tells one apart, to offer it
+     * no grid in the first place.
+     */
+    get isSparse() {
+        return this._sparse !== null;
+    }
+    /**
      * Every element of this array as it stands, edits included, row-major: the value the
      * writers and the projections read. Off the child rows where they are the elements —
-     * an edit lands in the row first — and off `_elements` otherwise: an array never
-     * expanded, and a sparse one, whose rows are only its non-zeros. A sparse row's edit
-     * reaches `_elements` as it is made (_syncElementFromChild), so the whole value is
-     * there.
+     * an edit lands in the row first — and off `_elements` otherwise, an array never
+     * expanded. Not for a sparse array, whose elements are not held (_sparseFallback says
+     * what its writers do instead).
      */
     _liveElements() {
-        if (this._isSparse || this.children.length === 0) {
+        if (this.children.length === 0) {
             return this._elements;
         }
         return this.children.map(function (c) {
@@ -448,7 +460,7 @@ export default class MatlabVariableNode extends DataNode {
     _formatArray() {
         // A sparse array is its summary at every size, empty included, and never a dense
         // literal (DisplayConvention.sparseSummaryForm says why); its non-zeros are its rows.
-        if (this._isSparse) {
+        if (this._sparse) {
             return sparseSummaryForm(this._dims, this.className);
         }
         const elems = this._liveElements();
@@ -600,20 +612,21 @@ export default class MatlabVariableNode extends DataNode {
      * objects started to decode. The element's ROW shows the object; the grid and the
      * one-line literal show what they always did, and agree with each other.
      *
-     * And one array whose children are not its elements: a sparse one's rows are its
-     * non-zeros, and the grid is still every element, zeros included, each labelled with
-     * both subscripts as its rows are. The grid places a cell by its label and draws
-     * nothing for a matrix with a cell unlabelled, so a list of the non-zeros would leave
-     * every sparse matrix without one. Every row is one of these entries.
-     *
      * null for a kind that has no elements (a scalar, a struct, an object): an empty
      * list is a different and also true answer, meaning an array with nothing in it.
+     *
+     * And null for a sparse array, which offers no grid. Its elements are not held — its
+     * non-zeros are, and they are its rows — so a grid of it would be the one place a sparse
+     * array is laid out densely: spTall's would be twenty million cells. The grid places a
+     * cell by its label and draws nothing for a matrix with a cell unlabelled, so a list of
+     * the non-zeros alone would draw nothing either; a host asks `isSparse` and offers no
+     * grid.
      */
     displayElements() {
-        if (this._kind !== 'array' && this._kind !== 'cell' && this._kind !== 'string') {
+        if ((this._kind !== 'array' && this._kind !== 'cell' && this._kind !== 'string') || this._sparse) {
             return null;
         }
-        if (this.children.length > 0 && !this._isSparse) {
+        if (this.children.length > 0) {
             return this.children.map((c) => ({
                 label: c.displayName,
                 value: this._kind === 'cell' ? this._cellLiteralElement(c) : c.displayValue,
@@ -647,7 +660,7 @@ export default class MatlabVariableNode extends DataNode {
                 scratch._scalarValue = this._elements[i];
             }
             out[i] = {
-                label: subscriptLabel(name, i, dims, order, bracket, this._isSparse),
+                label: subscriptLabel(name, i, dims, order, bracket),
                 value: scratch.displayValue,
             };
         }
@@ -839,14 +852,21 @@ export default class MatlabVariableNode extends DataNode {
     // restored by undo — the value that survives. Leaving it stale silently
     // reverts the user's edit at that point.
     //
-    // A sparse array's k-th row is not its k-th element (_sparseSlots): the row's own
-    // slot is where its edit goes. Into the k-th, it changed a different element than the
-    // one the row is labelled with — and the row's own kept its old value in every save.
+    // A sparse array's k-th row is its k-th non-zero, not its k-th element: that entry of
+    // `_sparse` is where the row's edit goes. Into the k-th element, it changed a different
+    // element than the one the row is labelled with — and the row's own kept its old value
+    // in every save. An edit to 0 leaves the entry in place, holding a zero, so the row still
+    // names it; the writers keep only the non-zeros.
     _syncElementFromChild(child) {
         const idx = this.children.indexOf(child);
-        const slot = this._sparseSlots ? this._sparseSlots[idx] : idx;
-        if (idx >= 0 && slot !== undefined && slot < this._elements.length) {
-            this._elements[slot] = child._scalarValue;
+        if (idx < 0) {
+            return;
+        }
+        if (this._sparse) {
+            setSparseEntry(this._sparse, idx, child._scalarValue);
+        }
+        else if (idx < this._elements.length) {
+            this._elements[idx] = child._scalarValue;
         }
     }
     _applyParsed(parsed) {
@@ -855,8 +875,7 @@ export default class MatlabVariableNode extends DataNode {
         this._rawInput = undefined;
         // A value typed in whole is the full array MATLAB makes of the same literal; only an
         // element edit leaves the array sparse.
-        this._isSparse = false;
-        this._sparseSlots = null;
+        this._sparse = null;
         // And it is a value, not a reader's placeholder for one: left set, a char typed over
         // a value too large to decode displayed without its quotes.
         this._undecoded = false;
@@ -981,7 +1000,7 @@ export default class MatlabVariableNode extends DataNode {
         // one path that has to format an element with no element node to read it off.
         const type = elementType || elementClass(this._scalarType);
         this._elementType = type;
-        if (this._isSparse) {
+        if (this._sparse) {
             this._buildSparseChildren(type);
             return;
         }
@@ -993,44 +1012,26 @@ export default class MatlabVariableNode extends DataNode {
             this.addChild(child);
         }
     }
-    // A sparse array's rows: one per NON-ZERO, in MATLAB's column-major order — the order
-    // its own display lists them in, `(row,col) value` — each labelled with both of its
-    // subscripts (BaseNode.ElementSubscript's `full`), a vector's and a 1x1's too, and
-    // valued as any element row is. An all-zero one has none, and nothing adds one: a
-    // sparse array takes no Add or Remove (canAddChild, canRemoveChild).
+    // A sparse array's rows: one per NON-ZERO — entry k of `_sparse` is row k — in MATLAB's
+    // column-major order, the order its own display lists them in, `(row,col) value`. Each
+    // is labelled with both of its subscripts (BaseNode.ElementSubscript's `at`), a vector's
+    // and a 1x1's too, and valued as any element row is. An all-zero one has none, and
+    // nothing adds one: a sparse array takes no Add or Remove (canAddChild, canRemoveChild).
     //
-    // The value stays `_elements`, every element row-major, because that is what every
-    // writer and every projection reads (_liveElements); each row records which slot of
-    // it is its own (_sparseSlots), which is where an edit to the row goes. A non-zero is
-    // MATLAB's nnz() test (XmlUtils.isNonzeroElement), so it is decided from the values
-    // and holds for every reader the value can come from — MatParser, this package's own
-    // `sparse` literal, the MCOS decoder's stream — none of which has to say which
-    // elements its file stored.
+    // The subscripts are the entry's own, not derived from a linear index: an array of
+    // 1e8x1e8 has elements past 2^53, where a double no longer counts them one by one, and
+    // nothing refuses a sparse array for its declared size any more.
     //
     // The row budget counts rows, so it counts non-zeros: a 1000x1000 with five non-zeros
     // has its five, where its million elements were past the budget and it had none.
     _buildSparseChildren(type) {
-        const d = effectiveDims(this._dims);
-        const rows = d[0];
-        const cols = d.length > 1 ? d[1] : 1;
-        const slots = [];
-        const subscripts = [];
-        for (let c = 0; c < cols; c++) {
-            for (let r = 0; r < rows; r++) {
-                const slot = r * cols + c;
-                if (isNonzeroElement(this._elements[slot])) {
-                    slots.push(slot);
-                    subscripts.push(c * rows + r);
-                }
-            }
-        }
-        this._sparseSlots = slots;
-        if (slots.length > MAX_EXPANDED_ELEMENTS) {
+        const s = this._sparse;
+        if (s.row.length > MAX_EXPANDED_ELEMENTS) {
             return;
         }
-        for (let k = 0; k < slots.length; k++) {
-            const child = MatlabVariableNode._createScalar(this._elements[slots[k]], type, String(k + 1), this);
-            child._subscript = { index: subscripts[k], dims: this._dims, order: 'column-major', bracket: '()', full: true };
+        for (let k = 0; k < s.row.length; k++) {
+            const child = MatlabVariableNode._createScalar(sparseEntry(s, k), type, String(k + 1), this);
+            child._subscript = { at: [s.row[k] + 1, s.col[k] + 1], bracket: '()' };
             this.addChild(child);
         }
     }
@@ -1091,7 +1092,7 @@ export default class MatlabVariableNode extends DataNode {
         // A sparse array's rows are its non-zeros, so there is no element row to add that
         // would not be one: nothing in the tree adds a non-zero. (An empty one is no
         // exception — Add turns an empty `[]` into a struct, which a sparse array is not.)
-        if (this._isSparse) {
+        if (this._sparse) {
             return false;
         }
         if (this._kind === 'scalar' && this._scalarType === 'struct') {
@@ -1200,7 +1201,7 @@ export default class MatlabVariableNode extends DataNode {
         }
         // Nor does a sparse array give one up: removing a non-zero from a vector shortens
         // the array, and the rows left would no longer be the non-zeros of what is left.
-        if (this._isSparse) {
+        if (this._sparse) {
             return false;
         }
         if (this._kind === 'scalar') {
@@ -1468,10 +1469,9 @@ export default class MatlabVariableNode extends DataNode {
         // grades that), and MatWriter writes MATLAB's own bytes for one. The `sparse` literal
         // this used to fall to was right only for a real double MATRIX; through it a complex
         // sparse array read back as an empty 1x0, a column as a row, a non-finite one
-        // reshaped, and a logical or single one full. One too large for the reader to decode
-        // has nothing BUT its stream (_matStream): the arms below would write the text of its
-        // placeholder, as a char.
-        if (effectiveDims(this._dims).length > 2 || this._isComplexValue() || this._isSparse) {
+        // reshaped, and a logical or single one full. Asked first, so that saving one never
+        // has to look at its elements, which are not held.
+        if (this._sparse || effectiveDims(this._dims).length > 2 || this._isComplexValue()) {
             const cdata = this._serializeCdata();
             if (cdata) {
                 return cdata;
@@ -1496,10 +1496,18 @@ export default class MatlabVariableNode extends DataNode {
      * always had to make the same distinction to set `isComplex`, and it asks here so
      * the projection and the serialization cannot disagree about what is complex; a
      * disagreement would mean writing a cdata stream built from a non-complex `_var`.
+     *
+     * A sparse array is the third shape, and says so itself: its non-zeros carry their
+     * imaginary parts or none (SparseData.im). Its complexity used to ride on the text of
+     * its zeros, `0+0i`, which kept it complex after every non-zero was set to a real
+     * number; it has no zeros to hold now.
      */
     _isComplexValue() {
         if (this._scalarType === 'complex') {
             return true;
+        }
+        if (this._sparse) {
+            return this._sparse.im !== null;
         }
         if (this._kind !== 'array') {
             return false;
@@ -1547,12 +1555,13 @@ export default class MatlabVariableNode extends DataNode {
      * package cannot make it. In order:
      *   - the stream it was read from, while that is still the value (a text dictionary's
      *     cdata, untouched or only renamed);
-     *   - for a value the reader recorded without decoding (`_undecoded`: a sparse array
-     *     past MatParser's dense limit), the element it was read from, re-framed as a stream
-     *     (MatWriter.matStreamOfElement) — nothing else holds its values, and without this a
-     *     copy of one out of a .mat wrote the text of its placeholder;
+     *   - for a value the reader recorded without decoding (`_undecoded`), the element it was
+     *     read from, re-framed as a stream (MatWriter.matStreamOfElement) — nothing else holds
+     *     its values, and without this a copy of one out of a .mat wrote the text of its
+     *     placeholder;
      *   - otherwise what MatWriter writes for the live value, which is MATLAB's own bytes for
-     *     a sparse array (MatWriter.encodeSparse); null for what MatWriter refuses.
+     *     a sparse array, written from its non-zeros (MatWriter.encodeSparse); null for what
+     *     MatWriter refuses.
      */
     _matStream() {
         const raw = this._rawInput;
@@ -1571,6 +1580,17 @@ export default class MatlabVariableNode extends DataNode {
         catch (_e) {
             return null;
         }
+    }
+    /**
+     * A sparse array's every element, row-major, as a full array's are held — for the writers'
+     * fallbacks alone (_serializeArray, _serializeArrayXml), which spell a value as a literal
+     * when it has no stream: a sparse array MatWriter will not write, of a class or a rank
+     * MATLAB never stores sparse, which only a damaged file holds. Null past
+     * SparseData.MAX_DENSE_ELEMENTS, where there is nothing to spell the elements with. Never
+     * the value itself, which is the non-zeros.
+     */
+    _sparseFallback() {
+        return this._sparse ? sparseToDense(this._sparse, this._dims) : null;
     }
     _serializeScalar() {
         if (this._scalarType === 'string') {
@@ -1633,15 +1653,28 @@ export default class MatlabVariableNode extends DataNode {
         return this._scalarValue;
     }
     _serializeArray() {
-        if (this._elements.length === 0) {
+        let elems;
+        if (this._sparse) {
+            // Reached only for one with no stream (_sparseFallback). Past what this package lays
+            // out densely, all there is to write is its summary, as for a value not decoded.
+            const dense = this._sparseFallback();
+            if (!dense) {
+                return this._formatArray();
+            }
+            elems = dense;
+        }
+        else {
+            if (this._elements.length === 0) {
+                return [];
+            }
+            if (this.children.length === 0) {
+                return this.serial;
+            }
+            elems = this._liveElements();
+        }
+        if (elems.length === 0) {
             return [];
         }
-        // Not for a sparse array, whose rows are not its elements: one with no rows (all
-        // zero, or past the row budget) still has every element to write.
-        if (this.children.length === 0 && !this._isSparse) {
-            return this.serial;
-        }
-        const elems = this._liveElements();
         const serialType = this.serial?._type;
         if (serialType) {
             return {
@@ -1688,8 +1721,8 @@ export default class MatlabVariableNode extends DataNode {
             // A finite double element is its own bare number (the non-finite went out above),
             // which is all a sparse array's elements can be by here: the bare numbers, then,
             // where its rows are not all of them.
-            if (this._isSparse) {
-                return elems.slice();
+            if (this._sparse) {
+                return elems;
             }
             return this.children.map(function (c) {
                 return c.serializeValue();
@@ -1705,7 +1738,7 @@ export default class MatlabVariableNode extends DataNode {
         // "Matrix(…)"}` back as the sparse double it was (measured), where `double` would
         // make it a full one. Its class used to BE 'sparse', which is how the tag got there;
         // it is 'double' now (MatParser), so the storage is asked for by name.
-        const matrixType = this._isSparse && this._scalarType === 'double' ? 'sparse' : this._scalarType || 'double';
+        const matrixType = this._sparse && this._scalarType === 'double' ? 'sparse' : this._scalarType || 'double';
         return { _type: matrixType, _value: this._buildMatrixString(d, elems, matrixType) };
     }
     // The `_array_type: 'Struct'` form, rebuilt from the tree. Deliberately the same
@@ -1800,7 +1833,7 @@ export default class MatlabVariableNode extends DataNode {
         // entry, but it reads one in each of those three places back as the sparse array it
         // was, values, class and complexity equal (R2027a, measured on sparse_text.sldd's st,
         // c, pSp, pSpComplex and pSpLogical pasted into a binary dictionary this way).
-        if (this._isSparse) {
+        if (this._sparse) {
             const hex = this._hexValue(indent);
             if (hex) {
                 return encodedXml(tagName, attrStr, hex, indent);
@@ -1925,10 +1958,16 @@ export default class MatlabVariableNode extends DataNode {
         if (attrs && attrs.Name) {
             attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
         }
-        if (rows === 0 || cols === 0 || (this._elements.length === 0 && this.children.length === 0)) {
+        if (rows === 0 || cols === 0 || (!this._sparse && this._elements.length === 0 && this.children.length === 0)) {
             return (p + '<' + tagName + attrStr + ' Class="' + (type || 'double') + '" Dimension="' + dimAttr + '"/>');
         }
-        const elems = this._liveElements();
+        // A sparse array reaches here only with no stream to be the hex of (_sparseFallback);
+        // past what this package lays out densely, all there is to write is its summary,
+        // escaped, as for a value not decoded (_serializeScalarXml).
+        const elems = this._sparse ? this._sparseFallback() : this._liveElements();
+        if (!elems) {
+            return p + '<' + tagName + attrStr + ' Class="' + escapeXml(type) + '">' + escapeXml(this._formatArray()) + '</' + tagName + '>';
+        }
         if (this._isComplexValue()) {
             const colMajor = transposeToColumnMajorND(elems, dims);
             const cls = this._complexClass();
@@ -2055,7 +2094,7 @@ export default class MatlabVariableNode extends DataNode {
             className: this._isOpaque ? this._opaqueClassName : matClassName,
             // So MatWriter writes it as sparse storage: its class is a full one's, and the full
             // array it would write otherwise is a different variable (MatWriter.encodeMatVariable).
-            ...(this._isSparse ? { isSparse: true } : {}),
+            ...(this._sparse ? { isSparse: true } : {}),
             dimensions: this._dims.slice(),
             isComplex: false,
             isLogical: this._scalarType === 'logical',
@@ -2133,6 +2172,14 @@ export default class MatlabVariableNode extends DataNode {
                 }
             }
         }
+        else if (this._kind === 'array' && this._sparse) {
+            // Its non-zeros, edits included, as MatParser hands a sparse array over: a copy, so
+            // that a variable handed to a writer or a host is not this node's to change. Complex
+            // when the non-zeros carry imaginary parts, whatever they hold.
+            v.sparse = cloneSparse(this._sparse);
+            v.isComplex = this._sparse.im !== null;
+            v.value = this._formatArray();
+        }
         else if (this._kind === 'array') {
             const elems = this._liveElements();
             if (this._isComplexValue()) {
@@ -2195,11 +2242,11 @@ export default class MatlabVariableNode extends DataNode {
             return MatlabVariableNode._createOpaque(variable, name, parent);
         }
         // A variable the parser RECORDED WITHOUT DECODING (MatParser's `undecoded`): a
-        // pre-MCOS class-3 object, or a sparse matrix whose declared size is past what the
-        // reader materializes. Its value is one placeholder string standing for the whole
-        // variable rather than an element list, so it takes the scalar shape at every
-        // declared size — checked before the class dispatch because the class name is a
-        // real one ('object', 'sparse') and would otherwise route to the numeric arm.
+        // pre-MCOS class-3 object, or an array declaring more elements than its bytes could
+        // hold. Its value is one placeholder string standing for the whole variable rather
+        // than an element list, so it takes the scalar shape at every declared size — checked
+        // before the class dispatch because the class name is a real one ('object', 'double')
+        // and would otherwise route to the numeric arm.
         //
         // It has to be its own arm rather than a fall-through: the numeric arm read the
         // placeholder as a one-element list, so a 1x3 object printed as the MATLAB matrix
@@ -2233,13 +2280,13 @@ export default class MatlabVariableNode extends DataNode {
     // whole value, no children, and no editor (the placeholder is angle-bracketed, which
     // is what BaseNode.valueEditable withholds the editor for). `_scalarType` is the
     // parser's class name, so the DataType column still says what the FILE says the
-    // variable is — 'object', or a too-large sparse array's 'double' — which is the part
-    // that was read.
+    // variable is — 'object', or a damaged array's 'double' — which is the part that was
+    // read. Not sparse, whatever the variable says: a sparse array is its non-zeros, and
+    // this one has none to show.
     static _createUndecoded(variable, name, parent) {
         const node = new MatlabVariableNode(name, parent, {});
         node._rawBytes = variable._rawBytes || null;
         node._matVar = variable;
-        node._isSparse = !!variable.isSparse;
         node._undecoded = true;
         node._kind = 'scalar';
         node._scalarType = variable.className;
@@ -2290,28 +2337,38 @@ export default class MatlabVariableNode extends DataNode {
         const node = new MatlabVariableNode(name, parent, {});
         node._rawBytes = variable._rawBytes || null;
         node._matVar = variable;
-        node._isSparse = !!variable.isSparse;
         const dims = variable.dimensions;
         const totalElements = dims.reduce((a, b) => a * b, 1);
-        // A 1x1 SPARSE array takes the array arms below, not the scalar ones: it shows its
-        // summary like every sparse array, so its one element, when it is not zero, needs the
-        // row a scalar does not have, or its value would be nowhere on screen.
+        // A sparse array is its non-zeros, at every size — a 1x1 and an empty one included,
+        // which are arrays like any other sparse one: it shows its summary, so its one element,
+        // when it is not zero, needs the row a scalar does not have, or its value would be
+        // nowhere on screen. A copy of what was read, so that an edit changes this node and not
+        // the variable an untouched one is written back from (_matVar). A variable a host built
+        // with the dense list instead is read off that.
+        if (variable.isSparse) {
+            node._sparse = variable.sparse
+                ? cloneSparse(variable.sparse)
+                : sparseFromDense(Array.isArray(variable.value) ? variable.value : [variable.value], dims, variable.isComplex);
+            node._kind = 'array';
+            node._scalarType = variable.isLogical ? 'logical' : variable.className;
+            node._dims = dims.slice();
+            node._buildArrayChildren(node._sparse.im ? 'complex' : undefined);
+            return node;
+        }
         if (variable.isComplex) {
             const arr = Array.isArray(variable.value) ? variable.value : [variable.value];
-            if (arr.length === 1 && !variable.isSparse) {
+            if (arr.length === 1) {
                 node._kind = 'scalar';
                 node._scalarType = 'complex';
                 const c = arr[0];
-                node._scalarValue = c.im >= 0 ? c.re + '+' + c.im + 'i' : c.re + '' + c.im + 'i';
+                node._scalarValue = complexElement(c.re, c.im);
                 node._dims = [1, 1];
             }
             else {
                 node._kind = 'array';
                 node._scalarType = variable.className;
                 node._dims = dims.slice();
-                node._elements = arr.map(function (c) {
-                    return c.im >= 0 ? c.re + '+' + c.im + 'i' : c.re + '' + c.im + 'i';
-                });
+                node._elements = arr.map((c) => complexElement(c.re, c.im));
                 node._buildArrayChildren('complex');
             }
             return node;
@@ -2323,7 +2380,7 @@ export default class MatlabVariableNode extends DataNode {
             node._elements = [];
             return node;
         }
-        if (totalElements === 1 && !variable.isSparse) {
+        if (totalElements === 1) {
             node._kind = 'scalar';
             node._scalarType = variable.isLogical ? 'logical' : variable.className;
             node._scalarValue = variable.isLogical ? !!variable.value : variable.value;
@@ -2725,8 +2782,8 @@ export default class MatlabVariableNode extends DataNode {
             }
         }
         // Otherwise the stream _matStream makes, for a sparse array and for a cell holding one:
-        // MATLAB's own bytes (the tests hold MatWriter to that), or for a sparse array too
-        // large to decode the element it was read from. A struct is not written whole: its
+        // MATLAB's own bytes (the tests hold MatWriter to that), written from the non-zeros. A
+        // struct is not written whole: its
         // XML carries each sparse field as that field's own hex element (serializeXml), the
         // form MATLAB was measured reading back, where MatWriter's struct stream is not byte
         // for byte the one MATLAB writes.
@@ -2741,7 +2798,7 @@ export default class MatlabVariableNode extends DataNode {
         // string as a char, and MATLAB read the cell back that way. Its XML writes each
         // element as itself, and each sparse one as a hex element of its own (serializeXml),
         // which MATLAB reads back as the cell it was.
-        if (!this._isSparse && !(this._kind === 'cell' && this._holdsSparse() && !this._holdsEncoded() && this._matWritable())) {
+        if (!this._sparse && !(this._kind === 'cell' && this._holdsSparse() && !this._holdsEncoded() && this._matWritable())) {
             return null;
         }
         const bytes = this._matStream();
@@ -2753,7 +2810,7 @@ export default class MatlabVariableNode extends DataNode {
      * cell and a struct hold values of their own, and an array's children are its elements.
      */
     _holdsSparse() {
-        if (this._isSparse) {
+        if (this._sparse) {
             return true;
         }
         if (this._kind !== 'cell' && this._scalarType !== 'struct') {
@@ -2910,7 +2967,10 @@ export default class MatlabVariableNode extends DataNode {
         // the attribute MATLAB's reader crashes on.
         if (rawVal._type === 'sparse') {
             node._scalarType = 'double';
-            node._isSparse = true;
+            node._dims = [1, parts.length];
+            node._sparse = sparseFromDense(parts.map(parseMatlabNum), node._dims, false);
+            node._buildArrayChildren();
+            return node;
         }
         if (rawVal._type === 'logical') {
             node._elements = parts.map(function (s) {
@@ -2993,7 +3053,7 @@ export default class MatlabVariableNode extends DataNode {
             node._elements = [];
             node._dims = [0, 0];
             node._scalarType = rawVal._type === 'sparse' ? 'double' : rawVal._type;
-            node._isSparse = rawVal._type === 'sparse';
+            node._sparse = rawVal._type === 'sparse' ? emptySparse(false) : null;
             return node;
         }
         const node = new MatlabVariableNode(name, parent, rawVal);
@@ -3003,10 +3063,11 @@ export default class MatlabVariableNode extends DataNode {
         node._dims = parsed.dims.slice();
         node._scalarType = parsed.type;
         // This package's own spelling of an edited sparse double (_serializeArray), read back:
-        // a sparse double, as MATLAB reads it.
+        // a sparse double, as MATLAB reads it — its non-zeros, as every sparse array is held.
         if (parsed.type === 'sparse') {
             node._scalarType = 'double';
-            node._isSparse = true;
+            node._sparse = sparseFromDense(parsed.elements, node._dims, false);
+            node._elements = [];
         }
         node._buildArrayChildren();
         return node;

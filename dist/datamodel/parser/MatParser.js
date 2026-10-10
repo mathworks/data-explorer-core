@@ -3,6 +3,7 @@ import { inflateZlib } from './Inflate.js';
 import { exactInt } from './XmlUtils.js';
 import { reasonOf } from './ParseWarning.js';
 import { isObjectHandle, objectHandleFromValue } from './McosHandle.js';
+import { emptySparse } from './SparseData.js';
 const CLASS_NAMES = {
     1: 'cell', 2: 'struct', 3: 'object', 4: 'char',
     5: 'sparse', 6: 'double', 7: 'single', 8: 'int8',
@@ -177,26 +178,28 @@ function undecodedValue(dimensions, className) {
     const shape = dimensions.length >= 2 ? dimensions : [1, dimensions[0] || 1];
     return '<' + shape.join('x') + ' ' + className + ', not decoded>';
 }
-// A sparse array is the one class whose DECLARED size says nothing about how much
-// data it holds: `sparse(1e6, 1e6)` with three non-zeros declares 1e12 elements.
-// Materializing that is not merely a slow path — it is `new Array(1e12)` throwing
-// "Invalid array length" out of a reader no caller catches, so one variable would
-// fail the whole file open, which is the failure mode every clamp in this file
-// exists to prevent. Above this many elements the dense form is refused through the
-// same `undecoded` channel class 3 uses, rather than being silently truncated.
+// A sparse array's `value`: its summary, `<10000000x2 sparse double>` — the spelling of
+// DisplayConvention.sparseSummaryForm, spelled here for the reason undecodedValue gives.
+function sparseValue(dimensions, className) {
+    const shape = dimensions.length >= 2 ? dimensions : [1, dimensions[0] || 1];
+    return '<' + shape.join('x') + ' sparse ' + className + '>';
+}
+// Past this many DECLARED elements, an array whose bytes cannot hold that many is recorded
+// rather than read (the guard in parseMatrix): the node layer builds one row per declared
+// element, so a dims word of 0x7FFFFFFF in a two-element struct array — one corrupted byte
+// of a dictionary's hex value — ran the heap out and took the process with it. A sparse
+// array is not subject to it: what it holds is its non-zeros, read from the bytes, at any
+// declared size (readSparse).
 //
-// The number is a judgment call, and this is the reasoning behind it: 1e6 doubles is
-// an 8 MB array, roughly a 1000x1000 matrix, and the display summarizes anything
-// over ten elements to `<1000x1000 double>` whatever the values are — so past this
-// point the dense form costs memory to produce something no user can see. The
-// general version of this problem is docs/TODO.md item 14 ("Nothing is lazy"), which
-// every other class shares; sparse is only the class where the gap between declared
-// and stored size makes it reachable from a small file.
-const SPARSE_MAX_DENSE_ELEMENTS = 1000000;
-// The non-zeros of a sparse array, scattered into the dense row-major list every
-// other numeric class produces. Subelement layout, from the MAT-file format spec
-// (Level 5, sparse arrays) — the two index arrays sit between the name and the
-// payload, where a full array has nothing:
+// The number is a judgment call: 1e6 doubles is an 8 MB array, roughly a 1000x1000
+// matrix, and below it a short array stays the clamped read it always was. It was the
+// limit past which a sparse array, too, was refused, until a sparse array stopped being
+// held as its dense form.
+const MAX_UNBACKED_ELEMENTS = 1000000;
+// The non-zeros of a sparse array, as MATLAB's find() lists them: column by column, and
+// within a column by row. Subelement layout, from the MAT-file format spec (Level 5,
+// sparse arrays) — the two index arrays sit between the name and the payload, where a
+// full array has nothing:
 //
 //   array flags   miUINT32   8 bytes            byte 0 class (5), byte 1 flags,
 //                                               BYTES 4-7 nzmax (uint32)
@@ -221,7 +224,19 @@ const SPARSE_MAX_DENSE_ELEMENTS = 1000000;
 // each being whatever was in the reserved space. jc is what says which are real: the
 // column walk below visits only ir[jc[0] .. jc[cols]-1], so the reserved tail is
 // never read as a value. An implementation that zipped ir with pr directly, or that
-// took ir.length for the non-zero count, would scatter that tail into the matrix.
+// took ir.length for the non-zero count, would put that tail in the matrix.
+//
+// Nothing here is sized by the DECLARED shape, because nothing else bounds it: the walk
+// covers the columns jc actually holds, and an index array is read only as the integers
+// MATLAB writes it as. A dims word of 0x7FFFFFFF — one corrupted byte of a hex value —
+// would otherwise walk two billion columns, or allocate two billion zeros for a jc of a
+// type with no width (readNumericArray reads one of those as `count` zeros).
+//
+// What comes back is what MATLAB's find() would say of the matrix the bytes describe,
+// which a file MATLAB wrote already is and a hand-made one may not be: a row index
+// outside the declared rows is dropped, rows repeated within a column keep the LAST value
+// (as the dense scatter this replaced had it), rows out of order are sorted, and a stored
+// zero is not a non-zero.
 function readSparse(view, offset, end, dimensions, isComplex, nzmax) {
     const rows = Math.max(0, dimensions[0] || 0);
     const cols = Math.max(0, dimensions[1] || 0);
@@ -229,20 +244,24 @@ function readSparse(view, offset, end, dimensions, isComplex, nzmax) {
     // full-array branch guards its real and imaginary payloads. A variable truncated
     // after its indices — or after its dimensions — leaves the arrays below empty
     // rather than reading the next variable's tag as this one's data, and every empty
-    // one degrades cleanly: no ir means no scatter, so the matrix comes back all
+    // one degrades cleanly: no ir means no non-zeros, so the matrix comes back all
     // zeros, which is the honest reading of a sparse array whose non-zeros are absent.
     let ir = [];
     if (offset < end) {
         const irSub = readSubelement(view, offset);
         offset += irSub.totalSize;
-        const irCount = Math.floor(irSub.bytes / 4);
-        ir = readNumericArray(view, irSub, nzmax > 0 ? Math.min(nzmax, irCount) : irCount).map(Number);
+        if (INTEGER_DATA_TYPES.has(irSub.type)) {
+            const irCount = Math.floor(irSub.bytes / 4);
+            ir = readNumericArray(view, irSub, nzmax > 0 ? Math.min(nzmax, irCount) : irCount).map(Number);
+        }
     }
     let jc = [];
     if (offset < end) {
         const jcSub = readSubelement(view, offset);
         offset += jcSub.totalSize;
-        jc = readNumericArray(view, jcSub, cols + 1).map(Number);
+        if (INTEGER_DATA_TYPES.has(jcSub.type)) {
+            jc = readNumericArray(view, jcSub, cols + 1).map(Number);
+        }
     }
     // nnz is jc[cols] BY DEFINITION — the column-start array ends with the total —
     // and it is what pr's length must be read against. A jc that came back short was
@@ -261,36 +280,65 @@ function readSparse(view, offset, end, dimensions, isComplex, nzmax) {
         offset += piSub.totalSize;
         pi = readNumericArray(view, piSub, nnz);
     }
-    const total = rows * cols;
-    const dense = new Array(total);
-    for (let i = 0; i < total; i++) {
-        // A fresh object per cell rather than one shared zero: nothing downstream
-        // mutates an element today, but a shared reference across every zero of a
-        // matrix is a trap to leave lying around for whatever does next.
-        dense[i] = isComplex ? { re: 0, im: 0 } : 0;
-    }
-    // No transpose call here, unlike every other numeric branch. transposeFromColMajor
-    // exists because a full array arrives as one flat column-major run with the
-    // (row, column) pair implied by position; a sparse array states the row in ir and
-    // the column in the jc walk, so the same reordering is the one index expression
-    // `row * cols + col` and there is nothing left to reorder afterwards.
-    for (let col = 0; col < cols; col++) {
-        const from = Math.max(0, jc[col] ?? 0);
-        const to = Math.min(jc[col + 1] ?? from, nnz);
-        for (let k = from; k < to; k++) {
-            const row = ir[k];
-            // A row index outside the declared rows is a corrupt file, not a value:
-            // writing it would either land in another column's cell or extend the
-            // array past its own dimensions.
-            if (!(row >= 0 && row < rows)) {
-                continue;
+    // At most nnz entries, which ir's own bytes bound.
+    const rowOut = new Int32Array(nnz);
+    const colOut = new Int32Array(nnz);
+    const reOut = new Float64Array(nnz);
+    const imOut = isComplex ? new Float64Array(nnz) : null;
+    let n = 0;
+    const keep = (row, col, k) => {
+        const re = Number(pr[k] ?? 0);
+        const im = isComplex ? Number(pi[k] ?? 0) : 0;
+        // `!== 0` is true of NaN and false of -0, which is MATLAB's rule for both.
+        if (re === 0 && im === 0) {
+            return;
+        }
+        rowOut[n] = row;
+        colOut[n] = col;
+        reOut[n] = re;
+        if (imOut) {
+            imOut[n] = im;
+        }
+        n++;
+    };
+    const walked = Math.min(cols, Math.max(0, jc.length - 1));
+    for (let col = 0; col < walked; col++) {
+        const from = Math.max(0, jc[col]);
+        const to = Math.min(jc[col + 1], nnz);
+        if (!(to > from)) {
+            continue;
+        }
+        // MATLAB's own column: every row in range, ascending, none twice — kept as it is.
+        let ordinary = true;
+        for (let k = from, last = -1; k < to && ordinary; k++) {
+            ordinary = ir[k] > last && ir[k] < rows;
+            last = ir[k];
+        }
+        if (ordinary) {
+            for (let k = from; k < to; k++) {
+                keep(ir[k], col, k);
             }
-            dense[row * cols + col] = isComplex
-                ? { re: pr[k] ?? 0, im: pi[k] ?? 0 }
-                : (pr[k] ?? 0);
+            continue;
+        }
+        // Anything else: a row outside the declared rows dropped, as a corrupt file and not
+        // a value — kept, it would land in another column or past the array's own
+        // dimensions — and each remaining row once, at the last entry naming it, in order.
+        const lastEntry = new Map();
+        for (let k = from; k < to; k++) {
+            if (ir[k] >= 0 && ir[k] < rows) {
+                lastEntry.set(ir[k], k);
+            }
+        }
+        for (const row of [...lastEntry.keys()].sort((a, b) => a - b)) {
+            keep(row, col, lastEntry.get(row));
         }
     }
-    return dense;
+    return {
+        row: rowOut.slice(0, n),
+        col: colOut.slice(0, n),
+        re: reOut.slice(0, n),
+        im: imOut ? imOut.slice(0, n) : null,
+    };
 }
 // A class-17 (MCOS opaque) element is four parts after its array flags: the variable
 // name, the type-system marker ("MCOS"), the class name, and the object handle — a
@@ -453,16 +501,16 @@ export function parseMatrix(view, baseOffset, length) {
     // A declared size no bytes here could hold. Every element of a full array, of a cell,
     // and of a struct array with a field takes at least a byte of this element (a cell's
     // an 8-byte tag apiece, a struct's one per field), so an array declaring more elements
-    // than it has bytes left is a damaged one, whatever its class. Past the size this
-    // reader materializes it is recorded rather than read, as the sparse arm below records
-    // a sparse array of that size: the clamps keep the READ inside the bytes, but the node
-    // layer builds one row per DECLARED element, so a dimension word of 0x7FFFFFFF in a
+    // than it has bytes left is a damaged one, whatever its class. Past MAX_UNBACKED_ELEMENTS
+    // it is recorded rather than read: the clamps keep the READ inside the bytes, but the
+    // node layer builds one row per DECLARED element, so a dimension word of 0x7FFFFFFF in a
     // struct array of two elements — one corrupted byte of a dictionary's hex value — ran
     // the heap out and took the whole process with it. Below that size a short array stays
     // the clamped read it always was, and so does a struct array with no fields, whose
-    // elements take no bytes at all.
+    // elements take no bytes at all. A sparse array's elements take no bytes either — its
+    // non-zeros do, and readSparse reads only those.
     const bytesLeft = Math.max(0, end - offset);
-    if (!isSparse && arrayClass !== 3 && totalElements > SPARSE_MAX_DENSE_ELEMENTS && totalElements > bytesLeft
+    if (!isSparse && arrayClass !== 3 && totalElements > MAX_UNBACKED_ELEMENTS && totalElements > bytesLeft
         && !(arrayClass === 2 && structFieldCount(view, offset, end) === 0)) {
         result.value = undecodedValue(dimensions, className);
         result.undecoded =
@@ -470,50 +518,34 @@ export function parseMatrix(view, baseOffset, length) {
         return result;
     }
     if (isSparse) {
-        // PRESENTED DENSE, and that is the decision in this branch worth recording.
+        // HELD AS ITS NON-ZEROS, and that is the decision in this branch worth recording.
         //
-        // The alternative was to expose the triplets — value: { ir, jc, pr } — which
-        // is the storage and is what a numerical consumer would want. It is the wrong
-        // answer for this package twice over. Every consumer of MatVariable.value
-        // understands exactly ONE shape, a flat row-major element list matching
-        // `dimensions`: MatlabVariableNode's numeric arm, the display formatters, the
-        // XML and JSON writers, the DTO. Triplets would need a fifth `_kind` in that
-        // node's state machine, its own formatter, its own child-row rule and its own
-        // serializer — a lot of new surface for a shape nothing renders, in a package
-        // whose job is display and fidelity rather than arithmetic. And a user opening
-        // a .mat wants to see the matrix: dense, a sparse matrix reads as the matrix it
-        // is, sorts and copies like every other one, and its zeros are real zeros. (The
-        // node layer SHOWS the non-zeros alone, one row each, and finds them in this
-        // list — MatlabVariableNode._buildSparseChildren — which every writer still
-        // reads whole.)
+        // It used to be presented dense: the non-zeros scattered into the flat row-major
+        // element list every other numeric class produces, because every consumer of
+        // MatVariable.value understood that one shape. A sparse array's declared size says
+        // nothing about what it holds, though, so that list cost what the array DECLARES —
+        // a million zeros for spBig's five non-zeros, and for `sparse(1e7, 2)`, which MATLAB
+        // stores in 120 bytes, twenty million, which this reader refused past a million
+        // elements instead of materializing. So the non-zeros are the value now, in
+        // `sparse`, and nothing here or in the node layer lays them out densely: a sparse
+        // array is shown as its summary and one row per non-zero, edited a non-zero at a
+        // time and written from the non-zeros.
         //
-        // What the dense list cannot say is that the file stored it sparse, and that
-        // survives as `isSparse`, beside the class MATLAB gives the value. It used to
-        // survive in `className` instead, as 'sparse' — the file's word for the
-        // storage, shown in every Class and Data Type cell and every summary, where
-        // MATLAB's class() says double (measured on every sparse array in
+        // That the file stored it sparse survives as `isSparse`, beside the class MATLAB
+        // gives the value. It used to survive in `className` instead, as 'sparse' — the
+        // file's word for the storage, shown in every Class and Data Type cell and every
+        // summary, where MATLAB's class() says double (measured on every sparse array in
         // test/fixtures/sparse). `isSparse` is also what sends MatWriter to its sparse
-        // encoder, which writes the dense list back as MATLAB's ir/jc/pr — required,
-        // because writing it back as a full array would silently change the
-        // variable's storage in the file, and a class of 'double' alone would let the
-        // writer do exactly that.
+        // encoder, which writes the non-zeros back as MATLAB's ir/jc/pr — required,
+        // because writing the array back full would silently change the variable's storage
+        // in the file, and a class of 'double' alone would let the writer do exactly that.
+        //
+        // `value` is the summary, as `undecoded`'s placeholder is the value of what was not
+        // read: a host that renders values without knowing about `sparse` still shows
+        // something true. A 1x1 is not unwrapped to a scalar: it has no list to unwrap.
         const nzmax = flagsSub.bytes >= 8 ? view.getUint32(flagsSub.dataOffset + 4, true) : 0;
-        if (totalElements > SPARSE_MAX_DENSE_ELEMENTS) {
-            // `<10000000x2 sparse double, not decoded>`: the storage in the placeholder as
-            // it is in every sparse array's summary (DisplayConvention.sparseSummaryForm,
-            // which a parser does not import — see undecodedValue).
-            result.value = undecodedValue(dimensions, 'sparse ' + className);
-            result.undecoded =
-                'sparse array of ' + totalElements + ' elements: larger than this reader materializes ('
-                    + SPARSE_MAX_DENSE_ELEMENTS + ' elements), and its non-zeros are not read';
-        }
-        else if (offset < end) {
-            const dense = readSparse(view, offset, end, dimensions, isComplex, nzmax);
-            // Unwrapped for a 1x1 exactly as the numeric branch below unwraps, and NOT
-            // unwrapped when complex, also as below: the complex arm downstream reads
-            // a list and collapses a single pair itself.
-            result.value = isComplex ? dense : (dense.length === 1 ? dense[0] : dense);
-        }
+        result.sparse = offset < end ? readSparse(view, offset, end, dimensions, isComplex, nzmax) : emptySparse(isComplex);
+        result.value = sparseValue(dimensions, className);
     }
     else if (arrayClass >= 6 && arrayClass <= 15) {
         if (offset < end) {
@@ -650,10 +682,9 @@ export function parseMatrix(view, baseOffset, length) {
                 const child = parseMatrix(view, offset + 8, childLength(view, cellSub, offset, end));
                 // A value recorded without being decoded has nothing to be written from
                 // but the bytes it was read from (MatWriter.matStreamOfElement), so it
-                // keeps them, as a struct field does: a sparse array too large to
-                // materialize, copied out of a cell — or out of an MCOS property, whose
-                // values are a cell's elements — went into a dictionary as the text of
-                // its placeholder, or as [].
+                // keeps them, as a struct field does: copied out of a cell — or out of an
+                // MCOS property, whose values are a cell's elements — it went into a
+                // dictionary as the text of its placeholder, or as [].
                 if (child.undecoded) {
                     const rawLen = Math.min(cellSub.totalSize, view.byteLength - offset);
                     child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + offset, Math.max(0, rawLen));

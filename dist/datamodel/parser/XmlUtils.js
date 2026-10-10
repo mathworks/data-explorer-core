@@ -100,26 +100,6 @@ export function parseComplexNum(text, type) {
     };
     return { re: part(m[1]), im: part(m[2]) };
 }
-/**
- * MATLAB's nnz() test of one element, in whichever form a layer holds it: a number, a
- * boolean, an exact 64-bit token, a `{ re, im }` pair, or complex text (`'0-3i'`). NaN is a
- * non-zero and -0 is not, as MATLAB has both — sparse(NaN) holds one element, sparse(-0)
- * none — and as MatWriter's sparse encoder decides what it stores.
- */
-export function isNonzeroElement(x) {
-    if (typeof x === 'boolean') {
-        return x;
-    }
-    if (x !== null && typeof x === 'object' && 're' in x) {
-        const c = x;
-        return Number(c.re) !== 0 || Number(c.im ?? 0) !== 0;
-    }
-    if (typeof x === 'string') {
-        const c = parseComplexNum(x);
-        return c ? Number(c.re) !== 0 || Number(c.im) !== 0 : Number(x) !== 0;
-    }
-    return Number(x) !== 0;
-}
 // The numeric classes besides double, which is the class a complex value has when its
 // envelope says nothing.
 const NON_DOUBLE_NUMERIC_CLASS = /^(?:single|u?int(?:8|16|32|64))$/;

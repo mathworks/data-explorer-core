@@ -200,16 +200,17 @@ const SPARSE_STREAMS = sparseStreams('./fixtures/sparse/sparse_text.sldd');
 describe('MatWriter writes a sparse array as MATLAB does', () => {
   for (const s of SPARSE_STREAMS) {
     it(`writes ${s.name} byte-for-byte`, () => {
+      // From the non-zeros the reader holds, at any size: spTall, 10000000x2, was past the
+      // reader's dense limit until 1.36.3, so there was nothing to write it from.
       const { variable } = readStream(s.value);
-      // spTall is past the reader's dense limit: its values were never read, so there is
-      // nothing to write it from, and the writer says so rather than writing the placeholder.
-      if (variable.undecoded) {
-        expect(() => encodeCdata(variable)).toThrow(MatWriteError);
-        return;
-      }
+      expect([variable.undecoded, !!variable.sparse]).toEqual([undefined, true]);
       expect(encodeCdata(variable)).toBe(s.value);
     });
   }
+
+  it('spTall among them', () => {
+    expect(SPARSE_STREAMS.map((s) => s.name)).toContain('spTall');
+  });
 
   it('covers every kind of sparse array the fixture holds', () => {
     const kinds = new Set(
@@ -232,7 +233,39 @@ describe('MatWriter writes a sparse array as MATLAB does', () => {
     };
     const el = encodeMatVariable(v);
     expect(new DataView(el.buffer, el.byteOffset, el.byteLength).getUint32(20, true)).toBe(2);
-    expect(readElement(el).value).toEqual([NaN, 0, 0, 3]);
+    const back = readElement(el).sparse!;
+    expect([[...back.col], [...back.re]]).toEqual([
+      [0, 3],
+      [NaN, 3],
+    ]);
+    // The same from non-zeros held as such, one of them edited to 0 and one to -0: they
+    // are entries, and they are not written.
+    const held = encodeMatVariable({
+      ...v,
+      value: '<1x4 sparse double>',
+      sparse: { row: Int32Array.from([0, 0, 0, 0]), col: Int32Array.from([0, 1, 2, 3]), re: Float64Array.from([NaN, -0, 0, 3]), im: null },
+    });
+    expect(held).toEqual(el);
+  });
+
+  it('writes non-zeros only in MATLAB\'s order, inside the array', () => {
+    // A store a host built out of order, twice at one subscript, or past the array, would be
+    // a stream MATLAB reads as something else.
+    const at = (row: number[], col: number[]): MatVariable => ({
+      name: '', className: 'double', dimensions: [2, 2], isComplex: false, isLogical: false, isSparse: true, value: '<2x2 sparse double>', fields: null,
+      sparse: { row: Int32Array.from(row), col: Int32Array.from(col), re: Float64Array.from(row.map(() => 1)), im: null },
+    });
+    expect(() => encodeMatVariable(at([1, 0], [0, 0]))).toThrow(MatWriteError);
+    expect(() => encodeMatVariable(at([0, 0], [1, 0]))).toThrow(MatWriteError);
+    expect(() => encodeMatVariable(at([0, 0], [0, 0]))).toThrow(MatWriteError);
+    expect(() => encodeMatVariable(at([2], [0]))).toThrow(MatWriteError);
+    expect(() => encodeMatVariable(at([0], [2]))).toThrow(MatWriteError);
+    // The control: in order, it is written.
+    const back = readElement(encodeMatVariable(at([0, 1, 0], [0, 0, 1]))).sparse!;
+    expect([[...back.row], [...back.col]]).toEqual([
+      [0, 1, 0],
+      [0, 0, 1],
+    ]);
   });
 });
 
@@ -266,7 +299,7 @@ describe('MatWriter refuses what the format cannot carry', () => {
     expect(() => encodeMatVariable({ ...sparse, value: [1, 0, 2] })).toThrow(MatWriteError);
     // And what it can, it writes as sparse storage, not as the full array.
     const written = readElement(encodeMatVariable(sparse));
-    expect([written.isSparse, written.className, written.value]).toEqual([true, 'double', [1, 0, 0, 2]]);
+    expect([written.isSparse, written.className, written.value, [...written.sparse!.re]]).toEqual([true, 'double', '<2x2 sparse double>', [1, 2]]);
   });
 
   it('throws when the element count contradicts the declared dimensions', () => {

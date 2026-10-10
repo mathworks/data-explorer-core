@@ -1,8 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import { parseMatrix } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
-import { encodeCdata, matStreamOfElement } from './MatWriter.js';
-import { uuencode } from './CdataCodec.js';
+import { encodeCdata } from './MatWriter.js';
 import { complexClassTag, formatComplexNum, formatMatrixSerial, isExactToken, transposeToColumnMajorND, } from './XmlUtils.js';
 const MI_MATRIX = 14;
 const MAX_RECURSION_DEPTH = 32;
@@ -326,25 +325,16 @@ function resolveValue(cell, ctx, path, depth) {
     // twin, a stream, showed the sparse array it is — and a copy of the Parameter into a
     // dictionary wrote it full. It is handed over as that stream: the cdata a text
     // dictionary holds for the same Value, character for character (MatWriter.encodeSparse
-    // writes MATLAB's own bytes for one), read by the node layer as the twin's is. One the
-    // encoder refuses — too large for the reader to have decoded — takes the arms below,
-    // as it did.
+    // writes MATLAB's own bytes for one, from the non-zeros MatParser read), read by the node
+    // layer as the twin's is — at any size, spTall's 10000000x2 included. One the encoder
+    // refuses, of a class or a rank MATLAB never stores sparse, is nothing: its values are
+    // its non-zeros, which none of the arms below reads.
     if (cell.isSparse) {
-        // One too large for MatParser to have decoded has no values to encode, but the bytes
-        // it was read from are that very stream (MatWriter.matStreamOfElement): handed over
-        // as them, it is the placeholder its text twin shows, and is copied into a dictionary
-        // as MATLAB wrote it. Spelled by the arms below it was an empty array.
-        if (cell.undecoded) {
-            const stream = cell._rawBytes ? matStreamOfElement(cell._rawBytes) : null;
-            if (stream) {
-                return { _type: 'cdata', _value: uuencode(stream) };
-            }
-        }
         try {
             return { _type: 'cdata', _value: encodeCdata(cell) };
         }
         catch {
-            // As before.
+            return undefined;
         }
     }
     // Before the numeric arms below, every one of which would pass the { re, im } pairs

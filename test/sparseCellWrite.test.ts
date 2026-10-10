@@ -45,7 +45,7 @@ const shape = (node: any): unknown => ({
   cls: node.className,
   dims: node.dims,
   shown: node.displayValue,
-  sparse: !!node._isSparse,
+  sparse: !!node.isSparse,
   children: node.children.map(shape),
 });
 
@@ -107,10 +107,18 @@ describe('a cell holding a sparse array beside a value MatWriter cannot write go
     const objs = mat.children.find((e: any) => e.name === 'objs');
     expect([objs.constructor.name, objs._matWritable()]).toEqual(['MatlabVariableNode', false]);
     expect(objs.children.find((c: any) => c.name === 'sp')._matWritable()).toBe(true);
+    // A sparse array of any size is written from its non-zeros: spTall, once too large to
+    // decode, is not a placeholder.
     const values: any = ingest(createSession(), buffer(fixture('sparse_values.mat')), { filename: 'sparse_values.mat' });
     const spTall = values.children.find((e: any) => e.name === 'spTall');
-    expect([spTall._undecoded, spTall._matWritable()]).toEqual([true, false]);
+    expect([spTall._undecoded, spTall._matWritable()]).toEqual([false, true]);
     expect(values.children.find((e: any) => e.name === 'spDiag')._matWritable()).toBe(true);
+    const placeholder = MatlabVariableNode.parseMatVariable(
+      { name: 'o', className: 'object', dimensions: [1, 1], isComplex: false, isLogical: false, value: '<1x1 object, not decoded>', undecoded: 'not read', fields: null },
+      'o',
+      null,
+    ) as any;
+    expect([placeholder._undecoded, placeholder._matWritable()]).toEqual([true, false]);
     const strings: any = ingest(createSession(), buffer(new Uint8Array(readFileSync(fileURLToPath(new URL('./fixtures/strings.mat', import.meta.url))))), { filename: 'strings.mat' });
     const string = strings.children.find((e: any) => e._isOpaque);
     expect([string.className, string._matWritable()]).toEqual(['string', false]);

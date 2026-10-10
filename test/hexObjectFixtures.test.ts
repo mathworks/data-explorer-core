@@ -151,47 +151,44 @@ describe('a struct-array property of an MCOS object keeps every element', () => 
   }
 });
 
-describe('a sparse array too large to decode, inside an MCOS property or a cell element', () => {
+describe('a sparse array of 20 million elements, inside an MCOS property or a cell element', () => {
   // pTall is a Simulink.Parameter whose Value is sparse(…, 10000000, 2) with two
-  // non-zeros, past what MatParser materializes; cTall holds the same array as a cell
-  // element. A bare one shows the reader's placeholder in every venue. Inside a property
-  // it showed `[ ]` out of the .mat and the binary dictionary, with no warning — the MCOS
-  // decoder spelled it as an empty array — where its text twin showed the placeholder;
-  // and copied into a dictionary, either was written as `[]` or as the placeholder's text.
-  const PLACEHOLDER = '<10000000x2 sparse double, not decoded>';
+  // non-zeros; cTall holds the same array as a cell element. Until 1.36.3 such an array
+  // was past what MatParser materialized: a bare one showed the reader's placeholder,
+  // `<10000000x2 sparse double, not decoded>`, and so did these, with no rows and, out of
+  // the .mat, a part-unreadable warning each. Inside a property it had shown `[ ]` before
+  // that, with no warning — the MCOS decoder spelled it as an empty array — and copied into
+  // a dictionary either was written as `[]` or as the placeholder's text. Held as its
+  // non-zeros, it is read like any sparse array, everywhere.
+  const SUMMARY = '<10000000x2 sparse double>';
   // The Parameter's value node, which is its Value row when it has one.
   const valueOf = (root: any) => root.children.find((e: any) => e.name === 'pTall')._valueNode;
   const cellOf = (root: any) => root.children.find((e: any) => e.name === 'cTall').children[0];
+  const rows = (node: any) => node.children.map((c: any) => `${c.displayName}=${c.displayValue}`);
 
   for (const file of ['hexobj_text.sldd', 'hexobj_binary.sldd', 'hexobj_values.mat']) {
-    it(`${file}: the placeholder, read-only, with no rows`, () => {
+    it(`${file}: its summary and its two non-zeros, as rows`, () => {
       const root = variablesOf(file);
       for (const [what, node] of [['pTall.Value', valueOf(root)], ['cTall{1}', cellOf(root)]] as const) {
-        expect([node.className, node.displayValue, node.children.length, node.valueEditable, node._isSparse], `${file} ${what}`).toEqual([
-          'double',
-          PLACEHOLDER,
-          0,
-          false,
-          true,
-        ]);
+        expect([node.className, node.displayValue, node.valueEditable, node.isSparse], `${file} ${what}`).toEqual(['double', SUMMARY, false, true]);
       }
+      expect(rows(valueOf(root)), file).toEqual(['Value(1,1)=7', 'Value(9999999,2)=8']);
+      expect(rows(cellOf(root)), file).toEqual(['cTall{1}(1,1)=7', 'cTall{1}(9999999,2)=8']);
       const pTall = root.children.find((e: any) => e.name === 'pTall');
-      expect(pTall.displayValue, file).toBe(PLACEHOLDER);
-      // No Value row: it has no element rows, and no grid to offer (ParameterNode._needsValueRow).
-      expect(pTall.children, file).toEqual([]);
+      expect(pTall.displayValue, file).toBe(SUMMARY);
+      // A Value row, as for any Value with rows (ParameterNode._needsValueRow).
+      expect(pTall.children, file).toEqual([valueOf(root)]);
     });
   }
 
-  it('the .mat says so, for the property as for the cell element', () => {
-    const root: any = open('hexobj_values.mat');
-    const parts = root.warnings.map((w: any) => w.part).sort();
-    expect(parts).toEqual(['cTall{1}', 'pTall.Value']);
-    expect(root.warnings.find((w: any) => w.part === 'pTall.Value').message).toContain('larger than this reader materializes');
+  it('the .mat has nothing to say about either', () => {
+    // A warning is absent when there is nothing to report.
+    expect(open('hexobj_values.mat').warnings).toBeUndefined();
   });
 
   it('copied out of the .mat into either dictionary, it is the stream MATLAB wrote for it', () => {
-    // There is no value here to write it from but the bytes it was read from, re-framed as
-    // a stream: what MATLAB's own text dictionary holds for the same value.
+    // Written from its two non-zeros, byte for byte what MATLAB's own text dictionary holds
+    // for the same value.
     const session = createSession();
     const mat = open('hexobj_values.mat', session);
     const text = open('hexobj_text.sldd', session);
@@ -209,14 +206,15 @@ describe('a sparse array too large to decode, inside an MCOS property or a cell 
       for (const root of [text, binary]) {
         const pasted = root.getSection('design').parseEntry({ name: name + 'Copy', metadata: { uuid: `00000000-0000-4000-f000-${String(++seq).padStart(12, '0')}` }, value });
         const node = name === 'pTall' ? pasted._valueNode : pasted.children[0];
-        expect(node.displayValue, `${name} in ${root.name}`).toBe(PLACEHOLDER);
+        expect([node.displayValue, node.children.map((c: any) => c.displayValue)], `${name} in ${root.name}`).toEqual([SUMMARY, ['7', '8']]);
       }
     }
     const xml = serializeEntryToXml(binary.getSection('design').children.find((e: any) => e.name === 'pTallCopy'));
     expect(xml).toMatch(/<P Name="Value" Class="double" Encoding="hex" EncodedLength="\d+">/);
-    expect(xml).not.toContain('not decoded');
+    expect(xml).not.toContain('sparse');
+    // A cell holding one is one hex stream, now that MatWriter can write the whole cell:
+    // MATLAB's own, byte for byte.
     const cell = serializeEntryToXml(binary.getSection('design').children.find((e: any) => e.name === 'cTallCopy'));
-    expect(cell).toMatch(/<Element Class="double" Encoding="hex" EncodedLength="\d+">/);
-    expect(cell).not.toContain('not decoded');
+    expect(valueTag(cell, 'cTallCopy')).toBe(valueTag(MATLAB_CHUNK, 'cTall'));
   });
 });
