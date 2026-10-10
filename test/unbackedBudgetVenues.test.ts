@@ -3,13 +3,14 @@
 // The unbacked-bytes budget's inputs (test/unbackedBudget.test.ts pins its numbers) where a
 // user meets them: read out of a .mat or handed over by a host, copied as a host copies an
 // entry, pasted into a text and a binary dictionary, saved and opened again. What is within
-// the budget stays sparse everywhere. What is past it is refused by the writer with an error
-// a caller can catch, and saves at once all the same. The cells of many arrays, which need a
-// process each to measure, are in test/budgetCell*.test.ts.
+// the budget stays sparse everywhere. What is past it is refused, at once, with an error that
+// names the entry and the budget, and nothing is written in its place: the copy or the save
+// fails (test/budgetFailsClosed.test.ts). The cells of many arrays, which need a process
+// each to measure, are in test/budgetCell*.test.ts.
 import { describe, it, expect } from 'vitest';
 import { createSession } from '../src/index.js';
 import { cellVar, matFile, sparseVar } from './tools/matBytes.js';
-import { BINARY, TEXT, copyOf, pasteSaveReopen, pasted, peakMB, refusal, timed } from './tools/pasteVenues.js';
+import { BINARY, TEXT, copyOf, pasteSaveReopen, pasted, peakMB, refusal, thrownBy, timed } from './tools/pasteVenues.js';
 
 const sparseHost = (dims: number[], row: number[], col: number[], re: number[]) => ({
   name: 'h', className: 'double', dimensions: dims, isComplex: false, isLogical: false, isSparse: true, value: '', fields: null,
@@ -63,29 +64,38 @@ describe('within the budget, a sparse array stays sparse wherever it goes', () =
   });
 });
 
-describe('past the budget, the writer refuses at once, and every venue saves at once', () => {
-  it('a host\'s cell of 4,300 1000x1000 arrays of one entry each: copied out of one budget, and not a million zeros apiece', () => {
-    // 3,996 bytes of index apiece, so 4,198 of them are within the budget. Past it a member
-    // is written the way a value with no stream is (_serializeArray), and its zeros come out
-    // of the same budget (_sparseFallback): it is its summary. The copy no longer holds those
-    // members' entries.
+describe('past the budget, the write is refused at once, and nothing is written in the value\'s place', () => {
+  it('a host\'s cell of 4,300 1000x1000 arrays of one entry each: its copy fails, naming the member the budget ran out at', () => {
+    // 3,996 bytes of index apiece, so 4,198 of them are within the budget, and the 4,199th is
+    // not. Nothing is copied: not its summary, not the array laid out full.
     const member = () => sparseHost([1000, 1000], [0], [0], [5]);
     const c = hostMat({ name: 'h', className: 'cell', dimensions: [1, 4300], isComplex: false, isLogical: false, value: Array.from({ length: 4300 }, member), fields: null });
-    const [copied, ms] = timed(() => copyOf(c) as any);
-    const kinds = copied._elements.map((e: any) => (e && e._type === 'cdata' ? 'stream' : typeof e === 'string' ? e : 'other'));
-    expect([kinds.indexOf('<1000x1000 sparse double>'), kinds.lastIndexOf('stream'), new Set(kinds).size, ms < 5000]).toEqual([4198, 4197, 2, true]);
-    expect(JSON.stringify(copied).length).toBeLessThan(25_000_000);
+    const [thrown, ms] = thrownBy(() => copyOf(c));
+    expect([thrown?.name, thrown?.message, ms < 5000]).toEqual([
+      'MatBudgetError',
+      'Cannot write "h": h{4199} is a 1000x1000 sparse array whose data holds 1 of its 1000 columns, and with it the value would add more than 16 MiB that its data does not hold, the most one value may add. Nothing was written.',
+      true,
+    ]);
+    // 4,198 of them are a value within it.
+    const within = hostMat({ name: 'h', className: 'cell', dimensions: [1, 4198], isComplex: false, isLogical: false, value: Array.from({ length: 4198 }, member), fields: null });
+    expect((copyOf(within) as any)._elements.every((e: any) => e._type === 'cdata')).toBe(true);
     expect(peakMB()).toBeLessThan(1024);
   });
 
-  it('a cell declaring 1e8 elements around one: refused before any is made, and saved as it is', () => {
+  it('a cell declaring 1e8 elements around one: refused before any is made; a text dictionary keeps it as it was read, a binary one refuses it', () => {
     const bag = { _array_type: 'Cell', _dimensions: [1, 1e8], _elements: [{ _type: 'sparse', _value: 'Matrix(0,5)\n[]' }] };
     const [refused, ms] = refusal(pasted(TEXT, bag)._var);
     expect([refused, ms < 100]).toEqual([true, true]);
-    for (const file of [TEXT, BINARY]) {
-      const r = pasteSaveReopen(file, bag);
-      expect([r.entry.displayValue, r.ms < 2000, r.size < 1_000_000], file).toEqual(['<1x100000000 cell>', true, true]);
-    }
+    const text = pasteSaveReopen(TEXT, bag);
+    expect([text.entry.displayValue, text.ms < 2000, text.size < 1_000_000]).toEqual(['<1x100000000 cell>', true, true]);
+    // A binary dictionary has no spelling for it but its stream: no XML declaring 1e8
+    // elements around one.
+    const [thrown, saveMs] = thrownBy(() => pasteSaveReopen(BINARY, bag));
+    expect([thrown?.name, thrown?.message, saveMs < 2000]).toEqual([
+      'MatBudgetError',
+      'Cannot write "pasted": pasted is a 1x100000000 cell holding 1 of its 100000000 elements, and with it the value would add more than 16 MiB that its data does not hold, the most one value may add. Nothing was written.',
+      true,
+    ]);
     // A .mat cell declaring as many and holding one is read as what it holds, and copied so.
     const member = sparseVar({ name: '', dimensions: [0, 5], ir: [], jc: [0, 0, 0, 0, 0, 0], real: [], nzmax: 1, sparseFlag: true });
     const c: any = createSession().addMatSource('c.mat', matFile([cellVar('c', [member], [1, 1e8])])).children[0];

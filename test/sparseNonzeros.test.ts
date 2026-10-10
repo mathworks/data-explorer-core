@@ -19,7 +19,7 @@ import { nodeAt } from './tools/matlabPath.js';
 import { uudecode } from '../src/datamodel/parser/CdataCodec.js';
 import { matStreamPrefix } from '../src/datamodel/parser/EncodedValue.js';
 import { decodeMatStream } from '../src/datamodel/parser/MatParser.js';
-import { encodeMatStream, encodeMatVariable, matStreamOfElement } from '../src/datamodel/parser/MatWriter.js';
+import { encodeMatStream, encodeMatVariable, matStreamOfElement, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import { sparseFromDense } from '../src/datamodel/parser/SparseData.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { arrayFlags, CLASS, dims, element, matFile, matrix, MI, numericData, sparseVar, varName } from './tools/matBytes.js';
@@ -423,8 +423,9 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
   });
 
   it('a host\'s non-zeros under a column count no stream can hold are refused, as an error to catch', () => {
-    // No reader says what backs them (SparseData.backedColumns), so the stream's own limit is
-    // the one there is: a column index of 2^31 words is past what its uint32 size can say.
+    // No reader says what backs them (SparseData.backedColumns), so all but one column come
+    // out of the unbacked-bytes budget, which refuses them — finally (MatBudgetError) — before
+    // the stream's own limit, a column index of 2^31 words, is reached.
     const [thrown, ms] = timed(() => {
       try {
         encodeMatVariable({
@@ -436,7 +437,7 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
         return e;
       }
     });
-    expect([(thrown as Error)?.name, ms < 1000]).toEqual(['MatWriteError', true]);
+    expect([thrown instanceof MatWriteError, (thrown as Error)?.name, ms < 1000]).toEqual([true, 'MatBudgetError', true]);
   });
 });
 

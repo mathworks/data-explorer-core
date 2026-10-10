@@ -42,6 +42,18 @@ export function refusal(v: unknown): [boolean, number] {
   });
 }
 
+/** What `f` threw, or null; and how long it took either way. */
+export function thrownBy(f: () => unknown): [Error | null, number] {
+  return timed(() => {
+    try {
+      f();
+      return null;
+    } catch (e) {
+      return e as Error;
+    }
+  });
+}
+
 /** What a host copies of an entry or a variable: its serialize() record's value, as JSON. */
 export function copyOf(node: any): unknown {
   return JSON.parse(JSON.stringify(node.serialize().value));

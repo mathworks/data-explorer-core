@@ -81,8 +81,9 @@ export type SerializedSource =
  *     fact about the session, and answering it with 'source-not-open' for the source
  *     named '' would send a host off to open a file with no name.
  *
- * Never throws, for the reason session.serializeSource() returns null rather than
- * throwing: a consumer walking every link in a table must not need a try/catch per row.
+ * Never throws, for the reason session.serializeSource() answers a source it has no writer
+ * for with null rather than a throw: a consumer walking every link in a table must not need
+ * a try/catch per row.
  *
  * `nodes` is every candidate in document order and `node` is `nodes[0]`. Both are
  * present on purpose: a `.sldd` target names an ENTRY, not a node id, and a dictionary

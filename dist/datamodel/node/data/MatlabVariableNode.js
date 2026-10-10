@@ -17,7 +17,7 @@ import { subscriptLabel } from '../../display/Subscript.js';
 import { decodeMatStream } from '../../parser/MatParser.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
-import { encodeMatStream, matStreamOfElement, sparseWriteRefusal, spendUnbacked } from '../../parser/MatWriter.js';
+import { budgetFailure, encodeMatStream, MatBudgetError, matStreamOfElement, sparseWriteRefusal, spendUnbacked, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
@@ -1569,7 +1569,8 @@ export default class MatlabVariableNode extends DataNode {
     // Returns null for a value MatWriter refuses — an MCOS opaque, a class it has no
     // MAT code for. Those have no stream spelling in this format at ALL, so the choice
     // is between the rank-2 form the branches below produce, which at least leaves a
-    // readable file, and failing the whole save. It falls through.
+    // readable file, and failing the whole save. It falls through. A refusal for the
+    // unbacked-bytes budget does not: it is thrown (_matStream), and the save fails.
     _serializeCdata() {
         const bytes = this._matStream();
         return bytes ? { _type: 'cdata', _value: uuencode(bytes) } : null;
@@ -1590,7 +1591,11 @@ export default class MatlabVariableNode extends DataNode {
      *     re-encodes it;
      *   - otherwise what MatWriter writes for the live value, which is MATLAB's own bytes for
      *     a sparse array, written from its non-zeros (MatWriter.encodeSparse); null for what
-     *     MatWriter refuses.
+     *     MatWriter has no spelling for, which a caller writes its own way.
+     *
+     * Except past the unbacked-bytes budget: that refusal is final, and it is thrown, restated
+     * with the entry and the path (_budgetFailure), so the copy or the save asking fails and
+     * nothing else is written in the value's place.
      */
     _matStream() {
         const raw = this._rawInput;
@@ -1612,9 +1617,37 @@ export default class MatlabVariableNode extends DataNode {
         try {
             return encodeMatStream(this._var);
         }
-        catch (_e) {
+        catch (e) {
+            if (e instanceof MatBudgetError) {
+                throw this._budgetFailure(e);
+            }
             return null;
         }
+    }
+    /** A budget refusal of a write that began at this node, restated for a user. */
+    _budgetFailure(e) {
+        const entry = this.owningEntry;
+        return budgetFailure(e, entry ? entry.name : this._matlabPath(), this._matlabPath());
+    }
+    /**
+     * Where this node is, in MATLAB's spelling from its entry's name: `c{2}`, `st.sp`,
+     * `pSp.Value`, `s(2).f`. What a refused write names.
+     */
+    _matlabPath() {
+        const entry = this.owningEntry;
+        let path = '';
+        let node = this;
+        while (node !== entry && node.parent && !node.parent.isContainer) {
+            const parent = node.parent;
+            if (/^\d+$/.test(node.name)) {
+                path = (parent instanceof MatlabVariableNode && parent._kind === 'cell' ? '{' + node.name + '}' : '(' + node.name + ')') + path;
+            }
+            else {
+                path = '.' + node.name + path;
+            }
+            node = parent;
+        }
+        return node.name + path;
     }
     /**
      * Why MatWriter could not write this sparse array once an element of it were edited — its
@@ -1640,25 +1673,30 @@ export default class MatlabVariableNode extends DataNode {
      * A sparse array's every element, row-major, as a full array's are held — for the writers'
      * fallbacks alone (_serializeArray, _serializeArrayXml), which spell a value as a literal
      * when it has no stream: a sparse array MatWriter will not write, of a class or a rank
-     * MATLAB never stores sparse, which only a damaged file holds, or one past what one write
-     * may put out that no data backs (MatWriter.UNBACKED_BYTES_BUDGET). Null past
-     * SparseData.MAX_DENSE_ELEMENTS, where there is nothing to spell the elements with. Never
-     * the value itself, which is the non-zeros.
+     * MATLAB never stores sparse, which only a damaged file holds — never one refused for the
+     * budget, which is final (_matStream). Null past SparseData.MAX_DENSE_ELEMENTS, where there
+     * is nothing to spell the elements with. Never the value itself, which is the non-zeros.
      *
      * Every element it does not hold is a zero no data backs, so they come out of the write's
-     * budget (MatWriter.spendUnbacked), at eight bytes apiece, what each costs in the list;
-     * null when the budget has not that much left. A budget spent is what refuses an array
-     * that is not damaged at all — the 4,199th 1000x1000 of one entry in a host's cell, each
-     * 3,996 bytes of index no data backs — and without this each one past it was written as a
-     * million zeros.
+     * budget (MatWriter.spendUnbacked), at eight bytes apiece, what each costs in the list, and
+     * past it the write fails as any refused for the budget does (_budgetFailure): a cell of
+     * int8 sparse arrays a host built, none of which MatWriter can write sparse, was a million
+     * zeros apiece.
      */
     _sparseFallback() {
         if (!this._sparse) {
             return null;
         }
         const elements = Math.max(0, this._dims[0] || 0) * Math.max(0, this._dims[1] || 0);
-        if (elements > MAX_DENSE_ELEMENTS || !spendUnbacked(8 * (elements - this._sparse.row.length))) {
+        if (elements > MAX_DENSE_ELEMENTS) {
             return null;
+        }
+        const zeros = elements - this._sparse.row.length;
+        try {
+            spendUnbacked(8 * zeros, 'a ' + this._dims.join('x') + ' sparse array that would be written full, ' + zeros + ' zeros its data does not hold');
+        }
+        catch (e) {
+            throw e instanceof MatBudgetError ? this._budgetFailure(e) : e;
         }
         return sparseToDense(this._sparse, this._dims);
     }

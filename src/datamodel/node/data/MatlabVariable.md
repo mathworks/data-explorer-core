@@ -238,22 +238,29 @@ write puts out that nothing backs — those columns, four bytes each; the empty 
 or a struct array writes for each element it declares and does not hold, 56 bytes each; and
 the zeros of a sparse array written full (`_sparseFallback`) — comes out of ONE budget of
 16 MiB for the whole value (`MatWriter.UNBACKED_BYTES_BUDGET`), shared by every array and
-container in it and charged before anything is allocated; past it the encode is refused
-with a catchable `MatWriteError`, and what the refused encode had charged is given back.
-What the value holds never counts. One value is one write however many streams it is
-written as (`MatWriter.oneWrite`, around `DataNode.serialize` and each binary entry's
-Value): a cell refused as one stream and written as XML instead, each sparse element the hex
-of its own, does not get a budget per element. So sparse(0, 5), a host's 1x2e6 with three
-entries, a host's dense 0x1000 and `Matrix(1000,1000)\n[]` are written sparse, while
-`Matrix(0,134217728)\n[]`, a cell of 80,000 0x256 arrays and a cell declaring 1e8 elements
-and holding one are refused, at once. A refused value is written the way a value with no
-stream is (`_serializeArray`, `_serializeArrayXml`): a 0xN array as the full empty of its
-shape, and one whose zeros the budget will not cover as its summary. In a binary dictionary
-the cell of 80,000 is written as XML whose first 16,384 elements are the hex of their own
-streams and the rest the full empty of theirs. An array whose own unbacked index is past
-the budget can never be written, so its rows are read-only (`_sparseRefusal`). Pinned in
-`test/unbackedBudget.test.ts`, `test/unbackedBudgetVenues.test.ts` and
-`test/budgetCellOfLiterals.test.ts`.
+container in it and charged before anything is allocated. What the value holds never
+counts. One value is one write however many streams it is written as (`MatWriter.oneWrite`,
+around `DataNode.serialize` and each binary entry's Value): a cell written as XML, each sparse
+element the hex of its own, does not get a budget per element.
+
+Past the budget the write fails closed: a `MatBudgetError` reaches whoever asked, naming the
+entry, the path the budget ran out at and the budget — `Cannot write "pasted": pasted{16385}
+is a 0x256 sparse array whose data holds none of its 256 columns, and with it the value
+would add more than 16 MiB that its data does not hold, the most one value may add. Nothing
+was written.` Nothing is written in the value's place — not its summary, not the full
+empty of its shape, not XML of its elements one by one — so a copy (`serialize`), a paste
+(the entry's serialization) and a save (`serializeSource`, which returns nothing and leaves
+the session as it was) holding it fail. A refusal for any other reason, a class MatWriter has
+no code for, leaves the node layer its own spelling, out of the same budget. So sparse(0, 5),
+a host's 1x2e6 with three entries, a host's dense 0x1000 and `Matrix(1000,1000)\n[]` are
+written sparse, while `Matrix(0,134217728)\n[]` in a binary dictionary, a cell of 80,000 0x256
+arrays there, a cell declaring 1e8 elements and holding one there, and a host's cell of 4,300
+1000x1000 arrays of one entry each anywhere are refused, at once. Only a value with no bytes
+of its own — pasted, built by a host, or edited — can get there; a text dictionary writes a
+pasted value as it was pasted until an edit. An array whose own unbacked index is past the
+budget can never be written, so its rows are read-only (`_sparseRefusal`). Pinned in
+`test/unbackedBudget.test.ts`, `test/unbackedBudgetVenues.test.ts`,
+`test/budgetFailsClosed.test.ts` and `test/budgetCellOfLiterals.test.ts`.
 
 ### A sparse array's class is its element class
 `class()` of a sparse double is `double` (`logical`, `single`; complex is still

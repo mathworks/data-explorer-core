@@ -53,6 +53,27 @@ export class MatWriteError extends Error {
         this.name = 'MatWriteError';
     }
 }
+/**
+ * A write refused because the value would put out more than UNBACKED_BYTES_BUDGET that no
+ * data backs. Final: nothing may be written in the value's place — not the value laid out
+ * full, not its summary, not its elements one by one — so it reaches whoever asked for the
+ * write, and a copy or a save that holds the value fails. Every other MatWriteError says
+ * this writer has no spelling for the value, and a caller may write it another way.
+ *
+ * `at` is where in the value the budget ran out, in MATLAB's spelling from the value the
+ * write began at ('{16385}', '.f', '(2).f'; '' for that value itself), and `what` is what
+ * stands there, in words. `entry` is set once the node layer has restated it for a user,
+ * naming the entry (budgetFailure).
+ */
+export class MatBudgetError extends MatWriteError {
+    constructor(message, at, what, entry) {
+        super(message);
+        this.name = 'MatBudgetError';
+        this.at = at;
+        this.what = what;
+        this.entry = entry;
+    }
+}
 const MI_INT8 = 1;
 const MI_UINT8 = 2;
 const MI_INT16 = 3;
@@ -215,11 +236,17 @@ function emptyDoubleBytes() {
 // does hold never counts, so a value MATLAB wrote is never refused, whatever its size.
 //
 // One encode is one value. So is one WRITE (oneWrite), however many encodes a writer splits
-// the value into: a binary dictionary writes a cell whose stream was refused as XML, each
-// sparse element of it the hex of a stream of its own, and those 80,000 streams, each within a
-// budget of its own, were the same 80 MB again. A writer's own spelling of what no data backs
-// — the zeros of a sparse array written full (spendUnbacked) — comes out of it too. What an
-// encode that was refused had charged is given back: it wrote nothing.
+// the value into: a binary dictionary writes a cell this writer has no stream for as XML,
+// each sparse element of it the hex of a stream of its own, and those streams draw on the
+// one budget. A writer's own spelling of what no data backs — the zeros of a sparse array it
+// writes full (spendUnbacked) — comes out of it too.
+//
+// A refusal for the budget is final (MatBudgetError): the value is not written in part, or
+// as anything else, and the write fails. Writing it as XML instead, or full, or as its
+// summary, only moved the cost somewhere else or wrote a different value. A refusal for any
+// other reason — a class this writer has no code for — leaves the caller its own spelling,
+// out of the same budget, and gives back what the refused encode had charged: it wrote
+// nothing.
 /**
  * The most bytes one write (oneWrite; outside one, each encodeMatVariable, encodeMatStream,
  * encodeCdata) puts out that no data it was handed backs. Sized by measuring the worst case
@@ -229,7 +256,7 @@ function emptyDoubleBytes() {
  * peaked at 1.0 and 1.1 GB. Pinned at its value in test/unbackedBudget.test.ts.
  */
 export const UNBACKED_BYTES_BUDGET = 16 * 1024 * 1024;
-const newBudget = () => ({ left: UNBACKED_BYTES_BUDGET });
+const newBudget = () => ({ left: UNBACKED_BYTES_BUDGET, at: [] });
 /** The budget of the write under way (oneWrite), or null between writes. */
 let writing = null;
 /**
@@ -249,27 +276,40 @@ export function oneWrite(write) {
     }
 }
 /**
- * Takes `bytes` of the write's budget for something a writer spells that no data backs, or,
- * when not that much is left, takes nothing and says no.
+ * Takes `bytes` of the write's budget for something a writer spells that no data backs —
+ * `what`, in words — or, when not that much is left, takes nothing and refuses the write
+ * (MatBudgetError).
  */
-export function spendUnbacked(bytes) {
-    const budget = writing ?? newBudget();
-    if (bytes > budget.left) {
-        return false;
-    }
-    budget.left -= Math.max(0, bytes);
-    return true;
+export function spendUnbacked(bytes, what) {
+    charge(writing ?? newBudget(), bytes, what);
 }
-/** Takes `bytes` of the budget, before they are written, or refuses the encode. */
+/** Takes `bytes` of the budget, before they are written, or refuses the write. */
 function charge(budget, bytes, what) {
     if (bytes <= 0) {
         return;
     }
     if (bytes > budget.left) {
-        throw new MatWriteError(what + ' would write ' + bytes + ' bytes no data backs, more than the ' + budget.left + ' left of one write\'s ' + UNBACKED_BYTES_BUDGET);
+        const at = budget.at.join('');
+        throw new MatBudgetError((at || 'the value') + ', ' + what + ', would write ' + bytes + ' bytes no data backs, more than the ' + budget.left + ' left of one write\'s '
+            + UNBACKED_BYTES_BUDGET, at, what);
     }
     budget.left -= bytes;
 }
+/**
+ * `e` restated for whoever asked for the write: the entry, the MATLAB path of what the
+ * budget ran out at — `where` is the path of the value the refused encode began at, from
+ * the entry's name — and the budget, in words a user can act on. Restated once.
+ */
+export function budgetFailure(e, entry, where) {
+    if (e.entry !== undefined) {
+        return e;
+    }
+    const at = where + e.at;
+    return new MatBudgetError('Cannot write "' + entry + '": ' + at + ' is ' + e.what + ', and with it the value would add more than '
+        + UNBACKED_BYTES_BUDGET / (1024 * 1024) + ' MiB that its data does not hold, the most one value may add. Nothing was written.', at, e.what, entry);
+}
+/** `d` as MATLAB writes a size: 0x256, 1x100000000. */
+const sizeOf = (d) => d.join('x');
 const HOLE_BYTES = emptyDoubleBytes().length;
 /**
  * A 64-bit integer payload has to go out as a BigInt.
@@ -427,13 +467,20 @@ function cellBody(v, d, budget) {
         if (cells[i])
             held++;
     }
-    charge(budget, (n - held) * HOLE_BYTES, 'a cell of ' + n + ' elements holding ' + held);
+    charge(budget, (n - held) * HOLE_BYTES, 'a ' + sizeOf(d) + ' cell holding ' + held + ' of its ' + n + ' elements');
     const parts = [];
     for (let i = 0; i < n; i++) {
         const c = cells[i];
         // A slot the reader could not read stays a hole. Dropping it would slide
         // every later element one position early.
-        parts.push(c ? memberElement(c, budget) : emptyDoubleBytes());
+        if (c) {
+            budget.at.push('{' + (i + 1) + '}');
+            parts.push(memberElement(c, budget));
+            budget.at.pop();
+        }
+        else {
+            parts.push(emptyDoubleBytes());
+        }
     }
     return parts;
 }
@@ -473,7 +520,7 @@ function structBody(v, d, budget) {
         }
         holes += n - present;
     }
-    charge(budget, holes * HOLE_BYTES, 'a struct array of ' + n + ' elements');
+    charge(budget, holes * HOLE_BYTES, 'a ' + sizeOf(d) + ' struct array missing ' + holes + ' of its ' + n * names.length + ' fields');
     for (let e = 0; e < n; e++) {
         for (const name of names) {
             const held = fields[name];
@@ -481,7 +528,14 @@ function structBody(v, d, budget) {
             // A MATLAB struct array is homogeneous, so every element has every field.
             // An element that lost one (a whole-value edit clears its children) keeps
             // its slot as an empty double rather than shifting the ones after it.
-            parts.push(one ? memberElement(one, budget) : emptyDoubleBytes());
+            if (one) {
+                budget.at.push((n === 1 ? '' : '(' + (e + 1) + ')') + '.' + name);
+                parts.push(memberElement(one, budget));
+                budget.at.pop();
+            }
+            else {
+                parts.push(emptyDoubleBytes());
+            }
         }
     }
     return parts;
@@ -527,7 +581,10 @@ const SPARSE_FLAG = 0x10;
  * something else, or, for the columns, one that would cost what no byte of the file held.
  */
 function encodeSparse(v, budget) {
-    const refusal = sparseWriteRefusal(v);
+    // What no writer could write, then what the budget will not cover — a refusal of its own,
+    // and final — and then what no stream could hold: an index of 2^30 columns no byte backs
+    // is past the budget long before it is past a size word.
+    const refusal = sparseShapeRefusal(v);
     if (refusal) {
         throw new MatWriteError(refusal);
     }
@@ -540,7 +597,11 @@ function encodeSparse(v, budget) {
     const s = v.sparse ?? sparseFromDense(flatValues(v.value), d, complex);
     // The column index past the columns its source backs, from the write's budget.
     const backed = Math.min(cols, backedColumnsOf(s));
-    charge(budget, 4 * (cols - backed), 'a sparse array of ' + cols + ' columns backed for ' + backed);
+    charge(budget, 4 * (cols - backed), sparseWhat(d, backed));
+    const capped = sparseCapRefusal(cols);
+    if (capped) {
+        throw new MatWriteError(capped);
+    }
     const ir = [];
     const jc = new Int32Array(cols + 1);
     const re = [];
@@ -602,6 +663,24 @@ function encodeSparse(v, budget) {
  * wrote is none of these.
  */
 export function sparseWriteRefusal(v) {
+    const shape = sparseShapeRefusal(v);
+    if (shape) {
+        return shape;
+    }
+    const [, cols] = dimsOf(v);
+    const backed = sparseBackedColumns(v);
+    const unbacked = 4 * Math.max(0, cols - backed);
+    if (unbacked > UNBACKED_BYTES_BUDGET) {
+        return ('a sparse array declaring ' + cols + ' columns is backed for ' + backed + ', and the rest of its column index, ' + unbacked
+            + ' bytes no data backs, is more than one write may put out (' + UNBACKED_BYTES_BUDGET + ')');
+    }
+    return sparseCapRefusal(cols);
+}
+/**
+ * What no writer could write of `v` whatever the budget: a variable not decoded, a rank or
+ * a class MATLAB never stores sparse, a dense list its dims disagree with.
+ */
+function sparseShapeRefusal(v) {
     if (v.undecoded) {
         return 'cannot write a sparse array the reader did not decode (' + v.undecoded + ')';
     }
@@ -614,30 +693,31 @@ export function sparseWriteRefusal(v) {
         return 'no sparse MAT class for "' + v.className + '"';
     }
     const [rows, cols] = d;
-    // What backs the columns: the source's own index, or its elements, one column apiece —
-    // never the declared count, which is one word of the file (SparseData.backedColumns). The
-    // rest of the index comes out of a write's budget, and one that alone is past all of it
-    // can never be written.
-    let backed;
-    if (v.sparse) {
-        backed = backedColumnsOf(v.sparse);
-    }
-    else {
+    if (!v.sparse) {
         const n = flatValues(v.value).length;
         if (n !== rows * cols) {
             return 'sparse value has ' + n + ' elements but declares [' + d.join(',') + ']';
         }
-        backed = Math.min(cols, n);
-    }
-    const unbacked = 4 * Math.max(0, cols - backed);
-    if (unbacked > UNBACKED_BYTES_BUDGET) {
-        return ('a sparse array declaring ' + cols + ' columns is backed for ' + backed + ', and the rest of its column index, ' + unbacked
-            + ' bytes no data backs, is more than one write may put out (' + UNBACKED_BYTES_BUDGET + ')');
-    }
-    if (4 * (cols + 1) > 0xffffffff) {
-        return 'a sparse array of ' + cols + ' columns has a column index no MAT stream can hold';
     }
     return null;
+}
+/**
+ * What backs `v`'s columns: the source's own index, or its elements, one column apiece —
+ * never the declared count, which is one word of the file (SparseData.backedColumns). The
+ * rest of the index comes out of a write's budget, and an array whose rest alone is past
+ * all of it can never be written.
+ */
+function sparseBackedColumns(v) {
+    const cols = dimsOf(v)[1];
+    return v.sparse ? backedColumnsOf(v.sparse) : Math.min(cols, flatValues(v.value).length);
+}
+/** No stream holds a column index past what its uint32 size word can say. */
+function sparseCapRefusal(cols) {
+    return 4 * (cols + 1) > 0xffffffff ? 'a sparse array of ' + cols + ' columns has a column index no MAT stream can hold' : null;
+}
+/** A sparse array of `d` backed for `backed` columns, in the words a budget refusal uses. */
+function sparseWhat(d, backed) {
+    return 'a ' + sizeOf(d) + ' sparse array whose data holds ' + (backed === 0 ? 'none' : backed) + ' of its ' + d[1] + ' columns';
 }
 /**
  * The bytes of one complete `miMATRIX` element: tag, then the matrix body. It writes no more
@@ -647,6 +727,9 @@ export function sparseWriteRefusal(v) {
 export function encodeMatVariable(v) {
     const budget = writing ?? newBudget();
     const left = budget.left;
+    // Where this encode is, from `v`: each encode's own, a write's being many.
+    const at = budget.at;
+    budget.at = [];
     try {
         return encodeElement(v, budget);
     }
@@ -654,6 +737,9 @@ export function encodeMatVariable(v) {
         // Refused, it wrote nothing, so it takes nothing.
         budget.left = left;
         throw e;
+    }
+    finally {
+        budget.at = at;
     }
 }
 /**

@@ -19,12 +19,12 @@
 import { parseComplexNum, parseMatlabNum } from './XmlUtils.js';
 /**
  * The most elements this package lays out densely for a sparse array: the writers' fallback,
- * for an array MatWriter will not write as one (a class or a rank MATLAB never stores
- * sparse, or a value past the unbacked-bytes budget), spells every element, and past this
- * many it has nothing to spell them with. A million is the size the reader used to refuse a
- * sparse array past, and the size a 1000x1000 is. The zeros come out of the write's budget
- * too (MatlabVariableNode._sparseFallback), so a value of many such arrays is not a million
- * zeros apiece.
+ * for an array MatWriter has no sparse storage for (a class or a rank MATLAB never stores
+ * sparse), spells every element, and past this many it has nothing to spell them with. A
+ * million is the size the reader used to refuse a sparse array past, and the size a 1000x1000
+ * is. The zeros come out of the write's budget too (MatlabVariableNode._sparseFallback), so a
+ * value of many such arrays is refused rather than a million zeros apiece. A value refused
+ * for the budget never reaches it: that refusal is final (MatWriter.MatBudgetError).
  */
 export const MAX_DENSE_ELEMENTS = 1000000;
 /** A sparse array of nothing but zeros, backed for `backedColumns` columns when known. */

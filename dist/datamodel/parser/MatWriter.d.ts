@@ -9,6 +9,24 @@ export declare class MatWriteError extends Error {
     constructor(message: string);
 }
 /**
+ * A write refused because the value would put out more than UNBACKED_BYTES_BUDGET that no
+ * data backs. Final: nothing may be written in the value's place — not the value laid out
+ * full, not its summary, not its elements one by one — so it reaches whoever asked for the
+ * write, and a copy or a save that holds the value fails. Every other MatWriteError says
+ * this writer has no spelling for the value, and a caller may write it another way.
+ *
+ * `at` is where in the value the budget ran out, in MATLAB's spelling from the value the
+ * write began at ('{16385}', '.f', '(2).f'; '' for that value itself), and `what` is what
+ * stands there, in words. `entry` is set once the node layer has restated it for a user,
+ * naming the entry (budgetFailure).
+ */
+export declare class MatBudgetError extends MatWriteError {
+    readonly at: string;
+    readonly what: string;
+    readonly entry: string | undefined;
+    constructor(message: string, at: string, what: string, entry?: string);
+}
+/**
  * The most bytes one write (oneWrite; outside one, each encodeMatVariable, encodeMatStream,
  * encodeCdata) puts out that no data it was handed backs. Sized by measuring the worst case
  * it allows, one value spending all of it — a host's 1x4194305 copied, pasted into a text and
@@ -23,10 +41,17 @@ export declare const UNBACKED_BYTES_BUDGET: number;
  */
 export declare function oneWrite<T>(write: () => T): T;
 /**
- * Takes `bytes` of the write's budget for something a writer spells that no data backs, or,
- * when not that much is left, takes nothing and says no.
+ * Takes `bytes` of the write's budget for something a writer spells that no data backs —
+ * `what`, in words — or, when not that much is left, takes nothing and refuses the write
+ * (MatBudgetError).
  */
-export declare function spendUnbacked(bytes: number): boolean;
+export declare function spendUnbacked(bytes: number, what: string): void;
+/**
+ * `e` restated for whoever asked for the write: the entry, the MATLAB path of what the
+ * budget ran out at — `where` is the path of the value the refused encode began at, from
+ * the entry's name — and the budget, in words a user can act on. Restated once.
+ */
+export declare function budgetFailure(e: MatBudgetError, entry: string, where: string): MatBudgetError;
 /**
  * Why encodeSparse refuses `v`, or null when it writes it. Read off the shape, the class and
  * what the non-zeros say backs them — never the non-zeros themselves — so it is asked of a
@@ -46,7 +71,8 @@ export declare function spendUnbacked(bytes: number): boolean;
  * And no stream holds a column index past what its uint32 size word can say. A value MATLAB
  * wrote is none of these.
  */
-export declare function sparseWriteRefusal(v: Pick<MatVariable, 'undecoded' | 'dimensions' | 'className' | 'isLogical' | 'sparse' | 'value'>): string | null;
+export declare function sparseWriteRefusal(v: SparseRefusalInput): string | null;
+type SparseRefusalInput = Pick<MatVariable, 'undecoded' | 'dimensions' | 'className' | 'isLogical' | 'sparse' | 'value'>;
 /**
  * The bytes of one complete `miMATRIX` element: tag, then the matrix body. It writes no more
  * than UNBACKED_BYTES_BUDGET that the value does not back, out of the write's budget when one
@@ -101,4 +127,5 @@ export declare function complexTextVariable(raw: unknown): MatVariable | null;
  * because the replay is whole bags too — a struct's, a cell's, a LookupTable's Table.
  */
 export declare function textDictionaryForm(x: unknown): unknown;
+export {};
 //# sourceMappingURL=MatWriter.d.ts.map

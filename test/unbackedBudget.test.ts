@@ -15,6 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   encodeMatStream,
+  MatBudgetError,
   MatWriteError,
   oneWrite,
   spendUnbacked,
@@ -147,13 +148,49 @@ describe('one write: what a writer splits one value into shares the budget', () 
     ]);
   });
 
-  it('spendUnbacked draws on the same budget, and takes nothing when it says no', () => {
-    expect(oneWrite(() => [spendUnbacked(16777216), spendUnbacked(1)])).toEqual([true, false]);
-    expect(oneWrite(() => [spendUnbacked(16777217), spendUnbacked(16777216)])).toEqual([false, true]);
-    expect(oneWrite(() => [spendUnbacked(8388608), encode(sparse([0, 2097152])), encode(sparse([0, 1]))])).toEqual([
-      true,
-      streamOf(2097152),
-      'refused',
-    ]);
+  it('spendUnbacked draws on the same budget, and refuses the write when it has not that much left', () => {
+    const spend = (bytes: number) => {
+      try {
+        spendUnbacked(bytes, 'a test\'s zeros');
+        return true;
+      } catch (e) {
+        if (e instanceof MatBudgetError) return 'refused';
+        throw e;
+      }
+    };
+    expect(oneWrite(() => [spend(16777216), spend(1)])).toEqual([true, 'refused']);
+    expect(oneWrite(() => [spend(16777217), spend(16777216)])).toEqual(['refused', true]);
+    expect(oneWrite(() => [spend(8388608), encode(sparse([0, 2097152])), encode(sparse([0, 1]))])).toEqual([true, streamOf(2097152), 'refused']);
+  });
+});
+
+describe('a refusal for the budget is its own, and says where the budget ran out', () => {
+  const refusedWith = (v: MatVariable) => {
+    try {
+      encodeMatStream(v);
+    } catch (e) {
+      return e;
+    }
+    return null;
+  };
+
+  it('in a cell, a struct array, a cell\'s holes and one array, in MATLAB\'s spelling', () => {
+    const cases: [MatVariable, string, string][] = [
+      [cell(many(16385, () => sparse([0, 256]))), '{16385}', 'a 0x256 sparse array whose data holds none of its 256 columns'],
+      [cell([cell(many(8192, () => sparse([0, 256]))), cell(many(8193, () => sparse([0, 256])))]), '{2}{8193}', 'a 0x256 sparse array whose data holds none of its 256 columns'],
+      [structArray(2, [host(4194305), host(3)]), '(2).f', 'a 1x3 sparse array whose data holds 1 of its 3 columns'],
+      [cell([sparse([0, 5])], [1, 1e8]), '', 'a 1x100000000 cell holding 1 of its 100000000 elements'],
+      [host(4194306), '', 'a 1x4194306 sparse array whose data holds 1 of its 4194306 columns'],
+    ];
+    for (const [v, at, what] of cases) {
+      const e = refusedWith(v) as MatBudgetError;
+      expect([e instanceof MatBudgetError, e.at, e.what], at).toEqual([true, at, what]);
+    }
+  });
+
+  it('while a class this writer has no sparse storage for is refused as before, for its caller to write another way', () => {
+    const int8 = { ...host(3), className: 'int8' };
+    const e = refusedWith(int8);
+    expect([e instanceof MatWriteError, e instanceof MatBudgetError, (e as Error).message]).toEqual([true, false, 'no sparse MAT class for "int8"']);
   });
 });

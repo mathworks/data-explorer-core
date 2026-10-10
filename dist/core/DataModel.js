@@ -1752,6 +1752,11 @@ export function createSession(opts = {}) {
      * every open source to find the saveable ones should not need a try/catch per source,
      * and because there is nothing exceptional about a project file not being writable.
      *
+     * Throws for a value in it that no writer may write: one past the unbacked-bytes budget, as
+     * a MatBudgetError naming the entry, the path in it and the budget (MatWriter.budgetFailure).
+     * Nothing is returned then — no part of a file — and nothing in the session changes, so the
+     * save after the value is fixed or removed is the save there would have been.
+     *
      * The flavour follows the FILE, not a default: a `.sldd` that arrived as a
      * compressed-binary package is answered with zip bytes and one that arrived as JSON
      * text with JSON text, because the point of serializing is writing back over the

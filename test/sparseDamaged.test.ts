@@ -320,13 +320,26 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
     it(`${f.label}, as this package's sparse literal: opened, saved and pasted into either dictionary at once`, () => {
       const literal = literalOf(f.dims);
       for (const file of ['sparse_text.sldd', 'sparse_binary.sldd']) {
+        // In a binary dictionary it is still sparse — a hex stream — unless no writer could
+        // write it, and then the save fails, at once: a refusal for the budget is final, and
+        // nothing else is written in its place (MatWriter.MatBudgetError).
+        if (file === 'sparse_binary.sldd' && !backedWithoutBytes(f.dims)) {
+          const [thrown, ms] = timed(() => {
+            try {
+              pasteAndSave(file, literal);
+              return null;
+            } catch (e) {
+              return e as Error;
+            }
+          });
+          expect([thrown?.name, ms < 2000], `${f.label} into ${file}`).toEqual(['MatBudgetError', true]);
+          continue;
+        }
         const r = pasteAndSave(file, literal);
         expect([r.node.displayValue, r.node.isSparse, r.node.children.length], `${file}`).toEqual([`<${f.dims.join('x')} sparse double>`, true, 0]);
         expectSmallAndSound(r, `${f.label} into ${file}`);
-        // In a binary dictionary it is still sparse — a hex stream — unless no writer could
-        // write it, and then it is the small full empty its shape is.
         if (file === 'sparse_binary.sldd') {
-          expect(pastedValue(r.saved).includes('Encoding="hex"'), `${f.label} stays sparse`).toBe(backedWithoutBytes(f.dims));
+          expect(pastedValue(r.saved).includes('Encoding="hex"'), `${f.label} stays sparse`).toBe(true);
         }
       }
       // In a text dictionary, untouched, it is the literal it was read as.
@@ -348,10 +361,21 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
       });
       const h = mat.children[0];
       expect([h.displayValue, h.children.length]).toEqual([`<${f.dims.join('x')} sparse double>`, 0]);
-      const [copied, ms] = timed(() => JSON.parse(JSON.stringify(h.serializeValue())));
+      // Copied, it is a sparse array's stream, unless no writer could write it, and then the
+      // copy fails, at once.
+      const [copied, ms] = timed(() => {
+        try {
+          return JSON.parse(JSON.stringify(h.serializeValue()));
+        } catch (e) {
+          return e as Error;
+        }
+      });
       expect(ms).toBeLessThan(2000);
-      // Copied, it is a sparse array's stream, unless no writer could write it.
-      expect(copied?._type === 'cdata', `${f.label} copied sparse`).toBe(backedWithoutBytes(f.dims));
+      if (!backedWithoutBytes(f.dims)) {
+        expect((copied as Error).name, `${f.label} copied`).toBe('MatBudgetError');
+        return;
+      }
+      expect(copied?._type, `${f.label} copied sparse`).toBe('cdata');
       for (const file of ['sparse_text.sldd', 'sparse_binary.sldd']) {
         expectSmallAndSound(pasteAndSave(file, copied), `${f.label} host into ${file}`);
       }
