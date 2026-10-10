@@ -64,8 +64,13 @@ export declare function setSparseEntry(s: SparseData, k: number, x: unknown): vo
 /**
  * The non-zeros of a dense row-major element list — what a writer or a host that built a
  * variable by hand hands over, and the body of this package's own `sparse` literal. A
- * missing element is a zero. The columns the list backs (SparseData.backedColumns) are all
- * of them when it holds every element, and otherwise no more than the elements it holds.
+ * missing element is a zero.
+ *
+ * It costs what the list holds, whatever its dims declare: the elements present are visited
+ * once and the non-zeros sorted into column-major order. A `Matrix(1000000,1000000)` literal
+ * holding one element visited all 1e12 cells of its declared shape. The columns the list
+ * backs (SparseData.backedColumns) are all of them when it holds every element, and
+ * otherwise no more than the elements it holds.
  */
 export declare function sparseFromDense(rowMajor: unknown[], dims: number[], complex: boolean): SparseData;
 /**

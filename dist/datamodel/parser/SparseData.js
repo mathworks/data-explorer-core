@@ -114,39 +114,33 @@ export function setSparseEntry(s, k, x) {
 /**
  * The non-zeros of a dense row-major element list — what a writer or a host that built a
  * variable by hand hands over, and the body of this package's own `sparse` literal. A
- * missing element is a zero. The columns the list backs (SparseData.backedColumns) are all
- * of them when it holds every element, and otherwise no more than the elements it holds.
+ * missing element is a zero.
+ *
+ * It costs what the list holds, whatever its dims declare: the elements present are visited
+ * once and the non-zeros sorted into column-major order. A `Matrix(1000000,1000000)` literal
+ * holding one element visited all 1e12 cells of its declared shape. The columns the list
+ * backs (SparseData.backedColumns) are all of them when it holds every element, and
+ * otherwise no more than the elements it holds.
  */
 export function sparseFromDense(rowMajor, dims, complex) {
     const rows = Math.max(0, dims[0] || 0);
     const cols = Math.max(0, dims[1] || 0);
-    const row = [];
-    const col = [];
-    const re = [];
-    const im = [];
     const n = Math.min(rowMajor.length, rows * cols);
-    for (let c = 0; c < cols; c++) {
-        for (let r = 0; r < rows; r++) {
-            const at = r * cols + c;
-            if (at >= n) {
-                continue;
-            }
-            const [a, b] = elementParts(rowMajor[at]);
-            const bb = complex ? b : 0;
-            // `!== 0` is true of NaN and false of -0, which is MATLAB's rule for both.
-            if (a !== 0 || bb !== 0) {
-                row.push(r);
-                col.push(c);
-                re.push(a);
-                im.push(bb);
-            }
+    const kept = [];
+    for (let at = 0; at < n; at++) {
+        const [a, b] = elementParts(rowMajor[at]);
+        const bb = complex ? b : 0;
+        // `!== 0` is true of NaN and false of -0, which is MATLAB's rule for both.
+        if (a !== 0 || bb !== 0) {
+            kept.push([Math.floor(at / cols), at % cols, a, bb]);
         }
     }
+    kept.sort((x, y) => x[1] - y[1] || x[0] - y[0]);
     return {
-        row: Int32Array.from(row),
-        col: Int32Array.from(col),
-        re: Float64Array.from(re),
-        im: complex ? Float64Array.from(im) : null,
+        row: Int32Array.from(kept, (e) => e[0]),
+        col: Int32Array.from(kept, (e) => e[1]),
+        re: Float64Array.from(kept, (e) => e[2]),
+        im: complex ? Float64Array.from(kept, (e) => e[3]) : null,
         backedColumns: rowMajor.length >= rows * cols ? cols : Math.min(cols, rowMajor.length),
     };
 }

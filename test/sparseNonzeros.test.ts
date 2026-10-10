@@ -20,6 +20,8 @@ import { uudecode } from '../src/datamodel/parser/CdataCodec.js';
 import { matStreamPrefix } from '../src/datamodel/parser/EncodedValue.js';
 import { decodeMatStream } from '../src/datamodel/parser/MatParser.js';
 import { encodeMatStream, encodeMatVariable, matStreamOfElement } from '../src/datamodel/parser/MatWriter.js';
+import { sparseFromDense } from '../src/datamodel/parser/SparseData.js';
+import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { arrayFlags, CLASS, dims, element, matFile, matrix, MI, numericData, sparseVar, varName } from './tools/matBytes.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -30,6 +32,7 @@ function entries(s: any): number[][] {
 }
 const only = (buffer: ArrayBuffer) => parseMat(buffer).variables[0];
 const rows = (node: any): [string, string][] => node.children.map((c: any) => [c.displayName, c.displayValue]);
+const rowsOf = (node: any): [string, string, boolean][] => node.children.map((c: any) => [c.displayName, c.displayValue, c.valueEditable]);
 const timed = <T>(f: () => T): [T, number] => {
   const t0 = performance.now();
   const out = f();
@@ -158,6 +161,41 @@ describe('a damaged sparse array costs what its bytes hold, not what it declares
   it('an explicit zero in the file is not a non-zero, nor a row out of range', () => {
     const v = only(matFile([sparseVar({ name: 'z', dimensions: [3, 1], ir: [0, 1, 7, -1], jc: [0, 4], real: [0, 4, 9, 9] })]));
     expect(entries(v.sparse)).toEqual([[2, 1, 4]]);
+  });
+
+  it('a dense list costs what it holds, not the size it declares', () => {
+    // A 40-character `Matrix(40000,40000)` literal holding one element used to visit all
+    // 1.6e9 cells; Matrix(1000000,1000000) would have taken minutes.
+    const [s, ms] = timed(() => sparseFromDense([1, 2], [1000000, 1000000], false));
+    expect(ms).toBeLessThan(100);
+    expect(entries(s)).toEqual([
+      [1, 1, 1],
+      [1, 2, 2],
+    ]);
+    // In MATLAB's column-major order whatever the list's: [0 1; 2 0; 0 3].
+    expect(entries(sparseFromDense([0, 1, 2, 0, 0, 3], [3, 2], false))).toEqual([
+      [2, 1, 2],
+      [1, 2, 1],
+      [3, 2, 3],
+    ]);
+    const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
+    const [node, parseMs] = timed((): any =>
+      design.parseEntry({ name: 'big', metadata: { uuid: '00000000-0000-4000-e300-000000000001' }, value: { _type: 'sparse', _value: 'Matrix(1000000,1000000)\n[1]' } }),
+    );
+    expect(parseMs).toBeLessThan(100);
+    // One element under a header that claims a trillion: what it holds is shown, and its
+    // row is read-only, since no writer could write the column index the header declares.
+    expect([node.displayValue, rowsOf(node)]).toEqual(['<1000000x1000000 sparse double>', [['big(1,1)', '1', false]]]);
+    // And a host's dense list the same.
+    const [hostNode, hostMs] = timed((): any =>
+      MatlabVariableNode.parseMatVariable(
+        { name: 'h', className: 'double', dimensions: [1000000, 1000000], isComplex: false, isLogical: false, isSparse: true, value: [0, 7], fields: null },
+        'h',
+        null,
+      ),
+    );
+    expect(hostMs).toBeLessThan(100);
+    expect(rowsOf(hostNode)).toEqual([['h(1,2)', '7', false]]);
   });
 });
 
