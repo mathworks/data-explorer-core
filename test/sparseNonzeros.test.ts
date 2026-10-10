@@ -19,7 +19,7 @@ import { nodeAt } from './tools/matlabPath.js';
 import { uudecode } from '../src/datamodel/parser/CdataCodec.js';
 import { matStreamPrefix } from '../src/datamodel/parser/EncodedValue.js';
 import { decodeMatStream } from '../src/datamodel/parser/MatParser.js';
-import { encodeMatStream, encodeMatVariable } from '../src/datamodel/parser/MatWriter.js';
+import { encodeMatStream, encodeMatVariable, matStreamOfElement } from '../src/datamodel/parser/MatWriter.js';
 import { arrayFlags, CLASS, dims, element, matFile, matrix, MI, numericData, sparseVar, varName } from './tools/matBytes.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -30,6 +30,11 @@ function entries(s: any): number[][] {
 }
 const only = (buffer: ArrayBuffer) => parseMat(buffer).variables[0];
 const rows = (node: any): [string, string][] => node.children.map((c: any) => [c.displayName, c.displayValue]);
+const timed = <T>(f: () => T): [T, number] => {
+  const t0 = performance.now();
+  const out = f();
+  return [out, performance.now() - t0];
+};
 // The variable a MAT stream holds, read back by the reader every venue shares.
 const streamOf = (bytes: Uint8Array) => {
   const read = decodeMatStream(bytes);
@@ -112,12 +117,6 @@ describe('a damaged sparse array costs what its bytes hold, not what it declares
   // The million-element limit was the only bound on the column walk, and on a column-start
   // list whose element type has no width: a corrupted dims word — one bad byte of a hex
   // value — would walk two billion columns, or allocate as many zeros.
-  const timed = <T>(f: () => T): [T, number] => {
-    const t0 = performance.now();
-    const out = f();
-    return [out, performance.now() - t0];
-  };
-
   it('2^31-1 columns with a two-entry jc is read as the one column jc holds', () => {
     const [v, ms] = timed(() => only(matFile([sparseVar({ name: 'w', dimensions: [1, 0x7fffffff], ir: [0], jc: [0, 1], real: [5] })])));
     expect(entries(v.sparse)).toEqual([[1, 1, 5]]);
@@ -301,6 +300,64 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
       [3, 3, 42],
       [3, 3, 3],
     ]);
+  });
+
+  it('copied out of a .mat once edited, it is the edit, not the bytes it was read from', () => {
+    // Unedited, a copy is the element the array was read from (_matStream); an edit is what
+    // ends that, at the top of a .mat, in a struct field and in a cell element alike.
+    const mat = loadFile('../fixtures/sparse/sparse_values.mat');
+    const cases: [string, (v: any) => any][] = [
+      ['spDiag', (v) => v],
+      ['st', (v) => v._elements[0].sp],
+      ['c', (v) => v._elements[0]],
+    ];
+    for (const [name, pick] of cases) {
+      const node = nodeAt(mat, name === 'spDiag' ? 'spDiag' : name === 'st' ? 'st.sp' : 'c{1}');
+      const before = entries(cdataVariable(pick(JSON.parse(JSON.stringify(nodeAt(mat, name).serializeValue())))).sparse);
+      expect(node.children[0].setProperty('Value', '77'), name).toBe(true);
+      const after = entries(cdataVariable(pick(JSON.parse(JSON.stringify(nodeAt(mat, name).serializeValue())))).sparse);
+      expect(after, name).toEqual([[...before[0].slice(0, 2), 77], ...before.slice(1)]);
+    }
+  });
+
+  it('a host\'s non-zeros under a column count no stream can hold are refused, as an error to catch', () => {
+    // No reader says what backs them (SparseData.backedColumns), so the stream's own limit is
+    // the one there is: a column index of 2^31 words is past what its uint32 size can say.
+    const [thrown, ms] = timed(() => {
+      try {
+        encodeMatVariable({
+          name: '', className: 'double', dimensions: [1, 0x7fffffff], isComplex: false, isLogical: false, isSparse: true, value: '<1x2147483647 sparse double>', fields: null,
+          sparse: { row: Int32Array.from([0]), col: Int32Array.from([0]), re: Float64Array.from([5]), im: null },
+        });
+        return null;
+      } catch (e) {
+        return e;
+      }
+    });
+    expect([(thrown as Error)?.name, ms < 1000]).toEqual(['MatWriteError', true]);
+  });
+});
+
+describe('past the row budget, a sparse array is its summary alone, and its bytes are kept', () => {
+  it('no rows, no grid; copied out of a .mat it is the element it was read from, and a dictionary\'s is replayed', () => {
+    // 10001 non-zeros in a 1x20000: over MAX_EXPANDED_ELEMENTS in rows, so there are none,
+    // and nothing can edit it — so nothing re-encodes it.
+    const nnz = 10001;
+    const element = sparseVar({
+      name: 'big',
+      dimensions: [1, 20000],
+      ir: Array.from({ length: nnz }, () => 0),
+      jc: Array.from({ length: 20001 }, (_, c) => Math.min(c, nnz)),
+      real: Array.from({ length: nnz }, (_, k) => k + 1),
+    });
+    const mat: any = createSession().addMatSource('big.mat', matFile([element]));
+    const big = mat.children[0];
+    expect([big.displayValue, big.children.length, big.displayElements()]).toEqual(['<1x20000 sparse double>', 0, null]);
+    const copied = big.serializeValue() as any;
+    expect([...matStreamPrefix(uudecode(copied._value))!]).toEqual([...matStreamOfElement(element)!]);
+    const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
+    const pasted = design.parseEntry({ name: 'bigCopy', metadata: { uuid: '00000000-0000-4000-e300-000000000002' }, value: copied });
+    expect([pasted.children.length, pasted.serializeValue()]).toEqual([0, copied]);
   });
 });
 

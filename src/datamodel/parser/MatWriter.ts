@@ -204,7 +204,7 @@ function emptyName(): Uint8Array {
  * the file declared. A [2,1,2] stays [2,1,2] — MATLAB keeps interior singletons,
  * and rewriting them would change the value's shape.
  */
-function dimsOf(v: MatVariable): number[] {
+function dimsOf(v: Pick<MatVariable, 'dimensions'>): number[] {
   const d = (v.dimensions || []).slice();
   while (d.length < 2) {
     d.push(1);
@@ -248,14 +248,15 @@ function toBigInt(n: number | string): bigint {
   return isFinite(n) ? BigInt(Math.round(n)) : 0n;
 }
 
-function numericPayload(type: number, values: (number | string)[]): Uint8Array {
+function numericPayload(type: number, values: ArrayLike<number | string>): Uint8Array {
   const width = WIDTH[type];
   if (!width) {
     throw new MatWriteError('no payload width for MAT element type ' + type);
   }
   const data = new Uint8Array(values.length * width);
   const view = new DataView(data.buffer);
-  values.forEach(function (v, i) {
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
     const at = i * width;
     const n = typeof v === 'number' ? v : Number(v);
     switch (type) {
@@ -292,7 +293,7 @@ function numericPayload(type: number, values: (number | string)[]): Uint8Array {
         view.setFloat64(at, n, true);
         break;
     }
-  });
+  }
   return element(type, data);
 }
 
@@ -456,47 +457,27 @@ const SPARSE_FLAG = 0x10;
  * counted from the columns, which is the one part of the stream that grows with the
  * array's shape rather than with what it holds.
  *
- * Refused: a variable a reader did not decode (`undecoded`, which has no values here to
- * write, only the placeholder that stands for them), a shape or class MATLAB has no sparse
- * storage for, a dense value whose length its dims disagree with, and non-zeros out of
- * MATLAB's order or outside the array — each a stream MATLAB would read back as something
- * else.
+ * Refused (sparseWriteRefusal): a variable a reader did not decode (`undecoded`, which has
+ * no values here to write, only the placeholder that stands for them), a shape or class
+ * MATLAB has no sparse storage for, a dense value whose length its dims disagree with, an
+ * array whose dims declare more columns than what it was read from backs, and non-zeros out
+ * of MATLAB's order or outside the array — each a stream MATLAB would read back as
+ * something else, or, for the columns, one that would cost what no byte of the file held.
  */
 function encodeSparse(v: MatVariable): Uint8Array {
-  if (v.undecoded) {
-    throw new MatWriteError('cannot write a sparse array the reader did not decode (' + v.undecoded + ')');
+  const refusal = sparseWriteRefusal(v);
+  if (refusal) {
+    throw new MatWriteError(refusal);
   }
   const d = dimsOf(v);
-  if (d.length !== 2) {
-    throw new MatWriteError('a sparse array has two dimensions, not [' + d.join(',') + ']');
-  }
   const logical = !!v.isLogical || v.className === 'logical';
-  let cls: number;
-  let payload: number;
-  if (logical) {
-    cls = MX_SPARSE;
-    payload = MI_UINT8;
-  } else if (v.className === 'double') {
-    cls = MX_SPARSE;
-    payload = MI_DOUBLE;
-  } else if (v.className === 'single') {
-    cls = CLASS_CODE.single;
-    payload = MI_SINGLE;
-  } else {
-    throw new MatWriteError('no sparse MAT class for "' + v.className + '"');
-  }
+  const cls = logical || v.className === 'double' ? MX_SPARSE : CLASS_CODE.single;
+  const payload = logical ? MI_UINT8 : v.className === 'double' ? MI_DOUBLE : MI_SINGLE;
   const complex = !!v.isComplex && !logical;
   const [rows, cols] = d;
-  let s = v.sparse;
-  if (!s) {
-    const flat = flatValues(v.value);
-    if (flat.length !== rows * cols) {
-      throw new MatWriteError('sparse value has ' + flat.length + ' elements but declares [' + d.join(',') + ']');
-    }
-    s = sparseFromDense(flat, d, complex);
-  }
+  const s = v.sparse ?? sparseFromDense(flatValues(v.value), d, complex);
   const ir: number[] = [];
-  const jc: number[] = new Array(cols + 1).fill(0);
+  const jc = new Int32Array(cols + 1);
   const re: number[] = [];
   const im: number[] = [];
   for (let k = 0; k < s.row.length; k++) {
@@ -535,6 +516,51 @@ function encodeSparse(v: MatVariable): Uint8Array {
     subs.push(numericPayload(payload, im));
   }
   return element(MI_MATRIX, concat(subs));
+}
+
+/**
+ * Why encodeSparse refuses `v`, or null when it writes it. Read off the shape, the class and
+ * what the non-zeros say backs them — never the non-zeros themselves — so it is asked of a
+ * node before it offers an editor (MatlabVariableNode._sparseRefusal): an array no edit of
+ * could be written takes none.
+ *
+ * The column index is the one part of the stream that grows with the array's declared
+ * shape: cols + 1 words. One read from a file whose column index held fewer columns than
+ * its dims declare (SparseData.backedColumns) has a damaged dims word, and writing it would
+ * take what no byte of the file ever held — `new Array(2^31)` for one corrupted cols word
+ * of a 3 KB hex value, a fatal out-of-memory no caller could catch. And no stream holds a
+ * column index past what its uint32 size word can say. A value MATLAB wrote is neither.
+ */
+export function sparseWriteRefusal(
+  v: Pick<MatVariable, 'undecoded' | 'dimensions' | 'className' | 'isLogical' | 'sparse' | 'value'>,
+): string | null {
+  if (v.undecoded) {
+    return 'cannot write a sparse array the reader did not decode (' + v.undecoded + ')';
+  }
+  const d = dimsOf(v);
+  if (d.length !== 2) {
+    return 'a sparse array has two dimensions, not [' + d.join(',') + ']';
+  }
+  const logical = !!v.isLogical || v.className === 'logical';
+  if (!logical && v.className !== 'double' && v.className !== 'single') {
+    return 'no sparse MAT class for "' + v.className + '"';
+  }
+  const [rows, cols] = d;
+  if (v.sparse) {
+    const backed = v.sparse.backedColumns;
+    if (backed !== undefined && backed < cols) {
+      return 'a sparse array declaring ' + cols + ' columns was read from a column index of ' + backed + ', and its own would be words no byte of it held';
+    }
+  } else {
+    const n = flatValues(v.value).length;
+    if (n !== rows * cols) {
+      return 'sparse value has ' + n + ' elements but declares [' + d.join(',') + ']';
+    }
+  }
+  if (4 * (cols + 1) > 0xffffffff) {
+    return 'a sparse array of ' + cols + ' columns has a column index no MAT stream can hold';
+  }
+  return null;
 }
 
 /** The bytes of one complete `miMATRIX` element: tag, then the matrix body. */

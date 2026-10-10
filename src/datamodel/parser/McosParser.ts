@@ -2,7 +2,8 @@
 
 import { parseMatrix, MatVariable } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
-import { encodeCdata } from './MatWriter.js';
+import { matStreamOfElement } from './MatWriter.js';
+import { uuencode } from './CdataCodec.js';
 import {
   complexClassTag,
   formatComplexNum,
@@ -475,18 +476,17 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
   // Simulink.Parameter's sparse Value in a .mat, a model workspace or a binary dictionary
   // arrived full — one row per element and a dense literal, where its text dictionary's
   // twin, a stream, showed the sparse array it is — and a copy of the Parameter into a
-  // dictionary wrote it full. It is handed over as that stream: the cdata a text
-  // dictionary holds for the same Value, character for character (MatWriter.encodeSparse
-  // writes MATLAB's own bytes for one, from the non-zeros MatParser read), read by the node
-  // layer as the twin's is — at any size, spTall's 10000000x2 included. One the encoder
-  // refuses, of a class or a rank MATLAB never stores sparse, is nothing: its values are
-  // its non-zeros, which none of the arms below reads.
+  // dictionary wrote it full. It is handed over as that stream, read by the node layer as
+  // the twin's is: the element it was read from (MatParser keeps a sparse cell's bytes),
+  // re-framed as a stream, which is the cdata a text dictionary holds for the same Value
+  // character for character. Not re-encoded: that ran on every open, and with a damaged
+  // dims word — one corrupted byte of a hex value — the encoder's column index was 2^31
+  // words, a fatal out-of-memory no caller could catch. And so of whatever class or shape
+  // its bytes say: one MatWriter cannot write (an int8 sparse array, which MATLAB never
+  // writes) shows as those bytes show anywhere, rather than as nothing.
   if (cell.isSparse) {
-    try {
-      return { _type: 'cdata', _value: encodeCdata(cell) };
-    } catch {
-      return undefined;
-    }
+    const stream = cell._rawBytes ? matStreamOfElement(cell._rawBytes) : null;
+    return stream ? { _type: 'cdata', _value: uuencode(stream) } : undefined;
   }
   // Before the numeric arms below, every one of which would pass the { re, im } pairs
   // on to a node that cannot read them. Any numeric class: MatParser pairs the parts of

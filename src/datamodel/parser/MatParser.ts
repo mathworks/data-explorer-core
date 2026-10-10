@@ -5,7 +5,7 @@ import { exactInt } from './XmlUtils.js';
 import { reasonOf } from './ParseWarning.js';
 import type { ParseWarning } from './ParseWarning.js';
 import { isObjectHandle, objectHandleFromValue } from './McosHandle.js';
-import { emptySparse, type SparseData } from './SparseData.js';
+import { emptySparse, unbackedColumns, type SparseData } from './SparseData.js';
 
 const CLASS_NAMES: Record<number, string> = {
     1: 'cell', 2: 'struct', 3: 'object', 4: 'char',
@@ -424,6 +424,9 @@ function readSparse(
         col: colOut.slice(0, n),
         re: reOut.slice(0, n),
         im: imOut ? imOut.slice(0, n) : null,
+        // The columns whose starts jc held, which for a file MATLAB wrote is all of them; a
+        // dims word that declares more is damaged (SparseData.backedColumns).
+        backedColumns: walked,
     };
 }
 
@@ -636,7 +639,7 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
         // read: a host that renders values without knowing about `sparse` still shows
         // something true. A 1x1 is not unwrapped to a scalar: it has no list to unwrap.
         const nzmax = flagsSub.bytes >= 8 ? view.getUint32(flagsSub.dataOffset + 4, true) : 0;
-        result.sparse = offset < end ? readSparse(view, offset, end, dimensions, isComplex, nzmax) : emptySparse(isComplex);
+        result.sparse = offset < end ? readSparse(view, offset, end, dimensions, isComplex, nzmax) : emptySparse(isComplex, 0);
         result.value = sparseValue(dimensions, className);
     } else if (arrayClass >= 6 && arrayClass <= 15) {
         if (offset < end) {
@@ -764,8 +767,10 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
                 // but the bytes it was read from (MatWriter.matStreamOfElement), so it
                 // keeps them, as a struct field does: copied out of a cell — or out of an
                 // MCOS property, whose values are a cell's elements — it went into a
-                // dictionary as the text of its placeholder, or as [].
-                if (child.undecoded) {
+                // dictionary as the text of its placeholder, or as []. A sparse array keeps
+                // them too: they are what it is written back as while nothing edits it, and
+                // what an MCOS property holding one is handed over as (McosParser).
+                if (child.undecoded || child.isSparse) {
                     const rawLen = Math.min(cellSub.totalSize, view.byteLength - offset);
                     child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + offset, Math.max(0, rawLen));
                 }
@@ -950,12 +955,17 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
  * looks at the file-level list.
  */
 function collectUndecoded(variable: MatVariable, path: string, warnings: ParseWarning[]): void {
+    const unbacked = variable.sparse ? unbackedColumns(variable.sparse, variable.dimensions) : null;
     if (variable.undecoded) {
         warnings.push({
             code: 'part-unreadable',
             message: `"${path}" was not decoded: ${variable.undecoded}.`,
             part: path,
         });
+    } else if (unbacked) {
+        // A sparse array whose dims word is damaged: read as far as its column index goes,
+        // which is all of its bytes, and said so — it shows a size no byte of it backs.
+        warnings.push({ code: 'part-unreadable', message: `"${path}" ${unbacked}.`, part: path });
     } else if (variable.className === 'unknown') {
         // A class code CLASS_NAMES has no name for: a function handle (16), or a class
         // a later release added. The value is in the file and comes back null, which is

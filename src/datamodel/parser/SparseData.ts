@@ -33,12 +33,21 @@ import { parseComplexNum, parseMatlabNum } from './XmlUtils.js';
  * NaN stays and -0 goes). An edit can set one to zero, and it stays an entry — its element
  * row is still that entry's row — until the array is written, which keeps only the
  * non-zeros, or read again.
+ *
+ * `backedColumns`, when a reader sets it, is how many columns what it read from backs: the
+ * column starts its file's column index (jc) held, or the columns a dense list's elements
+ * fill. A writer writes every column's start, so an array whose dims declare more columns
+ * than that has a damaged dims word — one corrupted byte of a hex value makes 2 columns
+ * 2^31-1 — and writing it would cost what no byte of the file ever held. MatWriter refuses
+ * one (sparseWriteRefusal), and the node layer offers it no editor. Absent, as on a value a
+ * host builds, nothing is known and nothing is refused for it.
  */
 export interface SparseData {
   row: Int32Array;
   col: Int32Array;
   re: Float64Array;
   im: Float64Array | null;
+  backedColumns?: number;
 }
 
 /**
@@ -50,14 +59,35 @@ export interface SparseData {
  */
 export const MAX_DENSE_ELEMENTS = 1000000;
 
-/** A sparse array of nothing but zeros. */
-export function emptySparse(complex: boolean): SparseData {
-  return { row: new Int32Array(0), col: new Int32Array(0), re: new Float64Array(0), im: complex ? new Float64Array(0) : null };
+/** A sparse array of nothing but zeros, backed for `backedColumns` columns when known. */
+export function emptySparse(complex: boolean, backedColumns?: number): SparseData {
+  const s: SparseData = { row: new Int32Array(0), col: new Int32Array(0), re: new Float64Array(0), im: complex ? new Float64Array(0) : null };
+  if (backedColumns !== undefined) {
+    s.backedColumns = backedColumns;
+  }
+  return s;
 }
 
 /** An independent copy: an edit to one is not an edit to the other. */
 export function cloneSparse(s: SparseData): SparseData {
-  return { row: s.row.slice(), col: s.col.slice(), re: s.re.slice(), im: s.im ? s.im.slice() : null };
+  const copy: SparseData = { row: s.row.slice(), col: s.col.slice(), re: s.re.slice(), im: s.im ? s.im.slice() : null };
+  if (s.backedColumns !== undefined) {
+    copy.backedColumns = s.backedColumns;
+  }
+  return copy;
+}
+
+/**
+ * Why a sparse array's declared columns are more than what it was read from backs
+ * (SparseData.backedColumns), or null when they are not — the reason a reader reports the
+ * array as read short, phrased to follow its name.
+ */
+export function unbackedColumns(s: SparseData, dims: number[]): string | null {
+  const cols = Math.max(0, dims[1] || 0);
+  if (s.backedColumns === undefined || s.backedColumns >= cols) {
+    return null;
+  }
+  return 'declares ' + cols + ' columns and its column index holds ' + s.backedColumns + ', so only the non-zeros of those were read';
 }
 
 /**
@@ -126,7 +156,8 @@ export function setSparseEntry(s: SparseData, k: number, x: unknown): void {
 /**
  * The non-zeros of a dense row-major element list — what a writer or a host that built a
  * variable by hand hands over, and the body of this package's own `sparse` literal. A
- * missing element is a zero.
+ * missing element is a zero. The columns the list backs (SparseData.backedColumns) are all
+ * of them when it holds every element, and otherwise no more than the elements it holds.
  */
 export function sparseFromDense(rowMajor: unknown[], dims: number[], complex: boolean): SparseData {
   const rows = Math.max(0, dims[0] || 0);
@@ -153,7 +184,13 @@ export function sparseFromDense(rowMajor: unknown[], dims: number[], complex: bo
       }
     }
   }
-  return { row: Int32Array.from(row), col: Int32Array.from(col), re: Float64Array.from(re), im: complex ? Float64Array.from(im) : null };
+  return {
+    row: Int32Array.from(row),
+    col: Int32Array.from(col),
+    re: Float64Array.from(re),
+    im: complex ? Float64Array.from(im) : null,
+    backedColumns: rowMajor.length >= rows * cols ? cols : Math.min(cols, rowMajor.length),
+  };
 }
 
 /**

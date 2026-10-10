@@ -8,6 +8,20 @@ import type { MatVariable } from './MatParser.js';
 export declare class MatWriteError extends Error {
     constructor(message: string);
 }
+/**
+ * Why encodeSparse refuses `v`, or null when it writes it. Read off the shape, the class and
+ * what the non-zeros say backs them — never the non-zeros themselves — so it is asked of a
+ * node before it offers an editor (MatlabVariableNode._sparseRefusal): an array no edit of
+ * could be written takes none.
+ *
+ * The column index is the one part of the stream that grows with the array's declared
+ * shape: cols + 1 words. One read from a file whose column index held fewer columns than
+ * its dims declare (SparseData.backedColumns) has a damaged dims word, and writing it would
+ * take what no byte of the file ever held — `new Array(2^31)` for one corrupted cols word
+ * of a 3 KB hex value, a fatal out-of-memory no caller could catch. And no stream holds a
+ * column index past what its uint32 size word can say. A value MATLAB wrote is neither.
+ */
+export declare function sparseWriteRefusal(v: Pick<MatVariable, 'undecoded' | 'dimensions' | 'className' | 'isLogical' | 'sparse' | 'value'>): string | null;
 /** The bytes of one complete `miMATRIX` element: tag, then the matrix body. */
 export declare function encodeMatVariable(v: MatVariable): Uint8Array;
 /**

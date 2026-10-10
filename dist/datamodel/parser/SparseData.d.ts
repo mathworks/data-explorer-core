@@ -12,12 +12,21 @@
  * NaN stays and -0 goes). An edit can set one to zero, and it stays an entry — its element
  * row is still that entry's row — until the array is written, which keeps only the
  * non-zeros, or read again.
+ *
+ * `backedColumns`, when a reader sets it, is how many columns what it read from backs: the
+ * column starts its file's column index (jc) held, or the columns a dense list's elements
+ * fill. A writer writes every column's start, so an array whose dims declare more columns
+ * than that has a damaged dims word — one corrupted byte of a hex value makes 2 columns
+ * 2^31-1 — and writing it would cost what no byte of the file ever held. MatWriter refuses
+ * one (sparseWriteRefusal), and the node layer offers it no editor. Absent, as on a value a
+ * host builds, nothing is known and nothing is refused for it.
  */
 export interface SparseData {
     row: Int32Array;
     col: Int32Array;
     re: Float64Array;
     im: Float64Array | null;
+    backedColumns?: number;
 }
 /**
  * The most elements this package lays out densely for a sparse array: the writers' fallback,
@@ -27,10 +36,16 @@ export interface SparseData {
  * is.
  */
 export declare const MAX_DENSE_ELEMENTS = 1000000;
-/** A sparse array of nothing but zeros. */
-export declare function emptySparse(complex: boolean): SparseData;
+/** A sparse array of nothing but zeros, backed for `backedColumns` columns when known. */
+export declare function emptySparse(complex: boolean, backedColumns?: number): SparseData;
 /** An independent copy: an edit to one is not an edit to the other. */
 export declare function cloneSparse(s: SparseData): SparseData;
+/**
+ * Why a sparse array's declared columns are more than what it was read from backs
+ * (SparseData.backedColumns), or null when they are not — the reason a reader reports the
+ * array as read short, phrased to follow its name.
+ */
+export declare function unbackedColumns(s: SparseData, dims: number[]): string | null;
 /**
  * One complex element as the node layer holds it, `1+2i`, `3-4i`, `1NaNi`: each part
  * String()'d, and between them the imaginary part's own sign, or '+' when it is >= 0. The one
@@ -49,7 +64,8 @@ export declare function setSparseEntry(s: SparseData, k: number, x: unknown): vo
 /**
  * The non-zeros of a dense row-major element list — what a writer or a host that built a
  * variable by hand hands over, and the body of this package's own `sparse` literal. A
- * missing element is a zero.
+ * missing element is a zero. The columns the list backs (SparseData.backedColumns) are all
+ * of them when it holds every element, and otherwise no more than the elements it holds.
  */
 export declare function sparseFromDense(rowMajor: unknown[], dims: number[], complex: boolean): SparseData;
 /**

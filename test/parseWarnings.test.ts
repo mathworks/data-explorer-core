@@ -598,10 +598,12 @@ describe('parseMat — the warnings channel', () => {
     // A double declaring 2000x2000 with one element's bytes: past the size the reader
     // builds on a declared count its bytes cannot back. A sparse array of the same size is
     // no such variable — what it holds is its non-zeros, which it reads — and says nothing.
+    // (With every column start in its jc, as MATLAB writes one: a shorter jc is a damaged
+    // dims word, which is reported — test/sparseDamaged.test.ts.)
     const parsed = parseMat(
       matFile([
         numericVar({ name: 'big', cls: CLASS.DOUBLE, dimensions: [2000, 2000], real: [1] }),
-        sparseVar({ name: 'sp', dimensions: [2000, 2000], ir: [0], jc: [0, 1], real: [1] }),
+        sparseVar({ name: 'sp', dimensions: [2000, 2000], ir: [0], jc: [0, ...new Array(2000).fill(1)], real: [1] }),
       ]),
     );
     expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', 'big']]);

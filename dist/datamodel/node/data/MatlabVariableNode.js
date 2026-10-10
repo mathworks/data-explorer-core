@@ -17,7 +17,7 @@ import { subscriptLabel } from '../../display/Subscript.js';
 import { decodeMatStream } from '../../parser/MatParser.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
-import { encodeMatStream, matStreamOfElement } from '../../parser/MatWriter.js';
+import { encodeMatStream, matStreamOfElement, sparseWriteRefusal } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
@@ -97,6 +97,7 @@ export default class MatlabVariableNode extends DataNode {
         this._varStale = false;
         this._isOpaque = false;
         this._sparse = null;
+        this._sparseEdited = false;
         this._undecoded = false;
         this._opaqueClassName = null;
         this._mcosProperties = null;
@@ -301,6 +302,10 @@ export default class MatlabVariableNode extends DataNode {
         // editable-looking text ("alpha"), so without this they would have offered an editor
         // whose commit could not reach the file.
         if (this.parent instanceof MatlabVariableNode && this.parent._isOpaque) {
+            return false;
+        }
+        // Nor an element of a sparse array no edit of could be written (_sparseRefusal).
+        if (this.parent instanceof MatlabVariableNode && this.parent._sparseRefusal()) {
             return false;
         }
         if (this._scalarType === 'struct') {
@@ -769,6 +774,18 @@ export default class MatlabVariableNode extends DataNode {
                 validValue: this.displayValue,
             };
         }
+        // A sparse array this package could not write once edited — one whose file declares
+        // more columns than its column index holds, or of a class MATLAB never stores sparse —
+        // is written back as the bytes it was read from, so an edit would never reach the file.
+        const refusal = parent._sparseRefusal();
+        if (refusal) {
+            return {
+                error: true,
+                reason: 'This sparse array cannot be written once edited (' + refusal + '), so its elements are read-only.',
+                invalidValue: stringValue,
+                validValue: this.displayValue,
+            };
+        }
         const isArrayElement = parent._kind === 'array';
         // A logical element is the one array element that does not display as a number,
         // so it is the one with its own accept set: true/false, plus 1/0 for the user who
@@ -864,6 +881,7 @@ export default class MatlabVariableNode extends DataNode {
         }
         if (this._sparse) {
             setSparseEntry(this._sparse, idx, child._scalarValue);
+            this._sparseEdited = true;
         }
         else if (idx < this._elements.length) {
             this._elements[idx] = child._scalarValue;
@@ -1559,6 +1577,11 @@ export default class MatlabVariableNode extends DataNode {
      *     read from, re-framed as a stream (MatWriter.matStreamOfElement) — nothing else holds
      *     its values, and without this a copy of one out of a .mat wrote the text of its
      *     placeholder;
+     *   - for a sparse array no element row has edited, the element it was read from, the same
+     *     way: its own bytes, which for every array MATLAB wrote are the bytes MatWriter would
+     *     write, and for one MatWriter refuses — a dims word damaged, a class MATLAB never
+     *     stores sparse — the only ones there are. So copying one, at any size, never
+     *     re-encodes it;
      *   - otherwise what MatWriter writes for the live value, which is MATLAB's own bytes for
      *     a sparse array, written from its non-zeros (MatWriter.encodeSparse); null for what
      *     MatWriter refuses.
@@ -1574,12 +1597,38 @@ export default class MatlabVariableNode extends DataNode {
         if (this._undecoded) {
             return this._rawBytes ? matStreamOfElement(this._rawBytes) : null;
         }
+        if (this._sparse && !this._sparseEdited && this._rawBytes) {
+            const own = matStreamOfElement(this._rawBytes);
+            if (own) {
+                return own;
+            }
+        }
         try {
             return encodeMatStream(this._var);
         }
         catch (_e) {
             return null;
         }
+    }
+    /**
+     * Why MatWriter could not write this sparse array once an element of it were edited — its
+     * file declares more columns than its column index held, or its class is one MATLAB never
+     * stores sparse — or null when it could, and for anything not sparse. Such an array is
+     * written as the bytes it was read from, so its rows take no edit (valueEditable,
+     * _setConstrainedValue): one would never reach the file.
+     */
+    _sparseRefusal() {
+        if (!this._sparse) {
+            return null;
+        }
+        return sparseWriteRefusal({
+            undecoded: undefined,
+            dimensions: this._dims,
+            className: this._scalarType === 'logical' ? 'uint8' : this._scalarType,
+            isLogical: this._scalarType === 'logical',
+            sparse: this._sparse,
+            value: null,
+        });
     }
     /**
      * A sparse array's every element, row-major, as a full array's are held — for the writers'

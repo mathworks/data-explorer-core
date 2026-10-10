@@ -25,13 +25,33 @@ import { parseComplexNum, parseMatlabNum } from './XmlUtils.js';
  * is.
  */
 export const MAX_DENSE_ELEMENTS = 1000000;
-/** A sparse array of nothing but zeros. */
-export function emptySparse(complex) {
-    return { row: new Int32Array(0), col: new Int32Array(0), re: new Float64Array(0), im: complex ? new Float64Array(0) : null };
+/** A sparse array of nothing but zeros, backed for `backedColumns` columns when known. */
+export function emptySparse(complex, backedColumns) {
+    const s = { row: new Int32Array(0), col: new Int32Array(0), re: new Float64Array(0), im: complex ? new Float64Array(0) : null };
+    if (backedColumns !== undefined) {
+        s.backedColumns = backedColumns;
+    }
+    return s;
 }
 /** An independent copy: an edit to one is not an edit to the other. */
 export function cloneSparse(s) {
-    return { row: s.row.slice(), col: s.col.slice(), re: s.re.slice(), im: s.im ? s.im.slice() : null };
+    const copy = { row: s.row.slice(), col: s.col.slice(), re: s.re.slice(), im: s.im ? s.im.slice() : null };
+    if (s.backedColumns !== undefined) {
+        copy.backedColumns = s.backedColumns;
+    }
+    return copy;
+}
+/**
+ * Why a sparse array's declared columns are more than what it was read from backs
+ * (SparseData.backedColumns), or null when they are not — the reason a reader reports the
+ * array as read short, phrased to follow its name.
+ */
+export function unbackedColumns(s, dims) {
+    const cols = Math.max(0, dims[1] || 0);
+    if (s.backedColumns === undefined || s.backedColumns >= cols) {
+        return null;
+    }
+    return 'declares ' + cols + ' columns and its column index holds ' + s.backedColumns + ', so only the non-zeros of those were read';
 }
 /**
  * One complex element as the node layer holds it, `1+2i`, `3-4i`, `1NaNi`: each part
@@ -94,7 +114,8 @@ export function setSparseEntry(s, k, x) {
 /**
  * The non-zeros of a dense row-major element list — what a writer or a host that built a
  * variable by hand hands over, and the body of this package's own `sparse` literal. A
- * missing element is a zero.
+ * missing element is a zero. The columns the list backs (SparseData.backedColumns) are all
+ * of them when it holds every element, and otherwise no more than the elements it holds.
  */
 export function sparseFromDense(rowMajor, dims, complex) {
     const rows = Math.max(0, dims[0] || 0);
@@ -121,7 +142,13 @@ export function sparseFromDense(rowMajor, dims, complex) {
             }
         }
     }
-    return { row: Int32Array.from(row), col: Int32Array.from(col), re: Float64Array.from(re), im: complex ? Float64Array.from(im) : null };
+    return {
+        row: Int32Array.from(row),
+        col: Int32Array.from(col),
+        re: Float64Array.from(re),
+        im: complex ? Float64Array.from(im) : null,
+        backedColumns: rowMajor.length >= rows * cols ? cols : Math.min(cols, rowMajor.length),
+    };
 }
 /**
  * Every element, row-major, as the node layer holds a full array's: a number, or for a

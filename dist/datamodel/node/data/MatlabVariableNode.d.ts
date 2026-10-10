@@ -20,6 +20,7 @@ export default class MatlabVariableNode extends DataNode {
     _varStale: boolean;
     _isOpaque: boolean;
     _sparse: SparseData | null;
+    _sparseEdited: boolean;
     _undecoded: boolean;
     _opaqueClassName: string | null;
     _mcosProperties: Record<string, unknown> | null;
@@ -189,11 +190,24 @@ export default class MatlabVariableNode extends DataNode {
      *     read from, re-framed as a stream (MatWriter.matStreamOfElement) — nothing else holds
      *     its values, and without this a copy of one out of a .mat wrote the text of its
      *     placeholder;
+     *   - for a sparse array no element row has edited, the element it was read from, the same
+     *     way: its own bytes, which for every array MATLAB wrote are the bytes MatWriter would
+     *     write, and for one MatWriter refuses — a dims word damaged, a class MATLAB never
+     *     stores sparse — the only ones there are. So copying one, at any size, never
+     *     re-encodes it;
      *   - otherwise what MatWriter writes for the live value, which is MATLAB's own bytes for
      *     a sparse array, written from its non-zeros (MatWriter.encodeSparse); null for what
      *     MatWriter refuses.
      */
     _matStream(): Uint8Array | null;
+    /**
+     * Why MatWriter could not write this sparse array once an element of it were edited — its
+     * file declares more columns than its column index held, or its class is one MATLAB never
+     * stores sparse — or null when it could, and for anything not sparse. Such an array is
+     * written as the bytes it was read from, so its rows take no edit (valueEditable,
+     * _setConstrainedValue): one would never reach the file.
+     */
+    _sparseRefusal(): string | null;
     /**
      * A sparse array's every element, row-major, as a full array's are held — for the writers'
      * fallbacks alone (_serializeArray, _serializeArrayXml), which spell a value as a literal

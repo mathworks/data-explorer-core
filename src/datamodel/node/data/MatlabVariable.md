@@ -219,6 +219,16 @@ holds five entries rather than a million zeros. A damaged one costs what its byt
 the column walk covers the columns `jc` holds, its index arrays are read only as
 integers, and out-of-order or repeated rows are sorted, the last kept.
 
+One whose dims word declares more columns than its column index holds — one corrupted
+byte of a hex value turns spTall's 2 columns into 2^31-1 — is read as what the bytes hold
+and reported as read short (a part-unreadable warning, from `parseMat` and from an MCOS
+property in a `.mat`). Nothing can write an edit of it: its column index would be words no
+byte of the file held, so `MatWriter.sparseWriteRefusal` refuses it, with an error a
+caller can catch, and its rows are read-only (`_sparseRefusal`). The same holds for a
+sparse array of a class MATLAB never stores sparse (an int8 one in a hand-made file). Such
+an array is written back as the bytes it was read from. Pinned in
+`test/sparseDamaged.test.ts`, in a binary dictionary, a text one and a `.mat`.
+
 ### A sparse array's class is its element class
 `class()` of a sparse double is `double` (`logical`, `single`; complex is still
 `double`), so that is the Class and the Data Type.
@@ -226,7 +236,9 @@ The storage is `isSparse`, and `MatWriter.encodeSparse` writes it as MATLAB does
 for byte, from its non-zeros. So an edited sparse array is that stream — cdata in a text
 dictionary, hex in a binary one, at an entry and in a struct field, a cell element or a
 Parameter's Value, never `Class="sparse"`, which MATLAB's reader crashes on. An unedited
-one is written back as the bytes it was read from. A value typed in whole is the full
+one is written back as the bytes it was read from, in every venue: a dictionary's replays
+its cdata or hex, and one out of a `.mat` or a model workspace is copied as the element it
+was read from (`_matStream`), until an element row edits it. A value typed in whole is the full
 array MATLAB makes of the literal. A cell holding a sparse array goes into a binary
 dictionary as one hex stream, as MATLAB writes it; a struct as XML with each sparse field
 its own hex element, which MATLAB reads back sparse. Pinned in
@@ -238,21 +250,29 @@ every venue: a renamed value is not rebuilt from its node.
 
 A sparse property of an MCOS object — a Simulink.Parameter's Value in a `.mat`, a model
 workspace or a binary dictionary's hex — is handed over by `McosParser.resolveValue` as
-the cdata stream a text dictionary holds for the same value, so it is sparse there too
-and is copied into a dictionary as MATLAB's own stream (cdata, or hex in a binary one).
+the element it was read from, re-framed as a stream: the cdata a text dictionary holds for
+the same value, character for character. So it is sparse there too, it is copied into a
+dictionary as MATLAB's own stream (cdata, or hex in a binary one), and opening one never
+re-encodes it.
 
 ### A sparse array shows its summary, and its non-zeros as its rows
 - **Summary, always:** `<10x10 sparse double>`, `<3x3 sparse logical>` — the storage,
   then the class, and no "complex", as no summary says it
   (`DisplayConvention.sparseSummaryForm`). At every size, a 1x1 and an empty one
   included, and inside a cell's literal (`{<1x3 sparse double>, [9 10]}`), and at any
-  declared size, `<10000000x2 sparse double>`. It is never a dense literal, which is a deliberate departure from MATLAB's struct and cell displays, which
-  print a small one inline. Like every summary it offers no cell editor.
+  declared size, `<10000000x2 sparse double>`. It is never a dense literal, which is a
+  deliberate departure from MATLAB's struct and cell displays, which print a small one
+  inline. Like every summary it offers no cell editor.
 - **Element rows:** one per non-zero (MATLAB's `nnz` rule: NaN counts, -0 does not), in
   MATLAB's column-major order, labelled with both subscripts, `x(1,3)` for a vector too,
   as MATLAB's own display lists them (`BaseNode.ElementSubscript`'s `at`, the entry's own
-  subscripts). An all-zero one has none. The row budget counts non-zeros. A 1x1 sparse
-  array is an array with one row, not a scalar, so that its value is visible somewhere.
+  subscripts). An all-zero one has none. A 1x1 sparse array is an array with one row, not a
+  scalar, so that its value is visible somewhere.
+- **Past the row budget, the summary alone (the user's ruling):** the row budget
+  (`MAX_EXPANDED_ELEMENTS`, 10,000) counts non-zeros, so a sparse array with more than
+  10,000 of them shows its summary and nothing else — no rows, and no grid. Since nothing
+  can edit it, its bytes are kept on save: a dictionary's replays its stream, and one out
+  of a `.mat` or a model workspace is copied as the element it was read from.
 - **The value is the non-zeros:** row k is entry k of `_sparse`, and its edit sets that
   entry (`_syncElementFromChild`). An edit to 0 keeps the entry, so the row stays and
   shows 0; the writers keep only the non-zeros, so it is gone once the file is read again.
