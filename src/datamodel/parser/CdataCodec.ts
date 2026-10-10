@@ -101,8 +101,10 @@ export function uudecode(str: string): Uint8Array {
  * stream to a multiple of three and encoding that.
  */
 export function uuencode(bytes: Uint8Array): string {
-  const chars: string[] = [];
   const dataChars = Math.ceil((bytes.length * 8) / 6);
+  // One buffer of character codes, read as text once, rather than a string per character
+  // joined; NUL is code 0, so the padding is the buffer as allocated.
+  const chars = new Uint8Array(Math.ceil(dataChars / 4) * 4 + 1);
   for (let i = 0; i < dataChars; i++) {
     let v = 0;
     for (let b = 0; b < 6; b++) {
@@ -111,11 +113,7 @@ export function uuencode(bytes: Uint8Array): string {
       const inByte = 7 - (bit & 7);
       v = (v << 1) | (byte < bytes.length ? (bytes[byte] >> inByte) & 1 : 0);
     }
-    chars.push(String.fromCharCode(0x20 + v));
+    chars[i] = 0x20 + v;
   }
-  while (chars.length % 4 !== 0) {
-    chars.push('\0');
-  }
-  chars.push('\0');
-  return chars.join('');
+  return new TextDecoder().decode(chars);
 }

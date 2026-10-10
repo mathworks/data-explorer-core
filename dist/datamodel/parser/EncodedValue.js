@@ -201,17 +201,25 @@ export function matStreamPrefix(bytes) {
  * entry's Value sits at indent 2, so its lines are indented sixteen spaces, as MATLAB's are.
  */
 export function hexText(bytes, indent) {
-    let digits = '';
-    for (const b of bytes) {
-        digits += (b < 16 ? '0' : '') + b.toString(16).toUpperCase();
+    // Laid out in one buffer of character codes and read as text once. Built a character at
+    // a time with `+=`, the hex of a 16 MB stream took 1.8 s and the process peaked at
+    // 1.1 GB, against 64 ms and 139 MB (test/textOfBytes.test.ts).
+    const lead = new TextEncoder().encode('\n' + xmlPad(indent + 2));
+    const out = new Uint8Array(bytes.length * 2 + Math.ceil(bytes.length / HEX_LINE_BYTES) * lead.length);
+    let o = 0;
+    for (let at = 0; at < bytes.length; at++) {
+        if (at % HEX_LINE_BYTES === 0) {
+            out.set(lead, o);
+            o += lead.length;
+        }
+        out[o++] = HEX_DIGITS[bytes[at] >> 4];
+        out[o++] = HEX_DIGITS[bytes[at] & 15];
     }
-    const lead = '\n' + xmlPad(indent + 2);
-    let text = '';
-    for (let at = 0; at < digits.length; at += 128) {
-        text += lead + digits.slice(at, at + 128);
-    }
-    return text;
+    return new TextDecoder().decode(out);
 }
+/** The bytes one line of a hex element holds: 128 digits. */
+const HEX_LINE_BYTES = 64;
+const HEX_DIGITS = new TextEncoder().encode('0123456789ABCDEF');
 /** An encoded value for `bytes`, as MATLAB writes one at `indent` for a value of `className`. */
 export function hexValue(bytes, className, indent) {
     return {
