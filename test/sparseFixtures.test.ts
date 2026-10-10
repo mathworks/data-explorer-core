@@ -195,6 +195,12 @@ function expectNonzeroRows(node: any, t: ValueTruth, label: string): void {
   );
   node.children.forEach((c: any, k: number) => {
     expect(partsOf(c._scalarValue, label), `${label} row ${k + 1}`).toEqual([numberOf(nz.real[k]), numberOf(nz.imag[k])]);
+    // What the row shows, and its class: a logical's `true`, not the 1 it is held as, and
+    // a complex one's `re+imi`, in this package's spelling of the numbers MATLAB recorded.
+    expect([c.className, c.displayValue], `${label} row ${k + 1} shown`).toEqual([
+      t.class,
+      elementText(t, numberOf(nz.real[k]), numberOf(nz.imag[k])),
+    ]);
   });
   expect(node.children.length, `${label} nnz`).toBe(t.nnz);
 }

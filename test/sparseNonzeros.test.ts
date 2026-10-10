@@ -38,6 +38,28 @@ const timed = <T>(f: () => T): [T, number] => {
   const out = f();
   return [out, performance.now() - t0];
 };
+
+/**
+ * The subelements of the one miMATRIX element in a MAT stream, as [type, bytes] — read off
+ * the stream itself rather than through the reader, which drops a stored zero.
+ */
+function subelements(stream: Uint8Array): [number, number][] {
+  const view = new DataView(stream.buffer, stream.byteOffset, stream.byteLength);
+  const end = 16 + view.getUint32(12, true);
+  const out: [number, number][] = [];
+  for (let at = 16; at < end; ) {
+    const word = view.getUint32(at, true);
+    if (word >>> 16) {
+      out.push([word & 0xffff, word >>> 16]);
+      at += 8;
+    } else {
+      const n = view.getUint32(at + 4, true);
+      out.push([word, n]);
+      at += 8 + n + ((8 - (n % 8)) % 8);
+    }
+  }
+  return out;
+}
 // The variable a MAT stream holds, read back by the reader every venue shares.
 const streamOf = (bytes: Uint8Array) => {
   const read = decodeMatStream(bytes);
@@ -161,6 +183,13 @@ describe('a damaged sparse array costs what its bytes hold, not what it declares
   it('an explicit zero in the file is not a non-zero, nor a row out of range', () => {
     const v = only(matFile([sparseVar({ name: 'z', dimensions: [3, 1], ir: [0, 1, 7, -1], jc: [0, 4], real: [0, 4, 9, 9] })]));
     expect(entries(v.sparse)).toEqual([[2, 1, 4]]);
+  });
+
+  it('nor a row out of range in a column otherwise in MATLAB\'s order', () => {
+    // Ascending, so the column is read as MATLAB writes one rather than sorted: the bound
+    // there is the one the row has to pass.
+    const v = only(matFile([sparseVar({ name: 'z', dimensions: [3, 1], ir: [0, 5], jc: [0, 2], real: [4, 5] })]));
+    expect(entries(v.sparse)).toEqual([[1, 1, 4]]);
   });
 
   it('row indices in a narrower integer type are each read, at their own width', () => {
@@ -303,8 +332,18 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
       ['spRow(1,2)', '2'],
       ['spRow(1,4)', '0'],
     ]);
-    const written = cdataVariable(JSON.parse(JSON.stringify(spRow.serialize())).value);
+    const value = JSON.parse(JSON.stringify(spRow.serialize())).value;
+    const written = cdataVariable(value);
     expect([written.isSparse, written.dimensions, entries(written.sparse)]).toEqual([true, [1, 5], [[1, 2, 2]]]);
+    // In the stream itself, not only as the reader reads it (which drops a stored zero):
+    // nzmax 1, one row index, one value.
+    const stream = matStreamPrefix(uudecode(value._value))!;
+    expect(new DataView(stream.buffer, stream.byteOffset).getUint32(28, true)).toBe(1);
+    const subs = subelements(stream);
+    expect([subs[3], subs[5]]).toEqual([
+      [MI.INT32, 4],
+      [MI.DOUBLE, 8],
+    ]);
     // And the row still edits its own element.
     expect(spRow.children[1].setProperty('Value', '6')).toBe(true);
     expect(entries(cdataVariable(JSON.parse(JSON.stringify(spRow.serialize())).value).sparse)).toEqual([

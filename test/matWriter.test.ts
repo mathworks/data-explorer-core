@@ -308,6 +308,13 @@ describe('MatWriter refuses what the format cannot carry', () => {
       [0, 1],
       [1, 2],
     ]);
+    // And not symmetric, so a transpose cannot pass: [0 1; 2 0] is (2,1)=2 then (1,2)=1.
+    const t = readElement(encodeMatVariable({ ...sparse, value: [0, 1, 2, 0] })).sparse!;
+    expect([[...t.row], [...t.col], [...t.re]]).toEqual([
+      [1, 0],
+      [0, 1],
+      [2, 1],
+    ]);
   });
 
   it('throws when the element count contradicts the declared dimensions', () => {
