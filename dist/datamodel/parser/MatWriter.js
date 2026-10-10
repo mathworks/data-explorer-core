@@ -41,6 +41,7 @@ import { complexClassTag, isExactToken, parseComplexNum, transposeFromColumnMajo
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense } from './SparseData.js';
+import { dimsText, isSize } from './Size.js';
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
  * object array), or a class MatParser could not name. Thrown rather than
@@ -66,12 +67,13 @@ export class MatWriteError extends Error {
  * naming the entry (budgetFailure).
  */
 export class MatBudgetError extends MatWriteError {
-    constructor(message, at, what, entry) {
+    constructor(message, at, what, entry, counted = true) {
         super(message);
         this.name = 'MatBudgetError';
         this.at = at;
         this.what = what;
         this.entry = entry;
+        this.counted = counted;
     }
 }
 const MI_INT8 = 1;
@@ -290,9 +292,19 @@ export function oneWrite(write) {
 export function spendUnbacked(bytes, what) {
     charge(writing ?? newBudget(), bytes, what);
 }
-/** Takes `bytes` of the budget, before they are written, or refuses the write. */
+/**
+ * Takes `bytes` of the budget, before they are written, or refuses the write. A charge that
+ * is not a count — NaN, an infinity, a negative or a fraction, out of a dims word that is not
+ * a size (`[1, "x"]`, `[0, 1e400]`) — is refused as well: compared, NaN is never more than
+ * what is left, and taken, it left NaN, which no later charge was ever more than, so one such
+ * array turned the budget off for the rest of the value.
+ */
 function charge(budget, bytes, what) {
-    if (bytes <= 0) {
+    if (!Number.isSafeInteger(bytes) || bytes < 0) {
+        const at = budget.at.join('');
+        throw new MatBudgetError((at || 'the value') + ', ' + what + ', would write ' + bytes + ' bytes no data backs, which is not a count', at, what, undefined, false);
+    }
+    if (bytes === 0) {
         return;
     }
     if (bytes > budget.left) {
@@ -312,8 +324,12 @@ export function budgetFailure(e, entry, where) {
         return e;
     }
     const at = where + e.at;
-    return new MatBudgetError('Cannot write "' + entry + '": ' + at + ' is ' + e.what + ', and with it the value would add more than '
-        + UNBACKED_BYTES_BUDGET / (1024 * 1024) + ' MiB that its data does not hold, the most one value may add. Nothing was written.', at, e.what, entry);
+    const mib = UNBACKED_BYTES_BUDGET / (1024 * 1024) + ' MiB';
+    return new MatBudgetError('Cannot write "' + entry + '": ' + at + ' is ' + e.what
+        + (e.counted
+            ? ', and with it the value would add more than ' + mib + ' that its data does not hold, the most one value may add.'
+            : ', a size that is not a count, so what it would add beyond its data cannot be held to the ' + mib + ' one value may add.')
+        + ' Nothing was written.', at, e.what, entry, e.counted);
 }
 /** `d` as MATLAB writes a size: 0x256, 1x100000000. */
 const sizeOf = (d) => d.join('x');
@@ -771,6 +787,12 @@ function memberElement(v, budget) {
 function encodeElement(v, budget) {
     if (v.isOpaque) {
         throw new MatWriteError('cannot write an MCOS opaque value (' + (v.className || 'unknown') + ')');
+    }
+    // Dims that are no size (parser/Size) make no count to hold to the budget — a fraction
+    // even makes a whole one: [1, 2.5] charged 84 bytes for one hole and wrote three — so they
+    // are refused as what the budget cannot measure, finally.
+    if (!isSize(v.dimensions || [])) {
+        charge(budget, NaN, 'a value declaring dimensions ' + dimsText(v.dimensions));
     }
     // Before the class lookup, because a sparse array's class IS one the full-array arms
     // have a code for — MATLAB's class() of a sparse double is 'double' — and the full

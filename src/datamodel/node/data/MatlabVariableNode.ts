@@ -1900,7 +1900,8 @@ export default class MatlabVariableNode extends DataNode {
     if (elements > MAX_DENSE_ELEMENTS) {
       return null;
     }
-    const zeros = elements - this._sparse.row.length;
+    // Never fewer than none: a damaged array can hold entries outside itself.
+    const zeros = Math.max(0, elements - this._sparse.row.length);
     try {
       spendUnbacked(8 * zeros, 'a ' + this._dims.join('x') + ' sparse array that would be written full, ' + zeros + ' zeros its data does not hold');
     } catch (e) {

@@ -194,3 +194,32 @@ describe('a refusal for the budget is its own, and says where the budget ran out
     expect([e instanceof MatWriteError, e instanceof MatBudgetError, (e as Error).message]).toEqual([true, false, 'no sparse MAT class for "int8"']);
   });
 });
+
+describe('a charge that is not a count is refused, and never turns the budget off', () => {
+  // A dims word that is no size — a hand-made [1, "x"], [0, 1e400], a host's [NaN, 1] —
+  // made a NaN charge. Compared, NaN is never more than what is left, and taken, it left NaN,
+  // which no later charge was ever more than: the budget was off for the rest of the value.
+  const holes = (d: unknown[]) => cell([sparse([0, 0])], d as number[]);
+  const past = () => many(16385, () => sparse([0, 256]));
+
+  it('each form of a dims word that is no size, alone and ahead of 16,385 0x256 arrays', () => {
+    for (const d of [[1, 'x'], [1, {}], [NaN, 1], [0, 1e400], [1, Infinity], [1, -3], [1, 2.5]]) {
+      const label = JSON.stringify(d);
+      const alone = (() => {
+        try {
+          encodeMatStream(holes(d));
+          return null;
+        } catch (e) {
+          return e as MatBudgetError;
+        }
+      })();
+      expect([alone instanceof MatBudgetError, alone?.counted], label).toEqual([true, false]);
+      // Ahead of a value past the budget, which is refused, not written.
+      expect(encode(cell([holes(d), ...past()])), label).toBe('refused');
+    }
+  });
+
+  it('within a write, the same', () => {
+    expect(oneWrite(() => [encode(holes([0, 1e400])), encode(cell(past()))])).toEqual(['refused', 'refused']);
+  });
+});

@@ -24,7 +24,9 @@ export declare class MatBudgetError extends MatWriteError {
     readonly at: string;
     readonly what: string;
     readonly entry: string | undefined;
-    constructor(message: string, at: string, what: string, entry?: string);
+    /** False when what stands at `at` declares a size that is no count at all (NaN, Inf). */
+    readonly counted: boolean;
+    constructor(message: string, at: string, what: string, entry?: string, counted?: boolean);
 }
 /**
  * The most bytes one write (oneWrite; outside one, each encodeMatVariable, encodeMatStream,
