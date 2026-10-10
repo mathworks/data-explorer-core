@@ -112,9 +112,9 @@ function formatStream(bytes) {
     try {
         const m = stream.variable;
         // A sparse array is its summary here as in its own row, never its elements laid
-        // out — or the reader's placeholder for one too large to read.
+        // out, at any size.
         if (m.isSparse) {
-            return m.undecoded ? String(m.value) : sparseSummaryForm(m.dimensions, m.className);
+            return sparseSummaryForm(m.dimensions, m.className);
         }
         const numeric = m.className !== 'char' && m.className !== 'struct' && m.className !== 'cell' && !m.isOpaque;
         if (!numeric || m.isLogical) {

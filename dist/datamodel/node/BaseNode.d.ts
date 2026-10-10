@@ -106,13 +106,15 @@ export interface PIObject {
     showDefaultGroup: boolean;
 }
 export type MatlabVariableKind = 'scalar' | 'array' | 'cell' | 'string';
-export interface ElementSubscript {
+export type ElementSubscript = {
     index: number;
     dims: number[] | undefined;
     order: ElementOrder;
     bracket: Bracket;
-    full?: boolean;
-}
+} | {
+    at: number[];
+    bracket: Bracket;
+};
 /**
  * The node at or above `node`, within its entry, whose value is still the encoded byte
  * stream it was read from (DataNode._encoded, set by DataNode._adoptEncoded) — or null

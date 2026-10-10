@@ -32,6 +32,7 @@ export type { ProjectPage, ProjectPageRun, ProjectPageShortcut, ProjectPageLabel
 export type { ParsedSlx, BlockParamUsage } from './datamodel/parser/SlxParser.js';
 export type { ParsedMdl } from './datamodel/parser/MdlParser.js';
 export type { ParsedMat, MatVariable } from './datamodel/parser/MatParser.js';
+export type { SparseData } from './datamodel/parser/SparseData.js';
 export type { ParseWarning, ParseWarningCode } from './datamodel/parser/ParseWarning.js';
 export { ingest } from './core/ingest.js';
 export type { IngestContent, IngestOptions } from './core/ingest.js';

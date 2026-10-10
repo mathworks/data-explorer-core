@@ -131,16 +131,11 @@ export default class ParameterNode extends DataNode {
         }
     }
 
-    // A Value row when expanding it reveals something: element rows or fields — or a
-    // sparse array's Variable Editor grid, which a host offers on the Value row and which
-    // lists every element even where there are no rows (an all-zero one). Without it an
-    // all-zero sparse Value had no row and no grid. One too large to decode has no grid.
+    // A Value row when expanding it reveals something: element rows or fields. A sparse
+    // Value is no exception, now that a sparse array has no Variable Editor grid for a host
+    // to offer on the row: an all-zero one, which has no element rows, has no Value row.
     static _needsValueRow(valueNode: BaseNode): boolean {
-        if (valueNode.children.length > 0) {
-            return true;
-        }
-        const v = valueNode as unknown as { _isSparse?: boolean; _undecoded?: boolean };
-        return !!v._isSparse && !v._undecoded;
+        return valueNode.children.length > 0;
     }
 
     // Re-decide the Value row after an element or field was added to / removed from

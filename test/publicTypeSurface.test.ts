@@ -56,8 +56,13 @@ function diagnose(source: string): string[] {
   ].map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' '));
 }
 
+// Each test below compiles a consumer against the whole package with the TypeScript API,
+// which took 9.4 s in a cold full run on a loaded machine — past vitest's 5 s default — and
+// failed it. A cold CI runner is that run; give them headroom.
+const COMPILE_TIMEOUT = 60_000;
+
 describe('a consumer can name what a parser returned', () => {
-  it('names every parser return type, and every named type reachable from one', () => {
+  it('names every parser return type, and every named type reachable from one', { timeout: COMPILE_TIMEOUT }, () => {
     // Each line is one thing a consumer cannot do while the type is unexported. The
     // last three are the closure: an exported function whose return type mentions an
     // unexported interface is the same defect one level down, so naming the FIELDS of
@@ -71,6 +76,7 @@ describe('a consumer can name what a parser returned', () => {
           ParsedMat,
           BlockParamUsage,
           MatVariable,
+          SparseData,
         } from '../src/index.js';
 
         declare const buf: ArrayBuffer;
@@ -84,6 +90,8 @@ describe('a consumer can name what a parser returned', () => {
         const usage: BlockParamUsage = slx.blockParamUsages[0];
         const workspaceVar: MatVariable = mdl.workspace[0];
         const matVar: MatVariable = mat.variables[0];
+        // A sparse variable's non-zeros, which are all it holds.
+        const nonzeros: SparseData | undefined = matVar.sparse;
 
         // Two members of ParsedSlx are anonymous inline object types rather than named
         // interfaces, so there is no name for the closure to be missing. Asserted
@@ -99,12 +107,12 @@ describe('a consumer can name what a parser returned', () => {
         }
 
         export const out =
-          summarize(model, [workspaceVar, matVar]) + usage.blockName + usage.sid + usage.systemPath;
+          summarize(model, [workspaceVar, matVar]) + usage.blockName + usage.sid + usage.systemPath + (nonzeros?.row.length ?? 0);
       `),
     ).toEqual([]);
   });
 
-  it('names the three identity rules a host joins a block on', () => {
+  it('names the three identity rules a host joins a block on', { timeout: COMPILE_TIMEOUT }, () => {
     // The rules are value exports, not types, so the suite above says nothing about
     // them — but a host cannot key, label or place a block without them, and it reads
     // their inputs off a parse result. That is the loop this checks: a
@@ -139,7 +147,7 @@ describe('a consumer can name what a parser returned', () => {
     ).toEqual([]);
   });
 
-  it('names the warnings a parse result carries, and the code it switches on', () => {
+  it('names the warnings a parse result carries, and the code it switches on', { timeout: COMPILE_TIMEOUT }, () => {
     // A short parse is only useful if the host can render it, and rendering it means
     // holding the warnings in a field, passing them to a formatter of its own, and
     // switching on `code` to decide what to say. All three need the type to have a
@@ -193,7 +201,7 @@ describe('a consumer can name what a parser returned', () => {
     ).toEqual([]);
   });
 
-  it('takes a warnings sink on the dictionary reader, and still compiles without one', () => {
+  it('takes a warnings sink on the dictionary reader, and still compiles without one', { timeout: COMPILE_TIMEOUT }, () => {
     // The dictionary reader is the only one whose diagnostics do not arrive on the return
     // value: `parseBinarySldd` hands back the dictionary CONTENT, so there is no
     // `ParsedSldd` to put a `warnings` field on, and the warnings come out through an
@@ -249,7 +257,7 @@ describe('a consumer can name what a parser returned', () => {
     ).toEqual([]);
   });
 
-  it('names the query type session.findNodes() takes', () => {
+  it('names the query type session.findNodes() takes', { timeout: COMPILE_TIMEOUT }, () => {
     // The same defect one call away from a parser: findNodes() takes a structured
     // query, so a host builds one from its own search UI, keeps it in a field and
     // passes it to its own helpers — none of which it can write down while the type
@@ -285,7 +293,7 @@ describe('a consumer can name what a parser returned', () => {
     ).toEqual([]);
   });
 
-  it('names what session.resolveLink()/findUsages() hand back', () => {
+  it('names what session.resolveLink()/findUsages() hand back', { timeout: COMPILE_TIMEOUT }, () => {
     // A resolution is a discriminated union whose whole point is the failure arms, so a
     // host writes a `switch (r.status)` — and it writes it in a helper of its own, over a
     // parameter it has to be able to declare. A usage is worse: it goes into an array the
@@ -346,7 +354,7 @@ describe('a consumer can name what a parser returned', () => {
     ).toEqual([]);
   });
 
-  it('names what session.rowsOf() hands back, and narrows a UsedBy cell', () => {
+  it('names what session.rowsOf() hands back, and narrows a UsedBy cell', { timeout: COMPILE_TIMEOUT }, () => {
     // The other half of item 4. `RowData` was already exported for the cell a host
     // builds itself (the test above); what is new is that a row now ARRIVES with the
     // cell filled, from `rowsOf()` or from `node.toRow()`, so the host is on the
@@ -400,7 +408,7 @@ describe('a consumer can name what a parser returned', () => {
     ).toEqual([]);
   });
 
-  it('reports an unexported name, so an empty diagnostic list means something', () => {
+  it('reports an unexported name, so an empty diagnostic list means something', { timeout: COMPILE_TIMEOUT }, () => {
     // The negative control. Without it, a harness that silently resolved nothing
     // would pass the test above no matter what the entry point exports.
     const messages = diagnose(`

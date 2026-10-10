@@ -109,27 +109,6 @@ export function parseComplexNum(text: string, type?: string): { re: number | str
     return { re: part(m[1]), im: part(m[2]) };
 }
 
-/**
- * MATLAB's nnz() test of one element, in whichever form a layer holds it: a number, a
- * boolean, an exact 64-bit token, a `{ re, im }` pair, or complex text (`'0-3i'`). NaN is a
- * non-zero and -0 is not, as MATLAB has both — sparse(NaN) holds one element, sparse(-0)
- * none — and as MatWriter's sparse encoder decides what it stores.
- */
-export function isNonzeroElement(x: unknown): boolean {
-    if (typeof x === 'boolean') {
-        return x;
-    }
-    if (x !== null && typeof x === 'object' && 're' in x) {
-        const c = x as { re: unknown; im?: unknown };
-        return Number(c.re) !== 0 || Number(c.im ?? 0) !== 0;
-    }
-    if (typeof x === 'string') {
-        const c = parseComplexNum(x);
-        return c ? Number(c.re) !== 0 || Number(c.im) !== 0 : Number(x) !== 0;
-    }
-    return Number(x) !== 0;
-}
-
 // The numeric classes besides double, which is the class a complex value has when its
 // envelope says nothing.
 const NON_DOUBLE_NUMERIC_CLASS = /^(?:single|u?int(?:8|16|32|64))$/;
@@ -495,9 +474,17 @@ export function formatComplexXml(complexStr: string): string {
  * `.0` form, `9223372036854775807.0+1.0i`, is not that value. An infinity is `Inf`, the
  * only word MATLAB writes for one, whichever reader's text it came from (a plain .mat
  * variable's element says `Infinity`).
+ *
+ * And a NaN imaginary part is `+NaNi`, signed. Unsigned is how formatComplexNum spells
+ * one, and how MATLAB itself writes complex(1, NaN) into a binary dictionary, `1.0NaNi` —
+ * but MATLAB's reader (R2027a) takes that for the real 1 and reads every element after it
+ * one place early, where it reads `1.0+NaNi` back as complex(1, NaN). Measured on
+ * complex_binary.sldd's pNonFinite, [complex(Inf,-Inf) complex(NaN,1) complex(1,NaN)
+ * complex(-Inf,2)], saved each way: MATLAB read `1.0NaNi` back as [Inf-Infi NaN+1i 1 NaN],
+ * as it reads its own file, and `1.0+NaNi` as the value it is.
  */
 export function formatComplexBodyXml(text: string, className: string): string {
-    const body = text.trim().replace(/Infinity/g, 'Inf');
+    const body = text.trim().replace(/Infinity/g, 'Inf').replace(/([^\s+-])NaNi(?=\s|$)/g, '$1+NaNi');
     return className === 'double' || className === 'single' ? formatComplexXml(body) : body;
 }
 

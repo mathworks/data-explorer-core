@@ -140,11 +140,11 @@ describe('reading the bytes', () => {
 });
 
 describe('a hex value shows what it holds', () => {
-  it('a sparse array: its size, its class, its summary, every element where the non-zeros put them', () => {
+  it('a sparse array: its size, its class, its summary, and its non-zeros, which are all it holds', () => {
     const entry = entryOf(hexElement(SPARSE_2x3));
     expect(entry.dims).toEqual([2, 3]);
     expect(entry.displayValue).toBe('<2x3 sparse double>');
-    expect(entry.Value).toEqual([1, 0, 2, 0, 3, 0]);
+    expect([entry.isSparse, [...entry._sparse.row], [...entry._sparse.col], [...entry._sparse.re]]).toEqual([true, [0, 1, 0], [0, 1, 2], [1, 3, 2]]);
     // One row per non-zero, in MATLAB's order.
     expect(entry.children.map((c: any) => [c.displayName, c.displayValue])).toEqual([
       ['v(1,1)', '1'],

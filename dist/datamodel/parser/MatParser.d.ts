@@ -1,4 +1,5 @@
 import type { ParseWarning } from './ParseWarning.js';
+import { type SparseData } from './SparseData.js';
 export interface MatVariable {
     name: string;
     className: string;
@@ -6,6 +7,7 @@ export interface MatVariable {
     isComplex: boolean;
     isLogical: boolean;
     isSparse?: boolean;
+    sparse?: SparseData;
     value: unknown;
     fields: Record<string, MatVariable | MatVariable[]> | null;
     _rawBytes?: Uint8Array | null;

@@ -40,6 +40,7 @@
 import { complexClassTag, isExactToken, parseComplexNum, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
+import { backedColumnsOf, sparseFromDense, UNBACKED_COLUMNS_ALLOWED } from './SparseData.js';
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
  * object array), or a class MatParser could not name. Thrown rather than
@@ -226,7 +227,8 @@ function numericPayload(type, values) {
     }
     const data = new Uint8Array(values.length * width);
     const view = new DataView(data.buffer);
-    values.forEach(function (v, i) {
+    for (let i = 0; i < values.length; i++) {
+        const v = values[i];
         const at = i * width;
         const n = typeof v === 'number' ? v : Number(v);
         switch (type) {
@@ -263,7 +265,7 @@ function numericPayload(type, values) {
                 view.setFloat64(at, n, true);
                 break;
         }
-    });
+    }
     return element(type, data);
 }
 /**
@@ -407,64 +409,56 @@ const SPARSE_FLAG = 0x10;
  *                 for logical — never narrowed to a smaller type
  *   pi            the imaginary parts, of pr's type, when complex
  *
- * A non-zero is what MATLAB keeps: anything but 0 in either part, so NaN stays and -0
- * goes (sparse(-0) holds nothing). The value arrives as MatParser presents a sparse
- * array, the dense row-major list, which is also what the node layer rebuilds after an
- * edit (MatlabVariableNode._buildVarObject).
+ * The non-zeros are `v.sparse`, as MatParser reads them and the node layer edits them
+ * (MatlabVariableNode._buildVarObject); a variable a host or a test built with a dense
+ * row-major `value` instead is read off that, which then has to hold every element. Only
+ * an entry that is a non-zero is written — anything but 0 in either part, so NaN stays
+ * and -0 goes (sparse(-0) holds nothing) — so one an edit set to zero is not. jc is
+ * counted from the columns, which is the one part of the stream that grows with the
+ * array's shape rather than with what it holds.
  *
- * One the reader did not materialize — MatParser's `undecoded`, past its dense limit —
- * has no values here to write, only the placeholder that stands for them, so it is
- * refused, as is every value whose dims and element list disagree.
+ * Refused (sparseWriteRefusal): a variable a reader did not decode (`undecoded`, which has
+ * no values here to write, only the placeholder that stands for them), a shape or class
+ * MATLAB has no sparse storage for, a dense value whose length its dims disagree with, an
+ * array whose dims declare more columns than what it was read from backs, and non-zeros out
+ * of MATLAB's order or outside the array — each a stream MATLAB would read back as
+ * something else, or, for the columns, one that would cost what no byte of the file held.
  */
 function encodeSparse(v) {
-    if (v.undecoded) {
-        throw new MatWriteError('cannot write a sparse array the reader did not decode (' + v.undecoded + ')');
+    const refusal = sparseWriteRefusal(v);
+    if (refusal) {
+        throw new MatWriteError(refusal);
     }
     const d = dimsOf(v);
-    if (d.length !== 2) {
-        throw new MatWriteError('a sparse array has two dimensions, not [' + d.join(',') + ']');
-    }
     const logical = !!v.isLogical || v.className === 'logical';
-    let cls;
-    let payload;
-    if (logical) {
-        cls = MX_SPARSE;
-        payload = MI_UINT8;
-    }
-    else if (v.className === 'double') {
-        cls = MX_SPARSE;
-        payload = MI_DOUBLE;
-    }
-    else if (v.className === 'single') {
-        cls = CLASS_CODE.single;
-        payload = MI_SINGLE;
-    }
-    else {
-        throw new MatWriteError('no sparse MAT class for "' + v.className + '"');
-    }
+    const cls = logical || v.className === 'double' ? MX_SPARSE : CLASS_CODE.single;
+    const payload = logical ? MI_UINT8 : v.className === 'double' ? MI_DOUBLE : MI_SINGLE;
     const complex = !!v.isComplex && !logical;
     const [rows, cols] = d;
-    const flat = flatValues(v.value);
-    if (flat.length !== rows * cols) {
-        throw new MatWriteError('sparse value has ' + flat.length + ' elements but declares [' + d.join(',') + ']');
-    }
+    const s = v.sparse ?? sparseFromDense(flatValues(v.value), d, complex);
     const ir = [];
-    const jc = [0];
+    const jc = new Int32Array(cols + 1);
     const re = [];
     const im = [];
-    for (let c = 0; c < cols; c++) {
-        for (let r = 0; r < rows; r++) {
-            const x = flat[r * cols + c];
-            const a = Number(realPart(x));
-            const b = complex ? Number(imagPart(x)) : 0;
-            // `!== 0` is true of NaN and false of -0, which is MATLAB's rule for both.
-            if (a !== 0 || b !== 0) {
-                ir.push(r);
-                re.push(logical ? 1 : a);
-                im.push(b);
-            }
+    for (let k = 0; k < s.row.length; k++) {
+        const r = s.row[k];
+        const c = s.col[k];
+        const ordered = k === 0 || c > s.col[k - 1] || (c === s.col[k - 1] && r > s.row[k - 1]);
+        if (!(r >= 0 && r < rows && c >= 0 && c < cols) || !ordered) {
+            throw new MatWriteError('a sparse array\'s non-zeros are out of order or outside [' + d.join(',') + '] at entry ' + k);
         }
-        jc.push(ir.length);
+        const a = s.re[k];
+        const b = complex && s.im ? s.im[k] : 0;
+        // `!== 0` is true of NaN and false of -0, which is MATLAB's rule for both.
+        if (a !== 0 || b !== 0) {
+            ir.push(r);
+            re.push(logical ? 1 : a);
+            im.push(b);
+            jc[c + 1]++;
+        }
+    }
+    for (let c = 0; c < cols; c++) {
+        jc[c + 1] += jc[c];
     }
     const flags = new Uint8Array(8);
     flags[0] = cls;
@@ -482,6 +476,58 @@ function encodeSparse(v) {
         subs.push(numericPayload(payload, im));
     }
     return element(MI_MATRIX, concat(subs));
+}
+/**
+ * Why encodeSparse refuses `v`, or null when it writes it. Read off the shape, the class and
+ * what the non-zeros say backs them — never the non-zeros themselves — so it is asked of a
+ * node before it offers an editor (MatlabVariableNode._sparseRefusal): an array no edit of
+ * could be written takes none.
+ *
+ * The column index is the one part of the stream that grows with the array's declared
+ * shape: cols + 1 words, whatever the rows. So the columns have to be backed by what the
+ * array came from (SparseData.backedColumns): a file's own column index, or a dense list's
+ * elements, one column apiece — never the declared count alone. One read from a file whose
+ * index held fewer columns than its dims declare has a damaged dims word (`new Array(2^31)`
+ * for one corrupted cols word of a 3 KB hex value, a fatal out-of-memory no caller could
+ * catch), and `Matrix(0,134217728)\n[]`, credited its header's columns, was a 512 MB index
+ * from 52 characters. A few columns any array may declare for free, so that sparse(0, 5)
+ * stays sparse (UNBACKED_COLUMNS_ALLOWED). And no stream holds a column index past what its
+ * uint32 size word can say. A value MATLAB wrote is none of these.
+ */
+export function sparseWriteRefusal(v) {
+    if (v.undecoded) {
+        return 'cannot write a sparse array the reader did not decode (' + v.undecoded + ')';
+    }
+    const d = dimsOf(v);
+    if (d.length !== 2) {
+        return 'a sparse array has two dimensions, not [' + d.join(',') + ']';
+    }
+    const logical = !!v.isLogical || v.className === 'logical';
+    if (!logical && v.className !== 'double' && v.className !== 'single') {
+        return 'no sparse MAT class for "' + v.className + '"';
+    }
+    const [rows, cols] = d;
+    // What backs the columns: the source's own index, or its elements, one column apiece —
+    // never the declared count, which is one word of the file (SparseData.backedColumns).
+    let backed;
+    if (v.sparse) {
+        backed = backedColumnsOf(v.sparse);
+    }
+    else {
+        const n = flatValues(v.value).length;
+        if (n !== rows * cols) {
+            return 'sparse value has ' + n + ' elements but declares [' + d.join(',') + ']';
+        }
+        backed = Math.min(cols, n);
+    }
+    // Past the few columns any array may declare for free (UNBACKED_COLUMNS_ALLOWED).
+    if (Math.max(backed, Math.min(cols, UNBACKED_COLUMNS_ALLOWED)) < cols) {
+        return 'a sparse array declaring ' + cols + ' columns is backed for ' + backed + ', and its column index would be words no byte of its source held';
+    }
+    if (4 * (cols + 1) > 0xffffffff) {
+        return 'a sparse array of ' + cols + ' columns has a column index no MAT stream can hold';
+    }
+    return null;
 }
 /** The bytes of one complete `miMATRIX` element: tag, then the matrix body. */
 export function encodeMatVariable(v) {
@@ -534,12 +580,12 @@ export function encodeMatStream(v) {
  * The MAT stream of a value whose miMATRIX element is at hand AS READ (MatVariable's
  * `_rawBytes`), or null when the bytes are not a whole one this can re-frame.
  *
- * For the value nothing here can re-encode because the reader never decoded it — a
- * sparse array past MatParser's dense limit — and which a copy out of a .mat or a model
- * workspace into a dictionary would otherwise write as the text of its placeholder. Its bytes are the value; the one thing in them a stream does not carry is
- * the variable's NAME, which a .mat writes into the element and a stream leaves empty, so
- * the name subelement is replaced by the empty one and the element's size restated.
- * Everything else is copied byte for byte. An MCOS opaque (class 17) is not framed this
+ * For the value nothing here can re-encode because the reader never decoded it — one
+ * MatParser recorded as `undecoded` — and which a copy out of a .mat or a model workspace
+ * into a dictionary would otherwise write as the text of its placeholder. Its bytes are
+ * the value; the one thing in them a stream does not carry is the variable's NAME, which a
+ * .mat writes into the element and a stream leaves empty, so the name subelement is
+ * replaced by the empty one and the element's size restated. Everything else is copied byte for byte. An MCOS opaque (class 17) is not framed this
  * way, and its subsystem lives elsewhere in the file, so it is refused.
  */
 export function matStreamOfElement(raw) {

@@ -46,6 +46,14 @@ function entryBlock(xml: string, name: string): string {
 const complexTags = (xml: string): string[] =>
   [...xml.matchAll(/<(P|Element)\b[^>]*IsComplex="1"[^>]*(?:\/>|>[^<]*<\/\1>)/g)].map((m) => m[0]);
 
+/**
+ * MATLAB's tags as this package writes them: the same, but for the one spelling it changes
+ * on purpose. MATLAB writes a NaN imaginary part unsigned, `1.0NaNi`, and its own reader
+ * (R2027a) takes that for the real 1 and reads every element after it one place early;
+ * `1.0+NaNi` it reads as complex(1, NaN) (XmlUtils.formatComplexBodyXml).
+ */
+const asWritten = (tags: string[]): string[] => tags.map((t) => t.replace(/([^\s+>-])NaNi(?=[\s<])/g, '$1+NaNi'));
+
 const ENTRIES = [...MATLAB_CHUNK.matchAll(/<P Name="Name" Class="char">([^<]+)<\/P>/g)].map((m) => m[1]);
 const WITH_COMPLEX = ENTRIES.filter((n) => complexTags(entryBlock(MATLAB_CHUNK, n)).length > 0);
 
@@ -72,9 +80,20 @@ describe('a save that edits nothing writes every complex value back as MATLAB wr
 
   for (const name of WITH_COMPLEX) {
     it(name, () => {
-      expect(complexTags(entryBlock(ours, name))).toEqual(complexTags(entryBlock(MATLAB_CHUNK, name)));
+      expect(complexTags(entryBlock(ours, name))).toEqual(asWritten(complexTags(entryBlock(MATLAB_CHUNK, name))));
     });
   }
+
+  it('which differs from MATLAB\'s only where MATLAB wrote a NaN imaginary part unsigned', () => {
+    const changed = WITH_COMPLEX.filter((n) => {
+      const tags = complexTags(entryBlock(MATLAB_CHUNK, n));
+      return asWritten(tags).join('\n') !== tags.join('\n');
+    });
+    expect(changed).toEqual(['pNonFinite']);
+    expect(complexTags(entryBlock(ours, 'pNonFinite'))).toEqual([
+      '<P Name="Value" Class="double" IsComplex="1" Dimension="1*4">Inf-Infi NaN+1.0i 1.0+NaNi -Inf+2.0i</P>',
+    ]);
+  });
 });
 
 describe('editing another property of an entry leaves its complex Value as MATLAB wrote it', () => {
@@ -91,7 +110,7 @@ describe('editing another property of an entry leaves its complex Value as MATLA
       expect(entry.setProperty('Description', 'edited')).toBe(true);
       const xml = serializeEntryToXml(entry);
       expect(xml).toContain('<P Name="Description" Class="char">edited</P>');
-      expect(complexTags(xml)).toEqual(complexTags(entryBlock(MATLAB_CHUNK, entry.name)));
+      expect(complexTags(xml)).toEqual(asWritten(complexTags(entryBlock(MATLAB_CHUNK, entry.name))));
     });
   }
 });
@@ -120,7 +139,7 @@ describe('a Parameter from a .mat is written into a binary dictionary as MATLAB 
       payload.metadata = { uuid: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}` };
       const node = design.parseEntry(payload);
       const ours = complexTags(serializeEntryToXml(node));
-      const matlab = complexTags(entryBlock(MATLAB_CHUNK, variable.name));
+      const matlab = asWritten(complexTags(entryBlock(MATLAB_CHUNK, variable.name)));
       if (!DIGITS_DIFFER.has(variable.name)) {
         expect(ours).toEqual(matlab);
         return;
@@ -158,6 +177,26 @@ describe('the writers state what the value is', () => {
     expect(edited.serializeXml('P', { Name: 'Value' }, 0)).toBe('<P Name="Value" Class="double" IsComplex="1">5.0+6.0i</P>');
   });
 
+  it('every writer signs a NaN imaginary part, the one spelling of it MATLAB reads back', () => {
+    // complex(1, NaN) is `1NaNi` in this package's text and `1.0NaNi` in MATLAB's, and
+    // MATLAB's reader takes `1.0NaNi 2.0+3.0i` for the real 1 and then 2+3i one place early.
+    const prop = (v: Record<string, unknown>) => DataNode.serializePropertyXml('V', v, 0, null);
+    expect(prop({ _type: 'cdata', _value: '1NaNi 2+3i NaNNaNi -InfNaNi', _dimensions: [1, 4] })).toBe(
+      '<P Name="V" Class="double" IsComplex="1" Dimension="1*4">1.0+NaNi 2.0+3.0i NaN+NaNi -Inf+NaNi</P>',
+    );
+    expect(prop({ _type: 'cdata', _value: '1.0NaNi' })).toBe('<P Name="V" Class="double" IsComplex="1">1.0+NaNi</P>');
+    // A node's own: a scalar, and an array, each holding the text this package spells.
+    const scalar: any = NodeRegistry.parseValue({ _type: 'cdata', _value: '3+4i' }, 'Value', null);
+    scalar._scalarValue = '1NaNi';
+    scalar._rawInput = undefined;
+    expect(scalar.serializeXml('P', { Name: 'Value' }, 0)).toBe('<P Name="Value" Class="double" IsComplex="1">1.0+NaNi</P>');
+    const array: any = NodeRegistry.parseValue({ _type: 'cdata', _value: '1+2i 3+4i', _dimensions: [1, 2] }, 'Value', null);
+    array._elements = ['1NaNi', '3+4i'];
+    array.children = [];
+    array._rawInput = undefined;
+    expect(array.serializeXml('P', { Name: 'Value' }, 0)).toBe('<P Name="Value" Class="double" IsComplex="1" Dimension="1*2">1.0+NaNi 3.0+4.0i</P>');
+  });
+
   it('the property writer: a scalar with no Dimension, an N-D with all of it, an empty closed', () => {
     const prop = (v: Record<string, unknown>) => DataNode.serializePropertyXml('V', v, 0, null);
     expect(prop({ _type: 'cdata', _value: '3+4i' })).toBe('<P Name="V" Class="double" IsComplex="1">3.0+4.0i</P>');
@@ -181,6 +220,8 @@ describe('the writers state what the value is', () => {
     // what it showed, `Class="char">Inf-Infi NaN+1.0i …`, so an unedited save changed the
     // class of MATLAB's value. The same text inside a Parameter was always replayed.
     const tag = '<P Name="Value" Class="double" IsComplex="1" Dimension="1*4">Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i</P>';
+    // Saved as that text, its NaN imaginary part signed (asWritten).
+    const saved = '<P Name="Value" Class="double" IsComplex="1" Dimension="1*4">Inf-Infi NaN+1.0i 1.0+NaNi -Inf+2.0i</P>';
     const DECL = '<?xml version="1.0" encoding="UTF-8"?>';
     const xml =
       `${DECL}\n<DataSource FormatVersion="1" MinRelease="R2014a">\n    <Object Class="DD.ENTRY">\n` +
@@ -188,10 +229,10 @@ describe('the writers state what the value is', () => {
     const root: any = createSession().addDataSource('mem://complexQuoted', parseBinarySlddParts(xml, {}), { path: 'q.sldd' });
     const entry = root.getSection('design').children[0];
     expect([entry.displayValue, entry.className]).toEqual(["'Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i'", 'char']);
-    expect(complexTags(serializeEntryToXml(entry))).toEqual([tag]);
+    expect(complexTags(serializeEntryToXml(entry))).toEqual([saved]);
     // And a rename, which leaves the value as it was.
     expect(entry.setProperty('Name', 'zNonFiniteRenamed')).toBe(true);
-    expect(complexTags(serializeEntryToXml(entry))).toEqual([tag]);
+    expect(complexTags(serializeEntryToXml(entry))).toEqual([saved]);
   });
 
   it('a complex element of a cell inside an object\'s property is written as one, not as `Class="cdata"`', () => {

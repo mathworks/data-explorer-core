@@ -3,7 +3,7 @@
 import { buildPILayout } from './schemaBridge.js';
 import { typeLinkCell } from './typeLinkCell.js';
 import { buildOtherRows } from './piOther.js';
-import { subscriptLabel } from '../display/Subscript.js';
+import { subscriptLabel, subscriptsLabel } from '../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../display/Subscript.js';
 import type RowCellPool from './RowCellPool.js';
 
@@ -153,15 +153,13 @@ export type MatlabVariableKind = 'scalar' | 'array' | 'cell' | 'string';
 // the row above them at any depth.
 //
 // A sparse array's element rows are its non-zeros only, so a row's place among its
-// siblings is not its place in the array: they carry this too, with `full` set, because
-// MATLAB names a sparse array's elements by every subscript, a vector's included.
-export interface ElementSubscript {
-  index: number;
-  dims: number[] | undefined;
-  order: ElementOrder;
-  bracket: Bracket;
-  full?: boolean;
-}
+// siblings is not its place in the array: they carry their subscripts themselves, `at`,
+// 1-based, because MATLAB names a sparse array's elements by every subscript, a vector's
+// included, and because the linear index of an element of a 1e8x1e8 is past 2^53, where
+// a double no longer counts them one by one.
+export type ElementSubscript =
+  | { index: number; dims: number[] | undefined; order: ElementOrder; bracket: Bracket }
+  | { at: number[]; bracket: Bracket };
 
 /**
  * The node at or above `node`, within its entry, whose value is still the encoded byte
@@ -511,7 +509,9 @@ export default class BaseNode {
     // order.
     if (this._subscript && this.parent) {
       const s = this._subscript;
-      return subscriptLabel(this.parent.displayName, s.index, s.dims, s.order, s.bracket, s.full);
+      return 'at' in s
+        ? subscriptsLabel(this.parent.displayName, s.at, s.bracket)
+        : subscriptLabel(this.parent.displayName, s.index, s.dims, s.order, s.bracket);
     }
     if (
       this.parent &&

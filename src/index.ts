@@ -123,6 +123,9 @@ export type {
 export type { ParsedSlx, BlockParamUsage } from './datamodel/parser/SlxParser.js';
 export type { ParsedMdl } from './datamodel/parser/MdlParser.js';
 export type { ParsedMat, MatVariable } from './datamodel/parser/MatParser.js';
+// A sparse array's non-zeros, which is how MatVariable holds one (`sparse`): named for
+// the same reason, since a consumer reading a sparse variable reads this.
+export type { SparseData } from './datamodel/parser/SparseData.js';
 
 // The diagnostics channel for a parse that succeeded but is short. A consumer has
 // to be able to NAME this type to render "opened with 2 warnings", so it is public

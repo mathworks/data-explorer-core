@@ -55,13 +55,6 @@ export declare function parseComplexNum(text: string, type?: string): {
     im: number | string;
 } | null;
 /**
- * MATLAB's nnz() test of one element, in whichever form a layer holds it: a number, a
- * boolean, an exact 64-bit token, a `{ re, im }` pair, or complex text (`'0-3i'`). NaN is a
- * non-zero and -0 is not, as MATLAB has both — sparse(NaN) holds one element, sparse(-0)
- * none — and as MatWriter's sparse encoder decides what it stores.
- */
-export declare function isNonzeroElement(x: unknown): boolean;
-/**
  * The `_class` a complex value's `{ _type: 'cdata' }` envelope carries: its MATLAB class
  * when that is single or an integer class, and undefined for double — and for anything
  * that is not a numeric class at all, a sparse array's 'sparse' included, which MATLAB
@@ -179,6 +172,14 @@ export declare function formatComplexXml(complexStr: string): string;
  * `.0` form, `9223372036854775807.0+1.0i`, is not that value. An infinity is `Inf`, the
  * only word MATLAB writes for one, whichever reader's text it came from (a plain .mat
  * variable's element says `Infinity`).
+ *
+ * And a NaN imaginary part is `+NaNi`, signed. Unsigned is how formatComplexNum spells
+ * one, and how MATLAB itself writes complex(1, NaN) into a binary dictionary, `1.0NaNi` —
+ * but MATLAB's reader (R2027a) takes that for the real 1 and reads every element after it
+ * one place early, where it reads `1.0+NaNi` back as complex(1, NaN). Measured on
+ * complex_binary.sldd's pNonFinite, [complex(Inf,-Inf) complex(NaN,1) complex(1,NaN)
+ * complex(-Inf,2)], saved each way: MATLAB read `1.0NaNi` back as [Inf-Infi NaN+1i 1 NaN],
+ * as it reads its own file, and `1.0+NaNi` as the value it is.
  */
 export declare function formatComplexBodyXml(text: string, className: string): string;
 export declare function transposeToColumnMajor<T>(rowMajor: T[], rows: number, cols: number): T[];

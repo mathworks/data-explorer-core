@@ -2,7 +2,7 @@
 import { buildPILayout } from './schemaBridge.js';
 import { typeLinkCell } from './typeLinkCell.js';
 import { buildOtherRows } from './piOther.js';
-import { subscriptLabel } from '../display/Subscript.js';
+import { subscriptLabel, subscriptsLabel } from '../display/Subscript.js';
 // Columns the webview renders through a dedicated, format-specific branch (they
 // consume a plain string cell and manage their own editability). Generic
 // editable columns (the schema Code Generation columns) are NOT in this set, so
@@ -321,7 +321,9 @@ export default class BaseNode {
         // order.
         if (this._subscript && this.parent) {
             const s = this._subscript;
-            return subscriptLabel(this.parent.displayName, s.index, s.dims, s.order, s.bracket, s.full);
+            return 'at' in s
+                ? subscriptsLabel(this.parent.displayName, s.at, s.bracket)
+                : subscriptLabel(this.parent.displayName, s.index, s.dims, s.order, s.bracket);
         }
         if (this.parent &&
             (this.parent._kind === 'cell' || this.parent._kind === 'array' || this.parent._kind === 'string')) {
