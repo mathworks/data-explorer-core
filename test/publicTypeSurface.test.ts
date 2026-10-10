@@ -71,6 +71,7 @@ describe('a consumer can name what a parser returned', () => {
           ParsedMat,
           BlockParamUsage,
           MatVariable,
+          SparseData,
         } from '../src/index.js';
 
         declare const buf: ArrayBuffer;
@@ -84,6 +85,8 @@ describe('a consumer can name what a parser returned', () => {
         const usage: BlockParamUsage = slx.blockParamUsages[0];
         const workspaceVar: MatVariable = mdl.workspace[0];
         const matVar: MatVariable = mat.variables[0];
+        // A sparse variable's non-zeros, which are all it holds.
+        const nonzeros: SparseData | undefined = matVar.sparse;
 
         // Two members of ParsedSlx are anonymous inline object types rather than named
         // interfaces, so there is no name for the closure to be missing. Asserted
@@ -99,7 +102,7 @@ describe('a consumer can name what a parser returned', () => {
         }
 
         export const out =
-          summarize(model, [workspaceVar, matVar]) + usage.blockName + usage.sid + usage.systemPath;
+          summarize(model, [workspaceVar, matVar]) + usage.blockName + usage.sid + usage.systemPath + (nonzeros?.row.length ?? 0);
       `),
     ).toEqual([]);
   });
