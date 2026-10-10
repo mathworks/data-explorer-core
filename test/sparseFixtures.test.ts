@@ -507,47 +507,58 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     }
   });
 
-  it('this package\'s own `sparse` literal still reads as the sparse double it stands for', () => {
-    // What a text dictionary this package wrote before it could write a sparse stream holds.
+  // This package's own literal for a sparse double, in both the forms _serializeArray writes
+  // one in — a matrix, and a row — which a text dictionary this package wrote before it
+  // could write a sparse stream holds: the literal, its size, its rows, its elements.
+  const LITERALS: [Record<string, string>, number[], [string, string][], number[]][] = [
+    [{ _type: 'sparse', _value: 'Matrix(2,2)\n[[42, 0]; [0, 5]]' }, [2, 2], [['(1,1)', '42'], ['(2,2)', '5']], [42, 0, 0, 5]],
+    [{ _type: 'sparse', _value: '[0, 7, 0]' }, [1, 3], [['(1,2)', '7']], [0, 7, 0]],
+  ];
+
+  it('this package\'s own `sparse` literal still reads as the sparse double it stands for, a row too', () => {
+    // The row form read as a FULL array of a class named 'sparse', displayed `[0 7 0]`,
+    // where the Property Inspector showed the same literal as `<1x3 sparse double>`.
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
-    const value = { _type: 'sparse', _value: 'Matrix(2,2)\n[[42, 0]; [0, 5]]' };
-    const again = design.parseEntry({ name: 'spLiteral', metadata: { uuid: 'x' }, value });
-    expect([again.className, again.displayValue, again._isSparse, again.children.map((c: any) => [c.displayName, c.displayValue])]).toEqual([
-      'double',
-      '<2x2 sparse double>',
-      true,
-      [
-        ['spLiteral(1,1)', '42'],
-        ['spLiteral(2,2)', '5'],
-      ],
-    ]);
+    LITERALS.forEach(([value, dims, rows], k) => {
+      const again = design.parseEntry({ name: `spLiteral${k}`, metadata: { uuid: `x${k}` }, value });
+      expect([again.className, again.dataType, again.displayValue, again._isSparse, again.dims, again.children.map((c: any) => [c.displayName, c.displayValue])]).toEqual([
+        'double',
+        'double',
+        `<${dims.join('x')} sparse double>`,
+        true,
+        dims,
+        rows.map(([at, shown]) => [`spLiteral${k}${at}`, shown]),
+      ]);
+    });
   });
 
   it('that literal in a Parameter\'s Value or an object\'s cell, put into a binary dictionary, is hex, never `Class="sparse"`', () => {
     // 1.36.1 wrote it for an edited element of a Parameter's sparse Value (pSp) and of a
     // sparse array in a cell, so a text dictionary it saved holds it there. A copy of such
     // an entry into a binary dictionary reaches the property-bag writers, which spelled it
-    // `Class="sparse"`: MATLAB's reader segfaults on that.
+    // `Class="sparse"`: MATLAB's reader segfaults on that. The row form was spelled so
+    // until it read as sparse.
     const binary = loadFile('../fixtures/sparse/sparse_binary.sldd').getSection('design');
-    const literal = { _type: 'sparse', _value: 'Matrix(2,2)\n[[42, 0]; [0, 5]]' };
-    const pSp = JSON.parse(JSON.stringify(textRaw('pSp')));
-    pSp._elements[0]._properties.Value = literal;
-    const thing = {
-      _array_class: 'my.Thing',
-      _dimensions: [1, 1],
-      _elements: [{ _id: '1', _properties: { C: { _array_type: 'Cell', _dimensions: [1, 2], _elements: [literal, 7], _mw_element_type: 'MATLABArray' } } }],
-      _mw_element_type: 'MATLABArray',
-    };
-    for (const [name, value, tagName] of [['pLiteral', pSp, 'P'], ['thingLiteral', thing, 'Element']] as const) {
-      const entry = binary.parseEntry({ name, metadata: { uuid: `00000000-0000-4000-d000-${name.length}0000000000` }, value });
-      const xml = serializeEntryToXml(entry);
-      expect(xml, name).not.toContain('sparse');
-      const m = new RegExp(`<${tagName}(?: Name="Value")? Class="double" Encoding="hex" EncodedLength="(\\d+)">([^<]*)</${tagName}>`).exec(xml);
-      expect(m, name).not.toBeNull();
-      const bytes = Uint8Array.from(m![2].replace(/\s+/g, '').match(/../g)!.map((h) => parseInt(h, 16)));
-      const v = readMxArrayRecords(bytes.buffer).outer as any;
-      expect([v.isSparse, v.className, v.dimensions, v.value], name).toEqual([true, 'double', [2, 2], [42, 0, 0, 5]]);
-    }
+    LITERALS.forEach(([literal, dims, , elements], k) => {
+      const pSp = JSON.parse(JSON.stringify(textRaw('pSp')));
+      pSp._elements[0]._properties.Value = literal;
+      const thing = {
+        _array_class: 'my.Thing',
+        _dimensions: [1, 1],
+        _elements: [{ _id: '1', _properties: { C: { _array_type: 'Cell', _dimensions: [1, 2], _elements: [literal, 7], _mw_element_type: 'MATLABArray' } } }],
+        _mw_element_type: 'MATLABArray',
+      };
+      for (const [name, value, tagName] of [[`pLiteral${k}`, pSp, 'P'], [`thingLiteral${k}`, thing, 'Element']] as const) {
+        const entry = binary.parseEntry({ name, metadata: { uuid: `00000000-0000-4000-d000-${name.length}${k}000000000` }, value });
+        const xml = serializeEntryToXml(entry);
+        expect(xml, name).not.toContain('sparse');
+        const m = new RegExp(`<${tagName}(?: Name="Value")? Class="double" Encoding="hex" EncodedLength="(\\d+)">([^<]*)</${tagName}>`).exec(xml);
+        expect(m, name).not.toBeNull();
+        const bytes = Uint8Array.from(m![2].replace(/\s+/g, '').match(/../g)!.map((h) => parseInt(h, 16)));
+        const v = readMxArrayRecords(bytes.buffer).outer as any;
+        expect([v.isSparse, v.className, v.dimensions, v.value], name).toEqual([true, 'double', dims, elements]);
+      }
+    });
   });
 
   it('a value typed over one too large to decode is that value, not a placeholder', () => {

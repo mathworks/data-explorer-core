@@ -2902,6 +2902,16 @@ export default class MatlabVariableNode extends DataNode {
         const parts = inner.split(',').map(function (s) {
             return s.trim().replace(/[FU]$/, '');
         });
+        // This package's own literal for a sparse double ROW, `[0, 7, 0]` — the form
+        // _serializeArray writes one in, as it writes a matrix in parseTypedArray's — read back
+        // as the sparse double it stands for. Read as a full array of a class named 'sparse' it
+        // showed `[0 7 0]`, where the Property Inspector shows the same literal as
+        // `<1x3 sparse double>`, and a binary dictionary it was copied into got `Class="sparse"`,
+        // the attribute MATLAB's reader crashes on.
+        if (rawVal._type === 'sparse') {
+            node._scalarType = 'double';
+            node._isSparse = true;
+        }
         if (rawVal._type === 'logical') {
             node._elements = parts.map(function (s) {
                 return s === '1' || s === 'true' ? 1 : 0;
