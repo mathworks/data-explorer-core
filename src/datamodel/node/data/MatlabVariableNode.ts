@@ -37,8 +37,10 @@ import {
   encodeMatStream,
   MatBudgetError,
   matStreamOfElement,
+  oneWrite,
   sparseWriteRefusal,
   spendUnbacked,
+  writeUnderWay,
 } from '../../parser/MatWriter.js';
 import {
   cloneSparse,
@@ -1654,6 +1656,9 @@ export default class MatlabVariableNode extends DataNode {
   // hatch, which spells them out as text.
 
   serializeValue(): unknown {
+    if (!writeUnderWay()) {
+      return oneWrite(() => this.serializeValue());
+    }
     // `_rawInput` alone says the value is untouched: every edit drops it (_markModified)
     // except a rename, which leaves the value as it was (DataNode.setProperty). The entry's
     // 'Modified' status is not asked — a renamed entry has it, and its value is still the
@@ -2130,6 +2135,9 @@ export default class MatlabVariableNode extends DataNode {
   // hence transposeToColumnMajorND on the way out.
 
   serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
+    if (!writeUnderWay()) {
+      return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+    }
     // Complex text nobody edited goes back as the text it was read from, through the
     // writer that spells complex text (DataNode._complexTextXml). For a value the node
     // read as numbers that is the same bytes the arms below would write; it matters for

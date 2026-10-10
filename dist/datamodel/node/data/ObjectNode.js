@@ -10,6 +10,7 @@ import PropClassAtom from '../../prop/PropClass.js';
 import { OBJECT_ICON } from '../icons.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { effectiveDims, summaryForm } from '../../display/DisplayConvention.js';
+import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 export default class ObjectNode extends DataNode {
     constructor(name, parent, arrayClass, serial) {
         super(name, parent, serial);
@@ -72,6 +73,9 @@ export default class ObjectNode extends DataNode {
     // (an object array, or an empty object) has nothing to rebuild and keeps its raw
     // value unchanged.
     serializeValue() {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeValue());
+        }
         const rawVal = this.serial._rawVal || {};
         if (this.children.length === 0) {
             return rawVal;
@@ -114,6 +118,9 @@ export default class ObjectNode extends DataNode {
     // (with a Dimension attr) so a multi-element value round-trips; a scalar falls
     // back to DataNode's single-element form.
     serializeXml(tagName, attrs, indent) {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+        }
         if (!this._isElementArray) {
             return super.serializeXml(tagName, attrs, indent);
         }

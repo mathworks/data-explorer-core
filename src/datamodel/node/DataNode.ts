@@ -6,7 +6,7 @@ import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
-import { oneWrite, textDictionaryForm } from '../parser/MatWriter.js';
+import { oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
 import { encodedXml, isEncodedValue, type EncodedValue } from '../parser/EncodedValue.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
 import {
@@ -895,6 +895,9 @@ export default class DataNode extends BaseNode {
   }
 
   serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
+    if (!writeUnderWay()) {
+      return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+    }
     if (this.serial && this.serial._rawVal && (this.serial._rawVal as Record<string, unknown>)._array_class) {
       return this._serializeSimulinkObjectXml(tagName, attrs, indent);
     }

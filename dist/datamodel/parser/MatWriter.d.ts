@@ -35,9 +35,14 @@ export declare class MatBudgetError extends MatWriteError {
  * peaked at 1.0 and 1.1 GB. Pinned at its value in test/unbackedBudget.test.ts.
  */
 export declare const UNBACKED_BYTES_BUDGET: number;
+/** Whether a write (oneWrite) is under way. */
+export declare function writeUnderWay(): boolean;
 /**
  * Runs `write` as one write of one value: every encode in it, and every spendUnbacked, shares
- * one UNBACKED_BYTES_BUDGET. Inside a write already under way it is that write.
+ * one UNBACKED_BYTES_BUDGET. Inside a write already under way it is that write. Every node
+ * writer of a value that holds others — serializeValue and serializeXml of a cell, a struct,
+ * an object — starts one when none is, so a node written on its own is one write as an
+ * entry's serialize() and XML are, not one per member it holds.
  */
 export declare function oneWrite<T>(write: () => T): T;
 /**

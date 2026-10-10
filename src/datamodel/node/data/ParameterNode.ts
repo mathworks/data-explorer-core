@@ -16,6 +16,7 @@ import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
 import MatlabValueParser, { collapseExact } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
+import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 
 const CLASS_NAME = 'Simulink.Parameter';
 
@@ -368,6 +369,9 @@ export default class ParameterNode extends DataNode {
     }
 
     serializeValue(): unknown {
+        if (!writeUnderWay()) {
+          return oneWrite(() => this.serializeValue());
+        }
         const props = this._getSerializedProperties();
         const result = Object.assign({}, this.serial._rawVal as Record<string, unknown>);
         result._elements = [Object.assign({}, (result._elements as unknown[])[0] as Record<string, unknown>, { _properties: props })];
@@ -375,6 +379,9 @@ export default class ParameterNode extends DataNode {
     }
 
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
+        if (!writeUnderWay()) {
+          return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+        }
         return this._serializeSimulinkObjectXml(tagName, attrs, indent);
     }
 

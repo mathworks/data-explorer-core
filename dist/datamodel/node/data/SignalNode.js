@@ -9,6 +9,7 @@ import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
 import { withSourceKeys } from './BaseBusNode.js';
 import { schemaColumns } from '../schemaBridge.js';
+import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 const CLASS_NAME = 'Simulink.Signal';
 export default class SignalNode extends DataNode {
     constructor(name, parent, props, serial) {
@@ -73,6 +74,9 @@ export default class SignalNode extends DataNode {
         return props;
     }
     serializeValue() {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeValue());
+        }
         const sp = this.serial._properties;
         const unitKey = 'DocUnits' in sp ? 'DocUnits' : 'Unit';
         const overrides = {};

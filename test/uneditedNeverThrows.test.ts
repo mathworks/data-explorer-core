@@ -1,29 +1,42 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// A dictionary entry nobody has edited never fails to serialize. A host takes
-// entry.serialize() as the undo record of a delete, unguarded, so an entry whose serialize()
-// threw could not be deleted. An unedited entry is written as what it was read as — a text
-// dictionary's value replayed (MatlabVariableNode.serializeValue's _rawInput), a binary one's
-// hex replayed (_adoptEncoded) — so nothing re-encodes it and nothing can refuse it: not a
-// damaged value, not one past the unbacked-bytes budget as the file holds it, not one a host
-// handed over as a dictionary's content, and not after a rename, which keeps the value as
-// read.
+// What an entry nobody has edited does when it is written. A host takes entry.serialize() as
+// the undo record of a delete, unguarded, so a throw there would make the entry undeletable.
 //
-// The one unedited value that does refuse is not a dictionary entry: a variable in a .mat
-// whose element the file cuts short has no bytes to be written as, so its copy re-encodes it,
-// and past the budget the copy fails (test/budgetFailsClosed.test.ts). It is pinned last.
+// serialize() never throws for one, in either dictionary type, and whatever it was read
+// from — a file, damaged or past the unbacked-bytes budget as the file holds it, a host's
+// dictionary content, a paste — because it re-encodes nothing: MatlabVariableNode and
+// StructNode serializeValue hand back `_rawInput`, the value as read, which every edit but a
+// rename drops (DataNode._markModified; setProperty keeps it across a rename), and a value
+// read from hex hands back its EncodedValue (DataNode._adoptEncoded). The only raw form not
+// replayed is a binary reader's dense empty (`_emptyDims`), which is never sparse and
+// charges nothing.
+//
+// serializeXml() never throws for an entry read from a binary dictionary: hex is written as
+// read (_adoptEncoded), and a sparse array there is never anything but hex or a member of a
+// hex cell. For an entry read from a text dictionary, pasted, or handed over by a host, it is
+// that value's paste into a binary dictionary: a sparse array with bytes of its own is their
+// hex, but one with none — this package's `sparse` literal — is encoded, out of one budget
+// for the value (every node writer of a container is one write, MatWriter.oneWrite), and
+// past it that write is refused, by the fail-closed ruling. Those are named below. The cell
+// declaring 1e8 elements is refused as an entry (serializeEntryToXml writes a cell holding a
+// sparse array as one stream, and its holes are past the budget); its serializeXml() alone
+// is the XML of the element it holds, as a cell of full arrays' is.
+//
+// serialize() of a variable in a .mat or a host's own source is its copy, not a dictionary
+// entry: past the budget, and with no bytes to copy it as, it is refused too, named last.
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { deflateSync } from 'node:zlib';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { uudecode, uuencode } from '../src/datamodel/parser/CdataCodec.js';
-import { cellVar, element, matFile, matrix, sparseVar, CLASS, MI, arrayFlags, dims, varName } from './tools/matBytes.js';
+import { CLASS, MI, arrayFlags, cellVar, dims, element, matFile, matrix, sparseVar, varName } from './tools/matBytes.js';
 import { BINARY, TEXT, copyOf, sparseFixture, thrownBy } from './tools/pasteVenues.js';
-import { deflateSync } from 'node:zlib';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 function slddUnder(dir: string): string[] {
@@ -34,25 +47,33 @@ function slddUnder(dir: string): string[] {
   });
 }
 const buffer = (u8: Uint8Array) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+const isZip = (b: Uint8Array) => b[0] === 0x50 && b[1] === 0x4b;
 
 /**
- * What a host's delete records of every entry in `bytes` opened as `file` — serialize(), as
- * JSON — and a binary dictionary's own writer of each, once as read and once renamed: the
- * entries any of them threw for.
+ * Every writer of `entry`: serialize() as a host's delete records it, serializeXml() as an
+ * entry's Value, and, in a binary dictionary, serializeEntryToXml — what each threw, if any.
  */
+function writersOf(entry: any, binary: boolean): string[] {
+  const out: string[] = [];
+  const run = (what: string, f: () => unknown) => {
+    const [thrown] = thrownBy(f);
+    if (thrown) out.push(`${entry.name} ${what}: ${thrown.name}`);
+  };
+  run('serialize', () => JSON.stringify(entry.serialize()));
+  run('serializeXml', () => entry.serializeXml('P', { Name: 'Value' }, 2));
+  if (binary) run('serializeEntryToXml', () => serializeEntryToXml(entry));
+  return out;
+}
+
+/** writersOf every entry of `bytes` opened as `file`, as read and again renamed. */
 function throwersIn(file: string, bytes: Uint8Array): string[] {
   const root: any = ingest(createSession(), buffer(bytes), { filename: file });
-  const binary = bytes[0] === 0x50 && bytes[1] === 0x4b;
   const out: string[] = [];
   for (const section of root.children) {
     for (const entry of [...section.children]) {
-      for (const pass of ['as read', 'renamed']) {
-        if (pass === 'renamed' && entry.setProperty('Name', entry.name + '_r') !== true) continue;
-        const [thrown] = thrownBy(() => {
-          JSON.stringify(entry.serialize());
-          if (binary) serializeEntryToXml(entry);
-        });
-        if (thrown) out.push(`${file} ${entry.name} ${pass}: ${thrown.name} ${thrown.message}`);
+      out.push(...writersOf(entry, isZip(bytes)));
+      if (entry.setProperty('Name', entry.name + '_r') === true) {
+        out.push(...writersOf(entry, isZip(bytes)).map((t) => t + ' (renamed)'));
       }
     }
   }
@@ -66,15 +87,29 @@ const literals = (n: number, d = [1, n]) => ({
   _elements: Array.from({ length: n }, () => ({ _type: 'sparse', _value: 'Matrix(0,256)\n[]' })),
   _mw_element_type: 'MATLABArray',
 });
+// The hand-made inputs past the budget: 80,000 0x256 literals, a 1x1x16385 cell of them, and
+// a cell declaring 1e8 elements around one.
+const PAST_BUDGET: [string, unknown][] = [
+  ['flat', literals(80000)],
+  ['rank3', literals(16385, [1, 1, 16385])],
+  ['holes', { ...literals(1), _dimensions: [1, 1e8] }],
+];
+// The crash review's .mat cell of 80,000 0x256 arrays, 48 bytes each, as a host copies it:
+// each member its own bytes.
+const ownBytesCell = () => {
+  const member = matrix([arrayFlags(CLASS.SPARSE, { sparse: true, nzmax: 1 }), dims([0, 256]), varName('')]);
+  const c: any = createSession().addMatSource('c.mat', matFile([element(MI.COMPRESSED, deflateSync(cellVar('c', Array.from({ length: 80000 }, () => member))))])).children[0];
+  return copyOf(c);
+};
 
-describe('an entry nobody has edited serializes, and is written, without a throw', () => {
-  it('every entry of every dictionary in the fixtures', () => {
+describe('an entry nobody has edited: what each writer does', () => {
+  it('every entry of every dictionary in the fixtures: no writer throws, as read or renamed', () => {
     const files = [...slddUnder(join(ROOT, 'fixtures')), ...slddUnder(join(ROOT, 'parity', 'artifacts'))];
     expect(files.length).toBeGreaterThanOrEqual(40);
     expect(files.flatMap((f) => throwersIn(f.slice(ROOT.length), new Uint8Array(readFileSync(f))))).toEqual([]);
   });
 
-  it('damaged values: a binary dictionary\'s hex and a text one\'s cdata declaring 2^31-1 columns their index never held', () => {
+  it('damaged values read from a file, a binary dictionary\'s hex and a text one\'s cdata declaring 2^31-1 columns: no writer throws', () => {
     // spTall's dims word, rows 10000000 and cols 2, and the cols word damaged.
     const DIMS = [0x80, 0x96, 0x98, 0x00, 0x02, 0x00, 0x00, 0x00];
     const DAMAGED = [0x80, 0x96, 0x98, 0x00, 0xff, 0xff, 0xff, 0x7f];
@@ -96,47 +131,67 @@ describe('an entry nobody has edited serializes, and is written, without a throw
     const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
     const spTall = entriesOf(json).find((e: any) => e.name === 'spTall');
     const bytes = uudecode(spTall.value._value);
-    const j = hex([...bytes]).indexOf(hex(DIMS)) / 2;
-    bytes.set(DAMAGED, j);
+    bytes.set(DAMAGED, hex([...bytes]).indexOf(hex(DIMS)) / 2);
     spTall.value._value = uuencode(bytes);
     expect(throwersIn(TEXT, strToU8(JSON.stringify(json)))).toEqual([]);
   });
 
-  it('values past the budget as a text dictionary holds them, and as a host hands one over', () => {
-    // A text dictionary keeps each as it was written: 80,000 literals, a 1x1x16385 cell of
-    // them (no text spelling but a stream, were it edited), and a cell declaring 1e8
-    // elements around one.
+  it('values past the budget as a text dictionary holds them, or a host hands them over: serialize() never throws; serializeXml(), their paste into a binary dictionary, is refused', () => {
     const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
-    const uuid = (n: number) => `00000000-0000-4000-ea00-${String(n).padStart(12, '0')}`;
-    entriesOf(json).push(
-      { name: 'flat', metadata: { uuid: uuid(1) }, value: literals(80000) },
-      { name: 'rank3', metadata: { uuid: uuid(2) }, value: literals(16385, [1, 1, 16385]) },
-      { name: 'holes', metadata: { uuid: uuid(3) }, value: { ...literals(1), _dimensions: [1, 1e8] } },
+    PAST_BUDGET.forEach(([name, value], i) =>
+      entriesOf(json).push({ name, metadata: { uuid: `00000000-0000-4000-ea00-${String(i + 1).padStart(12, '0')}` }, value }),
     );
     const text = strToU8(JSON.stringify(json));
-    expect(throwersIn(TEXT, text)).toEqual([]);
-    // Saved as it was opened, and the same handed over as a dictionary's content by a host.
+    const refusedAsXml = ['flat serializeXml: MatBudgetError', 'rank3 serializeXml: MatBudgetError'];
+    expect(throwersIn(TEXT, text)).toEqual(refusedAsXml.flatMap((t) => [t, t.replace(' ', '_r ') + ' (renamed)']));
+    // A host's dictionary content is the same; and it saves as it was opened.
     const session = createSession();
     const root: any = session.addDataSource('host.sldd', JSON.parse(strFromU8(text)));
+    expect(root.getSection('design').children.flatMap((e: any) => writersOf(e, false))).toEqual(refusedAsXml);
     expect(thrownBy(() => session.serializeSource(root.name))[0]).toBeNull();
-    for (const e of root.getSection('design').children) expect(thrownBy(() => JSON.stringify(e.serialize()))[0], e.name).toBeNull();
   });
 
-  it('a binary dictionary\'s hex of a cell past the budget were it re-encoded: 80,000 0x256 arrays, written as their own bytes', () => {
-    // The cell out of the crash review's 11 KB .mat, copied, pasted and saved (one hex
-    // stream of its members' bytes), then opened again.
-    const member = matrix([arrayFlags(CLASS.SPARSE, { sparse: true, nzmax: 1 }), dims([0, 256]), varName('')]);
-    const c: any = createSession().addMatSource('c.mat', matFile([element(MI.COMPRESSED, deflateSync(cellVar('c', Array.from({ length: 80000 }, () => member))))])).children[0];
+  it('a binary dictionary\'s hex of a cell that re-encoded would be past the budget, read from the file: no writer throws', () => {
     const session = createSession();
     const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
-    root.getSection('design').parseEntry({ name: 'c80000', metadata: { uuid: '00000000-0000-4000-ea00-000000000010' }, value: copyOf(c) });
-    const saved = session.serializeSource(root.name)!.bytes!;
-    expect(throwersIn(BINARY, saved)).toEqual([]);
+    root.getSection('design').parseEntry({ name: 'c80000', metadata: { uuid: '00000000-0000-4000-ea00-000000000010' }, value: ownBytesCell() });
+    expect(throwersIn(BINARY, session.serializeSource(root.name)!.bytes!)).toEqual([]);
+  });
+
+  it('pasted and not edited, in either dictionary type: serialize() never throws; serializeXml() is refused only for a value with no bytes of its own past the budget', () => {
+    const own = ownBytesCell();
+    for (const file of [TEXT, BINARY]) {
+      const design: any = (ingest(createSession(), sparseFixture(file), { filename: file }) as any).getSection('design');
+      const pastes = [...PAST_BUDGET, ['own', own] as [string, unknown]].map(([name, value], i) =>
+        design.parseEntry({ name, metadata: { uuid: `00000000-0000-4000-eb00-${String(i + 1).padStart(12, '0')}` }, value }),
+      );
+      const thrown = pastes.flatMap((e: any) => writersOf(e, file === BINARY));
+      const refused = ['flat', 'rank3', 'holes'].flatMap((n) => [
+        ...(n === 'holes' ? [] : [`${n} serializeXml: MatBudgetError`]),
+        ...(file === BINARY ? [`${n} serializeEntryToXml: MatBudgetError`] : []),
+      ]);
+      expect(thrown, file).toEqual(refused);
+    }
   });
 });
 
-describe('the one unedited value that refuses is not a dictionary entry', () => {
-  it('a .mat variable the file cuts short, declaring 2^31-1 columns: its copy fails; declaring 4, it is copied', () => {
+describe('a variable that is not a dictionary entry: its serialize() is its copy', () => {
+  it('a host\'s own: within the budget it copies, past it the copy is refused', () => {
+    const member = () => ({
+      name: '', className: 'double', dimensions: [1000, 1000], isComplex: false, isLogical: false, isSparse: true, value: '', fields: null,
+      sparse: { row: Int32Array.from([0]), col: Int32Array.from([0]), re: Float64Array.from([5]), im: null },
+    });
+    const hostCell = (n: number): any =>
+      createSession().addMatSourceParsed('h.mat', {
+        header: '',
+        warnings: [],
+        variables: [{ name: 'h', className: 'cell', dimensions: [1, n], isComplex: false, isLogical: false, value: Array.from({ length: n }, member), fields: null }],
+      }).children[0];
+    expect(writersOf(hostCell(4198), false)).toEqual([]);
+    expect(writersOf(hostCell(4300), false)).toEqual(['h serialize: MatBudgetError', 'h serializeXml: MatBudgetError']);
+  });
+
+  it('a .mat variable the file cuts short, declaring 2^31-1 columns: no bytes to copy it as, so its copy is refused; declaring 4, it is copied', () => {
     // The element's pr tag is past the end of the file, so there are no whole bytes to copy
     // it as, and re-encoded it is backed for none of its columns.
     const cut = (cols: number) => {

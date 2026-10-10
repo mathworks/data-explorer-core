@@ -3,7 +3,7 @@ import BaseNode, { encodedHolderOf } from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
-import { oneWrite, textDictionaryForm } from '../parser/MatWriter.js';
+import { oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
 import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
 import { charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, } from '../parser/XmlUtils.js';
@@ -809,6 +809,9 @@ export default class DataNode extends BaseNode {
         };
     }
     serializeXml(tagName, attrs, indent) {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+        }
         if (this.serial && this.serial._rawVal && this.serial._rawVal._array_class) {
             return this._serializeSimulinkObjectXml(tagName, attrs, indent);
         }

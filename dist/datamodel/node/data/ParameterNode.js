@@ -12,6 +12,7 @@ import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
 import MatlabValueParser, { collapseExact } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
+import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 const CLASS_NAME = 'Simulink.Parameter';
 export default class ParameterNode extends DataNode {
     constructor(name, parent, props, serial) {
@@ -346,12 +347,18 @@ export default class ParameterNode extends DataNode {
         return props;
     }
     serializeValue() {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeValue());
+        }
         const props = this._getSerializedProperties();
         const result = Object.assign({}, this.serial._rawVal);
         result._elements = [Object.assign({}, result._elements[0], { _properties: props })];
         return result;
     }
     serializeXml(tagName, attrs, indent) {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+        }
         return this._serializeSimulinkObjectXml(tagName, attrs, indent);
     }
     static get defaultName() { return 'Param'; }

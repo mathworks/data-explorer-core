@@ -259,9 +259,16 @@ export const UNBACKED_BYTES_BUDGET = 16 * 1024 * 1024;
 const newBudget = () => ({ left: UNBACKED_BYTES_BUDGET, at: [] });
 /** The budget of the write under way (oneWrite), or null between writes. */
 let writing = null;
+/** Whether a write (oneWrite) is under way. */
+export function writeUnderWay() {
+    return writing !== null;
+}
 /**
  * Runs `write` as one write of one value: every encode in it, and every spendUnbacked, shares
- * one UNBACKED_BYTES_BUDGET. Inside a write already under way it is that write.
+ * one UNBACKED_BYTES_BUDGET. Inside a write already under way it is that write. Every node
+ * writer of a value that holds others — serializeValue and serializeXml of a cell, a struct,
+ * an object — starts one when none is, so a node written on its own is one write as an
+ * entry's serialize() and XML are, not one per member it holds.
  */
 export function oneWrite(write) {
     if (writing) {
