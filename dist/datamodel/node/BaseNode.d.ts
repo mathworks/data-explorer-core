@@ -111,7 +111,20 @@ export interface ElementSubscript {
     dims: number[] | undefined;
     order: ElementOrder;
     bracket: Bracket;
+    full?: boolean;
 }
+/**
+ * The node at or above `node`, within its entry, whose value is still the encoded byte
+ * stream it was read from (DataNode._encoded, set by DataNode._adoptEncoded) — or null
+ * when there is none.
+ *
+ * Such a node is written as that stream and nothing else, so everything at or under it is
+ * read-only: an edit there could not reach the file. Asked here rather than on DataNode
+ * because the editability getters below are BaseNode's, and duck-typed for the same
+ * reason owningEntryOf is: a source root and a section are ContainerNodes and carry no
+ * `_encoded`, so the walk stops at the first container and answers null for them.
+ */
+export declare function encodedHolderOf(node: BaseNode | null | undefined): BaseNode | null;
 export default class BaseNode {
     name: string;
     parent: BaseNode | null;

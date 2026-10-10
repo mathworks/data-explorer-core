@@ -104,4 +104,14 @@ export function overCharBudget(text) {
 export function summaryForm(dims, className) {
     return '<' + effectiveDims(dims).join('x') + ' ' + className + '>';
 }
+// A sparse array's summary, `<10x10 sparse double>`: the storage, then MATLAB's class()
+// of the value, which is its elements' (double, logical, single — complex is still
+// double, and like every other summary this one does not say complex). It is the only
+// thing a sparse array's own cell ever shows, at any size, a 1x1 and an empty one
+// included, and inside a cell's literal: MATLAB's struct and cell displays print a small
+// one inline, and this package deliberately does not. The value is one click away, as
+// one element row per non-zero.
+export function sparseSummaryForm(dims, className) {
+    return summaryForm(dims, 'sparse ' + className);
+}
 //# sourceMappingURL=DisplayConvention.js.map

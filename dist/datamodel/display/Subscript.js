@@ -52,15 +52,17 @@ export function toColumnMajorIndex(linearIndex, dims) {
 // `name(2,1)` / `name{1,2,2}` / `name(3)`.
 //
 // A vector takes the single linear subscript MATLAB itself uses, which is both
-// correct and what the existing suite pins.
-export function subscriptLabel(name, linearIndex, dims, order, bracket) {
+// correct and what the existing suite pins — unless `full` asks for every subscript,
+// which is how MATLAB's own display of a SPARSE array names each non-zero, a vector's
+// included: sparse([0 0 9]) displays `(1,3)        9`.
+export function subscriptLabel(name, linearIndex, dims, order, bracket, full = false) {
     const d = effectiveDims(dims);
     const open = bracket === '{}' ? '{' : '(';
     const close = bracket === '{}' ? '}' : ')';
     const spread = d.filter(function (n) {
         return n > 1;
     }).length;
-    if (spread <= 1) {
+    if (spread <= 1 && !full) {
         return name + open + (linearIndex + 1) + close;
     }
     const colMajor = order === 'column-major' ? linearIndex : toColumnMajorIndex(linearIndex, d);

@@ -47,6 +47,7 @@ import { readDictionaryXml } from './XmlReader.js';
 import { reasonOf } from './ParseWarning.js';
 import { SC_PART_XML, catalogFromDefinitions, scanScXml } from './ScCatalog.js';
 import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
+import { encodedStream, encodedValueOf, isEncodedValue } from './EncodedValue.js';
 import { charNeedsShape, complexClassTag, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, SAVEOBJ_KEY, } from './XmlUtils.js';
 /**
  * Read a `Dimension="d1*d2*...*dn"` attribute into every extent it declares.
@@ -205,7 +206,14 @@ export function parseBinarySlddParts(xmlString, zipMetadata, warnings) {
     for (const obj of objects) {
         const objClass = obj['@_Class'];
         if (objClass === 'DD.ENTRY') {
-            ddEntries.push(parseEntry(obj, entryXmlFragments[entryIdx] || ''));
+            encodedInEntry = false;
+            const entry = parseEntry(obj, entryXmlFragments[entryIdx] || '');
+            ddEntries.push(entry);
+            // Only an entry that HAS an encoded value is walked for unreadable ones — the walk
+            // visits every value, and nearly every entry of every dictionary has none.
+            if (encodedInEntry && warnings) {
+                warnUnreadableEncoded(entry.value, entry.name, warnings);
+            }
             entryIdx++;
         }
     }
@@ -286,6 +294,39 @@ function scCatalogOf(zipMetadata, decoder) {
         return {};
     }
     return { __scCatalog: catalogFromDefinitions(defs) };
+}
+/**
+ * One `part-unreadable` warning for each encoded value under an entry whose bytes cannot
+ * be read (EncodedValue.encodedStream says why), named by the entry. Such a value is shown
+ * as an undecoded placeholder and written back exactly as it was read, so nothing is lost
+ * from the FILE — but the bytes claim a value and the reader did not produce one, which is
+ * what the channel is for. A stream that reads is not reported however it then decodes:
+ * that is the node layer's to show, and an MCOS object it cannot resolve is shown as the
+ * opaque object it is in every other format.
+ */
+function warnUnreadableEncoded(value, entryName, warnings) {
+    const stack = [value];
+    while (stack.length > 0) {
+        const v = stack.pop();
+        if (v === null || typeof v !== 'object') {
+            continue;
+        }
+        if (isEncodedValue(v)) {
+            const reason = encodedStream(v).reason;
+            if (reason) {
+                warnings.push({
+                    code: 'part-unreadable',
+                    message: `"${entryName}" holds a value stored encoded that could not be read, because ${reason}; `
+                        + 'it is shown as not decoded and saved unchanged.',
+                    part: entryName,
+                });
+            }
+            continue;
+        }
+        for (const child of Array.isArray(v) ? v : Object.values(v)) {
+            stack.push(child);
+        }
+    }
 }
 function extractEntryFragments(xmlString) {
     const fragments = [];
@@ -398,6 +439,10 @@ function objectArrayValue(elements, dimParts) {
     };
 }
 function parseEntryValue(prop) {
+    const encoded = encodedOf(prop);
+    if (encoded) {
+        return encoded;
+    }
     const className = prop['@_Class'] || null;
     const dimension = prop['@_Dimension'] || null;
     const elements = prop.Element;
@@ -464,6 +509,10 @@ function parseEntryValue(prop) {
     return formatTypedScalar(text, type);
 }
 function parseCellElement(el) {
+    const encoded = encodedOf(el);
+    if (encoded) {
+        return encoded;
+    }
     const elClass = el['@_Class'] || '';
     const dimension = el['@_Dimension'] || null;
     const text = getTextContent(el);
@@ -701,6 +750,10 @@ function logicalValue(text, dimParts) {
     return formatMatrix(rowMajor, dimParts, 'logical');
 }
 function parsePropContent(prop) {
+    const encoded = encodedOf(prop);
+    if (encoded) {
+        return encoded;
+    }
     const propClass = prop['@_Class'] || null;
     const dimension = prop['@_Dimension'] || null;
     const childElements = prop.Element;
@@ -814,8 +867,14 @@ function parseStructElement(el) {
             continue;
         }
         // A complex scalar carries its value as text with IsComplex="1" rather than
-        // as child elements, so it never reaches the generic content decoder.
-        if (!prop.Element?.length && isComplexAttr(prop['@_IsComplex'])) {
+        // as child elements, so it never reaches the generic content decoder. An encoded
+        // value is asked about first, here as at every site: its body is a byte stream
+        // whatever else the element says about it.
+        const encoded = encodedOf(prop);
+        if (encoded) {
+            result[prop['@_Name']] = encoded;
+        }
+        else if (!prop.Element?.length && isComplexAttr(prop['@_IsComplex'])) {
             result[prop['@_Name']] = complexCdata(getTextContent(prop), prop['@_Dimension'] || null, prop['@_Class']);
         }
         else {
@@ -938,6 +997,36 @@ function complexCdata(text, dimension, className) {
 function numericBody(text, type) {
     return needsExactInt(type) ? parseExactBody(text) : parseNumericBody(text);
 }
+/**
+ * The envelope for a value MATLAB wrote as an encoded byte stream, or null for one it
+ * wrote as XML. Asked FIRST at every site a value is read — an entry's Value, an object
+ * property or struct field, a cell element — because what such an element's text holds
+ * is bytes, whatever its Class says.
+ *
+ * There was no such question anywhere in this reader. MATLAB writes
+ * `<P Name="Value" Class="double" Encoding="hex" EncodedLength="248">0001494D…</P>` for a
+ * value XML cannot spell (a sparse array, a function handle), and that text went to the
+ * numeric tail of whichever site it reached: parseFloat stops at the first letter, so
+ * `0001494D…` read as 1494 — every hex value in the corpus showed 1494, as an editable
+ * double, and a save that touched nothing wrote `Class="double">1494.0` where the stream
+ * had been. An object-classed one kept its text in a typed envelope, and the node layer
+ * then put the same text through the same parseFloat. Nothing about the bytes is decided
+ * here — see EncodedValue for the envelope, and MatlabVariableNode.parseEncoded for the
+ * decode — so this reader cannot lose them however the value turns out to read.
+ */
+function encodedOf(node) {
+    // The attribute first: this runs at every value site of every dictionary, and almost
+    // none of them is encoded.
+    if (node['@_Encoding'] === undefined) {
+        return null;
+    }
+    encodedInEntry = true;
+    return encodedValueOf(node, getTextContent(node));
+}
+// Set by encodedOf while an entry is being read, so parseBinarySlddParts knows which
+// entries to walk for an unreadable stream without a scan of the whole document. The
+// reader is synchronous and resets it before each entry.
+let encodedInEntry = false;
 function getTextContent(node) {
     if (node['#text'] !== undefined) {
         return String(node['#text']);

@@ -8,6 +8,7 @@
 
 import { zipSync } from 'fflate';
 import { escapeXml, matlabTimestampNow } from './XmlUtils.js';
+import { encodedXml } from './EncodedValue.js';
 import { DATA_PART_XML } from './SlddParts.js';
 import type SlddNode from '../node/container/SlddNode.js';
 import type DataNode from '../node/DataNode.js';
@@ -69,9 +70,15 @@ export function serializeEntryToXml(entryNode: DataNode): string {
     xml += '        <P Name="UUID" Class="char">' + ((meta.uuid as string) || '') + '</P>\n';
     xml += '        <P Name="Namespace" Class="char">' + ((meta.namespace as string) || '') + '</P>\n';
     xml += '        <P Name="LastMod" Class="char">' + lastMod + '</P>\n';
-    xml += '        <P Name="LastModBy" Class="char">' + escapeXml((meta.lastModifiedBy as string) || '') + '</P>\n';
+    // `modifiedby` is the same fact as a text dictionary's entry files it, for an entry
+    // pasted in from one (DataNode's textDictionaryMetadata is the other direction).
+    xml += '        <P Name="LastModBy" Class="char">' + escapeXml((meta.lastModifiedBy as string) || (meta.modifiedby as string) || '') + '</P>\n';
     xml += '        <P Name="IsDerived" Class="char">' + ((meta.isderived as string) || '0') + '</P>\n';
-    xml += entryNode.serializeXml('P', { Name: 'Value' }, 2) + '\n';
+    // A value whose only binary spelling is hex, and whose bytes the node still holds
+    // (DataNode._binaryEncoded), goes in as the hex MATLAB writes for it; everything else
+    // writes itself. A value READ from hex replays it through serializeXml already.
+    const encoded = entryNode._binaryEncoded?.();
+    xml += (encoded ? encodedXml('P', ' Name="Value"', encoded, 2) : entryNode.serializeXml('P', { Name: 'Value' }, 2)) + '\n';
     xml += '    </Object>\n';
     return xml;
 }

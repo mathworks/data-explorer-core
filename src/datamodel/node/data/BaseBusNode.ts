@@ -97,10 +97,11 @@ export class BaseBusNode extends DataNode {
         return result;
     }
 
-    canRemoveChild(): boolean { return this.children.length > 0; }
+    // Not inside a value still in its encoded stream (DataNode._encodedReadOnly).
+    canRemoveChild(): boolean { return !this._encodedReadOnly && this.children.length > 0; }
     removeChildNode(child: BaseNode): void { this.removeChild(child); this._markModified(); }
     restoreChildNode(child: BaseNode, index: number): void { this.children.splice(index, 0, child); child.parent = this; this._markModified(); }
-    canAddChild(): boolean { return true; }
+    canAddChild(): boolean { return !this._encodedReadOnly; }
 
     addChildNode(): BaseNode | null {
         const baseName = 'a';

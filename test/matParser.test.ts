@@ -508,6 +508,56 @@ describe('parseMat — cell arrays', () => {
 // but unused nzmax) on a byte layout that has been checked against MATLAB's own.
 //
 // The MATLAB call each fixture stands for stays quoted in the test that uses it.
+describe('parseMat — a sparse SINGLE, which is not class 5', () => {
+  // MATLAB writes a sparse double or logical as class 5 and a sparse single as class 7,
+  // single's own code, marked sparse by the 0x10 flag alone (make_sparse_fixtures.m,
+  // matClassCode/matFlags per value). Read by class code, it went to the full-array arm,
+  // which took the first subelement after the name — the row indices — for the values.
+  // sparse(single([0 1.5; 2.5 0; 0 -4])): non-zeros (2,1)=2.5, (1,2)=1.5, (3,2)=-4.
+  const spec = {
+    name: 'spSingle',
+    dimensions: [3, 2],
+    ir: [1, 0, 2],
+    jc: [0, 1, 3],
+    real: [2.5, 1.5, -4],
+    cls: CLASS.SINGLE,
+    dataType: MI.SINGLE,
+    sparseFlag: true,
+  };
+
+  it('reads it through the sparse arm, as the single it is', () => {
+    const v = only(matFile([sparseVar(spec)]));
+    expect([v.className, v.isSparse, v.dimensions]).toEqual(['single', true, [3, 2]]);
+    expect(v.value).toEqual([0, 1.5, 2.5, 0, 0, -4]);
+  });
+
+  it('and only the flag makes it sparse: class 7 without it is a full single', () => {
+    const v = only(matFile([numericVar({ name: 'full', cls: CLASS.SINGLE, dimensions: [1, 3], real: [1, 2, 3] })]));
+    expect([v.className, v.isSparse, v.value]).toEqual(['single', undefined, [1, 2, 3]]);
+  });
+
+  it('shows as the sparse single it is, and on MATLAB\'s own bytes', () => {
+    // Its class is MATLAB's, single; its display is the summary every sparse array has,
+    // and its rows are its non-zeros, in MATLAB's order.
+    const session = createSession();
+    const node = (session.addMatSource('s.mat', matFile([sparseVar(spec)])) as any).children[0];
+    const real = (session.addMatSource('sparse_values.mat', fixtureBytes('sparse/sparse_values.mat')) as any).children.find(
+      (c: any) => c.name === 'spSingle',
+    );
+    for (const n of [node, real]) {
+      expect([n.className, n.displayValue, n.children.map((c: any) => [c.displayName.slice(n.name.length), c.displayValue])]).toEqual([
+        'single',
+        '<3x2 sparse single>',
+        [
+          ['(2,1)', '2.5'],
+          ['(1,2)', '1.5'],
+          ['(3,2)', '-4'],
+        ],
+      ]);
+    }
+  });
+});
+
 describe('parseMat — sparse arrays (class 5)', () => {
   // S = sparse([1 2 3 2], [1 1 2 4], [10 11 20 30], 3, 4)
   //
@@ -535,9 +585,13 @@ describe('parseMat — sparse arrays (class 5)', () => {
 
   it('materializes the dense matrix from the ir/jc index arrays', () => {
     const v = only(matFile([sparseVar(worked)]));
-    // The class stays 'sparse' — that the file stored it sparse is the one fact the
-    // dense value cannot carry, and it is what keeps MatWriter refusing to write it.
-    expect(v.className).toBe('sparse');
+    // The class is MATLAB's class() of it, 'double'. That the file stored it sparse is
+    // the one fact the dense value cannot carry, so it is kept beside the class, as
+    // MATLAB keeps it (issparse), and it is what keeps MatWriter refusing to write it.
+    // The class used to be 'sparse', the MAT file's name for the storage, and every
+    // Class cell and summary said so where MATLAB says double.
+    expect(v.className).toBe('double');
+    expect(v.isSparse).toBe(true);
     expect(v.dimensions).toEqual([3, 4]);
     // Row-major, like every other numeric class: the node layer reads values in the
     // order it renders them.
@@ -640,9 +694,10 @@ describe('parseMat — sparse arrays (class 5)', () => {
     // one variable would fail the whole file open. Refused by name and by reason
     // instead, through the same channel class 3 uses.
     const v = only(matFile([sparseVar({ name: 'big', dimensions: [2000, 2000], ir: [0], jc: [0, 1, 1], real: [5] })]));
-    expect(v.className).toBe('sparse');
-    expect(v.value).toBe('<2000x2000 sparse, not decoded>');
-    expect(v.undecoded).toContain('larger than this reader materializes');
+    expect([v.className, v.isSparse]).toEqual(['double', true]);
+    expect(v.value).toBe('<2000x2000 sparse double, not decoded>');
+    // The reason still names the storage: it is the reason.
+    expect(v.undecoded).toContain('sparse array of 4000000 elements: larger than this reader materializes');
     // Under the limit, the same shape of file decodes: the refusal is about size only.
     expect(only(matFile([sparseVar({ name: 'ok', dimensions: [1000, 1000], ir: [0], jc: [0, 1, 1], real: [5] })])).undecoded)
       .toBeUndefined();
@@ -665,25 +720,34 @@ describe('parseMat — sparse arrays (class 5)', () => {
     expect(noData.value).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
   });
 
-  it('reaches the node layer as the matrix it is, one child row per element', () => {
+  it('reaches the node layer as the matrix it is, one child row per non-zero', () => {
     // The user-visible half of this item: before the sparse branch existed, this
     // variable arrived with `value: null` and the node layer built ONE child holding
-    // null for a twelve-element matrix.
+    // null for a twelve-element matrix. Its value is every element; its rows are the
+    // non-zeros, labelled as MATLAB's own display of it lists them, column by column.
     const session = createSession();
     const mat = session.addMatSource('sp.mat', matFile([sparseVar(worked)])) as any;
     const node = mat.children[0];
-    expect(node.children).toHaveLength(12);
-    expect(node.children.map((c: any) => c._scalarValue)).toEqual(workedDense);
-    // Twelve elements is over the ten-element display budget, so the cell summarizes —
-    // and the summary names 'sparse', which is where the storage class survives.
-    expect(node.displayValue).toBe('<3x4 sparse>');
-    expect(node.className).toBe('sparse');
-    // A 2x3 is under the budget and prints as the matrix literal.
+    expect(node.Value).toEqual(workedDense);
+    expect(node.children.map((c: any) => [c.displayName, c._scalarValue])).toEqual([
+      ['S(1,1)', 10],
+      ['S(2,1)', 11],
+      ['S(3,2)', 20],
+      ['S(2,4)', 30],
+    ]);
+    // The summary, at every size, naming the storage and the class MATLAB gives it.
+    expect(node.displayValue).toBe('<3x4 sparse double>');
+    expect([node.className, node.dataType]).toEqual(['double', 'double']);
+    // A 2x3 is under the display budget and is still the summary: a sparse array is
+    // never spelled as a dense literal.
     const small = session.addMatSource(
       'sp2.mat',
       matFile([sparseVar({ name: 's', dimensions: [2, 3], ir: [0, 1], jc: [0, 1, 1, 2], real: [4, 6] })]),
     ) as any;
-    expect(small.children[0].displayValue).toBe('[4 0 0; 0 0 6]');
+    expect([small.children[0].displayValue, small.children[0].children.map((c: any) => c.displayName)]).toEqual([
+      '<2x3 sparse double>',
+      ['s(1,1)', 's(2,3)'],
+    ]);
   });
 });
 
@@ -775,7 +839,10 @@ describe('parseMat — sparse arrays, on MATLAB-authored bytes', () => {
     expect(parsed.warnings).toEqual([]);
     for (const c of CASES) {
       const v = named(c.name);
-      expect(v.className, c.name).toBe('sparse');
+      // MATLAB's class() for each (sparse_cases.mat, measured): logical for spLogical,
+      // double for the rest, complex included. issparse() is true for all six.
+      expect(v.className, c.name).toBe(c.isLogical ? 'logical' : 'double');
+      expect(v.isSparse, c.name).toBe(true);
       expect(v.dimensions, c.name).toEqual(c.dimensions);
       expect(v.value, c.name).toEqual(c.value);
       expect(!!v.isComplex, c.name).toBe(!!c.isComplex);
@@ -797,6 +864,7 @@ describe('parseMat — sparse arrays, on MATLAB-authored bytes', () => {
     // the synthesized bytes are the bytes MATLAB writes.
     const projected = (v: (typeof parsed.variables)[number]) => ({
       className: v.className,
+      isSparse: v.isSparse,
       dimensions: v.dimensions,
       value: v.value,
       isComplex: !!v.isComplex,
@@ -816,24 +884,23 @@ describe('parseMat — sparse arrays, on MATLAB-authored bytes', () => {
     const session = createSession();
     const mat = session.addMatSource('sparse_cases.mat', fixtureBytes('sparse_cases.mat')) as any;
     //
-    // Two rows here are worth reading rather than skimming:
+    // Two things here are worth reading rather than skimming:
     //
-    //   * spLogical's class column says `logical`, not `sparse`. Every other row keeps
-    //     the storage class, which is the deliberate choice the first sparse test above
-    //     explains — but a logical sparse is rendered by its logical-ness instead. That
-    //     is not a bug so much as a coincidence: it is exactly what MATLAB's own
-    //     `class()` answers for it. (It answers `double` for the other five, where this
-    //     column says `sparse`. Pinned as measured, not endorsed.)
-    //   * the 2x2s print as literals and the 3x4s summarize, because the display budget
-    //     is ten elements — so this list covers both arms of that on real bytes, plus
-    //     the empty one, which prints as neither.
-    expect(mat.children.map((c: any) => [c.name, c.className, c.displayValue])).toEqual([
-      ['spAlloc', 'sparse', '<3x4 sparse>'],
-      ['spComplex', 'sparse', '[1+2i 0+0i; 0+0i 3-4i]'],
-      ['spEmpty', 'sparse', '[ ]'],
-      ['spLogical', 'logical', '[true false; false true]'],
-      ['spNoneZero', 'sparse', '<3x4 sparse>'],
-      ['spWorked', 'sparse', '<3x4 sparse>'],
+    //   * the class column is MATLAB's own `class()` of each: `logical` for spLogical
+    //     and `double` for the other five, the complex one included. It used to say
+    //     `sparse` for those five — the MAT file's word for the storage, pinned here
+    //     as measured and not endorsed — and the summaries said `<3x4 sparse>` where
+    //     MATLAB's own says `3×4 double`.
+    //   * every one is the summary, `<RxC sparse class>`, the 2x2s and the empty one
+    //     included: a sparse array is never spelled as a dense literal. They used to
+    //     print as literals under the ten-element display budget.
+    expect(mat.children.map((c: any) => [c.name, c.className, c.dataType, c.displayValue])).toEqual([
+      ['spAlloc', 'double', 'double', '<3x4 sparse double>'],
+      ['spComplex', 'double', 'double', '<2x2 sparse double>'],
+      ['spEmpty', 'double', 'double', '<0x0 sparse double>'],
+      ['spLogical', 'logical', 'logical', '<2x2 sparse logical>'],
+      ['spNoneZero', 'double', 'double', '<3x4 sparse double>'],
+      ['spWorked', 'double', 'double', '<3x4 sparse double>'],
     ]);
   });
 });
@@ -940,10 +1007,12 @@ describe('parseMat — old-style (class 3) objects', () => {
       matFile([sparseVar({ name: 'big', dimensions: [2000, 2000], ir: [0], jc: [0, 1, 1], real: [5] })]),
     ) as any;
     const node = mat.children[0];
-    expect(node.displayValue).toBe('<2000x2000 sparse, not decoded>');
+    // Its class is the one MATLAB gives it, as for a sparse matrix that does decode, and
+    // its storage is in the placeholder as it is in that one's summary.
+    expect(node.displayValue).toBe('<2000x2000 sparse double, not decoded>');
     expect(node.children).toEqual([]);
     expect(node.valueEditable).toBe(false);
-    expect(node.dataType).toBe('sparse');
+    expect([node.className, node.dataType]).toEqual(['double', 'double']);
   });
 });
 
@@ -1009,6 +1078,29 @@ describe('parseMat — malformed byte counts', () => {
     }
     const badChar = corruptLength(charVar('c', 'abcd', MI.UTF8), TAG.payload, overlong);
     expect(() => parseMat(matFile([badChar]))).not.toThrow();
+  });
+
+  it('an array declaring more elements than its bytes could hold is recorded, not read', () => {
+    // Past the dense limit (a million elements) the node layer would build a row per
+    // declared element whatever the read found, which is how one corrupted dimension word
+    // of a dictionary's hex value ran the heap out. A cell's element takes an 8-byte tag.
+    const big = 2_000_000;
+    const numeric = only(matFile([numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, big], real: [1, 2] })]));
+    expect([numeric.value, numeric.undecoded]).toEqual([
+      `<1x${big} double, not decoded>`,
+      expect.stringMatching(new RegExp(`^declares ${big} elements, more than the \\d+ bytes left in it can hold$`)),
+    ]);
+    const cell = only(matFile([cellVar('c', [scalarField(1)], [big, 1])]));
+    expect(cell.undecoded).toMatch(/^declares 2000000 elements/);
+    // Below the limit a short array is the clamped read it always was (see above).
+    expect(only(matFile([numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 1000], real: [1, 2] })])).undecoded).toBeUndefined();
+  });
+
+  it('a struct array with no fields is not taken for one: its elements take no bytes', () => {
+    const v = only(matFile([structVar('s', [], [], [1, 2_000_000])]));
+    expect([v.className, v.dimensions, v.undecoded, v.fields]).toEqual(['struct', [1, 2_000_000], undefined, {}]);
+    // With a field, the same declared size is a damaged array.
+    expect(only(matFile([structVar('s', ['a'], [{ a: scalarField(1) }], [1, 2_000_000])])).undecoded).toMatch(/^declares 2000000 elements/);
   });
 
   it('reads a variable whose own element length overruns the file', () => {

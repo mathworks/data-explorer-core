@@ -1,0 +1,566 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "anonAlias",
+						"metadata": {
+							"uuid": "6aadc776-0140-4f7d-ab1f-393539a700c9",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261010T072838.169647",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "dexsparse.FhAlias",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"BaseType": "double",
+										"DataScope": "Auto",
+										"Description": "",
+										"Fh": {
+											"_type": "function_handle",
+											"_value": "@(y)y*2"
+										},
+										"HeaderFile": ""
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cTall",
+						"metadata": {
+							"uuid": "1f8d2573-6c87-4753-93f3-f91ace8b9e8d",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261010T072838.174354",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								2
+							],
+							"_elements": [
+								{
+									"_type": "cdata",
+									"_value": "  %)30     .    :     8    (    !1    (    %    \"    (\"6F  \"     0         %    \"         !^EI@ !0    P          0    (         \"0   !             <0        \"! \u0000"
+								},
+								2
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "control",
+						"metadata": {
+							"uuid": "e31e00c1-7824-4008-8e48-5c53520f9724",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261010T072838.174505",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": 5
+					},
+					{
+						"name": "holder",
+						"metadata": {
+							"uuid": "1c93275e-4d6f-4f04-ad47-b47d050f91ad",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261010T072838.170105",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "dexsparse.HolderAlias",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"BaseType": "double",
+										"DataScope": "Auto",
+										"Description": "",
+										"HeaderFile": "",
+										"S": {
+											"_array_type": "Struct",
+											"_dimensions": [
+												1,
+												1
+											],
+											"_elements": [
+												{
+													"a": 2,
+													"b": "xy"
+												}
+											]
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "objs",
+						"metadata": {
+							"uuid": "5dca6172-2acd-4a8f-993a-c374888e7cda",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261010T072838.170448",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"bus": {
+										"_array_class": "Simulink.Bus",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_id": "5",
+												"_properties": {
+													"DataScope": "Auto",
+													"Description": "",
+													"Elements_internal": {
+														"_id": "6",
+														"_object_class": "Simulink.BusElement",
+														"_properties": {
+															"Complexity": "real",
+															"Dimensions": 1,
+															"DimensionsMode": "Fixed",
+															"DocUnits": "",
+															"Name": "e1"
+														}
+													},
+													"HeaderFile": "",
+													"PreserveElementDimensions": false
+												}
+											}
+										]
+									},
+									"et": {
+										"_array_class": "Simulink.data.dictionary.EnumTypeDefinition",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_id": "9",
+												"_properties": {
+													"Enumerals": {
+														"_array_type": "Struct",
+														"_dimensions": [
+															1,
+															2
+														],
+														"_elements": [
+															{
+																"Description": "",
+																"Name": "enum1",
+																"Value": "0"
+															},
+															{
+																"Description": "",
+																"Name": "Red",
+																"Value": "2"
+															}
+														],
+														"_fields": [
+															"Name",
+															"Value",
+															"Description"
+														]
+													}
+												}
+											}
+										]
+									},
+									"prm": {
+										"_array_class": "Simulink.Parameter",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_id": "10",
+												"_properties": {
+													"CoderInfo": {
+														"_id": "11",
+														"_object_class": "Simulink.CoderInfo",
+														"_properties": {
+															"CSCPackageName": "Simulink",
+															"CustomAttributes": {
+																"_id": "12",
+																"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+																"_properties": {}
+															},
+															"CustomStorageClass": "Default",
+															"ParameterOrSignal": "Parameter",
+															"StorageClass": "Auto"
+														}
+													},
+													"Complexity": "real",
+													"Dimensions": [
+														1,
+														1
+													],
+													"Value": 3
+												}
+											}
+										]
+									},
+									"sig": {
+										"_array_class": "Simulink.Signal",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_id": "1",
+												"_properties": {
+													"CoderInfo": {
+														"_id": "3",
+														"_object_class": "Simulink.CoderInfo",
+														"_properties": {
+															"CSCPackageName": "Simulink",
+															"CustomAttributes": {
+																"_id": "4",
+																"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+																"_properties": {}
+															},
+															"CustomStorageClass": "Default",
+															"ParameterOrSignal": "Signal",
+															"StorageClass": "Auto"
+														}
+													},
+													"LoggingInfo": {
+														"_id": "2",
+														"_object_class": "Simulink.LoggingInfo",
+														"_properties": {}
+													},
+													"Min": 1
+												}
+											}
+										]
+									},
+									"sp": {
+										"_type": "cdata",
+										"_value": "  %)30     .    6     8    (    !1    $    %    \"     $    \"     0         %  0       4    ,               !          D    (            \"$ \u0000\u0000"
+									},
+									"vc": {
+										"_array_class": "Simulink.VariantControl",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_id": "8",
+												"_properties": {
+													"Value": 1,
+													"ValueType": "Numeric"
+												}
+											}
+										]
+									},
+									"vt": {
+										"_array_class": "Simulink.ValueType",
+										"_dimensions": [
+											1,
+											1
+										],
+										"_elements": [
+											{
+												"_id": "7",
+												"_properties": {}
+											}
+										]
+									}
+								}
+							],
+							"_fields": [
+								"sp",
+								"sig",
+								"bus",
+								"vt",
+								"vc",
+								"et",
+								"prm"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "objsCell",
+						"metadata": {
+							"uuid": "21b76cd0-0691-472e-8d5a-e47d291de81b",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261010T072838.172178",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								7
+							],
+							"_elements": [
+								{
+									"_type": "cdata",
+									"_value": "  %)30     .    6     8    (    !1    $    %    \"     $    \"     0         %  0       4    ,               !          D    (            \"$ \u0000\u0000"
+								},
+								{
+									"_array_class": "Simulink.Signal",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "1",
+											"_properties": {
+												"CoderInfo": {
+													"_id": "3",
+													"_object_class": "Simulink.CoderInfo",
+													"_properties": {
+														"CSCPackageName": "Simulink",
+														"CustomAttributes": {
+															"_id": "4",
+															"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+															"_properties": {}
+														},
+														"CustomStorageClass": "Default",
+														"ParameterOrSignal": "Signal",
+														"StorageClass": "Auto"
+													}
+												},
+												"LoggingInfo": {
+													"_id": "2",
+													"_object_class": "Simulink.LoggingInfo",
+													"_properties": {}
+												},
+												"Min": 1
+											}
+										}
+									]
+								},
+								{
+									"_array_class": "Simulink.Bus",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "5",
+											"_properties": {
+												"DataScope": "Auto",
+												"Description": "",
+												"Elements_internal": {
+													"_id": "6",
+													"_object_class": "Simulink.BusElement",
+													"_properties": {
+														"Complexity": "real",
+														"Dimensions": 1,
+														"DimensionsMode": "Fixed",
+														"DocUnits": "",
+														"Name": "e1"
+													}
+												},
+												"HeaderFile": "",
+												"PreserveElementDimensions": false
+											}
+										}
+									]
+								},
+								{
+									"_array_class": "Simulink.ValueType",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "7",
+											"_properties": {}
+										}
+									]
+								},
+								{
+									"_array_class": "Simulink.VariantControl",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "8",
+											"_properties": {
+												"Value": 1,
+												"ValueType": "Numeric"
+											}
+										}
+									]
+								},
+								{
+									"_array_class": "Simulink.data.dictionary.EnumTypeDefinition",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "9",
+											"_properties": {
+												"Enumerals": {
+													"_array_type": "Struct",
+													"_dimensions": [
+														1,
+														2
+													],
+													"_elements": [
+														{
+															"Description": "",
+															"Name": "enum1",
+															"Value": "0"
+														},
+														{
+															"Description": "",
+															"Name": "Red",
+															"Value": "2"
+														}
+													],
+													"_fields": [
+														"Name",
+														"Value",
+														"Description"
+													]
+												}
+											}
+										}
+									]
+								},
+								{
+									"_array_class": "Simulink.Parameter",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "10",
+											"_properties": {
+												"CoderInfo": {
+													"_id": "11",
+													"_object_class": "Simulink.CoderInfo",
+													"_properties": {
+														"CSCPackageName": "Simulink",
+														"CustomAttributes": {
+															"_id": "12",
+															"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+															"_properties": {}
+														},
+														"CustomStorageClass": "Default",
+														"ParameterOrSignal": "Parameter",
+														"StorageClass": "Auto"
+													}
+												},
+												"Complexity": "real",
+												"Dimensions": [
+													1,
+													1
+												],
+												"Value": 3
+											}
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pTall",
+						"metadata": {
+							"uuid": "59d2cf4e-d0e5-4486-b869-9d304c496041",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261010T072838.173547",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"Dimensions": [
+											10000000.0,
+											2
+										],
+										"Value": {
+											"_type": "cdata",
+											"_value": "  %)30     .    :     8    (    !1    (    %    \"    (\"6F  \"     0         %    \"         !^EI@ !0    P          0    (         \"0   !             <0        \"! \u0000"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

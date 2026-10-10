@@ -79,6 +79,11 @@ export default class ValueTypeNode extends SimulinkObjectNode {
     // the shared enumeral check, which reads its legal set from the prop atom's readOptions so
     // the values accepted here and the values the dropdown offers cannot diverge.
     setProperty(propName, stringValue) {
+        // A value still in the encoded stream it was read from is read-only (DataNode._refuseEncodedEdit).
+        const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
+        if (encodedRefusal) {
+            return encodedRefusal;
+        }
         if (propName === 'Min' || propName === 'Max') {
             return this._setMinMax(propName, stringValue);
         }

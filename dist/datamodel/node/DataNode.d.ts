@@ -1,6 +1,7 @@
 import BaseNode from './BaseNode.js';
 import type { PropClass } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
+import { type EncodedValue } from '../parser/EncodedValue.js';
 export interface SetPropertyResult {
     error: boolean;
     reason: string;
@@ -36,6 +37,7 @@ export default class DataNode extends BaseNode {
     status: string;
     Description?: string;
     _rawInput?: unknown;
+    _encoded?: EncodedValue;
     rawXml?: string;
     classification?: string;
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
@@ -116,6 +118,57 @@ export default class DataNode extends BaseNode {
      */
     _mergeProps(propOverrides: Record<string, unknown>): Record<string, unknown>;
     serializeValue(): unknown;
+    /**
+     * Make `encoded` — the byte stream this node was decoded from — what the node writes, for
+     * as long as nothing changes the value (_markModified drops it; a rename keeps it).
+     *
+     * Every writer of a value is a method of the node's class: `serializeValue` for a text
+     * dictionary, a copy payload and a parent's property bag, `serializeXml` for a binary
+     * dictionary. A stream can decode into a node of ANY class — a sparse array is a
+     * MatlabVariableNode, a Simulink.Parameter holding one is a ParameterNode, an object of a
+     * class this package does not know is an ObjectNode — and every one of those classes
+     * has its own pair. So the replay is installed on the instance, in front of whichever
+     * pair its class has, rather than added to each class: one place, which a class written
+     * tomorrow cannot forget to call. The class's own writer is looked up when it is called,
+     * not captured here, so a node whose class changes after it is built (ConstantNode
+     * reclasses a derived variable in place) still falls back to the right one.
+     *
+     * What each one hands back:
+     *   - serializeValue: the envelope itself. DataNode.serialize turns it into the MAT
+     *     stream a TEXT dictionary carries for the same value (MatWriter.textDictionaryForm),
+     *     and a binary one writes it back through the property and cell-element writers'
+     *     encoded arms below — so a copy payload is right for whichever dictionary it lands in.
+     *   - serializeXml: the element as it was read, attribute for attribute and byte for byte,
+     *     under whatever name and tag the caller is writing it at.
+     */
+    _adoptEncoded(encoded: EncodedValue): void;
+    /**
+     * The refusal for an edit to a value that is still an encoded byte stream, or null when
+     * the edit may go ahead. Every setProperty asks this first, the overrides included.
+     *
+     * A value read from a stream is written back AS the stream (_adoptEncoded), and nothing
+     * in this package can write a new one for all it may hold: MatWriter writes a sparse
+     * array's stream, but not a function handle's or an MCOS object's subsystem, and the XML
+     * this package can spell for the decoded value is not the value — `Class="sparse"` makes
+     * MATLAB's reader crash outright, and a dense matrix is a different variable. So an edit
+     * anywhere at or under such a node is refused, and the one edit that leaves the value
+     * alone is let through: renaming the node that holds the stream, whose name lives
+     * outside it.
+     */
+    /**
+     * The encoded element a compressed-binary dictionary has to hold this ENTRY's value as,
+     * when it has no XML spelling and its bytes are at hand — or null, for every value whose
+     * own serializeXml is the right answer. Asked by serializeEntryToXml; see the
+     * MatlabVariableNode override for the one case there is.
+     */
+    _binaryEncoded(): EncodedValue | null;
+    /**
+     * Is this node at or under one whose value is still an encoded stream? The structural
+     * gates (canAddChild, canRemoveChild) of every class that has them ask this, for the
+     * reason _refuseEncodedEdit gives: a child added or removed there could not reach the file.
+     */
+    get _encodedReadOnly(): boolean;
+    _refuseEncodedEdit(propName: string, stringValue: string): SetPropertyResult | null;
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _serializeSimulinkObjectXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _getSerializedProperties(): Record<string, unknown>;

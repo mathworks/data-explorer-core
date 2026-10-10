@@ -9,6 +9,7 @@ import PropNumberOfEntries from '../../prop/PropNumberOfEntries.js';
 import { slddChunkContent } from '../../parser/SlddContent.js';
 import { SC_PART } from '../../parser/ScCatalog.js';
 import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.js';
+import { takeDecodeFailures } from '../../parser/EncodedValue.js';
 const SECTION_DEFS = [
     { key: 'design', label: 'Design Data', icon: 'databaseFolderDesign' },
     { key: 'arch', label: 'Architectural Data', icon: 'databaseFolderArchitecture' },
@@ -159,7 +160,21 @@ export default class SlddNode extends ContainerNode {
                 const sectionKey = SlddNode.getSectionKey(entry);
                 const section = node.getSection(sectionKey);
                 if (section) {
+                    // An encoded value that is framed right and still does not decode is
+                    // shown as not decoded and saved unchanged; the node layer that finds
+                    // out records why, and this is the read that can say so (see
+                    // EncodedValue.recordDecodeFailure). Taken before too, so that nothing
+                    // recorded outside this read is reported against this entry.
+                    takeDecodeFailures();
                     section.parseEntry(entry, node.systemComposer);
+                    for (const reason of takeDecodeFailures()) {
+                        warnings?.push({
+                            code: 'part-unreadable',
+                            message: `"${String(entry.name)}" holds a value stored encoded that could not be read, `
+                                + `because ${reason}; it is shown as not decoded and saved unchanged.`,
+                            part: String(entry.name),
+                        });
+                    }
                 }
             });
         }

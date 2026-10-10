@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import StructNode from '../src/datamodel/node/data/StructNode.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
+import { loadFile } from './parity/loadFile.js';
 
 // --- helpers ---------------------------------------------------------------
 
@@ -249,6 +250,17 @@ describe('StructNode field rename', () => {
     const json = JSON.parse(JSON.stringify(node.serializeValue()));
     expect(json._fields).toEqual(['a2', 'b']);
     expect(json._elements).toEqual([{ a2: 1, b: 2 }]);
+  });
+
+  it('a renamed struct ENTRY is written as it was read: the name is not in its value', () => {
+    // MATLAB's sObjArr holds a Simulink.Parameter array whose elements carry an `_id`,
+    // which a struct rebuilt from its nodes does not write. A rename used to rebuild it.
+    const design = loadFile('../fixtures/cellarr_text.sldd').getSection('design');
+    const entry = design.children.find((e: any) => e.name === 'sObjArr');
+    const before = JSON.parse(JSON.stringify(entry.serialize())).value;
+    expect(JSON.stringify(before)).toContain('"_id"');
+    expect(entry.setProperty('Name', 'sObjArrRenamed')).toBe(true);
+    expect(JSON.parse(JSON.stringify(entry.serialize())).value).toEqual(before);
   });
 });
 

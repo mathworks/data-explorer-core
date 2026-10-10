@@ -9,4 +9,5 @@ export declare function elementCount(dims: number[] | undefined | null): number;
 export declare function needsSummary(dims: number[] | undefined | null): boolean;
 export declare function overCharBudget(text: string): boolean;
 export declare function summaryForm(dims: number[] | undefined | null, className: string): string;
+export declare function sparseSummaryForm(dims: number[] | undefined | null, className: string): string;
 //# sourceMappingURL=DisplayConvention.d.ts.map

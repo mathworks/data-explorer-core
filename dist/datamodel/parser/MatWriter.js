@@ -39,6 +39,7 @@
 // reads as empty.
 import { complexClassTag, isExactToken, parseComplexNum, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
+import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
  * object array), or a class MatParser could not name. Thrown rather than
@@ -69,7 +70,10 @@ const MX_CHAR = 4;
 const MX_UINT8 = 9;
 // The inverse of MatParser's CLASS_NAMES. 'sparse' and 'object' are absent on
 // purpose: neither has a shape this writer can produce, and naming them would
-// turn a loud MatWriteError into a stream MATLAB misreads.
+// turn a loud MatWriteError into a stream MATLAB misreads. (A sparse array's
+// className is its element class, 'double', 'logical' or 'single', and
+// encodeMatVariable sends it to encodeSparse on its isSparse before this table is
+// asked.)
 const CLASS_CODE = {
     cell: MX_CELL,
     struct: MX_STRUCT,
@@ -378,10 +382,117 @@ function structBody(v, d) {
     }
     return parts;
 }
+// MAT class 5, mxSPARSE_CLASS: what a double or logical sparse array is written under.
+const MX_SPARSE = 5;
+// The flag MATLAB sets on every sparse array it writes, class 5 included, and the only
+// mark a sparse SINGLE has (see MatParser's sparse arm).
+const SPARSE_FLAG = 0x10;
+/**
+ * A sparse array as MATLAB stores one: its non-zeros, not its elements.
+ *
+ * Every byte below is MATLAB's, measured on the sparse streams of test/fixtures/sparse
+ * (make_sparse_fixtures.m: double real and complex, logical, single, all-zero, row,
+ * column, non-finite, large, a struct field, a cell element, a Parameter Value), and the
+ * tests hold this writer to byte equality with every one of them:
+ *
+ *   array flags   class 5 for double and logical, 7 for single; flags 0x10, plus 0x02
+ *                 for logical and 0x08 for complex; nzmax max(nnz, 1) — an all-zero
+ *                 array still reserves one
+ *   dimensions    rows, cols (a sparse array has exactly two)
+ *   name          empty, as everywhere in a stream
+ *   ir            miINT32, the 0-based row of each non-zero in column-major order, nnz
+ *                 of them (not nzmax)
+ *   jc            miINT32, cols + 1 column starts
+ *   pr            the non-zeros: miDOUBLE for double, miSINGLE for single, miUINT8 ones
+ *                 for logical — never narrowed to a smaller type
+ *   pi            the imaginary parts, of pr's type, when complex
+ *
+ * A non-zero is what MATLAB keeps: anything but 0 in either part, so NaN stays and -0
+ * goes (sparse(-0) holds nothing). The value arrives as MatParser presents a sparse
+ * array, the dense row-major list, which is also what the node layer rebuilds after an
+ * edit (MatlabVariableNode._buildVarObject).
+ *
+ * One the reader did not materialize — MatParser's `undecoded`, past its dense limit —
+ * has no values here to write, only the placeholder that stands for them, so it is
+ * refused, as is every value whose dims and element list disagree.
+ */
+function encodeSparse(v) {
+    if (v.undecoded) {
+        throw new MatWriteError('cannot write a sparse array the reader did not decode (' + v.undecoded + ')');
+    }
+    const d = dimsOf(v);
+    if (d.length !== 2) {
+        throw new MatWriteError('a sparse array has two dimensions, not [' + d.join(',') + ']');
+    }
+    const logical = !!v.isLogical || v.className === 'logical';
+    let cls;
+    let payload;
+    if (logical) {
+        cls = MX_SPARSE;
+        payload = MI_UINT8;
+    }
+    else if (v.className === 'double') {
+        cls = MX_SPARSE;
+        payload = MI_DOUBLE;
+    }
+    else if (v.className === 'single') {
+        cls = CLASS_CODE.single;
+        payload = MI_SINGLE;
+    }
+    else {
+        throw new MatWriteError('no sparse MAT class for "' + v.className + '"');
+    }
+    const complex = !!v.isComplex && !logical;
+    const [rows, cols] = d;
+    const flat = flatValues(v.value);
+    if (flat.length !== rows * cols) {
+        throw new MatWriteError('sparse value has ' + flat.length + ' elements but declares [' + d.join(',') + ']');
+    }
+    const ir = [];
+    const jc = [0];
+    const re = [];
+    const im = [];
+    for (let c = 0; c < cols; c++) {
+        for (let r = 0; r < rows; r++) {
+            const x = flat[r * cols + c];
+            const a = Number(realPart(x));
+            const b = complex ? Number(imagPart(x)) : 0;
+            // `!== 0` is true of NaN and false of -0, which is MATLAB's rule for both.
+            if (a !== 0 || b !== 0) {
+                ir.push(r);
+                re.push(logical ? 1 : a);
+                im.push(b);
+            }
+        }
+        jc.push(ir.length);
+    }
+    const flags = new Uint8Array(8);
+    flags[0] = cls;
+    flags[1] = SPARSE_FLAG | (complex ? 0x08 : 0) | (logical ? 0x02 : 0);
+    new DataView(flags.buffer).setUint32(4, Math.max(ir.length, 1), true);
+    const subs = [
+        element(MI_UINT32, flags),
+        dimsElement(d),
+        emptyName(),
+        numericPayload(MI_INT32, ir),
+        numericPayload(MI_INT32, jc),
+        numericPayload(payload, re),
+    ];
+    if (complex) {
+        subs.push(numericPayload(payload, im));
+    }
+    return element(MI_MATRIX, concat(subs));
+}
 /** The bytes of one complete `miMATRIX` element: tag, then the matrix body. */
 export function encodeMatVariable(v) {
     if (v.isOpaque) {
         throw new MatWriteError('cannot write an MCOS opaque value (' + (v.className || 'unknown') + ')');
+    }
+    // Before the class lookup, because a sparse array's class IS one the full-array arms
+    // have a code for — MATLAB's class() of a sparse double is 'double' — and the full
+    // array they would write is a different variable: the same values, stored dense.
+    if (v.isSparse) {
+        return encodeSparse(v);
     }
     const cls = CLASS_CODE[v.className];
     if (cls === undefined) {
@@ -409,7 +520,61 @@ export function encodeMatVariable(v) {
  * preamble, one miMATRIX element, uuencoded.
  */
 export function encodeCdata(v) {
-    return uuencode(concat([new Uint8Array(CDATA_PREAMBLE), encodeMatVariable(v)]));
+    return uuencode(encodeMatStream(v));
+}
+/**
+ * The MAT stream of one value — `getByteStreamFromArray(value)`: the 8-byte preamble and
+ * one miMATRIX element. A text dictionary carries it uuencoded (encodeCdata), a binary
+ * one as hex (EncodedValue.hexValue).
+ */
+export function encodeMatStream(v) {
+    return concat([new Uint8Array(CDATA_PREAMBLE), encodeMatVariable(v)]);
+}
+/**
+ * The MAT stream of a value whose miMATRIX element is at hand AS READ (MatVariable's
+ * `_rawBytes`), or null when the bytes are not a whole one this can re-frame.
+ *
+ * For the value nothing here can re-encode because the reader never decoded it — a
+ * sparse array past MatParser's dense limit — and which a copy out of a .mat or a model
+ * workspace into a dictionary would otherwise write as the text of its placeholder. Its bytes are the value; the one thing in them a stream does not carry is
+ * the variable's NAME, which a .mat writes into the element and a stream leaves empty, so
+ * the name subelement is replaced by the empty one and the element's size restated.
+ * Everything else is copied byte for byte. An MCOS opaque (class 17) is not framed this
+ * way, and its subsystem lives elsewhere in the file, so it is refused.
+ */
+export function matStreamOfElement(raw) {
+    if (raw.length < 8) {
+        return null;
+    }
+    const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+    const end = 8 + view.getUint32(4, true);
+    if (view.getUint32(0, true) !== MI_MATRIX || end > raw.length) {
+        return null;
+    }
+    // The byte length of the subelement at `at`, small form included, or 0 past the end.
+    const subLength = (at) => {
+        if (at + 8 > end) {
+            return 0;
+        }
+        const word = view.getUint32(at, true);
+        if (word >>> 16) {
+            return 8;
+        }
+        const n = view.getUint32(at + 4, true);
+        return 8 + n + ((8 - (n % 8)) % 8);
+    };
+    const flags = subLength(8);
+    if (!flags || raw[16] === 17) {
+        return null;
+    }
+    const dims = subLength(8 + flags);
+    const nameAt = 8 + flags + dims;
+    const name = dims ? subLength(nameAt) : 0;
+    if (!name || nameAt + name > end) {
+        return null;
+    }
+    const body = concat([raw.slice(8, nameAt), emptyName(), raw.slice(nameAt + name, end)]);
+    return concat([new Uint8Array(CDATA_PREAMBLE), u32le(MI_MATRIX), u32le(body.length), body]);
 }
 /**
  * A complex value's plain-text form — `{_type: 'cdata', _value: '1+2i 5+6i 3+4i 7+8i',
@@ -475,6 +640,16 @@ export function textDictionaryForm(x) {
         return changed ? out : x;
     }
     const o = x;
+    // A binary dictionary's encoded byte stream (EncodedValue) is the same stream a text
+    // dictionary carries for the same value as cdata, four bits a character there and six
+    // here — MATLAB's own text twin of a hex sparse array is that cdata character for
+    // character. Written into a text dictionary as it stands, it would be a `_type` MATLAB
+    // has no reader for. A stream whose bytes cannot be read is left as it is: nothing
+    // else here could say what it holds.
+    if (isEncodedValue(o)) {
+        const read = encodedBytes(o);
+        return read.bytes ? { _type: 'cdata', _value: uuencode(read.bytes) } : o;
+    }
     if (o._type === 'cdata') {
         const variable = complexTextVariable(o);
         if (!variable) {

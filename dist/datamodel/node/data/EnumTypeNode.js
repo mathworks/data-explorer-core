@@ -106,10 +106,11 @@ export class EnumTypeNode extends DataNode {
         result._elements = [Object.assign({}, result._elements[0], { _properties: props })];
         return result;
     }
-    canRemoveChild() { return this.children.length > 0; }
+    // Not inside a value still in its encoded stream (DataNode._encodedReadOnly).
+    canRemoveChild() { return !this._encodedReadOnly && this.children.length > 0; }
     removeChildNode(child) { this.removeChild(child); this._markModified(); }
     restoreChildNode(child, index) { this.children.splice(index, 0, child); child.parent = this; this._markModified(); }
-    canAddChild() { return true; }
+    canAddChild() { return !this._encodedReadOnly; }
     addChildNode() {
         const existing = new Set(this.children.map(function (c) { return c.name; }));
         let i = 1;

@@ -96,8 +96,9 @@ export function buildTypedNodeFromMcos(
     _mw_element_type: 'MATLABArray',
     _elements: elems.map((e) => ({ _properties: e || {} })),
   };
+  let node: DataNode;
   try {
-    return NodeRegistry.parseValue(rawVal, name, parent);
+    node = NodeRegistry.parseValue(rawVal, name, parent);
   } catch (err) {
     // Any class whose parse() unexpectedly rejects the value degrades to the
     // opaque node rather than breaking the whole file — and now says so, because
@@ -117,6 +118,34 @@ export function buildTypedNodeFromMcos(
       part: name,
     });
     return null;
+  }
+  if (warnings) {
+    reportUndecoded(node, name, warnings);
+  }
+  return node;
+}
+
+/**
+ * One warning per value under a decoded object that the reader recorded without
+ * decoding — a sparse array too large to materialize, in a Simulink.Parameter's Value or
+ * any other property — named the way MATLAB names it (`pTall.Value`, `h.M{2}`), with the
+ * reader's reason, as MatParser reports the same value at the top of a .mat or in a
+ * struct field. A property is decoded with the object, after the file's own walk, so
+ * nothing else reports it, and the row alone said only `not decoded`.
+ */
+function reportUndecoded(node: BaseNode, path: string, warnings: ParseWarning[]): void {
+  const reason = node instanceof MatlabVariableNode && node._undecoded ? node._matVar?.undecoded : undefined;
+  if (reason) {
+    warnings.push({ code: 'part-unreadable', message: `"${path}" was not decoded: ${reason}.`, part: path });
+  }
+  // A Simulink.Parameter keeps its value node out of its children when it has no rows.
+  const valueNode = (node as unknown as { _valueNode?: BaseNode | null })._valueNode;
+  const children = valueNode && !node.children.includes(valueNode) ? [...node.children, valueNode] : node.children;
+  for (const child of children) {
+    const own = child.displayName;
+    const outer = node.displayName;
+    const step = child.isIndexedName && own.startsWith(outer) ? own.slice(outer.length) : '.' + child.name;
+    reportUndecoded(child, path + step, warnings);
   }
 }
 

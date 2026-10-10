@@ -162,7 +162,7 @@ function transposeFromColMajor(values, dimensions) {
 // The `value` of a variable whose class is recognized and whose payload was not
 // read — see MatVariable.undecoded.
 //
-// `<3x4 sparse, not decoded>`: deliberately the angle-bracket summary spelling of
+// `<3000x4000 double, not decoded>`: deliberately the angle-bracket summary spelling of
 // src/datamodel/display/DisplayConvention.ts (`summaryForm`), because that spelling
 // is what makes a consumer render the cell gray/italic AND withhold the editor
 // (BaseNode.valueEditable tests for the brackets). The reason is appended rather
@@ -187,7 +187,7 @@ function undecodedValue(dimensions, className) {
 //
 // The number is a judgment call, and this is the reasoning behind it: 1e6 doubles is
 // an 8 MB array, roughly a 1000x1000 matrix, and the display summarizes anything
-// over ten elements to `<1000x1000 sparse>` whatever the values are — so past this
+// over ten elements to `<1000x1000 double>` whatever the values are — so past this
 // point the dense form costs memory to produce something no user can see. The
 // general version of this problem is docs/TODO.md item 14 ("Nothing is lazy"), which
 // every other class shares; sparse is only the class where the gap between declared
@@ -382,6 +382,21 @@ function childLength(view, sub, tagOffset, end) {
     const isOpaque = flagsSub.bytes >= 2 && view.getUint8(flagsSub.dataOffset) === 17;
     return isOpaque ? Math.max(0, Math.min(sub.bytes, end - (tagOffset + 8))) : sub.bytes;
 }
+// How many fields a struct array whose field-name length subelement is at `offset`
+// declares, as the struct arm of parseMatrix reads them: 0 for a stride that is not
+// there or not positive.
+function structFieldCount(view, offset, end) {
+    if (offset + 8 > end) {
+        return 0;
+    }
+    const lenSub = readSubelement(view, offset);
+    const stride = lenSub.bytes >= 4 ? view.getInt32(lenSub.dataOffset, true) : 0;
+    const namesAt = offset + lenSub.totalSize;
+    if (stride <= 0 || namesAt + 8 > end) {
+        return 0;
+    }
+    return Math.floor(readSubelement(view, namesAt).bytes / stride);
+}
 export function parseMatrix(view, baseOffset, length) {
     let offset = baseOffset;
     const end = baseOffset + length;
@@ -397,6 +412,17 @@ export function parseMatrix(view, baseOffset, length) {
     const flags = view.getUint8(flagsSub.dataOffset + 1);
     const isComplex = !!(flags & 0x08);
     const isLogical = !!(flags & 0x02);
+    // Sparse storage, which MATLAB writes two ways. A double or logical sparse array is
+    // MAT class 5 (mxSPARSE_CLASS), the one the MAT-file spec documents. A SINGLE sparse
+    // array — R2027a makes them — keeps class 7 (mxSINGLE_CLASS) and is told apart only by
+    // flag 0x10, which MATLAB sets on every sparse array it writes, class 5 included (0x10
+    // plain, 0x12 logical, 0x18 complex). Measured: every sparse array in
+    // test/fixtures/sparse (make_sparse_fixtures.m records matClassCode and matFlags per
+    // value) and sparse_cases.mat carries it, and of 1.7 million arrays in the corpus .mat
+    // files not one full numeric array does. Read by class code alone, a sparse single
+    // went to the full-array arm below, which took its row indices for its values:
+    // sparse([0 1.5; 2.5 0; 0 -4], single) displayed as [1 0; 2].
+    const isSparse = arrayClass === 5 || (!!(flags & 0x10) && arrayClass >= 6 && arrayClass <= 15);
     if (arrayClass === 17) {
         return parseOpaque(view, offset, end);
     }
@@ -412,9 +438,84 @@ export function parseMatrix(view, baseOffset, length) {
     const nameBytes = new Uint8Array(view.buffer, view.byteOffset + nameSub.dataOffset, nameSub.bytes);
     const name = new TextDecoder().decode(nameBytes);
     const totalElements = dimensions.reduce((a, b) => a * b, 1);
-    const className = CLASS_NAMES[arrayClass] || 'unknown';
+    // A sparse array's class is its ELEMENTS' class, which is what MATLAB's class()
+    // answers — 'double' for class 5 (complex is still double), 'logical' when the
+    // logical flag is set, and the numeric class itself for a flagged one (single).
+    // CLASS_NAMES[5] is the MAT-file's name for the storage, and is not a class a value
+    // has.
+    const className = isSparse
+        ? (arrayClass === 5 ? (isLogical ? 'logical' : 'double') : CLASS_NAMES[arrayClass])
+        : (CLASS_NAMES[arrayClass] || 'unknown');
     const result = { name, className, dimensions, isComplex, isLogical, value: null, fields: null };
-    if (arrayClass >= 6 && arrayClass <= 15) {
+    if (isSparse) {
+        result.isSparse = true;
+    }
+    // A declared size no bytes here could hold. Every element of a full array, of a cell,
+    // and of a struct array with a field takes at least a byte of this element (a cell's
+    // an 8-byte tag apiece, a struct's one per field), so an array declaring more elements
+    // than it has bytes left is a damaged one, whatever its class. Past the size this
+    // reader materializes it is recorded rather than read, as the sparse arm below records
+    // a sparse array of that size: the clamps keep the READ inside the bytes, but the node
+    // layer builds one row per DECLARED element, so a dimension word of 0x7FFFFFFF in a
+    // struct array of two elements — one corrupted byte of a dictionary's hex value — ran
+    // the heap out and took the whole process with it. Below that size a short array stays
+    // the clamped read it always was, and so does a struct array with no fields, whose
+    // elements take no bytes at all.
+    const bytesLeft = Math.max(0, end - offset);
+    if (!isSparse && arrayClass !== 3 && totalElements > SPARSE_MAX_DENSE_ELEMENTS && totalElements > bytesLeft
+        && !(arrayClass === 2 && structFieldCount(view, offset, end) === 0)) {
+        result.value = undecodedValue(dimensions, className);
+        result.undecoded =
+            'declares ' + totalElements + ' elements, more than the ' + bytesLeft + ' bytes left in it can hold';
+        return result;
+    }
+    if (isSparse) {
+        // PRESENTED DENSE, and that is the decision in this branch worth recording.
+        //
+        // The alternative was to expose the triplets — value: { ir, jc, pr } — which
+        // is the storage and is what a numerical consumer would want. It is the wrong
+        // answer for this package twice over. Every consumer of MatVariable.value
+        // understands exactly ONE shape, a flat row-major element list matching
+        // `dimensions`: MatlabVariableNode's numeric arm, the display formatters, the
+        // XML and JSON writers, the DTO. Triplets would need a fifth `_kind` in that
+        // node's state machine, its own formatter, its own child-row rule and its own
+        // serializer — a lot of new surface for a shape nothing renders, in a package
+        // whose job is display and fidelity rather than arithmetic. And a user opening
+        // a .mat wants to see the matrix: dense, a sparse matrix reads as the matrix it
+        // is, sorts and copies like every other one, and its zeros are real zeros. (The
+        // node layer SHOWS the non-zeros alone, one row each, and finds them in this
+        // list — MatlabVariableNode._buildSparseChildren — which every writer still
+        // reads whole.)
+        //
+        // What the dense list cannot say is that the file stored it sparse, and that
+        // survives as `isSparse`, beside the class MATLAB gives the value. It used to
+        // survive in `className` instead, as 'sparse' — the file's word for the
+        // storage, shown in every Class and Data Type cell and every summary, where
+        // MATLAB's class() says double (measured on every sparse array in
+        // test/fixtures/sparse). `isSparse` is also what sends MatWriter to its sparse
+        // encoder, which writes the dense list back as MATLAB's ir/jc/pr — required,
+        // because writing it back as a full array would silently change the
+        // variable's storage in the file, and a class of 'double' alone would let the
+        // writer do exactly that.
+        const nzmax = flagsSub.bytes >= 8 ? view.getUint32(flagsSub.dataOffset + 4, true) : 0;
+        if (totalElements > SPARSE_MAX_DENSE_ELEMENTS) {
+            // `<10000000x2 sparse double, not decoded>`: the storage in the placeholder as
+            // it is in every sparse array's summary (DisplayConvention.sparseSummaryForm,
+            // which a parser does not import — see undecodedValue).
+            result.value = undecodedValue(dimensions, 'sparse ' + className);
+            result.undecoded =
+                'sparse array of ' + totalElements + ' elements: larger than this reader materializes ('
+                    + SPARSE_MAX_DENSE_ELEMENTS + ' elements), and its non-zeros are not read';
+        }
+        else if (offset < end) {
+            const dense = readSparse(view, offset, end, dimensions, isComplex, nzmax);
+            // Unwrapped for a 1x1 exactly as the numeric branch below unwraps, and NOT
+            // unwrapped when complex, also as below: the complex arm downstream reads
+            // a list and collapses a single pair itself.
+            result.value = isComplex ? dense : (dense.length === 1 ? dense[0] : dense);
+        }
+    }
+    else if (arrayClass >= 6 && arrayClass <= 15) {
         if (offset < end) {
             const realSub = readSubelement(view, offset);
             offset += realSub.totalSize;
@@ -430,46 +531,6 @@ export function parseMatrix(view, baseOffset, length) {
                 const rowMajor = transposeFromColMajor(realValues, dimensions);
                 result.value = rowMajor.length === 1 ? rowMajor[0] : rowMajor;
             }
-        }
-    }
-    else if (arrayClass === 5) {
-        // Sparse. PRESENTED DENSE, with `className` left as 'sparse', and that is the
-        // decision in this branch worth recording.
-        //
-        // The alternative was to expose the triplets — value: { ir, jc, pr } — which
-        // is the storage and is what a numerical consumer would want. It is the wrong
-        // answer for this package twice over. Every consumer of MatVariable.value
-        // understands exactly ONE shape, a flat row-major element list matching
-        // `dimensions`: MatlabVariableNode's numeric arm, the display formatters, the
-        // XML and JSON writers, the DTO. Triplets would need a fifth `_kind` in that
-        // node's state machine (the closed union at MatlabVariableNode.ts:286-289),
-        // its own formatter, its own child-row rule and its own serializer — a lot of
-        // new surface for a shape nothing renders, in a package whose job is display
-        // and fidelity rather than arithmetic. And a user opening a .mat wants to see
-        // the matrix: dense, a sparse matrix reads as the matrix it is, sorts and
-        // copies like every other one, and its zeros are real zeros.
-        //
-        // Nothing that matters is lost by it. The fact that the file stored it sparse
-        // survives in `className`, which is also what keeps MatWriter refusing to
-        // write one (CLASS_CODE has no 'sparse' entry, MatWriter.ts:76-78) — required,
-        // because a dense value cannot be re-emitted as ir/jc/pr and writing it back
-        // as a full array would silently change the variable's class in the file.
-        // Note that MATLAB's own class() answers 'double' for a sparse double and
-        // issparse() is what distinguishes it, so 'sparse' here is the FILE's word
-        // for the storage, which is exactly the fact worth keeping.
-        const nzmax = flagsSub.bytes >= 8 ? view.getUint32(flagsSub.dataOffset + 4, true) : 0;
-        if (totalElements > SPARSE_MAX_DENSE_ELEMENTS) {
-            result.value = undecodedValue(dimensions, className);
-            result.undecoded =
-                'sparse array of ' + totalElements + ' elements: larger than this reader materializes ('
-                    + SPARSE_MAX_DENSE_ELEMENTS + ' elements), and its non-zeros are not read';
-        }
-        else if (offset < end) {
-            const dense = readSparse(view, offset, end, dimensions, isComplex, nzmax);
-            // Unwrapped for a 1x1 exactly as the numeric branch above unwraps, and NOT
-            // unwrapped when complex, also as above: the complex arm downstream reads
-            // a list and collapses a single pair itself.
-            result.value = isComplex ? dense : (dense.length === 1 ? dense[0] : dense);
         }
     }
     else if (arrayClass === 3) {
@@ -587,6 +648,16 @@ export function parseMatrix(view, baseOffset, length) {
             const cellSub = readSubelement(view, offset);
             if (cellSub.type === MI_MATRIX) {
                 const child = parseMatrix(view, offset + 8, childLength(view, cellSub, offset, end));
+                // A value recorded without being decoded has nothing to be written from
+                // but the bytes it was read from (MatWriter.matStreamOfElement), so it
+                // keeps them, as a struct field does: a sparse array too large to
+                // materialize, copied out of a cell — or out of an MCOS property, whose
+                // values are a cell's elements — went into a dictionary as the text of
+                // its placeholder, or as [].
+                if (child.undecoded) {
+                    const rawLen = Math.min(cellSub.totalSize, view.byteLength - offset);
+                    child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + offset, Math.max(0, rawLen));
+                }
                 cells.push(child);
             }
             else {
@@ -825,5 +896,124 @@ function collectUndecoded(variable, path, warnings) {
 }
 function decompressZlib(compressed) {
     return inflateZlib(compressed);
+}
+// ---- A MAT stream ------------------------------------------------------------------
+//
+// `getByteStreamFromArray(value)`: an 8-byte preamble — the version word 0x0100, the
+// little-endian mark 'IM', four reserved bytes — then one miMATRIX element, and for an
+// MCOS object the element holding its subsystem after that. It is what a text dictionary
+// carries as cdata, a binary one as hex, a classic `.mdl` uuencoded in its MatData record
+// and a `.slx` as its `simulink/modelWorkspace.mxarray` part. Each of those used to frame
+// the stream itself, and no two framed it alike: the cdata reader never checked the
+// preamble, the Property Inspector's reader checked nothing, and the binary reader checked
+// the declared sizes the workspace readers clamp. Every one of them now strips its own
+// wrapper (CdataCodec.uudecode, EncodedValue.encodedBytes) and comes here.
+const MAT_STREAM_MAGIC = [0x00, 0x01, 0x49, 0x4d];
+// A little-endian uint32. The `>>> 0` is load-bearing, not decoration: `<< 24` yields a
+// SIGNED 32-bit result, so any length with the high bit set read as a negative number. A
+// corrupt or malicious trailing length of 0xfffffff8 then read as -8, which made
+// `offset += 8 + size` advance by zero — the scan below span forever pushing empty views
+// until the heap died, taking the extension host with it. Unsigned, that length is simply
+// larger than the stream and the scan's own clamp-and-stop handles it.
+function ru32(buf, offset) {
+    return (buf[offset] | (buf[offset + 1] << 8) | (buf[offset + 2] << 16) | (buf[offset + 3] << 24)) >>> 0;
+}
+/**
+ * Why `bytes` is not a MAT stream this package reads, or null when it is one. Each reason
+ * is phrased to follow "not decoded: ", as `undecoded` reasons are.
+ *
+ * The preamble has to be MATLAB's: `00 01 49 4D`, then a reserved word of zero (as it is in
+ * every stream MATLAB was seen writing: 87 text-dictionary cdata, 17 hex values, 5 `.mdl`
+ * records and 12 `.slx` parts under test/, and 594 `.slx` parts, 25 cdata and 4 hex values
+ * in the corpus), then a miMATRIX element.
+ *
+ * `whole` asks for every element to be there to its last byte, for a VALUE: the readers
+ * clamp a short element to the bytes present and read on, which is right for a container
+ * that must open whatever it can and wrong for a value that would then display with part
+ * of itself silently missing. A stream that ends early is a damaged value, not a smaller
+ * one — and that holds for an object's subsystem as much as for its array: one cut short
+ * decoded into a Simulink.Parameter whose sparse Value showed zeros where MATLAB's 5 and 6
+ * are, with nothing to say so. Every hex value MATLAB was seen writing is whole elements to
+ * its last byte, so the walk asks for exactly that, and may stop early only at a zero tag.
+ */
+export function matStreamFailure(bytes, whole = false) {
+    if (bytes.length < 16) {
+        return `it holds ${bytes.length} bytes, fewer than a MAT stream's header`;
+    }
+    if (MAT_STREAM_MAGIC.some((b, i) => bytes[i] !== b)) {
+        return 'its bytes are not a MAT stream (they do not open with 00 01 49 4D)';
+    }
+    if (bytes[4] | bytes[5] | bytes[6] | bytes[7]) {
+        return "its MAT stream's reserved bytes 4-7 are not zero";
+    }
+    if (ru32(bytes, 8) !== MI_MATRIX) {
+        return 'its MAT stream does not hold an array';
+    }
+    if (!whole) {
+        return null;
+    }
+    let at = 8;
+    while (at + 8 <= bytes.length) {
+        const type = ru32(bytes, at);
+        const size = ru32(bytes, at + 4);
+        if (type === 0 && size === 0) {
+            return null;
+        }
+        if (at + 8 + size > bytes.length) {
+            const what = at === 8 ? 'its MAT array' : `the element at byte ${at} of its MAT stream`;
+            return `${what} declares ${size} bytes and the stream holds ${bytes.length - at - 8}`;
+        }
+        at += 8 + size;
+    }
+    if (at !== bytes.length) {
+        return `its MAT stream ends ${bytes.length - at} bytes into an element's tag`;
+    }
+    return null;
+}
+/**
+ * The variable a MAT stream holds and the elements that follow it (an MCOS object's
+ * subsystem), or why it holds none — never a throw, and never a number read out of
+ * something that is not a stream.
+ *
+ * The array's declared size is clamped to the bytes present, which is how a workspace or
+ * a cdata value has always been read; `whole` refuses a stream that is not whole instead
+ * (matStreamFailure). Elements after the array are kept as far as the bytes go: past a
+ * bad length there is no way to find the next tag.
+ *
+ * An array of a class the reader does not model comes back as the variable it is
+ * (`className: 'unknown'`), not as a failure: what to show for it is the caller's choice.
+ */
+export function decodeMatStream(bytes, options = {}) {
+    const failure = matStreamFailure(bytes, !!options.whole);
+    if (failure) {
+        return { ok: false, reason: failure };
+    }
+    const outerSize = Math.min(ru32(bytes, 12), bytes.length - 16);
+    if (outerSize <= 0) {
+        return { ok: false, reason: 'its MAT array declares no bytes' };
+    }
+    let variable;
+    try {
+        variable = parseMatrix(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), 16, outerSize);
+    }
+    catch (err) {
+        return { ok: false, reason: `its MAT stream did not decode (${reasonOf(err)})` };
+    }
+    const trailingElements = [];
+    let offset = 16 + outerSize;
+    while (offset + 8 <= bytes.length) {
+        const tag = ru32(bytes, offset);
+        const size = ru32(bytes, offset + 4);
+        if (tag === 0 && size === 0) {
+            break;
+        }
+        const take = Math.min(8 + size, bytes.length - offset);
+        trailingElements.push(new Uint8Array(bytes.buffer, bytes.byteOffset + offset, take));
+        if (take < 8 + size) {
+            break;
+        }
+        offset += 8 + size;
+    }
+    return { ok: true, variable, trailingElements };
 }
 //# sourceMappingURL=MatParser.js.map

@@ -4,20 +4,23 @@
 // node carries that its curated/schema layout did NOT already surface. This lets
 // the PI show ALL of a node's properties, not just the modeled ones.
 //
-// No node or schema imports (it reads only a plain `_properties` bag, and the parser
-// helpers that read a value out of one), so it stays inside the extractable data-model
-// layer. Behavior:
+// No node or schema imports (it reads only a plain `_properties` bag, the parser
+// helpers that read a value out of one, and the display convention's spellings), so it
+// stays inside the extractable data-model layer. Behavior:
 //   - Nested MATLAB objects ({ _object_class, _properties }) are flattened ONE
 //     level: `CoderInfo.StorageClass`, `CoderInfo.CSCPackageName`, …
 //   - Typed scalars ({ _type, _value }) are unwrapped to their value.
 //   - A `cdata` value — complex text, or a text dictionary's MAT stream — is read
-//     and laid out the way the same channel shows a real value of its shape.
+//     and laid out the way the same channel shows a real value of its shape; a sparse
+//     array, however it is spelled, is its summary (`<3x3 sparse double>`).
 //   - Objects nested DEEPER than one level render as their `[ClassName]`.
 //   - Arrays render as `[a, b, c]`.
 // Values are read-only display strings; the bag is never mutated.
 
 import { isMatCdata, uudecode } from '../parser/CdataCodec.js';
-import { parseMatrix } from '../parser/MatParser.js';
+import { encodedClass, encodedStream, isEncodedValue } from '../parser/EncodedValue.js';
+import { decodeMatStream } from '../parser/MatParser.js';
+import { sparseSummaryForm } from '../display/DisplayConvention.js';
 import {
     complexClassTag,
     formatComplexNum,
@@ -49,6 +52,21 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 function asTypedScalar(v: Record<string, unknown>): string | null {
     if (v._type === 'cdata' && typeof v._value === 'string') {
         return formatCdata(v);
+    }
+    // A binary dictionary's encoded value: its `_value` is hex text, which is storage and
+    // not display. The bytes are the same MAT stream a text dictionary's cdata is.
+    if (isEncodedValue(v)) {
+        const stream = encodedStream(v);
+        return stream.bytes ? formatStream(stream.bytes) : '<' + (encodedClass(v) || 'double') + ', not decoded>';
+    }
+    // This package's own literal for a sparse double ({_type: 'sparse', _value:
+    // 'Matrix(2,2)…'} or a bare row `[0, 7, 0]`), as the stream of one shows above.
+    if (v._type === 'sparse' && typeof v._value === 'string') {
+        const header = /^Matrix\((\d+),(\d+)\)/.exec(v._value);
+        const dims = header
+            ? [Number(header[1]), Number(header[2])]
+            : [1, v._value.replace(/^\[|\]$/g, '').split(',').filter((t) => t.trim() !== '').length];
+        return sparseSummaryForm(dims, 'double');
     }
     if ('_value' in v && !isPlainObject(v._value) && !Array.isArray(v._value)) {
         return String(v._value);
@@ -100,10 +118,25 @@ function formatCdata(v: Record<string, unknown>): string {
         }
         return layOut(transposeFromColumnMajorND(colMajor, dims), dims, complexClassTag(v._class) ?? 'double');
     }
+    return formatStream(uudecode(text));
+}
+
+// A MAT stream — a text dictionary's cdata, decoded, or a binary dictionary's hex — laid
+// out as above: a number as its elements, anything else as its summary, and a stream
+// that does not decode as nothing. Read by the stream reader every other venue uses
+// (MatParser.decodeMatStream).
+function formatStream(bytes: Uint8Array): string {
+    const stream = decodeMatStream(bytes);
+    if (!stream.ok) {
+        return '';
+    }
     try {
-        const bytes = uudecode(text);
-        const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        const m = parseMatrix(dv, 16, dv.getUint32(12, true));
+        const m = stream.variable;
+        // A sparse array is its summary here as in its own row, never its elements laid
+        // out — or the reader's placeholder for one too large to read.
+        if (m.isSparse) {
+            return m.undecoded ? String(m.value) : sparseSummaryForm(m.dimensions, m.className);
+        }
         const numeric = m.className !== 'char' && m.className !== 'struct' && m.className !== 'cell' && !m.isOpaque;
         if (!numeric || m.isLogical) {
             return '<' + m.dimensions.join('x') + ' ' + m.className + '>';

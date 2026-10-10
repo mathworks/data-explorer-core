@@ -87,11 +87,13 @@ export function element(type: number, data: Uint8Array): Uint8Array {
  */
 export function arrayFlags(
   cls: number,
-  opts: { complex?: boolean; logical?: boolean; nzmax?: number } = {},
+  opts: { complex?: boolean; logical?: boolean; nzmax?: number; sparse?: boolean } = {},
 ): Uint8Array {
   const data = new Uint8Array(8);
   data[0] = cls;
-  data[1] = (opts.complex ? 0x08 : 0) | (opts.logical ? 0x02 : 0);
+  // 0x10 is the bit MATLAB sets on every sparse array (see sparseVar), and the only mark a
+  // sparse SINGLE carries, its class code being single's own.
+  data[1] = (opts.complex ? 0x08 : 0) | (opts.logical ? 0x02 : 0) | (opts.sparse ? 0x10 : 0);
   if (opts.nzmax) {
     new DataView(data.buffer).setUint32(4, opts.nzmax, true);
   }
@@ -284,6 +286,14 @@ export interface SparseVarSpec {
   nzmax?: number;
   /** Emit no pr payload at all (a variable truncated after its indices). */
   omitData?: boolean;
+  /**
+   * The array class code. Defaults to 5, mxSPARSE_CLASS, which is what MATLAB writes for
+   * a double or logical sparse array; a SINGLE sparse array keeps class 7 and is marked
+   * by the 0x10 flag alone (make_sparse_fixtures.m measures it).
+   */
+  cls?: number;
+  /** Set MATLAB's 0x10 sparse flag. Off by default, as it always was here. */
+  sparseFlag?: boolean;
 }
 
 /**
@@ -339,10 +349,11 @@ export function sparseVar(spec: SparseVarSpec): Uint8Array {
     return element(MI.INT32, data);
   };
   const subs = [
-    arrayFlags(CLASS.SPARSE, {
+    arrayFlags(spec.cls ?? CLASS.SPARSE, {
       complex: !!spec.imag,
       logical: spec.logical,
       nzmax: spec.nzmax ?? spec.ir.length,
+      sparse: spec.sparseFlag,
     }),
     dims(spec.dimensions),
     varName(spec.name),

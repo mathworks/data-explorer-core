@@ -8,6 +8,7 @@ export interface NodeClassMapAPI {
     getRegisteredClasses(): string[];
     wrapDerivedVariable(node: DataNode): DataNode;
     modelMcosVariable(variable: MatVariable, decoded: McosDecoded, name: string, parent: BaseNode | null): DataNode | null;
+    attachMcosDecoded(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): void;
 }
 export interface NodeParser {
     parse(rawVal: unknown, name: string, parent: BaseNode | null): DataNode;
@@ -22,6 +23,7 @@ export declare function getClass(className: string): NodeClassType | null;
 export declare function getRegisteredClasses(): string[];
 export declare function wrapDerivedVariable(node: DataNode): DataNode;
 export declare function modelMcosVariable(variable: MatVariable, decoded: McosDecoded, name: string, parent: BaseNode | null): DataNode | null;
+export declare function attachMcosDecoded(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): void;
 declare const _default: {
     init: typeof init;
     parseValue: typeof parseValue;
@@ -29,6 +31,7 @@ declare const _default: {
     getRegisteredClasses: typeof getRegisteredClasses;
     wrapDerivedVariable: typeof wrapDerivedVariable;
     modelMcosVariable: typeof modelMcosVariable;
+    attachMcosDecoded: typeof attachMcosDecoded;
 };
 export default _default;
 //# sourceMappingURL=NodeRegistry.d.ts.map

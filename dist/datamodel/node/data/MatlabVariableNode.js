@@ -14,11 +14,12 @@ import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../p
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { subscriptLabel } from '../../display/Subscript.js';
-import { parseMatrix } from '../../parser/MatParser.js';
-import { isMatCdata, uudecode } from '../../parser/CdataCodec.js';
-import { encodeCdata } from '../../parser/MatWriter.js';
-import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, summaryForm, } from '../../display/DisplayConvention.js';
-import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
+import { decodeMatStream } from '../../parser/MatParser.js';
+import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
+import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
+import { encodeMatStream, matStreamOfElement } from '../../parser/MatWriter.js';
+import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
+import { charNeedsShape, charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, isNonzeroElement, needsExactInt, exactForClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
 // The pure rules about a MATLAB VALUE — what class an edit leaves behind, when a
@@ -48,19 +49,40 @@ const MCOS_ICON_MAP = {
     // out of a dictionary showed the default one out of a .mat.
     string: 'wsString',
 };
-// A text .sldd stores a value its JSON schema cannot spell as uuencoded bytes,
-// and what those bytes CONTAIN is an 8-byte preamble followed by one MAT-file
-// miMATRIX element — so decoding stops at the transport (parser/CdataCodec) and
-// MatParser reads the rest. parseCdata used to keep going itself and hand-read a
-// 2-D complex double at fixed offsets (rows at 40, cols at 44), which meant every
-// other class MATLAB puts in a cdata came back as garbage complex numbers or fell
-// through to a char.
-//
-// The encode direction lives beside the decode one in CdataCodec, with the MAT
-// element writer in parser/MatWriter — see _serializeCdata for why a rank >= 3
-// value, and a complex value at any rank, has to go out this way.
-// MAT-file element type miMATRIX: the one thing a cdata payload ever holds.
-const MI_MATRIX = 14;
+/**
+ * Does a binary dictionary have to hold this variable as hex? When it holds a sparse array,
+ * an MCOS object, or a value of a class MatParser does not model (a function handle is
+ * one) anywhere inside it — the values XML has no spelling for, which is MATLAB's own rule
+ * for when it writes `Encoding="hex"` (see _binaryEncoded).
+ */
+function needsHexInBinary(variable) {
+    const stack = [variable];
+    while (stack.length > 0) {
+        const v = stack.pop();
+        if (v.isSparse || v.isOpaque || v.className === 'unknown') {
+            return true;
+        }
+        for (const field of Object.values(v.fields ?? {})) {
+            stack.push(...(Array.isArray(field) ? field : [field]));
+        }
+        if (v.className === 'cell' && Array.isArray(v.value)) {
+            for (const cell of v.value) {
+                if (cell) {
+                    stack.push(cell);
+                }
+            }
+        }
+    }
+    return false;
+}
+/**
+ * MATLAB's class(value) for a variable, which is what a hex element's `Class` says: a
+ * logical is 'logical' however the variable came to be, where the node layer rebuilds one
+ * as MAT class uint8 with the logical flag (_buildVarObject).
+ */
+function matlabClassOf(variable) {
+    return variable.isLogical ? 'logical' : variable.className;
+}
 export default class MatlabVariableNode extends DataNode {
     constructor(name, parent, serial) {
         super(name, parent, serial);
@@ -73,6 +95,9 @@ export default class MatlabVariableNode extends DataNode {
         this._matVar = null;
         this._varStale = false;
         this._isOpaque = false;
+        this._isSparse = false;
+        this._sparseSlots = null;
+        this._undecoded = false;
         this._opaqueClassName = null;
         this._mcosProperties = null;
         this._mcosValue = undefined;
@@ -92,11 +117,7 @@ export default class MatlabVariableNode extends DataNode {
             return this._scalarValue;
         }
         if (this._kind === 'array') {
-            return this.children.length > 0
-                ? this.children.map(function (c) {
-                    return c._scalarValue;
-                })
-                : this._elements;
+            return this._liveElements();
         }
         if (this._kind === 'string') {
             return this._elements;
@@ -110,6 +131,22 @@ export default class MatlabVariableNode extends DataNode {
     }
     get elements() {
         return this._elements;
+    }
+    /**
+     * Every element of this array as it stands, edits included, row-major: the value the
+     * writers and the projections read. Off the child rows where they are the elements —
+     * an edit lands in the row first — and off `_elements` otherwise: an array never
+     * expanded, and a sparse one, whose rows are only its non-zeros. A sparse row's edit
+     * reaches `_elements` as it is made (_syncElementFromChild), so the whole value is
+     * there.
+     */
+    _liveElements() {
+        if (this._isSparse || this.children.length === 0) {
+            return this._elements;
+        }
+        return this.children.map(function (c) {
+            return c._scalarValue;
+        });
     }
     get dims() {
         // An opaque MCOS object's shape is the one the decoder recovered, not _dims —
@@ -229,6 +266,11 @@ export default class MatlabVariableNode extends DataNode {
         return true;
     }
     get nameEditable() {
+        // Inside a value still in its encoded stream, the names are part of the stream; the
+        // node holding the stream keeps its own (BaseNode.nameEditable says the same).
+        if (this._encodedReadOnly && !this._encoded) {
+            return false;
+        }
         if (this.parent && this.parent instanceof MatlabVariableNode) {
             return false;
         }
@@ -252,8 +294,17 @@ export default class MatlabVariableNode extends DataNode {
         if (this._scalarType === 'struct') {
             return false;
         }
+        // Nothing here writes a function handle except by replaying the one it was read as.
+        if (this._scalarType === 'function_handle') {
+            return false;
+        }
         // The "value unrecoverable" placeholder has no real value to edit.
         if (this._scalarValue === NOT_AVAILABLE) {
+            return false;
+        }
+        // A cell whose literal shows an element as a summary (_literalRoundTrips): the
+        // literal is not the cell's value, so it is not an editor's seed.
+        if (this._kind === 'cell' && !this._literalRoundTrips()) {
             return false;
         }
         // Then BaseNode's rule: a value that DISPLAYS as a <mxn class> summary gets no
@@ -328,6 +379,9 @@ export default class MatlabVariableNode extends DataNode {
         if (this._scalarValue === NOT_AVAILABLE) {
             return NOT_AVAILABLE;
         }
+        if (this._undecoded) {
+            return String(this._scalarValue);
+        }
         // char and a scalar string have no child rows, so the cell is the only place
         // the value is ever visible and the char budget is the only rule that applies:
         // a realistic description shows in full, a 1500-character blob does not take
@@ -367,6 +421,12 @@ export default class MatlabVariableNode extends DataNode {
         if (this._scalarType === 'logical') {
             return this._scalarValue ? 'true' : 'false';
         }
+        if (this._scalarType === 'function_handle') {
+            // MATLAB's own display: `@sin` for a named function, the text as it stands for an
+            // anonymous one, which already opens with its `@`.
+            const text = String(this._scalarValue);
+            return text.startsWith('@') ? text : '@' + text;
+        }
         return formatMatlabNum(this._scalarValue);
     }
     // The real extents of a char value. _dims wins when it accounts for every
@@ -386,11 +446,12 @@ export default class MatlabVariableNode extends DataNode {
         return elementCount(this._dims) === text.length ? this._dims : [1, text.length];
     }
     _formatArray() {
-        const elems = this.children.length > 0
-            ? this.children.map(function (c) {
-                return c._scalarValue;
-            })
-            : this._elements;
+        // A sparse array is its summary at every size, empty included, and never a dense
+        // literal (DisplayConvention.sparseSummaryForm says why); its non-zeros are its rows.
+        if (this._isSparse) {
+            return sparseSummaryForm(this._dims, this.className);
+        }
+        const elems = this._liveElements();
         if (elems.length === 0) {
             return EMPTY_NUMERIC;
         }
@@ -468,6 +529,21 @@ export default class MatlabVariableNode extends DataNode {
         }
         return child.displayValue;
     }
+    /**
+     * Is this cell's one-line literal its value written out? Not when an element's token in
+     * it is a summary — a sparse array's `<1x3 sparse double>` at any size, a large array's
+     * `<4x3 double>`, a struct's, an object's — or a nested cell's literal holds one: a
+     * summary is not the value, and the literal read back as text makes it char cells.
+     */
+    _literalRoundTrips() {
+        return this.children.every((c) => {
+            const token = this._cellLiteralElement(c);
+            if (token.charAt(0) === '<' && token.charAt(token.length - 1) === '>') {
+                return false;
+            }
+            return !(c instanceof MatlabVariableNode && c._kind === 'cell') || c._literalRoundTrips();
+        });
+    }
     _formatString() {
         const d = this._dims;
         if (d[0] === 1 && d[1] === 1 && this._elements.length === 1) {
@@ -524,6 +600,12 @@ export default class MatlabVariableNode extends DataNode {
      * objects started to decode. The element's ROW shows the object; the grid and the
      * one-line literal show what they always did, and agree with each other.
      *
+     * And one array whose children are not its elements: a sparse one's rows are its
+     * non-zeros, and the grid is still every element, zeros included, each labelled with
+     * both subscripts as its rows are. The grid places a cell by its label and draws
+     * nothing for a matrix with a cell unlabelled, so a list of the non-zeros would leave
+     * every sparse matrix without one. Every row is one of these entries.
+     *
      * null for a kind that has no elements (a scalar, a struct, an object): an empty
      * list is a different and also true answer, meaning an array with nothing in it.
      */
@@ -531,7 +613,7 @@ export default class MatlabVariableNode extends DataNode {
         if (this._kind !== 'array' && this._kind !== 'cell' && this._kind !== 'string') {
             return null;
         }
-        if (this.children.length > 0) {
+        if (this.children.length > 0 && !this._isSparse) {
             return this.children.map((c) => ({
                 label: c.displayName,
                 value: this._kind === 'cell' ? this._cellLiteralElement(c) : c.displayValue,
@@ -565,7 +647,7 @@ export default class MatlabVariableNode extends DataNode {
                 scratch._scalarValue = this._elements[i];
             }
             out[i] = {
-                label: subscriptLabel(name, i, dims, order, bracket),
+                label: subscriptLabel(name, i, dims, order, bracket, this._isSparse),
                 value: scratch.displayValue,
             };
         }
@@ -597,7 +679,31 @@ export default class MatlabVariableNode extends DataNode {
     // are recording. The add/remove methods come in canX/xChildNode/execX triples:
     // the gate, the mutation, and the undo/redo wrapper the command stack calls.
     setProperty(propName, stringValue) {
+        // A value still in the encoded stream it was read from is read-only (DataNode._refuseEncodedEdit).
+        const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
+        if (encodedRefusal) {
+            return encodedRefusal;
+        }
         if (propName === 'Value') {
+            if (this._scalarType === 'function_handle') {
+                return {
+                    error: true,
+                    reason: 'A function handle is shown here but cannot be edited.',
+                    invalidValue: stringValue,
+                    validValue: this.displayValue,
+                };
+            }
+            // The editor valueEditable withholds, refused here too for a caller that asks
+            // directly — and so never recorded for an undo, which restores the text the cell
+            // displayed: `<1x3 sparse double>` read back as three char cells.
+            if (this._kind === 'cell' && !this._literalRoundTrips()) {
+                return {
+                    error: true,
+                    reason: 'This cell shows an element as a summary, which is not its value. Edit the element instead.',
+                    invalidValue: stringValue,
+                    validValue: this.displayValue,
+                };
+            }
             if (this._isConstrainedChild()) {
                 return this._setConstrainedValue(stringValue);
             }
@@ -732,16 +838,28 @@ export default class MatlabVariableNode extends DataNode {
     // _var, and — once the array collapses back to a scalar or an element is
     // restored by undo — the value that survives. Leaving it stale silently
     // reverts the user's edit at that point.
+    //
+    // A sparse array's k-th row is not its k-th element (_sparseSlots): the row's own
+    // slot is where its edit goes. Into the k-th, it changed a different element than the
+    // one the row is labelled with — and the row's own kept its old value in every save.
     _syncElementFromChild(child) {
         const idx = this.children.indexOf(child);
-        if (idx >= 0 && idx < this._elements.length) {
-            this._elements[idx] = child._scalarValue;
+        const slot = this._sparseSlots ? this._sparseSlots[idx] : idx;
+        if (idx >= 0 && slot !== undefined && slot < this._elements.length) {
+            this._elements[slot] = child._scalarValue;
         }
     }
     _applyParsed(parsed) {
         this.children = [];
         this._matVar = null;
         this._rawInput = undefined;
+        // A value typed in whole is the full array MATLAB makes of the same literal; only an
+        // element edit leaves the array sparse.
+        this._isSparse = false;
+        this._sparseSlots = null;
+        // And it is a value, not a reader's placeholder for one: left set, a char typed over
+        // a value too large to decode displayed without its quotes.
+        this._undecoded = false;
         // The class this node had going in. A numeric edit re-states the VALUE, not the
         // class, so classAfterEdit lets it survive the parser's 'double' default — see
         // its comment. Read before any arm overwrites it.
@@ -863,11 +981,56 @@ export default class MatlabVariableNode extends DataNode {
         // one path that has to format an element with no element node to read it off.
         const type = elementType || elementClass(this._scalarType);
         this._elementType = type;
+        if (this._isSparse) {
+            this._buildSparseChildren(type);
+            return;
+        }
         if (this._elements.length <= 1 || this._elements.length > MAX_EXPANDED_ELEMENTS) {
             return;
         }
         for (let i = 0; i < this._elements.length; i++) {
             const child = MatlabVariableNode._createScalar(this._elements[i], type, String(i + 1), this);
+            this.addChild(child);
+        }
+    }
+    // A sparse array's rows: one per NON-ZERO, in MATLAB's column-major order — the order
+    // its own display lists them in, `(row,col) value` — each labelled with both of its
+    // subscripts (BaseNode.ElementSubscript's `full`), a vector's and a 1x1's too, and
+    // valued as any element row is. An all-zero one has none, and nothing adds one: a
+    // sparse array takes no Add or Remove (canAddChild, canRemoveChild).
+    //
+    // The value stays `_elements`, every element row-major, because that is what every
+    // writer and every projection reads (_liveElements); each row records which slot of
+    // it is its own (_sparseSlots), which is where an edit to the row goes. A non-zero is
+    // MATLAB's nnz() test (XmlUtils.isNonzeroElement), so it is decided from the values
+    // and holds for every reader the value can come from — MatParser, this package's own
+    // `sparse` literal, the MCOS decoder's stream — none of which has to say which
+    // elements its file stored.
+    //
+    // The row budget counts rows, so it counts non-zeros: a 1000x1000 with five non-zeros
+    // has its five, where its million elements were past the budget and it had none.
+    _buildSparseChildren(type) {
+        const d = effectiveDims(this._dims);
+        const rows = d[0];
+        const cols = d.length > 1 ? d[1] : 1;
+        const slots = [];
+        const subscripts = [];
+        for (let c = 0; c < cols; c++) {
+            for (let r = 0; r < rows; r++) {
+                const slot = r * cols + c;
+                if (isNonzeroElement(this._elements[slot])) {
+                    slots.push(slot);
+                    subscripts.push(c * rows + r);
+                }
+            }
+        }
+        this._sparseSlots = slots;
+        if (slots.length > MAX_EXPANDED_ELEMENTS) {
+            return;
+        }
+        for (let k = 0; k < slots.length; k++) {
+            const child = MatlabVariableNode._createScalar(this._elements[slots[k]], type, String(k + 1), this);
+            child._subscript = { index: subscripts[k], dims: this._dims, order: 'column-major', bracket: '()', full: true };
             this.addChild(child);
         }
     }
@@ -920,8 +1083,15 @@ export default class MatlabVariableNode extends DataNode {
         // verbatim because nothing here writes a .mat MCOS subsystem. Before a `string`
         // decoded, no opaque node had a _kind that reached the vector case below, so this
         // gate was never exercised — a decoded 1x3 string would have offered Add Child and
-        // then dropped the added element on save.
-        if (this._isOpaque) {
+        // then dropped the added element on save. A value still in the encoded stream it was
+        // read from is read-only the same way, for the same reason (DataNode._encodedReadOnly).
+        if (this._isOpaque || this._encodedReadOnly) {
+            return false;
+        }
+        // A sparse array's rows are its non-zeros, so there is no element row to add that
+        // would not be one: nothing in the tree adds a non-zero. (An empty one is no
+        // exception — Add turns an empty `[]` into a struct, which a sparse array is not.)
+        if (this._isSparse) {
             return false;
         }
         if (this._kind === 'scalar' && this._scalarType === 'struct') {
@@ -1025,7 +1195,12 @@ export default class MatlabVariableNode extends DataNode {
     }
     canRemoveChild() {
         // Read-only in both directions, as in canAddChild.
-        if (this._isOpaque) {
+        if (this._isOpaque || this._encodedReadOnly) {
+            return false;
+        }
+        // Nor does a sparse array give one up: removing a non-zero from a vector shortens
+        // the array, and the rows left would no longer be the non-zeros of what is left.
+        if (this._isSparse) {
             return false;
         }
         if (this._kind === 'scalar') {
@@ -1256,9 +1431,11 @@ export default class MatlabVariableNode extends DataNode {
     // non-finite number fall back to the format's typed `{_type, _value}` escape
     // hatch, which spells them out as text.
     serializeValue() {
-        if (this._rawInput !== undefined &&
-            this.status !== 'Modified' &&
-            !this._rawInput?._emptyDims) {
+        // `_rawInput` alone says the value is untouched: every edit drops it (_markModified)
+        // except a rename, which leaves the value as it was (DataNode.setProperty). The entry's
+        // 'Modified' status is not asked — a renamed entry has it, and its value is still the
+        // one it was read as.
+        if (this._rawInput !== undefined && !this._rawInput?._emptyDims) {
             // Complex TEXT included, which is not a text dictionary's form: DataNode.serialize
             // turns it into one on the way into such a file (MatWriter.textDictionaryForm).
             return this._rawInput;
@@ -1285,7 +1462,16 @@ export default class MatlabVariableNode extends DataNode {
         // discriminates on isMatCdata and hands a stream back to the node to write its
         // own `Class="double" IsComplex="1"` property, which is exactly the plain-text
         // form the binary dictionary wants. One serialization, both formats.
-        if (effectiveDims(this._dims).length > 2 || this._isComplexValue()) {
+        //
+        // A sparse array is the third value with no literal spelling worth having: MATLAB's
+        // text dictionary stores every one as a stream of its non-zeros (make_sparse_fixtures.m
+        // grades that), and MatWriter writes MATLAB's own bytes for one. The `sparse` literal
+        // this used to fall to was right only for a real double MATRIX; through it a complex
+        // sparse array read back as an empty 1x0, a column as a row, a non-finite one
+        // reshaped, and a logical or single one full. One too large for the reader to decode
+        // has nothing BUT its stream (_matStream): the arms below would write the text of its
+        // placeholder, as a char.
+        if (effectiveDims(this._dims).length > 2 || this._isComplexValue() || this._isSparse) {
             const cdata = this._serializeCdata();
             if (cdata) {
                 return cdata;
@@ -1318,11 +1504,7 @@ export default class MatlabVariableNode extends DataNode {
         if (this._kind !== 'array') {
             return false;
         }
-        const elems = this.children.length > 0
-            ? this.children.map(function (c) {
-                return c._scalarValue;
-            })
-            : this._elements;
+        const elems = this._liveElements();
         // ANY element, not the first: the element editor takes only a real number, so after
         // x(1) = 7 the first element is the number 7 and the rest are still complex, and
         // asking the first alone wrote [7+0i NaN+0i 3-4i] out as the real [7 0 3].
@@ -1357,8 +1539,34 @@ export default class MatlabVariableNode extends DataNode {
     // is between the rank-2 form the branches below produce, which at least leaves a
     // readable file, and failing the whole save. It falls through.
     _serializeCdata() {
+        const bytes = this._matStream();
+        return bytes ? { _type: 'cdata', _value: uuencode(bytes) } : null;
+    }
+    /**
+     * The MAT stream this value is — `getByteStreamFromArray(value)` — or null when this
+     * package cannot make it. In order:
+     *   - the stream it was read from, while that is still the value (a text dictionary's
+     *     cdata, untouched or only renamed);
+     *   - for a value the reader recorded without decoding (`_undecoded`: a sparse array
+     *     past MatParser's dense limit), the element it was read from, re-framed as a stream
+     *     (MatWriter.matStreamOfElement) — nothing else holds its values, and without this a
+     *     copy of one out of a .mat wrote the text of its placeholder;
+     *   - otherwise what MatWriter writes for the live value, which is MATLAB's own bytes for
+     *     a sparse array (MatWriter.encodeSparse); null for what MatWriter refuses.
+     */
+    _matStream() {
+        const raw = this._rawInput;
+        if (raw && isMatCdata(raw)) {
+            const bytes = matStreamPrefix(uudecode(raw._value));
+            if (bytes) {
+                return bytes;
+            }
+        }
+        if (this._undecoded) {
+            return this._rawBytes ? matStreamOfElement(this._rawBytes) : null;
+        }
         try {
-            return { _type: 'cdata', _value: encodeCdata(this._var) };
+            return encodeMatStream(this._var);
         }
         catch (_e) {
             return null;
@@ -1428,12 +1636,12 @@ export default class MatlabVariableNode extends DataNode {
         if (this._elements.length === 0) {
             return [];
         }
-        if (this.children.length === 0) {
+        // Not for a sparse array, whose rows are not its elements: one with no rows (all
+        // zero, or past the row budget) still has every element to write.
+        if (this.children.length === 0 && !this._isSparse) {
             return this.serial;
         }
-        const elems = this.children.map(function (c) {
-            return c._scalarValue;
-        });
+        const elems = this._liveElements();
         const serialType = this.serial?._type;
         if (serialType) {
             return {
@@ -1442,8 +1650,13 @@ export default class MatlabVariableNode extends DataNode {
             };
         }
         // A bare JSON array cannot carry Inf/NaN (JSON.stringify writes `null`), so
-        // fall back to the typed-vector literal, which spells them out as text.
-        if (elems.some((v) => typeof v === 'number' && !isFinite(v))) {
+        // fall back to the typed-vector literal, which spells them out as text — for a ROW,
+        // which is all that literal can say. A column or a matrix takes the Matrix() literal
+        // below, which spells them too: a 2x2 [Inf 0; -Inf NaN] copied out of a .mat went out
+        // as the row `[Inf, 0, -Inf, NaN]`, and MATLAB read it back 1x4.
+        const d = effectiveDims(this._dims);
+        const isRow = d.length <= 2 && d[0] === 1;
+        if (isRow && elems.some((v) => typeof v === 'number' && !isFinite(v))) {
             return { _type: 'double', _value: '[' + elems.map(formatMatlabNum).join(', ') + ']' };
         }
         // A bare JSON array has nowhere to carry [2,3] or [2,3,2] either, so a matrix
@@ -1466,9 +1679,18 @@ export default class MatlabVariableNode extends DataNode {
         // _syncArraySerial's, which has always had it right for the edit path; only the
         // no-serial path (a value that reached us from a .mat or .slx rather than from a
         // text dictionary) fell through to the children.
-        const d = effectiveDims(this._dims);
+        //
+        // Nor is a COLUMN: a bare list is a row, so a 5x1 copied out of a .mat went out as
+        // [0, 3, 0, 0, 5] and MATLAB read it back 1x5. A column states its shape, as a
+        // typed column does (defect 21).
         const typed = TYPED_NUMERIC_CLASS.test(this._scalarType) || this._scalarType === 'logical';
-        if (!typed && d.length <= 2 && (d[0] === 1 || d[1] === 1)) {
+        if (!typed && isRow) {
+            // A finite double element is its own bare number (the non-finite went out above),
+            // which is all a sparse array's elements can be by here: the bare numbers, then,
+            // where its rows are not all of them.
+            if (this._isSparse) {
+                return elems.slice();
+            }
             return this.children.map(function (c) {
                 return c.serializeValue();
             });
@@ -1476,7 +1698,14 @@ export default class MatlabVariableNode extends DataNode {
         // A typed ROW vector comes out of formatMatrixSerial bare, `[1, 2]`, which is
         // MATLAB's own spelling for it and the one BinarySlddParser's read path has always
         // produced; only a column or a matrix states its shape (defect 21).
-        const matrixType = this._scalarType || 'double';
+        //
+        // A sparse array reaches here only when MatWriter could not write its stream
+        // (serializeValue asks that first). A sparse DOUBLE matrix then keeps the `sparse`
+        // tag it always went out with: MATLAB reads `{"_type": "sparse", "_value":
+        // "Matrix(…)"}` back as the sparse double it was (measured), where `double` would
+        // make it a full one. Its class used to BE 'sparse', which is how the tag got there;
+        // it is 'double' now (MatParser), so the storage is asked for by name.
+        const matrixType = this._isSparse && this._scalarType === 'double' ? 'sparse' : this._scalarType || 'double';
         return { _type: matrixType, _value: this._buildMatrixString(d, elems, matrixType) };
     }
     // The `_array_type: 'Struct'` form, rebuilt from the tree. Deliberately the same
@@ -1556,11 +1785,26 @@ export default class MatlabVariableNode extends DataNode {
         // the value it could not read — a binary dictionary's own text with a NaN or Inf part,
         // which parseCdata shows as a quoted char (see _isOwnNonFiniteText) — which the char
         // arm used to write back as `Class="char"`, so a save that edited nothing turned
-        // MATLAB's [Inf NaN -2 5000i] into a char row.
+        // MATLAB's [Inf NaN -2 5000i] into a char row. (Untouched or only renamed, as
+        // serializeValue asks it.)
         const raw = this._rawInput;
-        if (raw && raw._type === 'cdata' && !isMatCdata(raw) && this.status !== 'Modified') {
-            const attrStr = attrs && attrs.Name ? ' Name="' + escapeXml(attrs.Name) + '"' : '';
+        const attrStr = attrs && attrs.Name ? ' Name="' + escapeXml(attrs.Name) + '"' : '';
+        if (raw && raw._type === 'cdata' && !isMatCdata(raw)) {
             return DataNode._complexTextXml(tagName, attrStr, raw, indent);
+        }
+        // A sparse array has no XML spelling: `Class="sparse"` makes MATLAB's reader segfault,
+        // and `Class="double"` with every element is the full array, a different variable. So
+        // wherever one is written — a struct field, a cell element, a Simulink.Parameter's
+        // Value; an entry is written by serializeEntryToXml through _binaryEncoded — it is the
+        // hex element of its own MAT stream. MATLAB itself only ever puts hex around a whole
+        // entry, but it reads one in each of those three places back as the sparse array it
+        // was, values, class and complexity equal (R2027a, measured on sparse_text.sldd's st,
+        // c, pSp, pSpComplex and pSpLogical pasted into a binary dictionary this way).
+        if (this._isSparse) {
+            const hex = this._hexValue(indent);
+            if (hex) {
+                return encodedXml(tagName, attrStr, hex, indent);
+            }
         }
         switch (this._kind) {
             case 'scalar':
@@ -1580,6 +1824,15 @@ export default class MatlabVariableNode extends DataNode {
         let attrStr = '';
         if (attrs && attrs.Name) {
             attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
+        }
+        // A value the reader did not decode, with no stream of its own to write it as (see
+        // serializeXml and _matStream, which every one this package reads from a file has):
+        // all there is to write is its placeholder. Escaped, whatever the class beside it says
+        // — the numeric arms below write their text as it stands, and `<10000000x2 double, not
+        // decoded>` unescaped inside a Class="double" element made the whole dictionary
+        // something MATLAB would not open.
+        if (this._undecoded) {
+            return p + '<' + tagName + attrStr + ' Class="' + escapeXml(type) + '">' + escapeXml(String(val)) + '</' + tagName + '>';
         }
         if (type === 'string') {
             this._kind = 'string';
@@ -1675,11 +1928,7 @@ export default class MatlabVariableNode extends DataNode {
         if (rows === 0 || cols === 0 || (this._elements.length === 0 && this.children.length === 0)) {
             return (p + '<' + tagName + attrStr + ' Class="' + (type || 'double') + '" Dimension="' + dimAttr + '"/>');
         }
-        const elems = this.children.length > 0
-            ? this.children.map(function (c) {
-                return c._scalarValue;
-            })
-            : this._elements;
+        const elems = this._liveElements();
         if (this._isComplexValue()) {
             const colMajor = transposeToColumnMajorND(elems, dims);
             const cls = this._complexClass();
@@ -1804,6 +2053,9 @@ export default class MatlabVariableNode extends DataNode {
         const v = {
             name: this.name,
             className: this._isOpaque ? this._opaqueClassName : matClassName,
+            // So MatWriter writes it as sparse storage: its class is a full one's, and the full
+            // array it would write otherwise is a different variable (MatWriter.encodeMatVariable).
+            ...(this._isSparse ? { isSparse: true } : {}),
             dimensions: this._dims.slice(),
             isComplex: false,
             isLogical: this._scalarType === 'logical',
@@ -1882,11 +2134,7 @@ export default class MatlabVariableNode extends DataNode {
             }
         }
         else if (this._kind === 'array') {
-            const elems = this.children.length > 0
-                ? this.children.map(function (c) {
-                    return c._scalarValue;
-                })
-                : this._elements;
+            const elems = this._liveElements();
             if (this._isComplexValue()) {
                 // As the scalar arm above: a NaN or Inf element used to become 0+0i here, and
                 // an int16 array a double one. An element edited to a real number (the element
@@ -1985,11 +2233,14 @@ export default class MatlabVariableNode extends DataNode {
     // whole value, no children, and no editor (the placeholder is angle-bracketed, which
     // is what BaseNode.valueEditable withholds the editor for). `_scalarType` is the
     // parser's class name, so the DataType column still says what the FILE says the
-    // variable is — 'object' or 'sparse' — which is the part that was read.
+    // variable is — 'object', or a too-large sparse array's 'double' — which is the part
+    // that was read.
     static _createUndecoded(variable, name, parent) {
         const node = new MatlabVariableNode(name, parent, {});
         node._rawBytes = variable._rawBytes || null;
         node._matVar = variable;
+        node._isSparse = !!variable.isSparse;
+        node._undecoded = true;
         node._kind = 'scalar';
         node._scalarType = variable.className;
         node._scalarValue = variable.value;
@@ -2039,11 +2290,15 @@ export default class MatlabVariableNode extends DataNode {
         const node = new MatlabVariableNode(name, parent, {});
         node._rawBytes = variable._rawBytes || null;
         node._matVar = variable;
+        node._isSparse = !!variable.isSparse;
         const dims = variable.dimensions;
         const totalElements = dims.reduce((a, b) => a * b, 1);
+        // A 1x1 SPARSE array takes the array arms below, not the scalar ones: it shows its
+        // summary like every sparse array, so its one element, when it is not zero, needs the
+        // row a scalar does not have, or its value would be nowhere on screen.
         if (variable.isComplex) {
             const arr = Array.isArray(variable.value) ? variable.value : [variable.value];
-            if (arr.length === 1) {
+            if (arr.length === 1 && !variable.isSparse) {
                 node._kind = 'scalar';
                 node._scalarType = 'complex';
                 const c = arr[0];
@@ -2068,7 +2323,7 @@ export default class MatlabVariableNode extends DataNode {
             node._elements = [];
             return node;
         }
-        if (totalElements === 1) {
+        if (totalElements === 1 && !variable.isSparse) {
             node._kind = 'scalar';
             node._scalarType = variable.isLogical ? 'logical' : variable.className;
             node._scalarValue = variable.isLogical ? !!variable.value : variable.value;
@@ -2189,6 +2444,13 @@ export default class MatlabVariableNode extends DataNode {
         return node;
     }
     static parse(rawVal, name, parent) {
+        // First, because its text is a byte stream and every arm below would read it as
+        // something else — the typed-scalar arm as a number, which is how a binary
+        // dictionary's hex values all came to show 1494. NodeClassMap.parseValue asks before
+        // it gets here; this is for a caller that reaches parse directly.
+        if (isEncodedValue(rawVal)) {
+            return MatlabVariableNode.parseEncoded(rawVal, name, parent);
+        }
         if (rawVal &&
             typeof rawVal === 'object' &&
             rawVal._type &&
@@ -2214,6 +2476,12 @@ export default class MatlabVariableNode extends DataNode {
             // (defect 25).
             if (rv._type === 'mxchar') {
                 return MatlabVariableNode.parseMxChar(rv, name, parent);
+            }
+            // Before the typed-scalar arm, whose parseFloat read the handle's text as the
+            // number 0: a text dictionary's `{"_type": "function_handle", "_value": "sin"}`
+            // showed `0`, editable.
+            if (rv._type === 'function_handle') {
+                return MatlabVariableNode.parseFunctionHandle(rv, name, parent);
             }
             // Also before the shape dispatch, and for the same reason. `{_type: 'struct',
             // _value: '[]'}` is MATLAB's only text spelling for struct([]) — the sole
@@ -2287,6 +2555,21 @@ export default class MatlabVariableNode extends DataNode {
         node._dims = [0, 0];
         return node;
     }
+    /**
+     * A function handle: `{_type: 'function_handle', _value: 'sin'}` — a text dictionary's
+     * spelling of one, and the MCOS decoder's for a handle stored as an object's property
+     * (McosParser.functionHandleText). Shown as MATLAB shows it, `@sin`, and read-only: the
+     * only writer that spells one is this node replaying the literal it was read from.
+     */
+    static parseFunctionHandle(rawVal, name, parent) {
+        const node = new MatlabVariableNode(name, parent, rawVal);
+        node._rawInput = rawVal;
+        node._kind = 'scalar';
+        node._dims = [1, 1];
+        node._scalarType = 'function_handle';
+        node._scalarValue = String(rawVal._value);
+        return node;
+    }
     static parseTypedScalar(rawVal, name, parent) {
         if (rawVal._type === 'cdata') {
             return MatlabVariableNode.parseCdata(rawVal, name, parent);
@@ -2313,22 +2596,224 @@ export default class MatlabVariableNode extends DataNode {
         }
         return node;
     }
+    /**
+     * A value a binary dictionary stored as an encoded byte stream (parser/EncodedValue),
+     * decoded into the node the same value gets everywhere else.
+     *
+     * The bytes are `getByteStreamFromArray(value)`: the same MAT stream a text dictionary
+     * carries as cdata (parseCdata) and a model workspace as its .mxarray part, so they go
+     * through the reader those use — MatParser.decodeMatStream for the framing and the
+     * array, and, for an MCOS object, the stream's own trailing subsystem element decoded
+     * exactly as ModelNode decodes a workspace's (attachMcosDecoded, reached through the
+     * registry). parseMatVariable then builds what it builds for that variable anywhere: a
+     * sparse array is a numeric array, a struct a struct, a Simulink.Parameter the
+     * ParameterNode a text dictionary's twin of it is.
+     *
+     * Whatever node comes back writes the stream back as it was read, for as long as nothing
+     * changes the value (DataNode._adoptEncoded), and everything at or under it is read-only
+     * (DataNode._refuseEncodedEdit): nothing in this package writes a new one for every value
+     * a stream can hold.
+     *
+     * A stream that does not read — not hex, not a MAT stream, shorter than it says, or an
+     * array class MatParser does not model — is the placeholder below, never a number. An
+     * MCOS object whose subsystem does not decode is the opaque `<1x1 CLASS>` it is
+     * everywhere else.
+     *
+     * And one that reads but does not DECODE — whose bytes are framed right and say
+     * something the readers or the node builders below cannot make sense of — is the same
+     * placeholder: the stream is one entry's value, and a throw out of here failed the open
+     * of the whole dictionary, every other entry with it, where 1.36.1 opened it (it read
+     * the hex as a number) and a text dictionary's cdata reader catches the same throw. The
+     * failure is recorded for the dictionary's warnings (EncodedValue.recordDecodeFailure,
+     * which SlddNode.parse collects per entry), and the bytes are written back unchanged.
+     */
+    static parseEncoded(encoded, name, parent) {
+        const stream = encodedStream(encoded);
+        if (!stream.bytes) {
+            return MatlabVariableNode._createEncodedPlaceholder(encoded, name, parent, null);
+        }
+        const decoded = decodeMatStream(stream.bytes);
+        if (!decoded.ok) {
+            recordDecodeFailure(decoded.reason);
+            return MatlabVariableNode._createEncodedPlaceholder(encoded, name, parent, null);
+        }
+        const outer = decoded.variable;
+        const dims = outer.dimensions;
+        if (outer.className === 'unknown') {
+            return MatlabVariableNode._createEncodedPlaceholder(encoded, name, parent, dims);
+        }
+        try {
+            NodeRegistry.attachMcosDecoded(decoded.trailingElements[0], [outer]);
+            const node = MatlabVariableNode.parseMatVariable(outer, name, parent);
+            node._adoptEncoded(encoded);
+            return node;
+        }
+        catch (e) {
+            recordDecodeFailure('its MAT stream did not decode (' + (e instanceof Error ? e.message : String(e)) + ')');
+            return MatlabVariableNode._createEncodedPlaceholder(encoded, name, parent, dims);
+        }
+    }
+    /**
+     * An encoded value whose bytes say nothing this reader can show: one row, `<CLASS, not
+     * decoded>` — `<RxC CLASS, not decoded>` when the stream got as far as its size — and no
+     * children. The class is the one the element names, which is MATLAB's `class(value)`.
+     * Angle-bracketed like every summary (MatParser's `undecodedValue` is the same
+     * spelling), so it is styled as one and offered no editor; it would be refused one anyway
+     * (_refuseEncodedEdit). What it must never be is a number read out of the text, which is
+     * what every hex value used to show.
+     */
+    static _createEncodedPlaceholder(encoded, name, parent, dims) {
+        const node = new MatlabVariableNode(name, parent, {});
+        const cls = encodedClass(encoded) || 'double';
+        const shape = dims && dims.length >= 2 ? dims.join('x') + ' ' : '';
+        node._kind = 'scalar';
+        node._undecoded = true;
+        node._scalarType = cls;
+        node._scalarValue = '<' + shape + cls + ', not decoded>';
+        node._dims = dims && dims.length >= 2 ? dims.slice() : [1, 1];
+        node._adoptEncoded(encoded);
+        return node;
+    }
+    /**
+     * A text dictionary's MAT stream that a binary dictionary can only hold as hex, as the
+     * hex MATLAB writes for it — or null.
+     *
+     * MATLAB writes a binary dictionary entry as `Encoding="hex"` exactly when its value holds
+     * a sparse array or a function handle anywhere inside it (make_sparse_fixtures.m grades
+     * that on every entry), and an MCOS object rides in the same stream with its subsystem.
+     * Such a value in a TEXT dictionary is a cdata stream of the very same bytes (character
+     * for character: the fixture's text twin of spDiag is uuencode of the binary's hex), so
+     * an untouched one pasted from text into binary goes in as those bytes, under MATLAB's
+     * own `Class` — class(value) — and layout. Rebuilt as XML instead it would be the full
+     * array, a different variable; and the XML spelling it had before this, `Class="sparse"`,
+     * made MATLAB's reader segfault (measured).
+     *
+     * That is while the stream is still the value — untouched, or only renamed (DataNode
+     * keeps `_rawInput` across a rename and drops it for every other edit). Once anything
+     * else has changed it, or for a value that never was a stream (a cell bag, a variable
+     * out of a .mat), the stream is the one MatWriter writes for the live value: MATLAB's
+     * own bytes for a sparse array (MatWriter.encodeSparse) and for the cell around one.
+     * Without that, an element edit or a rename of a pasted sparse array wrote it full, and
+     * one too large to decode wrote the text of its placeholder. A value MatWriter cannot
+     * write — an MCOS object, a function handle — has no hex this package can make, and
+     * takes its XML as before.
+     */
+    _binaryEncoded() {
+        return this._hexValue(2);
+    }
+    /**
+     * This value as a binary dictionary's hex element at `indent`, when it can only be one
+     * and this package can make it — see _binaryEncoded for the entry, serializeXml for one
+     * further down — or null.
+     */
+    _hexValue(indent) {
+        // A value READ from hex writes that hex back itself, byte for byte (_adoptEncoded):
+        // not this, which would be the stream re-encoded — MATLAB's bytes for MATLAB's own
+        // stream, but not the element's layout, and not a damaged stream's bytes at all.
+        if (this._encoded) {
+            return null;
+        }
+        const raw = this._rawInput;
+        if (raw && isMatCdata(raw) && this._matVar) {
+            // The stream it was read from, which is MATLAB's own bytes whatever it holds.
+            if (!needsHexInBinary(this._matVar)) {
+                return null;
+            }
+            const bytes = matStreamPrefix(uudecode(raw._value));
+            if (bytes) {
+                return hexValue(bytes, matlabClassOf(this._matVar), indent);
+            }
+        }
+        // Otherwise the stream _matStream makes, for a sparse array and for a cell holding one:
+        // MATLAB's own bytes (the tests hold MatWriter to that), or for a sparse array too
+        // large to decode the element it was read from. A struct is not written whole: its
+        // XML carries each sparse field as that field's own hex element (serializeXml), the
+        // form MATLAB was measured reading back, where MatWriter's struct stream is not byte
+        // for byte the one MATLAB writes.
+        //
+        // Nor is a cell holding a value that is still a stream of its own (a binary
+        // dictionary's nested hex element, _adoptEncoded): written whole, that member would
+        // be re-encoded from what it decoded to rather than replayed as read. Its XML writes
+        // the member back byte for byte.
+        //
+        // Nor a cell holding anything MatWriter cannot write as what it is (_matWritable):
+        // written whole, every Simulink object in it went out as a 0x0 double and every
+        // string as a char, and MATLAB read the cell back that way. Its XML writes each
+        // element as itself, and each sparse one as a hex element of its own (serializeXml),
+        // which MATLAB reads back as the cell it was.
+        if (!this._isSparse && !(this._kind === 'cell' && this._holdsSparse() && !this._holdsEncoded() && this._matWritable())) {
+            return null;
+        }
+        const bytes = this._matStream();
+        return bytes ? hexValue(bytes, matlabClassOf(this._var), indent) : null;
+    }
+    /**
+     * Is there a sparse array at or under this node? Asked of the nodes rather than of
+     * `_var`, so that a save does not rebuild every entry's variable to find out: only a
+     * cell and a struct hold values of their own, and an array's children are its elements.
+     */
+    _holdsSparse() {
+        if (this._isSparse) {
+            return true;
+        }
+        if (this._kind !== 'cell' && this._scalarType !== 'struct') {
+            return false;
+        }
+        return this.children.some((c) => c instanceof MatlabVariableNode && c._holdsSparse());
+    }
+    /**
+     * Can MatWriter write this value as the value it is? Not an MCOS object (it refuses
+     * one), and not a value whose rebuilt variable (_var) is not the value: a string, which
+     * it writes as a char; a function handle; a reader's placeholder for a value it did not
+     * decode; and, inside a cell or a struct, any node of another class — a Simulink object,
+     * a struct read from a dictionary — which has no `_var` at all and went out as a 0x0
+     * double.
+     */
+    _matWritable() {
+        // A string array and its elements alike say 'string' here.
+        if (this._isOpaque || this._undecoded || this._scalarType === 'string' || this._scalarType === 'function_handle') {
+            return false;
+        }
+        if (this._kind === 'cell' || this._scalarType === 'struct') {
+            return this.children.every((c) => c instanceof MatlabVariableNode && c._matWritable());
+        }
+        return true;
+    }
+    /** Is there a value still in an encoded stream of its own under this cell or struct? */
+    _holdsEncoded() {
+        if (this._kind !== 'cell' && this._scalarType !== 'struct') {
+            return false;
+        }
+        return this.children.some((c) => !!c._encoded || (c instanceof MatlabVariableNode && c._holdsEncoded()));
+    }
+    /**
+     * An object whose class nothing in the file names: `<1x1 object>`, the summary of an
+     * object of no known class, with the object glyph and no editor. Its bag is replayed
+     * untouched, as every value read from a file is.
+     */
+    static createUnnamedObject(rawVal, name, parent) {
+        const node = new MatlabVariableNode(name, parent, {});
+        node._rawInput = rawVal;
+        node._kind = 'scalar';
+        node._undecoded = true;
+        node._scalarType = 'object';
+        node._scalarValue = '<1x1 object>';
+        node._dims = [1, 1];
+        return node;
+    }
     static parseCdata(rawVal, name, parent) {
         const valStr = rawVal._value;
         if (/^[\d.eE+\-i\s]+$/.test(valStr) || MatlabVariableNode._isOwnNonFiniteText(rawVal)) {
             return MatlabVariableNode._parseCdataText(rawVal, name, parent);
         }
         try {
-            const bytes = uudecode(valStr);
-            const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-            // 8-byte preamble, then one miMATRIX element: tag (type, byte count) at 8,
-            // payload at 16.
-            const tagType = dv.getUint32(8, true);
-            const tagSize = dv.getUint32(12, true);
-            if (tagType !== MI_MATRIX) {
-                throw new Error('cdata is not a MAT matrix element');
+            // The six-bit text is a MAT stream (MatParser.decodeMatStream reads it, as it reads
+            // every venue's); one that is not shows as the char it is, below.
+            const stream = decodeMatStream(uudecode(valStr));
+            if (!stream.ok) {
+                throw new Error('cdata is not a MAT stream: ' + stream.reason);
             }
-            const variable = parseMatrix(dv, 16, tagSize);
+            const variable = stream.variable;
             // Always a MatlabVariableNode here: only the opaque arm builds anything else, and
             // only for a variable a container attached a decode to (mcosDecodedTable), which
             // one parsed out of a cdata stream a line above has not had the chance to be.
@@ -2497,7 +2982,8 @@ export default class MatlabVariableNode extends DataNode {
             node._kind = 'array';
             node._elements = [];
             node._dims = [0, 0];
-            node._scalarType = rawVal._type;
+            node._scalarType = rawVal._type === 'sparse' ? 'double' : rawVal._type;
+            node._isSparse = rawVal._type === 'sparse';
             return node;
         }
         const node = new MatlabVariableNode(name, parent, rawVal);
@@ -2506,6 +2992,12 @@ export default class MatlabVariableNode extends DataNode {
         node._elements = parsed.elements;
         node._dims = parsed.dims.slice();
         node._scalarType = parsed.type;
+        // This package's own spelling of an edited sparse double (_serializeArray), read back:
+        // a sparse double, as MATLAB reads it.
+        if (parsed.type === 'sparse') {
+            node._scalarType = 'double';
+            node._isSparse = true;
+        }
         node._buildArrayChildren();
         return node;
     }

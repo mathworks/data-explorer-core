@@ -1,0 +1,819 @@
+{
+  "version": "27.1.0.3400455 (R2027a) Prerelease",
+  "release": "2027a",
+  "values": {
+    "anonAlias": {
+      "class": "dexsparse.FhAlias",
+      "size": [
+        1,
+        1
+      ],
+      "issparse": false,
+      "Fh": "@(y)y*2",
+      "FhType": "anonymous",
+      "BaseType": "double"
+    },
+    "holder": {
+      "class": "dexsparse.HolderAlias",
+      "size": [
+        1,
+        1
+      ],
+      "issparse": false,
+      "Fh": "sin",
+      "FhType": "classsimple",
+      "BaseType": "double",
+      "S": {
+        "a": 2,
+        "b": "xy"
+      }
+    },
+    "objs": {
+      "class": "struct",
+      "size": [
+        1,
+        1
+      ],
+      "issparse": false,
+      "fields": [
+        "sp",
+        "sig",
+        "bus",
+        "vt",
+        "vc",
+        "et",
+        "prm"
+      ],
+      "fieldClasses": [
+        "double",
+        "Simulink.Signal",
+        "Simulink.Bus",
+        "Simulink.ValueType",
+        "Simulink.VariantControl",
+        "Simulink.data.dictionary.EnumTypeDefinition",
+        "Simulink.Parameter"
+      ],
+      "fieldIssparse": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    },
+    "objsCell": {
+      "class": "cell",
+      "size": [
+        1,
+        7
+      ],
+      "issparse": false,
+      "elementClasses": [
+        "double",
+        "Simulink.Signal",
+        "Simulink.Bus",
+        "Simulink.ValueType",
+        "Simulink.VariantControl",
+        "Simulink.data.dictionary.EnumTypeDefinition",
+        "Simulink.Parameter"
+      ],
+      "elementIssparse": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "elementSizes": [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "pTall": {
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "issparse": false,
+      "Value": {
+        "class": "double",
+        "size": [
+          1.0E+7,
+          2
+        ],
+        "issparse": true,
+        "nonzeros": {
+          "rows": [
+            1,
+            9.999999E+6
+          ],
+          "cols": [
+            1,
+            2
+          ],
+          "values": [
+            7,
+            8
+          ]
+        }
+      }
+    },
+    "cTall": {
+      "class": "cell",
+      "size": [
+        1,
+        2
+      ],
+      "issparse": false,
+      "elementClasses": [
+        "double",
+        "double"
+      ],
+      "elementIssparse": [
+        true,
+        false
+      ],
+      "elementSizes": [
+        [
+          1.0E+7,
+          2
+        ],
+        [
+          1,
+          1
+        ]
+      ]
+    },
+    "control": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "issparse": false,
+      "value": 5
+    }
+  },
+  "binary": {
+    "file": "hexobj_binary.sldd",
+    "fileFormat": "compressed-binary",
+    "refused": [],
+    "matlabrootScrubbed": 3,
+    "valueTags": [
+      {
+        "name": "anonAlias",
+        "tag": "<P Name=\"Value\" Class=\"dexsparse.FhAlias\" Encoding=\"hex\" EncodedLength=\"3920\">",
+        "isHex": true
+      },
+      {
+        "name": "cTall",
+        "tag": "<P Name=\"Value\" Class=\"cell\" Encoding=\"hex\" EncodedLength=\"232\">",
+        "isHex": true
+      },
+      {
+        "name": "control",
+        "tag": "<P Name=\"Value\" Class=\"double\">",
+        "isHex": false
+      },
+      {
+        "name": "holder",
+        "tag": "<P Name=\"Value\" Class=\"dexsparse.HolderAlias\" Encoding=\"hex\" EncodedLength=\"2816\">",
+        "isHex": true
+      },
+      {
+        "name": "objs",
+        "tag": "<P Name=\"Value\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"11432\">",
+        "isHex": true
+      },
+      {
+        "name": "objsCell",
+        "tag": "<P Name=\"Value\" Class=\"cell\" Encoding=\"hex\" EncodedLength=\"11384\">",
+        "isHex": true
+      },
+      {
+        "name": "pTall",
+        "tag": "<P Name=\"Value\" Class=\"Simulink.Parameter\" Encoding=\"hex\" EncodedLength=\"3336\">",
+        "isHex": true
+      }
+    ],
+    "entries": [
+      "anonAlias",
+      "cTall",
+      "control",
+      "holder",
+      "objs",
+      "objsCell",
+      "pTall"
+    ],
+    "readBack": {
+      "anonAlias": {
+        "class": "dexsparse.FhAlias",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "Fh": "@(y)y*2",
+        "FhType": "anonymous",
+        "BaseType": "double"
+      },
+      "cTall": {
+        "class": "cell",
+        "size": [
+          1,
+          2
+        ],
+        "issparse": false,
+        "elementClasses": [
+          "double",
+          "double"
+        ],
+        "elementIssparse": [
+          true,
+          false
+        ],
+        "elementSizes": [
+          [
+            1.0E+7,
+            2
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "control": {
+        "class": "double",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "value": 5
+      },
+      "holder": {
+        "class": "dexsparse.HolderAlias",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "Fh": "sin",
+        "FhType": "classsimple",
+        "BaseType": "double",
+        "S": {
+          "a": 2,
+          "b": "xy"
+        }
+      },
+      "objs": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "fields": [
+          "sp",
+          "sig",
+          "bus",
+          "vt",
+          "vc",
+          "et",
+          "prm"
+        ],
+        "fieldClasses": [
+          "double",
+          "Simulink.Signal",
+          "Simulink.Bus",
+          "Simulink.ValueType",
+          "Simulink.VariantControl",
+          "Simulink.data.dictionary.EnumTypeDefinition",
+          "Simulink.Parameter"
+        ],
+        "fieldIssparse": [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      },
+      "objsCell": {
+        "class": "cell",
+        "size": [
+          1,
+          7
+        ],
+        "issparse": false,
+        "elementClasses": [
+          "double",
+          "Simulink.Signal",
+          "Simulink.Bus",
+          "Simulink.ValueType",
+          "Simulink.VariantControl",
+          "Simulink.data.dictionary.EnumTypeDefinition",
+          "Simulink.Parameter"
+        ],
+        "elementIssparse": [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "elementSizes": [
+          [
+            1,
+            2
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "pTall": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "Value": {
+          "class": "double",
+          "size": [
+            1.0E+7,
+            2
+          ],
+          "issparse": true,
+          "nonzeros": {
+            "rows": [
+              1,
+              9.999999E+6
+            ],
+            "cols": [
+              1,
+              2
+            ],
+            "values": [
+              7,
+              8
+            ]
+          }
+        }
+      }
+    }
+  },
+  "text": {
+    "file": "hexobj_text.sldd",
+    "fileFormat": "uncompressed-text",
+    "refused": [],
+    "entries": [
+      "anonAlias",
+      "cTall",
+      "control",
+      "holder",
+      "objs",
+      "objsCell",
+      "pTall"
+    ],
+    "readBack": {
+      "anonAlias": {
+        "class": "dexsparse.FhAlias",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "Fh": "@(y)y*2",
+        "FhType": "anonymous",
+        "BaseType": "double"
+      },
+      "cTall": {
+        "class": "cell",
+        "size": [
+          1,
+          2
+        ],
+        "issparse": false,
+        "elementClasses": [
+          "double",
+          "double"
+        ],
+        "elementIssparse": [
+          true,
+          false
+        ],
+        "elementSizes": [
+          [
+            1.0E+7,
+            2
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "control": {
+        "class": "double",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "value": 5
+      },
+      "holder": {
+        "class": "dexsparse.HolderAlias",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "Fh": "sin",
+        "FhType": "classsimple",
+        "BaseType": "double",
+        "S": {
+          "a": 2,
+          "b": "xy"
+        }
+      },
+      "objs": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "fields": [
+          "sp",
+          "sig",
+          "bus",
+          "vt",
+          "vc",
+          "et",
+          "prm"
+        ],
+        "fieldClasses": [
+          "double",
+          "Simulink.Signal",
+          "Simulink.Bus",
+          "Simulink.ValueType",
+          "Simulink.VariantControl",
+          "Simulink.data.dictionary.EnumTypeDefinition",
+          "Simulink.Parameter"
+        ],
+        "fieldIssparse": [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      },
+      "objsCell": {
+        "class": "cell",
+        "size": [
+          1,
+          7
+        ],
+        "issparse": false,
+        "elementClasses": [
+          "double",
+          "Simulink.Signal",
+          "Simulink.Bus",
+          "Simulink.ValueType",
+          "Simulink.VariantControl",
+          "Simulink.data.dictionary.EnumTypeDefinition",
+          "Simulink.Parameter"
+        ],
+        "elementIssparse": [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "elementSizes": [
+          [
+            1,
+            2
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "pTall": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "Value": {
+          "class": "double",
+          "size": [
+            1.0E+7,
+            2
+          ],
+          "issparse": true,
+          "nonzeros": {
+            "rows": [
+              1,
+              9.999999E+6
+            ],
+            "cols": [
+              1,
+              2
+            ],
+            "values": [
+              7,
+              8
+            ]
+          }
+        }
+      }
+    }
+  },
+  "mat": {
+    "file": "hexobj_values.mat",
+    "variables": [
+      "anonAlias",
+      "cTall",
+      "control",
+      "holder",
+      "objs",
+      "objsCell",
+      "pTall"
+    ],
+    "matlabrootScrubbed": 3,
+    "readBack": {
+      "anonAlias": {
+        "class": "dexsparse.FhAlias",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "Fh": "@(y)y*2",
+        "FhType": "anonymous",
+        "BaseType": "double"
+      },
+      "holder": {
+        "class": "dexsparse.HolderAlias",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "Fh": "sin",
+        "FhType": "classsimple",
+        "BaseType": "double",
+        "S": {
+          "a": 2,
+          "b": "xy"
+        }
+      },
+      "objs": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "fields": [
+          "sp",
+          "sig",
+          "bus",
+          "vt",
+          "vc",
+          "et",
+          "prm"
+        ],
+        "fieldClasses": [
+          "double",
+          "Simulink.Signal",
+          "Simulink.Bus",
+          "Simulink.ValueType",
+          "Simulink.VariantControl",
+          "Simulink.data.dictionary.EnumTypeDefinition",
+          "Simulink.Parameter"
+        ],
+        "fieldIssparse": [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ]
+      },
+      "objsCell": {
+        "class": "cell",
+        "size": [
+          1,
+          7
+        ],
+        "issparse": false,
+        "elementClasses": [
+          "double",
+          "Simulink.Signal",
+          "Simulink.Bus",
+          "Simulink.ValueType",
+          "Simulink.VariantControl",
+          "Simulink.data.dictionary.EnumTypeDefinition",
+          "Simulink.Parameter"
+        ],
+        "elementIssparse": [
+          true,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "elementSizes": [
+          [
+            1,
+            2
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "pTall": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "Value": {
+          "class": "double",
+          "size": [
+            1.0E+7,
+            2
+          ],
+          "issparse": true,
+          "nonzeros": {
+            "rows": [
+              1,
+              9.999999E+6
+            ],
+            "cols": [
+              1,
+              2
+            ],
+            "values": [
+              7,
+              8
+            ]
+          }
+        }
+      },
+      "cTall": {
+        "class": "cell",
+        "size": [
+          1,
+          2
+        ],
+        "issparse": false,
+        "elementClasses": [
+          "double",
+          "double"
+        ],
+        "elementIssparse": [
+          true,
+          false
+        ],
+        "elementSizes": [
+          [
+            1.0E+7,
+            2
+          ],
+          [
+            1,
+            1
+          ]
+        ]
+      },
+      "control": {
+        "class": "double",
+        "size": [
+          1,
+          1
+        ],
+        "issparse": false,
+        "value": 5
+      }
+    }
+  }
+}

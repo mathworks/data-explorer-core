@@ -151,11 +151,36 @@ export type MatlabVariableKind = 'scalar' | 'array' | 'cell' | 'string';
 // row under `newName` still read `oldName(1,1)` until the file was reopened. The
 // parent's own displayed name is read live, so a nested array's elements follow
 // the row above them at any depth.
+//
+// A sparse array's element rows are its non-zeros only, so a row's place among its
+// siblings is not its place in the array: they carry this too, with `full` set, because
+// MATLAB names a sparse array's elements by every subscript, a vector's included.
 export interface ElementSubscript {
   index: number;
   dims: number[] | undefined;
   order: ElementOrder;
   bracket: Bracket;
+  full?: boolean;
+}
+
+/**
+ * The node at or above `node`, within its entry, whose value is still the encoded byte
+ * stream it was read from (DataNode._encoded, set by DataNode._adoptEncoded) — or null
+ * when there is none.
+ *
+ * Such a node is written as that stream and nothing else, so everything at or under it is
+ * read-only: an edit there could not reach the file. Asked here rather than on DataNode
+ * because the editability getters below are BaseNode's, and duck-typed for the same
+ * reason owningEntryOf is: a source root and a section are ContainerNodes and carry no
+ * `_encoded`, so the walk stops at the first container and answers null for them.
+ */
+export function encodedHolderOf(node: BaseNode | null | undefined): BaseNode | null {
+  for (let n = node; n && !(n as unknown as { isContainer?: boolean }).isContainer; n = n.parent) {
+    if ((n as unknown as { _encoded?: unknown })._encoded) {
+      return n;
+    }
+  }
+  return null;
 }
 
 export default class BaseNode {
@@ -247,6 +272,12 @@ export default class BaseNode {
   }
 
   get nameEditable(): boolean {
+    // Inside a value that is still an encoded stream, a name is part of the stream. The
+    // node holding the stream keeps its own: that name is written outside it.
+    const holder = encodedHolderOf(this);
+    if (holder && holder !== this) {
+      return false;
+    }
     if (this.isIndexedName) {
       return false;
     }
@@ -473,6 +504,15 @@ export default class BaseNode {
   }
 
   get displayName(): string {
+    // A struct/object-array element, or a sparse array's non-zero: the subscript its
+    // parse site recorded, read live from the parent's CURRENT displayed name, which is
+    // what makes an element row follow a rename of the array above it. First, because a
+    // sparse array's parent is an 'array' like any other, and its rows are not in slot
+    // order.
+    if (this._subscript && this.parent) {
+      const s = this._subscript;
+      return subscriptLabel(this.parent.displayName, s.index, s.dims, s.order, s.bracket, s.full);
+    }
     if (
       this.parent &&
       (this.parent._kind === 'cell' || this.parent._kind === 'array' || this.parent._kind === 'string')
@@ -500,17 +540,14 @@ export default class BaseNode {
         this.parent._kind === 'cell' ? '{}' : '()',
       );
     }
-    // A struct/object-array element: the same derivation, off the spec its parse
-    // site recorded. Read live from the parent's CURRENT displayed name, which is
-    // what makes an element row follow a rename of the array above it.
-    if (this._subscript && this.parent) {
-      const s = this._subscript;
-      return subscriptLabel(this.parent.displayName, s.index, s.dims, s.order, s.bracket);
-    }
     return this._displayName || this.name;
   }
 
   get valueEditable(): boolean {
+    // A value still written as the encoded stream it was read from (encodedHolderOf).
+    if (encodedHolderOf(this)) {
+      return false;
+    }
     const v = this.displayValue;
     if (v && v.charAt(0) === '<' && v.charAt(v.length - 1) === '>') {
       return false;
@@ -533,7 +570,7 @@ export default class BaseNode {
   // Parameter whose value displays as a `<1x12 double>` summary takes no value editor
   // and can still be described.
   get descriptionEditable(): boolean {
-    return true;
+    return !encodedHolderOf(this);
   }
 
   getPropInfo(PropClassRef: PropClass): PropInfo {
@@ -557,6 +594,12 @@ export default class BaseNode {
     // the table did.
     if (key === 'Description') {
       editable = editable && this.descriptionEditable;
+    }
+    // Every other column of a node whose value is still an encoded stream, schema-projected
+    // ones included (Storage Class, Data Type…): they are all inside the stream. The Name
+    // was answered above, by nameEditable.
+    if (key !== 'Name' && encodedHolderOf(this)) {
+      editable = false;
     }
 
     return {

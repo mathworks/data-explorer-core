@@ -189,6 +189,9 @@ describe('the writers state what the value is', () => {
     const entry = root.getSection('design').children[0];
     expect([entry.displayValue, entry.className]).toEqual(["'Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i'", 'char']);
     expect(complexTags(serializeEntryToXml(entry))).toEqual([tag]);
+    // And a rename, which leaves the value as it was.
+    expect(entry.setProperty('Name', 'zNonFiniteRenamed')).toBe(true);
+    expect(complexTags(serializeEntryToXml(entry))).toEqual([tag]);
   });
 
   it('a complex element of a cell inside an object\'s property is written as one, not as `Class="cdata"`', () => {

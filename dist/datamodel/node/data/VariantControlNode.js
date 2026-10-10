@@ -22,6 +22,11 @@ export default class VariantControlNode extends SimulinkObjectNode {
      * accept/reject logic MATLAB applies.
      */
     setProperty(propName, stringValue) {
+        // A value still in the encoded stream it was read from is read-only (DataNode._refuseEncodedEdit).
+        const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
+        if (encodedRefusal) {
+            return encodedRefusal;
+        }
         if (propName !== 'Value') {
             return super.setProperty(propName, stringValue);
         }
