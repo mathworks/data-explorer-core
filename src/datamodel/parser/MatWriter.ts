@@ -48,7 +48,7 @@ import {
 } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
-import { backedColumnsOf, sparseFromDense } from './SparseData.js';
+import { backedColumnsOf, sparseFromDense, UNBACKED_COLUMNS_ALLOWED } from './SparseData.js';
 
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
@@ -531,8 +531,9 @@ function encodeSparse(v: MatVariable): Uint8Array {
  * index held fewer columns than its dims declare has a damaged dims word (`new Array(2^31)`
  * for one corrupted cols word of a 3 KB hex value, a fatal out-of-memory no caller could
  * catch), and `Matrix(0,134217728)\n[]`, credited its header's columns, was a 512 MB index
- * from 52 characters. And no stream holds a column index past what its uint32 size word
- * can say. A value MATLAB wrote is none of these.
+ * from 52 characters. A few columns any array may declare for free, so that sparse(0, 5)
+ * stays sparse (UNBACKED_COLUMNS_ALLOWED). And no stream holds a column index past what its
+ * uint32 size word can say. A value MATLAB wrote is none of these.
  */
 export function sparseWriteRefusal(
   v: Pick<MatVariable, 'undecoded' | 'dimensions' | 'className' | 'isLogical' | 'sparse' | 'value'>,
@@ -561,7 +562,8 @@ export function sparseWriteRefusal(
     }
     backed = Math.min(cols, n);
   }
-  if (backed < cols) {
+  // Past the few columns any array may declare for free (UNBACKED_COLUMNS_ALLOWED).
+  if (Math.max(backed, Math.min(cols, UNBACKED_COLUMNS_ALLOWED)) < cols) {
     return 'a sparse array declaring ' + cols + ' columns is backed for ' + backed + ', and its column index would be words no byte of its source held';
   }
   if (4 * (cols + 1) > 0xffffffff) {

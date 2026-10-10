@@ -21,8 +21,9 @@ export declare class MatWriteError extends Error {
  * index held fewer columns than its dims declare has a damaged dims word (`new Array(2^31)`
  * for one corrupted cols word of a 3 KB hex value, a fatal out-of-memory no caller could
  * catch), and `Matrix(0,134217728)\n[]`, credited its header's columns, was a 512 MB index
- * from 52 characters. And no stream holds a column index past what its uint32 size word
- * can say. A value MATLAB wrote is none of these.
+ * from 52 characters. A few columns any array may declare for free, so that sparse(0, 5)
+ * stays sparse (UNBACKED_COLUMNS_ALLOWED). And no stream holds a column index past what its
+ * uint32 size word can say. A value MATLAB wrote is none of these.
  */
 export declare function sparseWriteRefusal(v: Pick<MatVariable, 'undecoded' | 'dimensions' | 'className' | 'isLogical' | 'sparse' | 'value'>): string | null;
 /** The bytes of one complete `miMATRIX` element: tag, then the matrix body. */

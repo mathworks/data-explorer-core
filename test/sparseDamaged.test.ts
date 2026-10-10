@@ -24,6 +24,7 @@ import { createSession, parseMat } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { uudecode, uuencode } from '../src/datamodel/parser/CdataCodec.js';
 import { encodeMatStream, matStreamOfElement, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
+import { UNBACKED_COLUMNS_ALLOWED } from '../src/datamodel/parser/SparseData.js';
 import { matFile, sparseVar } from './tools/matBytes.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -256,7 +257,9 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
   // counts what its jc held). A source with no index — this package's own `sparse` literal,
   // a host's dense list — backs a column only with an element: `Matrix(0,134217728)\n[]`,
   // 52 characters, was credited every column its header declared, and pasted into a binary
-  // dictionary and saved it ran the process out of memory (7.1 GB, 18.6 s, fatal).
+  // dictionary and saved it ran the process out of memory (7.1 GB, 18.6 s, fatal). Beyond
+  // that, any array has a few columns for free (UNBACKED_COLUMNS_ALLOWED), so sparse(0, 5),
+  // which MATLAB holds valid, stays sparse wherever it is pasted.
   const BIG = 134217728;
   const FORMS: { label: string; dims: number[]; jc: number[]; held: boolean }[] = [
     // `held`: whether a file's own index for it, as MATLAB writes one, is this jc.
@@ -266,8 +269,14 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
     { label: '0x0', dims: [0, 0], jc: [0], held: true },
   ];
   const literalOf = (d: number[]) => ({ _type: 'sparse', _value: `Matrix(${d[0]},${d[1]})\n[]` });
-  // A source of no bytes backs no column; cols 0 needs none.
-  const backedWithoutBytes = (d: number[]) => d[1] === 0;
+  // A source of no bytes backs no column, but a few come free.
+  const backedWithoutBytes = (d: number[]) => d[1] <= UNBACKED_COLUMNS_ALLOWED;
+  // The pasted entry's own Value element, in what was saved.
+  const pastedValue = (saved: string): string => {
+    const at = saved.indexOf('<P Name="Name" Class="char">pasted</P>');
+    const from = saved.indexOf('<P Name="Value"', at);
+    return saved.slice(from, saved.indexOf('>', from) + 1);
+  };
   let seq = 0;
   const uuid = () => `00000000-0000-4000-e400-${String(++seq).padStart(12, '0')}`;
 
@@ -294,11 +303,17 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
     expect(() => encodeMatStream(host(1))).not.toThrow();
     expect(() => encodeMatStream(host(1000000))).toThrow(MatWriteError);
     expect(() => encodeMatStream(host(1000000, { backedColumns: 1000000 }))).not.toThrow();
+    // A few columns come free, and no more.
+    expect(() => encodeMatStream(host(UNBACKED_COLUMNS_ALLOWED))).not.toThrow();
+    expect(() => encodeMatStream(host(UNBACKED_COLUMNS_ALLOWED + 1))).toThrow(MatWriteError);
     // And a dense list handed to the writer itself: with no rows, it backs no column.
     const dense = (d: number[]) => ({ name: '', className: 'double', dimensions: d, isComplex: false, isLogical: false, isSparse: true, value: [], fields: null });
     const [, ms] = timed(() => expect(() => encodeMatStream(dense([0, BIG]))).toThrow(MatWriteError));
     expect(ms).toBeLessThan(1000);
-    expect(() => encodeMatStream(dense([5, 0]))).not.toThrow();
+    expect(() => encodeMatStream(dense([0, UNBACKED_COLUMNS_ALLOWED + 1]))).toThrow(MatWriteError);
+    for (const d of [[0, 5], [5, 0], [0, 0], [0, UNBACKED_COLUMNS_ALLOWED]]) {
+      expect(() => encodeMatStream(dense(d)), d.join('x')).not.toThrow();
+    }
   });
 
   for (const f of FORMS) {
@@ -308,6 +323,11 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
         const r = pasteAndSave(file, literal);
         expect([r.node.displayValue, r.node.isSparse, r.node.children.length], `${file}`).toEqual([`<${f.dims.join('x')} sparse double>`, true, 0]);
         expectSmallAndSound(r, `${f.label} into ${file}`);
+        // In a binary dictionary it is still sparse — a hex stream — unless no writer could
+        // write it, and then it is the small full empty its shape is.
+        if (file === 'sparse_binary.sldd') {
+          expect(pastedValue(r.saved).includes('Encoding="hex"'), `${f.label} stays sparse`).toBe(backedWithoutBytes(f.dims));
+        }
       }
       // In a text dictionary, untouched, it is the literal it was read as.
       const text = pasteAndSave('sparse_text.sldd', literal);
@@ -330,6 +350,8 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
       expect([h.displayValue, h.children.length]).toEqual([`<${f.dims.join('x')} sparse double>`, 0]);
       const [copied, ms] = timed(() => JSON.parse(JSON.stringify(h.serializeValue())));
       expect(ms).toBeLessThan(2000);
+      // Copied, it is a sparse array's stream, unless no writer could write it.
+      expect(copied?._type === 'cdata', `${f.label} copied sparse`).toBe(backedWithoutBytes(f.dims));
       for (const file of ['sparse_text.sldd', 'sparse_binary.sldd']) {
         expectSmallAndSound(pasteAndSave(file, copied), `${f.label} host into ${file}`);
       }

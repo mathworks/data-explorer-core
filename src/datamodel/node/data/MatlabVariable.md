@@ -231,6 +231,13 @@ sparse array of a class MATLAB never stores sparse (an int8 one in a hand-made f
 an array is written back as the bytes it was read from. Pinned in
 `test/sparseDamaged.test.ts`, in a binary dictionary, a text one and a `.mat`.
 
+What backs a column is the file's own column index, or, for a source with none (this
+package's `sparse` literal, a host's dense list), an element: never the declared count
+alone, since a column index is cols + 1 words whatever the rows. A few columns are free
+for any array (`UNBACKED_COLUMNS_ALLOWED`, 256), so sparse(0, 5), which holds nothing,
+stays sparse wherever it is pasted, while `Matrix(0,134217728)\n[]` is refused before
+anything is allocated. Few, because they are free per array and a file can hold many.
+
 ### A sparse array's class is its element class
 `class()` of a sparse double is `double` (`logical`, `single`; complex is still
 `double`), so that is the Class and the Data Type.

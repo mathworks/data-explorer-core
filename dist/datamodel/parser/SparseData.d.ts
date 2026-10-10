@@ -19,8 +19,8 @@
  * a writer writes every column's start whatever the rows, so `Matrix(0,134217728)\n[]`,
  * credited the columns its header declared, was a 512 MB index from 52 characters, and a
  * dims word one corrupted byte turned from 2 columns to 2^31-1 was 8 GB. MatWriter refuses
- * an array that declares more columns than are backed (sparseWriteRefusal), and the node
- * layer offers it no editor. Absent, as on non-zeros a host builds itself, only the
+ * an array that declares more columns than are backed, past the few any array has for free
+ * (UNBACKED_COLUMNS_ALLOWED; sparseWriteRefusal), and the node layer offers it no editor. Absent, as on non-zeros a host builds itself, only the
  * entries back columns, one apiece (backedColumnsOf); a host that knows better says so here.
  */
 export interface SparseData {
@@ -42,6 +42,20 @@ export declare const MAX_DENSE_ELEMENTS = 1000000;
 export declare function emptySparse(complex: boolean, backedColumns?: number): SparseData;
 /** An independent copy: an edit to one is not an edit to the other. */
 export declare function cloneSparse(s: SparseData): SparseData;
+/**
+ * How many columns any sparse array may declare with nothing behind them. A column index is
+ * cols + 1 words whatever the rows, so sparse(0, 5) — valid, and holding nothing — has six
+ * that no element backs; up to this many are written for free, so such an array stays
+ * sparse wherever it goes.
+ *
+ * Small, because it is free per ARRAY, and a value or a file can hold many arrays. Measured
+ * on a cell of `Matrix(0,N)` literals pasted into a binary dictionary and saved: with a
+ * million free columns, 25 of them (1.4 KB of text) took 15 s and 7.3 GB, and 50 ran the
+ * process out of memory. With 256, 10000 of them (480 KB) take 1.5 s and 1 GB, against
+ * 0.2 s and 260 MB for the same cell at 5 columns: the free columns cost a few times what
+ * the arrays already cost, and no more.
+ */
+export declare const UNBACKED_COLUMNS_ALLOWED = 256;
 /** The columns `s` is backed for: what its source recorded, or one per entry it holds. */
 export declare function backedColumnsOf(s: SparseData): number;
 /**
