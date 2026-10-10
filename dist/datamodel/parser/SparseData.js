@@ -41,6 +41,10 @@ export function cloneSparse(s) {
     }
     return copy;
 }
+/** The columns `s` is backed for: what its source recorded, or one per entry it holds. */
+export function backedColumnsOf(s) {
+    return s.backedColumns ?? s.row.length;
+}
 /**
  * Why a sparse array's declared columns are more than what it was read from backs
  * (SparseData.backedColumns), or null when they are not — the reason a reader reports the
@@ -118,9 +122,10 @@ export function setSparseEntry(s, k, x) {
  *
  * It costs what the list holds, whatever its dims declare: the elements present are visited
  * once and the non-zeros sorted into column-major order. A `Matrix(1000000,1000000)` literal
- * holding one element visited all 1e12 cells of its declared shape. The columns the list
- * backs (SparseData.backedColumns) are all of them when it holds every element, and
- * otherwise no more than the elements it holds.
+ * holding one element visited all 1e12 cells of its declared shape. The list backs one
+ * column per element it holds, and no more than the array declares
+ * (SparseData.backedColumns): a complete list of rows x cols elements backs every column
+ * except when it has no rows, and then it backs none.
  */
 export function sparseFromDense(rowMajor, dims, complex) {
     const rows = Math.max(0, dims[0] || 0);
@@ -141,7 +146,7 @@ export function sparseFromDense(rowMajor, dims, complex) {
         col: Int32Array.from(kept, (e) => e[1]),
         re: Float64Array.from(kept, (e) => e[2]),
         im: complex ? Float64Array.from(kept, (e) => e[3]) : null,
-        backedColumns: rowMajor.length >= rows * cols ? cols : Math.min(cols, rowMajor.length),
+        backedColumns: Math.min(cols, rowMajor.length),
     };
 }
 /**

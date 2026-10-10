@@ -15,11 +15,14 @@ export declare class MatWriteError extends Error {
  * could be written takes none.
  *
  * The column index is the one part of the stream that grows with the array's declared
- * shape: cols + 1 words. One read from a file whose column index held fewer columns than
- * its dims declare (SparseData.backedColumns) has a damaged dims word, and writing it would
- * take what no byte of the file ever held — `new Array(2^31)` for one corrupted cols word
- * of a 3 KB hex value, a fatal out-of-memory no caller could catch. And no stream holds a
- * column index past what its uint32 size word can say. A value MATLAB wrote is neither.
+ * shape: cols + 1 words, whatever the rows. So the columns have to be backed by what the
+ * array came from (SparseData.backedColumns): a file's own column index, or a dense list's
+ * elements, one column apiece — never the declared count alone. One read from a file whose
+ * index held fewer columns than its dims declare has a damaged dims word (`new Array(2^31)`
+ * for one corrupted cols word of a 3 KB hex value, a fatal out-of-memory no caller could
+ * catch), and `Matrix(0,134217728)\n[]`, credited its header's columns, was a 512 MB index
+ * from 52 characters. And no stream holds a column index past what its uint32 size word
+ * can say. A value MATLAB wrote is none of these.
  */
 export declare function sparseWriteRefusal(v: Pick<MatVariable, 'undecoded' | 'dimensions' | 'className' | 'isLogical' | 'sparse' | 'value'>): string | null;
 /** The bytes of one complete `miMATRIX` element: tag, then the matrix body. */

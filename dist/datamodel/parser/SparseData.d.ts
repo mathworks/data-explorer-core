@@ -13,13 +13,15 @@
  * row is still that entry's row — until the array is written, which keeps only the
  * non-zeros, or read again.
  *
- * `backedColumns`, when a reader sets it, is how many columns what it read from backs: the
- * column starts its file's column index (jc) held, or the columns a dense list's elements
- * fill. A writer writes every column's start, so an array whose dims declare more columns
- * than that has a damaged dims word — one corrupted byte of a hex value makes 2 columns
- * 2^31-1 — and writing it would cost what no byte of the file ever held. MatWriter refuses
- * one (sparseWriteRefusal), and the node layer offers it no editor. Absent, as on a value a
- * host builds, nothing is known and nothing is refused for it.
+ * `backedColumns` is how many columns what the array was read from backs: the column
+ * starts its file's column index (jc) held, or, for a source with no index — a dense list,
+ * this package's `sparse` literal — one column per element it holds. Never the dims alone:
+ * a writer writes every column's start whatever the rows, so `Matrix(0,134217728)\n[]`,
+ * credited the columns its header declared, was a 512 MB index from 52 characters, and a
+ * dims word one corrupted byte turned from 2 columns to 2^31-1 was 8 GB. MatWriter refuses
+ * an array that declares more columns than are backed (sparseWriteRefusal), and the node
+ * layer offers it no editor. Absent, as on non-zeros a host builds itself, only the
+ * entries back columns, one apiece (backedColumnsOf); a host that knows better says so here.
  */
 export interface SparseData {
     row: Int32Array;
@@ -40,6 +42,8 @@ export declare const MAX_DENSE_ELEMENTS = 1000000;
 export declare function emptySparse(complex: boolean, backedColumns?: number): SparseData;
 /** An independent copy: an edit to one is not an edit to the other. */
 export declare function cloneSparse(s: SparseData): SparseData;
+/** The columns `s` is backed for: what its source recorded, or one per entry it holds. */
+export declare function backedColumnsOf(s: SparseData): number;
 /**
  * Why a sparse array's declared columns are more than what it was read from backs
  * (SparseData.backedColumns), or null when they are not — the reason a reader reports the
@@ -68,9 +72,10 @@ export declare function setSparseEntry(s: SparseData, k: number, x: unknown): vo
  *
  * It costs what the list holds, whatever its dims declare: the elements present are visited
  * once and the non-zeros sorted into column-major order. A `Matrix(1000000,1000000)` literal
- * holding one element visited all 1e12 cells of its declared shape. The columns the list
- * backs (SparseData.backedColumns) are all of them when it holds every element, and
- * otherwise no more than the elements it holds.
+ * holding one element visited all 1e12 cells of its declared shape. The list backs one
+ * column per element it holds, and no more than the array declares
+ * (SparseData.backedColumns): a complete list of rows x cols elements backs every column
+ * except when it has no rows, and then it backs none.
  */
 export declare function sparseFromDense(rowMajor: unknown[], dims: number[], complex: boolean): SparseData;
 /**

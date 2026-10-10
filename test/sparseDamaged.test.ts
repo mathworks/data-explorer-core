@@ -234,3 +234,123 @@ describe('a sparse MCOS property of a class nothing writes sparse shows what its
     expect(hex([...uudecode(copied._value)])).toContain(hex(INT8));
   });
 });
+
+describe('no rows, no columns or nothing: what backs the columns is what is there, never the dims', () => {
+  // A column index is cols + 1 words whatever the rows, so a 0x134217728 sparse array is a
+  // 512 MB index. In a file MATLAB wrote, the file holds that index (SparseData.backedColumns
+  // counts what its jc held). A source with no index — this package's own `sparse` literal,
+  // a host's dense list — backs a column only with an element: `Matrix(0,134217728)\n[]`,
+  // 52 characters, was credited every column its header declared, and pasted into a binary
+  // dictionary and saved it ran the process out of memory (7.1 GB, 18.6 s, fatal).
+  const BIG = 134217728;
+  const FORMS: { label: string; dims: number[]; jc: number[]; held: boolean }[] = [
+    // `held`: whether a file's own index for it, as MATLAB writes one, is this jc.
+    { label: '0x134217728', dims: [0, BIG], jc: [0], held: false },
+    { label: '0x5', dims: [0, 5], jc: [0, 0, 0, 0, 0, 0], held: true },
+    { label: '5x0', dims: [5, 0], jc: [0], held: true },
+    { label: '0x0', dims: [0, 0], jc: [0], held: true },
+  ];
+  const literalOf = (d: number[]) => ({ _type: 'sparse', _value: `Matrix(${d[0]},${d[1]})\n[]` });
+  // A source of no bytes backs no column; cols 0 needs none.
+  const backedWithoutBytes = (d: number[]) => d[1] === 0;
+  let seq = 0;
+  const uuid = () => `00000000-0000-4000-e400-${String(++seq).padStart(12, '0')}`;
+
+  /** `value` pasted into a fresh dictionary of `file` and saved: the time each took, and the size written. */
+  function pasteAndSave(file: string, value: unknown): { node: any; ms: number; size: number; saved: string } {
+    const session = createSession();
+    const root: any = ingest(session, buffer(fixture(file)), { filename: file });
+    const [node, pasteMs] = timed((): any => root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: uuid() }, value }));
+    const [out, saveMs] = timed(() => session.serializeSource(root.name)!);
+    const saved = out.kind === 'text' ? out.text! : strFromU8(unzipSync(out.bytes!)['data/chunk0.xml']);
+    return { node, ms: pasteMs + saveMs, size: saved.length, saved };
+  }
+  const expectSmallAndSound = (r: { ms: number; size: number; saved: string }, label: string) => {
+    expect(r.ms, `${label} time`).toBeLessThan(2000);
+    expect(r.size, `${label} size`).toBeLessThan(1_000_000);
+    expect(r.saved, label).not.toContain('Class="sparse"');
+  };
+
+  it('a host\'s own non-zeros back a column apiece, unless it says how many columns back them', () => {
+    const host = (cols: number, extra: Record<string, unknown> = {}) => ({
+      name: '', className: 'double', dimensions: [1, cols], isComplex: false, isLogical: false, isSparse: true, value: '<summary>', fields: null,
+      sparse: { row: Int32Array.from([0]), col: Int32Array.from([0]), re: Float64Array.from([5]), im: null, ...extra },
+    });
+    expect(() => encodeMatStream(host(1))).not.toThrow();
+    expect(() => encodeMatStream(host(1000000))).toThrow(MatWriteError);
+    expect(() => encodeMatStream(host(1000000, { backedColumns: 1000000 }))).not.toThrow();
+    // And a dense list handed to the writer itself: with no rows, it backs no column.
+    const dense = (d: number[]) => ({ name: '', className: 'double', dimensions: d, isComplex: false, isLogical: false, isSparse: true, value: [], fields: null });
+    const [, ms] = timed(() => expect(() => encodeMatStream(dense([0, BIG]))).toThrow(MatWriteError));
+    expect(ms).toBeLessThan(1000);
+    expect(() => encodeMatStream(dense([5, 0]))).not.toThrow();
+  });
+
+  for (const f of FORMS) {
+    it(`${f.label}, as this package's sparse literal: opened, saved and pasted into either dictionary at once`, () => {
+      const literal = literalOf(f.dims);
+      for (const file of ['sparse_text.sldd', 'sparse_binary.sldd']) {
+        const r = pasteAndSave(file, literal);
+        expect([r.node.displayValue, r.node.isSparse, r.node.children.length], `${file}`).toEqual([`<${f.dims.join('x')} sparse double>`, true, 0]);
+        expectSmallAndSound(r, `${f.label} into ${file}`);
+      }
+      // In a text dictionary, untouched, it is the literal it was read as.
+      const text = pasteAndSave('sparse_text.sldd', literal);
+      expect(JSON.parse(text.saved).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'pasted').value).toEqual(literal);
+      // What would write it as a stream refuses it, unless it has no columns to back.
+      if (backedWithoutBytes(f.dims)) {
+        expect(() => encodeMatStream(text.node._var)).not.toThrow();
+      } else {
+        expect(() => encodeMatStream(text.node._var)).toThrow(MatWriteError);
+      }
+    });
+
+    it(`${f.label}, as a host's dense variable: read, copied and pasted into either dictionary at once`, () => {
+      const mat: any = createSession().addMatSourceParsed('h.mat', {
+        header: '',
+        variables: [{ name: 'h', className: 'double', dimensions: f.dims.slice(), isComplex: false, isLogical: false, isSparse: true, value: [], fields: null }],
+        warnings: [],
+      });
+      const h = mat.children[0];
+      expect([h.displayValue, h.children.length]).toEqual([`<${f.dims.join('x')} sparse double>`, 0]);
+      const [copied, ms] = timed(() => JSON.parse(JSON.stringify(h.serializeValue())));
+      expect(ms).toBeLessThan(2000);
+      for (const file of ['sparse_text.sldd', 'sparse_binary.sldd']) {
+        expectSmallAndSound(pasteAndSave(file, copied), `${f.label} host into ${file}`);
+      }
+      if (backedWithoutBytes(f.dims)) {
+        expect(() => encodeMatStream(h._var)).not.toThrow();
+      } else {
+        expect(() => encodeMatStream(h._var)).toThrow(MatWriteError);
+      }
+    });
+
+    it(`${f.label}, read from MAT bytes in a .mat and as a binary dictionary's hex: opened, saved and copied at once`, () => {
+      const element = sparseVar({ name: 'm', dimensions: f.dims, ir: [], jc: f.jc, real: [], nzmax: 1, sparseFlag: true });
+      // The .mat: copied into either dictionary as the element it was read from.
+      const mat: any = createSession().addMatSource('m.mat', matFile([element]));
+      const m = mat.children[0];
+      expect([m.displayValue, m.children.length]).toEqual([`<${f.dims.join('x')} sparse double>`, 0]);
+      const [copied, ms] = timed(() => JSON.parse(JSON.stringify(m.serializeValue())));
+      expect(ms).toBeLessThan(2000);
+      expect([...uudecode(copied._value).slice(0, matStreamOfElement(element)!.length)]).toEqual([...matStreamOfElement(element)!]);
+      for (const file of ['sparse_text.sldd', 'sparse_binary.sldd']) {
+        expectSmallAndSound(pasteAndSave(file, copied), `${f.label} .mat into ${file}`);
+      }
+      // Its index held its columns, or it did not, and the writer says which.
+      if (f.held) {
+        expect(() => encodeMatStream(m._var)).not.toThrow();
+      } else {
+        expect(() => encodeMatStream(m._var)).toThrow(MatWriteError);
+      }
+      // A binary dictionary's hex of the same stream: replayed byte for byte on save.
+      const stream = matStreamOfElement(element)!;
+      const hexText = '\n' + hex([...stream]).replace(/(.{128})/g, '$1\n').replace(/\n$/, '');
+      const encoded = { _type: 'encoded', _attrs: { Class: 'double', Encoding: 'hex', EncodedLength: String(stream.length) }, _value: hexText };
+      const r = pasteAndSave('sparse_binary.sldd', encoded);
+      expect([r.node.displayValue, r.node.children.length]).toEqual([`<${f.dims.join('x')} sparse double>`, 0]);
+      expectSmallAndSound(r, `${f.label} hex`);
+      expect(r.saved.replace(/\s+/g, '')).toContain(hex([...stream]));
+    });
+  }
+});

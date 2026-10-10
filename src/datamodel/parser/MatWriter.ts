@@ -48,7 +48,7 @@ import {
 } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
-import { sparseFromDense } from './SparseData.js';
+import { backedColumnsOf, sparseFromDense } from './SparseData.js';
 
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
@@ -525,11 +525,14 @@ function encodeSparse(v: MatVariable): Uint8Array {
  * could be written takes none.
  *
  * The column index is the one part of the stream that grows with the array's declared
- * shape: cols + 1 words. One read from a file whose column index held fewer columns than
- * its dims declare (SparseData.backedColumns) has a damaged dims word, and writing it would
- * take what no byte of the file ever held — `new Array(2^31)` for one corrupted cols word
- * of a 3 KB hex value, a fatal out-of-memory no caller could catch. And no stream holds a
- * column index past what its uint32 size word can say. A value MATLAB wrote is neither.
+ * shape: cols + 1 words, whatever the rows. So the columns have to be backed by what the
+ * array came from (SparseData.backedColumns): a file's own column index, or a dense list's
+ * elements, one column apiece — never the declared count alone. One read from a file whose
+ * index held fewer columns than its dims declare has a damaged dims word (`new Array(2^31)`
+ * for one corrupted cols word of a 3 KB hex value, a fatal out-of-memory no caller could
+ * catch), and `Matrix(0,134217728)\n[]`, credited its header's columns, was a 512 MB index
+ * from 52 characters. And no stream holds a column index past what its uint32 size word
+ * can say. A value MATLAB wrote is none of these.
  */
 export function sparseWriteRefusal(
   v: Pick<MatVariable, 'undecoded' | 'dimensions' | 'className' | 'isLogical' | 'sparse' | 'value'>,
@@ -546,16 +549,20 @@ export function sparseWriteRefusal(
     return 'no sparse MAT class for "' + v.className + '"';
   }
   const [rows, cols] = d;
+  // What backs the columns: the source's own index, or its elements, one column apiece —
+  // never the declared count, which is one word of the file (SparseData.backedColumns).
+  let backed: number;
   if (v.sparse) {
-    const backed = v.sparse.backedColumns;
-    if (backed !== undefined && backed < cols) {
-      return 'a sparse array declaring ' + cols + ' columns was read from a column index of ' + backed + ', and its own would be words no byte of it held';
-    }
+    backed = backedColumnsOf(v.sparse);
   } else {
     const n = flatValues(v.value).length;
     if (n !== rows * cols) {
       return 'sparse value has ' + n + ' elements but declares [' + d.join(',') + ']';
     }
+    backed = Math.min(cols, n);
+  }
+  if (backed < cols) {
+    return 'a sparse array declaring ' + cols + ' columns is backed for ' + backed + ', and its column index would be words no byte of its source held';
   }
   if (4 * (cols + 1) > 0xffffffff) {
     return 'a sparse array of ' + cols + ' columns has a column index no MAT stream can hold';
