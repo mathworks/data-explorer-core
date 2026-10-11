@@ -116,8 +116,12 @@ const REFUSED = new Map<string, string>([
 // is held as its non-zeros now, at any size, so both are in the sweep below like every
 // other file, and a warning from either fails it.
 
+// The first sweep below parses every model and .mat fixture in the repo: 0.6 s here, and 2 s
+// with the machine loaded; give it headroom past vitest's 5 s default on CI's runners.
+const CORPUS_TIMEOUT = 60_000;
+
 describe('the whole fixture corpus parses with no warnings at all', () => {
-  it('reports nothing for any real .slx, .mdl or .mat in the repo', () => {
+  it('reports nothing for any real .slx, .mdl or .mat in the repo', { timeout: CORPUS_TIMEOUT }, () => {
     // THE guard for this item. Every file swept here was written by MATLAB (or, for
     // the synthesized few, written to be a complete file), spanning R2011b to R2027a
     // and every part layout in between — so a warning from any of them is a reader
