@@ -153,3 +153,15 @@ describe('past the budget, a paste, a copy and a save fail, and nothing is writt
     ]);
   });
 });
+
+describe('what a refused write throws is the package\'s own, exported', () => {
+  it('a save past the budget throws the MatBudgetError the package entry point exports, a MatWriteError too', async () => {
+    const index = await import('../src/index.js');
+    const d = open(BINARY);
+    paste(d, literals(16385), BINARY);
+    const [thrown] = thrownBy(() => d.session.serializeSource(d.root.name));
+    expect([thrown instanceof index.MatBudgetError, thrown instanceof index.MatWriteError]).toEqual([true, true]);
+    const e = thrown as InstanceType<typeof index.MatBudgetError>;
+    expect([e.entry, e.at, e.what, e.counted]).toEqual(['pasted', 'pasted{16385}', COLUMNS_0x256, true]);
+  });
+});

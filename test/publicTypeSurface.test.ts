@@ -408,6 +408,41 @@ describe('a consumer can name what a parser returned', () => {
     ).toEqual([]);
   });
 
+  it('names what a refused write throws, and its fields', { timeout: COMPILE_TIMEOUT }, () => {
+    // A save, a copy or a paste of a value past the unbacked-bytes budget fails closed
+    // (MatWriter.MatBudgetError); a host shows the refusal rather than failing on it, so it
+    // has to tell one from any other throw, and reach the entry and the path.
+    expect(
+      diagnose(`
+        import { createSession, MatWriteError, MatBudgetError } from '../src/index.js';
+
+        function explain(e: unknown): string {
+          if (e instanceof MatBudgetError) {
+            const entry: string | undefined = e.entry;
+            const at: string = e.at;
+            const what: string = e.what;
+            const counted: boolean = e.counted;
+            return (entry ?? '') + at + what + String(counted) + e.message;
+          }
+          if (e instanceof MatWriteError) {
+            return e.message;
+          }
+          return '';
+        }
+
+        const session = createSession();
+        let said = '';
+        try {
+          session.serializeSource('x.sldd');
+        } catch (e) {
+          said = explain(e);
+        }
+        const refusal: MatWriteError = new MatBudgetError('m', '{1}', 'a cell');
+        export const out = said + explain(refusal);
+      `),
+    ).toEqual([]);
+  });
+
   it('reports an unexported name, so an empty diagnostic list means something', { timeout: COMPILE_TIMEOUT }, () => {
     // The negative control. Without it, a harness that silently resolved nothing
     // would pass the test above no matter what the entry point exports.
