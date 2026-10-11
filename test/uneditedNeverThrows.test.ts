@@ -36,7 +36,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
-import { uudecode, uuencode } from '../src/datamodel/parser/CdataCodec.js';
+import { isMatCdata, uudecode, uuencode } from '../src/datamodel/parser/CdataCodec.js';
 import { CLASS, MI, arrayFlags, cellVar, dims, element, matFile, matrix, sparseVar, varName } from './tools/matBytes.js';
 import { BINARY, TEXT, copyOf, pasteSaveReopen, sparseFixture, thrownBy } from './tools/pasteVenues.js';
 
@@ -126,6 +126,52 @@ describe('an entry nobody has edited: what each writer does', () => {
     const files = [...slddUnder(join(ROOT, 'fixtures')), ...slddUnder(join(ROOT, 'parity', 'artifacts'))];
     expect(files.length).toBeGreaterThanOrEqual(40);
     expect(files.flatMap((f) => throwersIn(f.slice(ROOT.length), new Uint8Array(readFileSync(f))))).toEqual([]);
+  });
+
+  it('a text dictionary\'s complex text no MAT stream can say, as v1.36.0 wrote it: a save writes it back as read, as read, renamed, and beside an edit', () => {
+    // v1.36.0 wrote a complex value into a text dictionary as its plain text, and the empty of
+    // one past an int32 (or of a size that is no count) has no stream to be instead. Read from
+    // the file and not edited, it is the file's own: a refusal of it failed the whole save.
+    for (const d of [[0, 2147483648], [0, 2.5]]) {
+      const cx = { _type: 'cdata', _value: '', _dimensions: d };
+      const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+      const parameter = JSON.parse(JSON.stringify(entriesOf(json).find((e: any) => e.name === 'pDense')));
+      parameter.value._elements[0]._properties.Value = cx;
+      const added: [string, unknown][] = [
+        ['cxPast', cx],
+        ['pCxPast', parameter.value],
+        ['cellCxPast', { _array_type: 'Cell', _dimensions: [1, 2], _elements: [1, cx], _mw_element_type: 'MATLABArray' }],
+        ['stCxPast', { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: cx, g: 2 }], _fields: ['f', 'g'] }],
+      ];
+      added.forEach(([name, value], i) => entriesOf(json).push({ ...parameter, name, metadata: { ...parameter.metadata, uuid: `00000000-0000-4000-ed00-${String(i + 1).padStart(12, '0')}` }, value }));
+      // As this package writes a text dictionary, so that a save of it as read is these bytes.
+      const file = JSON.stringify(json, null, '\t');
+      const save = (change: (design: any) => void) => {
+        const session = createSession();
+        const root: any = ingest(session, buffer(strToU8(file)), { filename: TEXT });
+        change(root.getSection('design'));
+        const [thrown] = thrownBy(() => session.serializeSource(root.name));
+        return thrown ? `${thrown.name}: ${thrown.message}` : session.serializeSource(root.name)!.text!;
+      };
+      expect(save(() => {}), JSON.stringify(d)).toBe(file);
+      const values = (text: string) => entriesOf(JSON.parse(text)).filter((e: any) => /cxPast/i.test(e.name)).map((e: any) => [e.name, JSON.stringify(e.value, null, '\t')]);
+      const asRead = added.map(([name, value]) => [name, JSON.stringify(value, null, '\t')]);
+      const renamed = save((design) => design.children.filter((e: any) => /cxPast/i.test(e.name)).forEach((e: any) => e.setProperty('Name', e.name + '_r')));
+      expect(values(renamed), JSON.stringify(d)).toEqual(asRead.map(([name, value]) => [name + '_r', value]));
+      const beside = save((design) => design.children.find((e: any) => e.name === 'dRow').children[1].setProperty('Value', '9'));
+      expect([values(beside), entriesOf(JSON.parse(beside)).find((e: any) => e.name === 'dRow').value], JSON.stringify(d)).toEqual([asRead, [0, 9, 0, 4, 0]]);
+      // The Parameter edited, its Value not: the Value is still the file's.
+      const described = save((design) => design.children.find((e: any) => e.name === 'pCxPast').setProperty('Description', 'edited'));
+      const p = entriesOf(JSON.parse(described)).find((e: any) => e.name === 'pCxPast').value._elements[0]._properties;
+      expect([p.Description, p.Value], JSON.stringify(d)).toEqual(['edited', cx]);
+    }
+    // Within an int32 it has a stream, and a save writes that, as it does any complex text.
+    const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+    entriesOf(json).push({ name: 'cxSayable', metadata: { uuid: '00000000-0000-4000-ed00-000000000009' }, value: { _type: 'cdata', _value: '', _dimensions: [0, 5] } });
+    const session = createSession();
+    const root: any = ingest(session, buffer(strToU8(JSON.stringify(json, null, '\t'))), { filename: TEXT });
+    const saved = entriesOf(JSON.parse(session.serializeSource(root.name)!.text!)).find((e: any) => e.name === 'cxSayable').value;
+    expect([saved._type, isMatCdata(saved)]).toEqual(['cdata', true]);
   });
 
   it('damaged values read from a file, a binary dictionary\'s hex and a text one\'s cdata declaring 2^31-1 columns: no writer throws', () => {

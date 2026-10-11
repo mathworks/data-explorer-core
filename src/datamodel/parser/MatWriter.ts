@@ -1108,6 +1108,47 @@ export function complexTextVariable(raw: unknown): MatVariable | null {
 }
 
 /**
+ * A text dictionary's own complex text, by identity: what its reader found there
+ * (heldByTextDictionary), which v1.36.0 wrote for a complex value. textDictionaryForm turns it
+ * into the stream MATLAB writes there, as it does any complex text, but one with no stream to
+ * be instead — an extent past an int32, a size that is no count — it leaves as read, being
+ * what the file already holds: refused, it failed the save of every entry in the file. The
+ * same text pasted in out of a binary dictionary is not one of these, and is refused.
+ */
+const textDictionaryOwn = new WeakSet<object>();
+
+/**
+ * Records every complex text in `value`, a value as the text dictionary being read holds it.
+ * Every entry is walked, so the walk allocates nothing and steps over every primitive: 15 ms
+ * of the 420 ms a 138 MB dictionary of 140,000 entries takes to read.
+ */
+export function heldByTextDictionary(value: unknown): void {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const e = value[i];
+      if (e !== null && typeof e === 'object') {
+        heldByTextDictionary(e);
+      }
+    }
+    return;
+  }
+  if (value === null || typeof value !== 'object') {
+    return;
+  }
+  const o = value as Record<string, unknown>;
+  if (o._type === 'cdata') {
+    textDictionaryOwn.add(o);
+    return;
+  }
+  for (const k in o) {
+    const v = o[k];
+    if (v !== null && typeof v === 'object') {
+      heldByTextDictionary(v);
+    }
+  }
+}
+
+/**
  * A value as an uncompressed-text dictionary must hold it: every complex value in its
  * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there, a
  * binary dictionary's dense empty too, and everything else as it was. A copy wherever
@@ -1170,8 +1211,9 @@ export function textDictionaryForm(x: unknown, at = ''): unknown {
     } catch (e) {
       // A refusal for what the value declares is final, here as anywhere: the complex text
       // left as it stands is what MATLAB reads back out of a text dictionary as an empty
-      // double. Said where it stands in the value, for the node that owns it to name.
-      if (e instanceof MatBudgetError) {
+      // double. Said where it stands in the value, for the node that owns it to name. But
+      // not of the text the file being written was read with, which is that file's own.
+      if (e instanceof MatBudgetError && !textDictionaryOwn.has(o)) {
         throw new MatBudgetError(e.message, at + e.at, e.what, undefined, e.reason);
       }
       return o;
