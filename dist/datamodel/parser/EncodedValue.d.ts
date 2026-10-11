@@ -66,6 +66,10 @@ export type EncodedBytes = {
 export declare function encodedBytes(v: EncodedValue): EncodedBytes;
 /** Record why an encoded value did not decode (see `decodeFailures`). */
 export declare function recordDecodeFailure(reason: string): void;
+/** Record a value read as damaged: what it is and what it declares, in words. */
+export declare function recordDamagedValue(what: string): void;
+/** The damaged values recorded since the last call, which clears them. */
+export declare function takeDamagedValues(): string[];
 /** The decode failures recorded since the last call, which clears them. */
 export declare function takeDecodeFailures(): string[];
 /**

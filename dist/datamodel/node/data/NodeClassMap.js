@@ -3,6 +3,7 @@ import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from './mcosTypedNode.js';
 import { isEncodedValue } from '../../parser/EncodedValue.js';
+import { dimsText, isSize } from '../../parser/Size.js';
 import ConstantNode from './ConstantNode.js';
 import StructNode from './StructNode.js';
 import ObjectNode from './ObjectNode.js';
@@ -80,6 +81,24 @@ const CLASS_MAP = {
 function asObject(val) {
     return val !== null && typeof val === 'object' ? val : null;
 }
+/**
+ * What in `o` declares dims that are not a size, in words — its `_dimensions`, or a
+ * `Matrix(…)` header of digit runs one of which no int32 dims word can say — or null.
+ * A header that is not digit runs at all is not a header parseMatrixValue reads, and is
+ * left to it.
+ */
+function notASizeIn(o) {
+    if (o._dimensions !== undefined && !isSize(o._dimensions)) {
+        return 'dimensions ' + dimsText(o._dimensions);
+    }
+    if (typeof o._type === 'string' && typeof o._value === 'string') {
+        const header = /^Matrix\((\d+(?:,\d+)*)\)/.exec(o._value);
+        if (header && !isSize(header[1].split(',').map(Number))) {
+            return 'a Matrix(' + header[1] + ') header';
+        }
+    }
+    return null;
+}
 // ORDER IS SIGNIFICANT: parseValue takes the FIRST match, so the specific shapes
 // (a cellstr, the tagged `_array_type`/`_object_class` forms, a Matrix payload)
 // must precede the broad `Array.isArray` / primitive catch-alls below them.
@@ -104,6 +123,14 @@ export function parseValue(rawVal, name, parent) {
         return MatlabVariableNode.parseEncoded(rawVal, name, parent);
     }
     const obj = asObject(rawVal);
+    // Dims that are not a size (parser/Size) — a hand-made `_dimensions: [1, "x"]`, a
+    // `Matrix(…)` header past what an int32 dims word says — make a value no shape here
+    // can lay out and no writer can count. Ahead of every shape test, so that none of them
+    // carries them into the model: the value is read as damaged.
+    const notASize = obj ? notASizeIn(obj) : null;
+    if (notASize) {
+        return MatlabVariableNode.parseDamaged(obj, name, parent, notASize);
+    }
     // An MCOS object whose class the subsystem does not name (McosParser.buildObjectValue
     // answers `_object_class: ''`): the chain's `_object_class` test is falsy for it, and
     // the primitive catch-all then printed the bag itself, `[object Object]` — measured

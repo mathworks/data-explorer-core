@@ -46,6 +46,7 @@
 import { unzipEntries } from './Inflate.js';
 import { readDictionaryXml } from './XmlReader.js';
 import { reasonOf, type ParseWarning } from './ParseWarning.js';
+import { isSize } from './Size.js';
 import type { SystemComposerCatalog } from './ScCatalog.js';
 import { SC_PART_XML, catalogFromDefinitions, scanScXml } from './ScCatalog.js';
 import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
@@ -116,7 +117,8 @@ export function parseDims(dimension: string): number[] {
     return [1, 1];
   }
   const parts = dimension.split('*').map(Number);
-  if (parts.some((n) => !Number.isFinite(n) || n < 0)) {
+  // Not a size (parser/Size): a fraction, or past an int32 dims word, as much as NaN.
+  if (!isSize(parts)) {
     return [1, 1];
   }
   if (parts.length === 1) {
