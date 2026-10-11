@@ -84,8 +84,15 @@ export declare function setSparseEntry(s: SparseData, k: number, x: unknown): vo
  */
 export declare function sparseFromDense(rowMajor: unknown[], dims: number[], complex: boolean): SparseData;
 /**
+ * The first of `s`'s non-zeros that is not at a whole row and column, or -1. A host's need
+ * not be Int32Arrays: a row of 0.5, or one that is no number, is at no element.
+ */
+export declare function sparseIndexFault(s: SparseData): number;
+/**
  * Every element, row-major, as the node layer holds a full array's: a number, or for a
  * complex array complexElement's text (`0+0i` for a zero). Null past MAX_DENSE_ELEMENTS.
+ * Refused for a non-zero at no element (sparseIndexFault), which the list would drop and
+ * leave a zero where it was.
  */
 export declare function sparseToDense(s: SparseData, dims: number[]): (number | string)[] | null;
 //# sourceMappingURL=SparseData.d.ts.map

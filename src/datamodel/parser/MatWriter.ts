@@ -48,7 +48,7 @@ import {
 } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
-import { backedColumnsOf, sparseFromDense } from './SparseData.js';
+import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
 import { dimsText, isSize, MAT_MAX_EXTENT } from './Size.js';
 
 /**
@@ -691,15 +691,25 @@ const SPARSE_FLAG = 0x10;
  * something else, or, for the columns, one that would cost what no byte of the file held.
  */
 function encodeSparse(v: MatVariable, budget: UnbackedBudget): Uint8Array {
-  // What no writer could write, then what the budget will not cover — a refusal of its own,
-  // and final — and then what no stream could hold: an index of 2^30 columns no byte backs
-  // is past the budget long before it is past a size word.
+  const d = dimsOf(v);
+  const logical = !!v.isLogical || v.className === 'logical';
+  // A non-zero at no row and column first, whatever the shape: every other spelling of the
+  // array — its full form, a dense list — drops the non-zero it cannot place and writes a
+  // zero where it was, so the refusal is final. Asked after the shape, it let an int8 or an
+  // N-D one through to the full form its caller writes (_sparseFallback), which dropped it.
+  const fault = v.sparse ? sparseIndexFault(v.sparse) : -1;
+  if (v.sparse && fault >= 0) {
+    const at = budget.at.join('');
+    const what = 'a ' + sizeOf(d) + ' sparse ' + (logical ? 'logical' : v.className) + ' whose non-zero ' + (fault + 1) + ' is at (' + String(v.sparse.row[fault]) + ', ' + String(v.sparse.col[fault]) + ')';
+    throw new MatBudgetError((at || 'the value') + ', ' + what + ', which is not a row and a column', at, what, undefined, 'not-an-index');
+  }
+  // Then what no writer could write, then what the budget will not cover — a refusal of its
+  // own, and final — and then what no stream could hold: an index of 2^30 columns no byte
+  // backs is past the budget long before it is past a size word.
   const refusal = sparseShapeRefusal(v);
   if (refusal) {
     throw new MatWriteError(refusal);
   }
-  const d = dimsOf(v);
-  const logical = !!v.isLogical || v.className === 'logical';
   const cls = logical || v.className === 'double' ? MX_SPARSE : CLASS_CODE.single;
   const payload = logical ? MI_UINT8 : v.className === 'double' ? MI_DOUBLE : MI_SINGLE;
   const complex = !!v.isComplex && !logical;
@@ -719,15 +729,6 @@ function encodeSparse(v: MatVariable, budget: UnbackedBudget): Uint8Array {
   for (let k = 0; k < s.row.length; k++) {
     const r = s.row[k];
     const c = s.col[k];
-    // A host's non-zeros need not be Int32Arrays: a row of 0.5, or one that is no number,
-    // would go into the int32 index as some other row.
-    if (!Number.isInteger(r) || !Number.isInteger(c)) {
-      // Final: every other spelling of the array — its full form, a dense list — drops
-      // the non-zero it cannot place, and writes zeros where it was.
-      const at = budget.at.join('');
-      const what = 'a ' + sizeOf(d) + ' sparse ' + (logical ? 'logical' : v.className) + ' whose non-zero ' + (k + 1) + ' is at (' + String(r) + ', ' + String(c) + ')';
-      throw new MatBudgetError((at || 'the value') + ', ' + what + ', which is not a row and a column', at, what, undefined, 'not-an-index');
-    }
     const ordered = k === 0 || c > s.col[k - 1] || (c === s.col[k - 1] && r > s.row[k - 1]);
     if (!(r >= 0 && r < rows && c >= 0 && c < cols) || !ordered) {
       throw new MatWriteError('a sparse array\'s non-zeros are out of order or outside [' + d.join(',') + '] at entry ' + k);

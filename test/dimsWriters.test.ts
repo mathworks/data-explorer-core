@@ -20,6 +20,7 @@ import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { encodeMatStream, MatBudgetError, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import { BINARY, TEXT, sparseFixture, thrownBy } from './tools/pasteVenues.js';
+import { sparseToDense } from '../src/datamodel/parser/SparseData.js';
 
 const buffer = (u8: Uint8Array) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
 const entriesOf = (json: any) => json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
@@ -225,6 +226,28 @@ describe('the writer\'s own refusals', () => {
     for (const write of [() => h.serialize(), () => h.serializeXml('P', { Name: 'Value' }, 2)]) {
       expect(thrownBy(write)[0]?.message).toBe(said);
     }
+  });
+
+  it('so is one of a shape or class MATLAB never stores sparse: not written full without that non-zero', () => {
+    // MatWriter has no sparse stream for an int8 or an N-D sparse array, so its caller writes
+    // it full (_sparseFallback), and the full form dropped the non-zero it could not place.
+    for (const [cls, dims] of [['int8', [3, 3]], ['double', [3, 3, 2]]] as const) {
+      const v = { ...sparse([0.5], [0]), className: cls, dimensions: [...dims] };
+      const what = `a ${dims.join('x')} sparse ${cls} whose non-zero 1 is at (0.5, 0)`;
+      const [thrown] = thrownBy(() => encodeMatStream(v as any));
+      expect([thrown instanceof MatBudgetError, (thrown as any)?.reason, (thrown as any)?.what], cls).toEqual([true, 'not-an-index', what]);
+      const h: any = createSession().addMatSourceParsed('h.mat', { header: '', warnings: [], variables: [{ ...v, name: 'h' }] as any }).children[0];
+      for (const write of [() => h.serialize(), () => h.serializeXml('P', { Name: 'Value' }, 2)]) {
+        expect(thrownBy(write)[0]?.message, cls).toBe(`Cannot write "h": h is ${what}, which is not a row and a column, and it has no spelling here without that non-zero. Nothing was written.`);
+      }
+      // At a row and a column, it is refused as before, for its caller to write full.
+      const [placed] = thrownBy(() => encodeMatStream({ ...v, sparse: { ...v.sparse, row: Int32Array.from([1]), col: Int32Array.from([0]) } } as any));
+      expect([placed instanceof MatWriteError, placed instanceof MatBudgetError], cls).toEqual([true, false]);
+    }
+    // And the full form itself places every non-zero or none.
+    const unplaced = { row: [0.5] as any, col: Int32Array.from([0]), re: Float64Array.from([5]), im: null };
+    expect(() => sparseToDense(unplaced, [3, 3])).toThrow('a sparse array\'s non-zero 1 is at (0.5, 0), which is not a row and a column');
+    expect(sparseToDense({ ...unplaced, row: Int32Array.from([1]) }, [3, 3])).toEqual([0, 0, 0, 5, 0, 0, 0, 0, 0]);
   });
 
   it('a sparse array whose dims are no size, or past an int32, has rows nothing could write an edit of', () => {

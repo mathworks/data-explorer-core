@@ -152,10 +152,28 @@ export function sparseFromDense(rowMajor, dims, complex) {
     };
 }
 /**
+ * The first of `s`'s non-zeros that is not at a whole row and column, or -1. A host's need
+ * not be Int32Arrays: a row of 0.5, or one that is no number, is at no element.
+ */
+export function sparseIndexFault(s) {
+    for (let k = 0; k < s.row.length; k++) {
+        if (!Number.isInteger(s.row[k]) || !Number.isInteger(s.col[k])) {
+            return k;
+        }
+    }
+    return -1;
+}
+/**
  * Every element, row-major, as the node layer holds a full array's: a number, or for a
  * complex array complexElement's text (`0+0i` for a zero). Null past MAX_DENSE_ELEMENTS.
+ * Refused for a non-zero at no element (sparseIndexFault), which the list would drop and
+ * leave a zero where it was.
  */
 export function sparseToDense(s, dims) {
+    const fault = sparseIndexFault(s);
+    if (fault >= 0) {
+        throw new RangeError('a sparse array\'s non-zero ' + (fault + 1) + ' is at (' + String(s.row[fault]) + ', ' + String(s.col[fault]) + '), which is not a row and a column');
+    }
     const rows = Math.max(0, dims[0] || 0);
     const cols = Math.max(0, dims[1] || 0);
     if (rows * cols > MAX_DENSE_ELEMENTS) {
