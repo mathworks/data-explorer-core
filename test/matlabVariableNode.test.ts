@@ -447,6 +447,20 @@ describe('MatlabVariableNode — complex values from cdata', () => {
     expect([n._kind, n._scalarType, n._scalarValue]).toEqual(['scalar', 'complex', '1.5-2i']);
   });
 
+  // A text dictionary's own non-finite complex text is held to XmlUtils.parseComplexNum,
+  // whose decimal was `\d+\.?\d*`: on text that is not an element that cost the cube of its
+  // length, and this value, 5,002 characters, took 7.0 s to read. Here it takes 0.9 ms over
+  // two full runs, so 1 s is past five times CI's time, at 3.3 times this machine's
+  // (fe238c7).
+  it('reads own non-finite text that is not an element at once, as the char it is', () => {
+    const half = '1'.repeat(2500);
+    const text = half + '+' + half + 'x';
+    const t0 = performance.now();
+    const n = parse({ _type: 'cdata', _value: text, _nonFinite: true });
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect([n._kind, n._scalarType, n._scalarValue]).toEqual(['scalar', 'char', text]);
+  });
+
   // MATLAB's preamble ahead of the element: two version bytes then 'IM'.
   const PREAMBLE = [0x00, 0x01, 0x49, 0x4d, 0x00, 0x00, 0x00, 0x00];
 

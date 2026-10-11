@@ -61,6 +61,20 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
     expect(usages).toEqual([]);
   });
 
+  // NUMERIC_RE's decimal was `\d+\.?\d*`, which with no dot splits a run of digits every way
+  // it can before it fails: a <P> of 50,000 digits and an `x` took 4.9 s, per value. Here it
+  // takes 11 ms over two full runs, so 1 s is past five times CI's time, at 3.3 times this
+  // machine's (fe238c7).
+  it('judges a long run of digits at once, as a number or as an expression', () => {
+    const digits = '1'.repeat(50_000);
+    const t0 = performance.now();
+    const usages = usagesFor(
+      `<Block BlockType="Gain" Name="G" SID="1"><P Name="Gain">${digits}x</P><P Name="Bias">${digits}</P></Block>`,
+    );
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(usages.map((u) => [u.paramProperty, u.paramValue.length])).toEqual([['Gain', 50_001]]);
+  });
+
   it('drops purely numeric param values (Gain=22.8)', () => {
     const usages = usagesFor(`<Block BlockType="Gain" Name="G" SID="1"><P Name="Gain">22.8</P></Block>`);
     expect(usages).toEqual([]);

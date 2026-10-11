@@ -78,7 +78,13 @@ export function formatComplexNum(re: unknown, im: unknown): string {
 // One part of a complex element: a decimal, `Inf`, or `NaN`, unsigned. `Infinity` too,
 // because that is what a plain .mat variable's elements say for an infinite part
 // (MatlabVariableNode._createFromMatNumeric writes String()).
-const COMPLEX_PART = '(?:Inf(?:inity)?|NaN|(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?)';
+//
+// A decimal is `\d+(?:\.\d*)?`, never `\d+\.?\d*`: the same numbers, but with no dot the
+// second is `\d+\d*`, which a backtracking engine splits every way it can before it gives
+// up. Twice over in one element that was cubic, and this runs on a file's own text (a text
+// dictionary's `_nonFinite` cdata, a binary one's in the Property Inspector): 5,000 digits,
+// `+`, 5,000 more and an `x` took 55 s. It takes 0.3 ms now, and a million digits 1.1 ms.
+const COMPLEX_PART = '(?:Inf(?:inity)?|NaN|(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)';
 // A whole element: the real part with an optional sign, then the imaginary part, which
 // has its own sign — except a NaN, which formatComplexNum and MATLAB's binary writer
 // both write with none (`1NaNi`).

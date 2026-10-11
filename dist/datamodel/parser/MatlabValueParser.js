@@ -57,8 +57,11 @@ function parseMatlabNumber(str) {
         }
         return nonFinite[1] === '-' ? -Infinity : Infinity;
     }
-    // Decimal integer/real with optional exponent — no hex, no separators.
-    if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(str)) {
+    // Decimal integer/real with optional exponent — no hex, no separators. `\d+(?:\.\d*)?`
+    // and not `\d+\.?\d*`, which says the same but, with no dot, splits a run of digits
+    // every way it can before failing: quadratic, 5.6 s for 100,000 digits and an `x`, where
+    // it is 0.2 ms now. The same in parseComplex, where two of them made it cubic.
+    if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(str)) {
         return null;
     }
     const n = parseExactNum(str);
@@ -164,14 +167,14 @@ function parseString(str) {
     return value === null ? null : { type: 'string', value };
 }
 function parseComplex(str) {
-    const m = str.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)([+-](?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)i$/);
+    const m = str.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)([+-](?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)i$/);
     if (m) {
         const re = parseFloat(m[1]);
         const im = parseFloat(m[2]);
         const formatted = im >= 0 ? re + '+' + im + 'i' : re + '' + im + 'i';
         return { type: 'complex', value: formatted };
     }
-    const mi = str.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)i$/);
+    const mi = str.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)i$/);
     if (mi) {
         const im = parseFloat(mi[1]);
         const formatted = '0' + (im >= 0 ? '+' + im + 'i' : '' + im + 'i');

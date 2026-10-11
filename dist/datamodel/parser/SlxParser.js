@@ -354,7 +354,10 @@ function legacyModelReferences(root) {
     }
     return out;
 }
-const NUMERIC_RE = /^-?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+// `\d+(?:\.\d*)?` and not `\d+\.?\d*`, the same numbers: with no dot the second is
+// `\d+\d*`, which a backtracking engine splits every way it can, so a <P> value of 100,000
+// digits and an `x` took 20 s, and takes 0.5 ms now.
+const NUMERIC_RE = /^-?(\d+(?:\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 // The MATLAB non-finite literals, in any case and with an optional sign. A
 // Saturation block's `UpperLimit=Inf` is a NUMBER, not a reference to a workspace
 // variable named Inf. This was a case-SENSITIVE comparison against the three
