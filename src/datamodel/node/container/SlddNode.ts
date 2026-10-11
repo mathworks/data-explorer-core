@@ -14,7 +14,7 @@ import type { ParseWarning } from '../../parser/ParseWarning.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 import { SC_PART } from '../../parser/ScCatalog.js';
 import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.js';
-import { takeDamagedValues, takeDecodeFailures } from '../../parser/EncodedValue.js';
+import { takeDecodeFailures } from '../../parser/EncodedValue.js';
 
 const SECTION_DEFS = [
     { key: 'design', label: 'Design Data', icon: 'databaseFolderDesign' },
@@ -199,21 +199,12 @@ export default class SlddNode extends ContainerNode {
                     // EncodedValue.recordDecodeFailure). Taken before too, so that nothing
                     // recorded outside this read is reported against this entry.
                     takeDecodeFailures();
-                    takeDamagedValues();
                     section.parseEntry(entry, node.systemComposer);
                     for (const reason of takeDecodeFailures()) {
                         warnings?.push({
                             code: 'part-unreadable',
                             message: `"${String(entry.name)}" holds a value stored encoded that could not be read, `
                                 + `because ${reason}; it is shown as not decoded and saved unchanged.`,
-                            part: String(entry.name),
-                        });
-                    }
-                    for (const what of takeDamagedValues()) {
-                        warnings?.push({
-                            code: 'part-unreadable',
-                            message: `"${String(entry.name)}" holds ${what}, which is not a size; `
-                                + 'it is shown as not decoded and saved as it was read.',
                             part: String(entry.name),
                         });
                     }

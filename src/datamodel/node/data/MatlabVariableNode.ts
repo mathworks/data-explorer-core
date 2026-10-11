@@ -29,11 +29,9 @@ import {
   hexValue,
   isEncodedValue,
   matStreamPrefix,
-  recordDamagedValue,
   recordDecodeFailure,
   type EncodedValue,
 } from '../../parser/EncodedValue.js';
-import { dimsText, isSize } from '../../parser/Size.js';
 import {
   budgetFailure,
   encodeMatStream,
@@ -226,10 +224,6 @@ export default class MatlabVariableNode extends DataNode {
   // class beside it is: a placeholder under 'logical' is not `true`, under 'char' not a
   // quoted string, under 'function_handle' not `@<…>`.
   _undecoded: boolean;
-  // Why a reader took this value as damaged — the dims it declares are not a size
-  // (parser/Size): `dimensions [1,"x"]` — or null. Such a value is undecoded too, and it is
-  // written only as what it was read from (parseDamaged).
-  _damaged: string | null;
   _opaqueClassName: string | null;
   _mcosProperties: Record<string, unknown> | null;
   _mcosValue: unknown;
@@ -258,7 +252,6 @@ export default class MatlabVariableNode extends DataNode {
     this._isOpaque = false;
     this._sparse = null;
     this._sparseEdited = false;
-    this._damaged = null;
     this._undecoded = false;
     this._opaqueClassName = null;
     this._mcosProperties = null;
@@ -1097,7 +1090,6 @@ export default class MatlabVariableNode extends DataNode {
     // And it is a value, not a reader's placeholder for one: left set, a char typed over
     // a value too large to decode displayed without its quotes.
     this._undecoded = false;
-    this._damaged = null;
     // The class this node had going in. A numeric edit re-states the VALUE, not the
     // class, so classAfterEdit lets it survive the parser's 'double' default — see
     // its comment. Read before any arm overwrites it.
@@ -1676,11 +1668,6 @@ export default class MatlabVariableNode extends DataNode {
       // turns it into one on the way into such a file (MatWriter.textDictionaryForm).
       return this._rawInput;
     }
-    // A damaged value is what it was read from, or nothing: a stream of its own bytes, or
-    // a refusal (parseDamaged).
-    if (this._damaged) {
-      return { _type: 'cdata', _value: uuencode(this._damagedStream()) };
-    }
     // Rank >= 3 leaves the literal grammar behind entirely: there is no spelling
     // for it. Every `Matrix(d1,d2,d3)` candidate reads back as an empty 1x0 and
     // the two constructor expressions read back as the scalar 0, while MATLAB's
@@ -2148,11 +2135,6 @@ export default class MatlabVariableNode extends DataNode {
     // serializeValue asks it.)
     const raw = this._rawInput as Record<string, unknown> | undefined;
     const attrStr = attrs && attrs.Name ? ' Name="' + escapeXml(attrs.Name) + '"' : '';
-    // A damaged value has no XML spelling: its dims are no size. It is the hex of the bytes
-    // it was read from, or a refusal (parseDamaged).
-    if (this._damaged) {
-      return encodedXml(tagName, attrStr, hexValue(this._damagedStream(), this._scalarType, indent), indent);
-    }
     if (raw && raw._type === 'cdata' && !isMatCdata(raw)) {
       return DataNode._complexTextXml(tagName, attrStr, raw, indent);
     }
@@ -2633,10 +2615,6 @@ export default class MatlabVariableNode extends DataNode {
     // keys on the angle brackets, which a matrix literal wraps out of position), and
     // grew one child row claiming to be element 1 of 3 — three claims about a value
     // nothing read, and an editor whose commit could not reach the file.
-    // Dims that are not a size, a host's or a damaged file's: read as damaged (parseDamaged).
-    if (!isSize(variable.dimensions || [])) {
-      return MatlabVariableNode._createDamagedVariable(variable, name, parent);
-    }
     if (variable.undecoded) {
       return MatlabVariableNode._createUndecoded(variable, name, parent);
     }
@@ -2678,64 +2656,6 @@ export default class MatlabVariableNode extends DataNode {
     node._scalarValue = variable.value;
     node._dims = variable.dimensions.slice();
     return node;
-  }
-
-  /**
-   * A value whose dims are not a size (parser/Size) — a hand-made `_dimensions: [1, "x"]`,
-   * `[1, {}]` or `[0, 1e400]`, a host's `[NaN, 1]`, a `Matrix(…)` header past an int32 —
-   * which no shape here can lay out and no writer can count (NodeClassMap.parseValue). It
-   * shows as not decoded, is reported (EncodedValue.recordDamagedValue), and is written only
-   * as what it was read from: a text dictionary writes it back as it was read
-   * (serializeValue's `_rawInput`), and nothing else has a spelling for it but bytes it
-   * does not have, so a copy out of a host, or a write into a binary dictionary, is refused
-   * (_damagedStream). Carried into the model instead, `[1, "x"]` was NaN elements, and a NaN
-   * charge turned the unbacked-bytes budget off for the rest of the value.
-   */
-  static parseDamaged(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null, what: string): MatlabVariableNode {
-    const node = new MatlabVariableNode(name, parent, {});
-    node._rawInput = rawVal;
-    node._kind = 'scalar';
-    node._undecoded = true;
-    node._damaged = what;
-    const arrayType = rawVal._array_type;
-    node._scalarType =
-      arrayType === 'Cell' ? 'cell' : arrayType === 'Struct' ? 'struct' : arrayType === 'String' ? 'string'
-        : typeof rawVal._array_class === 'string' ? rawVal._array_class
-          : typeof rawVal._type === 'string' && rawVal._type !== 'sparse' ? rawVal._type : 'double';
-    node._scalarValue = '<' + node._scalarType + ', not decoded>';
-    node._dims = [1, 1];
-    recordDamagedValue('a ' + node._scalarType + ' declaring ' + what);
-    return node;
-  }
-
-  /** A host's or a reader's variable whose dims are not a size: parseDamaged's, for a MatVariable. */
-  static _createDamagedVariable(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode {
-    const node = new MatlabVariableNode(name, parent, {});
-    node._rawBytes = variable._rawBytes || null;
-    node._matVar = variable;
-    node._kind = 'scalar';
-    node._undecoded = true;
-    node._damaged = 'dimensions ' + dimsText(variable.dimensions);
-    node._scalarType = variable.className || 'double';
-    node._scalarValue = '<' + node._scalarType + ', not decoded>';
-    node._dims = [1, 1];
-    recordDamagedValue('a ' + node._scalarType + ' declaring ' + node._damaged);
-    return node;
-  }
-
-  /**
-   * The stream a damaged value is written as: the element it was read from, when a file
-   * held one. Otherwise there is none, and the write is refused — finally, as a write the
-   * budget cannot count, naming the entry and the path (_budgetFailure).
-   */
-  _damagedStream(): Uint8Array {
-    const own = this._rawBytes ? matStreamOfElement(this._rawBytes) : null;
-    if (own) {
-      return own;
-    }
-    throw this._budgetFailure(
-      new MatBudgetError('a value declaring ' + this._damaged + ' was read as damaged', '', 'a ' + this._scalarType + ' declaring ' + this._damaged, undefined, false),
-    );
   }
 
   static createFromMcosDecoded(

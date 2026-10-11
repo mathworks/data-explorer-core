@@ -8,7 +8,6 @@ import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
-import { takeDamagedValues } from '../../parser/EncodedValue.js';
 import PropName from '../../prop/PropName.js';
 
 export default class MatNode extends ContainerNode {
@@ -158,17 +157,8 @@ export default class MatNode extends ContainerNode {
           continue;
         }
       }
-      takeDamagedValues();
       const child = MatlabVariableNode.parseMatVariable(variable, variable.name, node);
       node.addChild(child);
-      // A variable, or a member of one, whose dims are not a size (parseDamaged).
-      for (const what of takeDamagedValues()) {
-        parsed.warnings?.push({
-          code: 'part-unreadable',
-          message: `"${variable.name}" holds ${what}, which is not a size; it is shown as not decoded.`,
-          part: variable.name,
-        });
-      }
     }
 
     return node;

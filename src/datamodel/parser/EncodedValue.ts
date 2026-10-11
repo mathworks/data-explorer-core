@@ -179,23 +179,6 @@ export function recordDecodeFailure(reason: string): void {
   decodeFailures.push(reason);
 }
 
-/**
- * What a reader took as damaged because its dims are not a size (parser/Size;
- * MatlabVariableNode.parseDamaged), recorded the same way and for the same reason: so
- * that the dictionary reading the entry can say so.
- */
-const damagedValues: string[] = [];
-
-/** Record a value read as damaged: what it is and what it declares, in words. */
-export function recordDamagedValue(what: string): void {
-  damagedValues.push(what);
-}
-
-/** The damaged values recorded since the last call, which clears them. */
-export function takeDamagedValues(): string[] {
-  return damagedValues.splice(0);
-}
-
 /** The decode failures recorded since the last call, which clears them. */
 export function takeDecodeFailures(): string[] {
   return decodeFailures.splice(0);

@@ -23,7 +23,6 @@ export default class MatlabVariableNode extends DataNode {
     _sparse: SparseData | null;
     _sparseEdited: boolean;
     _undecoded: boolean;
-    _damaged: string | null;
     _opaqueClassName: string | null;
     _mcosProperties: Record<string, unknown> | null;
     _mcosValue: unknown;
@@ -254,26 +253,6 @@ export default class MatlabVariableNode extends DataNode {
     static parseMatVariable(variable: MatVariable, name: string, parent: BaseNode | null): DataNode;
     static _createOpaque(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createUndecoded(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
-    /**
-     * A value whose dims are not a size (parser/Size) — a hand-made `_dimensions: [1, "x"]`,
-     * `[1, {}]` or `[0, 1e400]`, a host's `[NaN, 1]`, a `Matrix(…)` header past an int32 —
-     * which no shape here can lay out and no writer can count (NodeClassMap.parseValue). It
-     * shows as not decoded, is reported (EncodedValue.recordDamagedValue), and is written only
-     * as what it was read from: a text dictionary writes it back as it was read
-     * (serializeValue's `_rawInput`), and nothing else has a spelling for it but bytes it
-     * does not have, so a copy out of a host, or a write into a binary dictionary, is refused
-     * (_damagedStream). Carried into the model instead, `[1, "x"]` was NaN elements, and a NaN
-     * charge turned the unbacked-bytes budget off for the rest of the value.
-     */
-    static parseDamaged(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null, what: string): MatlabVariableNode;
-    /** A host's or a reader's variable whose dims are not a size: parseDamaged's, for a MatVariable. */
-    static _createDamagedVariable(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
-    /**
-     * The stream a damaged value is written as: the element it was read from, when a file
-     * held one. Otherwise there is none, and the write is refused — finally, as a write the
-     * budget cannot count, naming the entry and the path (_budgetFailure).
-     */
-    _damagedStream(): Uint8Array;
     static createFromMcosDecoded(variable: MatVariable, decoded: {
         value: unknown;
         properties: Record<string, unknown>;
