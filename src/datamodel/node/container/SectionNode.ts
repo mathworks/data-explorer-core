@@ -76,18 +76,29 @@ const ALLOWED_TYPES: Record<string, string[]> = {
   other: ['MatlabVariable', 'Simulink.VariantExpression', 'Simulink.VariantVariable', 'CustomObject'],
 };
 
+// A new entry's metadata uuid: 32 random lowercase hex nibbles as 8-4-4-4-12, with no
+// version or variant nibble fixed, which is the shape this function has always written.
+//
+// The uuid is an identity, not a secret. It only has to be unique: it tells two
+// same-named entries apart (see entrySelector.ts), and the file stores it in plain text.
+// It does not come from `Math.random`, because a uuid drawn from that published the
+// generator's state: every nibble was four bits of V8's xorshift128+, and two uuids drawn
+// back to back are enough to solve for its 128-bit state and predict the next uuid
+// exactly (5 of 5 runs, Node 24). `crypto.getRandomValues` publishes nothing, and it is a
+// global in every runtime this barrel runs in: Node 19+, so every VS Code extension host,
+// browsers, and the Web Worker that hosts the web extension. Unlike `crypto.randomUUID`,
+// it does not need a secure context, and it does not fix the version and variant nibbles.
 export function generateUuid(): string {
   const hex = '0123456789abcdef';
-  const segments = [8, 4, 4, 4, 12];
-  return segments
-    .map(function (len) {
-      let s = '';
-      for (let i = 0; i < len; i++) {
-        s += hex[Math.floor(Math.random() * 16)];
-      }
-      return s;
-    })
-    .join('-');
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) {
+    if (i === 4 || i === 6 || i === 8 || i === 10) {
+      s += '-';
+    }
+    s += hex[bytes[i] >> 4] + hex[bytes[i] & 15];
+  }
+  return s;
 }
 
 export default class SectionNode extends ContainerNode {
