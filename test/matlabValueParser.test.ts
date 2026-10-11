@@ -88,6 +88,31 @@ describe('MatlabValueParser — complex scalars', () => {
   it('parses complex parts in scientific notation', () => {
     expect(parse('1e2+3i')).toEqual({ type: 'complex', value: '100+3i' });
   });
+
+  it('reads a decimal that ends in its dot, or starts with it', () => {
+    expect(parse('1.')).toEqual({ type: 'double', value: 1 });
+    expect(parse('-.5')).toEqual({ type: 'double', value: -0.5 });
+    expect(parse('2.e3')).toEqual({ type: 'double', value: 2000 });
+    expect(parse('1.+2.i')).toEqual({ type: 'complex', value: '1+2i' });
+    expect(parse('3.i')).toEqual({ type: 'complex', value: '0+3i' });
+    expect(parse('[1. 2.5 .5]')).toEqual({ type: 'double', value: [1, 2.5, 0.5], dims: [1, 3] });
+    expect(parse('1.5.')).toBeNull();
+    expect(parse('1..2')).toBeNull();
+  });
+
+  // A decimal was `\d+\.?\d*` in all three patterns parse tries, which with no dot splits a
+  // run of digits every way it can before it fails, and parseComplex's has two of them: a
+  // value typed into a cell that was no literal cost the square of its length, or the cube.
+  // On the old patterns these took 3.9 s and 6.8 s. Here they take 0.4 ms over two full
+  // runs, so 100 ms is past five times CI's time, at 3.3 times this machine's (fe238c7).
+  it('refuses a long run of digits that is no literal at once', () => {
+    const half = '1'.repeat(2500);
+    for (const text of ['1'.repeat(50_000) + 'x', half + '+' + half + 'x']) {
+      const t0 = performance.now();
+      expect(parse(text)).toBeNull();
+      expect(performance.now() - t0).toBeLessThan(100);
+    }
+  });
 });
 
 describe('MatlabValueParser — numeric arrays', () => {

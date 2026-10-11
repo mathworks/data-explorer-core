@@ -178,8 +178,186 @@ export function catalogFromDefinitions(defs: ScDefinition[]): SystemComposerCata
 }
 
 // A tag: `<name attrs>`, `</name>` or `<name attrs/>`. Attribute values are quoted,
-// so `[^>"]|"[^"]*"` skips a `>` inside a value rather than ending the tag on it.
-const TAG_RE = /<(\/?)([A-Za-z_][\w.-]*)((?:[^>"]|"[^"]*")*?)(\/?)>/g;
+// so a `>` inside a value does not end the tag.
+//
+// This was the regex `/<(\/?)([A-Za-z_][\w.-]*)((?:[^>"]|"[^"]*")*?)(\/?)>/g`, and
+// `XmlTagScanner` below returns EXACTLY the match sequence it returned on any input it
+// finished on, well-formed or not — tag index, end, the four groups. It was replaced
+// because a backtracking engine runs it in quadratic time on the wrong bytes, and the
+// bytes are whatever is in the file:
+//
+//   - `[\w.-]*` and the attribute run both match `-` and `.`, so after `<A` and a long
+//     run of them with no `>`, every split of the run between name and attributes is
+//     tried, each to the end of the input;
+//   - an attempt that fails at one `<` is retried at every later `<`, and each retry
+//     walks to the end again (`<A<A<A…`).
+//
+// Measured on the old regex: 1.1 s at 30,000 characters, 11.4 s at 100,000 — and that
+// payload deflates ~1000:1, so a 1.2 KB `.sldd` held the thread for 13 s. A long
+// enough attribute walk also overflowed V8's backtrack stack (~8.39M lazy steps),
+// so one stray `"` in a 20 MB part threw `RangeError` out of the whole read.
+//
+// What the regex computes, read off its backtracking order, is simple: from the end
+// of the longest name, the first `>` preceded by an EVEN number of `"` (a `"` opens a
+// value that only the next `"` closes), with `/` taken as `selfClosing` when it sits
+// right before that `>`. A shorter name never helps, because the name characters it
+// gives back are plain attribute characters that lead to the same walk. The scanner
+// computes that directly, with forward `indexOf`s, and remembers a failed walk so the
+// retry at each later `<` costs nothing: see `terminator`.
+//
+// Exported for test/scCatalog.test.ts, which holds it to the regex tag for tag; it is not
+// in the barrel.
+export interface XmlTag {
+    index: number;
+    end: number;
+    closing: boolean;
+    name: string;
+    attrs: string;
+    selfClosing: boolean;
+}
+
+const SLASH = 0x2f;
+
+// `[A-Za-z_]`
+const isNameStart = (c: number): boolean =>
+    (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a) || c === 0x5f;
+
+// `[\w.-]`, where `\w` is ASCII `[A-Za-z0-9_]` (no `u` flag on the old regex).
+const isNameChar = (c: number): boolean =>
+    isNameStart(c) || (c >= 0x30 && c <= 0x39) || c === 0x2d || c === 0x2e;
+
+export class XmlTagScanner {
+    private pos = 0;
+    // Next-occurrence caches: `at` is the first `ch` at or after `from` (-1: none).
+    private gtFrom = 0;
+    private gtAt = -2;
+    private qtFrom = 0;
+    private qtAt = -2;
+    // A walk from `deadFrom` found no terminator. Every later start an EVEN number of
+    // quotes past it is on that same walk and fails too; `parityAt` / `parityOdd` count
+    // the quotes in [deadFrom, parityAt), and `parityNext` is the first quote at or after
+    // `parityAt` (-2: not looked for yet).
+    private deadFrom = -1;
+    private parityAt = 0;
+    private parityOdd = false;
+    private parityNext = -2;
+
+    constructor(private readonly xml: string) {}
+
+    next(): XmlTag | null {
+        const xml = this.xml;
+        for (;;) {
+            const index = xml.indexOf('<', this.pos);
+            if (index < 0) {
+                return null;
+            }
+            this.pos = index + 1;
+            let nameStart = index + 1;
+            const closing = xml.charCodeAt(nameStart) === SLASH;
+            if (closing) {
+                nameStart++;
+            }
+            // charCodeAt past the end is NaN, which is neither.
+            if (!isNameStart(xml.charCodeAt(nameStart))) {
+                continue;
+            }
+            let nameEnd = nameStart + 1;
+            while (isNameChar(xml.charCodeAt(nameEnd))) {
+                nameEnd++;
+            }
+            const gt = this.terminator(nameEnd);
+            if (gt < 0) {
+                continue;
+            }
+            // Never the name's own last character, which is not a `/`.
+            const selfClosing = xml.charCodeAt(gt - 1) === SLASH;
+            this.pos = gt + 1;
+            return {
+                index,
+                end: gt + 1,
+                closing,
+                name: xml.slice(nameStart, nameEnd),
+                attrs: xml.slice(nameEnd, selfClosing ? gt - 1 : gt),
+                selfClosing,
+            };
+        }
+    }
+
+    // The `>` that ends a tag whose attributes start at `start`, or -1 for none.
+    //
+    // There are only two walks through the rest of the input, the one that treats the
+    // next `"` as opening a value and the one that treats it as closing one, and every
+    // start lies on one of them. Once one has failed, a start on it is answered by
+    // parity alone, so the retries the regex made at each later `<` cost a quote count
+    // instead of a walk to the end. The other walk needs no memory of its own: every `>`
+    // past `deadFrom` is one the dead walk skipped as quoted, so the other walk takes the
+    // first one it reaches, and fails only where none is left, which the cached `nextGt`
+    // then answers for every later start at once.
+    private terminator(start: number): number {
+        if (this.deadFrom >= 0) {
+            return this.oddSinceDead(start) ? this.walk(start) : -1;
+        }
+        const gt = this.walk(start);
+        if (gt < 0) {
+            this.deadFrom = start;
+            this.parityAt = start;
+        }
+        return gt;
+    }
+
+    private walk(start: number): number {
+        let at = start;
+        for (;;) {
+            const gt = this.nextGt(at);
+            if (gt < 0) {
+                return -1;
+            }
+            const open = this.nextQuote(at);
+            if (open < 0 || gt < open) {
+                return gt;
+            }
+            const close = this.nextQuote(open + 1);
+            if (close < 0) {
+                return -1;
+            }
+            at = close + 1;
+        }
+    }
+
+    // Whether an odd number of quotes lies in [deadFrom, at). Starts arrive in
+    // ascending order, so the count only ever moves forward.
+    private oddSinceDead(at: number): boolean {
+        for (;;) {
+            if (this.parityNext === -2) {
+                this.parityNext = this.xml.indexOf('"', this.parityAt);
+            }
+            if (this.parityNext < 0 || this.parityNext >= at) {
+                break;
+            }
+            this.parityOdd = !this.parityOdd;
+            this.parityAt = this.parityNext + 1;
+            this.parityNext = -2;
+        }
+        this.parityAt = at;
+        return this.parityOdd;
+    }
+
+    private nextGt(at: number): number {
+        if (this.gtAt === -2 || at < this.gtFrom || (this.gtAt >= 0 && at > this.gtAt)) {
+            this.gtFrom = at;
+            this.gtAt = this.xml.indexOf('>', at);
+        }
+        return this.gtAt;
+    }
+
+    private nextQuote(at: number): number {
+        if (this.qtAt === -2 || at < this.qtFrom || (this.qtAt >= 0 && at > this.qtAt)) {
+            this.qtFrom = at;
+            this.qtAt = this.xml.indexOf('"', at);
+        }
+        return this.qtAt;
+    }
+}
 
 const attrOf = (attrs: string, name: string): string => {
     const m = new RegExp(`${name}="([^"]*)"`).exec(attrs);
@@ -211,11 +389,11 @@ interface XmlFrame {
 export function scanScXml(xml: string): ScDefinition[] {
     const defs: ScDefinition[] = [];
     const stack: XmlFrame[] = [];
-    TAG_RE.lastIndex = 0;
-    let tag: RegExpExecArray | null;
+    const tags = new XmlTagScanner(xml);
+    let tag: XmlTag | null;
 
-    while ((tag = TAG_RE.exec(xml))) {
-        const [whole, closing, name, attrs, selfClosing] = tag;
+    while ((tag = tags.next())) {
+        const { closing, name, attrs, selfClosing } = tag;
         if (selfClosing) {
             // An empty element carries no name text, so it can only be a descriptor
             // with nothing in it — nothing to record either way.
@@ -226,7 +404,7 @@ export function scanScXml(xml: string): ScDefinition[] {
                 tag: name,
                 type: attrOf(attrs, 'type'),
                 descriptorSites: [],
-                textStart: tag.index + whole.length,
+                textStart: tag.end,
             });
             continue;
         }

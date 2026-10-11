@@ -12,6 +12,7 @@ import {
   formatComplexXml,
   formatMatlabNum,
   parseMatlabNum,
+  parseComplexNum,
   transposeToColumnMajor,
   pad,
 } from '../src/datamodel/parser/XmlUtils.js';
@@ -157,6 +158,39 @@ describe('formatComplexXml', () => {
     expect(formatComplexXml('.5+.25i')).toBe('.5+.25i');
     expect(formatComplexXml('Inf+2i')).toBe('Inf+2.0i');
     expect(formatComplexXml('NaN+0i')).toBe('NaN+0.0i');
+  });
+});
+
+describe('parseComplexNum', () => {
+  it('reads every spelling of an element, and refuses what is not one', () => {
+    expect(parseComplexNum('3+4i')).toEqual({ re: 3, im: 4 });
+    expect(parseComplexNum('3.0+4.0i')).toEqual({ re: 3, im: 4 });
+    expect(parseComplexNum('1.0E-20+2.0E+21i')).toEqual({ re: 1e-20, im: 2e21 });
+    // A part may end in its dot, or start with it.
+    expect(parseComplexNum('1.+.5i')).toEqual({ re: 1, im: 0.5 });
+    expect(parseComplexNum('-1.5e3-2.i')).toEqual({ re: -1500, im: -2 });
+    expect(parseComplexNum('1NaNi')).toEqual({ re: 1, im: NaN });
+    expect(parseComplexNum('+1-NaNi')).toEqual({ re: 1, im: NaN });
+    expect(parseComplexNum('-Inf+2i')).toEqual({ re: -Infinity, im: 2 });
+    expect(parseComplexNum('1+Infinityi')).toEqual({ re: 1, im: Infinity });
+    for (const text of ['1.2.3+4i', '1e+5i', '12+i', '.+1i', '1+2']) {
+      expect(parseComplexNum(text), text).toBeNull();
+    }
+  });
+
+  // A part's decimal was `\d+\.?\d*`, which with no dot splits a run of digits every way it
+  // can before it fails, and an element has two parts: text that is not an element cost the
+  // cube of its length. That text is a file's, a text dictionary's `_nonFinite` cdata on open
+  // or a binary one's complex value in the Property Inspector. On the old pattern these two
+  // took 6.9 s and 4.2 s. Here they take 0.2 ms over two full runs, so 100 ms is past five
+  // times CI's time, at 3.3 times this machine's (fe238c7).
+  it('refuses text that is not an element at once, however many digits it holds', () => {
+    const half = '1'.repeat(2500);
+    for (const text of [half + '+' + half + 'x', '1'.repeat(100_000) + 'x']) {
+      const t0 = performance.now();
+      expect(parseComplexNum(text)).toBeNull();
+      expect(performance.now() - t0).toBeLessThan(100);
+    }
   });
 });
 
