@@ -61,6 +61,10 @@ export interface MatVariable {
     fields: Record<string, MatVariable | MatVariable[]> | null;
     _rawBytes?: Uint8Array | null;
     _modified?: boolean;
+    // Why MatWriter has no stream for this member — the node layer had no variable for a
+    // node of another class held in a cell or a struct (MatlabVariableNode._memberVar) —
+    // which it refuses, for its caller to write the value another way.
+    _unwritable?: string;
     _anonymous?: boolean;
     isOpaque?: boolean;
     // An opaque's object handle — which objects of the file's shared MCOS heap this

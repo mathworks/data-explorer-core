@@ -49,7 +49,7 @@ import {
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense } from './SparseData.js';
-import { dimsText, isSize } from './Size.js';
+import { dimsText, isSize, MAT_MAX_EXTENT } from './Size.js';
 
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
@@ -65,13 +65,16 @@ export class MatWriteError extends Error {
 }
 
 /**
- * A write refused because the value would put out more than UNBACKED_BYTES_BUDGET that no
- * data backs. Final: nothing may be written in the value's place — not the value laid out
- * full, not its summary, not its elements one by one — so it reaches whoever asked for the
- * write, and a copy or a save that holds the value fails. Every other MatWriteError says
- * this writer has no spelling for the value, and a caller may write it another way.
+ * A write refused for what a value declares rather than what it holds: `reason`
+ *   - 'budget': it would put out more than UNBACKED_BYTES_BUDGET that no data backs;
+ *   - 'not-a-count': its dims are not a size (parser/Size), so there is nothing to count;
+ *   - 'past-int32': an extent past MAT_MAX_EXTENT, which no MAT stream's dims word can say.
+ * Final: nothing may be written in the value's place — not the value laid out full, not its
+ * summary, not its elements one by one — so it reaches whoever asked for the write, and a
+ * copy or a save that holds the value fails. Every other MatWriteError says this writer has
+ * no spelling for the value, and a caller may write it another way.
  *
- * `at` is where in the value the budget ran out, in MATLAB's spelling from the value the
+ * `at` is where in the value the write was refused, in MATLAB's spelling from the value the
  * write began at ('{16385}', '.f', '(2).f'; '' for that value itself), and `what` is what
  * stands there, in words. `entry` is set once the node layer has restated it for a user,
  * naming the entry (budgetFailure).
@@ -80,15 +83,17 @@ export class MatBudgetError extends MatWriteError {
   readonly at: string;
   readonly what: string;
   readonly entry: string | undefined;
+  readonly reason: 'budget' | 'not-a-count' | 'past-int32';
   /** False when what stands at `at` declares a size that is no count at all (NaN, Inf). */
   readonly counted: boolean;
-  constructor(message: string, at: string, what: string, entry?: string, counted = true) {
+  constructor(message: string, at: string, what: string, entry?: string, reason: MatBudgetError['reason'] = 'budget') {
     super(message);
     this.name = 'MatBudgetError';
     this.at = at;
     this.what = what;
     this.entry = entry;
-    this.counted = counted;
+    this.reason = reason;
+    this.counted = reason !== 'not-a-count';
   }
 }
 
@@ -346,17 +351,21 @@ export function spendUnbacked(bytes: number, what: string): void {
  * array turned the budget off for the rest of the value.
  */
 function charge(budget: UnbackedBudget, bytes: number, what: string): void {
-  if (!Number.isSafeInteger(bytes) || bytes < 0) {
+  // NaN, a negative or a fraction. A count past 2^53, or an infinity out of a product of
+  // sizes, is still one — over any budget — and refused as that.
+  if (!(bytes >= 0) || (Number.isFinite(bytes) && !Number.isInteger(bytes))) {
     const at = budget.at.join('');
-    throw new MatBudgetError((at || 'the value') + ', ' + what + ', would write ' + bytes + ' bytes no data backs, which is not a count', at, what, undefined, false);
+    throw new MatBudgetError((at || 'the value') + ', ' + what + ', would write ' + bytes + ' bytes no data backs, which is not a count', at, what, undefined, 'not-a-count');
   }
   if (bytes === 0) {
     return;
   }
   if (bytes > budget.left) {
     const at = budget.at.join('');
+    // A count past 2^53 is not printed: a double holds it rounded.
+    const said = Number.isSafeInteger(bytes) ? String(bytes) : 'more than ' + Number.MAX_SAFE_INTEGER;
     throw new MatBudgetError(
-      (at || 'the value') + ', ' + what + ', would write ' + bytes + ' bytes no data backs, more than the ' + budget.left + ' left of one write\'s '
+      (at || 'the value') + ', ' + what + ', would write ' + said + ' bytes no data backs, more than the ' + budget.left + ' left of one write\'s '
         + UNBACKED_BYTES_BUDGET,
       at,
       what,
@@ -376,21 +385,28 @@ export function budgetFailure(e: MatBudgetError, entry: string, where: string): 
   }
   const at = where + e.at;
   const mib = UNBACKED_BYTES_BUDGET / (1024 * 1024) + ' MiB';
-  return new MatBudgetError(
-    'Cannot write "' + entry + '": ' + at + ' is ' + e.what
-      + (e.counted
-        ? ', and with it the value would add more than ' + mib + ' that its data does not hold, the most one value may add.'
-        : ', a size that is not a count, so what it would add beyond its data cannot be held to the ' + mib + ' one value may add.')
-      + ' Nothing was written.',
-    at,
-    e.what,
-    entry,
-    e.counted,
-  );
+  const why = {
+    budget: ', and with it the value would add more than ' + mib + ' that its data does not hold, the most one value may add.',
+    'not-a-count': ', a size that is not a count, so what it would add beyond its data cannot be held to the ' + mib + ' one value may add.',
+    'past-int32': ', an extent past ' + MAT_MAX_EXTENT + ', the most a MAT stream\'s dimensions can say, and it has no other spelling here.',
+  }[e.reason];
+  return new MatBudgetError('Cannot write "' + entry + '": ' + at + ' is ' + e.what + why + ' Nothing was written.', at, e.what, entry, e.reason);
 }
 
 /** `d` as MATLAB writes a size: 0x256, 1x100000000. */
 const sizeOf = (d: number[]) => d.join('x');
+
+/** How many elements `d` declares, exactly, as text: a product past 2^53 is no double. */
+const countOf = (d: number[]) => d.reduce((a, x) => a * BigInt(x), 1n).toString();
+
+/**
+ * `cls` as MATLAB names a class, with its article: 'an int8', 'a char' (this package's
+ * `mxchar` envelope holds one), 'a sparse double' (its `sparse` literal holds one).
+ */
+export function classPhrase(cls: string): string {
+  const name = cls === 'mxchar' ? 'char' : cls === 'sparse' ? 'sparse double' : cls;
+  return (/^[aeio]/i.test(name) ? 'an ' : 'a ') + name;
+}
 
 const HOLE_BYTES = emptyDoubleBytes().length;
 
@@ -556,7 +572,7 @@ function cellBody(v: MatVariable, d: number[], budget: UnbackedBudget): Uint8Arr
   for (let i = 0; i < Math.min(n, cells.length); i++) {
     if (cells[i]) held++;
   }
-  charge(budget, (n - held) * HOLE_BYTES, 'a ' + sizeOf(d) + ' cell holding ' + held + ' of its ' + n + ' elements');
+  charge(budget, (n - held) * HOLE_BYTES, 'a ' + sizeOf(d) + ' cell holding ' + held + ' of its ' + countOf(d) + ' elements');
   const parts: Uint8Array[] = [];
   for (let i = 0; i < n; i++) {
     const c = cells[i];
@@ -609,7 +625,8 @@ function structBody(v: MatVariable, d: number[], budget: UnbackedBudget): Uint8A
     }
     holes += n - present;
   }
-  charge(budget, holes * HOLE_BYTES, 'a ' + sizeOf(d) + ' struct array missing ' + holes + ' of its ' + n * names.length + ' fields');
+  const fieldCount = BigInt(countOf(d)) * BigInt(names.length);
+  charge(budget, holes * HOLE_BYTES, 'a ' + sizeOf(d) + ' struct array missing ' + (Number.isSafeInteger(holes) ? holes : 'some') + ' of its ' + fieldCount + ' fields');
   for (let e = 0; e < n; e++) {
     for (const name of names) {
       const held = fields[name];
@@ -699,6 +716,11 @@ function encodeSparse(v: MatVariable, budget: UnbackedBudget): Uint8Array {
   for (let k = 0; k < s.row.length; k++) {
     const r = s.row[k];
     const c = s.col[k];
+    // A host's non-zeros need not be Int32Arrays: a row of 0.5, or one that is no number,
+    // would go into the int32 index as some other row.
+    if (!Number.isInteger(r) || !Number.isInteger(c)) {
+      throw new MatWriteError('a sparse array\'s non-zero ' + k + ' is at (' + String(r) + ', ' + String(c) + '), which is not a row and a column');
+    }
     const ordered = k === 0 || c > s.col[k - 1] || (c === s.col[k - 1] && r > s.row[k - 1]);
     if (!(r >= 0 && r < rows && c >= 0 && c < cols) || !ordered) {
       throw new MatWriteError('a sparse array\'s non-zeros are out of order or outside [' + d.join(',') + '] at entry ' + k);
@@ -757,6 +779,13 @@ export function sparseWriteRefusal(v: SparseRefusalInput): string | null {
   const shape = sparseShapeRefusal(v);
   if (shape) {
     return shape;
+  }
+  // Dims no MAT stream can say, or that are no size: nothing could write an edit of it.
+  if (!isSize(dimsOf(v))) {
+    return 'a sparse array declaring dimensions ' + dimsText(dimsOf(v)) + ', which are not a size';
+  }
+  if (dimsOf(v).some((x) => x > MAT_MAX_EXTENT)) {
+    return 'a ' + sizeOf(dimsOf(v)) + ' sparse array has an extent past ' + MAT_MAX_EXTENT + ', which no MAT stream can say';
   }
   const [, cols] = dimsOf(v);
   const backed = sparseBackedColumns(v);
@@ -868,8 +897,24 @@ function encodeElement(v: MatVariable, budget: UnbackedBudget): Uint8Array {
   // Dims that are no size (parser/Size) make no count to hold to the budget — a fraction
   // even makes a whole one: [1, 2.5] charged 84 bytes for one hole and wrote three — so they
   // are refused as what the budget cannot measure, finally.
+  // MATLAB's class name: a logical array goes out as uint8 with the logical flag.
+  const named = (v.isLogical ? 'logical' : v.className) || 'value';
   if (!isSize(v.dimensions || [])) {
-    charge(budget, NaN, 'a value declaring dimensions ' + dimsText(v.dimensions));
+    charge(budget, NaN, classPhrase(v.isSparse ? 'sparse ' + named : named) + ' declaring dimensions ' + dimsText(v.dimensions));
+  }
+  // A size past what a MAT stream's int32 dims word can say — MATLAB on 64 bits holds a
+  // zeros(0, 2^31), and a dictionary spells it as text — has no stream: refused, finally,
+  // for the caller to say why, rather than written as the extent the word would wrap to.
+  const past = (v.dimensions || []).find((x) => x > MAT_MAX_EXTENT);
+  if (past !== undefined) {
+    const at = budget.at.join('');
+    const what = 'a ' + sizeOf(v.dimensions) + ' ' + (v.isSparse ? 'sparse ' : '') + named;
+    throw new MatBudgetError((at || 'the value') + ', ' + what + ', has an extent of ' + past + ', past ' + MAT_MAX_EXTENT, at, what, undefined, 'past-int32');
+  }
+  // A member the node layer has no variable for (MatlabVariableNode._memberVar): this
+  // writer has no stream for it, and its caller writes it another way.
+  if (v._unwritable) {
+    throw new MatWriteError(v._unwritable);
   }
   // Before the class lookup, because a sparse array's class IS one the full-array arms
   // have a code for — MATLAB's class() of a sparse double is 'double' — and the full

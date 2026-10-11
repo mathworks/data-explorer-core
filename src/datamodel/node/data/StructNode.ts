@@ -137,7 +137,7 @@ export default class StructNode extends DataNode {
 
     serializeValue(): unknown {
         if (!writeUnderWay()) {
-          return oneWrite(() => this.serializeValue());
+            return oneWrite(() => this.serializeValue());
         }
         // Untouched, or only renamed (DataNode.setProperty keeps `_rawInput` across a
         // rename, and every other edit drops it): see MatlabVariableNode.serializeValue.
@@ -174,8 +174,10 @@ export default class StructNode extends DataNode {
 
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
         if (!writeUnderWay()) {
-          return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+            return oneWrite(() => this.serializeXml(tagName, attrs, indent));
         }
+        // Dims no Dimension can spell, refused, finally (DataNode._spellableOrRefuse).
+        this._spellableOrRefuse(this.dims, 'struct');
         const p = xmlPad(indent);
         const d = this.dims;
         let attrStr = '';

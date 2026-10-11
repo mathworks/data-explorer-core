@@ -121,6 +121,8 @@ export default class ObjectNode extends DataNode {
         if (!writeUnderWay()) {
             return oneWrite(() => this.serializeXml(tagName, attrs, indent));
         }
+        // Dims no Dimension can spell, refused, finally (DataNode._spellableOrRefuse).
+        this._spellableOrRefuse((this.serial._rawVal || {})._dimensions, this.arrayClass || 'object');
         if (!this._isElementArray) {
             return super.serializeXml(tagName, attrs, indent);
         }

@@ -85,7 +85,7 @@ export default class SignalNode extends DataNode {
 
     serializeValue(): unknown {
         if (!writeUnderWay()) {
-          return oneWrite(() => this.serializeValue());
+            return oneWrite(() => this.serializeValue());
         }
         const sp = this.serial._properties as Record<string, unknown>;
         const unitKey = 'DocUnits' in sp ? 'DocUnits' : 'Unit';

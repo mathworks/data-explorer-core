@@ -262,6 +262,18 @@ budget can never be written, so its rows are read-only (`_sparseRefusal`). Pinne
 `test/unbackedBudget.test.ts`, `test/unbackedBudgetVenues.test.ts`,
 `test/budgetFailsClosed.test.ts` and `test/budgetCellOfLiterals.test.ts`.
 
+Dims that are not a size — a hand-made `_dimensions: [1, "x"]` or `[0, 1e400]` in a text
+dictionary, a host's `[NaN, 1]` or bigints — are read as they come, and refused by whatever
+would write them as something else, finally, naming the value (a `MatBudgetError`, reason
+`not-a-count`): a MAT stream needs every extent a whole number a double counts exactly, and
+an XML Dimension refuses what it cannot spell (NaN, an infinity, a negative, a string, an
+object), writing a binary dictionary's own `1*2.5` back as read. An extent past an int32 is a
+size — MATLAB holds a zeros(0, 2^31) — but no MAT stream can say it, so one that has to be a
+stream is refused too (reason `past-int32`). An unedited value is written back as read; a
+container written whole around such a member is refused, naming the member, and never
+writes it as 0, false or `[]`. Pinned in `test/dimsWriters.test.ts` and
+`test/unbackedBudget.test.ts`.
+
 ### A sparse array's class is its element class
 `class()` of a sparse double is `double` (`logical`, `single`; complex is still
 `double`), so that is the Class and the Data Type.

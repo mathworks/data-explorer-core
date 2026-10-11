@@ -12,6 +12,7 @@ export interface MatVariable {
     fields: Record<string, MatVariable | MatVariable[]> | null;
     _rawBytes?: Uint8Array | null;
     _modified?: boolean;
+    _unwritable?: string;
     _anonymous?: boolean;
     isOpaque?: boolean;
     mcosHandle?: {

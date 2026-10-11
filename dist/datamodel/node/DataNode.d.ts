@@ -1,6 +1,7 @@
 import BaseNode from './BaseNode.js';
 import type { PropClass } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
+import { MatBudgetError } from '../parser/MatWriter.js';
 import { type EncodedValue } from '../parser/EncodedValue.js';
 export interface SetPropertyResult {
     error: boolean;
@@ -256,12 +257,28 @@ export default class DataNode extends BaseNode {
     static _complexTextXml(tag: string, attrs: string, value: Record<string, unknown>, indent: number): string;
     static _serializeObjectPropertyXml(name: string, value: Record<string, unknown>, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string;
     /**
-     * Refuses to write a raw value whose dims are not a size (parser/Size), as a reader takes
-     * one as damaged (MatlabVariableNode.parseDamaged): a property's raw cell, struct or object
-     * bag, written here from its raw value, has no node to have been read as damaged, and
-     * `Dimension="1*x"` is no spelling of anything.
+     * Refuses to write a raw property value whose dims no Dimension can spell (parser/Size): a
+     * raw cell, struct, object or string bag, an mxchar's or a typed literal's `Matrix(…)`
+     * header, a complex text's `_dimensions`. A binary dictionary's reader passes every finite
+     * non-negative extent through as read, so one of those is written back as read; what is
+     * refused — NaN, an infinity, a negative, a string, an object, a bigint — came from a text
+     * dictionary or a host, and `Dimension="1*x"` is no spelling of anything. A header's
+     * digits are taken `exact`ly: one past 2^53 would be written rounded, as another size.
      */
-    static _sizeOrRefuse(dims: unknown, cls: string, name: string, at: PropertyAt | undefined): void;
+    static _sizeOrRefuse(dims: unknown, cls: string, name: string, at: PropertyAt | undefined, exact?: boolean): void;
+    /** The extents of a `Matrix(…)` header of digit runs, as numbers, or undefined. */
+    static _headerDims(text: string): number[] | undefined;
+    /**
+     * A refusal of a write that began at this node, restated for a user: the entry — the one
+     * above, or, for a node a writer built on its own to write a raw property value
+     * (_detachedXml), the one it was built for — and the path to it.
+     */
+    _budgetFailure(e: MatBudgetError): MatBudgetError;
+    /**
+     * Refuses to write this node's XML when its dims are not what a Dimension can spell — the
+     * same rule as for a raw property value (_sizeOrRefuse) — naming the entry and the path.
+     */
+    _spellableOrRefuse(dims: unknown, cls: string): void;
     /**
      * `at` one level down: element `k` of `n` — its MATLAB subscript, `(k+1)`, unless it is
      * the only one — then `rest`, a field or a property.

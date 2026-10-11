@@ -7,7 +7,6 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import { type MatVariable } from '../../parser/MatParser.js';
 import { type EncodedValue } from '../../parser/EncodedValue.js';
-import { MatBudgetError } from '../../parser/MatWriter.js';
 import { type SparseData } from '../../parser/SparseData.js';
 export type { MatVariable };
 export default class MatlabVariableNode extends DataNode {
@@ -206,7 +205,6 @@ export default class MatlabVariableNode extends DataNode {
      */
     _matStream(): Uint8Array | null;
     /** A budget refusal of a write that began at this node, restated for a user. */
-    _budgetFailure(e: MatBudgetError): MatBudgetError;
     /**
      * Why MatWriter could not write this sparse array once an element of it were edited — its
      * file declares more columns than its column index held, or its class is one MATLAB never
@@ -249,6 +247,20 @@ export default class MatlabVariableNode extends DataNode {
      * of 80,000 of them pasted into a binary dictionary re-encoded each one from its non-zeros.
      */
     _keepStreamElement(stream: Uint8Array): void;
+    /**
+     * Refuses a variable with no own bytes whose dims are no size — a host's bigints, which
+     * show as not decoded (parseMatVariable) — as every writer must: finally, naming it, and
+     * never as the text of its placeholder.
+     */
+    _refuseNoSize(): void;
+    /**
+     * The variable a member of a cell or a struct is written from. A member of another class
+     * — a struct a text dictionary read as a StructNode, a Simulink object — has none here: it
+     * stands in as one MatWriter refuses (`_unwritable`), with the dims it declares, so that a
+     * container written whole as one stream is refused rather than writing it as a hole, `[]`,
+     * and a member whose dims are not a size is refused as that, finally, naming it.
+     */
+    static _memberVar(node: BaseNode): MatVariable;
     _buildVarObject(): MatVariable;
     static parseMatVariable(variable: MatVariable, name: string, parent: BaseNode | null): DataNode;
     static _createOpaque(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;

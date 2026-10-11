@@ -155,6 +155,8 @@ export default class StructNode extends DataNode {
         if (!writeUnderWay()) {
             return oneWrite(() => this.serializeXml(tagName, attrs, indent));
         }
+        // Dims no Dimension can spell, refused, finally (DataNode._spellableOrRefuse).
+        this._spellableOrRefuse(this.dims, 'struct');
         const p = xmlPad(indent);
         const d = this.dims;
         let attrStr = '';

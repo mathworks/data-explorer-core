@@ -370,7 +370,7 @@ export default class ParameterNode extends DataNode {
 
     serializeValue(): unknown {
         if (!writeUnderWay()) {
-          return oneWrite(() => this.serializeValue());
+            return oneWrite(() => this.serializeValue());
         }
         const props = this._getSerializedProperties();
         const result = Object.assign({}, this.serial._rawVal as Record<string, unknown>);
@@ -380,7 +380,7 @@ export default class ParameterNode extends DataNode {
 
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
         if (!writeUnderWay()) {
-          return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+            return oneWrite(() => this.serializeXml(tagName, attrs, indent));
         }
         return this._serializeSimulinkObjectXml(tagName, attrs, indent);
     }

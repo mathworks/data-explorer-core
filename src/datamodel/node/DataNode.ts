@@ -6,8 +6,8 @@ import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
-import { budgetFailure, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
-import { dimsText, isSize } from '../parser/Size.js';
+import { budgetFailure, classPhrase, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
+import { dimsText, isSize, isSpellableExtent } from '../parser/Size.js';
 import { encodedXml, isEncodedValue, type EncodedValue } from '../parser/EncodedValue.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
 import {
@@ -1055,6 +1055,7 @@ export default class DataNode extends BaseNode {
       // `[object Object]` — every element of the value gone from the saved file.
       if (obj._array_type === 'String') {
         const elements = (obj._elements as unknown[]) || [];
+        DataNode._sizeOrRefuse(obj._dimensions, 'string', name, at);
         return DataNode._serializeStringPropertyXml(
           name,
           elements,
@@ -1148,6 +1149,9 @@ export default class DataNode extends BaseNode {
     const type = value._type as string;
     const raw = String(value._value);
 
+    if (type === 'mxchar') {
+      DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', name, at, true);
+    }
     const mxChar = DataNode._mxCharXml(value);
     if (mxChar) {
       return (
@@ -1171,6 +1175,7 @@ export default class DataNode extends BaseNode {
       if (isMatCdata(value)) {
         return DataNode._detachedXml(value, name, 'P', { Name: name }, indent, at);
       }
+      DataNode._sizeOrRefuse(value._dimensions, complexClassTag(value._class) ?? 'double', name, at);
       return DataNode._complexTextXml('P', DataNode.pxAttrs(name), value, indent);
     }
 
@@ -1195,7 +1200,7 @@ export default class DataNode extends BaseNode {
       const dims = matrixMatch[1].split(',').map(function (s: string) {
         return parseInt(s, 10);
       });
-      DataNode._sizeOrRefuse(dims, type, name, at);
+      DataNode._sizeOrRefuse(dims, type, name, at, true);
       const nums = DataNode._parseMatrixNums(matrixMatch[2], type);
       const colMajor = transposeToColumnMajorND(nums, dims);
       const formatted = colMajor.map(function (v: number | string) {
@@ -1325,17 +1330,52 @@ export default class DataNode extends BaseNode {
   }
 
   /**
-   * Refuses to write a raw value whose dims are not a size (parser/Size), as a reader takes
-   * one as damaged (MatlabVariableNode.parseDamaged): a property's raw cell, struct or object
-   * bag, written here from its raw value, has no node to have been read as damaged, and
-   * `Dimension="1*x"` is no spelling of anything.
+   * Refuses to write a raw property value whose dims no Dimension can spell (parser/Size): a
+   * raw cell, struct, object or string bag, an mxchar's or a typed literal's `Matrix(…)`
+   * header, a complex text's `_dimensions`. A binary dictionary's reader passes every finite
+   * non-negative extent through as read, so one of those is written back as read; what is
+   * refused — NaN, an infinity, a negative, a string, an object, a bigint — came from a text
+   * dictionary or a host, and `Dimension="1*x"` is no spelling of anything. A header's
+   * digits are taken `exact`ly: one past 2^53 would be written rounded, as another size.
    */
-  static _sizeOrRefuse(dims: unknown, cls: string, name: string, at: PropertyAt | undefined): void {
-    if (dims === undefined || isSize(dims)) {
+  static _sizeOrRefuse(dims: unknown, cls: string, name: string, at: PropertyAt | undefined, exact = false): void {
+    if (dims === undefined || (exact ? isSize(dims) : Array.isArray(dims) && dims.every(isSpellableExtent))) {
       return;
     }
-    const what = 'a ' + cls + ' declaring dimensions ' + dimsText(dims);
-    throw budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, false), at ? at.entry : name, at ? at.path : name);
+    const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
+    throw budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-a-count'), at ? at.entry : name, at ? at.path : name);
+  }
+
+  /** The extents of a `Matrix(…)` header of digit runs, as numbers, or undefined. */
+  static _headerDims(text: string): number[] | undefined {
+    const m = /^Matrix\((\d+(?:,\d+)*)\)/.exec(text);
+    return m ? m[1].split(',').map(Number) : undefined;
+  }
+
+  /**
+   * A refusal of a write that began at this node, restated for a user: the entry — the one
+   * above, or, for a node a writer built on its own to write a raw property value
+   * (_detachedXml), the one it was built for — and the path to it.
+   */
+  _budgetFailure(e: MatBudgetError): MatBudgetError {
+    let root: BaseNode = this;
+    while (root.parent) {
+      root = root.parent;
+    }
+    const entry = root._writtenAt ? root._writtenAt.entry : this.owningEntry?.name ?? this.matlabPath;
+    return budgetFailure(e, entry, this.matlabPath);
+  }
+
+  /**
+   * Refuses to write this node's XML when its dims are not what a Dimension can spell — the
+   * same rule as for a raw property value (_sizeOrRefuse) — naming the entry and the path.
+   */
+  _spellableOrRefuse(dims: unknown, cls: string): void {
+    if (dims === undefined || (Array.isArray(dims) && dims.every(isSpellableExtent))) {
+      return;
+    }
+    const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
+    throw this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-a-count'));
   }
 
   /**
@@ -1430,11 +1470,15 @@ export default class DataNode extends BaseNode {
         if (isMatCdata(obj)) {
           return DataNode._detachedXml(obj, '', 'Element', {}, indent, at);
         }
+        DataNode._sizeOrRefuse(obj._dimensions, complexClassTag(obj._class) ?? 'double', '', at);
         return DataNode._complexTextXml('Element', '', obj, indent);
       }
       // And its sparse case, for its reason: never `Class="sparse"`.
       if (type === 'sparse') {
         return DataNode._detachedXml(obj, '', 'Element', {}, indent, at);
+      }
+      if (type === 'mxchar') {
+        DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', '', at, true);
       }
       const mxChar = DataNode._mxCharXml(obj);
       if (mxChar) {

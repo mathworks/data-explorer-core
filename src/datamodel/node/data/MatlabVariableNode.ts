@@ -32,8 +32,9 @@ import {
   recordDecodeFailure,
   type EncodedValue,
 } from '../../parser/EncodedValue.js';
+import { dimsText, isSize } from '../../parser/Size.js';
 import {
-  budgetFailure,
+  classPhrase,
   encodeMatStream,
   MatBudgetError,
   matStreamOfElement,
@@ -1668,6 +1669,7 @@ export default class MatlabVariableNode extends DataNode {
       // turns it into one on the way into such a file (MatWriter.textDictionaryForm).
       return this._rawInput;
     }
+    this._refuseNoSize();
     // Rank >= 3 leaves the literal grammar behind entirely: there is no spelling
     // for it. Every `Matrix(d1,d2,d3)` candidate reads back as an empty 1x0 and
     // the two constructor expressions read back as the scalar 0, while MATLAB's
@@ -1832,17 +1834,6 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   /** A budget refusal of a write that began at this node, restated for a user. */
-  _budgetFailure(e: MatBudgetError): MatBudgetError {
-    // The entry: the one above, or, for a node a writer built on its own to write a raw
-    // property value (DataNode._detachedXml), the one it was built for.
-    let root: BaseNode = this;
-    while (root.parent) {
-      root = root.parent;
-    }
-    const entry = root._writtenAt ? root._writtenAt.entry : this.owningEntry?.name ?? this.matlabPath;
-    return budgetFailure(e, entry, this.matlabPath);
-  }
-
   /**
    * Why MatWriter could not write this sparse array once an element of it were edited — its
    * file declares more columns than its column index held, or its class is one MATLAB never
@@ -2125,6 +2116,11 @@ export default class MatlabVariableNode extends DataNode {
     if (!writeUnderWay()) {
       return oneWrite(() => this.serializeXml(tagName, attrs, indent));
     }
+    // Dims no Dimension can spell — a text dictionary's [1, "x"] or a host's NaN pasted
+    // into a binary one — are refused, finally, naming the value, and never written as
+    // `Dimension="1*x"` (parser/Size). What a binary dictionary read is spelled as read.
+    this._spellableOrRefuse(this._dims, this._kind === 'cell' ? 'cell' : this._sparse ? 'sparse' : this._scalarType);
+    this._refuseNoSize();
     // Complex text nobody edited goes back as the text it was read from, through the
     // writer that spells complex text (DataNode._complexTextXml). For a value the node
     // read as numbers that is the same bytes the arms below would write; it matters for
@@ -2451,6 +2447,44 @@ export default class MatlabVariableNode extends DataNode {
     }
   }
 
+  /**
+   * Refuses a variable with no own bytes whose dims are no size — a host's bigints, which
+   * show as not decoded (parseMatVariable) — as every writer must: finally, naming it, and
+   * never as the text of its placeholder.
+   */
+  _refuseNoSize(): void {
+    const dims = this._matVar && !this._varStale ? this._matVar.dimensions : null;
+    if (!this._undecoded || this._rawBytes || !dims || isSize(dims)) {
+      return;
+    }
+    const what = classPhrase(this._scalarType) + ' declaring dimensions ' + dimsText(dims);
+    throw this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-a-count'));
+  }
+
+  /**
+   * The variable a member of a cell or a struct is written from. A member of another class
+   * — a struct a text dictionary read as a StructNode, a Simulink object — has none here: it
+   * stands in as one MatWriter refuses (`_unwritable`), with the dims it declares, so that a
+   * container written whole as one stream is refused rather than writing it as a hole, `[]`,
+   * and a member whose dims are not a size is refused as that, finally, naming it.
+   */
+  static _memberVar(node: BaseNode): MatVariable {
+    if (node instanceof MatlabVariableNode) {
+      return node._var;
+    }
+    const cls = String((node as unknown as { className?: string }).className || 'value');
+    return {
+      name: '',
+      className: cls,
+      dimensions: ((node as unknown as { dims?: number[] }).dims ?? [1, 1]).slice(),
+      isComplex: false,
+      isLogical: false,
+      value: null,
+      fields: null,
+      _unwritable: classPhrase(cls) + ' MatWriter has no variable for',
+    };
+  }
+
   _buildVarObject(): MatVariable {
     const matClassName = this._scalarType === 'logical' ? 'uint8' : this._scalarType;
     const v: MatVariable = {
@@ -2501,12 +2535,12 @@ export default class MatlabVariableNode extends DataNode {
             // children (_applyParsed), and a save must not throw on the way to
             // the writer. An empty [] holds the element's slot; dropping it would
             // slide every later element one position early.
-            return f ? (f as MatlabVariableNode)._var : emptyDouble();
+            return f ? MatlabVariableNode._memberVar(f) : emptyDouble();
           });
         }
       } else {
         for (const child of this.children) {
-          fields[child.name] = (child as MatlabVariableNode)._var;
+          fields[child.name] = MatlabVariableNode._memberVar(child);
         }
       }
       v.fields = fields;
@@ -2563,9 +2597,7 @@ export default class MatlabVariableNode extends DataNode {
       }
     } else if (this._kind === 'cell') {
       v.className = 'cell';
-      v.value = this.children.map(function (c) {
-        return (c as MatlabVariableNode)._var;
-      });
+      v.value = this.children.map(MatlabVariableNode._memberVar);
     } else if (this._kind === 'string') {
       v.className = 'char';
       const str = this._elements.length === 1 ? (this._elements[0] as string) : (this._elements as string[]).join('');
@@ -2617,6 +2649,16 @@ export default class MatlabVariableNode extends DataNode {
     // nothing read, and an editor whose commit could not reach the file.
     if (variable.undecoded) {
       return MatlabVariableNode._createUndecoded(variable, name, parent);
+    }
+    // Dims that are no numbers at all — a host's bigints — leave nothing to lay out: the
+    // value shows as not decoded and keeps its variable, which every writer refuses as a
+    // size that is no count (_refuseNoSize), where laying it out threw a TypeError and the
+    // source did not load.
+    if (!(variable.dimensions || []).every((x) => typeof x === 'number')) {
+      const node = MatlabVariableNode._createUndecoded(variable, name, parent);
+      node._dims = [1, 1];
+      node._scalarValue = '<' + (variable.className || 'double') + ', not decoded>';
+      return node;
     }
     if (variable.className === 'struct') {
       return MatlabVariableNode._createFromMatStruct(variable, name, parent);

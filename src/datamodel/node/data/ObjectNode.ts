@@ -93,7 +93,7 @@ export default class ObjectNode extends DataNode {
     // value unchanged.
     serializeValue(): unknown {
         if (!writeUnderWay()) {
-          return oneWrite(() => this.serializeValue());
+            return oneWrite(() => this.serializeValue());
         }
         const rawVal = (this.serial._rawVal as Record<string, unknown>) || {};
         if (this.children.length === 0) {
@@ -139,8 +139,10 @@ export default class ObjectNode extends DataNode {
     // back to DataNode's single-element form.
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
         if (!writeUnderWay()) {
-          return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+            return oneWrite(() => this.serializeXml(tagName, attrs, indent));
         }
+        // Dims no Dimension can spell, refused, finally (DataNode._spellableOrRefuse).
+        this._spellableOrRefuse(((this.serial._rawVal as Record<string, unknown>) || {})._dimensions, this.arrayClass || 'object');
         if (!this._isElementArray) {
             return super.serializeXml(tagName, attrs, indent);
         }

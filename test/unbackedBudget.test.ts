@@ -223,3 +223,53 @@ describe('a charge that is not a count is refused, and never turns the budget of
     expect(oneWrite(() => [encode(holes([0, 1e400])), encode(cell(past()))])).toEqual(['refused', 'refused']);
   });
 });
+
+describe('a count past 2^53 is still a count, over the budget, and never printed rounded', () => {
+  const refusedWith = (v: MatVariable) => {
+    try {
+      encodeMatStream(v);
+      return null;
+    } catch (e) {
+      return e as MatBudgetError;
+    }
+  };
+
+  it('a cell of 2147483647x2147483647 around one, and a struct array of 2147483647x4194305 with two fields', () => {
+    const big = 2147483647;
+    const c = refusedWith(cell([sparse([0, 0])], [big, big]));
+    const elements = (BigInt(big) * BigInt(big)).toString();
+    expect([c?.reason, c?.counted, c?.what]).toEqual(['budget', true, `a ${big}x${big} cell holding 1 of its ${elements} elements`]);
+    expect(c?.message).toContain('would write more than 9007199254740991 bytes');
+    expect(c?.message).not.toMatch(/e\+/);
+    const d = [big, 4194305];
+    const s = refusedWith({ name: '', className: 'struct', dimensions: d, isComplex: false, isLogical: false, value: null, fields: { f: [sparse([0, 0])], g: [sparse([0, 0])] } } as MatVariable);
+    const fields = (BigInt(big) * 4194305n * 2n).toString();
+    expect([s?.reason, s?.counted, s?.what]).toEqual(['budget', true, `a ${big}x4194305 struct array missing some of its ${fields} fields`]);
+  });
+});
+
+describe('an extent past what a MAT stream\'s int32 dims word can say', () => {
+  // A size, which the readers hold as read: MATLAB on 64 bits has zeros(0, 2^31). A MAT
+  // stream cannot say it, so an array that has to be one is refused, finally, saying why.
+  const refusedWith = (v: MatVariable) => {
+    try {
+      encodeMatStream(v);
+      return null;
+    } catch (e) {
+      return e as MatBudgetError;
+    }
+  };
+  const full = (d: number[]): MatVariable => ({ name: '', className: 'double', dimensions: d, isComplex: false, isLogical: false, value: [], fields: null });
+
+  it('a full empty, a sparse array and a member of a cell, at 2147483648; at 2147483647 a full empty is written', () => {
+    for (const [v, at] of [
+      [full([0, 2147483648]), ''],
+      [host(2147483648), ''],
+      [cell([full([0, 0]), full([2147483648, 0])]), '{2}'],
+    ] as const) {
+      const e = refusedWith(v as MatVariable);
+      expect([e instanceof MatBudgetError, e?.reason, e?.counted, e?.at], at).toEqual([true, 'past-int32', true, at]);
+    }
+    expect(refusedWith(full([0, 2147483647]))).toBeNull();
+  });
+});
