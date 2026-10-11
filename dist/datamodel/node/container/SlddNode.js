@@ -7,7 +7,7 @@ import PropRelease from '../../prop/PropRelease.js';
 import PropFileFormat from '../../prop/PropFileFormat.js';
 import PropNumberOfEntries from '../../prop/PropNumberOfEntries.js';
 import { slddChunkContent } from '../../parser/SlddContent.js';
-import { SC_PART } from '../../parser/ScCatalog.js';
+import { SC_PART, emptyCatalogBag } from '../../parser/ScCatalog.js';
 import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.js';
 import { takeDecodeFailures } from '../../parser/EncodedValue.js';
 import { heldByTextDictionary } from '../../parser/MatWriter.js';
@@ -204,8 +204,9 @@ export default class SlddNode extends ContainerNode {
             // measurement, and `DERIVED_KIND_BY_CLASS` for the fallback it licenses.
             return null;
         }
-        const interfaces = {};
-        const modeledDataTypes = {};
+        // Prototype-less, like the binary reader's: see `classificationOf`.
+        const interfaces = emptyCatalogBag();
+        const modeledDataTypes = emptyCatalogBag();
         const readName = (item) => {
             const c = item.content || {};
             return c.p_Name || '';

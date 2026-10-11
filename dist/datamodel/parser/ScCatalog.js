@@ -48,12 +48,30 @@ export const SC_TYPE_TO_CLASSIFICATION = {
 // Resolve the classification token (e.g. 'DataInterface', 'StructType') for an
 // entry name, or null if the catalog doesn't classify it. Interfaces are checked
 // before modeled data types.
+//
+// Every lookup is of an OWN key. The names are user-chosen MATLAB identifiers, and
+// `toString`, `constructor`, `valueOf` and the rest of `Object.prototype`'s members are
+// all valid ones: on a plain object `interfaces['toString']` is the inherited function,
+// which is truthy, so a struct type of that name never reached `modeledDataTypes` and
+// read as a Data Interface. The two readers build prototype-less bags, but the shape is
+// public and a host's own catalog — or a clone of ours — has a prototype again.
 export function classificationOf(catalog, entryName) {
     if (!catalog) {
         return null;
     }
-    const scType = catalog.interfaces[entryName] || catalog.modeledDataTypes[entryName];
-    return (scType && SC_TYPE_TO_CLASSIFICATION[scType]) || null;
+    const scType = ownValue(catalog.interfaces, entryName) || ownValue(catalog.modeledDataTypes, entryName);
+    return (scType && ownValue(SC_TYPE_TO_CLASSIFICATION, scType)) || null;
+}
+function ownValue(bag, key) {
+    return Object.prototype.hasOwnProperty.call(bag, key) ? bag[key] : undefined;
+}
+/**
+ * An empty name-keyed bag for the catalog: no prototype, so a name is only ever an own
+ * key. `__proto__` in particular is stored like any other name rather than handed to
+ * `Object.prototype`'s setter, which drops a string without a word.
+ */
+export function emptyCatalogBag() {
+    return Object.create(null);
 }
 // NEITHER reader warns when the catalog yields no definitions, whether the part is
 // absent or present-and-empty. Both used to raise `part-unreadable` here, on the
@@ -84,12 +102,25 @@ export function classificationOf(catalog, entryName) {
 const IFACE_KEY = 'p_Interfaces';
 const MODELED_KEY = 'p_ModeledDataTypes';
 const DESCRIPTOR_TYPE = 'systemcomposer.property.ValueTypeDescriptor';
-/** Fold definitions into the catalog the model classifies entries with. */
+/**
+ * Fold definitions into the catalog the model classifies entries with.
+ *
+ * The bag is chosen by comparing `container`, never by indexing with it: this function
+ * is public, a JS caller is not held to the union, and `catalog['__proto__'][name] = type`
+ * writes onto `Object.prototype` itself. A container outside the union names no bag and
+ * is skipped.
+ */
 export function catalogFromDefinitions(defs) {
-    const catalog = { interfaces: {}, modeledDataTypes: {} };
+    const catalog = { interfaces: emptyCatalogBag(), modeledDataTypes: emptyCatalogBag() };
     defs.forEach((def) => {
-        if (def.name) {
-            catalog[def.container][def.name] = def.type;
+        if (!def.name) {
+            return;
+        }
+        if (def.container === 'interfaces') {
+            catalog.interfaces[def.name] = def.type;
+        }
+        else if (def.container === 'modeledDataTypes') {
+            catalog.modeledDataTypes[def.name] = def.type;
         }
     });
     return catalog;
