@@ -47,6 +47,7 @@ export default class DataNode extends BaseNode {
     _rawInput?: unknown;
     _encoded?: EncodedValue;
     rawXml?: string;
+    _xmlAsRead?: boolean;
     classification?: string;
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
     get kind(): string;

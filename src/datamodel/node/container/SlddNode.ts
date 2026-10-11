@@ -209,11 +209,12 @@ export default class SlddNode extends ContainerNode {
                             part: String(entry.name),
                         });
                     }
-                    for (const what of takeDamagedValues()) {
+                    for (const { what, writtenAs } of takeDamagedValues()) {
                         warnings?.push({
                             code: 'part-unreadable',
                             message: `"${String(entry.name)}" holds ${what}, which is not a size; `
-                                + 'it is shown as not decoded and saved as it was read.',
+                                + 'it is shown as not decoded and saved as it was read'
+                                + (writtenAs ? `, except that JSON, which has no NaN or Infinity, writes its dimensions ${writtenAs}.` : '.'),
                             part: String(entry.name),
                         });
                     }

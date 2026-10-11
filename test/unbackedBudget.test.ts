@@ -223,3 +223,29 @@ describe('a charge that is not a count is refused, and never turns the budget of
     expect(oneWrite(() => [encode(holes([0, 1e400])), encode(cell(past()))])).toEqual(['refused', 'refused']);
   });
 });
+
+describe('an extent past what a MAT stream\'s int32 dims word can say', () => {
+  // A size to read and hold (parser/Size): MATLAB on 64 bits has zeros(0, 2^31). A MAT
+  // stream cannot say it, so an array that has to be one is refused, finally, saying why.
+  const refusedWith = (v: MatVariable) => {
+    try {
+      encodeMatStream(v);
+      return null;
+    } catch (e) {
+      return e as MatBudgetError;
+    }
+  };
+  const full = (d: number[]): MatVariable => ({ name: '', className: 'double', dimensions: d, isComplex: false, isLogical: false, value: [], fields: null });
+
+  it('a full empty, a sparse array and a member of a cell, at 2147483648; at 2147483647 a full empty is written', () => {
+    for (const [v, at] of [
+      [full([0, 2147483648]), ''],
+      [host(2147483648), ''],
+      [cell([full([0, 0]), full([2147483648, 0])]), '{2}'],
+    ] as const) {
+      const e = refusedWith(v as MatVariable);
+      expect([e instanceof MatBudgetError, e?.reason, e?.at], at).toEqual([true, 'past-int32', at]);
+    }
+    expect(refusedWith(full([0, 2147483647]))).toBeNull();
+  });
+});

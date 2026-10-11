@@ -83,7 +83,7 @@ function asObject(val) {
 }
 /**
  * What in `o` declares dims that are not a size, in words — its `_dimensions`, or a
- * `Matrix(…)` header of digit runs one of which no int32 dims word can say — or null.
+ * `Matrix(…)` header of digit runs one of which no double counts exactly — or null.
  * A header that is not digit runs at all is not a header parseMatrixValue reads, and is
  * left to it.
  */
@@ -124,7 +124,7 @@ export function parseValue(rawVal, name, parent) {
     }
     const obj = asObject(rawVal);
     // Dims that are not a size (parser/Size) — a hand-made `_dimensions: [1, "x"]`, a
-    // `Matrix(…)` header past what an int32 dims word says — make a value no shape here
+    // `Matrix(…)` header past what a double counts exactly — make a value no shape here
     // can lay out and no writer can count. Ahead of every shape test, so that none of them
     // carries them into the model: the value is read as damaged.
     const notASize = obj ? notASizeIn(obj) : null;

@@ -151,9 +151,9 @@ export function recordDecodeFailure(reason) {
  * that the dictionary reading the entry can say so.
  */
 const damagedValues = [];
-/** Record a value read as damaged: what it is and what it declares, in words. */
-export function recordDamagedValue(what) {
-    damagedValues.push(what);
+/** Record a value read as damaged. */
+export function recordDamagedValue(damaged) {
+    damagedValues.push(damaged);
 }
 /** The damaged values recorded since the last call, which clears them. */
 export function takeDamagedValues() {

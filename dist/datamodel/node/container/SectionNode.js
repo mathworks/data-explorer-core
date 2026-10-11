@@ -219,6 +219,10 @@ export default class SectionNode extends ContainerNode {
         if (rawEntry.rawXml) {
             dataNode.rawXml = rawEntry.rawXml;
         }
+        // Its XML holds a Dimension that is not a size (BinarySlddParser.parseDims).
+        if (rawEntry.xmlAsRead) {
+            dataNode._xmlAsRead = true;
+        }
         // A plain MATLAB variable in a DERIVED (Architectural Data) entry is a
         // Constant. parseValue picks the class from the value shape alone (it never
         // sees metadata), so we reclass here now that isderived is known — the single

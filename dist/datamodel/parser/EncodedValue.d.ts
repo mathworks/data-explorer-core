@@ -66,10 +66,19 @@ export type EncodedBytes = {
 export declare function encodedBytes(v: EncodedValue): EncodedBytes;
 /** Record why an encoded value did not decode (see `decodeFailures`). */
 export declare function recordDecodeFailure(reason: string): void;
-/** Record a value read as damaged: what it is and what it declares, in words. */
-export declare function recordDamagedValue(what: string): void;
+/**
+ * A value read as damaged: what it is and what it declares, in words; and, when a text
+ * dictionary cannot write its dims back as they were read, how it writes them — JSON has
+ * no NaN or Infinity, and writes either as null: `[0,null]` for a `[0, 1e400]`.
+ */
+export interface DamagedValue {
+    what: string;
+    writtenAs?: string;
+}
+/** Record a value read as damaged. */
+export declare function recordDamagedValue(damaged: DamagedValue): void;
 /** The damaged values recorded since the last call, which clears them. */
-export declare function takeDamagedValues(): string[];
+export declare function takeDamagedValues(): DamagedValue[];
 /** The decode failures recorded since the last call, which clears them. */
 export declare function takeDecodeFailures(): string[];
 /**
