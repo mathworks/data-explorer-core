@@ -84,11 +84,13 @@ function layOut(rowMajor, dims, cls) {
 // Each is read here: the text as its elements (with MATLAB's `.0` dropped, as the node
 // layer drops it), the stream by the reader every other path decodes one with. A stream
 // that is not a number shows its summary, and one that does not decode, nothing. Text
-// that is neither shows as it is, as every cdata value did.
+// that is neither shows as it is, as every cdata value did. The `.0` goes as
+// MatlabVariableNode._parseCdataText drops it, `(?<!\d)` and all, which is what keeps a long
+// run of digits from costing its square.
 function formatCdata(v) {
     const text = v._value;
     if (!isMatCdata(v)) {
-        const colMajor = text.trim() === '' ? [] : text.trim().split(/\s+/).map((t) => t.replace(/(\d+)\.0(?=[+\-i]|$)/g, '$1'));
+        const colMajor = text.trim() === '' ? [] : text.trim().split(/\s+/).map((t) => t.replace(/(?<!\d)(\d+)\.0(?=[+\-i]|$)/g, '$1'));
         const dims = Array.isArray(v._dimensions) ? v._dimensions : [1, colMajor.length];
         if (colMajor.length === 0) {
             return '[]';

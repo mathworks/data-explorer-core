@@ -212,6 +212,18 @@ describe('buildOtherRows — a cdata value is read, not printed', () => {
     expect(shown).toBe(text);
   });
 
+  // The `.0` was dropped with `(\d+)\.0(?=[+\-i]|$)` alone, which started a match at every
+  // digit of a run, and each walked the rest of the run: 100,000 digits took 4.3 s to show.
+  // Here it takes 0.6 ms over two full runs, so 1 s is past five times CI's time, at 3.3
+  // times this machine's (fe238c7).
+  it('a long run of digits shows at once, as it is', () => {
+    const digits = '1'.repeat(100_000);
+    const t0 = performance.now();
+    const shown = shows({ _type: 'cdata', _value: digits });
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(shown).toBe(digits);
+  });
+
   it('a stream that does not decode shows nothing rather than its characters; other text shows as it is', () => {
     expect(shows({ _type: 'cdata', _value: '  %)30 not a stream' })).toBe('');
     expect(shows({ _type: 'cdata', _value: 'not complex text' })).toBe('not complex text');
