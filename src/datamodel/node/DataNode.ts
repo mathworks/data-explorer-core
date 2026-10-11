@@ -216,9 +216,6 @@ export default class DataNode extends BaseNode {
   // a binary dictionary's `Encoding="hex"` element decoded into.
   _encoded?: EncodedValue;
   rawXml?: string;
-  // The entry's XML holds a Dimension that is not a size, read as 1x1
-  // (BinarySlddParser.parseDims): until it is edited it is written back as `rawXml`.
-  _xmlAsRead?: boolean;
   // A semantic classification token (e.g. 'DataInterface', 'StructType') set at
   // parse time for entries the source classifies beyond their Class (currently
   // the systemcomposer catalog). It drives the user-facing Kind (see the `kind`
@@ -1338,7 +1335,7 @@ export default class DataNode extends BaseNode {
       return;
     }
     const what = 'a ' + cls + ' declaring dimensions ' + dimsText(dims);
-    throw budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-a-count'), at ? at.entry : name, at ? at.path : name);
+    throw budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, false), at ? at.entry : name, at ? at.path : name);
   }
 
   /**

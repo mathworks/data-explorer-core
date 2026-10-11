@@ -256,9 +256,8 @@ export default class MatlabVariableNode extends DataNode {
     static _createUndecoded(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
     /**
      * A value whose dims are not a size (parser/Size) — a hand-made `_dimensions: [1, "x"]`,
-     * `[1, {}]` or `[0, 1e400]`, a host's `[NaN, 1]`, a `Matrix(…)` header past what a double
-     * counts exactly — which no shape here can lay out and no writer can count
-     * (NodeClassMap.parseValue). An extent past an int32 is a size, and read. It
+     * `[1, {}]` or `[0, 1e400]`, a host's `[NaN, 1]`, a `Matrix(…)` header past an int32 —
+     * which no shape here can lay out and no writer can count (NodeClassMap.parseValue). It
      * shows as not decoded, is reported (EncodedValue.recordDamagedValue), and is written only
      * as what it was read from: a text dictionary writes it back as it was read
      * (serializeValue's `_rawInput`), and nothing else has a spelling for it but bytes it

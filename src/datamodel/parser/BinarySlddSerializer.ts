@@ -57,12 +57,6 @@ export function buildDataChunkXml(slddNode: SlddNode): string {
 }
 
 export function serializeEntryToXml(entryNode: DataNode): string {
-    // An entry whose XML holds a Dimension that is not a size was read as 1x1 there
-    // (BinarySlddParser.parseDims). Until anything edits it — a rename included, which
-    // _markModified marks — it is the XML it was read as, the only spelling of it as read.
-    if (entryNode._xmlAsRead && entryNode.rawXml && entryNode.status !== 'Modified') {
-        return '    ' + entryNode.rawXml + '\n';
-    }
     const meta = entryNode.metadata || {};
     // Prefer whichever raw timestamp the entry actually carries, in the same order
     // DataNode's `lastModified` getter reads them: `_rawLastMod` for an entry parsed

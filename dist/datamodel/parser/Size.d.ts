@@ -1,6 +1,6 @@
-/** The most elements one dimension of a MAT stream may have: its dims word is an int32. */
-export declare const MAT_MAX_EXTENT = 2147483647;
-/** Whether `x` is one extent of a size: a whole number of elements a double counts exactly. */
+/** The most elements one dimension may have: a MAT stream writes each as an int32. */
+export declare const MAX_EXTENT = 2147483647;
+/** Whether `x` is one extent of a size. */
 export declare function isExtent(x: unknown): x is number;
 /** Whether `d` is a size: a list whose every entry is an extent. */
 export declare function isSize(d: unknown): d is number[];

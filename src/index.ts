@@ -78,10 +78,9 @@ export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/Bin
 // copy) or serializeEntryToXml() (a binary dictionary's paste and splice). A host has to
 // recognise the refusal to show it rather than fail on it: MatWriteError for a value the MAT
 // writer cannot write, and MatBudgetError, a MatWriteError, for one past the unbacked-bytes
-// budget, declaring dims that are not a size, or an extent past what a MAT stream can say —
-// final, with `entry`, `at` (the MATLAB path to what was refused), `what` (what stands
-// there, in words), `reason` ('budget', 'not-a-count', 'past-int32'), `counted` (false when
-// its size is no count at all), and a message naming all of them for a user.
+// budget or declaring dims that are not a size — final, with `entry`, `at` (the MATLAB path
+// to what was refused), `what` (what stands there, in words), `counted` (false when its
+// size is no count at all), and a message naming all of them for a user.
 export { MatWriteError, MatBudgetError } from './datamodel/parser/MatWriter.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';
 export { parseMdl } from './datamodel/parser/MdlParser.js';

@@ -117,12 +117,8 @@ export function parseDims(dimension: string): number[] {
     return [1, 1];
   }
   const parts = dimension.split('*').map(Number);
-  // Not a size (parser/Size) — a fraction as much as NaN, a negative or an infinity — read
-  // as the scalar, and noted: the entry holding it is written back as the XML it was read
-  // as until it is edited (serializeEntryToXml), and its read says so. An extent past an
-  // int32 IS a size: MATLAB holds a zeros(0, 2^31), and XML spells it as text.
+  // Not a size (parser/Size): a fraction, or past an int32 dims word, as much as NaN.
   if (!isSize(parts)) {
-    notASizeInEntry.push(dimension);
     return [1, 1];
   }
   if (parts.length === 1) {
@@ -134,9 +130,6 @@ export function parseDims(dimension: string): number[] {
   }
   return dims;
 }
-
-/** Every Dimension the entry being read carries that is not a size (parseDims). */
-let notASizeInEntry: string[] = [];
 
 /**
  * Read a compressed-binary `.sldd` package into dictionary content.
@@ -268,19 +261,8 @@ export function parseBinarySlddParts(
     const objClass = obj['@_Class'];
     if (objClass === 'DD.ENTRY') {
       encodedInEntry = false;
-      notASizeInEntry = [];
       const entry = parseEntry(obj, entryXmlFragments[entryIdx] || '');
       ddEntries.push(entry);
-      if (notASizeInEntry.length > 0) {
-        entry.xmlAsRead = true;
-        warnings?.push({
-          code: 'part-unreadable',
-          message: `"${String(entry.name)}" holds ${notASizeInEntry.length === 1 ? 'a Dimension' : 'Dimensions'} that ${notASizeInEntry.length === 1 ? 'is' : 'are'} not a size (`
-            + notASizeInEntry.map((d) => `"${d}"`).join(', ')
-            + '), read as 1x1; it is saved as the XML it was read as until it is edited, and then as what it shows.',
-          part: String(entry.name),
-        });
-      }
       // Only an entry that HAS an encoded value is walked for unreadable ones — the walk
       // visits every value, and nearly every entry of every dictionary has none.
       if (encodedInEntry && warnings) {

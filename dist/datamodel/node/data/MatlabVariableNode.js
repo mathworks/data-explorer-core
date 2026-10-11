@@ -2437,9 +2437,8 @@ export default class MatlabVariableNode extends DataNode {
     }
     /**
      * A value whose dims are not a size (parser/Size) — a hand-made `_dimensions: [1, "x"]`,
-     * `[1, {}]` or `[0, 1e400]`, a host's `[NaN, 1]`, a `Matrix(…)` header past what a double
-     * counts exactly — which no shape here can lay out and no writer can count
-     * (NodeClassMap.parseValue). An extent past an int32 is a size, and read. It
+     * `[1, {}]` or `[0, 1e400]`, a host's `[NaN, 1]`, a `Matrix(…)` header past an int32 —
+     * which no shape here can lay out and no writer can count (NodeClassMap.parseValue). It
      * shows as not decoded, is reported (EncodedValue.recordDamagedValue), and is written only
      * as what it was read from: a text dictionary writes it back as it was read
      * (serializeValue's `_rawInput`), and nothing else has a spelling for it but bytes it
@@ -2460,12 +2459,7 @@ export default class MatlabVariableNode extends DataNode {
                     : typeof rawVal._type === 'string' && rawVal._type !== 'sparse' ? rawVal._type : 'double';
         node._scalarValue = '<' + node._scalarType + ', not decoded>';
         node._dims = [1, 1];
-        // As a text dictionary writes it back: JSON writes a NaN or an Infinity as null.
-        const asJson = rawVal._dimensions === undefined ? undefined : JSON.stringify(rawVal._dimensions);
-        recordDamagedValue({
-            what: 'a ' + node._scalarType + ' declaring ' + what,
-            writtenAs: asJson !== undefined && asJson !== dimsText(rawVal._dimensions) ? asJson : undefined,
-        });
+        recordDamagedValue('a ' + node._scalarType + ' declaring ' + what);
         return node;
     }
     /** A host's or a reader's variable whose dims are not a size: parseDamaged's, for a MatVariable. */
@@ -2479,7 +2473,7 @@ export default class MatlabVariableNode extends DataNode {
         node._scalarType = variable.className || 'double';
         node._scalarValue = '<' + node._scalarType + ', not decoded>';
         node._dims = [1, 1];
-        recordDamagedValue({ what: 'a ' + node._scalarType + ' declaring ' + node._damaged });
+        recordDamagedValue('a ' + node._scalarType + ' declaring ' + node._damaged);
         return node;
     }
     /**
@@ -2492,7 +2486,7 @@ export default class MatlabVariableNode extends DataNode {
         if (own) {
             return own;
         }
-        throw this._budgetFailure(new MatBudgetError('a value declaring ' + this._damaged + ' was read as damaged', '', 'a ' + this._scalarType + ' declaring ' + this._damaged, undefined, 'not-a-count'));
+        throw this._budgetFailure(new MatBudgetError('a value declaring ' + this._damaged + ' was read as damaged', '', 'a ' + this._scalarType + ' declaring ' + this._damaged, undefined, false));
     }
     static createFromMcosDecoded(variable, decoded, parent, 
     // The variable's own name, unless it is nested: then the field name or cell index.

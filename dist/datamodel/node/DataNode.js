@@ -1187,7 +1187,7 @@ export default class DataNode extends BaseNode {
             return;
         }
         const what = 'a ' + cls + ' declaring dimensions ' + dimsText(dims);
-        throw budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-a-count'), at ? at.entry : name, at ? at.path : name);
+        throw budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, false), at ? at.entry : name, at ? at.path : name);
     }
     /**
      * `at` one level down: element `k` of `n` — its MATLAB subscript, `(k+1)`, unless it is

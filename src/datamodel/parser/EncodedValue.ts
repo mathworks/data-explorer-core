@@ -184,25 +184,15 @@ export function recordDecodeFailure(reason: string): void {
  * MatlabVariableNode.parseDamaged), recorded the same way and for the same reason: so
  * that the dictionary reading the entry can say so.
  */
-const damagedValues: DamagedValue[] = [];
+const damagedValues: string[] = [];
 
-/**
- * A value read as damaged: what it is and what it declares, in words; and, when a text
- * dictionary cannot write its dims back as they were read, how it writes them — JSON has
- * no NaN or Infinity, and writes either as null: `[0,null]` for a `[0, 1e400]`.
- */
-export interface DamagedValue {
-  what: string;
-  writtenAs?: string;
-}
-
-/** Record a value read as damaged. */
-export function recordDamagedValue(damaged: DamagedValue): void {
-  damagedValues.push(damaged);
+/** Record a value read as damaged: what it is and what it declares, in words. */
+export function recordDamagedValue(what: string): void {
+  damagedValues.push(what);
 }
 
 /** The damaged values recorded since the last call, which clears them. */
-export function takeDamagedValues(): DamagedValue[] {
+export function takeDamagedValues(): string[] {
   return damagedValues.splice(0);
 }
 

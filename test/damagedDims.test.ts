@@ -22,12 +22,11 @@ const LITERAL = { _type: 'sparse', _value: 'Matrix(0,4194305)\n[]' };
 const cellAround = (inner: unknown) => ({ _array_type: 'Cell', _dimensions: [1, 2], _elements: [inner, LITERAL], _mw_element_type: 'MATLABArray' });
 const innerOf = (d: unknown) => ({ _array_type: 'Cell', _dimensions: d, _elements: [[1, 2, 3]], _mw_element_type: 'MATLABArray' });
 // Each form, and how it is spelled in a message. JSON has no NaN, so that one is a host's.
-// `written` is how a text dictionary writes them back: JSON has no NaN or Infinity.
-const FORMS: { label: string; dims: unknown; text: string | null; said: string; written: unknown[] }[] = [
-  { label: '[1,"x"]', dims: [1, 'x'], text: '[1,"x"]', said: '[1,"x"]', written: [1, 'x'] },
-  { label: '[1,{}]', dims: [1, {}], text: '[1,{}]', said: '[1,{}]', written: [1, {}] },
-  { label: '[0,1e400]', dims: [0, Infinity], text: '[0,1e400]', said: '[0,Infinity]', written: [0, null] },
-  { label: '[NaN,1]', dims: [NaN, 1], text: null, said: '[NaN,1]', written: [null, 1] },
+const FORMS: { label: string; dims: unknown; text: string | null; said: string }[] = [
+  { label: '[1,"x"]', dims: [1, 'x'], text: '[1,"x"]', said: '[1,"x"]' },
+  { label: '[1,{}]', dims: [1, {}], text: '[1,{}]', said: '[1,{}]' },
+  { label: '[0,1e400]', dims: [0, Infinity], text: '[0,1e400]', said: '[0,Infinity]' },
+  { label: '[NaN,1]', dims: [NaN, 1], text: null, said: '[NaN,1]' },
 ];
 const refused = (entry: string, at: string, said: string) =>
   `Cannot write "${entry}": ${at} is a cell declaring dimensions ${said}, a size that is not a count, so what it would add beyond its data cannot be held to the 16 MiB one value may add. Nothing was written.`;
@@ -62,16 +61,11 @@ describe('a value whose dims are not a size is read as damaged, and never writte
       const entry = root.getSection('design').children.find((e: any) => e.name === 'damaged');
       const inner = entry.children[0];
       expect([inner.displayValue, inner.dims, inner._damaged, notSizes(root)]).toEqual(['<cell, not decoded>', [1, 1], 'dimensions ' + f.said, []]);
-      // What the warning says it is saved as is what is saved.
-      const exceptJson = f.said === JSON.stringify(f.written) ? '' : `, except that JSON, which has no NaN or Infinity, writes its dimensions ${JSON.stringify(f.written)}`;
       expect(root.warnings?.filter((w: any) => w.part === 'damaged').map((w: any) => w.message)).toEqual([
-        `"damaged" holds a cell declaring dimensions ${f.said}, which is not a size; it is shown as not decoded and saved as it was read${exceptJson}.`,
+        `"damaged" holds a cell declaring dimensions ${f.said}, which is not a size; it is shown as not decoded and saved as it was read.`,
       ]);
-      // Saved as opened: as it was read — the bytes say so — and read back as damaged again.
+      // Saved as opened: as it was read, and read back as damaged again.
       const saved = session.serializeSource(root.name)!.text!;
-      const savedEntry = JSON.parse(saved).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'damaged');
-      expect(savedEntry.value._elements[0]._dimensions).toEqual(f.written);
-      expect(savedEntry.value._elements[1]).toEqual(LITERAL);
       const again: any = ingest(createSession(), buffer(strToU8(saved)), { filename: TEXT });
       expect(again.getSection('design').children.find((e: any) => e.name === 'damaged').children[0]._damaged).toMatch(/^dimensions \[/);
       // Pasted: into a text dictionary it is saved as it was pasted; a binary dictionary has
@@ -84,54 +78,26 @@ describe('a value whose dims are not a size is read as damaged, and never writte
     });
   }
 
-  it('a binary dictionary\'s Dimension: a size past an int32 is read and written back verbatim; one that is no size is read as 1x1, said so, and written back as read until edited', () => {
+  it('a binary dictionary\'s Dimension that is not a size is read as the binary reader always read one, never as NaN', () => {
     const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
     const xml = strFromU8(files['data/chunk0.xml']);
-    const fragment = (name: string, n: number, value: string) =>
-      `<Object Class="DD.ENTRY">\n        <P Name="Name" Class="char">${name}</P>\n        <P Name="UUID" Class="char">00000000-0000-4000-ed00-00000000000${n}</P>\n`
+    const entryXml = (dim: string, n: number) =>
+      `    <Object Class="DD.ENTRY">\n        <P Name="Name" Class="char">d${n}</P>\n        <P Name="UUID" Class="char">00000000-0000-4000-ed00-00000000000${n}</P>\n`
       + `        <P Name="Namespace" Class="char">dacaf35e-55a5-454d-a7c1-93db038a210e</P>\n        <P Name="LastMod" Class="char">20261011T000000.000000</P>\n`
       + `        <P Name="LastModBy" Class="char"></P>\n        <P Name="IsDerived" Class="char">0</P>\n`
-      + `        ${value}\n    </Object>`;
-    const cellValue = (dim: string) => `<P Name="Value" Class="cell" Dimension="${dim}">\n            <Element Class="double">1.0</Element>\n        </P>`;
-    // Past an int32, and a size: MATLAB's zeros(0, 2^31), an empty struct of that size, a
-    // 1x4294967296 cell holding one element.
-    const sizes: [string, string, string][] = [
-      ['z', '<P Name="Value" Class="double" Dimension="0*2147483648"/>', '<P Name="Value" Class="double" Dimension="0*2147483648"/>'],
-      ['zs', '<P Name="Value" Class="struct" Dimension="0*2147483648"/>', 'Dimension="0*2147483648"'],
-      ['w', cellValue('1*4294967296'), cellValue('1*4294967296')],
-    ];
-    const nonSizes = ['1*x', '1*2.5', '1*1e400', '1*-2'];
-    const fragments = [
-      ...sizes.map(([name, value], i) => fragment(name, i, value)),
-      ...nonSizes.map((d, i) => fragment('d' + i, 5 + i, cellValue(d))),
-    ];
-    files['data/chunk0.xml'] = strToU8(xml.replace('    <Object Class="DD.Dictionary">', fragments.map((f) => '    ' + f + '\n').join('') + '    <Object Class="DD.Dictionary">'));
+      + `        <P Name="Value" Class="cell" Dimension="${dim}">\n            <Element Class="double">1.0</Element>\n        </P>\n    </Object>\n`;
+    const forms = ['1*x', '1*2.5', '1*1e400', '1*-2', '1*4294967296'];
+    files['data/chunk0.xml'] = strToU8(xml.replace('    <Object Class="DD.Dictionary">', forms.map((d, i) => entryXml(d, i)).join('') + '    <Object Class="DD.Dictionary">'));
     const session = createSession();
     const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
-    const design = root.getSection('design');
-    const at = (name: string) => design.children.find((e: any) => e.name === name);
-    // Read: the sizes as they are, warned of nothing; the others as 1x1, each said so.
-    expect([at('z').dims, at('zs').dims, at('w').dims]).toEqual([[0, 2147483648], [0, 2147483648], [1, 4294967296]]);
-    expect(nonSizes.map((_, i) => at('d' + i).dims)).toEqual(nonSizes.map(() => [1, 1]));
-    expect(nonSizes.map((_, i) => at('d' + i)._damaged ?? null)).toEqual(nonSizes.map(() => null));
-    expect(nonSizes.every((_, i) => !!at('d' + i)._xmlAsRead)).toBe(true);
-    expect(nonSizes.map((d, i) => root.warnings.find((w: any) => w.part === 'd' + i)?.message)).toEqual(
-      nonSizes.map((d, i) => `"d${i}" holds a Dimension that is not a size ("${d}"), read as 1x1; it is saved as the XML it was read as until it is edited, and then as what it shows.`),
-    );
-    expect(root.warnings.filter((w: any) => ['z', 'zs', 'w'].includes(w.part))).toEqual([]);
+    // The binary reader reads a Dimension that is not a size as none (BinarySlddParser
+    // parseDims, which always did so for NaN and a negative): a 1x1 cell around the one
+    // element it holds. Not damaged — a binary dictionary keeps no bytes to write one back
+    // as it was read — and so saved as it was read.
+    const read = forms.map((_, i) => root.getSection('design').children.find((e: any) => e.name === 'd' + i));
+    expect(read.map((e: any) => [e.dims, e._damaged ?? null])).toEqual(forms.map(() => [[1, 1], null]));
     expect(notSizes(root)).toEqual([]);
-    // A no-op save: each Value written back as it was read, byte for byte.
-    const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
-    for (const [name, , written] of sizes) {
-      const from = saved.indexOf(`<P Name="Name" Class="char">${name}</P>`);
-      expect(saved.slice(from, saved.indexOf('</Object>', from)), name).toContain(written);
-    }
-    for (const f of fragments.slice(sizes.length)) expect(saved).toContain('    ' + f + '\n');
-    // Edited, it is what it shows: a 1x1 cell.
-    expect(at('d1').setProperty('Name', 'd1edited')).toBe(true);
-    const edited = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
-    const from = edited.indexOf('<P Name="Name" Class="char">d1edited</P>');
-    expect(edited.slice(from, edited.indexOf('</Object>', from))).toContain('<P Name="Value" Class="cell" Dimension="1*1">');
+    expect(thrownBy(() => session.serializeSource(root.name))[0]).toBeNull();
   });
 
   it('a host\'s variable declaring [NaN, 1] is damaged, and its copy is refused; a .mat\'s declaring [-1, 2] is copied as the element it was read from', () => {
@@ -153,47 +119,12 @@ describe('a value whose dims are not a size is read as damaged, and never writte
     expect(d.serialize().value._type).toBe('cdata');
   });
 
-  it('a host\'s sparse array of 1x2147483648 is read, its row read-only, and its copy refused, since no MAT stream can say it', () => {
-    const host: any = createSession().addMatSourceParsed('h.mat', {
-      header: '',
-      warnings: [],
-      variables: [{ name: 'h', className: 'double', dimensions: [1, 2147483648], isComplex: false, isLogical: false, isSparse: true, value: '', fields: null,
-        sparse: { row: Int32Array.from([0]), col: Int32Array.from([0]), re: Float64Array.from([5]), im: null, backedColumns: 2147483648 } }],
-    });
-    const h = host.children[0];
-    expect([h.displayValue, h._damaged, h.children.map((c: any) => [c.displayName, c.valueEditable])]).toEqual(['<1x2147483648 sparse double>', null, [['h(1,1)', false]]]);
-    const [thrown] = thrownBy(() => h.serialize());
-    expect([thrown?.name, (thrown as any)?.reason]).toEqual(['MatBudgetError', 'past-int32']);
-  });
-
-  it('a text dictionary\'s size past an int32 is read, as a size; one past what a double counts exactly is damaged', () => {
-    const fresh = () => createSession().addDataSource('t.sldd', JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))))).getSection('design');
-    let seq = 0;
-    const read = (value: unknown) => fresh().parseEntry({ name: 'm', metadata: { uuid: `00000000-0000-4000-ee00-00000000000${++seq}` }, value });
-    for (const [value, damaged] of [
-      [{ _type: 'sparse', _value: 'Matrix(0,2147483648)\n[]' }, false],
-      [{ _type: 'double', _value: 'Matrix(0,4294967296)\n[]' }, false],
-      [{ _array_type: 'Cell', _dimensions: [0, 2147483648], _elements: [] }, false],
-      [{ _array_type: 'String', _dimensions: [0, 2147483648], _elements: [] }, false],
-      [{ _array_type: 'Struct', _dimensions: [0, 2147483648], _elements: [], _fields: ['f'] }, false],
-      [{ _type: 'sparse', _value: 'Matrix(0,' + '9'.repeat(400) + ')\n[]' }, true],
-      [{ _type: 'sparse', _value: 'Matrix(0,9007199254740993)\n[]' }, true],
-    ] as const) {
-      const e: any = read(value);
-      expect([!!e._damaged, notSizes(e)], JSON.stringify(value).slice(0, 60)).toEqual([damaged, []]);
+  it('a Matrix(…) header past an int32 is damaged too; one within it is read', () => {
+    for (const [header, damaged] of [['Matrix(0,4294967296)\n[]', true], ['Matrix(0,' + '9'.repeat(400) + ')\n[]', true], ['Matrix(0,5)\n[]', false]] as const) {
+      const node = createSession().addDataSource('t.sldd', JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))))).getSection('design');
+      const e: any = node.parseEntry({ name: 'm', metadata: { uuid: '00000000-0000-4000-ee00-000000000001' }, value: { _type: 'sparse', _value: header } });
+      expect(!!e._damaged, header.slice(0, 30)).toBe(damaged);
+      expect(notSizes(e), header.slice(0, 30)).toEqual([]);
     }
-    // Into a binary dictionary: a full empty is its XML, verbatim; a sparse one has no
-    // spelling there but a stream, whose int32 dims word cannot say 2147483648, so it is
-    // refused, saying why.
-    const full = pasteSaveReopen(BINARY, { _type: 'double', _value: 'Matrix(0,2147483648)\n[]' });
-    expect([full.written, full.entry.dims]).toEqual(['<P Name="Value" Class="double" Dimension="0*2147483648"/>', [0, 2147483648]]);
-    // An empty cell is written as the XML cell writer writes every empty one, 0x0.
-    expect(thrownBy(() => pasteSaveReopen(BINARY, { _array_type: 'Cell', _dimensions: [0, 2147483648], _elements: [] }))[0]).toBeNull();
-    const [thrown] = thrownBy(() => pasteSaveReopen(BINARY, { _type: 'sparse', _value: 'Matrix(0,2147483648)\n[]' }));
-    expect([thrown?.name, (thrown as any)?.reason, thrown?.message]).toEqual([
-      'MatBudgetError',
-      'past-int32',
-      'Cannot write "pasted": pasted is a 0x2147483648 sparse double, an extent past 2147483647, the most a MAT stream\'s dimensions can say, and it has no other spelling here. Nothing was written.',
-    ]);
   });
 });
