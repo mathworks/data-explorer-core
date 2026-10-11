@@ -239,8 +239,8 @@ export function matStreamPrefix(bytes: Uint8Array): Uint8Array | null {
  */
 export function hexText(bytes: Uint8Array, indent: number): string {
   // Laid out in one buffer of character codes and read as text once. Built a character at
-  // a time with `+=`, the hex of a 16 MB stream took 1.8 s and the process peaked at
-  // 1.1 GB, against 64 ms and 139 MB (test/textOfBytes.test.ts).
+  // a time with `+=`, the hex of a 16 MB stream took 2 s and raised the peak of a process by
+  // 1,040 MB, against 70 ms and 73 MB (test/hexTextCost.test.ts).
   const lead = new TextEncoder().encode('\n' + xmlPad(indent + 2));
   const out = new Uint8Array(bytes.length * 2 + Math.ceil(bytes.length / HEX_LINE_BYTES) * lead.length);
   let o = 0;

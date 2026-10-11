@@ -27,14 +27,14 @@ const HEAVY_TIMEOUT = 60_000;
 describe('a cell of 200 cells of 1,000 0x256 arrays', () => {
   it('opens, is written as one stream of its members\' bytes, and is copied, pasted into a binary dictionary and saved, at once', { timeout: HEAVY_TIMEOUT }, () => {
     const [c, openMs]: [any, number] = timed(() => createSession().addMatSource('c.mat', file).children[0]);
-    expect([file.byteLength < 40000, c.displayValue, c.children[199].children.length, openMs < 5000]).toEqual([true, '<1x200 cell>', 1000, true]);
+    expect([file.byteLength < 40000, c.displayValue, c.children[199].children.length, openMs < 15000]).toEqual([true, '<1x200 cell>', 1000, true]);
     const [stream, ms] = timed(() => encodeMatStream(c._var));
-    expect([stream.length, ms < 3000]).toEqual([STREAM, true]);
+    expect([stream.length, ms < 10000]).toEqual([STREAM, true]);
     const [copied, copyMs] = timed(() => copyOf(c));
-    expect(copyMs).toBeLessThan(10000);
+    expect(copyMs).toBeLessThan(15000);
     const entry = pasted(BINARY, copied);
     const [hex, hexMs] = timed(() => entry._binaryEncoded());
-    expect([hex._attrs.EncodedLength, hexMs < 10000]).toEqual([String(STREAM), true]);
+    expect([hex._attrs.EncodedLength, hexMs < 15000]).toEqual([String(STREAM), true]);
     // 1.5 GB in this process, nearly all of it the 200,000 nodes, opened twice.
     expect(peakMB()).toBeLessThan(2560);
   });

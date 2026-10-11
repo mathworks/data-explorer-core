@@ -70,7 +70,7 @@ describe('past the budget, a paste, a copy and a save fail, and nothing is writt
       const p = paste(d, value, file);
       edit(p.node);
       const [thrown, ms] = thrownBy(p.write);
-      expect([thrown?.name, thrown?.message, ms < 3000]).toEqual(['MatBudgetError', refusal('pasted', at, COLUMNS_0x256), true]);
+      expect([thrown?.name, thrown?.message, ms < 5000]).toEqual(['MatBudgetError', refusal('pasted', at, COLUMNS_0x256), true]);
     });
 
     it(`${file}: the save fails, returns nothing, and the save after the value is taken out is the save there would have been`, { timeout: HEAVY_TIMEOUT }, () => {

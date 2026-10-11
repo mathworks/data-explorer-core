@@ -2,10 +2,11 @@
 //
 // The two writers of a MAT stream as text: hexText, a binary dictionary's hex element, and
 // uuencode, a text dictionary's cdata. Each is pinned to MATLAB's own text, character for
-// character, on every value of the kind in the fixtures, and each is held to a cost that
-// grows with the stream and nothing else. Built a character at a time with `+=`, the hex of
-// a stream cost about 45 bytes of heap per byte of it: 2.2 GB for 32 MB, which is what
-// made an 88 MB stream a fatal out-of-memory no caller could catch.
+// character, on every value of the kind in the fixtures. What each costs is held to the
+// stream's text once in a file of its own, test/hexTextCost.test.ts and
+// test/uuencodeCost.test.ts, so that the peak RSS is that case's. Built a character at a
+// time with `+=`, the hex of a stream cost about 45 bytes of heap per byte of it: 2.2 GB for
+// 32 MB, which is what made an 88 MB stream a fatal out-of-memory no caller could catch.
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -87,33 +88,5 @@ describe('MATLAB\'s own text, character for character', () => {
         bytes,
       ]);
     }
-  });
-});
-
-// Each writes the text of a 16 MB stream: up to 0.2 s here, 0.4 s on CI's runners; give them
-// headroom past vitest's 5 s default, which the budget tests' heavier cases have outrun on CI.
-const HEAVY_TIMEOUT = 60_000;
-
-describe('what either costs is the stream, once', () => {
-  // Built a character at a time, 16 MB took 1.8 s at 1.1 GB as hex and 0.7 s at 1.0 GB
-  // as cdata; built in one buffer, 64 ms at 139 MB and 148 ms at 108 MB (node 24, peak
-  // RSS of the whole process).
-  const stream = Uint8Array.from({ length: 16 * 1024 * 1024 }, (_, i) => (i * 131) & 0xff);
-  const timed = (f: () => string): [string, number] => {
-    const t0 = performance.now();
-    const out = f();
-    return [out, performance.now() - t0];
-  };
-
-  it('hexText of a 16 MB stream', { timeout: HEAVY_TIMEOUT }, () => {
-    const [text, ms] = timed(() => hexText(stream, 2));
-    expect(text.length).toBe(stream.length * 2 + (stream.length / 64) * 17);
-    expect(ms).toBeLessThan(1000);
-  });
-
-  it('uuencode of a 16 MB stream', { timeout: HEAVY_TIMEOUT }, () => {
-    const [text, ms] = timed(() => uuencode(stream));
-    expect(text.length).toBe(Math.ceil(Math.ceil((stream.length * 8) / 6) / 4) * 4 + 1);
-    expect(ms).toBeLessThan(500);
   });
 });

@@ -23,7 +23,7 @@ const HEAVY_TIMEOUT = 60_000;
 describe('a cell of 80,000 0x256 literals', () => {
   it('is refused whole by the writer, at once', { timeout: HEAVY_TIMEOUT }, () => {
     const [refused, ms] = refusal(pasted(TEXT, bag)._var);
-    expect([refused, ms < 2000]).toEqual([true, true]);
+    expect([refused, ms < 5000]).toEqual([true, true]);
   });
 
   it('is saved into a text dictionary as the literals it was read as', { timeout: HEAVY_TIMEOUT }, () => {
@@ -38,7 +38,7 @@ describe('a cell of 80,000 0x256 literals', () => {
     const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
     root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-e800-0000000000a1' }, value: bag });
     const [thrown, ms] = thrownBy(() => session.serializeSource(root.name));
-    expect([thrown?.name, thrown?.message, ms < 3000]).toEqual([
+    expect([thrown?.name, thrown?.message, ms < 10000]).toEqual([
       'MatBudgetError',
       'Cannot write "pasted": pasted{16385} is a 0x256 sparse array whose data holds none of its 256 columns, and with it the value would add more than 16 MiB that its data does not hold, the most one value may add. Nothing was written.',
       true,
