@@ -44,6 +44,33 @@ export interface ScDefinition {
  * is skipped.
  */
 export declare function catalogFromDefinitions(defs: ScDefinition[]): SystemComposerCatalog;
+export interface XmlTag {
+    index: number;
+    end: number;
+    closing: boolean;
+    name: string;
+    attrs: string;
+    selfClosing: boolean;
+}
+export declare class XmlTagScanner {
+    private readonly xml;
+    private pos;
+    private gtFrom;
+    private gtAt;
+    private qtFrom;
+    private qtAt;
+    private deadFrom;
+    private parityAt;
+    private parityOdd;
+    private parityNext;
+    constructor(xml: string);
+    next(): XmlTag | null;
+    private terminator;
+    private walk;
+    private oddSinceDead;
+    private nextGt;
+    private nextQuote;
+}
 /**
  * Scan the MF0 XML of a compressed-binary dictionary's interface dictionary.
  *

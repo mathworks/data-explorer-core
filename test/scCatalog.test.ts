@@ -25,6 +25,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { unzipSync, zipSync } from 'fflate';
 import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
+import { XmlTagScanner } from '../src/datamodel/parser/ScCatalog.js';
 // Through the barrel: it is what registers the node classes the entry parser
 // resolves values with.
 import {
@@ -540,5 +541,90 @@ describe('a definition named after an Object.prototype member', () => {
     } finally {
       delete (Object.prototype as Record<string, unknown>).scCatalogPolluted;
     }
+  });
+});
+
+describe('the XML catalog scan, on bytes that are not a well-formed catalog', () => {
+  // The regex `XmlTagScanner` replaced, kept here as the specification it is held to.
+  // It is quadratic on a backtracking engine (CodeQL js/polynomial-redos), which is why
+  // it is not the implementation; every input below is small enough for it to finish.
+  const TAG_RE = /<(\/?)([A-Za-z_][\w.-]*)((?:[^>"]|"[^"]*")*?)(\/?)>/g;
+  type Row = [number, number, boolean, string, string, boolean];
+  const viaRegex = (s: string): Row[] => {
+    const out: Row[] = [];
+    TAG_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = TAG_RE.exec(s))) {
+      out.push([m.index, m.index + m[0].length, !!m[1], m[2], m[3], !!m[4]]);
+    }
+    return out;
+  };
+  const viaScanner = (s: string): Row[] => {
+    const out: Row[] = [];
+    const tags = new XmlTagScanner(s);
+    let t: ReturnType<XmlTagScanner['next']>;
+    while ((t = tags.next())) {
+      out.push([t.index, t.end, t.closing, t.name, t.attrs, t.selfClosing]);
+    }
+    return out;
+  };
+
+  it('returns the tags the regex returned, on the real catalog', () => {
+    const xml = new TextDecoder().decode(
+      unzipSync(new Uint8Array(readFileSync(fixture('arch_binary.sldd'))))[SC_PART_XML],
+    );
+    expect(viaScanner(xml)).toEqual(viaRegex(xml));
+  });
+
+  // Random strings over the characters the regex gives meaning to, seeded so a failure
+  // reproduces. 8,182 of the 20,000 hold an attribute walk that fails, and 2,968 a tag
+  // after one: the path the scanner answers from memory rather than by walking.
+  it('returns the tags the regex returned, on random input', () => {
+    let seed = 1;
+    const rand = (n: number): number => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed % n;
+    };
+    const pieces = ['<A', '>', '"', '/', ' ', '-', '.', '<A b="', '">', '</A>', '<B/>', 'x', '<', ':', '!'];
+    for (let k = 0; k < 20000; k++) {
+      let s = '';
+      for (let i = 1 + rand(30); i > 0; i--) {
+        s += pieces[rand(pieces.length)];
+      }
+      expect(viaScanner(s), JSON.stringify(s)).toEqual(viaRegex(s));
+    }
+  });
+
+  // The two shapes CodeQL reports, then two retry-at-every-`<` shapes: with no `>` at all,
+  // and with every `>` behind an odd number of quotes. On the regex the first four took
+  // 11.4 s, 48.3 s, 22.9 s and 6.8 s at 100,000, 100,000, 100,000 and 30,000 repetitions,
+  // growing as the square; they deflate about 1000:1, so a dictionary of a few KB carried
+  // them. The last is linear on the regex and is here for the scanner: a quote search that
+  // is not remembered between tags runs to the one quote at the end from every tag.
+  //
+  // The scanner's slowest of the five is the last, 83 ms here over two full runs, so the
+  // bound is 2 s: five times CI's time, at 3.3 times this machine's (fe238c7).
+  it('stays linear on the inputs that made the regex quadratic', () => {
+    for (const s of [
+      '<A' + '-'.repeat(1_000_000),
+      '<A"' + '"<A"'.repeat(250_000),
+      '<A'.repeat(500_000),
+      '<A">"'.repeat(200_000),
+      '<a></a>'.repeat(200_000) + '"',
+    ]) {
+      const t0 = performance.now();
+      expect(scanScXml(s)).toEqual([]);
+      expect(performance.now() - t0).toBeLessThan(2000);
+    }
+  });
+
+  // One stray quote in a long part made the regex's attribute walk run to the end of the
+  // input, and past ~8.39M steps V8 throws: the whole dictionary failed to open.
+  it('reads past a stray quote ahead of a long attribute value instead of throwing', () => {
+    const xml =
+      '<p_Interfaces "><p_Name>x</p_Name></p_Interfaces>' +
+      `<a b="${'x'.repeat(9_000_000)}"/>` +
+      '<p_Interfaces type="T"><p_Name>Bus1</p_Name></p_Interfaces>';
+    expect(scanScXml(xml).map((d) => [d.name, d.type])).toEqual([['Bus1', 'T']]);
   });
 });
