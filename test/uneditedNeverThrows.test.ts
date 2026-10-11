@@ -8,9 +8,11 @@
 // dictionary content, a paste — because it re-encodes nothing: MatlabVariableNode and
 // StructNode serializeValue hand back `_rawInput`, the value as read, which every edit but a
 // rename drops (DataNode._markModified; setProperty keeps it across a rename), and a value
-// read from hex hands back its EncodedValue (DataNode._adoptEncoded). The only raw form not
-// replayed is a binary reader's dense empty (`_emptyDims`), which is never sparse and
-// charges nothing.
+// read from hex hands back its EncodedValue (DataNode._adoptEncoded). A binary reader's
+// dense empty (`_emptyDims`) is written from its dims instead, an N-D one as its stream, and
+// replayed where no stream can say them — an extent past an int32, or one that is no count —
+// since an empty needs none; a text dictionary has no spelling for such a one, so its paste
+// there is refused, as a complex value's is.
 //
 // serializeXml() never throws for an entry read from a binary dictionary: hex is written as
 // read (_adoptEncoded), and a sparse array there is never anything but hex or a member of a
@@ -36,7 +38,7 @@ import { ingest } from '../src/core/ingest.js';
 import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { uudecode, uuencode } from '../src/datamodel/parser/CdataCodec.js';
 import { CLASS, MI, arrayFlags, cellVar, dims, element, matFile, matrix, sparseVar, varName } from './tools/matBytes.js';
-import { BINARY, TEXT, copyOf, sparseFixture, thrownBy } from './tools/pasteVenues.js';
+import { BINARY, TEXT, copyOf, pasteSaveReopen, sparseFixture, thrownBy } from './tools/pasteVenues.js';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 function slddUnder(dir: string): string[] {
@@ -78,6 +80,19 @@ function throwersIn(file: string, bytes: Uint8Array): string[] {
     }
   }
   return out;
+}
+
+/** sparse_binary.sldd with one more entry per `[name, Value]`, each Value as the file holds it. */
+function binaryWith(values: [string, string][]): Uint8Array {
+  const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+  const entry = ([name, value]: [string, string], i: number) =>
+    `    <Object Class="DD.ENTRY">\n        <P Name="Name" Class="char">${name}</P>\n`
+    + `        <P Name="UUID" Class="char">00000000-0000-4000-ec00-${String(i + 1).padStart(12, '0')}</P>\n`
+    + '        <P Name="Namespace" Class="char">dacaf35e-55a5-454d-a7c1-93db038a210e</P>\n        <P Name="LastMod" Class="char">20261011T000000.000000</P>\n'
+    + `        <P Name="LastModBy" Class="char"></P>\n        <P Name="IsDerived" Class="char">0</P>\n        ${value}\n    </Object>\n`;
+  const xml = strFromU8(files['data/chunk0.xml']);
+  files['data/chunk0.xml'] = strToU8(xml.replace('    <Object Class="DD.Dictionary">', values.map(entry).join('') + '    <Object Class="DD.Dictionary">'));
+  return zipSync(files);
 }
 
 const entriesOf = (json: any) => json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
@@ -138,6 +153,35 @@ describe('an entry nobody has edited: what each writer does', () => {
     bytes.set(DAMAGED, hex([...bytes]).indexOf(hex(DIMS)) / 2);
     spTall.value._value = uuencode(bytes);
     expect(throwersIn(TEXT, strToU8(JSON.stringify(json)))).toEqual([]);
+  });
+
+  it('a binary dictionary\'s N-D empty whose dims no MAT stream can say: no writer throws, as read or renamed, and its copy is the value as read', () => {
+    // An empty needs no stream: its Class and Dimension are all of it. Its copy is the binary
+    // reader's form, which a binary dictionary writes back as read; a text dictionary, where
+    // an N-D value has no spelling but a stream, refuses it, naming it.
+    const PAST_INT32 = ', an extent past 2147483647, the most a MAT stream\'s dimensions can say, and it has no other spelling here. Nothing was written.';
+    const values: [string, string, string][] = [
+      ['nd', '<P Name="Value" Class="double" Dimension="0*2147483648*2"/>', 'a 0x2147483648x2 double' + PAST_INT32],
+      ['ndInt8', '<P Name="Value" Class="int8" Dimension="0*2147483648*2"/>', 'a 0x2147483648x2 int8' + PAST_INT32],
+      ['ndLogical', '<P Name="Value" Class="logical" Dimension="0*2147483648*2"/>', 'a 0x2147483648x2 logical' + PAST_INT32],
+      ['ndHalf', '<P Name="Value" Class="double" Dimension="0*2.5*2"/>', 'a double declaring dimensions [0,2.5,2], a size that is not a count, so what it would add beyond its data cannot be held to the 16 MiB one value may add. Nothing was written.'],
+    ];
+    // Within what a stream can say, an N-D empty is still copied as its stream.
+    const SAYABLE = '<P Name="Value" Class="int8" Dimension="0*3*2"/>';
+    const bytes = binaryWith([...values.map(([name, value]) => [name, value] as [string, string]), ['ndSayable', SAYABLE], ['flatPast', '<P Name="Value" Class="double" Dimension="0*2147483648"/>']]);
+    expect(throwersIn(BINARY, bytes)).toEqual([]);
+    const design: any = (ingest(createSession(), buffer(bytes), { filename: BINARY }) as any).getSection('design');
+    const copy = (name: string) => copyOf(design.children.find((e: any) => e.name === name));
+    for (const [name, value, said] of values) {
+      const copied = copy(name);
+      const [thrown] = thrownBy(() => pasteSaveReopen(TEXT, copied));
+      expect([pasteSaveReopen(BINARY, copied).written, thrown?.name, thrown?.message], name).toEqual([value, 'MatBudgetError', `Cannot write "pasted": pasted is ${said}`]);
+    }
+    const sayable = copy('ndSayable') as any;
+    const text = pasteSaveReopen(TEXT, sayable);
+    expect([sayable._type, pasteSaveReopen(BINARY, sayable).written, text.entry.dims, text.entry._scalarType]).toEqual(['cdata', SAYABLE, [0, 3, 2], 'int8']);
+    // A 0x2147483648 is not N-D, and is copied as it was, as `[]` (on the agenda).
+    expect(copy('flatPast')).toEqual([]);
   });
 
   it('values past the budget as a text dictionary holds them, or a host hands them over: serialize() never throws; serializeXml(), their paste into a binary dictionary, is refused', { timeout: HEAVY_TIMEOUT }, () => {

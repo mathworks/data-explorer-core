@@ -1031,9 +1031,10 @@ export function complexTextVariable(raw) {
 }
 /**
  * A value as an uncompressed-text dictionary must hold it: every complex value in its
- * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there,
- * and everything else as it was. A copy wherever something changed, so the bag a node
- * replays is never touched; the same object where nothing did.
+ * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there, a
+ * binary dictionary's dense empty too, and everything else as it was. A copy wherever
+ * something changed, so the bag a node replays is never touched; the same object where
+ * nothing did.
  *
  * MATLAB reads the plain-text form back out of a TEXT dictionary as an empty double
  * (defect 24's signature), and it is the form a binary dictionary and the MCOS decoder
@@ -1065,6 +1066,22 @@ export function textDictionaryForm(x, at = '') {
     if (isEncodedValue(o)) {
         const read = encodedBytes(o);
         return read.bytes ? { _type: 'cdata', _value: uuencode(read.bytes) } : o;
+    }
+    // A binary dictionary's dense empty as its reader holds it (`_emptyDims`), which a value
+    // replays where no MAT stream can say its N-D dims (MatlabVariableNode.serializeValue): a
+    // text dictionary has no spelling for an N-D value but the stream, so it is refused here,
+    // finally, said where it stands in the value.
+    if (Array.isArray(o._emptyDims) && typeof o._type === 'string') {
+        const empty = { name: '', className: o._type, dimensions: o._emptyDims, isComplex: false, isLogical: o._type === 'logical', value: [], fields: null };
+        try {
+            return { _type: 'cdata', _value: encodeCdata(empty) };
+        }
+        catch (e) {
+            if (e instanceof MatBudgetError) {
+                throw new MatBudgetError(e.message, at + e.at, e.what, undefined, e.reason);
+            }
+            return o;
+        }
     }
     if (o._type === 'cdata') {
         const variable = complexTextVariable(o);

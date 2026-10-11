@@ -274,7 +274,11 @@ value goes as a stream. A sparse array's non-zero whose row or column is not a w
 number is refused the same way (reason `not-an-index`): its full form would drop it. An
 unedited value is written back as read; a container written whole around such a member is
 refused, naming the member, whatever the order of its members, and never writes it as 0,
-false or `[]`. Pinned in `test/dimsWriters.test.ts` and `test/unbackedBudget.test.ts`.
+false or `[]`. A binary dictionary's N-D empty whose dims no stream can say, such as
+`Dimension="0*2147483648*2"`, needs no stream: it is written back and copied as read, and a
+text dictionary, which has no spelling for it, refuses its paste. Pinned in
+`test/dimsWriters.test.ts`, `test/unbackedBudget.test.ts` and
+`test/uneditedNeverThrows.test.ts`.
 
 ### A sparse array's class is its element class
 `class()` of a sparse double is `double` (`logical`, `single`; complex is still

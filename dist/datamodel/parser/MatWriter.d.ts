@@ -133,9 +133,10 @@ export declare function matStreamOfElement(raw: Uint8Array): Uint8Array | null;
 export declare function complexTextVariable(raw: unknown): MatVariable | null;
 /**
  * A value as an uncompressed-text dictionary must hold it: every complex value in its
- * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there,
- * and everything else as it was. A copy wherever something changed, so the bag a node
- * replays is never touched; the same object where nothing did.
+ * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there, a
+ * binary dictionary's dense empty too, and everything else as it was. A copy wherever
+ * something changed, so the bag a node replays is never touched; the same object where
+ * nothing did.
  *
  * MATLAB reads the plain-text form back out of a TEXT dictionary as an empty double
  * (defect 24's signature), and it is the form a binary dictionary and the MCOS decoder

@@ -17,7 +17,7 @@ import { subscriptLabel } from '../../display/Subscript.js';
 import { decodeMatStream } from '../../parser/MatParser.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
-import { dimsText, isSize } from '../../parser/Size.js';
+import { dimsText, isSize, isStreamSize } from '../../parser/Size.js';
 import { classPhrase, encodeMatStream, MatBudgetError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
@@ -1464,9 +1464,17 @@ export default class MatlabVariableNode extends DataNode {
         // except a rename, which leaves the value as it was (DataNode.setProperty). The entry's
         // 'Modified' status is not asked — a renamed entry has it, and its value is still the
         // one it was read as.
-        if (this._rawInput !== undefined && !this._rawInput?._emptyDims) {
-            // Complex TEXT included, which is not a text dictionary's form: DataNode.serialize
-            // turns it into one on the way into such a file (MatWriter.textDictionaryForm).
+        //
+        // A binary dictionary's dense empty (BinarySlddParser's `_emptyDims`) is written from its
+        // dims below instead, an N-D one as its stream. No stream can say an extent past an int32,
+        // or one that is no count, and an empty needs none, its class and dims being all of it: so
+        // an N-D one with such dims is the form it was read as, not a refusal that left an entry
+        // nobody had edited impossible to copy or delete.
+        const emptyDims = this._rawInput?._emptyDims;
+        if (this._rawInput !== undefined && (!emptyDims || (effectiveDims(emptyDims).length > 2 && !isStreamSize(emptyDims)))) {
+            // Complex TEXT included, which is not a text dictionary's form, and the empty: on the
+            // way into such a file DataNode.serialize turns the one into its form and refuses the
+            // other, which has no spelling there but a stream (MatWriter.textDictionaryForm).
             return this._rawInput;
         }
         this._refuseNoSize();

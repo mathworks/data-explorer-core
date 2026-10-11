@@ -25,6 +25,11 @@ export function isSize(d: unknown): d is number[] {
   return Array.isArray(d) && d.every(isExtent);
 }
 
+/** Whether a MAT stream can say `d`: a size, every extent of which its int32 dims word holds. */
+export function isStreamSize(d: unknown): d is number[] {
+  return isSize(d) && d.every((x) => x <= MAT_MAX_EXTENT);
+}
+
 /** Whether an XML Dimension can spell `x` as read: a finite non-negative number. */
 export function isSpellableExtent(x: unknown): x is number {
   return typeof x === 'number' && Number.isFinite(x) && x >= 0;

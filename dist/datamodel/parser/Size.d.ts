@@ -4,6 +4,8 @@ export declare const MAT_MAX_EXTENT = 2147483647;
 export declare function isExtent(x: unknown): x is number;
 /** Whether `d` is a size: a list whose every entry is an extent. */
 export declare function isSize(d: unknown): d is number[];
+/** Whether a MAT stream can say `d`: a size, every extent of which its int32 dims word holds. */
+export declare function isStreamSize(d: unknown): d is number[];
 /** Whether an XML Dimension can spell `x` as read: a finite non-negative number. */
 export declare function isSpellableExtent(x: unknown): x is number;
 /** `d` as it was given, for a message: `[1,"x"]`, `[0,Infinity]`, `[NaN,1]`, `[2n,3n]`. */
