@@ -109,6 +109,13 @@ describe('a sparse member nothing has edited is written as the bytes it was read
     const bytesless = { ...v, value: v.value.map((m: any, i: number) => (i === 0 ? { ...m, _rawBytes: null } : m)) };
     const [refused] = thrownBy(() => encodeMatStream(bytesless));
     expect([(refused as any)?.reason, (refused as any)?.at, (refused as any)?.what]).toEqual(['not-a-count', '{1}', 'a sparse double declaring dimensions [-5,3]']);
+    // Behind a member this writer has no stream for, that refusal still wins (refuseDimsBelow),
+    // and so it does for bytes that are no whole element to write it as.
+    const unwritable = { name: '', className: 'Simulink.Parameter', dimensions: [1, 1], isComplex: false, isLogical: false, value: null, fields: null, _unwritable: 'a Simulink.Parameter' };
+    for (const bytes of [null, new Uint8Array(4)]) {
+      const [behind] = thrownBy(() => encodeMatStream({ ...v, value: [unwritable, { ...v.value[0], _rawBytes: bytes }] }));
+      expect([(behind as any)?.reason, (behind as any)?.at], String(bytes)).toEqual(['not-a-count', '{2}']);
+    }
     // A struct's field the same, written whole.
     const st: any = createSession().addMatSource('s.mat', matFile([structVar('s', ['f', 'g'], [{ f: damaged(), g: real() }])])).children[0];
     let whole: Uint8Array | undefined;

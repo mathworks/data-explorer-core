@@ -367,6 +367,13 @@ describe('a complex value no MAT stream can say goes into a text dictionary as a
     // Within an int32, it is written: MATLAB's own stream for the complex empty.
     expect(intoText({ ...complexEmpty, _dimensions: [0, 5] })).toBeNull();
   });
+
+  it('a struct\'s field, by its name, and a struct array\'s, by the element\'s subscript too', () => {
+    const complexEmpty = { _type: 'cdata', _value: '', _dimensions: [0, 2147483648] };
+    const struct = (elements: unknown[]) => ({ _array_type: 'Struct', _dimensions: [1, elements.length], _elements: elements, _fields: ['f', 'g'] });
+    expect(intoText(struct([{ f: complexEmpty, g: 1 }]))).toBe('Cannot write "pasted": pasted.f is a 0x2147483648 double' + PAST_INT32);
+    expect(intoText(struct([{ f: 1, g: 2 }, { f: 3, g: complexEmpty }]))).toBe('Cannot write "pasted": pasted(2).g is a 0x2147483648 double' + PAST_INT32);
+  });
 });
 
 describe('a binary dictionary\'s raw property is written back as read, Dimension and all', () => {
