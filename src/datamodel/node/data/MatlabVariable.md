@@ -270,15 +270,19 @@ an XML Dimension refuses what it cannot spell (NaN, an infinity, a negative, a s
 object), writing a binary dictionary's own `1*2.5` back as read. An extent past an int32 is a
 size — MATLAB holds a zeros(0, 2^31) — but no MAT stream can say it, so one that has to be a
 stream is refused too (reason `past-int32`), in a text dictionary as well, where a complex
-value goes as a stream. A sparse array's non-zero whose row or column is not a whole
-number is refused the same way (reason `not-an-index`): its full form would drop it. An
-unedited value is written back as read; a container written whole around such a member is
-refused, naming the member, whatever the order of its members, and never writes it as 0,
-false or `[]`. A binary dictionary's N-D empty whose dims no stream can say, such as
+value goes as a stream. The exception is complex text the text dictionary was read with,
+which v1.36.0 wrote: it is that file's own, and a save writes it back as read
+(`MatWriter.heldByTextDictionary`). A sparse array's non-zero whose row or column is not a
+whole number is refused the same way (reason `not-an-index`), whatever its shape or class:
+its full form would drop it. An unedited value is written back as read; a container written
+whole around such a member is refused, naming the member, whatever the order of its members,
+and never writes it as 0, false or `[]`. The exception is a sparse member written as the
+bytes it was read from (`MatWriter.memberElement`): it is copied as read, its dims as its
+bytes say them. A binary dictionary's N-D empty whose dims no stream can say, such as
 `Dimension="0*2147483648*2"`, needs no stream: it is written back and copied as read, and a
 text dictionary, which has no spelling for it, refuses its paste. Pinned in
-`test/dimsWriters.test.ts`, `test/unbackedBudget.test.ts` and
-`test/uneditedNeverThrows.test.ts`.
+`test/dimsWriters.test.ts`, `test/unbackedBudget.test.ts`, `test/uneditedNeverThrows.test.ts`
+and `test/sparseMemberBytes.test.ts`.
 
 ### A sparse array's class is its element class
 `class()` of a sparse double is `double` (`logical`, `single`; complex is still
