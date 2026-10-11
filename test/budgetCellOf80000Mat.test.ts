@@ -17,6 +17,11 @@ import { BINARY, TEXT, copyOf, pasteSaveReopen, peakMB, timed } from './tools/pa
 const member = matrix([arrayFlags(CLASS.SPARSE, { sparse: true, nzmax: 1 }), dims([0, 256]), varName('')]);
 const file = matFile([element(MI.COMPRESSED, deflateSync(cellVar('c', Array.from({ length: 80000 }, () => member))))]);
 
+// These write the 80,000 members, and paste them twice: up to 2.2 s here, 5.6 s on CI's
+// runners, past vitest's 5 s default; give them headroom. The open runs as the file is
+// collected, under no test's timeout.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('a cell of 80,000 0x256 arrays in an 11 KB .mat', () => {
   const [c, openMs]: [any, number] = timed(() => createSession().addMatSource('c.mat', file).children[0]);
   let copied: any;
@@ -25,13 +30,13 @@ describe('a cell of 80,000 0x256 arrays in an 11 KB .mat', () => {
     expect([file.byteLength < 12000, member.length, c.displayValue, c.children.length, openMs < 3000]).toEqual([true, 48, '<1x80000 cell>', 80000, true]);
   });
 
-  it('is one stream of its members\' own bytes, at once', () => {
+  it('is one stream of its members\' own bytes, at once', { timeout: HEAVY_TIMEOUT }, () => {
     const [stream, ms] = timed(() => encodeMatStream(c._var));
     // Preamble, tag, the cell's flags, dims and name, and 80,000 members of 48 bytes.
     expect([stream.length, ms < 2000]).toEqual([8 + 8 + 40 + 80000 * 48, true]);
   });
 
-  it('is copied, and pasted into either dictionary and saved, at once', () => {
+  it('is copied, and pasted into either dictionary and saved, at once', { timeout: HEAVY_TIMEOUT }, () => {
     const [value, copyMs] = timed(() => copyOf(c) as any);
     copied = value;
     expect([copied._elements.length, copyMs < 5000]).toEqual([80000, true]);

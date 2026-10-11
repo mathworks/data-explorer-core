@@ -39,22 +39,26 @@ function binarySave(value: unknown): Error | null {
   return thrownBy(() => session.serializeSource(root.name))[0];
 }
 
+// These paste and save a cell of 16,385 sparse arrays, some twice: up to 0.9 s here, 2.2 s on
+// CI's runners, close to half vitest's 5 s default; give them headroom.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('a refusal names the entry and the path, wherever the value is', () => {
-  it('a Simulink.Parameter\'s Value', () => {
+  it('a Simulink.Parameter\'s Value', { timeout: HEAVY_TIMEOUT }, () => {
     expect(binarySave(parameterWith(PAST))?.message).toBe(`Cannot write "pasted": pasted.Value{16385} is ${COLUMNS}`);
   });
 
-  it('a property of an object of a class this package does not model', () => {
+  it('a property of an object of a class this package does not model', { timeout: HEAVY_TIMEOUT }, () => {
     expect(binarySave(objectWith({ Data: PAST }))?.message).toBe(`Cannot write "pasted": pasted.Data{16385} is ${COLUMNS}`);
   });
 
-  it('a field of a struct a property holds, and of the second element of a struct array one holds', () => {
+  it('a field of a struct a property holds, and of the second element of a struct array one holds', { timeout: HEAVY_TIMEOUT }, () => {
     const struct = (elements: unknown[]) => ({ _array_type: 'Struct', _dimensions: [1, elements.length], _elements: elements, _fields: ['f'] });
     expect(binarySave(objectWith({ S: struct([{ f: PAST }]) }))?.message).toBe(`Cannot write "pasted": pasted.S.f{16385} is ${COLUMNS}`);
     expect(binarySave(objectWith({ S: struct([{ f: 1 }, { f: PAST }]) }))?.message).toBe(`Cannot write "pasted": pasted.S(2).f{16385} is ${COLUMNS}`);
   });
 
-  it('an element of a struct array, by its MATLAB subscript', () => {
+  it('an element of a struct array, by its MATLAB subscript', { timeout: HEAVY_TIMEOUT }, () => {
     const value = { _array_type: 'Struct', _dimensions: [1, 2], _elements: [{ f: 1 }, { f: PAST }], _fields: ['f'] };
     expect(binarySave(value)?.message).toBe(`Cannot write "pasted": pasted(2).f{16385} is ${COLUMNS}`);
   });

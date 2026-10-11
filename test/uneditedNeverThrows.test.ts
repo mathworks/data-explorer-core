@@ -102,8 +102,12 @@ const ownBytesCell = () => {
   return copyOf(c);
 };
 
+// These write every entry of every fixture, or cells of 4,198 to 80,000 sparse arrays: up to
+// 3.5 s here, 11.5 s on CI's runners, past vitest's 5 s default; give them headroom.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('an entry nobody has edited: what each writer does', () => {
-  it('every entry of every dictionary in the fixtures: no writer throws, as read or renamed', () => {
+  it('every entry of every dictionary in the fixtures: no writer throws, as read or renamed', { timeout: HEAVY_TIMEOUT }, () => {
     const files = [...slddUnder(join(ROOT, 'fixtures')), ...slddUnder(join(ROOT, 'parity', 'artifacts'))];
     expect(files.length).toBeGreaterThanOrEqual(40);
     expect(files.flatMap((f) => throwersIn(f.slice(ROOT.length), new Uint8Array(readFileSync(f))))).toEqual([]);
@@ -136,7 +140,7 @@ describe('an entry nobody has edited: what each writer does', () => {
     expect(throwersIn(TEXT, strToU8(JSON.stringify(json)))).toEqual([]);
   });
 
-  it('values past the budget as a text dictionary holds them, or a host hands them over: serialize() never throws; serializeXml(), their paste into a binary dictionary, is refused', () => {
+  it('values past the budget as a text dictionary holds them, or a host hands them over: serialize() never throws; serializeXml(), their paste into a binary dictionary, is refused', { timeout: HEAVY_TIMEOUT }, () => {
     const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
     PAST_BUDGET.forEach(([name, value], i) =>
       entriesOf(json).push({ name, metadata: { uuid: `00000000-0000-4000-ea00-${String(i + 1).padStart(12, '0')}` }, value }),
@@ -151,14 +155,14 @@ describe('an entry nobody has edited: what each writer does', () => {
     expect(thrownBy(() => session.serializeSource(root.name))[0]).toBeNull();
   });
 
-  it('a binary dictionary\'s hex of a cell that re-encoded would be past the budget, read from the file: no writer throws', () => {
+  it('a binary dictionary\'s hex of a cell that re-encoded would be past the budget, read from the file: no writer throws', { timeout: HEAVY_TIMEOUT }, () => {
     const session = createSession();
     const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
     root.getSection('design').parseEntry({ name: 'c80000', metadata: { uuid: '00000000-0000-4000-ea00-000000000010' }, value: ownBytesCell() });
     expect(throwersIn(BINARY, session.serializeSource(root.name)!.bytes!)).toEqual([]);
   });
 
-  it('pasted and not edited, in either dictionary type: serialize() never throws; serializeXml() is refused only for a value with no bytes of its own past the budget', () => {
+  it('pasted and not edited, in either dictionary type: serialize() never throws; serializeXml() is refused only for a value with no bytes of its own past the budget', { timeout: HEAVY_TIMEOUT }, () => {
     const own = ownBytesCell();
     for (const file of [TEXT, BINARY]) {
       const design: any = (ingest(createSession(), sparseFixture(file), { filename: file }) as any).getSection('design');
@@ -176,7 +180,7 @@ describe('an entry nobody has edited: what each writer does', () => {
 });
 
 describe('a variable that is not a dictionary entry: its serialize() is its copy', () => {
-  it('a host\'s own: within the budget it copies, past it the copy is refused', () => {
+  it('a host\'s own: within the budget it copies, past it the copy is refused', { timeout: HEAVY_TIMEOUT }, () => {
     const member = () => ({
       name: '', className: 'double', dimensions: [1000, 1000], isComplex: false, isLogical: false, isSparse: true, value: '', fields: null,
       sparse: { row: Int32Array.from([0]), col: Int32Array.from([0]), re: Float64Array.from([5]), im: null },

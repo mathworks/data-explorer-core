@@ -250,6 +250,10 @@ describe('a sparse MCOS property of a class nothing writes sparse shows what its
   });
 });
 
+// This one encodes 4,194,305 columns of index, 16 MiB: 0.16 s here; give it headroom past
+// vitest's 5 s default, which the budget tests' heavier cases have outrun on CI's runners.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('no rows, no columns or nothing: what backs the columns is what is there, never the dims', () => {
   // A column index is cols + 1 words whatever the rows, so a 0x134217728 sparse array is a
   // 512 MB index. In a file MATLAB wrote, the file holds that index (SparseData.backedColumns
@@ -295,7 +299,7 @@ describe('no rows, no columns or nothing: what backs the columns is what is ther
     expect(r.saved, label).not.toContain('Class="sparse"');
   };
 
-  it('a host\'s own non-zeros back a column apiece, unless it says how many columns back them', () => {
+  it('a host\'s own non-zeros back a column apiece, unless it says how many columns back them', { timeout: HEAVY_TIMEOUT }, () => {
     const host = (cols: number, extra: Record<string, unknown> = {}) => ({
       name: '', className: 'double', dimensions: [1, cols], isComplex: false, isLogical: false, isSparse: true, value: '<summary>', fields: null,
       sparse: { row: Int32Array.from([0]), col: Int32Array.from([0]), re: Float64Array.from([5]), im: null, ...extra },

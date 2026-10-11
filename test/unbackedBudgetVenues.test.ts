@@ -19,8 +19,12 @@ const sparseHost = (dims: number[], row: number[], col: number[], re: number[]) 
 const hostMat = (variable: unknown): any => createSession().addMatSourceParsed('h.mat', { header: '', warnings: [], variables: [variable] }).children[0];
 const shape = (e: any) => [e.displayValue, e.isSparse, e.children.length];
 
+// These copy, paste and save 8 MB of column index, or 4,300 members of 1000x1000: up to 1.7 s
+// here, 3.2 s on CI's runners, close to vitest's 5 s default; give them headroom.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('within the budget, a sparse array stays sparse wherever it goes', () => {
-  it('a host\'s 1x2e6 with three entries, 8 MB of index no data backs', () => {
+  it('a host\'s 1x2e6 with three entries, 8 MB of index no data backs', { timeout: HEAVY_TIMEOUT }, () => {
     const h = hostMat(sparseHost([1, 2e6], [0, 0, 0], [0, 1e6, 2e6 - 1], [1, 2, 3]));
     expect(h.children.map((c: any) => [c.displayName, c.valueEditable])).toEqual([
       ['h(1,1)', true],
@@ -65,7 +69,7 @@ describe('within the budget, a sparse array stays sparse wherever it goes', () =
 });
 
 describe('past the budget, the write is refused at once, and nothing is written in the value\'s place', () => {
-  it('a host\'s cell of 4,300 1000x1000 arrays of one entry each: its copy fails, naming the member the budget ran out at', () => {
+  it('a host\'s cell of 4,300 1000x1000 arrays of one entry each: its copy fails, naming the member the budget ran out at', { timeout: HEAVY_TIMEOUT }, () => {
     // 3,996 bytes of index apiece, so 4,198 of them are within the budget, and the 4,199th is
     // not. Nothing is copied: not its summary, not the array laid out full.
     const member = () => sparseHost([1000, 1000], [0], [0], [5]);

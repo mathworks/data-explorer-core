@@ -59,9 +59,13 @@ const CASES: { file: string; value: unknown; edit: (node: any) => void; at: stri
   },
 ];
 
+// Each of these pastes and saves a cell of 16,385 or more sparse arrays: up to 2.4 s here,
+// 3.8 s on CI's runners, close to vitest's 5 s default; give them headroom.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('past the budget, a paste, a copy and a save fail, and nothing is written', () => {
   for (const { file, value, edit, at } of CASES) {
-    it(`${file}: the paste fails, naming the entry, the path and the budget`, () => {
+    it(`${file}: the paste fails, naming the entry, the path and the budget`, { timeout: HEAVY_TIMEOUT }, () => {
       const d = open(file);
       const p = paste(d, value, file);
       edit(p.node);
@@ -69,7 +73,7 @@ describe('past the budget, a paste, a copy and a save fail, and nothing is writt
       expect([thrown?.name, thrown?.message, ms < 3000]).toEqual(['MatBudgetError', refusal('pasted', at, COLUMNS_0x256), true]);
     });
 
-    it(`${file}: the save fails, returns nothing, and the save after the value is taken out is the save there would have been`, () => {
+    it(`${file}: the save fails, returns nothing, and the save after the value is taken out is the save there would have been`, { timeout: HEAVY_TIMEOUT }, () => {
       const untouched = open(file).save();
       const d = open(file);
       const others = () => d.design.children.filter((e: any) => e.name !== 'pasted').map((e: any) => JSON.stringify(e.serialize()));
@@ -89,7 +93,7 @@ describe('past the budget, a paste, a copy and a save fail, and nothing is writt
     });
   }
 
-  it('text: the copy of the edited cell fails too; a binary dictionary\'s copy is the value as it was pasted', () => {
+  it('text: the copy of the edited cell fails too; a binary dictionary\'s copy is the value as it was pasted', { timeout: HEAVY_TIMEOUT }, () => {
     const [binary, text] = CASES.map(({ file, value, edit }) => {
       const p = paste(open(file), value, file);
       edit(p.node);
@@ -98,14 +102,14 @@ describe('past the budget, a paste, a copy and a save fail, and nothing is writt
     expect([binary, text?.name, text?.message]).toEqual([null, 'MatBudgetError', refusal('pasted', 'pasted{16386}', COLUMNS_0x256)]);
   });
 
-  it('a text dictionary keeps the same cell as a 1x16385 row, which it writes as the literals it was read as', () => {
+  it('a text dictionary keeps the same cell as a 1x16385 row, which it writes as the literals it was read as', { timeout: HEAVY_TIMEOUT }, () => {
     const d = open(TEXT);
     const p = paste(d, literals(16385), TEXT);
     expect(thrownBy(p.write)[0]).toBeNull();
     expect(thrownBy(() => d.save())[0]).toBeNull();
   });
 
-  it('just within the budget, each of them is written', () => {
+  it('just within the budget, each of them is written', { timeout: HEAVY_TIMEOUT }, () => {
     for (const { file, value, edit } of [
       { file: BINARY, value: literals(16384), edit: () => {} },
       { ...CASES[1], value: { ...literals(16384, [1, 1, 16385]), _elements: [[1, 2, 3], ...literals(16384)._elements] } },
@@ -116,7 +120,7 @@ describe('past the budget, a paste, a copy and a save fail, and nothing is writt
     }
   });
 
-  it('an edited value: a .mat cell of 1000x1000 arrays whose index held one column each, copied once its rows are edited', () => {
+  it('an edited value: a .mat cell of 1000x1000 arrays whose index held one column each, copied once its rows are edited', { timeout: HEAVY_TIMEOUT }, () => {
     // Unedited, each member is the bytes it was read from and costs nothing; edited, it is
     // encoded from its non-zeros, and 999 of its columns no data backs, 3,996 bytes apiece.
     const member = sparseVar({ name: '', dimensions: [1000, 1000], ir: [0], jc: [0, 1], real: [5], nzmax: 1, sparseFlag: true });
@@ -131,7 +135,7 @@ describe('past the budget, a paste, a copy and a save fail, and nothing is writt
     ]);
   });
 
-  it('a refusal for any other reason keeps its own spelling, out of the same budget: a host cell of int8 sparse arrays', () => {
+  it('a refusal for any other reason keeps its own spelling, out of the same budget: a host cell of int8 sparse arrays', { timeout: HEAVY_TIMEOUT }, () => {
     // MatWriter has no sparse storage for int8, so each member is written full, its zeros out
     // of the budget: two 1000x1000 of them are 16 MB of zeros, three are past it.
     const int8 = () => ({
@@ -155,7 +159,7 @@ describe('past the budget, a paste, a copy and a save fail, and nothing is writt
 });
 
 describe('what a refused write throws is the package\'s own, exported', () => {
-  it('a save past the budget throws the MatBudgetError the package entry point exports, a MatWriteError too', async () => {
+  it('a save past the budget throws the MatBudgetError the package entry point exports, a MatWriteError too', { timeout: HEAVY_TIMEOUT }, async () => {
     const index = await import('../src/index.js');
     const d = open(BINARY);
     paste(d, literals(16385), BINARY);

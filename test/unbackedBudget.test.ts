@@ -59,21 +59,26 @@ const timed = <T>(f: () => T): [T, number] => {
   return [out, performance.now() - t0];
 };
 
+// These encode arrays of 8 or 16 MiB of index, cells of 16,384 or more sparse arrays, or
+// 299,595 holes: up to 1.2 s here, 2.8 s on CI's runners, past half vitest's 5 s default;
+// give them headroom.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('one sparse array: 4,194,304 columns no data backs are written, and one more is not', () => {
-  it('a 0xN array, backed for none of its columns', () => {
+  it('a 0xN array, backed for none of its columns', { timeout: HEAVY_TIMEOUT }, () => {
     expect(encode(sparse([0, 4194304]))).toBe(streamOf(4194304));
     const [refused, ms] = timed(() => encode(sparse([0, 4194305])));
     expect([refused, ms < 100]).toEqual(['refused', true]);
   });
 
-  it('a host\'s 1xN with one entry, which backs one column', () => {
+  it('a host\'s 1xN with one entry, which backs one column', { timeout: HEAVY_TIMEOUT }, () => {
     expect(encode(host(4194305))).not.toBe('refused');
     expect(encode(host(4194306))).toBe('refused');
     // A host's 1x2e6 with three entries: 7,999,988 bytes, within it.
     expect(encode(sparse([1, 2e6], { row: Int32Array.from([0, 0, 0]), col: Int32Array.from([0, 1e6, 2e6 - 1]), re: Float64Array.from([1, 2, 3]), im: null }))).not.toBe('refused');
   });
 
-  it('what a source does back never counts', () => {
+  it('what a source does back never counts', { timeout: HEAVY_TIMEOUT }, () => {
     // A file's own index, recorded by the reader, backs every column it held.
     const backed = sparse([0, 4194305], { ...none(), backedColumns: 4194305 });
     expect(encode(backed)).toBe(streamOf(4194305));
@@ -81,25 +86,25 @@ describe('one sparse array: 4,194,304 columns no data backs are written, and one
 });
 
 describe('one budget for the whole value, shared by every array and container in it', () => {
-  it('a cell of 16,384 0x256 arrays is written, and of 16,385 refused, at once', () => {
+  it('a cell of 16,384 0x256 arrays is written, and of 16,385 refused, at once', { timeout: HEAVY_TIMEOUT }, () => {
     // 1,024 bytes of index apiece.
     expect(encode(cell(many(16384, () => sparse([0, 256]))))).not.toBe('refused');
     const [refused, ms] = timed(() => encode(cell(many(16385, () => sparse([0, 256])))));
     expect([refused, ms < 1000]).toEqual(['refused', true]);
   });
 
-  it('a cell of 80,000 of them, 82 MB of index, is refused at once', () => {
+  it('a cell of 80,000 of them, 82 MB of index, is refused at once', { timeout: HEAVY_TIMEOUT }, () => {
     const [refused, ms] = timed(() => encode(cell(many(80000, () => sparse([0, 256])))));
     expect([refused, ms < 1000]).toEqual(['refused', true]);
   });
 
-  it('nested: two cells of 8,192 inside one are written, 8,192 and 8,193 are not', () => {
+  it('nested: two cells of 8,192 inside one are written, 8,192 and 8,193 are not', { timeout: HEAVY_TIMEOUT }, () => {
     const inner = (n: number) => cell(many(n, () => sparse([0, 256])));
     expect(encode(cell([inner(8192), inner(8192)]))).not.toBe('refused');
     expect(encode(cell([inner(8192), inner(8193)]))).toBe('refused');
   });
 
-  it('a cell\'s holes: one declaring 299,594 elements and holding one is written, 299,595 is not', () => {
+  it('a cell\'s holes: one declaring 299,594 elements and holding one is written, 299,595 is not', { timeout: HEAVY_TIMEOUT }, () => {
     // 56 bytes a hole: 299,593 of them is 16,777,208 bytes, 299,594 is 16,777,264.
     expect(encode(cell([sparse([0, 0])], [1, 299594]))).not.toBe('refused');
     expect(encode(cell([sparse([0, 0])], [1, 299595]))).toBe('refused');
@@ -110,14 +115,14 @@ describe('one budget for the whole value, shared by every array and container in
     expect([refused, ms < 100]).toEqual(['refused', true]);
   });
 
-  it('a struct array\'s holes the same, field by field', () => {
+  it('a struct array\'s holes the same, field by field', { timeout: HEAVY_TIMEOUT }, () => {
     expect(encode(structArray(299594, [sparse([0, 0])]))).not.toBe('refused');
     expect(encode(structArray(299595, [sparse([0, 0])]))).toBe('refused');
     const [refused, ms] = timed(() => encode(structArray(1e8, [sparse([0, 0])])));
     expect([refused, ms < 100]).toEqual(['refused', true]);
   });
 
-  it('columns and holes come out of the same budget', () => {
+  it('columns and holes come out of the same budget', { timeout: HEAVY_TIMEOUT }, () => {
     // 16,383 arrays of 1,024 bytes, and 18 holes of 56: 16,777,200 bytes. One hole more is
     // 16,777,256.
     const members = many(16383, () => sparse([0, 256]));
@@ -127,7 +132,7 @@ describe('one budget for the whole value, shared by every array and container in
 });
 
 describe('one write: what a writer splits one value into shares the budget', () => {
-  it('every encode inside oneWrite draws on one budget; outside it, each has its own', () => {
+  it('every encode inside oneWrite draws on one budget; outside it, each has its own', { timeout: HEAVY_TIMEOUT }, () => {
     // 8 MiB of index each: two fit in one write, and then not a byte more.
     const half = () => sparse([0, 2097152]);
     expect(oneWrite(() => [encode(half()), encode(half()), encode(sparse([0, 1]))])).toEqual([
@@ -140,7 +145,7 @@ describe('one write: what a writer splits one value into shares the budget', () 
     expect(oneWrite(() => [encode(half()), oneWrite(() => encode(half())), encode(sparse([0, 1]))])[2]).toBe('refused');
   });
 
-  it('an encode that is refused writes nothing, so it takes nothing', () => {
+  it('an encode that is refused writes nothing, so it takes nothing', { timeout: HEAVY_TIMEOUT }, () => {
     // The refused cell had charged 16,384 arrays' index before the one that did not fit.
     expect(oneWrite(() => [encode(cell(many(16385, () => sparse([0, 256])))), encode(cell(many(16384, () => sparse([0, 256]))))])).toEqual([
       'refused',
@@ -174,7 +179,7 @@ describe('a refusal for the budget is its own, and says where the budget ran out
     return null;
   };
 
-  it('in a cell, a struct array, a cell\'s holes and one array, in MATLAB\'s spelling', () => {
+  it('in a cell, a struct array, a cell\'s holes and one array, in MATLAB\'s spelling', { timeout: HEAVY_TIMEOUT }, () => {
     const cases: [MatVariable, string, string][] = [
       [cell(many(16385, () => sparse([0, 256]))), '{16385}', 'a 0x256 sparse array whose data holds none of its 256 columns'],
       [cell([cell(many(8192, () => sparse([0, 256]))), cell(many(8193, () => sparse([0, 256])))]), '{2}{8193}', 'a 0x256 sparse array whose data holds none of its 256 columns'],
@@ -219,7 +224,7 @@ describe('a charge that is not a count is refused, and never turns the budget of
     }
   });
 
-  it('within a write, the same', () => {
+  it('within a write, the same', { timeout: HEAVY_TIMEOUT }, () => {
     expect(oneWrite(() => [encode(holes([0, 1e400])), encode(cell(past()))])).toEqual(['refused', 'refused']);
   });
 });

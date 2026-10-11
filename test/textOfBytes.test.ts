@@ -90,6 +90,10 @@ describe('MATLAB\'s own text, character for character', () => {
   });
 });
 
+// Each writes the text of a 16 MB stream: up to 0.2 s here, 0.4 s on CI's runners; give them
+// headroom past vitest's 5 s default, which the budget tests' heavier cases have outrun on CI.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('what either costs is the stream, once', () => {
   // Built a character at a time, 16 MB took 1.8 s at 1.1 GB as hex and 0.7 s at 1.0 GB
   // as cdata; built in one buffer, 64 ms at 139 MB and 148 ms at 108 MB (node 24, peak
@@ -101,13 +105,13 @@ describe('what either costs is the stream, once', () => {
     return [out, performance.now() - t0];
   };
 
-  it('hexText of a 16 MB stream', () => {
+  it('hexText of a 16 MB stream', { timeout: HEAVY_TIMEOUT }, () => {
     const [text, ms] = timed(() => hexText(stream, 2));
     expect(text.length).toBe(stream.length * 2 + (stream.length / 64) * 17);
     expect(ms).toBeLessThan(1000);
   });
 
-  it('uuencode of a 16 MB stream', () => {
+  it('uuencode of a 16 MB stream', { timeout: HEAVY_TIMEOUT }, () => {
     const [text, ms] = timed(() => uuencode(stream));
     expect(text.length).toBe(Math.ceil(Math.ceil((stream.length * 8) / 6) / 4) * 4 + 1);
     expect(ms).toBeLessThan(500);

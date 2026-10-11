@@ -16,18 +16,22 @@ const bag = {
   _elements: Array.from({ length: 80000 }, () => ({ _type: 'sparse', _value: 'Matrix(0,256)\n[]' })),
 };
 
+// Each of these pastes the 80,000 literals: up to 0.5 s here, 1.5 s on CI's runners. Give
+// them headroom past vitest's 5 s default, which the heavier cases have outrun on CI.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('a cell of 80,000 0x256 literals', () => {
-  it('is refused whole by the writer, at once', () => {
+  it('is refused whole by the writer, at once', { timeout: HEAVY_TIMEOUT }, () => {
     const [refused, ms] = refusal(pasted(TEXT, bag)._var);
     expect([refused, ms < 2000]).toEqual([true, true]);
   });
 
-  it('is saved into a text dictionary as the literals it was read as', () => {
+  it('is saved into a text dictionary as the literals it was read as', { timeout: HEAVY_TIMEOUT }, () => {
     const r = pasteSaveReopen(TEXT, bag);
     expect([r.entry.children.length, r.entry.children[79999].displayValue, r.ms < 5000]).toEqual([80000, '<0x256 sparse double>', true]);
   });
 
-  it('is refused by a binary dictionary, at once, naming where the budget ran out, and nothing is written', () => {
+  it('is refused by a binary dictionary, at once, naming where the budget ran out, and nothing is written', { timeout: HEAVY_TIMEOUT }, () => {
     // A binary dictionary has no spelling for it but its stream, and a refusal for the
     // budget is final: no XML of its members one by one, no full empties.
     const session = createSession();

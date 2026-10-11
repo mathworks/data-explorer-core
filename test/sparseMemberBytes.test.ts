@@ -28,6 +28,10 @@ const real = () => sparseVar({ name: '', dimensions: [3, 2], ir: [0, 2], jc: [0,
 const bare = () => matrix([arrayFlags(CLASS.SPARSE, { sparse: true, nzmax: 1 }), dims([0, 256]), varName('')]);
 const hexDigits = (bytes: ArrayLike<number>) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0').toUpperCase()).join('');
 
+// The struct of 20,000 elements: 0.25 s here, 0.7 s on CI's runners; give it headroom past
+// vitest's 5 s default, which the budget tests' heavier cases have outrun on CI.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('a sparse member nothing has edited is written as the bytes it was read from', () => {
   it('in a cell out of a .mat, and an edited member alone is encoded again', () => {
     const members = [real(), bare(), real()];
@@ -46,7 +50,7 @@ describe('a sparse member nothing has edited is written as the bytes it was read
     expect(d._var.value.map((m: any) => !!m._rawBytes)).toEqual([true, true, false]);
   });
 
-  it('in a struct, so that one of 20,000 elements whose 0x256 field no index backs is written whole', () => {
+  it('in a struct, so that one of 20,000 elements whose 0x256 field no index backs is written whole', { timeout: HEAVY_TIMEOUT }, () => {
     // The fields come last, in order, each its own bytes.
     const s: any = createSession().addMatSource('s.mat', matFile([structVar('s', ['f', 'g'], [{ f: real(), g: bare() }])])).children[0];
     const own = [...real(), ...bare()];

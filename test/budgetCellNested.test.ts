@@ -20,8 +20,12 @@ const file = matFile([element(MI.COMPRESSED, deflateSync(cellVar('c', Array.from
 // Preamble, tag and header of the outer cell, then 200 inner cells of 48 + 1,000 x 48 bytes.
 const STREAM = 8 + 8 + 40 + 200 * (8 + 40 + 1000 * 48);
 
+// It opens 200,000 nodes twice and writes them three times: 3.3 s here, 8.3 s on CI's
+// runners, past vitest's 5 s default; give it headroom.
+const HEAVY_TIMEOUT = 60_000;
+
 describe('a cell of 200 cells of 1,000 0x256 arrays', () => {
-  it('opens, is written as one stream of its members\' bytes, and is copied, pasted into a binary dictionary and saved, at once', () => {
+  it('opens, is written as one stream of its members\' bytes, and is copied, pasted into a binary dictionary and saved, at once', { timeout: HEAVY_TIMEOUT }, () => {
     const [c, openMs]: [any, number] = timed(() => createSession().addMatSource('c.mat', file).children[0]);
     expect([file.byteLength < 40000, c.displayValue, c.children[199].children.length, openMs < 5000]).toEqual([true, '<1x200 cell>', 1000, true]);
     const [stream, ms] = timed(() => encodeMatStream(c._var));
