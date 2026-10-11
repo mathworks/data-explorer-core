@@ -6,6 +6,12 @@ export interface SystemComposerCatalog {
 }
 export declare const SC_TYPE_TO_CLASSIFICATION: Record<string, string>;
 export declare function classificationOf(catalog: SystemComposerCatalog | null | undefined, entryName: string): string | null;
+/**
+ * An empty name-keyed bag for the catalog: no prototype, so a name is only ever an own
+ * key. `__proto__` in particular is stored like any other name rather than handed to
+ * `Object.prototype`'s setter, which drops a string without a word.
+ */
+export declare function emptyCatalogBag(): Record<string, string>;
 /** Where a name is written in the source text, as a half-open span. */
 export interface ScNameSite {
     start: number;
@@ -29,7 +35,14 @@ export interface ScDefinition {
     container: 'interfaces' | 'modeledDataTypes';
     nameSites: ScNameSite[];
 }
-/** Fold definitions into the catalog the model classifies entries with. */
+/**
+ * Fold definitions into the catalog the model classifies entries with.
+ *
+ * The bag is chosen by comparing `container`, never by indexing with it: this function
+ * is public, a JS caller is not held to the union, and `catalog['__proto__'][name] = type`
+ * writes onto `Object.prototype` itself. A container outside the union names no bag and
+ * is skipped.
+ */
 export declare function catalogFromDefinitions(defs: ScDefinition[]): SystemComposerCatalog;
 /**
  * Scan the MF0 XML of a compressed-binary dictionary's interface dictionary.

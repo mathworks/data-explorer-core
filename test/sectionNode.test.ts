@@ -15,7 +15,7 @@
 //   2. getAllowedTypes returning [] means "no restriction", not "nothing allowed".
 //      A section whose key is not in ALLOWED_TYPES therefore accepts everything;
 //      inverting that reading would make such a section silently unusable.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import SectionNode from '../src/datamodel/node/container/SectionNode.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
 import { generateUuid } from '../src/datamodel/node/container/SectionNode.js';
@@ -523,7 +523,30 @@ describe('generateUuid', () => {
   });
 
   it('does not repeat across many calls', () => {
-    const seen = new Set(Array.from({ length: 200 }, () => generateUuid()));
-    expect(seen.size).toBe(200);
+    const seen = new Set(Array.from({ length: 10_000 }, () => generateUuid()));
+    expect(seen.size).toBe(10_000);
+  });
+
+  it('fixes no nibble: every position is random, as it has always been', () => {
+    // Not an RFC 4122 v4 uuid, and not to become one: `crypto.randomUUID` would pin the
+    // version nibble to 4 and the variant nibble to 8-b, which is a different shape from
+    // every uuid this function has written. Over 10,000 uuids each of the 32 positions
+    // takes all 16 values; one missing a value by chance is about 3e-278.
+    const seen = Array.from({ length: 32 }, () => new Set<string>());
+    for (let n = 0; n < 10_000; n++) {
+      [...generateUuid().replace(/-/g, '')].forEach((nibble, i) => seen[i].add(nibble));
+    }
+    expect(seen.map((values) => values.size)).toEqual(Array(32).fill(16));
+  });
+
+  it('draws nothing from Math.random, whose state a uuid would publish', () => {
+    // 32 nibbles of xorshift128+ output per uuid: two in a row determine the generator.
+    const random = vi.spyOn(Math, 'random');
+    try {
+      generateUuid();
+      expect(random).not.toHaveBeenCalled();
+    } finally {
+      random.mockRestore();
+    }
   });
 });

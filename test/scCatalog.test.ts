@@ -33,6 +33,7 @@ import {
   parseBinarySlddParts,
   applyScEdits,
   catalogFromDefinitions,
+  classificationOf,
   scRenameEdits,
   scanScJsonText,
   scanScXml,
@@ -412,5 +413,132 @@ describe('the in-memory catalog follows a rename', () => {
 
     expect(entry.setProperty('Name', 'Ki')).toBe(true);
     expect(sldd.systemComposer).toBeNull();
+  });
+});
+
+// The catalog is keyed by a name the USER chose, and a plain `{}` answers a lookup of
+// every name `Object.prototype` carries. `toString`, `constructor`, `valueOf`,
+// `hasOwnProperty`… are all valid MATLAB identifiers, so a struct type can be called one
+// — and `catalog.interfaces[name] || catalog.modeledDataTypes[name]` then read the
+// inherited FUNCTION off the interface bag, never consulted the modeled one, and the
+// struct type came back a plain Data Interface with a data-interface icon. An interface of
+// the same name was unaffected (its own key shadows the inherited one), which is why it
+// went unnoticed: only the SECOND bag is reached through a miss on the first.
+describe('a definition named after an Object.prototype member', () => {
+  const INHERITED = ['toString', 'constructor', 'valueOf', 'hasOwnProperty', 'isPrototypeOf'];
+  const STRUCT = 'systemcomposer.property.StructDataType';
+  const IFACE = 'systemcomposer.architecture.model.interface.CompositeDataInterface';
+
+  // The definition `from` renamed in BOTH the entry and the catalog, so the file is one
+  // MATLAB could have written: the rename the host carries, applied before the read.
+  function binaryRenamed(from: string, name: string): SlddNode {
+    const files = unzipSync(new Uint8Array(readFileSync(fixture('arch_binary.sldd'))));
+    const zipMeta: Record<string, Uint8Array> = {};
+    Object.entries(files).forEach(([member, data]) => {
+      if (member !== 'data/chunk0.xml') {
+        zipMeta[member] = data;
+      }
+    });
+    const xml = new TextDecoder().decode(zipMeta[SC_PART_XML]);
+    zipMeta[SC_PART_XML] = new TextEncoder().encode(
+      applyScEdits(xml, scRenameEdits(scanScXml(xml), from, name)),
+    );
+    const chunk = new TextDecoder().decode(files['data/chunk0.xml']).replace(
+      new RegExp(`(<P Name="Name" Class="char">)${from}(</P>\\s*<P Name="UUID")`),
+      `$1${name}$2`,
+    );
+    return SlddNode.parse(parseBinarySlddParts(chunk, zipMeta), 'arch_binary.sldd');
+  }
+
+  function textRenamed(from: string, name: string): SlddNode {
+    const text = textAt('arch_binary_as_text.sldd');
+    const patched = applyScEdits(text, scRenameEdits(scanScJsonText(text), from, name))
+      .replace(`"name": "${from}"`, `"name": "${name}"`);
+    return SlddNode.parse(JSON.parse(patched) as Record<string, unknown>, 'arch.sldd');
+  }
+
+  it.each(INHERITED)('reads a struct type called %s as a struct type, in either format', (name) => {
+    for (const sldd of [binaryRenamed('StructType', name), textRenamed('StructType', name)]) {
+      const entry = entryNamed(sldd, name);
+      expect(entry.kind).toBe('Struct Type');
+      expect(entry.classification).toBe('StructType');
+      expect(entry.isStructType).toBe(true);
+    }
+  });
+
+  it('keeps a struct type a struct type when the user renames it to one', () => {
+    // The UI path: `toString` passes `validateMatlabName`, the catalog re-keys, and the
+    // narrow repaint rebuilds the entry through the catalog.
+    const sldd = loadBinarySldd('arch_binary.sldd');
+    const entry = entryNamed(sldd, 'StructType');
+    expect(entry.setProperty('Name', 'toString')).toBe(true);
+
+    const rebuilt = entry.parent.parseEntry(entry.serialize(), sldd.systemComposer);
+    entry.parent.removeChild(rebuilt);
+    expect(rebuilt.kind).toBe('Struct Type');
+  });
+
+  it('classifies by own keys alone, whoever built the catalog', () => {
+    // A host may build the (public) catalog shape itself, or clone the one it holds —
+    // either way it gets an object WITH a prototype back.
+    const catalog = catalogFromDefinitions(
+      INHERITED.map((name) => ({ name, type: STRUCT, container: 'modeledDataTypes' as const, nameSites: [] })),
+    );
+    for (const copy of [catalog, structuredClone(catalog), JSON.parse(JSON.stringify(catalog))]) {
+      INHERITED.forEach((name) => expect(classificationOf(copy, name)).toBe('StructType'));
+    }
+    // Built by hand, out of plain object literals: no reader and no clone involved.
+    expect(classificationOf({ interfaces: {}, modeledDataTypes: { toString: STRUCT } }, 'toString'))
+      .toBe('StructType');
+    const handBuilt = {
+      interfaces: {} as Record<string, string>,
+      modeledDataTypes: Object.fromEntries(INHERITED.map((name) => [name, STRUCT])),
+    };
+    INHERITED.forEach((name) => expect(classificationOf(handBuilt, name)).toBe('StructType'));
+    // And a name the catalog does not list is unclassified, inherited or not.
+    expect(classificationOf({ interfaces: {}, modeledDataTypes: {} }, 'toString')).toBeNull();
+    // A type the vocabulary does not have is nothing, even one spelled like a member.
+    expect(classificationOf(
+      catalogFromDefinitions([{ name: 'X', type: 'constructor', container: 'interfaces', nameSites: [] }]),
+      'X',
+    )).toBeNull();
+  });
+
+  it('records a name the reader does not validate, rather than handing it to a setter', () => {
+    // MATLAB cannot write `__proto__` (an identifier starts with a letter) but the
+    // readers take names raw, and on a plain `{}` this assignment was silently dropped.
+    const catalog = catalogFromDefinitions([
+      { name: '__proto__', type: IFACE, container: 'interfaces', nameSites: [] },
+    ]);
+    expect(Object.keys(catalog.interfaces)).toEqual(['__proto__']);
+    expect(classificationOf(catalog, '__proto__')).toBe('DataInterface');
+  });
+
+  // The text reader builds its two bags itself, in `SlddNode._parseSystemComposer`, not
+  // through `catalogFromDefinitions`. Every other inherited name is an own key once it is
+  // written, so the own-key lookup reads it right off a plain `{}` too, and the cases above
+  // pass either way. `__proto__` is the one name a plain `{}` still loses, because writing
+  // it calls the prototype setter, which drops a string. MATLAB cannot write that name (see
+  // above), but the text reader takes names raw, as the binary one does.
+  it.each([
+    ['struct type', 'StructType', 'modeledDataTypes', 'StructType'],
+    ['data interface', 'DataInterface', 'interfaces', 'DataInterface'],
+  ] as const)('records a %s named __proto__ in a text dictionary as the binary reader does', (_, from, bag, cls) => {
+    const text = textRenamed(from, '__proto__');
+    expect(Object.keys(text.systemComposer![bag])).toContain('__proto__');
+    expect(entryNamed(text, '__proto__').classification).toBe(cls);
+    expect(text.systemComposer).toEqual(binaryRenamed(from, '__proto__').systemComposer);
+  });
+
+  it('cannot reach Object.prototype through a container outside the union', () => {
+    // `catalogFromDefinitions` is public, and a JS caller is not held to the type.
+    try {
+      catalogFromDefinitions([
+        { name: 'scCatalogPolluted', type: 'yes', container: '__proto__' as never, nameSites: [] },
+      ]);
+      expect(({} as Record<string, unknown>).scCatalogPolluted).toBeUndefined();
+    } finally {
+      delete (Object.prototype as Record<string, unknown>).scCatalogPolluted;
+    }
   });
 });
