@@ -6,7 +6,8 @@ import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
-import { oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
+import { budgetFailure, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
+import { dimsText, isSize } from '../parser/Size.js';
 import { encodedXml, isEncodedValue, type EncodedValue } from '../parser/EncodedValue.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
 import {
@@ -193,6 +194,15 @@ export function owningEntryOf(node: BaseNode | null | undefined): DataNode | nul
     entry = entry.parent;
   }
   return (entry as DataNode | null | undefined) ?? null;
+}
+
+/**
+ * Where a raw property value a writer is writing stands: the entry's name, and the MATLAB
+ * path from it to the value (`pSp.Value`, `obj.Prop(2).field`, `obj.Cellprop{3}`).
+ */
+export interface PropertyAt {
+  entry: string;
+  path: string;
 }
 
 export default class DataNode extends BaseNode {
@@ -919,7 +929,7 @@ export default class DataNode extends BaseNode {
     let xml = p + '<' + tagName + attrStr + '>\n';
     xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
     for (const [propName, propVal] of Object.entries(props)) {
-      xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, this) + '\n';
+      xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, this, this._propertyAt(propName)) + '\n';
     }
     xml += ip + '</Element>\n';
     xml += p + '</' + tagName + '>';
@@ -928,6 +938,24 @@ export default class DataNode extends BaseNode {
 
   _getSerializedProperties(): Record<string, unknown> {
     return Object.assign({}, this.serial._properties as Record<string, unknown>);
+  }
+
+  /** Where this node's property `propName` stands, for a writer that writes it from its raw value. */
+  _propertyAt(propName: string): PropertyAt {
+    return { entry: this.owningEntry?.name ?? this.matlabPath, path: this.matlabPath + '.' + propName };
+  }
+
+  /**
+   * A raw value read back into a node of its own to write its XML — a MAT stream, this
+   * package's sparse literal — which has no parent to say where it is: told `at`, so that a
+   * write it refuses names the entry and the path, not the property alone.
+   */
+  static _detachedXml(value: unknown, name: string, tagName: string, attrs: Record<string, string>, indent: number, at: PropertyAt | undefined): string {
+    const node = NodeRegistry.parseValue(value, name, null);
+    if (at) {
+      node._writtenAt = at;
+    }
+    return node.serializeXml(tagName, attrs, indent);
   }
 
   /**
@@ -948,7 +976,7 @@ export default class DataNode extends BaseNode {
     return name === SAVEOBJ_KEY ? ' Source="saveobj" PropertyType="any"' : ' Name="' + escapeXml(name) + '"';
   }
 
-  static serializePropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null): string {
+  static serializePropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string {
     const p = xmlPad(indent);
 
     if (value === null || value === undefined) {
@@ -1003,10 +1031,10 @@ export default class DataNode extends BaseNode {
         return encodedXml('P', DataNode.pxAttrs(name), obj, indent);
       }
       if (obj._type && obj._value !== undefined) {
-        return DataNode._serializeTypedPropertyXml(name, obj, indent);
+        return DataNode._serializeTypedPropertyXml(name, obj, indent, at);
       }
       if (obj._array_class) {
-        return DataNode._serializeObjectPropertyXml(name, obj, indent, ownerNode);
+        return DataNode._serializeObjectPropertyXml(name, obj, indent, ownerNode, at);
       }
       if (obj._object_class) {
         const wrapped = {
@@ -1014,13 +1042,13 @@ export default class DataNode extends BaseNode {
           _dimensions: [1, 1],
           _elements: [{ _properties: obj._properties || {} }],
         };
-        return DataNode._serializeObjectPropertyXml(name, wrapped, indent, ownerNode);
+        return DataNode._serializeObjectPropertyXml(name, wrapped, indent, ownerNode, at);
       }
       if (obj._array_type === 'Struct') {
-        return DataNode._serializeStructPropertyXml(name, obj, indent);
+        return DataNode._serializeStructPropertyXml(name, obj, indent, at);
       }
       if (obj._array_type === 'Cell') {
-        return DataNode._serializeCellPropertyXml(name, obj, indent);
+        return DataNode._serializeCellPropertyXml(name, obj, indent, at);
       }
       // The shape a string with more than one element arrives in. Without this arm it
       // reached the trailing char fallback, where String() spelled the whole wrapper
@@ -1115,7 +1143,7 @@ export default class DataNode extends BaseNode {
     );
   }
 
-  static _serializeTypedPropertyXml(name: string, value: Record<string, unknown>, indent: number): string {
+  static _serializeTypedPropertyXml(name: string, value: Record<string, unknown>, indent: number, at?: PropertyAt): string {
     const p = xmlPad(indent);
     const type = value._type as string;
     const raw = String(value._value);
@@ -1141,7 +1169,7 @@ export default class DataNode extends BaseNode {
       // is the registry's whole purpose, and it is populated by NodeClassMap for
       // anyone who can have parsed a cdata at all.
       if (isMatCdata(value)) {
-        return NodeRegistry.parseValue(value, name, null).serializeXml('P', { Name: name }, indent);
+        return DataNode._detachedXml(value, name, 'P', { Name: name }, indent, at);
       }
       return DataNode._complexTextXml('P', DataNode.pxAttrs(name), value, indent);
     }
@@ -1154,7 +1182,7 @@ export default class DataNode extends BaseNode {
     // element's imaginary part was dropped on the way: a Simulink.Parameter pasted from a
     // text dictionary into a binary one, its sparse Value edited, crashed MATLAB on read.
     if (type === 'sparse') {
-      return NodeRegistry.parseValue(value, name, null).serializeXml('P', { Name: name }, indent);
+      return DataNode._detachedXml(value, name, 'P', { Name: name }, indent, at);
     }
 
     // Rank 3 and up spells its header Matrix(2,3,2) — MATLAB's own binary
@@ -1167,6 +1195,7 @@ export default class DataNode extends BaseNode {
       const dims = matrixMatch[1].split(',').map(function (s: string) {
         return parseInt(s, 10);
       });
+      DataNode._sizeOrRefuse(dims, type, name, at);
       const nums = DataNode._parseMatrixNums(matrixMatch[2], type);
       const colMajor = transposeToColumnMajorND(nums, dims);
       const formatted = colMajor.map(function (v: number | string) {
@@ -1244,10 +1273,12 @@ export default class DataNode extends BaseNode {
     value: Record<string, unknown>,
     indent: number,
     ownerNode: DataNode | null,
+    at?: PropertyAt,
   ): string {
     const p = xmlPad(indent);
     const ip = xmlPad(indent + 1);
     const className = value._array_class as string;
+    DataNode._sizeOrRefuse(value._dimensions, className, name, at);
     const dims = (value._dimensions as number[]) || [1, 1];
     const elements = (value._elements as Record<string, unknown>[]) || [];
 
@@ -1281,21 +1312,44 @@ export default class DataNode extends BaseNode {
         ? ''
         : ' Dimension="' + dims.join('*') + '"';
     let xml = p + '<P' + DataNode.pxAttrs(name) + dimAttr + '>\n';
-    for (const elem of elements) {
+    elements.forEach((elem, k) => {
       const props = (elem._properties as Record<string, unknown>) || {};
       xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
       for (const [propName, propVal] of Object.entries(props)) {
-        xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, ownerNode) + '\n';
+        xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName)) + '\n';
       }
       xml += ip + '</Element>\n';
-    }
+    });
     xml += p + '</P>';
     return xml;
   }
 
-  static _serializeStructPropertyXml(name: string, value: Record<string, unknown>, indent: number): string {
+  /**
+   * Refuses to write a raw value whose dims are not a size (parser/Size), as a reader takes
+   * one as damaged (MatlabVariableNode.parseDamaged): a property's raw cell, struct or object
+   * bag, written here from its raw value, has no node to have been read as damaged, and
+   * `Dimension="1*x"` is no spelling of anything.
+   */
+  static _sizeOrRefuse(dims: unknown, cls: string, name: string, at: PropertyAt | undefined): void {
+    if (dims === undefined || isSize(dims)) {
+      return;
+    }
+    const what = 'a ' + cls + ' declaring dimensions ' + dimsText(dims);
+    throw budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, false), at ? at.entry : name, at ? at.path : name);
+  }
+
+  /**
+   * `at` one level down: element `k` of `n` — its MATLAB subscript, `(k+1)`, unless it is
+   * the only one — then `rest`, a field or a property.
+   */
+  static _within(at: PropertyAt | undefined, n: number, k: number, rest: string): PropertyAt | undefined {
+    return at && { entry: at.entry, path: at.path + (n > 1 ? '(' + (k + 1) + ')' : '') + rest };
+  }
+
+  static _serializeStructPropertyXml(name: string, value: Record<string, unknown>, indent: number, at?: PropertyAt): string {
     const p = xmlPad(indent);
     const ip = xmlPad(indent + 1);
+    DataNode._sizeOrRefuse(value._dimensions, 'struct', name, at);
     const dims = (value._dimensions as number[]) || [1, 1];
     const elements = (value._elements as Record<string, unknown>[]) || [];
     // Every extent, not the first two: MATLAB's own binary dictionary writes
@@ -1318,31 +1372,32 @@ export default class DataNode extends BaseNode {
         xml += ip + '<Field Name="' + escapeXml(field) + '"/>\n';
       }
     }
-    for (const elem of elements) {
+    elements.forEach((elem, k) => {
       xml += ip + '<Element>\n';
       for (const [field, fieldVal] of Object.entries(elem)) {
-        xml += DataNode.serializePropertyXml(field, fieldVal, indent + 2, null) + '\n';
+        xml += DataNode.serializePropertyXml(field, fieldVal, indent + 2, null, DataNode._within(at, elements.length, k, '.' + field)) + '\n';
       }
       xml += ip + '</Element>\n';
-    }
+    });
     xml += p + '</P>';
     return xml;
   }
 
-  static _serializeCellPropertyXml(name: string, value: Record<string, unknown>, indent: number): string {
+  static _serializeCellPropertyXml(name: string, value: Record<string, unknown>, indent: number, at?: PropertyAt): string {
     const p = xmlPad(indent);
+    DataNode._sizeOrRefuse(value._dimensions, 'cell', name, at);
     const dims = (value._dimensions as number[]) || [1, 1];
     const elements = (value._elements as unknown[]) || [];
 
     let xml = p + '<P' + DataNode.pxAttrs(name) + ' Class="cell" Dimension="' + dims.join('*') + '">\n';
-    for (const elem of elements) {
-      xml += DataNode._serializeCellElementXml(elem, indent + 1) + '\n';
-    }
+    elements.forEach((elem, k) => {
+      xml += DataNode._serializeCellElementXml(elem, indent + 1, at && { entry: at.entry, path: at.path + '{' + (k + 1) + '}' }) + '\n';
+    });
     xml += p + '</P>';
     return xml;
   }
 
-  static _serializeCellElementXml(elem: unknown, indent: number): string {
+  static _serializeCellElementXml(elem: unknown, indent: number, at?: PropertyAt): string {
     const p = xmlPad(indent);
     if (typeof elem === 'number') {
       return p + '<Element Class="double">' + formatDoubleXml(elem) + '</Element>';
@@ -1373,13 +1428,13 @@ export default class DataNode extends BaseNode {
       // written by the node it reads back as, and complex text as itself.
       if (type === 'cdata') {
         if (isMatCdata(obj)) {
-          return NodeRegistry.parseValue(obj, '', null).serializeXml('Element', {}, indent);
+          return DataNode._detachedXml(obj, '', 'Element', {}, indent, at);
         }
         return DataNode._complexTextXml('Element', '', obj, indent);
       }
       // And its sparse case, for its reason: never `Class="sparse"`.
       if (type === 'sparse') {
-        return NodeRegistry.parseValue(obj, '', null).serializeXml('Element', {}, indent);
+        return DataNode._detachedXml(obj, '', 'Element', {}, indent, at);
       }
       const mxChar = DataNode._mxCharXml(obj);
       if (mxChar) {

@@ -209,11 +209,6 @@ export default class MatlabVariableNode extends DataNode {
     /** A budget refusal of a write that began at this node, restated for a user. */
     _budgetFailure(e: MatBudgetError): MatBudgetError;
     /**
-     * Where this node is, in MATLAB's spelling from its entry's name: `c{2}`, `st.sp`,
-     * `pSp.Value`, `s(2).f`. What a refused write names.
-     */
-    _matlabPath(): string;
-    /**
      * Why MatWriter could not write this sparse array once an element of it were edited — its
      * file declares more columns than its column index held, or its class is one MATLAB never
      * stores sparse — or null when it could, and for anything not sparse. Such an array is

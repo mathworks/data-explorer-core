@@ -149,7 +149,7 @@ export default class ObjectNode extends DataNode {
             xml += ip + '<Element Class="' + escapeXml(this.arrayClass) + '">\n';
             const props = child._getSerializedProperties();
             for (const [propName, propVal] of Object.entries(props)) {
-                xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, child) + '\n';
+                xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, child, child._propertyAt(propName)) + '\n';
             }
             xml += ip + '</Element>\n';
         }

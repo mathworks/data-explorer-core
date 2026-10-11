@@ -1846,28 +1846,14 @@ export default class MatlabVariableNode extends DataNode {
 
   /** A budget refusal of a write that began at this node, restated for a user. */
   _budgetFailure(e: MatBudgetError): MatBudgetError {
-    const entry = this.owningEntry;
-    return budgetFailure(e, entry ? entry.name : this._matlabPath(), this._matlabPath());
-  }
-
-  /**
-   * Where this node is, in MATLAB's spelling from its entry's name: `c{2}`, `st.sp`,
-   * `pSp.Value`, `s(2).f`. What a refused write names.
-   */
-  _matlabPath(): string {
-    const entry = this.owningEntry;
-    let path = '';
-    let node: BaseNode = this;
-    while (node !== entry && node.parent && !(node.parent as unknown as { isContainer?: boolean }).isContainer) {
-      const parent: BaseNode = node.parent;
-      if (/^\d+$/.test(node.name)) {
-        path = (parent instanceof MatlabVariableNode && parent._kind === 'cell' ? '{' + node.name + '}' : '(' + node.name + ')') + path;
-      } else {
-        path = '.' + node.name + path;
-      }
-      node = parent;
+    // The entry: the one above, or, for a node a writer built on its own to write a raw
+    // property value (DataNode._detachedXml), the one it was built for.
+    let root: BaseNode = this;
+    while (root.parent) {
+      root = root.parent;
     }
-    return node.name + path;
+    const entry = root._writtenAt ? root._writtenAt.entry : this.owningEntry?.name ?? this.matlabPath;
+    return budgetFailure(e, entry, this.matlabPath);
   }
 
   /**

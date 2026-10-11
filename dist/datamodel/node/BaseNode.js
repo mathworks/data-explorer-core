@@ -314,6 +314,31 @@ export default class BaseNode {
         return siblings.indexOf(this);
     }
     get displayName() {
+        const parent = this.parent;
+        return (parent && this._labelUnder(() => parent.displayName)) || this._displayName || this.name;
+    }
+    /**
+     * Where this node is, in MATLAB's spelling from its entry's name — `c{2}`, `st.sp`,
+     * `pSp.Value`, `s(2).f` — its rows' own labels, joined by field and property names: what a
+     * refused write names. A node a writer built on its own says where it was built for
+     * (`_writtenAt`).
+     */
+    get matlabPath() {
+        if (this._writtenAt) {
+            return this._writtenAt.path;
+        }
+        const parent = this.parent;
+        if (!parent || parent.isContainer) {
+            return this.name;
+        }
+        return this._labelUnder(() => parent.matlabPath) || parent.matlabPath + '.' + this.name;
+    }
+    /**
+     * This node's label as an element of its parent, the parent being called `parentLabel()`,
+     * or null when it is not one (a field, a property, a node with no parent): displayName's
+     * rule, and matlabPath's.
+     */
+    _labelUnder(parentLabel) {
         // A struct/object-array element, or a sparse array's non-zero: the subscript its
         // parse site recorded, read live from the parent's CURRENT displayed name, which is
         // what makes an element row follow a rename of the array above it. First, because a
@@ -322,8 +347,8 @@ export default class BaseNode {
         if (this._subscript && this.parent) {
             const s = this._subscript;
             return 'at' in s
-                ? subscriptsLabel(this.parent.displayName, s.at, s.bracket)
-                : subscriptLabel(this.parent.displayName, s.index, s.dims, s.order, s.bracket);
+                ? subscriptsLabel(parentLabel(), s.at, s.bracket)
+                : subscriptLabel(parentLabel(), s.index, s.dims, s.order, s.bracket);
         }
         if (this.parent &&
             (this.parent._kind === 'cell' || this.parent._kind === 'array' || this.parent._kind === 'string')) {
@@ -342,9 +367,9 @@ export default class BaseNode {
             // strMat in all four formats -- see test/cellElementOrder.test.ts. A square
             // fixture cannot see this: the label SET is right either way, only the
             // label->value pairing is wrong.
-            return subscriptLabel(this.parent.displayName, this._slotAmongSiblings(), this.parent._dims, this.parent._kind === 'array' ? 'row-major' : 'column-major', this.parent._kind === 'cell' ? '{}' : '()');
+            return subscriptLabel(parentLabel(), this._slotAmongSiblings(), this.parent._dims, this.parent._kind === 'array' ? 'row-major' : 'column-major', this.parent._kind === 'cell' ? '{}' : '()');
         }
-        return this._displayName || this.name;
+        return null;
     }
     get valueEditable() {
         // A value still written as the encoded stream it was read from (encodedHolderOf).
