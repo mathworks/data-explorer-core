@@ -269,10 +269,12 @@ would write them as something else, finally, naming the value (a `MatBudgetError
 an XML Dimension refuses what it cannot spell (NaN, an infinity, a negative, a string, an
 object), writing a binary dictionary's own `1*2.5` back as read. An extent past an int32 is a
 size — MATLAB holds a zeros(0, 2^31) — but no MAT stream can say it, so one that has to be a
-stream is refused too (reason `past-int32`). An unedited value is written back as read; a
-container written whole around such a member is refused, naming the member, and never
-writes it as 0, false or `[]`. Pinned in `test/dimsWriters.test.ts` and
-`test/unbackedBudget.test.ts`.
+stream is refused too (reason `past-int32`), in a text dictionary as well, where a complex
+value goes as a stream. A sparse array's non-zero whose row or column is not a whole
+number is refused the same way (reason `not-an-index`): its full form would drop it. An
+unedited value is written back as read; a container written whole around such a member is
+refused, naming the member, whatever the order of its members, and never writes it as 0,
+false or `[]`. Pinned in `test/dimsWriters.test.ts` and `test/unbackedBudget.test.ts`.
 
 ### A sparse array's class is its element class
 `class()` of a sparse double is `double` (`logical`, `single`; complex is still

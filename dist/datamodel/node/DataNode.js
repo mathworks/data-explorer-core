@@ -607,7 +607,16 @@ export default class DataNode extends BaseNode {
         return oneWrite(() => {
             const raw = this.serializeValue();
             const json = this._ownerFormat() === 'json';
-            const value = json ? textDictionaryForm(raw) : raw;
+            let value = raw;
+            if (json) {
+                try {
+                    value = textDictionaryForm(raw);
+                }
+                catch (e) {
+                    // Final (MatWriter.MatBudgetError): named from this node, the value's owner.
+                    throw e instanceof MatBudgetError ? this._budgetFailure(e) : e;
+                }
+            }
             if (this.isEntry) {
                 return {
                     name: this.name,

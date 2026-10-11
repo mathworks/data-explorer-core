@@ -241,10 +241,13 @@ describe('a count past 2^53 is still a count, over the budget, and never printed
     expect([c?.reason, c?.counted, c?.what]).toEqual(['budget', true, `a ${big}x${big} cell holding 1 of its ${elements} elements`]);
     expect(c?.message).toContain('would write more than 9007199254740991 bytes');
     expect(c?.message).not.toMatch(/e\+/);
-    const d = [big, 4194305];
-    const s = refusedWith({ name: '', className: 'struct', dimensions: d, isComplex: false, isLogical: false, value: null, fields: { f: [sparse([0, 0])], g: [sparse([0, 0])] } } as MatVariable);
-    const fields = (BigInt(big) * 4194305n * 2n).toString();
-    expect([s?.reason, s?.counted, s?.what]).toEqual(['budget', true, `a ${big}x4194305 struct array missing some of its ${fields} fields`]);
+    // Three fields of 2147483647x2147483647: 13835058042397261827, which a double prints
+    // as 13835058042397262000.
+    const s = refusedWith({ name: '', className: 'struct', dimensions: [big, big], isComplex: false, isLogical: false, value: null,
+      fields: { f: [sparse([0, 0])], g: [sparse([0, 0])], h: [sparse([0, 0])] } } as MatVariable);
+    const fields = (BigInt(big) * BigInt(big) * 3n).toString();
+    expect(fields).toBe('13835058042397261827');
+    expect([s?.reason, s?.counted, s?.what]).toEqual(['budget', true, `a ${big}x${big} struct array missing some of its ${fields} fields`]);
   });
 });
 

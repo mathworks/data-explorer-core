@@ -208,16 +208,46 @@ describe('the writer\'s own refusals', () => {
     sparse: { row: row as any, col: col as any, re: Float64Array.from(row.map(() => 1)), im: null, backedColumns: 3 },
   });
 
-  it('a sparse array\'s non-zero that is not at a row and a column is refused, not written into the index', () => {
+  it('a sparse array\'s non-zero that is not at a row and a column is refused, finally: not written into the index, and never written without it', () => {
     for (const [row, col] of [[[0.5], [0]], [['x'], [0]], [[0], [NaN]]] as const) {
       const [thrown] = thrownBy(() => encodeMatStream(sparse(row as unknown[], col as unknown[]) as any));
-      expect([thrown instanceof MatWriteError, thrown instanceof MatBudgetError, thrown?.message], JSON.stringify([row, col])).toEqual([
+      expect([thrown instanceof MatBudgetError, (thrown as any)?.reason, (thrown as any)?.what], JSON.stringify([row, col])).toEqual([
         true,
-        false,
-        `a sparse array's non-zero 0 is at (${String(row[0])}, ${String(col[0])}), which is not a row and a column`,
+        'not-an-index',
+        `a 3x3 sparse double whose non-zero 1 is at (${String(row[0])}, ${String(col[0])})`,
       ]);
     }
     expect(thrownBy(() => encodeMatStream(sparse([0, 2], [0, 1]) as any))[0]).toBeNull();
+    // A host's: its copy and its XML are refused — not written full, nor as zeros where the
+    // non-zero was (_sparseFallback's dense spelling drops it).
+    const h: any = createSession().addMatSourceParsed('h.mat', { header: '', warnings: [], variables: [{ ...sparse([0.5], [0]), name: 'h' }] as any }).children[0];
+    const said = 'Cannot write "h": h is a 3x3 sparse double whose non-zero 1 is at (0.5, 0), which is not a row and a column, and it has no spelling here without that non-zero. Nothing was written.';
+    for (const write of [() => h.serialize(), () => h.serializeXml('P', { Name: 'Value' }, 2)]) {
+      expect(thrownBy(write)[0]?.message).toBe(said);
+    }
+  });
+
+  it('a sparse array whose dims are no size, or past an int32, has rows nothing could write an edit of', () => {
+    const host = (dims: number[]): any =>
+      createSession().addMatSourceParsed('h.mat', {
+        header: '',
+        warnings: [],
+        variables: [{ name: 'h', className: 'double', dimensions: dims, isComplex: false, isLogical: false, isSparse: true, value: '', fields: null,
+          sparse: { row: Int32Array.from([0]), col: Int32Array.from([0]), re: Float64Array.from([5]), im: null, backedColumns: 1 } }],
+      }).children[0];
+    const odd = host([2, 2.5]);
+    expect([odd._sparseRefusal(), odd.children.map((c: any) => c.valueEditable)]).toEqual(['a sparse array declaring dimensions [2,2.5], which are not a size', [false]]);
+    const wide = host([1, 2147483648]);
+    expect([wide._sparseRefusal(), wide.children.map((c: any) => c.valueEditable)]).toEqual(['a 1x2147483648 sparse array has an extent past 2147483647, which no MAT stream can say', [false]]);
+    expect(host([3, 3])._sparseRefusal()).toBeNull();
+  });
+
+  it('a uint8 is "a uint8", and an int8 "an int8"', () => {
+    const v = (cls: string) => ({ name: '', className: cls, dimensions: [1, 'x'], isComplex: false, isLogical: false, value: [], fields: null });
+    expect([thrownBy(() => encodeMatStream(v('uint8') as any))[0], thrownBy(() => encodeMatStream(v('int8') as any))[0]].map((e: any) => e?.what)).toEqual([
+      'a uint8 declaring dimensions [1,"x"]',
+      'an int8 declaring dimensions [1,"x"]',
+    ]);
   });
 
   it('a host\'s bigint dims: the source loads, and its copy and its XML are refused as not a count', () => {
@@ -234,4 +264,115 @@ describe('the writer\'s own refusals', () => {
       expect([thrown?.name, (thrown as any)?.reason, thrown?.message]).toEqual(['MatBudgetError', 'not-a-count', said]);
     }
   });
+});
+
+describe('a final refusal wins whatever the order of the members', () => {
+  // A rank-3 cell of {a struct, a member whose dims are no size or past an int32, 5}, edited
+  // at {3}. Encoded in order, the struct — a class MatWriter has no variable for — refused
+  // the stream first, and the cell was written another way, the second member with it:
+  // `[0, 1e400]` as `[0,null]`. Every member's dims are checked first now (refuseDimsBelow).
+  const GOOD = '{"_array_type":"Struct","_dimensions":[1,1],"_elements":[{"f":1}],"_fields":["f"]}';
+  const BAD: [string, string, string][] = [
+    ['[0,1e400]', '{"_array_type":"Struct","_dimensions":[0,1e400],"_elements":[],"_fields":["f"]}', 'a struct declaring dimensions [0,Infinity]' + NOT_A_COUNT],
+    ['[1,"x"]', '{"_array_type":"Struct","_dimensions":[1,"x"],"_elements":[{"f":1}],"_fields":["f"]}', 'a struct declaring dimensions [1,"x"]' + NOT_A_COUNT],
+    ['Matrix(1,4294967296)', '{"_type":"double","_value":"Matrix(1,4294967296)\\n[]"}', 'a 1x4294967296 double' + PAST_INT32],
+    ['a 0x2147483648 struct', '{"_array_type":"Struct","_dimensions":[0,2147483648],"_elements":[],"_fields":["f"]}', 'a 0x2147483648 struct' + PAST_INT32],
+  ];
+  const textHolding = (members: string[]) => {
+    const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+    entriesOf(json).push({ name: 'dmg', metadata: { uuid: '00000000-0000-4000-ef40-000000000001' }, value: '@@V@@' });
+    return strToU8(JSON.stringify(json).replace('"@@V@@"', `{"_array_type":"Cell","_dimensions":[1,1,3],"_elements":[${members.join(',')},5],"_mw_element_type":"MATLABArray"}`));
+  };
+  for (const [label, bad, said] of BAD) {
+    for (const order of ['first', 'second']) {
+      it(`${label}, ${order}`, () => {
+        const session = createSession();
+        const root: any = ingest(session, buffer(textHolding(order === 'first' ? [bad, GOOD] : [GOOD, bad])), { filename: TEXT });
+        const dmg = root.getSection('design').children.find((e: any) => e.name === 'dmg');
+        expect(dmg.children[2].setProperty('Value', '6')).toBe(true);
+        const at = order === 'first' ? 'dmg{1}' : 'dmg{2}';
+        expect(thrownBy(() => session.serializeSource(root.name))[0]?.message).toBe(`Cannot write "dmg": ${at} is ${said}`);
+        expect(thrownBy(() => dmg.serialize())[0]?.message).toBe(`Cannot write "dmg": ${at} is ${said}`);
+      });
+    }
+  }
+
+  it('[NaN,1], a host\'s, in either order', () => {
+    for (const order of ['first', 'second']) {
+      const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+      const good = { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: 1 }], _fields: ['f'] };
+      const bad = { _array_type: 'Cell', _dimensions: [NaN, 1], _elements: [[1, 2]] };
+      entriesOf(json).push({ name: 'dmg', metadata: { uuid: '00000000-0000-4000-ef40-000000000002' }, value: { _array_type: 'Cell', _dimensions: [1, 1, 3], _elements: order === 'first' ? [bad, good, 5] : [good, bad, 5] } });
+      const session = createSession();
+      const root: any = session.addDataSource('h.sldd', json);
+      const dmg = root.getSection('design').children.find((e: any) => e.name === 'dmg');
+      dmg.children[2].setProperty('Value', '6');
+      expect(thrownBy(() => session.serializeSource(root.name))[0]?.message, order).toBe(`Cannot write "dmg": dmg{${order === 'first' ? 1 : 2}} is a cell declaring dimensions [NaN,1]${NOT_A_COUNT}`);
+    }
+  });
+});
+
+describe('a complex value no MAT stream can say goes into a text dictionary as a refusal, not as complex text MATLAB reads as an empty double', () => {
+  // MatWriter.textDictionaryForm's catch had swallowed the final refusal and left the
+  // complex text, `{_type: 'cdata', _value: '', _dimensions: [0, 2147483648]}`, as it stood.
+  const binaryWith = (valueXml: string, old = '<P Name="Value" Class="double" Dimension="3*3">0.0 0.0 6.0 5.0 0.0 0.0 0.0 0.0 0.0</P>') => {
+    const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+    const xml = strFromU8(files['data/chunk0.xml']);
+    expect(xml).toContain(old);
+    files['data/chunk0.xml'] = strToU8(xml.replace(old, valueXml));
+    return buffer(zipSync(files));
+  };
+  const intoText = (value: unknown) => {
+    const session = createSession();
+    const root: any = ingest(session, sparseFixture(TEXT), { filename: TEXT });
+    root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef50-000000000001' }, value });
+    return thrownBy(() => session.serializeSource(root.name))[0]?.message ?? null;
+  };
+
+  it('a Parameter\'s Value, a cell\'s element and the entry itself, out of a binary dictionary', () => {
+    const root: any = ingest(createSession(), binaryWith('<P Name="Value" Class="double" IsComplex="1" Dimension="0*2147483648"/>'), { filename: BINARY });
+    const pDense = root.getSection('design').children.find((e: any) => e.name === 'pDense');
+    const value = JSON.parse(JSON.stringify(pDense.serialize().value));
+    expect(intoText(value)).toBe('Cannot write "pasted": pasted.Value is a 0x2147483648 double' + PAST_INT32);
+    const complexEmpty = value._elements[0]._properties.Value;
+    expect(complexEmpty).toEqual({ _type: 'cdata', _value: '', _dimensions: [0, 2147483648] });
+    expect(intoText({ _array_type: 'Cell', _dimensions: [1, 2], _elements: [1, complexEmpty] })).toBe('Cannot write "pasted": pasted{2} is a 0x2147483648 double' + PAST_INT32);
+    expect(intoText(complexEmpty)).toBe('Cannot write "pasted": pasted is a 0x2147483648 double' + PAST_INT32);
+    expect(intoText({ ...complexEmpty, _class: 'single', _dimensions: [2147483648, 0] })).toBe('Cannot write "pasted": pasted is a 2147483648x0 single' + PAST_INT32);
+    // And a size that is no count, the same way.
+    expect(intoText({ ...complexEmpty, _dimensions: [0, 2.5] })).toBe('Cannot write "pasted": pasted is a double declaring dimensions [0,2.5]' + NOT_A_COUNT);
+    // Within an int32, it is written: MATLAB's own stream for the complex empty.
+    expect(intoText({ ...complexEmpty, _dimensions: [0, 5] })).toBeNull();
+  });
+});
+
+describe('a binary dictionary\'s raw property is written back as read, Dimension and all', () => {
+  // A Simulink.Parameter's Value (sparse_binary.sldd's pDense) of each form that is a size
+  // or a finite extent the reader passes through, saved as opened and after its Description
+  // is edited: the Value as 6402869 writes it (checked against its dist).
+  const OLD = '<P Name="Value" Class="double" Dimension="3*3">0.0 0.0 6.0 5.0 0.0 0.0 0.0 0.0 0.0</P>';
+  const FORMS: [string, string, string][] = [
+    ['a 0*2147483648 cell', '<P Name="Value" Class="cell" Dimension="0*2147483648"/>', '<P Name="Value" Class="cell" Dimension="0*2147483648">\n                </P>'],
+    ['a 1*2.5 cell', '<P Name="Value" Class="cell" Dimension="1*2.5">\n                    <Element Class="double">1.0</Element>\n                </P>', ''],
+    ['a 1*4294967296 cell', '<P Name="Value" Class="cell" Dimension="1*4294967296">\n                    <Element Class="double">1.0</Element>\n                </P>', ''],
+    ['a 0*2147483648 struct', '<P Name="Value" Class="struct" Dimension="0*2147483648"/>', '<P Name="Value" Class="struct" Dimension="0*2147483648">\n                </P>'],
+    ['a 1*2.5 struct', '<P Name="Value" Class="struct" Dimension="1*2.5">\n                    <Element>\n                        <P Name="f" Class="double">1.0</P>\n                    </Element>\n                </P>', ''],
+    ['a 1*2.5 string', '<P Name="Value">\n                    <Element Class="string">\n                        <P Source="saveobj" PropertyType="any" Class="cell" Dimension="1*2.5">\n                            <Element Class="char">ab</Element>\n                        </P>\n                    </Element>\n                </P>', ''],
+    ['a 0*2147483648 complex double', '<P Name="Value" Class="double" IsComplex="1" Dimension="0*2147483648"/>', ''],
+  ];
+  for (const [label, read, written] of FORMS) {
+    it(label, () => {
+      for (const edit of [false, true]) {
+        const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+        files['data/chunk0.xml'] = strToU8(strFromU8(files['data/chunk0.xml']).replace(OLD, read));
+        const session = createSession();
+        const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
+        const p = root.getSection('design').children.find((e: any) => e.name === 'pDense');
+        if (edit) expect(p.setProperty('Description', 'edited')).toBe(true);
+        const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+        const from = saved.indexOf('<P Name="Value"', saved.indexOf('<Element Class="Simulink.Parameter">', saved.indexOf('<P Name="Name" Class="char">pDense</P>')));
+        expect(saved.slice(from, saved.indexOf('<P Name="Complexity"', from)).trimEnd(), edit ? 'edited' : 'no-op').toBe(written || read);
+      }
+    });
+  }
 });

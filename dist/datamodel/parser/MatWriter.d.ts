@@ -12,7 +12,9 @@ export declare class MatWriteError extends Error {
  * A write refused for what a value declares rather than what it holds: `reason`
  *   - 'budget': it would put out more than UNBACKED_BYTES_BUDGET that no data backs;
  *   - 'not-a-count': its dims are not a size (parser/Size), so there is nothing to count;
- *   - 'past-int32': an extent past MAT_MAX_EXTENT, which no MAT stream's dims word can say.
+ *   - 'past-int32': an extent past MAT_MAX_EXTENT, which no MAT stream's dims word can say;
+ *   - 'not-an-index': a sparse array's non-zero whose row or column is not a whole number,
+ *     which no index can hold, and without which the array is not the one it is.
  * Final: nothing may be written in the value's place — not the value laid out full, not its
  * summary, not its elements one by one — so it reaches whoever asked for the write, and a
  * copy or a save that holds the value fails. Every other MatWriteError says this writer has
@@ -27,7 +29,7 @@ export declare class MatBudgetError extends MatWriteError {
     readonly at: string;
     readonly what: string;
     readonly entry: string | undefined;
-    readonly reason: 'budget' | 'not-a-count' | 'past-int32';
+    readonly reason: 'budget' | 'not-a-count' | 'past-int32' | 'not-an-index';
     /** False when what stands at `at` declares a size that is no count at all (NaN, Inf). */
     readonly counted: boolean;
     constructor(message: string, at: string, what: string, entry?: string, reason?: MatBudgetError['reason']);
@@ -142,6 +144,6 @@ export declare function complexTextVariable(raw: unknown): MatVariable | null;
  * `{"_type": "cdata", "_value": "3+4i"}` and MATLAB reopened it as []. At any depth,
  * because the replay is whole bags too — a struct's, a cell's, a LookupTable's Table.
  */
-export declare function textDictionaryForm(x: unknown): unknown;
+export declare function textDictionaryForm(x: unknown, at?: string): unknown;
 export {};
 //# sourceMappingURL=MatWriter.d.ts.map
