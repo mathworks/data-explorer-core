@@ -899,6 +899,15 @@ function memberElement(v: MatVariable, budget: UnbackedBudget): Uint8Array {
 }
 
 /**
+ * Whether memberElement writes `v` as the bytes it was read from. Its dims are then what its
+ * bytes say, as the file said them, so they are not refuseDimsBelow's to ask: at 3f55eff a
+ * member whose damaged dims word read [-5, 3] made an unedited cell's copy throw.
+ */
+function writtenAsOwnBytes(v: MatVariable): boolean {
+  return !!(v.isSparse && v._rawBytes && ownElementName(v._rawBytes));
+}
+
+/**
  * Refuses `v`, finally, when its dims are what no stream can hold. Dims that are no size
  * (parser/Size) make no count to hold to the budget — a fraction even makes a whole one:
  * [1, 2.5] charged 84 bytes for one hole and wrote three. And a size past what a MAT
@@ -934,7 +943,7 @@ function refuseDimsBelow(v: MatVariable, budget: UnbackedBudget): void {
   }
   if (v.className === 'cell') {
     flatValues(v.value).forEach((c, i) => {
-      if (c && typeof c === 'object') {
+      if (c && typeof c === 'object' && !writtenAsOwnBytes(c as MatVariable)) {
         budget.at.push('{' + (i + 1) + '}');
         refuseDimsBelow(c as MatVariable, budget);
         budget.at.pop();
@@ -945,7 +954,7 @@ function refuseDimsBelow(v: MatVariable, budget: UnbackedBudget): void {
     for (const [name, held] of Object.entries(v.fields)) {
       const each = Array.isArray(held) ? held : [held];
       each.forEach((one, e) => {
-        if (one && typeof one === 'object') {
+        if (one && typeof one === 'object' && !writtenAsOwnBytes(one)) {
           budget.at.push((n === 1 ? '' : '(' + (e + 1) + ')') + '.' + name);
           refuseDimsBelow(one, budget);
           budget.at.pop();
@@ -1036,6 +1045,20 @@ export function matStreamOfElement(raw: Uint8Array): Uint8Array | null {
  * one this can re-frame (see matStreamOfElement).
  */
 function ownElement(raw: Uint8Array): Uint8Array | null {
+  const at = ownElementName(raw);
+  if (!at) {
+    return null;
+  }
+  const body = concat([raw.slice(8, at.nameAt), emptyName(), raw.slice(at.nameAt + at.name, at.end)]);
+  return concat([u32le(MI_MATRIX), u32le(body.length), body]);
+}
+
+/**
+ * Where the name subelement of the miMATRIX element `raw` holds is, and where the element
+ * ends; null when the bytes are not a whole one ownElement can re-frame. Read, not built, so
+ * it can be asked of every member before a write (refuseDimsBelow).
+ */
+function ownElementName(raw: Uint8Array): { nameAt: number; name: number; end: number } | null {
   if (raw.length < 8) {
     return null;
   }
@@ -1066,8 +1089,7 @@ function ownElement(raw: Uint8Array): Uint8Array | null {
   if (!name || nameAt + name > end) {
     return null;
   }
-  const body = concat([raw.slice(8, nameAt), emptyName(), raw.slice(nameAt + name, end)]);
-  return concat([u32le(MI_MATRIX), u32le(body.length), body]);
+  return { nameAt, name, end };
 }
 
 /**

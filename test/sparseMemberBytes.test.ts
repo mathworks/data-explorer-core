@@ -17,7 +17,7 @@ import { encodedStream } from '../src/datamodel/parser/EncodedValue.js';
 import { uudecode } from '../src/datamodel/parser/CdataCodec.js';
 import { encodeMatStream } from '../src/datamodel/parser/MatWriter.js';
 import { CLASS, arrayFlags, cellVar, dims, matFile, matrix, sparseVar, structVar, varName } from './tools/matBytes.js';
-import { BINARY, TEXT, copyOf, pasted, sparseFixture } from './tools/pasteVenues.js';
+import { BINARY, TEXT, copyOf, pasted, sparseFixture, thrownBy } from './tools/pasteVenues.js';
 
 const PREAMBLE = [0x00, 0x01, 0x49, 0x4d, 0x00, 0x00, 0x00, 0x00];
 /** The stream MATLAB writes for a cell or a struct whose element, unnamed, is `el`. */
@@ -91,5 +91,35 @@ describe('a sparse member nothing has edited is written as the bytes it was read
     // Written whole as a member of a cell, it is that element.
     const cellOfIt = { name: '', className: 'cell', dimensions: [1, 1], isComplex: false, isLogical: false, value: [spRow._var], fields: null };
     expect(hexDigits(encodeMatStream(cellOfIt))).toContain(hexDigits(el));
+  });
+
+  it('whatever dims its bytes say: a damaged [-5,3] is written as read, in a cell and a struct, and refused once it is encoded again', () => {
+    // Only a member encoded again needs dims that are a size (MatWriter.refuseDimsBelow); one
+    // written as its own bytes says them as the file did. A 1x1x2 cell is written whole.
+    const damaged = () => sparseVar({ name: '', dimensions: [-5, 3], ir: [0], jc: [0, 1, 1, 1], real: [5], sparseFlag: true });
+    const open = (): any => createSession().addMatSource('c.mat', matFile([cellVar('c', [damaged(), real()], [1, 1, 2])])).children[0];
+    const c = open();
+    let copied: any;
+    expect(thrownBy(() => (copied = copyOf(c)))[0]?.message ?? null).toBeNull();
+    expect(copied._type).toBe('cdata');
+    const digits = hexDigits(uudecode(copied._value));
+    for (const el of [damaged(), real()]) expect(digits).toContain(hexDigits(el));
+    // Without its bytes, it would be encoded from its non-zeros, and those dims are no size.
+    const v = c._var;
+    const bytesless = { ...v, value: v.value.map((m: any, i: number) => (i === 0 ? { ...m, _rawBytes: null } : m)) };
+    const [refused] = thrownBy(() => encodeMatStream(bytesless));
+    expect([(refused as any)?.reason, (refused as any)?.at, (refused as any)?.what]).toEqual(['not-a-count', '{1}', 'a sparse double declaring dimensions [-5,3]']);
+    // Behind a member this writer has no stream for, that refusal still wins (refuseDimsBelow),
+    // and so it does for bytes that are no whole element to write it as.
+    const unwritable = { name: '', className: 'Simulink.Parameter', dimensions: [1, 1], isComplex: false, isLogical: false, value: null, fields: null, _unwritable: 'a Simulink.Parameter' };
+    for (const bytes of [null, new Uint8Array(4)]) {
+      const [behind] = thrownBy(() => encodeMatStream({ ...v, value: [unwritable, { ...v.value[0], _rawBytes: bytes }] }));
+      expect([(behind as any)?.reason, (behind as any)?.at], String(bytes)).toEqual(['not-a-count', '{2}']);
+    }
+    // A struct's field the same, written whole.
+    const st: any = createSession().addMatSource('s.mat', matFile([structVar('s', ['f', 'g'], [{ f: damaged(), g: real() }])])).children[0];
+    let whole: Uint8Array | undefined;
+    expect(thrownBy(() => (whole = encodeMatStream(st._var)))[0]?.message ?? null).toBeNull();
+    expect(hexDigits(whole!)).toContain(hexDigits(damaged()));
   });
 });
