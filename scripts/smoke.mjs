@@ -25,6 +25,10 @@ const requiredFns = [
   'blockKey',
   'blockLabel',
   'joinBlockPath',
+  // What a refused write throws: a host recognises it with instanceof, which a class
+  // missing from the built entry point turns into a ReferenceError at the catch.
+  'MatWriteError',
+  'MatBudgetError',
 ];
 
 const missingFns = requiredFns.filter((name) => typeof m[name] !== 'function');

@@ -187,6 +187,10 @@ export default class ModelNode extends ContainerNode {
           if (wsVar) {
             wsVar.value = varChild._var.value;
             wsVar.dimensions = varChild._var.dimensions;
+            // A sparse array's value is its summary; its non-zeros are the value a writer reads.
+            wsVar.isSparse = varChild._var.isSparse;
+            wsVar.sparse = varChild._var.sparse;
+            wsVar.isComplex = varChild._var.isComplex;
             wsVar._modified = true;
           }
         }

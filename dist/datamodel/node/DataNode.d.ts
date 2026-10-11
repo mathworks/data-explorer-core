@@ -1,6 +1,7 @@
 import BaseNode from './BaseNode.js';
 import type { PropClass } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
+import { MatBudgetError } from '../parser/MatWriter.js';
 import { type EncodedValue } from '../parser/EncodedValue.js';
 export interface SetPropertyResult {
     error: boolean;
@@ -31,6 +32,14 @@ export interface SetPropertyResult {
  * walking parents until it reaches what this returned.
  */
 export declare function owningEntryOf(node: BaseNode | null | undefined): DataNode | null;
+/**
+ * Where a raw property value a writer is writing stands: the entry's name, and the MATLAB
+ * path from it to the value (`pSp.Value`, `obj.Prop(2).field`, `obj.Cellprop{3}`).
+ */
+export interface PropertyAt {
+    entry: string;
+    path: string;
+}
 export default class DataNode extends BaseNode {
     metadata: Record<string, unknown> | null;
     serial: Record<string, unknown>;
@@ -172,6 +181,14 @@ export default class DataNode extends BaseNode {
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _serializeSimulinkObjectXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _getSerializedProperties(): Record<string, unknown>;
+    /** Where this node's property `propName` stands, for a writer that writes it from its raw value. */
+    _propertyAt(propName: string): PropertyAt;
+    /**
+     * A raw value read back into a node of its own to write its XML — a MAT stream, this
+     * package's sparse literal — which has no parent to say where it is: told `at`, so that a
+     * write it refuses names the entry and the path, not the property alone.
+     */
+    static _detachedXml(value: unknown, name: string, tagName: string, attrs: Record<string, string>, indent: number, at: PropertyAt | undefined): string;
     /**
      * The identifying attributes of a `<P>`.
      *
@@ -187,7 +204,7 @@ export default class DataNode extends BaseNode {
      * serializePropertyXml its payload takes.
      */
     static pxAttrs(name: string): string;
-    static serializePropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null): string;
+    static serializePropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string;
     /**
      * The `Class="char" Dimension="r*c"` attributes and body of an mxchar literal, or
      * null for anything else — shared by the property and cell-element writers below.
@@ -220,7 +237,7 @@ export default class DataNode extends BaseNode {
      */
     static _stringEnvelopeXml(elements: unknown[], dims: number[], indent: number): string;
     static _serializeStringPropertyXml(name: string, elements: unknown[], dims: number[], indent: number): string;
-    static _serializeTypedPropertyXml(name: string, value: Record<string, unknown>, indent: number): string;
+    static _serializeTypedPropertyXml(name: string, value: Record<string, unknown>, indent: number, at?: PropertyAt): string;
     /**
      * A complex value in its plain-text form — `{_type: 'cdata', _value: '1+2i 5+6i 3+4i
      * 7+8i', _dimensions: [2, 2], _class?}`, what BinarySlddParser reads out of a binary
@@ -238,10 +255,38 @@ export default class DataNode extends BaseNode {
      * The cell-element writer wrote `Class="cdata"`, a class MATLAB does not have.
      */
     static _complexTextXml(tag: string, attrs: string, value: Record<string, unknown>, indent: number): string;
-    static _serializeObjectPropertyXml(name: string, value: Record<string, unknown>, indent: number, ownerNode: DataNode | null): string;
-    static _serializeStructPropertyXml(name: string, value: Record<string, unknown>, indent: number): string;
-    static _serializeCellPropertyXml(name: string, value: Record<string, unknown>, indent: number): string;
-    static _serializeCellElementXml(elem: unknown, indent: number): string;
+    static _serializeObjectPropertyXml(name: string, value: Record<string, unknown>, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string;
+    /**
+     * Refuses to write a raw property value whose dims no Dimension can spell (parser/Size): a
+     * raw cell, struct, object or string bag, an mxchar's or a typed literal's `Matrix(…)`
+     * header, a complex text's `_dimensions`. A binary dictionary's reader passes every finite
+     * non-negative extent through as read, so one of those is written back as read; what is
+     * refused — NaN, an infinity, a negative, a string, an object, a bigint — came from a text
+     * dictionary or a host, and `Dimension="1*x"` is no spelling of anything. A header's
+     * digits are taken `exact`ly: one past 2^53 would be written rounded, as another size.
+     */
+    static _sizeOrRefuse(dims: unknown, cls: string, name: string, at: PropertyAt | undefined, exact?: boolean): void;
+    /** The extents of a `Matrix(…)` header of digit runs, as numbers, or undefined. */
+    static _headerDims(text: string): number[] | undefined;
+    /**
+     * A refusal of a write that began at this node, restated for a user: the entry — the one
+     * above, or, for a node a writer built on its own to write a raw property value
+     * (_detachedXml), the one it was built for — and the path to it.
+     */
+    _budgetFailure(e: MatBudgetError): MatBudgetError;
+    /**
+     * Refuses to write this node's XML when its dims are not what a Dimension can spell — the
+     * same rule as for a raw property value (_sizeOrRefuse) — naming the entry and the path.
+     */
+    _spellableOrRefuse(dims: unknown, cls: string): void;
+    /**
+     * `at` one level down: element `k` of `n` — its MATLAB subscript, `(k+1)`, unless it is
+     * the only one — then `rest`, a field or a property.
+     */
+    static _within(at: PropertyAt | undefined, n: number, k: number, rest: string): PropertyAt | undefined;
+    static _serializeStructPropertyXml(name: string, value: Record<string, unknown>, indent: number, at?: PropertyAt): string;
+    static _serializeCellPropertyXml(name: string, value: Record<string, unknown>, indent: number, at?: PropertyAt): string;
+    static _serializeCellElementXml(elem: unknown, indent: number, at?: PropertyAt): string;
     /**
      * One number out of a typed literal: '3.14159274F', '18446744073709551615U', '-1'.
      *

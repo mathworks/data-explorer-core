@@ -16,6 +16,7 @@ import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
 import MatlabValueParser, { collapseExact } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
+import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 
 const CLASS_NAME = 'Simulink.Parameter';
 
@@ -131,16 +132,11 @@ export default class ParameterNode extends DataNode {
         }
     }
 
-    // A Value row when expanding it reveals something: element rows or fields — or a
-    // sparse array's Variable Editor grid, which a host offers on the Value row and which
-    // lists every element even where there are no rows (an all-zero one). Without it an
-    // all-zero sparse Value had no row and no grid. One too large to decode has no grid.
+    // A Value row when expanding it reveals something: element rows or fields. A sparse
+    // Value is no exception, now that a sparse array has no Variable Editor grid for a host
+    // to offer on the row: an all-zero one, which has no element rows, has no Value row.
     static _needsValueRow(valueNode: BaseNode): boolean {
-        if (valueNode.children.length > 0) {
-            return true;
-        }
-        const v = valueNode as unknown as { _isSparse?: boolean; _undecoded?: boolean };
-        return !!v._isSparse && !v._undecoded;
+        return valueNode.children.length > 0;
     }
 
     // Re-decide the Value row after an element or field was added to / removed from
@@ -373,6 +369,9 @@ export default class ParameterNode extends DataNode {
     }
 
     serializeValue(): unknown {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeValue());
+        }
         const props = this._getSerializedProperties();
         const result = Object.assign({}, this.serial._rawVal as Record<string, unknown>);
         result._elements = [Object.assign({}, (result._elements as unknown[])[0] as Record<string, unknown>, { _properties: props })];
@@ -380,6 +379,9 @@ export default class ParameterNode extends DataNode {
     }
 
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+        }
         return this._serializeSimulinkObjectXml(tagName, attrs, indent);
     }
 

@@ -20,6 +20,7 @@ export { setNativeInflate, nativeInflateAvailable } from './datamodel/parser/Inf
 export type { NativeInflate } from './datamodel/parser/Inflate.js';
 export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/BinarySlddParser.js';
 export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
+export { MatWriteError, MatBudgetError } from './datamodel/parser/MatWriter.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';
 export { parseMdl } from './datamodel/parser/MdlParser.js';
 export { parseModel } from './datamodel/parser/ModelParser.js';
@@ -32,6 +33,7 @@ export type { ProjectPage, ProjectPageRun, ProjectPageShortcut, ProjectPageLabel
 export type { ParsedSlx, BlockParamUsage } from './datamodel/parser/SlxParser.js';
 export type { ParsedMdl } from './datamodel/parser/MdlParser.js';
 export type { ParsedMat, MatVariable } from './datamodel/parser/MatParser.js';
+export type { SparseData } from './datamodel/parser/SparseData.js';
 export type { ParseWarning, ParseWarningCode } from './datamodel/parser/ParseWarning.js';
 export { ingest } from './core/ingest.js';
 export type { IngestContent, IngestOptions } from './core/ingest.js';

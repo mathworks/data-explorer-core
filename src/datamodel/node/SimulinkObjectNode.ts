@@ -2,6 +2,7 @@
 
 import DataNode from './DataNode.js';
 import { SAVEOBJ_KEY, CUSTOM_SAVE_KEY } from '../parser/XmlUtils.js';
+import { oneWrite, writeUnderWay } from '../parser/MatWriter.js';
 
 /**
  * A dictionary entry that saves as a Simulink object: its live values are written back over
@@ -66,6 +67,9 @@ export default class SimulinkObjectNode extends DataNode {
   }
 
   serializeValue(): unknown {
+    if (!writeUnderWay()) {
+      return oneWrite(() => this.serializeValue());
+    }
     return this._serializeSimulinkObject(this._serializedOverrides());
   }
 

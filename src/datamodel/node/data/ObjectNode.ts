@@ -13,6 +13,7 @@ import PropClassAtom from '../../prop/PropClass.js';
 import { OBJECT_ICON } from '../icons.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { effectiveDims, summaryForm } from '../../display/DisplayConvention.js';
+import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 
 export default class ObjectNode extends DataNode {
     arrayClass: string;
@@ -91,6 +92,9 @@ export default class ObjectNode extends DataNode {
     // (an object array, or an empty object) has nothing to rebuild and keeps its raw
     // value unchanged.
     serializeValue(): unknown {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeValue());
+        }
         const rawVal = (this.serial._rawVal as Record<string, unknown>) || {};
         if (this.children.length === 0) {
             return rawVal;
@@ -134,6 +138,11 @@ export default class ObjectNode extends DataNode {
     // (with a Dimension attr) so a multi-element value round-trips; a scalar falls
     // back to DataNode's single-element form.
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+        }
+        // Dims no Dimension can spell, refused, finally (DataNode._spellableOrRefuse).
+        this._spellableOrRefuse(((this.serial._rawVal as Record<string, unknown>) || {})._dimensions, this.arrayClass || 'object');
         if (!this._isElementArray) {
             return super.serializeXml(tagName, attrs, indent);
         }
@@ -160,7 +169,7 @@ export default class ObjectNode extends DataNode {
             xml += ip + '<Element Class="' + escapeXml(this.arrayClass) + '">\n';
             const props = (child as ObjectNode)._getSerializedProperties();
             for (const [propName, propVal] of Object.entries(props)) {
-                xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, child as DataNode) + '\n';
+                xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, child as DataNode, (child as DataNode)._propertyAt(propName)) + '\n';
             }
             xml += ip + '</Element>\n';
         }

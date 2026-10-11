@@ -48,6 +48,8 @@ import {
 } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
+import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
+import { dimsText, isSize, MAT_MAX_EXTENT } from './Size.js';
 
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
@@ -59,6 +61,41 @@ export class MatWriteError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'MatWriteError';
+  }
+}
+
+/**
+ * A write refused for what a value declares rather than what it holds: `reason`
+ *   - 'budget': it would put out more than UNBACKED_BYTES_BUDGET that no data backs;
+ *   - 'not-a-count': its dims are not a size (parser/Size), so there is nothing to count;
+ *   - 'past-int32': an extent past MAT_MAX_EXTENT, which no MAT stream's dims word can say;
+ *   - 'not-an-index': a sparse array's non-zero whose row or column is not a whole number,
+ *     which no index can hold, and without which the array is not the one it is.
+ * Final: nothing may be written in the value's place — not the value laid out full, not its
+ * summary, not its elements one by one — so it reaches whoever asked for the write, and a
+ * copy or a save that holds the value fails. Every other MatWriteError says this writer has
+ * no spelling for the value, and a caller may write it another way.
+ *
+ * `at` is where in the value the write was refused, in MATLAB's spelling from the value the
+ * write began at ('{16385}', '.f', '(2).f'; '' for that value itself), and `what` is what
+ * stands there, in words. `entry` is set once the node layer has restated it for a user,
+ * naming the entry (budgetFailure).
+ */
+export class MatBudgetError extends MatWriteError {
+  readonly at: string;
+  readonly what: string;
+  readonly entry: string | undefined;
+  readonly reason: 'budget' | 'not-a-count' | 'past-int32' | 'not-an-index';
+  /** False when what stands at `at` declares a size that is no count at all (NaN, Inf). */
+  readonly counted: boolean;
+  constructor(message: string, at: string, what: string, entry?: string, reason: MatBudgetError['reason'] = 'budget') {
+    super(message);
+    this.name = 'MatBudgetError';
+    this.at = at;
+    this.what = what;
+    this.entry = entry;
+    this.reason = reason;
+    this.counted = reason !== 'not-a-count';
   }
 }
 
@@ -203,7 +240,7 @@ function emptyName(): Uint8Array {
  * the file declared. A [2,1,2] stays [2,1,2] — MATLAB keeps interior singletons,
  * and rewriting them would change the value's shape.
  */
-function dimsOf(v: MatVariable): number[] {
+function dimsOf(v: Pick<MatVariable, 'dimensions'>): number[] {
   const d = (v.dimensions || []).slice();
   while (d.length < 2) {
     d.push(1);
@@ -224,6 +261,157 @@ function emptyDoubleBytes(): Uint8Array {
     concat([arrayFlags(CLASS_CODE.double, false, false), dimsElement([0, 0]), emptyName(), element(MI_DOUBLE, new Uint8Array(0))]),
   );
 }
+
+// ---- What one write may put out that nothing it was handed backs --------------------------
+//
+// Almost every byte this writer puts out is a byte of the value it was handed: the elements
+// of an array, the non-zeros of a sparse one, the members of a cell. Two things are not, and
+// both are sized by a declared shape alone: the column index of a sparse array, cols + 1 words
+// whatever it holds, past the columns its source backs (SparseData.backedColumns); and the
+// empty double a cell or a struct array writes for each element it declares and does not have.
+// One dims word can declare either by the billion, so they come out of one budget, shared by
+// every array and container in the value, and are charged before they are allocated. Past it
+// the encode is refused, with an error a caller can catch.
+//
+// One budget for the whole value, not an allowance per array: a cell holds as many arrays as
+// it likes, and 80,000 sparse arrays of 0x256 in one cell of an 11 KB .mat, each allowed its
+// 256 columns, were 80 MB of column index that ran the process out of memory. What the value
+// does hold never counts, so a value MATLAB wrote is never refused, whatever its size.
+//
+// One encode is one value. So is one WRITE (oneWrite), however many encodes a writer splits
+// the value into: a binary dictionary writes a cell this writer has no stream for as XML,
+// each sparse element of it the hex of a stream of its own, and those streams draw on the
+// one budget. A writer's own spelling of what no data backs — the zeros of a sparse array it
+// writes full (spendUnbacked) — comes out of it too.
+//
+// A refusal for the budget is final (MatBudgetError): the value is not written in part, or
+// as anything else, and the write fails. Writing it as XML instead, or full, or as its
+// summary, only moved the cost somewhere else or wrote a different value. A refusal for any
+// other reason — a class this writer has no code for — leaves the caller its own spelling,
+// out of the same budget, and gives back what the refused encode had charged: it wrote
+// nothing.
+
+/**
+ * The most bytes one write (oneWrite; outside one, each encodeMatVariable, encodeMatStream,
+ * encodeCdata) puts out that no data it was handed backs. Sized by measuring the worst case
+ * it allows, one value spending all of it — a host's 1x4194305 copied, pasted into a text and
+ * a binary dictionary and saved, cdata and hex included — on node 24: a peak of 0.32 GB for
+ * the copy, 0.67 GB for the text save and 0.73 GB for the binary one, where twice this
+ * peaked at 1.0 and 1.1 GB. Pinned at its value in test/unbackedBudget.test.ts.
+ */
+export const UNBACKED_BYTES_BUDGET = 16 * 1024 * 1024;
+
+/** What is left of one write's budget, and where in the value being encoded the encode is. */
+interface UnbackedBudget {
+  left: number;
+  at: string[];
+}
+
+const newBudget = (): UnbackedBudget => ({ left: UNBACKED_BYTES_BUDGET, at: [] });
+
+/** The budget of the write under way (oneWrite), or null between writes. */
+let writing: UnbackedBudget | null = null;
+
+/** Whether a write (oneWrite) is under way. */
+export function writeUnderWay(): boolean {
+  return writing !== null;
+}
+
+/**
+ * Runs `write` as one write of one value: every encode in it, and every spendUnbacked, shares
+ * one UNBACKED_BYTES_BUDGET. Inside a write already under way it is that write. Every node
+ * writer of a value that holds others — serializeValue and serializeXml of a cell, a struct,
+ * an object — starts one when none is, so a node written on its own is one write as an
+ * entry's serialize() and XML are, not one per member it holds.
+ */
+export function oneWrite<T>(write: () => T): T {
+  if (writing) {
+    return write();
+  }
+  writing = newBudget();
+  try {
+    return write();
+  } finally {
+    writing = null;
+  }
+}
+
+/**
+ * Takes `bytes` of the write's budget for something a writer spells that no data backs —
+ * `what`, in words — or, when not that much is left, takes nothing and refuses the write
+ * (MatBudgetError).
+ */
+export function spendUnbacked(bytes: number, what: string): void {
+  charge(writing ?? newBudget(), bytes, what);
+}
+
+/**
+ * Takes `bytes` of the budget, before they are written, or refuses the write. A charge that
+ * is not a count — NaN, an infinity, a negative or a fraction, out of a dims word that is not
+ * a size (`[1, "x"]`, `[0, 1e400]`) — is refused as well: compared, NaN is never more than
+ * what is left, and taken, it left NaN, which no later charge was ever more than, so one such
+ * array turned the budget off for the rest of the value.
+ */
+function charge(budget: UnbackedBudget, bytes: number, what: string): void {
+  // NaN, a negative or a fraction. A count past 2^53, or an infinity out of a product of
+  // sizes, is still one — over any budget — and refused as that.
+  if (!(bytes >= 0) || (Number.isFinite(bytes) && !Number.isInteger(bytes))) {
+    const at = budget.at.join('');
+    throw new MatBudgetError((at || 'the value') + ', ' + what + ', would write ' + bytes + ' bytes no data backs, which is not a count', at, what, undefined, 'not-a-count');
+  }
+  if (bytes === 0) {
+    return;
+  }
+  if (bytes > budget.left) {
+    const at = budget.at.join('');
+    // A count past 2^53 is not printed: a double holds it rounded.
+    const said = Number.isSafeInteger(bytes) ? String(bytes) : 'more than ' + Number.MAX_SAFE_INTEGER;
+    throw new MatBudgetError(
+      (at || 'the value') + ', ' + what + ', would write ' + said + ' bytes no data backs, more than the ' + budget.left + ' left of one write\'s '
+        + UNBACKED_BYTES_BUDGET,
+      at,
+      what,
+    );
+  }
+  budget.left -= bytes;
+}
+
+/**
+ * `e` restated for whoever asked for the write: the entry, the MATLAB path of what the
+ * budget ran out at — `where` is the path of the value the refused encode began at, from
+ * the entry's name — and the budget, in words a user can act on. Restated once.
+ */
+export function budgetFailure(e: MatBudgetError, entry: string, where: string): MatBudgetError {
+  if (e.entry !== undefined) {
+    return e;
+  }
+  const at = where + e.at;
+  const mib = UNBACKED_BYTES_BUDGET / (1024 * 1024) + ' MiB';
+  const why = {
+    budget: ', and with it the value would add more than ' + mib + ' that its data does not hold, the most one value may add.',
+    'not-a-count': ', a size that is not a count, so what it would add beyond its data cannot be held to the ' + mib + ' one value may add.',
+    'past-int32': ', an extent past ' + MAT_MAX_EXTENT + ', the most a MAT stream\'s dimensions can say, and it has no other spelling here.',
+    'not-an-index': ', which is not a row and a column, and it has no spelling here without that non-zero.',
+  }[e.reason];
+  return new MatBudgetError('Cannot write "' + entry + '": ' + at + ' is ' + e.what + why + ' Nothing was written.', at, e.what, entry, e.reason);
+}
+
+/** `d` as MATLAB writes a size: 0x256, 1x100000000. */
+const sizeOf = (d: number[]) => d.join('x');
+
+/** How many elements `d` declares, exactly, as text: a product past 2^53 is no double. */
+const countOf = (d: number[]) => d.reduce((a, x) => a * BigInt(x), 1n).toString();
+
+/**
+ * `cls` as MATLAB names a class, with its article: 'an int8', 'a char' (this package's
+ * `mxchar` envelope holds one), 'a sparse double' (its `sparse` literal holds one).
+ */
+export function classPhrase(cls: string): string {
+  const name = cls === 'mxchar' ? 'char' : cls === 'sparse' ? 'sparse double' : cls;
+  return (/^[aeio]/i.test(name) ? 'an ' : 'a ') + name;
+}
+
+const HOLE_BYTES = emptyDoubleBytes().length;
 
 /**
  * A 64-bit integer payload has to go out as a BigInt.
@@ -247,14 +435,15 @@ function toBigInt(n: number | string): bigint {
   return isFinite(n) ? BigInt(Math.round(n)) : 0n;
 }
 
-function numericPayload(type: number, values: (number | string)[]): Uint8Array {
+function numericPayload(type: number, values: ArrayLike<number | string>): Uint8Array {
   const width = WIDTH[type];
   if (!width) {
     throw new MatWriteError('no payload width for MAT element type ' + type);
   }
   const data = new Uint8Array(values.length * width);
   const view = new DataView(data.buffer);
-  values.forEach(function (v, i) {
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
     const at = i * width;
     const n = typeof v === 'number' ? v : Number(v);
     switch (type) {
@@ -291,7 +480,7 @@ function numericPayload(type: number, values: (number | string)[]): Uint8Array {
         view.setFloat64(at, n, true);
         break;
     }
-  });
+  }
   return element(type, data);
 }
 
@@ -377,20 +566,33 @@ function charBody(v: MatVariable, d: number[]): Uint8Array[] {
   return [element(MI_UTF8, new TextEncoder().encode(text))];
 }
 
-function cellBody(v: MatVariable, d: number[]): Uint8Array[] {
+function cellBody(v: MatVariable, d: number[], budget: UnbackedBudget): Uint8Array[] {
   const cells = flatValues(v.value) as (MatVariable | null)[];
   const n = elementCountOf(d);
+  // Every slot it declares and does not hold is a hole, written as an empty double from the
+  // budget: a cell declaring 1e8 elements and holding one was 1e8 of them.
+  let held = 0;
+  for (let i = 0; i < Math.min(n, cells.length); i++) {
+    if (cells[i]) held++;
+  }
+  charge(budget, (n - held) * HOLE_BYTES, 'a ' + sizeOf(d) + ' cell holding ' + held + ' of its ' + countOf(d) + ' elements');
   const parts: Uint8Array[] = [];
   for (let i = 0; i < n; i++) {
     const c = cells[i];
     // A slot the reader could not read stays a hole. Dropping it would slide
     // every later element one position early.
-    parts.push(c ? encodeMatVariable(c) : emptyDoubleBytes());
+    if (c) {
+      budget.at.push('{' + (i + 1) + '}');
+      parts.push(memberElement(c, budget));
+      budget.at.pop();
+    } else {
+      parts.push(emptyDoubleBytes());
+    }
   }
   return parts;
 }
 
-function structBody(v: MatVariable, d: number[]): Uint8Array[] {
+function structBody(v: MatVariable, d: number[], budget: UnbackedBudget): Uint8Array[] {
   const fields = v.fields || {};
   const names = Object.keys(fields);
   const longest = names.reduce(function (a, s) {
@@ -408,6 +610,26 @@ function structBody(v: MatVariable, d: number[]): Uint8Array[] {
 
   const parts = [element(MI_INT32, strideData), element(MI_INT8, nameData)];
   const n = elementCountOf(d);
+  // With no fields an element is nothing at all, so there is nothing per element to write.
+  if (names.length === 0) {
+    return parts;
+  }
+  // Each field of each element it declares and does not hold is a hole, from the budget.
+  let holes = 0;
+  for (const name of names) {
+    const held = fields[name];
+    let present = 0;
+    if (Array.isArray(held)) {
+      for (let e = 0; e < Math.min(n, held.length); e++) {
+        if (held[e]) present++;
+      }
+    } else if (n === 1 && held) {
+      present = 1;
+    }
+    holes += n - present;
+  }
+  const fieldCount = BigInt(countOf(d)) * BigInt(names.length);
+  charge(budget, holes * HOLE_BYTES, 'a ' + sizeOf(d) + ' struct array missing ' + (Number.isSafeInteger(holes) ? holes : 'some') + ' of its ' + fieldCount + ' fields');
   for (let e = 0; e < n; e++) {
     for (const name of names) {
       const held = fields[name];
@@ -415,7 +637,13 @@ function structBody(v: MatVariable, d: number[]): Uint8Array[] {
       // A MATLAB struct array is homogeneous, so every element has every field.
       // An element that lost one (a whole-value edit clears its children) keeps
       // its slot as an empty double rather than shifting the ones after it.
-      parts.push(one ? encodeMatVariable(one) : emptyDoubleBytes());
+      if (one) {
+        budget.at.push((n === 1 ? '' : '(' + (e + 1) + ')') + '.' + name);
+        parts.push(memberElement(one, budget));
+        budget.at.pop();
+      } else {
+        parts.push(emptyDoubleBytes());
+      }
     }
   }
   return parts;
@@ -447,61 +675,76 @@ const SPARSE_FLAG = 0x10;
  *                 for logical — never narrowed to a smaller type
  *   pi            the imaginary parts, of pr's type, when complex
  *
- * A non-zero is what MATLAB keeps: anything but 0 in either part, so NaN stays and -0
- * goes (sparse(-0) holds nothing). The value arrives as MatParser presents a sparse
- * array, the dense row-major list, which is also what the node layer rebuilds after an
- * edit (MatlabVariableNode._buildVarObject).
+ * The non-zeros are `v.sparse`, as MatParser reads them and the node layer edits them
+ * (MatlabVariableNode._buildVarObject); a variable a host or a test built with a dense
+ * row-major `value` instead is read off that, which then has to hold every element. Only
+ * an entry that is a non-zero is written — anything but 0 in either part, so NaN stays
+ * and -0 goes (sparse(-0) holds nothing) — so one an edit set to zero is not. jc is
+ * counted from the columns, which is the one part of the stream that grows with the
+ * array's shape rather than with what it holds.
  *
- * One the reader did not materialize — MatParser's `undecoded`, past its dense limit —
- * has no values here to write, only the placeholder that stands for them, so it is
- * refused, as is every value whose dims and element list disagree.
+ * Refused (sparseWriteRefusal): a variable a reader did not decode (`undecoded`, which has
+ * no values here to write, only the placeholder that stands for them), a shape or class
+ * MATLAB has no sparse storage for, a dense value whose length its dims disagree with, an
+ * array whose dims declare more columns than what it was read from backs, and non-zeros out
+ * of MATLAB's order or outside the array — each a stream MATLAB would read back as
+ * something else, or, for the columns, one that would cost what no byte of the file held.
  */
-function encodeSparse(v: MatVariable): Uint8Array {
-  if (v.undecoded) {
-    throw new MatWriteError('cannot write a sparse array the reader did not decode (' + v.undecoded + ')');
-  }
+function encodeSparse(v: MatVariable, budget: UnbackedBudget): Uint8Array {
   const d = dimsOf(v);
-  if (d.length !== 2) {
-    throw new MatWriteError('a sparse array has two dimensions, not [' + d.join(',') + ']');
-  }
   const logical = !!v.isLogical || v.className === 'logical';
-  let cls: number;
-  let payload: number;
-  if (logical) {
-    cls = MX_SPARSE;
-    payload = MI_UINT8;
-  } else if (v.className === 'double') {
-    cls = MX_SPARSE;
-    payload = MI_DOUBLE;
-  } else if (v.className === 'single') {
-    cls = CLASS_CODE.single;
-    payload = MI_SINGLE;
-  } else {
-    throw new MatWriteError('no sparse MAT class for "' + v.className + '"');
+  // A non-zero at no row and column first, whatever the shape: every other spelling of the
+  // array — its full form, a dense list — drops the non-zero it cannot place and writes a
+  // zero where it was, so the refusal is final. Asked after the shape, it let an int8 or an
+  // N-D one through to the full form its caller writes (_sparseFallback), which dropped it.
+  const fault = v.sparse ? sparseIndexFault(v.sparse) : -1;
+  if (v.sparse && fault >= 0) {
+    const at = budget.at.join('');
+    const what = 'a ' + sizeOf(d) + ' sparse ' + (logical ? 'logical' : v.className) + ' whose non-zero ' + (fault + 1) + ' is at (' + String(v.sparse.row[fault]) + ', ' + String(v.sparse.col[fault]) + ')';
+    throw new MatBudgetError((at || 'the value') + ', ' + what + ', which is not a row and a column', at, what, undefined, 'not-an-index');
   }
+  // Then what no writer could write, then what the budget will not cover — a refusal of its
+  // own, and final — and then what no stream could hold: an index of 2^30 columns no byte
+  // backs is past the budget long before it is past a size word.
+  const refusal = sparseShapeRefusal(v);
+  if (refusal) {
+    throw new MatWriteError(refusal);
+  }
+  const cls = logical || v.className === 'double' ? MX_SPARSE : CLASS_CODE.single;
+  const payload = logical ? MI_UINT8 : v.className === 'double' ? MI_DOUBLE : MI_SINGLE;
   const complex = !!v.isComplex && !logical;
   const [rows, cols] = d;
-  const flat = flatValues(v.value);
-  if (flat.length !== rows * cols) {
-    throw new MatWriteError('sparse value has ' + flat.length + ' elements but declares [' + d.join(',') + ']');
+  const s = v.sparse ?? sparseFromDense(flatValues(v.value), d, complex);
+  // The column index past the columns its source backs, from the write's budget.
+  const backed = Math.min(cols, backedColumnsOf(s));
+  charge(budget, 4 * (cols - backed), sparseWhat(d, backed));
+  const capped = sparseCapRefusal(cols);
+  if (capped) {
+    throw new MatWriteError(capped);
   }
   const ir: number[] = [];
-  const jc: number[] = [0];
+  const jc = new Int32Array(cols + 1);
   const re: number[] = [];
   const im: number[] = [];
-  for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < rows; r++) {
-      const x = flat[r * cols + c];
-      const a = Number(realPart(x));
-      const b = complex ? Number(imagPart(x)) : 0;
-      // `!== 0` is true of NaN and false of -0, which is MATLAB's rule for both.
-      if (a !== 0 || b !== 0) {
-        ir.push(r);
-        re.push(logical ? 1 : a);
-        im.push(b);
-      }
+  for (let k = 0; k < s.row.length; k++) {
+    const r = s.row[k];
+    const c = s.col[k];
+    const ordered = k === 0 || c > s.col[k - 1] || (c === s.col[k - 1] && r > s.row[k - 1]);
+    if (!(r >= 0 && r < rows && c >= 0 && c < cols) || !ordered) {
+      throw new MatWriteError('a sparse array\'s non-zeros are out of order or outside [' + d.join(',') + '] at entry ' + k);
     }
-    jc.push(ir.length);
+    const a = s.re[k];
+    const b = complex && s.im ? s.im[k] : 0;
+    // `!== 0` is true of NaN and false of -0, which is MATLAB's rule for both.
+    if (a !== 0 || b !== 0) {
+      ir.push(r);
+      re.push(logical ? 1 : a);
+      im.push(b);
+      jc[c + 1]++;
+    }
+  }
+  for (let c = 0; c < cols; c++) {
+    jc[c + 1] += jc[c];
   }
   const flags = new Uint8Array(8);
   flags[0] = cls;
@@ -521,16 +764,225 @@ function encodeSparse(v: MatVariable): Uint8Array {
   return element(MI_MATRIX, concat(subs));
 }
 
-/** The bytes of one complete `miMATRIX` element: tag, then the matrix body. */
+/**
+ * Why encodeSparse refuses `v`, or null when it writes it. Read off the shape, the class and
+ * what the non-zeros say backs them — never the non-zeros themselves — so it is asked of a
+ * node before it offers an editor (MatlabVariableNode._sparseRefusal): an array no edit of
+ * could be written takes none.
+ *
+ * The column index is the one part of the stream that grows with the array's declared
+ * shape: cols + 1 words, whatever the rows. So the columns have to be backed by what the
+ * array came from (SparseData.backedColumns): a file's own column index, or a dense list's
+ * elements, one column apiece — never the declared count alone. One read from a file whose
+ * index held fewer columns than its dims declare has a damaged dims word (`new Array(2^31)`
+ * for one corrupted cols word of a 3 KB hex value, a fatal out-of-memory no caller could
+ * catch), and `Matrix(0,134217728)\n[]`, credited its header's columns, was a 512 MB index
+ * from 52 characters. The columns past the backed ones are written out of the write's
+ * budget (UNBACKED_BYTES_BUDGET), so sparse(0, 5) and a host's 1x2e6 with three entries are
+ * written, and refused here is only an array whose unbacked index alone is past all of it.
+ * And no stream holds a column index past what its uint32 size word can say. A value MATLAB
+ * wrote is none of these.
+ */
+export function sparseWriteRefusal(v: SparseRefusalInput): string | null {
+  const shape = sparseShapeRefusal(v);
+  if (shape) {
+    return shape;
+  }
+  // Dims no MAT stream can say, or that are no size: nothing could write an edit of it.
+  if (!isSize(dimsOf(v))) {
+    return 'a sparse array declaring dimensions ' + dimsText(dimsOf(v)) + ', which are not a size';
+  }
+  if (dimsOf(v).some((x) => x > MAT_MAX_EXTENT)) {
+    return 'a ' + sizeOf(dimsOf(v)) + ' sparse array has an extent past ' + MAT_MAX_EXTENT + ', which no MAT stream can say';
+  }
+  const [, cols] = dimsOf(v);
+  const backed = sparseBackedColumns(v);
+  const unbacked = 4 * Math.max(0, cols - backed);
+  if (unbacked > UNBACKED_BYTES_BUDGET) {
+    return (
+      'a sparse array declaring ' + cols + ' columns is backed for ' + backed + ', and the rest of its column index, ' + unbacked
+      + ' bytes no data backs, is more than one write may put out (' + UNBACKED_BYTES_BUDGET + ')'
+    );
+  }
+  return sparseCapRefusal(cols);
+}
+
+type SparseRefusalInput = Pick<MatVariable, 'undecoded' | 'dimensions' | 'className' | 'isLogical' | 'sparse' | 'value'>;
+
+/**
+ * What no writer could write of `v` whatever the budget: a variable not decoded, a rank or
+ * a class MATLAB never stores sparse, a dense list its dims disagree with.
+ */
+function sparseShapeRefusal(v: SparseRefusalInput): string | null {
+  if (v.undecoded) {
+    return 'cannot write a sparse array the reader did not decode (' + v.undecoded + ')';
+  }
+  const d = dimsOf(v);
+  if (d.length !== 2) {
+    return 'a sparse array has two dimensions, not [' + d.join(',') + ']';
+  }
+  const logical = !!v.isLogical || v.className === 'logical';
+  if (!logical && v.className !== 'double' && v.className !== 'single') {
+    return 'no sparse MAT class for "' + v.className + '"';
+  }
+  const [rows, cols] = d;
+  if (!v.sparse) {
+    const n = flatValues(v.value).length;
+    if (n !== rows * cols) {
+      return 'sparse value has ' + n + ' elements but declares [' + d.join(',') + ']';
+    }
+  }
+  return null;
+}
+
+/**
+ * What backs `v`'s columns: the source's own index, or its elements, one column apiece —
+ * never the declared count, which is one word of the file (SparseData.backedColumns). The
+ * rest of the index comes out of a write's budget, and an array whose rest alone is past
+ * all of it can never be written.
+ */
+function sparseBackedColumns(v: SparseRefusalInput): number {
+  const cols = dimsOf(v)[1];
+  return v.sparse ? backedColumnsOf(v.sparse) : Math.min(cols, flatValues(v.value).length);
+}
+
+/** No stream holds a column index past what its uint32 size word can say. */
+function sparseCapRefusal(cols: number): string | null {
+  return 4 * (cols + 1) > 0xffffffff ? 'a sparse array of ' + cols + ' columns has a column index no MAT stream can hold' : null;
+}
+
+/** A sparse array of `d` backed for `backed` columns, in the words a budget refusal uses. */
+function sparseWhat(d: number[], backed: number): string {
+  return 'a ' + sizeOf(d) + ' sparse array whose data holds ' + (backed === 0 ? 'none' : backed) + ' of its ' + d[1] + ' columns';
+}
+
+/**
+ * The bytes of one complete `miMATRIX` element: tag, then the matrix body. It writes no more
+ * than UNBACKED_BYTES_BUDGET that the value does not back, out of the write's budget when one
+ * is under way (oneWrite).
+ */
 export function encodeMatVariable(v: MatVariable): Uint8Array {
+  const budget = writing ?? newBudget();
+  const left = budget.left;
+  // Where this encode is, from `v`: each encode's own, a write's being many.
+  const at = budget.at;
+  budget.at = [];
+  try {
+    refuseDimsBelow(v, budget);
+    return encodeElement(v, budget);
+  } catch (e) {
+    // Refused, it wrote nothing, so it takes nothing.
+    budget.left = left;
+    throw e;
+  } finally {
+    budget.at = at;
+  }
+}
+
+/**
+ * A member of a cell or a struct. A sparse array that carries the bytes it was read from —
+ * which the node layer hands over only until an element row edits it
+ * (MatlabVariableNode._buildVarObject) — is that element, as _matStream writes one standing
+ * alone: its own bytes are the value, they cost what the file held, and they are MATLAB's
+ * where a re-encode would be this writer's. Re-encoded from its non-zeros instead, each
+ * 48-byte member of a cell of 80,000 declaring 0x256 is 1,104 bytes, 257 words of index no
+ * byte held, and the cell is refused. Anything else is encoded, out of the write's budget.
+ */
+function memberElement(v: MatVariable, budget: UnbackedBudget): Uint8Array {
+  if (v.isSparse && v._rawBytes) {
+    const own = ownElement(v._rawBytes);
+    if (own) {
+      return own;
+    }
+  }
+  return encodeElement(v, budget);
+}
+
+/**
+ * Whether memberElement writes `v` as the bytes it was read from. Its dims are then what its
+ * bytes say, as the file said them, so they are not refuseDimsBelow's to ask: at 3f55eff a
+ * member whose damaged dims word read [-5, 3] made an unedited cell's copy throw.
+ */
+function writtenAsOwnBytes(v: MatVariable): boolean {
+  return !!(v.isSparse && v._rawBytes && ownElementName(v._rawBytes));
+}
+
+/**
+ * Refuses `v`, finally, when its dims are what no stream can hold. Dims that are no size
+ * (parser/Size) make no count to hold to the budget — a fraction even makes a whole one:
+ * [1, 2.5] charged 84 bytes for one hole and wrote three. And a size past what a MAT
+ * stream's int32 dims word can say — MATLAB on 64 bits holds a zeros(0, 2^31), and a
+ * dictionary spells it as text — has no stream, where it would be written as the extent
+ * the word wraps to.
+ */
+function refuseDims(v: MatVariable, budget: UnbackedBudget): void {
+  // MATLAB's class name: a logical array goes out as uint8 with the logical flag.
+  const named = (v.isLogical ? 'logical' : v.className) || 'value';
+  if (!isSize(v.dimensions || [])) {
+    charge(budget, NaN, classPhrase(v.isSparse ? 'sparse ' + named : named) + ' declaring dimensions ' + dimsText(v.dimensions));
+  }
+  const past = (v.dimensions || []).find((x) => x > MAT_MAX_EXTENT);
+  if (past !== undefined) {
+    const at = budget.at.join('');
+    const what = 'a ' + sizeOf(v.dimensions) + ' ' + (v.isSparse ? 'sparse ' : '') + named;
+    throw new MatBudgetError((at || 'the value') + ', ' + what + ', has an extent of ' + past + ', past ' + MAT_MAX_EXTENT, at, what, undefined, 'past-int32');
+  }
+}
+
+/**
+ * refuseDims over `v` and every member below it, before anything is encoded: a final
+ * refusal has to win whatever the order of the members. Encoded in order, a member written
+ * another way — a struct of a class MatWriter has no variable for (`_unwritable`) — refused
+ * the stream first, and its caller wrote the whole value another way, a later member whose
+ * dims are no size included: `[0, 1e400]` went into a text dictionary as `[0,null]`.
+ */
+function refuseDimsBelow(v: MatVariable, budget: UnbackedBudget): void {
+  refuseDims(v, budget);
+  if (v.isSparse) {
+    return;
+  }
+  if (v.className === 'cell') {
+    flatValues(v.value).forEach((c, i) => {
+      if (c && typeof c === 'object' && !writtenAsOwnBytes(c as MatVariable)) {
+        budget.at.push('{' + (i + 1) + '}');
+        refuseDimsBelow(c as MatVariable, budget);
+        budget.at.pop();
+      }
+    });
+  } else if (v.className === 'struct' && v.fields) {
+    const n = elementCountOf(dimsOf(v));
+    for (const [name, held] of Object.entries(v.fields)) {
+      const each = Array.isArray(held) ? held : [held];
+      each.forEach((one, e) => {
+        if (one && typeof one === 'object' && !writtenAsOwnBytes(one)) {
+          budget.at.push((n === 1 ? '' : '(' + (e + 1) + ')') + '.' + name);
+          refuseDimsBelow(one, budget);
+          budget.at.pop();
+        }
+      });
+    }
+  }
+}
+
+/** encodeMatVariable within an encode already under way, sharing its budget. */
+function encodeElement(v: MatVariable, budget: UnbackedBudget): Uint8Array {
   if (v.isOpaque) {
     throw new MatWriteError('cannot write an MCOS opaque value (' + (v.className || 'unknown') + ')');
+  }
+  // Dims that are no size (parser/Size) make no count to hold to the budget — a fraction
+  // even makes a whole one: [1, 2.5] charged 84 bytes for one hole and wrote three — so they
+  // are refused as what the budget cannot measure, finally.
+  refuseDims(v, budget);
+  // A member the node layer has no variable for (MatlabVariableNode._memberVar): this
+  // writer has no stream for it, and its caller writes it another way.
+  if (v._unwritable) {
+    throw new MatWriteError(v._unwritable);
   }
   // Before the class lookup, because a sparse array's class IS one the full-array arms
   // have a code for — MATLAB's class() of a sparse double is 'double' — and the full
   // array they would write is a different variable: the same values, stored dense.
   if (v.isSparse) {
-    return encodeSparse(v);
+    return encodeSparse(v, budget);
   }
   const cls = CLASS_CODE[v.className];
   if (cls === undefined) {
@@ -538,17 +990,19 @@ export function encodeMatVariable(v: MatVariable): Uint8Array {
   }
   const d = dimsOf(v);
   const logical = !!v.isLogical || v.className === 'logical';
-  const subs = [arrayFlags(cls, !!v.isComplex, logical), dimsElement(d), emptyName()];
+  let body: Uint8Array[];
   if (cls === MX_CELL) {
-    subs.push(...cellBody(v, d));
+    body = cellBody(v, d, budget);
   } else if (cls === MX_STRUCT) {
-    subs.push(...structBody(v, d));
+    body = structBody(v, d, budget);
   } else if (cls === MX_CHAR) {
-    subs.push(...charBody(v, d));
+    body = charBody(v, d);
   } else {
-    subs.push(...numericBody(v, logical ? MX_UINT8 : cls, d));
+    body = numericBody(v, logical ? MX_UINT8 : cls, d);
   }
-  return element(MI_MATRIX, concat(subs));
+  // Not `subs.push(...body)`: a cell's body is one part a member, and spread as arguments,
+  // past about 120,000 members it overflowed the stack.
+  return element(MI_MATRIX, concat([arrayFlags(cls, !!v.isComplex, logical), dimsElement(d), emptyName(), concat(body)]));
 }
 
 /**
@@ -572,15 +1026,39 @@ export function encodeMatStream(v: MatVariable): Uint8Array {
  * The MAT stream of a value whose miMATRIX element is at hand AS READ (MatVariable's
  * `_rawBytes`), or null when the bytes are not a whole one this can re-frame.
  *
- * For the value nothing here can re-encode because the reader never decoded it — a
- * sparse array past MatParser's dense limit — and which a copy out of a .mat or a model
- * workspace into a dictionary would otherwise write as the text of its placeholder. Its bytes are the value; the one thing in them a stream does not carry is
- * the variable's NAME, which a .mat writes into the element and a stream leaves empty, so
- * the name subelement is replaced by the empty one and the element's size restated.
- * Everything else is copied byte for byte. An MCOS opaque (class 17) is not framed this
+ * For the value nothing here can re-encode because the reader never decoded it — one
+ * MatParser recorded as `undecoded` — and which a copy out of a .mat or a model workspace
+ * into a dictionary would otherwise write as the text of its placeholder. Its bytes are
+ * the value; the one thing in them a stream does not carry is the variable's NAME, which a
+ * .mat writes into the element and a stream leaves empty, so the name subelement is
+ * replaced by the empty one and the element's size restated. Everything else is copied byte for byte. An MCOS opaque (class 17) is not framed this
  * way, and its subsystem lives elsewhere in the file, so it is refused.
  */
 export function matStreamOfElement(raw: Uint8Array): Uint8Array | null {
+  const own = ownElement(raw);
+  return own ? concat([new Uint8Array(CDATA_PREAMBLE), own]) : null;
+}
+
+/**
+ * The miMATRIX element `raw` holds as read, with its name subelement replaced by the empty
+ * one an element has in a stream, a cell or a struct; null when the bytes are not a whole
+ * one this can re-frame (see matStreamOfElement).
+ */
+function ownElement(raw: Uint8Array): Uint8Array | null {
+  const at = ownElementName(raw);
+  if (!at) {
+    return null;
+  }
+  const body = concat([raw.slice(8, at.nameAt), emptyName(), raw.slice(at.nameAt + at.name, at.end)]);
+  return concat([u32le(MI_MATRIX), u32le(body.length), body]);
+}
+
+/**
+ * Where the name subelement of the miMATRIX element `raw` holds is, and where the element
+ * ends; null when the bytes are not a whole one ownElement can re-frame. Read, not built, so
+ * it can be asked of every member before a write (refuseDimsBelow).
+ */
+function ownElementName(raw: Uint8Array): { nameAt: number; name: number; end: number } | null {
   if (raw.length < 8) {
     return null;
   }
@@ -611,8 +1089,7 @@ export function matStreamOfElement(raw: Uint8Array): Uint8Array | null {
   if (!name || nameAt + name > end) {
     return null;
   }
-  const body = concat([raw.slice(8, nameAt), emptyName(), raw.slice(nameAt + name, end)]);
-  return concat([new Uint8Array(CDATA_PREAMBLE), u32le(MI_MATRIX), u32le(body.length), body]);
+  return { nameAt, name, end };
 }
 
 /**
@@ -654,10 +1131,52 @@ export function complexTextVariable(raw: unknown): MatVariable | null {
 }
 
 /**
+ * A text dictionary's own complex text, by identity: what its reader found there
+ * (heldByTextDictionary), which v1.36.0 wrote for a complex value. textDictionaryForm turns it
+ * into the stream MATLAB writes there, as it does any complex text, but one with no stream to
+ * be instead — an extent past an int32, a size that is no count — it leaves as read, being
+ * what the file already holds: refused, it failed the save of every entry in the file. The
+ * same text pasted in out of a binary dictionary is not one of these, and is refused.
+ */
+const textDictionaryOwn = new WeakSet<object>();
+
+/**
+ * Records every complex text in `value`, a value as the text dictionary being read holds it.
+ * Every entry is walked, so the walk allocates nothing and steps over every primitive: 15 ms
+ * of the 420 ms a 138 MB dictionary of 140,000 entries takes to read.
+ */
+export function heldByTextDictionary(value: unknown): void {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const e = value[i];
+      if (e !== null && typeof e === 'object') {
+        heldByTextDictionary(e);
+      }
+    }
+    return;
+  }
+  if (value === null || typeof value !== 'object') {
+    return;
+  }
+  const o = value as Record<string, unknown>;
+  if (o._type === 'cdata') {
+    textDictionaryOwn.add(o);
+    return;
+  }
+  for (const k in o) {
+    const v = o[k];
+    if (v !== null && typeof v === 'object') {
+      heldByTextDictionary(v);
+    }
+  }
+}
+
+/**
  * A value as an uncompressed-text dictionary must hold it: every complex value in its
- * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there,
- * and everything else as it was. A copy wherever something changed, so the bag a node
- * replays is never touched; the same object where nothing did.
+ * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there, a
+ * binary dictionary's dense empty too, and everything else as it was. A copy wherever
+ * something changed, so the bag a node replays is never touched; the same object where
+ * nothing did.
  *
  * MATLAB reads the plain-text form back out of a TEXT dictionary as an empty double
  * (defect 24's signature), and it is the form a binary dictionary and the MCOS decoder
@@ -666,14 +1185,14 @@ export function complexTextVariable(raw: unknown): MatVariable | null {
  * `{"_type": "cdata", "_value": "3+4i"}` and MATLAB reopened it as []. At any depth,
  * because the replay is whole bags too — a struct's, a cell's, a LookupTable's Table.
  */
-export function textDictionaryForm(x: unknown): unknown {
+export function textDictionaryForm(x: unknown, at = ''): unknown {
   if (x === null || typeof x !== 'object') {
     return x;
   }
   if (Array.isArray(x)) {
     let changed = false;
     const out = x.map((e) => {
-      const t = textDictionaryForm(e);
+      const t = textDictionaryForm(e, at);
       changed = changed || t !== e;
       return t;
     });
@@ -690,6 +1209,21 @@ export function textDictionaryForm(x: unknown): unknown {
     const read = encodedBytes(o);
     return read.bytes ? { _type: 'cdata', _value: uuencode(read.bytes) } : o;
   }
+  // A binary dictionary's dense empty as its reader holds it (`_emptyDims`), which a value
+  // replays where no MAT stream can say its N-D dims (MatlabVariableNode.serializeValue): a
+  // text dictionary has no spelling for an N-D value but the stream, so it is refused here,
+  // finally, said where it stands in the value.
+  if (Array.isArray(o._emptyDims) && typeof o._type === 'string') {
+    const empty = { name: '', className: o._type, dimensions: o._emptyDims, isComplex: false, isLogical: o._type === 'logical', value: [], fields: null };
+    try {
+      return { _type: 'cdata', _value: encodeCdata(empty) };
+    } catch (e) {
+      if (e instanceof MatBudgetError) {
+        throw new MatBudgetError(e.message, at + e.at, e.what, undefined, e.reason);
+      }
+      return o;
+    }
+  }
   if (o._type === 'cdata') {
     const variable = complexTextVariable(o);
     if (!variable) {
@@ -697,17 +1231,67 @@ export function textDictionaryForm(x: unknown): unknown {
     }
     try {
       return { _type: 'cdata', _value: encodeCdata(variable) };
-    } catch {
+    } catch (e) {
+      // A refusal for what the value declares is final, here as anywhere: the complex text
+      // left as it stands is what MATLAB reads back out of a text dictionary as an empty
+      // double. Said where it stands in the value, for the node that owns it to name. But
+      // not of the text the file being written was read with, which is that file's own.
+      if (e instanceof MatBudgetError && !textDictionaryOwn.has(o)) {
+        throw new MatBudgetError(e.message, at + e.at, e.what, undefined, e.reason);
+      }
       return o;
     }
   }
   let out: Record<string, unknown> | null = null;
   for (const k of Object.keys(o)) {
-    const t = textDictionaryForm(o[k]);
+    const v = o[k];
+    const t =
+      k === '_elements' && Array.isArray(v) ? elementsForm(o, at)
+        : k === '_properties' && v && typeof v === 'object' && !Array.isArray(v) ? namedForm(v as Record<string, unknown>, at)
+          : textDictionaryForm(v, at);
     if (t !== o[k]) {
       out = out ?? { ...o };
       out[k] = t;
     }
   }
   return out ?? o;
+}
+
+/** textDictionaryForm over a record of named values — an object's properties, a struct's fields — each at `.name`. */
+function namedForm(named: Record<string, unknown>, at: string): Record<string, unknown> {
+  let out: Record<string, unknown> | null = null;
+  for (const name of Object.keys(named)) {
+    const t = textDictionaryForm(named[name], at + '.' + name);
+    if (t !== named[name]) {
+      out = out ?? { ...named };
+      out[name] = t;
+    }
+  }
+  return out ?? named;
+}
+
+/**
+ * textDictionaryForm over the `_elements` of a raw bag, each at its MATLAB path: `{k}` in
+ * a cell, and in a struct or object array `(k)`, unless it is the only element, before the
+ * field or the property.
+ */
+function elementsForm(o: Record<string, unknown>, at: string): unknown[] {
+  const elements = o._elements as unknown[];
+  let changed = false;
+  const out = elements.map((e, k) => {
+    let t: unknown;
+    if (o._array_type === 'Cell') {
+      t = textDictionaryForm(e, at + '{' + (k + 1) + '}');
+    } else {
+      const here = at + (elements.length > 1 ? '(' + (k + 1) + ')' : '');
+      // A struct element is its fields, each a value of its own; an object's, its id and
+      // its `_properties`.
+      t = e && typeof e === 'object' && !Array.isArray(e) && o._array_type === 'Struct'
+        ? namedForm(e as Record<string, unknown>, here)
+        : textDictionaryForm(e, here);
+    }
+    changed = changed || t !== e;
+    return t;
+  });
+  return changed ? out : elements;
 }

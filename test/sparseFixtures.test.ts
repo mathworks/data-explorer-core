@@ -22,10 +22,10 @@
 // Everything below is driven by the truth files, so a value added to the generator is
 // covered without editing this file:
 //
-//   * every value's class, size and every element, real and imaginary, in MATLAB's order;
-//     past 10000 elements, where the truth stops listing them, every non-zero by its
-//     subscripts and the count of the rest; and a sparse array's element rows, which are
-//     its non-zeros, by subscript and value, in MATLAB's order;
+//   * every value's class and size; a full value's every element, real and imaginary, in
+//     MATLAB's order; a sparse value's non-zeros, which are what it holds (it holds no
+//     dense list), by subscript and value, in MATLAB's order, and its element rows, which
+//     are those non-zeros;
 //   * its display, in this package's spelling of the numbers MATLAB recorded;
 //   * that the four venues present every value the same, and in particular that the
 //     binary dictionary presents what its text twin does;
@@ -139,8 +139,6 @@ function elementText(t: ValueTruth, re: number, im: number): string {
  * one a scalar inline, a small matrix as its literal, else a summary.
  */
 function displayOf(t: ValueTruth): string {
-  const storage = t.issparse ? 'sparse ' : '';
-  if (t.numel > 1e6) return `<${t.size.join('x')} ${storage}${t.class}, not decoded>`;
   if (t.issparse) return `<${t.size.join('x')} sparse ${t.class}>`;
   if (t.numel > 10 || t.size.length > 2) return `<${t.size.join('x')} ${t.class}>`;
   if (t.numel === 0) return '[ ]';
@@ -157,6 +155,11 @@ function displayOf(t: ValueTruth): string {
   return '[' + lines.join('; ') + ']';
 }
 
+/** A sparse store's entries as [row, col, re, im], 1-based, MATLAB's -0 read as 0. */
+function entriesOf(s: any): [number, number, number, number][] {
+  return Array.from(s.row as Int32Array, (r, k) => [r + 1, s.col[k] + 1, numberOf(s.re[k]), s.im ? numberOf(s.im[k]) : 0]);
+}
+
 /** A value with nothing around it: its class, size, display and every element. */
 function expectValue(node: any, t: ValueTruth, label: string): void {
   // MATLAB's class(), complex included, never the storage.
@@ -164,33 +167,20 @@ function expectValue(node: any, t: ValueTruth, label: string): void {
   expect(node.dataType, label).toBe(t.class);
   expect(node.dims.map(Number), label).toEqual(t.size.map(Number));
   expect(node.displayValue, label).toBe(displayOf(t));
-  if (t.numel > 1e6) {
-    // Past what the reader materializes: recorded, said so, and nothing fabricated.
-    expect(node.children, label).toHaveLength(0);
-    return;
-  }
   if (t.issparse) {
     expectNonzeroRows(node, t, label);
-  }
-  // The value itself, which every writer reads, is every element whatever the rows are.
-  if (t.real) {
-    const ours = columnMajor(node, t.size).map((e, k) => partsOf(e, `${label}(${k + 1})`));
-    expect(ours.map((p) => p[0]), `${label} real`).toEqual(t.real.map(numberOf));
-    expect(ours.map((p) => p[1]), `${label} imag`).toEqual(t.imag!.map(numberOf));
+    // The value itself, which every writer reads: the non-zeros, every one, and nothing
+    // else — at any size, past the truth's dense listing (spBig, spTall) as below it.
+    const nz = t.nonzeros;
+    expect(entriesOf(node._sparse), `${label} non-zeros`).toEqual(
+      nz.rows.map((r, k) => [r, nz.cols[k], numberOf(nz.real[k]), numberOf(nz.imag[k])]),
+    );
+    expect([node._sparse.im !== null, node._elements.length], `${label} complexity, no dense list`).toEqual([!t.isreal, 0]);
     return;
   }
-  // The truth lists only the non-zeros, which for a sparse array are the whole value.
-  const [rows, cols] = t.size;
-  const elements: unknown[] = node.elements;
-  expect(elements, label).toHaveLength(rows * cols);
-  const nz = t.nonzeros;
-  nz.rows.forEach((r, k) => {
-    expect(partsOf(elements[(r - 1) * cols + (nz.cols[k] - 1)], label), `${label}(${r},${nz.cols[k]})`).toEqual([
-      numberOf(nz.real[k]),
-      numberOf(nz.imag[k]),
-    ]);
-  });
-  expect(elements.filter((e) => partsOf(e, label).some((p) => p !== 0)).length, `${label} nnz`).toBe(t.nnz);
+  const ours = columnMajor(node, t.size).map((e, k) => partsOf(e, `${label}(${k + 1})`));
+  expect(ours.map((p) => p[0]), `${label} real`).toEqual(t.real!.map(numberOf));
+  expect(ours.map((p) => p[1]), `${label} imag`).toEqual(t.imag!.map(numberOf));
 }
 
 /**
@@ -205,6 +195,12 @@ function expectNonzeroRows(node: any, t: ValueTruth, label: string): void {
   );
   node.children.forEach((c: any, k: number) => {
     expect(partsOf(c._scalarValue, label), `${label} row ${k + 1}`).toEqual([numberOf(nz.real[k]), numberOf(nz.imag[k])]);
+    // What the row shows, and its class: a logical's `true`, not the 1 it is held as, and
+    // a complex one's `re+imi`, in this package's spelling of the numbers MATLAB recorded.
+    expect([c.className, c.displayValue], `${label} row ${k + 1} shown`).toEqual([
+      t.class,
+      elementText(t, numberOf(nz.real[k]), numberOf(nz.imag[k])),
+    ]);
   });
   expect(node.children.length, `${label} nnz`).toBe(t.nnz);
 }
@@ -384,7 +380,7 @@ describe('every path is one of the kinds checked', () => {
 // ---- The storage, where the reader keeps it --------------------------------------
 
 describe('the storage is kept wherever the reader reads the array itself', () => {
-  // A sparse array read out of MAT bytes knows it is one (MatlabVariableNode._isSparse),
+  // A sparse array read out of MAT bytes knows it is one (MatlabVariableNode.isSparse),
   // which is what sends MatWriter to its sparse encoder and gives the array its summary
   // and its non-zero rows. A Simulink.Parameter's Value in a .mat, a workspace or a binary
   // dictionary is decoded through the MCOS subsystem, which used to hand a sparse property
@@ -397,7 +393,7 @@ describe('the storage is kept wherever the reader reads the array itself', () =>
         const value = isValueTruth(t) ? (t as ValueTruth) : t.Value;
         if (!value) continue;
         const node = isValueTruth(t) ? nodeAt(variables, path) : nodeAt(variables, path).children.find((c: any) => c.name === 'Value');
-        expect(node._isSparse, `${venue.name} ${path}`).toBe(value.issparse);
+        expect(node.isSparse, `${venue.name} ${path}`).toBe(value.issparse);
       }
     });
   }
@@ -434,6 +430,14 @@ const ELEMENT_EDITS: [string, number, number, string, unknown][] = [
   ['spSingle', 2, 1, '42', 42],
 ];
 
+// A store's entries with the one at (r, c) set to `want`, as the writers keep them: only
+// the non-zeros.
+function editedEntries(s: any, r: number, c: number, want: unknown): [number, number, number, number][] {
+  return entriesOf(s)
+    .map(([er, ec, re, im]): [number, number, number, number] => (er === r && ec === c ? [er, ec, ...partsOf(want, `(${r},${c})`)] : [er, ec, re, im]))
+    .filter(([, , re, im]) => re !== 0 || im !== 0);
+}
+
 // The element row at MATLAB subscript (r, c), found by its label.
 function elementAt(node: any, r: number, c: number): any {
   const row = node.children.find((e: any) => e.displayName === `${node.displayName}(${r},${c})`);
@@ -464,19 +468,16 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
   });
 
   it('in a text dictionary, an edited element is in the stream, and the array is still sparse', () => {
+    // A non-zero set to zero (spLogical's false) is not in it: a sparse array stores its
+    // non-zeros. -0 and 0 are one, as MATLAB's isequaln has them (see the test above).
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
     for (const [name, r, c, text, want] of ELEMENT_EDITS) {
       const node = design.children.find((e: any) => e.name === name);
       const before = streamVariable(textRaw(name));
       expect(elementAt(node, r, c).setProperty('Value', text), name).toBe(true);
       const v = streamVariable(JSON.parse(JSON.stringify(node.serialize())).value);
-      const at = (r - 1) * before.dimensions[1] + (c - 1);
-      const expected = (before.value as unknown[]).slice();
-      expected[at] = want;
       expect([v.isSparse, v.className, v.dimensions, v.isComplex], name).toEqual([true, before.className, before.dimensions, before.isComplex]);
-      // -0 and 0 as one, as MATLAB's isequaln has them (see the test above).
-      const zeroed = (x: unknown): unknown => (x === 0 ? 0 : x && typeof x === 'object' ? { re: zeroed((x as any).re), im: zeroed((x as any).im) } : x);
-      expect((v.value as unknown[]).map(zeroed), name).toEqual(expected.map(zeroed));
+      expect(entriesOf(v.sparse), name).toEqual(editedEntries(before.sparse, r, c, want));
     }
   });
 
@@ -486,15 +487,15 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
     const spRow = design.children.find((e: any) => e.name === 'spRow');
     expect(spRow.setProperty('Value', '[1 2 3]')).toBe(true);
-    expect(spRow._isSparse).toBe(false);
+    expect(spRow.isSparse).toBe(false);
     expect(JSON.parse(JSON.stringify(spRow.serialize())).value).toEqual([1, 2, 3]);
   });
 
   it('in a text dictionary, a renamed entry is written as it was read, whatever it holds', () => {
     // The value of a renamed entry is the one it was read as. It used to be rebuilt from
     // the node, which MATLAB read back as a different value for every sparse array: full,
-    // a column as a row, the 1000x1000 spBig as `{}` (a 1x0), spTall — too large to decode
-    // — as the char of its own placeholder (MATLAB R2027a, all of them, before this).
+    // a column as a row, the 1000x1000 spBig as `{}` (a 1x0), spTall — then too large to
+    // decode — as the char of its own placeholder (MATLAB R2027a, all of them, before this).
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
     for (const entry of [...design.children]) {
       const before = JSON.parse(JSON.stringify(entry.serialize())).value;
@@ -507,58 +508,69 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     }
   });
 
-  it('this package\'s own `sparse` literal still reads as the sparse double it stands for', () => {
-    // What a text dictionary this package wrote before it could write a sparse stream holds.
+  // This package's own literal for a sparse double, in both the forms _serializeArray writes
+  // one in — a matrix, and a row — which a text dictionary this package wrote before it
+  // could write a sparse stream holds: the literal, its size, its rows, its non-zeros.
+  const LITERALS: [Record<string, string>, number[], [string, string][], number[][]][] = [
+    [{ _type: 'sparse', _value: 'Matrix(2,2)\n[[42, 0]; [0, 5]]' }, [2, 2], [['(1,1)', '42'], ['(2,2)', '5']], [[1, 1, 42, 0], [2, 2, 5, 0]]],
+    [{ _type: 'sparse', _value: '[0, 7, 0]' }, [1, 3], [['(1,2)', '7']], [[1, 2, 7, 0]]],
+  ];
+
+  it('this package\'s own `sparse` literal still reads as the sparse double it stands for, a row too', () => {
+    // The row form read as a FULL array of a class named 'sparse', displayed `[0 7 0]`,
+    // where the Property Inspector showed the same literal as `<1x3 sparse double>`.
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
-    const value = { _type: 'sparse', _value: 'Matrix(2,2)\n[[42, 0]; [0, 5]]' };
-    const again = design.parseEntry({ name: 'spLiteral', metadata: { uuid: 'x' }, value });
-    expect([again.className, again.displayValue, again._isSparse, again.children.map((c: any) => [c.displayName, c.displayValue])]).toEqual([
-      'double',
-      '<2x2 sparse double>',
-      true,
-      [
-        ['spLiteral(1,1)', '42'],
-        ['spLiteral(2,2)', '5'],
-      ],
-    ]);
+    LITERALS.forEach(([value, dims, rows], k) => {
+      const again = design.parseEntry({ name: `spLiteral${k}`, metadata: { uuid: `x${k}` }, value });
+      expect([again.className, again.dataType, again.displayValue, again.isSparse, again.dims, again.children.map((c: any) => [c.displayName, c.displayValue])]).toEqual([
+        'double',
+        'double',
+        `<${dims.join('x')} sparse double>`,
+        true,
+        dims,
+        rows.map(([at, shown]) => [`spLiteral${k}${at}`, shown]),
+      ]);
+    });
   });
 
   it('that literal in a Parameter\'s Value or an object\'s cell, put into a binary dictionary, is hex, never `Class="sparse"`', () => {
     // 1.36.1 wrote it for an edited element of a Parameter's sparse Value (pSp) and of a
     // sparse array in a cell, so a text dictionary it saved holds it there. A copy of such
     // an entry into a binary dictionary reaches the property-bag writers, which spelled it
-    // `Class="sparse"`: MATLAB's reader segfaults on that.
+    // `Class="sparse"`: MATLAB's reader segfaults on that. The row form was spelled so
+    // until it read as sparse.
     const binary = loadFile('../fixtures/sparse/sparse_binary.sldd').getSection('design');
-    const literal = { _type: 'sparse', _value: 'Matrix(2,2)\n[[42, 0]; [0, 5]]' };
-    const pSp = JSON.parse(JSON.stringify(textRaw('pSp')));
-    pSp._elements[0]._properties.Value = literal;
-    const thing = {
-      _array_class: 'my.Thing',
-      _dimensions: [1, 1],
-      _elements: [{ _id: '1', _properties: { C: { _array_type: 'Cell', _dimensions: [1, 2], _elements: [literal, 7], _mw_element_type: 'MATLABArray' } } }],
-      _mw_element_type: 'MATLABArray',
-    };
-    for (const [name, value, tagName] of [['pLiteral', pSp, 'P'], ['thingLiteral', thing, 'Element']] as const) {
-      const entry = binary.parseEntry({ name, metadata: { uuid: `00000000-0000-4000-d000-${name.length}0000000000` }, value });
-      const xml = serializeEntryToXml(entry);
-      expect(xml, name).not.toContain('sparse');
-      const m = new RegExp(`<${tagName}(?: Name="Value")? Class="double" Encoding="hex" EncodedLength="(\\d+)">([^<]*)</${tagName}>`).exec(xml);
-      expect(m, name).not.toBeNull();
-      const bytes = Uint8Array.from(m![2].replace(/\s+/g, '').match(/../g)!.map((h) => parseInt(h, 16)));
-      const v = readMxArrayRecords(bytes.buffer).outer as any;
-      expect([v.isSparse, v.className, v.dimensions, v.value], name).toEqual([true, 'double', [2, 2], [42, 0, 0, 5]]);
-    }
+    LITERALS.forEach(([literal, dims, , nonzeros], k) => {
+      const pSp = JSON.parse(JSON.stringify(textRaw('pSp')));
+      pSp._elements[0]._properties.Value = literal;
+      const thing = {
+        _array_class: 'my.Thing',
+        _dimensions: [1, 1],
+        _elements: [{ _id: '1', _properties: { C: { _array_type: 'Cell', _dimensions: [1, 2], _elements: [literal, 7], _mw_element_type: 'MATLABArray' } } }],
+        _mw_element_type: 'MATLABArray',
+      };
+      for (const [name, value, tagName] of [[`pLiteral${k}`, pSp, 'P'], [`thingLiteral${k}`, thing, 'Element']] as const) {
+        const entry = binary.parseEntry({ name, metadata: { uuid: `00000000-0000-4000-d000-${name.length}${k}000000000` }, value });
+        const xml = serializeEntryToXml(entry);
+        expect(xml, name).not.toContain('sparse');
+        const m = new RegExp(`<${tagName}(?: Name="Value")? Class="double" Encoding="hex" EncodedLength="(\\d+)">([^<]*)</${tagName}>`).exec(xml);
+        expect(m, name).not.toBeNull();
+        const bytes = Uint8Array.from(m![2].replace(/\s+/g, '').match(/../g)!.map((h) => parseInt(h, 16)));
+        const v = readMxArrayRecords(bytes.buffer).outer as any;
+        expect([v.isSparse, v.className, v.dimensions, entriesOf(v.sparse)], name).toEqual([true, 'double', dims, nonzeros]);
+      }
+    });
   });
 
-  it('a value typed over one too large to decode is that value, not a placeholder', () => {
-    // spTall shows the reader's `<10000000x2 sparse double, not decoded>`, unquoted because
-    // it is a placeholder; a char typed over it is a char, and is shown as one.
+  it('a value typed over the largest of them is that value, and no longer sparse', () => {
+    // spTall, 10000000x2 with two non-zeros, shows its summary, unquoted; a char typed over
+    // it is a char, and is shown as one.
     for (const file of ['../fixtures/sparse/sparse_values.mat', '../fixtures/sparse/sparse_text.sldd']) {
       const root = loadFile(file);
       const spTall = (file.endsWith('.mat') ? root : root.getSection('design')).children.find((e: any) => e.name === 'spTall');
-      expect(spTall.displayValue, file).toBe('<10000000x2 sparse double, not decoded>');
+      expect(spTall.displayValue, file).toBe('<10000000x2 sparse double>');
       expect(spTall.setProperty('Value', "'abc'"), file).toBe(true);
-      expect([spTall.displayValue, spTall.className, spTall.serializeValue()], file).toEqual(["'abc'", 'char', 'abc']);
+      expect([spTall.displayValue, spTall.className, spTall.isSparse, spTall.serializeValue()], file).toEqual(["'abc'", 'char', false, 'abc']);
     }
   });
 
@@ -595,7 +607,7 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
       const bytes = Uint8Array.from(m![2].replace(/\s+/g, '').match(/../g)!.map((h) => parseInt(h, 16)));
       expect(bytes.length, name).toBe(Number(m![1]));
       const v = readMxArrayRecords(bytes.buffer).outer as any;
-      expect([v.isSparse, (v.value as unknown[])[(r - 1) * v.dimensions[1] + (c - 1)]], name).toEqual([true, want]);
+      expect([v.isSparse, entriesOf(v.sparse)], name).toEqual([true, editedEntries(streamVariable(textRaw(name)).sparse, r, c, want)]);
     }
   });
 
@@ -607,7 +619,13 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     const spRow = mat.children.find((c: any) => c.name === 'spRow');
     expect(elementAt(spRow, 1, 2).setProperty('Value', '9')).toBe(true);
     const edited = decode(encodeMatVariable(spRow._var));
-    expect([edited.isSparse, edited.value]).toEqual([true, [0, 9, 0, 4, 0]]);
+    expect([edited.isSparse, entriesOf(edited.sparse)]).toEqual([
+      true,
+      [
+        [1, 2, 9, 0],
+        [1, 4, 4, 0],
+      ],
+    ]);
     expect(spRow.setProperty('Value', '[1 2 3]')).toBe(true);
     const typed = decode(encodeMatVariable(spRow._var));
     expect([typed.isSparse ?? false, typed.className, typed.value]).toEqual([false, 'double', [1, 2, 3]]);
@@ -637,41 +655,22 @@ function sparseValues(venue: (typeof VENUES)[number], variables: any): [string, 
   const out: [string, any, ValueTruth][] = [];
   for (const [path, t] of Object.entries(venue.truth.paths)) {
     const value = isValueTruth(t) ? (t as ValueTruth) : t.Value;
-    if (!value || !value.issparse || value.numel > 1e6) continue;
+    if (!value || !value.issparse) continue;
     const node = isValueTruth(t) ? nodeAt(variables, path) : nodeAt(variables, path).children.find((c: any) => c.name === 'Value');
     out.push([isValueTruth(t) ? path : `${path}.Value`, node, value]);
   }
   return out;
 }
 
-// These walk every cell of each sparse fixture's dense grid, spBig's million included, so they
-// outrun vitest's 5 s default on CI's slower runners (about 6 s there); give them headroom.
-const GRID_TIMEOUT = 60_000;
-
-describe('a sparse array\'s rows are its non-zeros, and that is all that changed about it', () => {
+describe('a sparse array\'s rows are its non-zeros, and it has no Variable Editor grid', () => {
   for (const venue of VENUES) {
-    it(`${venue.name}: the Variable Editor's grid still has every element, under MATLAB's subscripts`, { timeout: GRID_TIMEOUT }, () => {
-      // displayElements is the grid's data, and the grid places each cell by its label and
-      // gives up on a matrix with a cell unlabelled — so it lists every element, zeros
-      // included, where the tree lists the non-zeros. Every row is one of its entries.
+    it(`${venue.name}: no grid, and a host is told why`, () => {
+      // displayElements is the grid's data. A sparse array's elements are not held, so it
+      // has none to give, and `isSparse` is what a host asks to offer no grid at all.
       const found = sparseValues(venue, venue.variables());
-      expect(found.length, venue.name).toBeGreaterThanOrEqual(12);
-      for (const [path, node, t] of found) {
-        const grid = node.displayElements();
-        const [rows, cols] = t.size;
-        expect(grid.map((e: any) => e.label), path).toEqual(
-          Array.from({ length: rows * cols }, (_, i) => `${node.displayName}(${Math.floor(i / cols) + 1},${(i % cols) + 1})`),
-        );
-        if (t.real) {
-          grid.forEach((e: any, i: number) => {
-            const k = (i % cols) * rows + Math.floor(i / cols);
-            const shown = e.value === 'true' ? true : e.value === 'false' ? false : e.value;
-            expect(partsOf(shown, path), `${path} ${e.label}`).toEqual([numberOf(t.real![k]), numberOf(t.imag![k])]);
-          });
-        }
-        for (const row of node.children) {
-          expect(grid, `${path} ${row.displayName}`).toContainEqual({ label: row.displayName, value: row.displayValue });
-        }
+      expect(found.length, venue.name).toBeGreaterThanOrEqual(13);
+      for (const [path, node] of found) {
+        expect([node.isSparse, node.displayElements()], path).toEqual([true, null]);
       }
     });
 
@@ -686,30 +685,28 @@ describe('a sparse array\'s rows are its non-zeros, and that is all that changed
     });
   }
 
-  it('an element row edits the element it names, in a .mat, and the rest of the array is as it was', async () => {
+  it('an element row edits the non-zero it names, in a .mat, and the rest of the array is as it was', async () => {
     const { encodeMatVariable } = await import('../src/datamodel/parser/MatWriter.js');
     const { parseMatrix } = await import('../src/datamodel/parser/MatParser.js');
     const decode = (bytes: Uint8Array): any => parseMatrix(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), 8, bytes.length - 8);
     for (const [name, r, c, text, want] of ELEMENT_EDITS) {
       const mat = loadFile('../fixtures/sparse/sparse_values.mat');
       const node = mat.children.find((e: any) => e.name === name);
-      const read = node._matVar.value.slice();
-      const before = node._elements.slice();
-      const slot = (r - 1) * node._dims[1] + (c - 1);
+      const read = entriesOf(node._matVar.sparse);
       expect(elementAt(node, r, c).setProperty('Value', text), name).toBe(true);
-      expect(node._elements.filter((_: unknown, i: number) => i !== slot), name).toEqual(before.filter((_: unknown, i: number) => i !== slot));
-      expect(partsOf(node._elements[slot], name), name).toEqual(partsOf(want, name));
+      // The node's own non-zeros: the one edited — kept, even at zero, so its row still
+      // names it — and every other as it was. The variable it was read from is untouched.
+      expect(entriesOf(node._sparse), name).toEqual(read.map((e) => (e[0] === r && e[1] === c ? [r, c, ...partsOf(want, name)] : e)));
+      expect(entriesOf(node._matVar.sparse), name).toEqual(read);
       const written = decode(encodeMatVariable(node._var));
-      const expected = read.slice();
-      expected[slot] = want;
       expect([written.isSparse, written.className, written.dimensions], name).toEqual([true, node._matVar.className, node._matVar.dimensions]);
-      expect(written.value.map((e: unknown) => partsOf(e, name)), name).toEqual(expected.map((e: unknown) => partsOf(e, name)));
+      expect(entriesOf(written.sparse), name).toEqual(editedEntries(node._matVar.sparse, r, c, want));
     }
   });
 
-  it('a renamed .mat or workspace variable is written as the value it holds', { timeout: GRID_TIMEOUT }, async () => {
-    // A rename makes the variable rebuild itself from the node (_var), which read its
-    // elements off its child rows — the non-zeros alone, now.
+  it('a renamed .mat or workspace variable is written as the value it holds', async () => {
+    // A rename makes the variable rebuild itself from the node (_var), which reads its
+    // non-zeros off the node.
     const { encodeMatVariable } = await import('../src/datamodel/parser/MatWriter.js');
     const { parseMatrix } = await import('../src/datamodel/parser/MatParser.js');
     const decode = (bytes: Uint8Array): any => parseMatrix(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), 8, bytes.length - 8);
@@ -723,24 +720,23 @@ describe('a sparse array\'s rows are its non-zeros, and that is all that changed
         expect(node._varStale, path).toBe(true);
         const written = decode(encodeMatVariable(node._var));
         // -0 and 0 as one (see ELEMENT_EDITS' first test): spComplex's 0-3i.
-        const parts = (v: any) => (Array.isArray(v.value) ? v.value : [v.value]).map((e: unknown) => partsOf(e, path));
-        expect([written.isSparse, written.className, written.dimensions, written.isComplex, parts(written)], `${venue.name} ${path}`).toEqual([
+        expect([written.isSparse, written.className, written.dimensions, written.isComplex, entriesOf(written.sparse)], `${venue.name} ${path}`).toEqual([
           true,
           read.className,
           read.dimensions,
           read.isComplex,
-          parts(read),
+          entriesOf(read.sparse),
         ]);
         renamed++;
       }
-      expect(renamed, venue.name).toBeGreaterThanOrEqual(10);
+      expect(renamed, venue.name).toBeGreaterThanOrEqual(11);
     }
   });
 
   it('a writer\'s fallback, for a value MatWriter cannot write, still spells every element', () => {
     // serializeValue and serializeXml write a sparse array as its stream; these are what
-    // they fall back to when MatWriter refuses one, and each read its elements off the
-    // child rows.
+    // they fall back to when MatWriter refuses one (a class or a rank MATLAB never stores
+    // sparse), and they lay its elements out from its non-zeros.
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
     const spDiag = design.children.find((e: any) => e.name === 'spDiag');
     expect(elementAt(spDiag, 3, 3).setProperty('Value', '42')).toBe(true);
@@ -748,7 +744,11 @@ describe('a sparse array\'s rows are its non-zeros, and that is all that changed
     const literal = spDiag._serializeArray();
     expect(literal._type).toBe('sparse');
     const again = MatlabVariableNode.parse(literal, 'again', null);
-    expect([again._dims, again._elements]).toEqual([[10, 10], expected]);
+    expect([again._dims, again.isSparse, entriesOf(again._sparse)]).toEqual([
+      [10, 10],
+      true,
+      Array.from({ length: 10 }, (_, k) => [k + 1, k + 1, k === 2 ? 42 : k + 1, 0]),
+    ]);
     const xml = spDiag._serializeArrayXml('P', { Name: 'Value' }, 2);
     const body = /Dimension="10\*10">([^<]*)</.exec(xml)![1].trim().split(/\s+/).map(Number);
     // Column-major, as XML is.
@@ -759,14 +759,26 @@ describe('a sparse array\'s rows are its non-zeros, and that is all that changed
     expect(spRow._serializeArray()).toEqual([0, 2, 0, 7, 0]);
     const spAllZero = design.children.find((e: any) => e.name === 'spAllZero');
     spAllZero._rawInput = undefined;
-    expect(MatlabVariableNode.parse(spAllZero._serializeArray(), 'z', null)._elements).toEqual(new Array(12).fill(0));
+    const zero = MatlabVariableNode.parse(spAllZero._serializeArray(), 'z', null);
+    expect([zero._dims, zero.isSparse, entriesOf(zero._sparse)]).toEqual([[3, 4], true, []]);
     // And a complex one is still complex when every non-zero is set to a real number: its
-    // zeros are complex zeros, as they were when every element was a row.
+    // non-zeros still carry their (zero) imaginary parts.
     const spComplex = design.children.find((e: any) => e.name === 'spComplex');
     for (const [r, c] of [[1, 1], [3, 1], [2, 3], [1, 4]]) {
       expect(elementAt(spComplex, r, c).setProperty('Value', '1')).toBe(true);
     }
     expect([spComplex._isComplexValue(), spComplex._var.isComplex]).toEqual([true, true]);
+    expect(/IsComplex="1" Dimension="3\*4">([^<]*)</.exec(spComplex._serializeArrayXml('P', { Name: 'Value' }, 2))![1].split(' ')).toEqual([
+      '1.0+0.0i', '0.0+0.0i', '1.0+0.0i', '0.0+0.0i', '0.0+0.0i', '0.0+0.0i', '0.0+0.0i', '1.0+0.0i', '0.0+0.0i', '1.0+0.0i', '0.0+0.0i', '0.0+0.0i',
+    ]);
+  });
+
+  it('past what it lays out densely, the fallback writes the summary, never a dense list', () => {
+    // spTall's twenty million elements. Not a value MatWriter refuses — the fallback is
+    // asked directly here, as a writer would be for one it did.
+    const spTall = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design').children.find((e: any) => e.name === 'spTall');
+    expect(spTall._serializeArray()).toBe('<10000000x2 sparse double>');
+    expect(spTall._serializeArrayXml('P', { Name: 'Value' }, 0)).toBe('<P Name="Value" Class="double">&lt;10000000x2 sparse double&gt;</P>');
   });
 });
 

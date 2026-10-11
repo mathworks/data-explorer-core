@@ -336,6 +336,10 @@ describe('decodeMcosBlob — refuses to guess (confidence gate + defensive retur
 // proves one offset was guarded, whereas the failure was at 13 specific lengths out
 // of ~3700. Walking every 4-byte boundary is what shows the whole navigation path is
 // bounded rather than one branch of it.
+// The .slx case below parses and decodes its model workspace cut at every fourth byte: 0.7 s
+// here, 2.0 s on CI's runners, close to half vitest's 5 s default; give it headroom.
+const SWEEP_TIMEOUT = 60_000;
+
 describe('decodeMcosBlob — a truncated blob must not throw', () => {
   function sweep(raw: Uint8Array, vars: OpaqueVarRef[]): { threw: number[]; decoded: number } {
     const threw: number[] = [];
@@ -366,7 +370,7 @@ describe('decodeMcosBlob — a truncated blob must not throw', () => {
     expect(decodeMcosBlob(raw, vars).size).toBe(2);
   });
 
-  it('survives a truncated .slx model workspace, the case that actually failed', () => {
+  it('survives a truncated .slx model workspace, the case that actually failed', { timeout: SWEEP_TIMEOUT }, () => {
     // Walk it exactly as ModelNode.fromParsed does — parseMxArray on the truncated
     // mxarray part, then decodeMcosBlob on the trailing element it yields — because
     // the blob that broke this was one parseMxArray had already clamped.

@@ -7,7 +7,7 @@
 //     inside a cell's literal;
 //   * one element row per non-zero, labelled `name(r,c)`, a vector's too, in MATLAB's
 //     column-major order, and none past the row budget;
-//   * every element still in the Variable Editor's grid, and in what the writers read;
+//   * no Variable Editor grid: its rows are its non-zeros, and its elements are not held;
 //   * nothing in the tree that adds or removes an element.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -16,7 +16,7 @@ import { createSession } from '../src/index.js';
 import { buildOtherRows } from '../src/datamodel/node/piOther.js';
 import { encodeCdata, encodeMatVariable } from '../src/datamodel/parser/MatWriter.js';
 import { parseMatrix } from '../src/datamodel/parser/MatParser.js';
-import { subscriptLabel } from '../src/datamodel/display/Subscript.js';
+import { subscriptLabel, subscriptsLabel } from '../src/datamodel/display/Subscript.js';
 import { MAX_EXPANDED_ELEMENTS } from '../src/datamodel/display/DisplayConvention.js';
 import { cellVar, CLASS, matFile, numericVar, sparseVar } from './tools/matBytes.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
@@ -30,12 +30,12 @@ describe('a 1x1 sparse array', () => {
     // sparse(5). A 1x1 is otherwise a scalar, shown inline with no rows: shown as a
     // summary instead, a scalar's value would be nowhere on screen.
     const node = open([sparseVar({ name: 'x', dimensions: [1, 1], ir: [0], jc: [0, 1], real: [5] })]).children[0];
-    expect([node.displayValue, node.className, node.dims, node.Value]).toEqual(['<1x1 sparse double>', 'double', [1, 1], [5]]);
+    expect([node.displayValue, node.className, node.dims, node.isSparse]).toEqual(['<1x1 sparse double>', 'double', [1, 1], true]);
     expect(rows(node)).toEqual([['x(1,1)', '5']]);
     expect(node.children[0].valueEditable).toBe(true);
     expect(node.children[0].setProperty('Value', '9')).toBe(true);
     const written = decode(encodeMatVariable(node._var));
-    expect([written.isSparse, written.className, written.dimensions, written.value]).toEqual([true, 'double', [1, 1], 9]);
+    expect([written.isSparse, written.className, written.dimensions, [...written.sparse.re]]).toEqual([true, 'double', [1, 1], [9]]);
   });
 
   it('holding a zero, has no row', () => {
@@ -55,7 +55,7 @@ describe('a sparse array\'s rows', () => {
     const node = open([sparseVar({ name: 'v', dimensions: [1, 3], ir: [0], jc: [0, 0, 0, 1], real: [9] })]).children[0];
     expect(rows(node)).toEqual([['v(1,3)', '9']]);
     expect(subscriptLabel('v', 2, [1, 3], 'column-major', '()')).toBe('v(3)');
-    expect(subscriptLabel('v', 2, [1, 3], 'column-major', '()', true)).toBe('v(1,3)');
+    expect(subscriptsLabel('v', [1, 3], '()')).toBe('v(1,3)');
   });
 
   it('follow a rename of the array above them', () => {
@@ -64,21 +64,16 @@ describe('a sparse array\'s rows', () => {
     expect(rows(node)).toEqual([['w(2,1)', '4']]);
   });
 
-  it('stop at the row budget, counted in non-zeros, while the grid still lists every element', () => {
+  it('stop at the row budget, counted in non-zeros, and there is no grid to list them instead', () => {
     // A 1x20000 holding 10001 non-zeros: over the budget in rows, not in elements.
     const nnz = MAX_EXPANDED_ELEMENTS + 1;
     const ir = Array.from({ length: nnz }, () => 0);
     const jc = Array.from({ length: 20001 }, (_, c) => Math.min(c, nnz));
     const real = Array.from({ length: nnz }, (_, k) => k + 1);
     const node = open([sparseVar({ name: 'big', dimensions: [1, 20000], ir, jc, real })]).children[0];
-    expect([node.displayValue, node.children.length]).toEqual(['<1x20000 sparse double>', 0]);
-    const grid = node.displayElements();
-    expect(grid).toHaveLength(20000);
-    expect([grid[0], grid[nnz - 1], grid[nnz]]).toEqual([
-      { label: 'big(1,1)', value: '1' },
-      { label: `big(1,${nnz})`, value: String(nnz) },
-      { label: `big(1,${nnz + 1})`, value: '0' },
-    ]);
+    expect([node.displayValue, node.children.length, node.displayElements()]).toEqual(['<1x20000 sparse double>', 0, null]);
+    // What it holds is still every non-zero, for the writers.
+    expect([node._sparse.row.length, node._sparse.re[nnz - 1]]).toEqual([nnz, nnz]);
     // One under the budget is all rows.
     const under = open([sparseVar({ name: 'u', dimensions: [1, 20000], ir: ir.slice(1), jc: jc.map((j) => Math.min(j, nnz - 1)), real: real.slice(1) })])
       .children[0];
@@ -153,7 +148,7 @@ describe('a cell whose literal shows an element as a summary offers no in-cell e
       expect([c.displayValue, c.valueEditable], venue).toEqual(['{<1x3 sparse double>, [9 10]}', false]);
       const result = c.setProperty('Value', c.displayValue);
       expect(result, venue).toMatchObject({ error: true });
-      expect([c.children[0]._isSparse, c.children.map((e: any) => e.className)], venue).toEqual([true, ['double', 'double']]);
+      expect([c.children[0].isSparse, c.children.map((e: any) => e.className)], venue).toEqual([true, ['double', 'double']]);
       // Its elements still edit, the sparse one through its row.
       expect(c.children[1].valueEditable, venue).toBe(true);
       expect(c.children[1].setProperty('Value', '[9 11]'), venue).toBe(true);
@@ -166,13 +161,13 @@ describe('a cell whose literal shows an element as a summary offers no in-cell e
     const { s, src, c } = openText();
     s.setActive(src, c);
     expect(s.editProperty(c.id, 'Value', '{1, 2}')).toMatchObject({ error: true });
-    expect(c.children[0]._isSparse).toBe(true);
+    expect(c.children[0].isSparse).toBe(true);
     // An element's edit undoes as it did, and the cell is as it was.
     const el = c.children[1];
     s.setActive(src, el);
     expect(s.editProperty(el.id, 'Value', '[1 2 3]')).toBe(true);
     s.undo();
-    expect([el.displayValue, c.children[0]._isSparse, c.children[0].Value]).toEqual(['[9 10]', true, [0, 0, 9]]);
+    expect([el.displayValue, c.children[0].isSparse, rows(c.children[0])]).toEqual(['[9 10]', true, [['c{1}(1,3)', '9']]]);
     const saved = JSON.parse(s.serializeSource(src.name)!.text!);
     const entry = saved.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'c');
     expect(entry.value._elements[0]._type).toBe('cdata');
@@ -197,12 +192,12 @@ describe('a cell whose literal shows an element as a summary offers no in-cell e
   });
 });
 
-describe('a Simulink.Parameter whose Value is an all-zero sparse array keeps its Value row', () => {
+describe('a Simulink.Parameter whose Value is an all-zero sparse array has no Value row', () => {
   // The Value row exists only while the value has rows to expand into, and an all-zero
-  // sparse array has none: the Parameter lost its Value row, and with it the Variable
-  // Editor's grid, which a host offers on the Value row of a Parameter (and which a bare
-  // all-zero sparse variable keeps). A sparse Value keeps its row, as it did when every
-  // element was one. One too large to decode has no grid to offer, and stays rowless.
+  // sparse array has none. 1.36.2 kept the row anyway, for the Variable Editor's grid a
+  // host offers on the Value row of a Parameter; a sparse array has no grid now, so the
+  // row would reveal nothing, and the Parameter shows the value itself, as for any value
+  // with no rows.
   const parameter = (value: unknown): any =>
     createSession()
       .addDataSource('p.sldd', JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/sparse/sparse_text.sldd', import.meta.url)), 'utf8')))
@@ -217,14 +212,23 @@ describe('a Simulink.Parameter whose Value is an all-zero sparse array keeps its
     _value: encodeCdata({ name: '', className: 'double', dimensions: [rows, cols], isComplex: false, isLogical: false, isSparse: true, value, fields: null }),
   });
 
-  it('with its grid: every element, under the Value row', () => {
+  it('and no grid: the Parameter shows the value, whose rows are none', () => {
     const p = parameter(stream(2, 2, [0, 0, 0, 0]));
-    const value = p.children.find((c: any) => c.name === 'Value');
-    expect([p.displayValue, value?.displayValue, value?.children.length]).toEqual(['<2x2 sparse double>', '<2x2 sparse double>', 0]);
-    expect(value.displayElements().map((e: any) => `${e.label}=${e.value}`)).toEqual(['Value(1,1)=0', 'Value(1,2)=0', 'Value(2,1)=0', 'Value(2,2)=0']);
-    // And the structure-change hook, which re-decides the row, keeps it.
+    const value = p._valueNode;
+    expect([p.displayValue, p.children, value.isSparse, value.children.length, value.displayElements()]).toEqual([
+      '<2x2 sparse double>',
+      [],
+      true,
+      0,
+      null,
+    ]);
+    // And the structure-change hook, which re-decides the row, adds none.
     p.childStructureChanged(value);
-    expect(p.children).toEqual([value]);
+    expect(p.children).toEqual([]);
+    // One with a non-zero has its row, for that non-zero.
+    const one = parameter(stream(2, 2, [0, 3, 0, 0]));
+    expect(rows(one._valueNode)).toEqual([['Value(1,2)', '3']]);
+    expect(one.children).toEqual([one._valueNode]);
   });
 
   it('a full scalar Value still has none', () => {
@@ -235,11 +239,11 @@ describe('a Simulink.Parameter whose Value is an all-zero sparse array keeps its
 describe('a sparse array typed over with a full value forgets where its rows were', () => {
   it('its element rows are its elements again, and an edit lands on the one it names', () => {
     // A whole value typed in is the full array MATLAB makes of the literal, whose rows are
-    // every element. A sparse array's rows recorded their slots (_sparseSlots); left set,
-    // the first row's edit went to the slot the first NON-ZERO had held.
+    // every element. A sparse array's rows are its non-zeros (_sparse); left set, the first
+    // row's edit went to the first NON-ZERO.
     const node = open([sparseVar({ name: 'r', dimensions: [1, 5], ir: [0, 0], jc: [0, 0, 1, 1, 2, 2], real: [2, 4] })]).children[0];
     expect(node.setProperty('Value', '[1 2 3]')).toBe(true);
-    expect([node._isSparse, rows(node)]).toEqual([false, [['r(1)', '1'], ['r(2)', '2'], ['r(3)', '3']]]);
+    expect([node.isSparse, rows(node)]).toEqual([false, [['r(1)', '1'], ['r(2)', '2'], ['r(3)', '3']]]);
     expect(node.children[0].setProperty('Value', '9')).toBe(true);
     // `_elements` is the copy that outlives the rows: a removal collapses the array to
     // it, and undo restores from it.

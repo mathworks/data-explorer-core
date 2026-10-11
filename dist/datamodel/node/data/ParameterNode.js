@@ -12,6 +12,7 @@ import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
 import MatlabValueParser, { collapseExact } from '../../parser/MatlabValueParser.js';
 import { schemaColumns } from '../schemaBridge.js';
+import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 const CLASS_NAME = 'Simulink.Parameter';
 export default class ParameterNode extends DataNode {
     constructor(name, parent, props, serial) {
@@ -107,16 +108,11 @@ export default class ParameterNode extends DataNode {
             this.addChild(valueNode);
         }
     }
-    // A Value row when expanding it reveals something: element rows or fields — or a
-    // sparse array's Variable Editor grid, which a host offers on the Value row and which
-    // lists every element even where there are no rows (an all-zero one). Without it an
-    // all-zero sparse Value had no row and no grid. One too large to decode has no grid.
+    // A Value row when expanding it reveals something: element rows or fields. A sparse
+    // Value is no exception, now that a sparse array has no Variable Editor grid for a host
+    // to offer on the row: an all-zero one, which has no element rows, has no Value row.
     static _needsValueRow(valueNode) {
-        if (valueNode.children.length > 0) {
-            return true;
-        }
-        const v = valueNode;
-        return !!v._isSparse && !v._undecoded;
+        return valueNode.children.length > 0;
     }
     // Re-decide the Value row after an element or field was added to / removed from
     // the value node — the same rule _adoptValueNode applies at parse time, now that
@@ -351,12 +347,18 @@ export default class ParameterNode extends DataNode {
         return props;
     }
     serializeValue() {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeValue());
+        }
         const props = this._getSerializedProperties();
         const result = Object.assign({}, this.serial._rawVal);
         result._elements = [Object.assign({}, result._elements[0], { _properties: props })];
         return result;
     }
     serializeXml(tagName, attrs, indent) {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+        }
         return this._serializeSimulinkObjectXml(tagName, attrs, indent);
     }
     static get defaultName() { return 'Param'; }

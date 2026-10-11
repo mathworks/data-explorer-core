@@ -49,6 +49,16 @@ export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/Binary
 // write it. Prefer session.serializeSource() when a session already holds the file:
 // it picks the flavour the file arrived in, which this cannot know.
 export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
+// What a refused write throws, out of session.serializeSource(), an entry's serialize() (a
+// copy) or serializeEntryToXml() (a binary dictionary's paste and splice). A host has to
+// recognise the refusal to show it rather than fail on it: MatWriteError for a value the MAT
+// writer cannot write, and MatBudgetError, a MatWriteError, for one past the unbacked-bytes
+// budget, declaring dims that are not a size, or an extent past what a MAT stream can say —
+// final, with `entry`, `at` (the MATLAB path to what was refused), `what` (what stands
+// there, in words), `reason` ('budget', 'not-a-count', 'past-int32', 'not-an-index' for a
+// sparse array's non-zero at no row and column), `counted` (false when
+// its size is no count at all), and a message naming all of them for a user.
+export { MatWriteError, MatBudgetError } from './datamodel/parser/MatWriter.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';
 export { parseMdl } from './datamodel/parser/MdlParser.js';
 // The format-agnostic reader: `.slx` or either flavour of `.mdl`, decided by the

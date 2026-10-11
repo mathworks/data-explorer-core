@@ -14,6 +14,7 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
+import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 
 /**
  * A struct's field names, read from the bytes rather than trusted from a key MATLAB may
@@ -135,6 +136,9 @@ export default class StructNode extends DataNode {
     }
 
     serializeValue(): unknown {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeValue());
+        }
         // Untouched, or only renamed (DataNode.setProperty keeps `_rawInput` across a
         // rename, and every other edit drops it): see MatlabVariableNode.serializeValue.
         if (this._rawInput !== undefined) {
@@ -169,6 +173,11 @@ export default class StructNode extends DataNode {
     }
 
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string {
+        if (!writeUnderWay()) {
+            return oneWrite(() => this.serializeXml(tagName, attrs, indent));
+        }
+        // Dims no Dimension can spell, refused, finally (DataNode._spellableOrRefuse).
+        this._spellableOrRefuse(this.dims, 'struct');
         const p = xmlPad(indent);
         const d = this.dims;
         let attrStr = '';

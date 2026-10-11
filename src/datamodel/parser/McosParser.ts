@@ -2,7 +2,7 @@
 
 import { parseMatrix, MatVariable } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
-import { encodeCdata, matStreamOfElement } from './MatWriter.js';
+import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
 import {
   complexClassTag,
@@ -476,27 +476,17 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
   // Simulink.Parameter's sparse Value in a .mat, a model workspace or a binary dictionary
   // arrived full — one row per element and a dense literal, where its text dictionary's
   // twin, a stream, showed the sparse array it is — and a copy of the Parameter into a
-  // dictionary wrote it full. It is handed over as that stream: the cdata a text
-  // dictionary holds for the same Value, character for character (MatWriter.encodeSparse
-  // writes MATLAB's own bytes for one), read by the node layer as the twin's is. One the
-  // encoder refuses — too large for the reader to have decoded — takes the arms below,
-  // as it did.
+  // dictionary wrote it full. It is handed over as that stream, read by the node layer as
+  // the twin's is: the element it was read from (MatParser keeps a sparse cell's bytes),
+  // re-framed as a stream, which is the cdata a text dictionary holds for the same Value
+  // character for character. Not re-encoded: that ran on every open, and with a damaged
+  // dims word — one corrupted byte of a hex value — the encoder's column index was 2^31
+  // words, a fatal out-of-memory no caller could catch. And so of whatever class or shape
+  // its bytes say: one MatWriter cannot write (an int8 sparse array, which MATLAB never
+  // writes) shows as those bytes show anywhere, rather than as nothing.
   if (cell.isSparse) {
-    // One too large for MatParser to have decoded has no values to encode, but the bytes
-    // it was read from are that very stream (MatWriter.matStreamOfElement): handed over
-    // as them, it is the placeholder its text twin shows, and is copied into a dictionary
-    // as MATLAB wrote it. Spelled by the arms below it was an empty array.
-    if (cell.undecoded) {
-      const stream = cell._rawBytes ? matStreamOfElement(cell._rawBytes) : null;
-      if (stream) {
-        return { _type: 'cdata', _value: uuencode(stream) };
-      }
-    }
-    try {
-      return { _type: 'cdata', _value: encodeCdata(cell) };
-    } catch {
-      // As before.
-    }
+    const stream = cell._rawBytes ? matStreamOfElement(cell._rawBytes) : null;
+    return stream ? { _type: 'cdata', _value: uuencode(stream) } : undefined;
   }
   // Before the numeric arms below, every one of which would pass the { re, im } pairs
   // on to a node that cannot read them. Any numeric class: MatParser pairs the parts of

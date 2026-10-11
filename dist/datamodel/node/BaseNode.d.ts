@@ -106,13 +106,15 @@ export interface PIObject {
     showDefaultGroup: boolean;
 }
 export type MatlabVariableKind = 'scalar' | 'array' | 'cell' | 'string';
-export interface ElementSubscript {
+export type ElementSubscript = {
     index: number;
     dims: number[] | undefined;
     order: ElementOrder;
     bracket: Bracket;
-    full?: boolean;
-}
+} | {
+    at: number[];
+    bracket: Bracket;
+};
 /**
  * The node at or above `node`, within its entry, whose value is still the encoded byte
  * stream it was read from (DataNode._encoded, set by DataNode._adoptEncoded) — or null
@@ -133,6 +135,10 @@ export default class BaseNode {
     _subscript?: ElementSubscript;
     _kind?: MatlabVariableKind;
     _dims?: number[];
+    _writtenAt?: {
+        entry: string;
+        path: string;
+    };
     constructor(name: string, parent: BaseNode | null);
     get id(): string;
     get icon(): string;
@@ -159,6 +165,19 @@ export default class BaseNode {
     flatten(): BaseNode[];
     private _slotAmongSiblings;
     get displayName(): string;
+    /**
+     * Where this node is, in MATLAB's spelling from its entry's name — `c{2}`, `st.sp`,
+     * `pSp.Value`, `s(2).f` — its rows' own labels, joined by field and property names: what a
+     * refused write names. A node a writer built on its own says where it was built for
+     * (`_writtenAt`).
+     */
+    get matlabPath(): string;
+    /**
+     * This node's label as an element of its parent, the parent being called `parentLabel()`,
+     * or null when it is not one (a field, a property, a node with no parent): displayName's
+     * rule, and matlabPath's.
+     */
+    _labelUnder(parentLabel: () => string): string | null;
     get valueEditable(): boolean;
     get descriptionEditable(): boolean;
     getPropInfo(PropClassRef: PropClass): PropInfo;

@@ -7,6 +7,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import { type MatVariable } from '../../parser/MatParser.js';
 import { type EncodedValue } from '../../parser/EncodedValue.js';
+import { type SparseData } from '../../parser/SparseData.js';
 export type { MatVariable };
 export default class MatlabVariableNode extends DataNode {
     _kind: MatlabVariableKind;
@@ -18,8 +19,8 @@ export default class MatlabVariableNode extends DataNode {
     _matVar: MatVariable | null;
     _varStale: boolean;
     _isOpaque: boolean;
-    _isSparse: boolean;
-    _sparseSlots: number[] | null;
+    _sparse: SparseData | null;
+    _sparseEdited: boolean;
     _undecoded: boolean;
     _opaqueClassName: string | null;
     _mcosProperties: Record<string, unknown> | null;
@@ -32,12 +33,19 @@ export default class MatlabVariableNode extends DataNode {
     set Value(v: unknown);
     get elements(): unknown[];
     /**
+     * MATLAB's issparse(): is this a sparse array? One is held as its non-zeros alone
+     * (parser/SparseData), shows its summary, `<10x10 sparse double>`, has one element row per
+     * non-zero, labelled `name(r,c)` in column-major order, and has no Variable Editor grid:
+     * displayElements answers null for it. This is how a host tells one apart, to offer it
+     * no grid in the first place.
+     */
+    get isSparse(): boolean;
+    /**
      * Every element of this array as it stands, edits included, row-major: the value the
      * writers and the projections read. Off the child rows where they are the elements —
-     * an edit lands in the row first — and off `_elements` otherwise: an array never
-     * expanded, and a sparse one, whose rows are only its non-zeros. A sparse row's edit
-     * reaches `_elements` as it is made (_syncElementFromChild), so the whole value is
-     * there.
+     * an edit lands in the row first — and off `_elements` otherwise, an array never
+     * expanded. Not for a sparse array, whose elements are not held (_sparseFallback says
+     * what its writers do instead).
      */
     _liveElements(): unknown[];
     get dims(): number[];
@@ -88,14 +96,15 @@ export default class MatlabVariableNode extends DataNode {
      * objects started to decode. The element's ROW shows the object; the grid and the
      * one-line literal show what they always did, and agree with each other.
      *
-     * And one array whose children are not its elements: a sparse one's rows are its
-     * non-zeros, and the grid is still every element, zeros included, each labelled with
-     * both subscripts as its rows are. The grid places a cell by its label and draws
-     * nothing for a matrix with a cell unlabelled, so a list of the non-zeros would leave
-     * every sparse matrix without one. Every row is one of these entries.
-     *
      * null for a kind that has no elements (a scalar, a struct, an object): an empty
      * list is a different and also true answer, meaning an array with nothing in it.
+     *
+     * And null for a sparse array, which offers no grid. Its elements are not held — its
+     * non-zeros are, and they are its rows — so a grid of it would be the one place a sparse
+     * array is laid out densely: spTall's would be twenty million cells. The grid places a
+     * cell by its label and draws nothing for a matrix with a cell unlabelled, so a list of
+     * the non-zeros alone would draw nothing either; a host asks `isSparse` and offers no
+     * grid.
      */
     displayElements(): Array<{
         label: string;
@@ -152,6 +161,11 @@ export default class MatlabVariableNode extends DataNode {
      * always had to make the same distinction to set `isComplex`, and it asks here so
      * the projection and the serialization cannot disagree about what is complex; a
      * disagreement would mean writing a cdata stream built from a non-complex `_var`.
+     *
+     * A sparse array is the third shape, and says so itself: its non-zeros carry their
+     * imaginary parts or none (SparseData.im). Its complexity used to ride on the text of
+     * its zeros, `0+0i`, which kept it complex after every non-zero was set to a real
+     * number; it has no zeros to hold now.
      */
     _isComplexValue(): boolean;
     /**
@@ -172,14 +186,48 @@ export default class MatlabVariableNode extends DataNode {
      * package cannot make it. In order:
      *   - the stream it was read from, while that is still the value (a text dictionary's
      *     cdata, untouched or only renamed);
-     *   - for a value the reader recorded without decoding (`_undecoded`: a sparse array
-     *     past MatParser's dense limit), the element it was read from, re-framed as a stream
-     *     (MatWriter.matStreamOfElement) — nothing else holds its values, and without this a
-     *     copy of one out of a .mat wrote the text of its placeholder;
+     *   - for a value the reader recorded without decoding (`_undecoded`), the element it was
+     *     read from, re-framed as a stream (MatWriter.matStreamOfElement) — nothing else holds
+     *     its values, and without this a copy of one out of a .mat wrote the text of its
+     *     placeholder;
+     *   - for a sparse array no element row has edited, the element it was read from, the same
+     *     way: its own bytes, which for every array MATLAB wrote are the bytes MatWriter would
+     *     write, and for one MatWriter refuses — a dims word damaged, a class MATLAB never
+     *     stores sparse — the only ones there are. So copying one, at any size, never
+     *     re-encodes it;
      *   - otherwise what MatWriter writes for the live value, which is MATLAB's own bytes for
-     *     a sparse array (MatWriter.encodeSparse); null for what MatWriter refuses.
+     *     a sparse array, written from its non-zeros (MatWriter.encodeSparse); null for what
+     *     MatWriter has no spelling for, which a caller writes its own way.
+     *
+     * Except past the unbacked-bytes budget: that refusal is final, and it is thrown, restated
+     * with the entry and the path (_budgetFailure), so the copy or the save asking fails and
+     * nothing else is written in the value's place.
      */
     _matStream(): Uint8Array | null;
+    /** A budget refusal of a write that began at this node, restated for a user. */
+    /**
+     * Why MatWriter could not write this sparse array once an element of it were edited — its
+     * file declares more columns than its column index held, or its class is one MATLAB never
+     * stores sparse — or null when it could, and for anything not sparse. Such an array is
+     * written as the bytes it was read from, so its rows take no edit (valueEditable,
+     * _setConstrainedValue): one would never reach the file.
+     */
+    _sparseRefusal(): string | null;
+    /**
+     * A sparse array's every element, row-major, as a full array's are held — for the writers'
+     * fallbacks alone (_serializeArray, _serializeArrayXml), which spell a value as a literal
+     * when it has no stream: a sparse array MatWriter will not write, of a class or a rank
+     * MATLAB never stores sparse, which only a damaged file holds — never one refused for the
+     * budget, which is final (_matStream). Null past SparseData.MAX_DENSE_ELEMENTS, where there
+     * is nothing to spell the elements with. Never the value itself, which is the non-zeros.
+     *
+     * Every element it does not hold is a zero no data backs, so they come out of the write's
+     * budget (MatWriter.spendUnbacked), at eight bytes apiece, what each costs in the list, and
+     * past it the write fails as any refused for the budget does (_budgetFailure): a cell of
+     * int8 sparse arrays a host built, none of which MatWriter can write sparse, was a million
+     * zeros apiece.
+     */
+    _sparseFallback(): (number | string)[] | null;
     _serializeScalar(): unknown;
     _serializeArray(): unknown;
     _serializeStructValue(): unknown;
@@ -191,6 +239,28 @@ export default class MatlabVariableNode extends DataNode {
     _serializeCellXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _serializeStringXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     get _var(): MatVariable;
+    /**
+     * For a sparse array read out of a MAT stream — a text dictionary's cdata, a binary one's
+     * hex — the element in it, as one read out of a file keeps it (MatParser's `_rawBytes`):
+     * while nothing edits the array it is what it is written as, alone (_matStream) and as a
+     * member of a cell or a struct written whole (MatWriter.memberElement). Without it, a cell
+     * of 80,000 of them pasted into a binary dictionary re-encoded each one from its non-zeros.
+     */
+    _keepStreamElement(stream: Uint8Array): void;
+    /**
+     * Refuses a variable with no own bytes whose dims are no size — a host's bigints, which
+     * show as not decoded (parseMatVariable) — as every writer must: finally, naming it, and
+     * never as the text of its placeholder.
+     */
+    _refuseNoSize(): void;
+    /**
+     * The variable a member of a cell or a struct is written from. A member of another class
+     * — a struct a text dictionary read as a StructNode, a Simulink object — has none here: it
+     * stands in as one MatWriter refuses (`_unwritable`), with the dims it declares, so that a
+     * container written whole as one stream is refused rather than writing it as a hole, `[]`,
+     * and a member whose dims are not a size is refused as that, finally, naming it.
+     */
+    static _memberVar(node: BaseNode): MatVariable;
     _buildVarObject(): MatVariable;
     static parseMatVariable(variable: MatVariable, name: string, parent: BaseNode | null): DataNode;
     static _createOpaque(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;

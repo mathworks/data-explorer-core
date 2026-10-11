@@ -70,6 +70,19 @@ function open(session = createSession(), file = 'sparse_binary.sldd'): any {
 /** Every node at or under `node`. */
 const subtree = (node: any): any[] => [node, ...node.children.flatMap(subtree)];
 
+/**
+ * The matrix a sparse variable read back stands for, row-major, a complex element as
+ * `{ re, im }`: the reader holds only its non-zeros (MatVariable.sparse), so the test lays
+ * them out to state the value as MATLAB's full() would.
+ */
+function denseOf(v: any): unknown[] {
+  const s = v.sparse;
+  const [rows, cols] = v.dimensions;
+  const out: unknown[] = Array.from({ length: rows * cols }, () => (s.im ? { re: 0, im: 0 } : 0));
+  for (let k = 0; k < s.row.length; k++) out[s.row[k] * cols + s.col[k]] = s.im ? { re: s.re[k], im: s.im[k] } : s.re[k];
+  return out;
+}
+
 describe('the fixture is what these tests need', () => {
   it('MATLAB wrote seventeen entries as hex, of every kind the generator meant to', () => {
     expect(HEX).toHaveLength(17);
@@ -255,12 +268,12 @@ describe('a text dictionary\'s MAT stream pasted into a binary dictionary goes i
     const tag = valueTag(serializeEntryToXml(edited), 'spRowEdited');
     expect(tag).toMatch(/^<P Name="Value" Class="double" Encoding="hex" EncodedLength="\d+">/);
     const v: any = readMxArrayRecords(hexBytes(tag).buffer).outer;
-    expect([v.isSparse, v.className, v.dimensions, v.value]).toEqual([true, 'double', [1, 5], [0, 7, 0, 4, 0]]);
+    expect([v.isSparse, v.className, v.dimensions, denseOf(v)]).toEqual([true, 'double', [1, 5], [0, 7, 0, 4, 0]]);
   });
 
   it('a renamed one is still the hex MATLAB writes for it, and the dictionary reopens with it', () => {
     // A rename kept the encoded stream of a value READ from hex, and dropped the stream a
-    // pasted value still was: spDiag went out full, and spTall — too large to decode —
+    // pasted value still was: spDiag went out full, and spTall — then too large to decode —
     // as `Class="double"><10000000x2 double, not decoded></P>`, unescaped, which MATLAB
     // refused to open the whole dictionary over while this package reopened it as `0`.
     const session = createSession();
@@ -330,7 +343,7 @@ describe('a text dictionary\'s MAT stream pasted into a binary dictionary goes i
       expect(tag, name).toMatch(new RegExp(`^<P Name="Value" Class="${want.cls}" Encoding="hex" EncodedLength="\\d+">`));
       const v: any = readMxArrayRecords(hexBytes(tag).buffer).outer;
       expect([v.isSparse, v.isComplex], name).toEqual([true, want.complex]);
-      const flat = (v.value as any[]).map((x) => (typeof x === 'object' ? x : { re: x, im: 0 }));
+      const flat = denseOf(v).map((x: any) => (typeof x === 'object' ? x : { re: x, im: 0 }));
       // Column-major, as the twins above are spelled.
       const [rows, cols] = v.dimensions;
       const colMajor: any[] = [];
@@ -397,11 +410,12 @@ describe('an entry pasted across the two dictionary formats carries its metadata
 
 describe('a .mat\'s sparse array pasted into a dictionary is the stream MATLAB writes for it there', () => {
   // test/fixtures/sparse/sparse_values.mat holds the same values. A sparse array decoded
-  // out of it is written by MatWriter, whose bytes are MATLAB's; spTall, too large to
-  // decode, has no values to write from but the element the .mat holds, re-framed as a
-  // stream (MatWriter.matStreamOfElement) — without that it went in as the text of its
-  // placeholder: a char in a text dictionary, and in a binary one an unescaped
-  // `<10000000x2 double, not decoded>` that made the file one MATLAB would not open.
+  // out of it is written by MatWriter from its non-zeros, whose bytes are MATLAB's — spTall
+  // too, 10000000x2: until 1.36.3 it was too large to decode, and was written from the
+  // element the .mat holds, re-framed as a stream (MatWriter.matStreamOfElement); before
+  // that it went in as the text of its placeholder: a char in a text dictionary, and in a
+  // binary one an unescaped `<10000000x2 double, not decoded>` that made the file one
+  // MATLAB would not open.
   const session = createSession();
   const mat: any = ingest(session, buffer(fixture('sparse_values.mat')), { filename: 'sparse_values.mat' });
   const binary = open(session);
@@ -431,7 +445,7 @@ describe('a .mat\'s sparse array pasted into a dictionary is the stream MATLAB w
     expect(tag).toMatch(/^<P Name="Value" Class="cell" Encoding="hex" EncodedLength="\d+">/);
     const outer: any = readMxArrayRecords(hexBytes(tag).buffer).outer;
     const inner = outer.value[0].value[0];
-    expect([outer.className, outer.value[0].className, inner.isSparse, inner.value]).toEqual(['cell', 'cell', true, [1, 0, 2, 0, 3, 0]]);
+    expect([outer.className, outer.value[0].className, inner.isSparse, denseOf(inner)]).toEqual(['cell', 'cell', true, [1, 0, 2, 0, 3, 0]]);
   });
 });
 
