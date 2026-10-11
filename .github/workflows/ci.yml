@@ -6,6 +6,18 @@ on:
   pull_request:
     branches: [main]
 
+# Reading is all the token does here: checkout, and, only when the runner's
+# tool cache lacks the Node asked for, setup-node's lookup of the Node release
+# manifest. This workflow writes nothing back — no comment, no commit, no
+# release — and setup-node saves its npm cache with the runner's own token,
+# which `permissions` does not govern. Spelled out rather than left to the
+# repository default, which lives in the settings rather than in this file
+# and can grant write to almost every scope without anyone touching a
+# workflow file. Mirrors release.yml, which asks for `contents: write`
+# because it genuinely creates a GitHub Release.
+permissions:
+  contents: read
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
