@@ -152,15 +152,21 @@ describe('every raw property arm refuses dims no Dimension can spell, naming the
   }
 });
 
-describe('a binary dictionary\'s Dimension is written back as it was read', () => {
-  it('1*2.5, 1*4294967296 and 0*2147483648, verbatim on a no-op save, as at 6402869', () => {
+describe('after the reverts, the readers are 6402869\'s: Dimensions and dims past an int32 are held as read', () => {
+  it('binary 1*2.5, 1*4294967296 and 0*2147483648: a no-op save writes each Value as 6402869 did', () => {
+    // Each pair: the Value as the file holds it, and as a no-op save writes it — the same
+    // bytes 6402869's dist writes for each (compared against `git archive 6402869 dist`).
+    // Two are not the file's own bytes at 6402869 either: an empty struct array is written
+    // with one empty <Element>, and a double's body read as its two numbers is 1x2.
+    const values: [string, string, string][] = [
+      ['f', '<P Name="Value" Class="cell" Dimension="1*2.5">\n            <Element Class="double">1.0</Element>\n        </P>', '<P Name="Value" Class="cell" Dimension="1*2.5">\n            <Element Class="double">1.0</Element>\n        </P>'],
+      ['w', '<P Name="Value" Class="cell" Dimension="1*4294967296">\n            <Element Class="double">1.0</Element>\n        </P>', '<P Name="Value" Class="cell" Dimension="1*4294967296">\n            <Element Class="double">1.0</Element>\n        </P>'],
+      ['z', '<P Name="Value" Class="double" Dimension="0*2147483648"/>', '<P Name="Value" Class="double" Dimension="0*2147483648"/>'],
+      ['zs', '<P Name="Value" Class="struct" Dimension="0*2147483648"/>', '<P Name="Value" Class="struct" Dimension="0*2147483648">\n            <Element>\n            </Element>\n        </P>'],
+      ['d', '<P Name="Value" Class="double" Dimension="1*2.5">1.0 2.0</P>', '<P Name="Value" Class="double" Dimension="1*2">1.0 2.0</P>'],
+    ];
     const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
     const xml = strFromU8(files['data/chunk0.xml']);
-    const values: [string, string][] = [
-      ['f', '<P Name="Value" Class="cell" Dimension="1*2.5">\n            <Element Class="double">1.0</Element>\n        </P>'],
-      ['w', '<P Name="Value" Class="cell" Dimension="1*4294967296">\n            <Element Class="double">1.0</Element>\n        </P>'],
-      ['z', '<P Name="Value" Class="double" Dimension="0*2147483648"/>'],
-    ];
     const fragment = (name: string, n: number, value: string) =>
       `    <Object Class="DD.ENTRY">\n        <P Name="Name" Class="char">${name}</P>\n        <P Name="UUID" Class="char">00000000-0000-4000-ef20-00000000001${n}</P>\n`
       + `        <P Name="Namespace" Class="char">dacaf35e-55a5-454d-a7c1-93db038a210e</P>\n        <P Name="LastMod" Class="char">20261011T000000.000000</P>\n`
@@ -168,10 +174,30 @@ describe('a binary dictionary\'s Dimension is written back as it was read', () =
     files['data/chunk0.xml'] = strToU8(xml.replace('    <Object Class="DD.Dictionary">', values.map(([n, v], i) => fragment(n, i, v)).join('') + '    <Object Class="DD.Dictionary">'));
     const session = createSession();
     const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
+    expect(root.warnings ?? []).toEqual([]);
     const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+    for (const [name, , written] of values) {
+      const from = saved.indexOf('<P Name="Value"', saved.indexOf(`<P Name="Name" Class="char">${name}</P>`));
+      expect(saved.slice(from, saved.indexOf('</Object>', from)).trimEnd(), name).toBe(written);
+    }
+  });
+
+  it('text Matrix(0,2^31) and _dimensions [0,2^31] read as themselves, with no warning, and saved as read', () => {
+    const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+    const values: [string, unknown][] = [
+      ['ts', { _type: 'sparse', _value: 'Matrix(0,2147483648)\n[]' }],
+      ['td', { _type: 'double', _value: 'Matrix(0,2147483648)\n[]' }],
+      ['tc', { _array_type: 'Cell', _dimensions: [0, 2147483648], _elements: [], _mw_element_type: 'MATLABArray' }],
+      ['tstr', { _array_type: 'String', _dimensions: [0, 2147483648], _elements: [] }],
+      ['tst', { _array_type: 'Struct', _dimensions: [0, 2147483648], _elements: [], _fields: ['f'] }],
+    ];
+    values.forEach(([name, value], i) => entriesOf(json).push({ name, metadata: { uuid: `00000000-0000-4000-ef30-00000000000${i}` }, value }));
+    const session = createSession();
+    const root: any = ingest(session, buffer(strToU8(JSON.stringify(json))), { filename: TEXT });
+    expect((root.warnings ?? []).filter((w: any) => values.some(([n]) => n === w.part))).toEqual([]);
+    const saved = entriesOf(JSON.parse(session.serializeSource(root.name)!.text!));
     for (const [name, value] of values) {
-      const from = saved.indexOf(`<P Name="Name" Class="char">${name}</P>`);
-      expect(saved.slice(from, saved.indexOf('</Object>', from)), name).toContain(value.split('\n')[0]);
+      expect([root.getSection('design').children.find((e: any) => e.name === name).dims, saved.find((e: any) => e.name === name).value], name).toEqual([[0, 2147483648], value]);
     }
   });
 });
