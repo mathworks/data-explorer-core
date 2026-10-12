@@ -802,6 +802,41 @@ export default class MatlabVariableNode extends DataNode {
         // refusing is the honest one here.
         const isLogicalElement = isArrayElement && parent._scalarType === 'logical';
         const parsed = MatlabValueParser.parse(stringValue);
+        // An element of a complex array takes a complex value too, held as every reader holds
+        // one: a 'complex' scalar whose value is its text (_isComplexValue reads the array's
+        // complexity off that text). Refused, `3+4i` typed into one went nowhere, and neither
+        // did the session's undo of any edit to one, which sets the element back to the text it
+        // showed (DataModel's readPropertyValue): `1+2i` was refused with nothing said, and the
+        // next save wrote the edit it was meant to undo.
+        //
+        // The element's own spelling is taken as written: it is what every reader stores and
+        // every writer reads (XmlUtils.parseComplexNum), and what the element shows, so an undo
+        // puts back the very element it was, a `-0-3i` or an Inf or NaN part included, which
+        // MatlabValueParser reads differently or not at all. Anything else MatlabValueParser
+        // reads as complex is held as it makes it (`3i` is `0+3i`), as a complex scalar typed
+        // whole is (_applyParsed). A real number goes on below, as it always has.
+        //
+        // Not into a REAL array, for the reason a logical one takes only 0 and 1: MATLAB's
+        // answer to `x(1) = 3+4i` is to make the whole ARRAY complex, which an element editor
+        // cannot express. `_elementType` is the array's complexity as it was built, not
+        // _isComplexValue's reading of its elements now, so an array whose elements have all
+        // been set to real numbers still takes back the complex ones an undo restores.
+        if (isArrayElement && parent._elementType === 'complex' && parsed?.type !== 'double') {
+            const typed = stringValue.trim();
+            const text = parseComplexNum(typed, parent._scalarType)
+                ? typed
+                : parsed?.type === 'complex'
+                    ? String(parsed.value)
+                    : null;
+            if (text !== null) {
+                this._scalarType = 'complex';
+                this._scalarValue = text;
+                parent._syncElementFromChild(this);
+                parent._rawInput = undefined;
+                this._markModified();
+                return true;
+            }
+        }
         let accepted;
         if (isLogicalElement) {
             accepted = parsed?.type === 'logical' || (parsed?.type === 'double' && (parsed.value === 0 || parsed.value === 1));
