@@ -392,4 +392,83 @@ describe('ObjectNode keeps the `_`-named keys of its property bag', () => {
       expect(valueOf(serializeEntryToXml(entry).replace('>aVariant2<', '>aVariant<'))).toBe(written);
     });
   });
+
+  describe('in a binary dictionary, where the saveobj envelope is the only one with an XML spelling', () => {
+    // MATLAB writes a table's `_overridden_*` keys into a text dictionary and not into a binary
+    // one: the corpus's binary twin of parity/dNJSON_SLDDApi.sldd holds the same table with none
+    // of them. Nor can the XML spell them, because no `_`-named key but SAVEOBJ_KEY has a <P>
+    // spelling (DataNode.pxAttrs), so one goes out as `<P Name="_overridden_data" …>`, a property
+    // the class does not have. A host pastes a text dictionary's entry into a binary one from its
+    // JSON (entry.serialize(), then section.parseEntry), so the keys do arrive in a binary
+    // dictionary's nodes, and here they are pasted along every route a table takes into the
+    // XML: its own entry, a struct field, a cell element, an object array's element, an
+    // object's property in both of its shapes, and a Parameter's Value.
+    const RESERVED = ['_overridden_arrayProps', '_overridden_data', '_overridden_metaDim', '_overridden_rowDim', '_overridden_varDim'];
+    const PROPS = ['data', 'ndims', 'nrows', 'nvars', 'rownames', 'varnames'];
+    const tableProps = () => ({
+      ...Object.fromEntries(RESERVED.map((k) => [k, []])),
+      data: { _array_type: 'Cell', _dimensions: [1, 2], _elements: [1, 2] },
+      ndims: 2, nrows: 1, nvars: 2,
+      rownames: { _array_type: 'Cell', _dimensions: [0, 0], _elements: [] },
+      varnames: { _array_type: 'Cell', _dimensions: [1, 2], _elements: ['Var1', 'Var2'] },
+    });
+    const table = () => ({ _array_class: 'table', _dimensions: [1, 1], _elements: [{ _id: '3', _properties: tableProps() }] });
+    const struct = (fields: Record<string, unknown>[]) => ({ _array_type: 'Struct', _dimensions: [1, fields.length], _elements: fields, _mw_element_type: 'MATLABArray' });
+    const gravity = content(JSON.parse(read('./parity/artifacts/text/params.sldd').toString('utf8'))).entries.find((e: any) => e.name === 'gravity').value;
+    const inParameter = JSON.parse(JSON.stringify(gravity));
+    inParameter._elements[0]._properties.Value = table();
+    const VALUES: Record<string, [unknown, number]> = {
+      tbl: [table(), 1],
+      inStruct: [struct([{ fTable: table(), fVar: 1 }]), 1],
+      inCell: [{ _array_type: 'Cell', _dimensions: [1, 2], _elements: [table(), 1] }, 1],
+      tableArray: [{ _array_class: 'table', _dimensions: [1, 2], _elements: [{ _properties: tableProps() }, { _properties: tableProps() }] }, 2],
+      inObject: [valueObject('My.Thing', [{ T: table(), x: 1 }]), 1],
+      inNestedObject: [valueObject('My.Thing', [{ T: { _object_class: 'table', _properties: tableProps() }, x: 1 }]), 1],
+      inParameter: [inParameter, 1],
+    };
+    const text = (() => {
+      const json = JSON.parse(read('./fixtures/rt_text.sldd').toString('utf8'));
+      const entries = content(json).entries;
+      Object.entries(VALUES).forEach(([name, [value]], i) => {
+        entries.push({ name, metadata: { ...entries[0].metadata, uuid: `a43e9523-8ba6-426a-b689-6e7d8590${1000 + i}` }, value });
+      });
+      return JSON.stringify(json, null, '\t');
+    })();
+    // The <P> names directly under every table element in `xml`, one list per table.
+    const tablePs = (xml: string): string[][] =>
+      xml.split('<Element Class="table">').slice(1).map((after) => {
+        const depth = (after.match(/^\n( *)/) as RegExpMatchArray)[1];
+        const body = after.slice(0, after.indexOf('\n' + depth.slice(4) + '</Element>'));
+        return [...body.matchAll(new RegExp('^' + depth + '<P Name="([^"]+)"', 'gm'))].map((m) => m[1]);
+      });
+
+    it.each(Object.keys(VALUES))('writes none of a table\'s from %s pasted in, and the copy keeps them', (name) => {
+      const tables = VALUES[name][1];
+      const entry = ingest(createSession(), text, { filename: 'gadget.sldd' }).flatten().find((n: any) => n.name === name) as any;
+      const payload = JSON.parse(JSON.stringify(entry.serialize()));
+      expect(JSON.stringify(payload).split('"_overridden_').length - 1).toBe(RESERVED.length * tables);
+
+      const session = createSession();
+      const binary: any = ingest(session, read('./parity/artifacts/binary/cases.sldd'), { filename: 'cases.sldd' });
+      const design = binary.getSection('design');
+      const pasted = design.parseEntry({ ...payload, name: name + 'Pasted', metadata: { ...design.children[0].metadata, uuid: 'b43e9523-8ba6-426a-b689-6e7d85901372' } });
+      const fragment = serializeEntryToXml(pasted);
+      const chunk = strFromU8(unzipSync((session.serializeSource(binary.name) as { bytes: Uint8Array }).bytes)['data/chunk0.xml']);
+      expect(tablePs(fragment)).toEqual(Array(tables).fill(PROPS));
+      expect(chunk).toContain('<P Name="Name" Class="char">' + name + 'Pasted</P>');
+      expect(chunk).not.toContain('_overridden_');
+    });
+
+    it('writes none of them from a text dictionary\'s entry either, where the object writes its own XML', () => {
+      // Not a host's route, since a host writes XML for a binary dictionary only, but the XML
+      // writer cannot spell them for any dictionary. Left out: an object nested in another
+      // node's property bag, which that node's XML spells from the object's JSON, and which in
+      // a text dictionary has to keep them.
+      const source: any = ingest(createSession(), text, { filename: 'gadget.sldd' });
+      for (const name of ['tbl', 'inStruct', 'inCell', 'tableArray']) {
+        const xml = serializeEntryToXml(source.flatten().find((n: any) => n.name === name));
+        expect([name, tablePs(xml)]).toEqual([name, Array(VALUES[name][1]).fill(PROPS)]);
+      }
+    });
+  });
 });

@@ -8,7 +8,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { OBJECT_ICON } from '../icons.js';
-import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
+import { escapeXml, pad as xmlPad, SAVEOBJ_KEY } from '../../parser/XmlUtils.js';
 import { effectiveDims, summaryForm } from '../../display/DisplayConvention.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 import { setOwn } from '../../parser/ownKeys.js';
@@ -103,7 +103,10 @@ export default class ObjectNode extends DataNode {
             });
             return { ...rawVal, _elements: elements };
         }
-        const props = this._getSerializedProperties();
+        // In a binary dictionary this JSON is what the XML is spelled from wherever a parent
+        // writes this object from its value (an object's property, a Parameter's Value), and
+        // what a copy out of it carries, so there it holds only the reserved keys XML can spell.
+        const props = this._rebuiltProperties(this._ownerFormat() === 'xml');
         // Nested-object form { _id?, _object_class, _properties }: keep the identity
         // keys, replace only _properties.
         if (rawVal._object_class) {
@@ -159,10 +162,14 @@ export default class ObjectNode extends DataNode {
         xml += p + '</' + tagName + '>';
         return xml;
     }
+    // The property bag the XML writers iterate into <P>s: _serializeSimulinkObjectXml, and
+    // serializeXml for each element of an object array.
+    _getSerializedProperties() {
+        return this._rebuiltProperties(true);
+    }
     // The property bag rebuilt from live children, in the stored bag's own key order. Each
     // property's value is its child's own serialized form, so a nested object/struct/cell
-    // edit recurses through the same path. Feeds both the JSON (serializeValue) and XML
-    // (_serializeSimulinkObjectXml) write-back paths.
+    // edit recurses through the same path.
     //
     // A reserved key has no child to be rebuilt from (_addPropertyChildren), so it is
     // carried across from the stored bag, in its place: rebuilding from children alone
@@ -171,11 +178,14 @@ export default class ObjectNode extends DataNode {
     // hold its reserved keys first, so writing them first would reorder a bag on every save.
     // setOwn because the names are the file's: `__proto__` is a reserved key too, and an
     // assignment would hand it to the prototype setter.
-    _getSerializedProperties() {
+    //
+    // `forXml` keeps only the one reserved key XML can spell, SAVEOBJ_KEY, which goes out as
+    // MATLAB's unnamed saveobj <P> (DataNode.pxAttrs). Any other went out as a named <P>, such
+    // as `<P Name="_overridden_data" …>`: a property the class does not have, in a format
+    // MATLAB does not write these keys into, since its binary dictionary holds a table with
+    // none of them.
+    _rebuiltProperties(forXml) {
         const stored = this._storedProperties();
-        if (this.children.length === 0) {
-            return { ...stored };
-        }
         const rows = new Map();
         for (const child of this.children) {
             if (!rows.has(child.name)) {
@@ -189,7 +199,7 @@ export default class ObjectNode extends DataNode {
                 setOwn(props, key, row.serializeValue());
                 rows.delete(key);
             }
-            else if (key.charAt(0) === '_') {
+            else if (key.charAt(0) === '_' && (!forXml || key === SAVEOBJ_KEY)) {
                 setOwn(props, key, stored[key]);
             }
         }
