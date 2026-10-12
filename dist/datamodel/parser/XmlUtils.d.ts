@@ -163,6 +163,22 @@ export declare function charTextFromCodes(rowMajorCodes: number[], dims: number[
  * which is the whole reason charNeedsShape exists.
  */
 export declare function formatMxCharSerial(text: string, dims: number[]): string;
+/**
+ * The attributes after `Class="char"` and the body, for a char MATLAB writes as its codes
+ * (WRITTEN_AS_CODES above), whose stored text is `text` and whose extents are `dims`; null for
+ * a char it writes as text. Written as text, such a char is either not XML at all (char(1))
+ * or not the char MATLAB reads back.
+ */
+export declare function decimalCharXml(text: string, dims: number[]): {
+    attrs: string;
+    body: string;
+} | null;
+/**
+ * The stored text a `Format="decimal"` body spells, each whitespace-separated token one
+ * UTF-16 code unit; null for a body that is not such a list (a token that is not digits, or
+ * is past 65535), which a reader then keeps as the text it is rather than as NULs.
+ */
+export declare function charFromDecimal(body: string): string | null;
 export declare function formatComplexXml(complexStr: string): string;
 /**
  * A complex value's body as a binary dictionary's `<P Class="…" IsComplex="1">` carries it,
