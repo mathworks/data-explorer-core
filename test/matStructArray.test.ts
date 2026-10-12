@@ -8,6 +8,10 @@ import { describe, it, expect } from 'vitest';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import type { MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { loadFile, findEntry } from './parity/loadFile.js';
+import { parseMat } from '../src/datamodel/parser/MatParser.js';
+import { encodeMatVariable } from '../src/datamodel/parser/MatWriter.js';
+import { matFile } from './tools/matBytes.js';
+import { createSession, ingest } from '../src/index.js';
 
 function num(name: string, v: number): MatVariable {
   return {
@@ -144,5 +148,120 @@ describe('MAT struct array write-back', () => {
     const rebuilt = (node as any)._var;
     expect(Array.isArray(rebuilt.fields.a)).toBe(false);
     expect(rebuilt.fields.a.value).toBe(8);
+  });
+});
+
+// A field name is the FILE's word, and MatParser gathered a struct's fields into a
+// plain `{}` keyed by it. `constructor`, `toString`, `valueOf` and `hasOwnProperty`
+// are legal MATLAB field names, and for a struct ARRAY the gather asked
+// `if (!fields[fn]) fields[fn] = []` — which found the INHERITED member, skipped the
+// `[]`, and called `.push` on a function: "fields[fn].push is not a function", and the
+// whole .mat failed to open. `__proto__` is not a MATLAB name (an identifier starts
+// with a letter) but a file can spell it, and on a plain `{}` the write is the prototype
+// setter: in a struct array it threw the same way, and in a 1x1 struct the field
+// silently vanished. Each is now a field like any other.
+//
+// The files are written by core's own encodeMatVariable, which takes the names as given.
+describe('a MAT struct field named after an Object.prototype member', () => {
+  const INHERITED = [
+    'constructor', 'toString', 'valueOf', 'hasOwnProperty', 'isPrototypeOf',
+    'propertyIsEnumerable', 'toLocaleString', '__proto__', '__defineGetter__',
+  ];
+
+  // `s`, a struct of `dims` with fields `a` and `name`, element k holding a = k and
+  // name = 10k. Object.fromEntries makes `__proto__` an OWN key of the input, as a
+  // parsed file would have it, rather than a prototype.
+  function matWithField(name: string, dims: number[]): ArrayBuffer {
+    const n = dims.reduce((x, y) => x * y, 1);
+    const column = (scale: number) => Array.from({ length: n }, (_, k) => num('', scale * (k + 1)));
+    const pick = (vars: MatVariable[]) => (n === 1 ? vars[0] : vars);
+    const s: MatVariable = {
+      name: 's', className: 'struct', dimensions: dims, isComplex: false, isLogical: false, value: null,
+      fields: Object.fromEntries([['a', pick(column(1))], [name, pick(column(10))]]) as never,
+    };
+    return matFile([named(encodeMatVariable(s), 's', dims.length)]);
+  }
+
+  // encodeMatVariable writes a MEMBER's element, whose array name is empty: an 8-byte
+  // miINT8 element after the miMATRIX tag, the array flags and the dims (offset 40 for
+  // rank 2, 48 for rank 3). A top-level element with no name is the subsystem to
+  // MatParser, so the variable is named here, in the small-element form, which fits the
+  // same 8 bytes.
+  function named(element: Uint8Array, name: string, rank: number): Uint8Array {
+    const at = 8 + 16 + 8 + Math.ceil((4 * rank) / 8) * 8;
+    const out = element.slice();
+    const view = new DataView(out.buffer);
+    expect([view.getUint32(at, true), view.getUint32(at + 4, true)]).toEqual([1, 0]);
+    view.setUint16(at, 1, true);
+    view.setUint16(at + 2, name.length, true);
+    out.set(new TextEncoder().encode(name), at + 4);
+    return out;
+  }
+
+  // What the tree shows, opened as a host opens it: each field by name and value,
+  // per element row for a struct array (`s(1)`, `s(2)`), directly under `s` for a 1x1.
+  function shownFields(buffer: ArrayBuffer): unknown {
+    const source = ingest(createSession(), buffer, { filename: 's.mat' });
+    const s = source.children.find((c) => c.name === 's') as any;
+    const row = (node: any) => node.children.map((f: any) => [f.name, f.displayValue]);
+    return s.displayValue === '<1x1 struct>' ? row(s) : s.children.map(row);
+  }
+
+  it.each(INHERITED)('reads a 1x2 struct array with a field called %s', (name) => {
+    const parsed = parseMat(matWithField(name, [1, 2]));
+    const fields = parsed.variables[0].fields!;
+    expect(Object.keys(fields)).toEqual(['a', name]);
+    expect(Object.prototype.hasOwnProperty.call(fields, name)).toBe(true);
+    // parseMat is public: the bag it hands out is an ordinary object, as every other
+    // parsed bag is, so a consumer's `fields.hasOwnProperty(…)` and `String(fields)` work.
+    expect(Object.getPrototypeOf(fields)).toBe(Object.prototype);
+    expect((fields[name] as MatVariable[]).map((v) => v.value)).toEqual([10, 20]);
+
+    expect(shownFields(matWithField(name, [1, 2]))).toEqual([
+      [['a', '1'], [name, '10']],
+      [['a', '2'], [name, '20']],
+    ]);
+  });
+
+  it.each(INHERITED)('reads a 1x1 struct with a field called %s', (name) => {
+    const fields = parseMat(matWithField(name, [1, 1])).variables[0].fields!;
+    expect(Object.keys(fields)).toEqual(['a', name]);
+    expect(Object.getPrototypeOf(fields)).toBe(Object.prototype);
+    expect((fields[name] as MatVariable).value).toBe(10);
+    expect(shownFields(matWithField(name, [1, 1]))).toEqual([['a', '1'], [name, '10']]);
+  });
+
+  it('reads the same file shape with an ordinary field name as the control', () => {
+    expect(shownFields(matWithField('b', [1, 2]))).toEqual([
+      [['a', '1'], ['b', '10']],
+      [['a', '2'], ['b', '20']],
+    ]);
+  });
+
+  // Edited, the struct is written from the tree: as a struct value for a 1x2, and as a
+  // MAT stream (cdata) for a 1x1x2, which no struct value can spell. Both rebuilt their
+  // field bag in a plain `{}` and lost `__proto__` there; the 1x2's field list still named
+  // it, so the reopened struct read the name off Object.prototype as `[object Object]`.
+  it.each([
+    ['1x2', [1, 2], 's(1)', 's(2)'],
+    ['1x1x2', [1, 1, 2], 's(1)', 's(2)'],
+  ])('keeps every field of a %s struct copied after an edit into a text dictionary', (_, dims, first, second) => {
+    for (const name of [...INHERITED, 'b']) {
+      const source = ingest(createSession(), matWithField(name, dims as number[]), { filename: 's.mat' });
+      const s = source.children.find((c) => c.name === 's') as any;
+      expect(s.children[1].children.find((f: any) => f.name === 'a').setProperty('Value', '99')).toBe(true);
+      const copy = JSON.parse(JSON.stringify(s.serialize().value));
+
+      const session = createSession();
+      const dictionary: any = ingest(session, readFileSync(new URL('./fixtures/rt_text.sldd', import.meta.url), 'utf8'), { filename: 'rt_text.sldd' });
+      dictionary.getSection('design').parseEntry({ name: 's', metadata: { uuid: '00000000-0000-4000-e800-00000000005a' }, value: copy });
+      const saved = session.serializeSource(dictionary.name)!;
+      const reopened: any = ingest(createSession(), saved.kind === 'text' ? saved.text : saved.bytes, { filename: 'rt_text.sldd' });
+      const entry = reopened.getSection('design').children.find((e: any) => e.name === 's');
+      expect([name, entry.children.map((c: any) => [c.displayName, c.children.map((f: any) => [f.name, f.displayValue])])]).toEqual([name, [
+        [first, [['a', '1'], [name, '10']]],
+        [second, [['a', '99'], [name, '20']]],
+      ]]);
+    }
   });
 });

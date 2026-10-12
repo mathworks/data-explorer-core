@@ -42,16 +42,22 @@ export interface RenamedMat {
 }
 
 /**
- * `mat` with every occurrence of `from` inside its compressed elements replaced by `to`.
- * Pass `dropSubsystem` to also leave out the subsystem element (and zero the header's
- * pointer to it), which is a file whose objects the MCOS decoder cannot resolve.
+ * `mat` with every occurrence of `from` inside its compressed elements replaced by `to`,
+ * each either text or raw bytes. Pass `dropSubsystem` to also leave out the subsystem
+ * element (and zero the header's pointer to it), which is a file whose objects the MCOS
+ * decoder cannot resolve.
  */
-export function renameInMat(mat: Uint8Array, from: string, to: string, dropSubsystem = false): RenamedMat {
-  if (from.length !== to.length) {
-    throw new Error(`renameInMat: "${from}" and "${to}" differ in length`);
+export function renameInMat(
+  mat: Uint8Array,
+  from: string | Uint8Array,
+  to: string | Uint8Array,
+  dropSubsystem = false,
+): RenamedMat {
+  const fromBytes = typeof from === 'string' ? new TextEncoder().encode(from) : from;
+  const toBytes = typeof to === 'string' ? new TextEncoder().encode(to) : to;
+  if (fromBytes.length !== toBytes.length) {
+    throw new Error(`renameInMat: the token and its replacement differ in length`);
   }
-  const fromBytes = new TextEncoder().encode(from);
-  const toBytes = new TextEncoder().encode(to);
   const view = new DataView(mat.buffer, mat.byteOffset, mat.byteLength);
   const subsysAt = Number(view.getBigUint64(SUBSYS_OFFSET_AT, true));
 
