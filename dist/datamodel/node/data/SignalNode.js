@@ -58,7 +58,7 @@ export default class SignalNode extends DataNode {
     _getSerializedProperties() {
         const sp = this.serial._properties;
         const unitKey = 'DocUnits' in sp ? 'DocUnits' : 'Unit';
-        const props = Object.assign({}, sp);
+        const props = { ...sp };
         if ('Min' in sp || this.Min !== undefined) {
             props.Min = this.Min !== undefined ? this.Min : [];
         }

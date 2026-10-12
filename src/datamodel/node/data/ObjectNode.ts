@@ -119,19 +119,19 @@ export default class ObjectNode extends DataNode {
                     : undefined;
                 return { _properties: (first?._properties as Record<string, unknown>) ?? {} };
             });
-            return Object.assign({}, rawVal, { _elements: elements });
+            return { ...rawVal, _elements: elements };
         }
         const props = this._getSerializedProperties();
         // Nested-object form { _id?, _object_class, _properties }: keep the identity
         // keys, replace only _properties.
         if (rawVal._object_class) {
-            return Object.assign({}, rawVal, { _properties: props });
+            return { ...rawVal, _properties: props };
         }
         // Top-level value-object form { _array_class, _elements: [{ _id?, _properties }] }:
         // keep the wrapper and the element's identity keys, replace only _properties.
         const rawElements = (rawVal._elements as Record<string, unknown>[]) || [{}];
-        const firstElem = Object.assign({}, rawElements[0], { _properties: props });
-        return Object.assign({}, rawVal, { _elements: [firstElem] });
+        const firstElem = { ...rawElements[0], _properties: props };
+        return { ...rawVal, _elements: [firstElem] };
     }
 
     // XML write-back. An object ARRAY emits one <Element Class="..."> per element
@@ -184,7 +184,7 @@ export default class ObjectNode extends DataNode {
     _getSerializedProperties(): Record<string, unknown> {
         const stored = (this.serial._properties as Record<string, unknown>) || {};
         if (this.children.length === 0) {
-            return Object.assign({}, stored);
+            return { ...stored };
         }
         // The reserved keys FIRST, because they have no child to be rebuilt from: a
         // saveobj envelope is data the tree deliberately does not show

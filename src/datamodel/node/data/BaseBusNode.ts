@@ -37,10 +37,10 @@ export class BaseBusElementNode extends DataNode {
     get disabled(): boolean { return true; }
 
     serializeValue(): unknown {
-        const props = Object.assign({}, this.serial._properties as Record<string, unknown>);
+        const props = { ...(this.serial._properties as Record<string, unknown>) };
         props.Name = this.name;
         this._applyElementOverrides(props);
-        return Object.assign({}, this.serial._rawElem as Record<string, unknown>, { _properties: props });
+        return { ...(this.serial._rawElem as Record<string, unknown>), _properties: props };
     }
 
     _applyElementOverrides(props: Record<string, unknown>): void {
@@ -67,7 +67,7 @@ export class BaseBusNode extends DataNode {
 
     _getSerializedProperties(): Record<string, unknown> {
         const elementsInternal = this.children.map(function (child) { return (child as BaseBusElementNode).serializeValue(); });
-        const props = Object.assign({}, this.serial._properties as Record<string, unknown>);
+        const props = { ...(this.serial._properties as Record<string, unknown>) };
         const rawEI = (this.serial._properties as Record<string, unknown>).Elements_internal;
         if (elementsInternal.length > 0) {
             // The source's Elements_internal may be in single-object form
@@ -92,8 +92,8 @@ export class BaseBusNode extends DataNode {
 
     serializeValue(): unknown {
         const props = this._getSerializedProperties();
-        const result = Object.assign({}, this.serial._rawVal as Record<string, unknown>);
-        result._elements = [Object.assign({}, (result._elements as unknown[])[0] as Record<string, unknown>, { _properties: props })];
+        const result = { ...(this.serial._rawVal as Record<string, unknown>) };
+        result._elements = [{ ...((result._elements as unknown[])[0] as Record<string, unknown>), _properties: props }];
         return result;
     }
 

@@ -27,10 +27,10 @@ export class BaseBusElementNode extends DataNode {
     get displayValue() { return ''; }
     get disabled() { return true; }
     serializeValue() {
-        const props = Object.assign({}, this.serial._properties);
+        const props = { ...this.serial._properties };
         props.Name = this.name;
         this._applyElementOverrides(props);
-        return Object.assign({}, this.serial._rawElem, { _properties: props });
+        return { ...this.serial._rawElem, _properties: props };
     }
     _applyElementOverrides(props) {
         if ('Description' in this.serial._properties || this.Description) {
@@ -52,7 +52,7 @@ export class BaseBusNode extends DataNode {
     // inherited BaseNode.getPILayout → buildPILayout(className) resolves it.
     _getSerializedProperties() {
         const elementsInternal = this.children.map(function (child) { return child.serializeValue(); });
-        const props = Object.assign({}, this.serial._properties);
+        const props = { ...this.serial._properties };
         const rawEI = this.serial._properties.Elements_internal;
         if (elementsInternal.length > 0) {
             // The source's Elements_internal may be in single-object form
@@ -79,8 +79,8 @@ export class BaseBusNode extends DataNode {
     }
     serializeValue() {
         const props = this._getSerializedProperties();
-        const result = Object.assign({}, this.serial._rawVal);
-        result._elements = [Object.assign({}, result._elements[0], { _properties: props })];
+        const result = { ...this.serial._rawVal };
+        result._elements = [{ ...result._elements[0], _properties: props }];
         return result;
     }
     // Not inside a value still in its encoded stream (DataNode._encodedReadOnly).

@@ -75,7 +75,7 @@ export default class SignalNode extends DataNode {
     _getSerializedProperties(): Record<string, unknown> {
         const sp = this.serial._properties as Record<string, unknown>;
         const unitKey = 'DocUnits' in sp ? 'DocUnits' : 'Unit';
-        const props = Object.assign({}, sp);
+        const props = { ...sp };
         if ('Min' in sp || this.Min !== undefined) { props.Min = this.Min !== undefined ? this.Min : []; }
         if ('Max' in sp || this.Max !== undefined) { props.Max = this.Max !== undefined ? this.Max : []; }
         if (unitKey in sp || this.Unit) { props[unitKey] = this.Unit; }

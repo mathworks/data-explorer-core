@@ -46,7 +46,7 @@ export class EnumValueNode extends DataNode {
     // omitted (an enumeral has no data type — see dataType getter above).
     getPILayout() { return [{ group: 'General', items: [PropName, PropValue, PropKind, PropClassAtom, PropDescription] }]; }
     serializeValue() {
-        const raw = Object.assign({}, this.serial._rawProps);
+        const raw = { ...this.serial._rawProps };
         raw.Name = this.name;
         raw.Value = this.Value;
         raw.Description = this.Description;
@@ -76,7 +76,7 @@ export class EnumTypeNode extends DataNode {
     // the enum type), so it never resolves the schema layout.
     _getSerializedProperties() {
         const enumerals = this.children.map(function (child) { return child.serializeValue(); });
-        const props = Object.assign({}, this.serial._properties);
+        const props = { ...this.serial._properties };
         if ('DefaultValue' in this.serial._properties || this.DefaultValue) {
             props.DefaultValue = this.DefaultValue;
         }
@@ -84,16 +84,7 @@ export class EnumTypeNode extends DataNode {
             props.Description = this.Description;
         }
         const rawEnumerals = this.serial._rawEnumerals || {};
-        const enumWrapper = {};
-        Object.keys(rawEnumerals).forEach(function (k) { if (k === '_elements') {
-            enumWrapper._elements = enumerals;
-        }
-        else {
-            enumWrapper[k] = rawEnumerals[k];
-        } });
-        if (!('_elements' in rawEnumerals)) {
-            enumWrapper._elements = enumerals;
-        }
+        const enumWrapper = { ...rawEnumerals, _elements: enumerals };
         // Keep _dimensions in sync with the enumeral count so adding or removing
         // one stays consistent. Enumerals are stored as a row-vector struct array.
         enumWrapper._dimensions = [1, enumerals.length];
@@ -102,8 +93,8 @@ export class EnumTypeNode extends DataNode {
     }
     serializeValue() {
         const props = this._getSerializedProperties();
-        const result = Object.assign({}, this.serial._rawVal);
-        result._elements = [Object.assign({}, result._elements[0], { _properties: props })];
+        const result = { ...this.serial._rawVal };
+        result._elements = [{ ...result._elements[0], _properties: props }];
         return result;
     }
     // Not inside a value still in its encoded stream (DataNode._encodedReadOnly).

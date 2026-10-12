@@ -472,3 +472,49 @@ describe('one damaged hex value does not stop the dictionary opening', () => {
     expect(valueTag(chunkOf(session.serializeSource(root.name)!.bytes), 'c')).toBe(damaged);
   });
 });
+
+// An encoded element's attributes are the file's, and the reader keeps every one it does
+// not state itself so the writer can put it back (EncodedValue._attrs). It gathered them
+// into a plain `{}`, where an attribute called `__proto__` is the prototype setter's
+// argument: a string, so it was silently dropped, and the element was written back without
+// it. MATLAB writes no such attribute; the rule is only that what was read goes back out.
+describe('an encoded element with an attribute named __proto__', () => {
+  it('writes it back, and changes nothing else about the saved file', () => {
+    const files = unzipSync(fixture('sparse_binary.sldd'));
+    const crafted = MATLAB_CHUNK.replace(/ Encoding="hex"/g, ' Encoding="hex" __proto__="kept"');
+    const injected = crafted.split('__proto__="kept"').length - 1;
+    expect(injected).toBe(17);
+    const saveOf = (chunk: string): string => {
+      const session = createSession();
+      const source: any = ingest(session, zipSync({ ...files, 'data/chunk0.xml': new TextEncoder().encode(chunk) }), { filename: 'sparse_binary.sldd' });
+      return chunkOf((session.serializeSource(source.name) as { bytes: Uint8Array }).bytes);
+    };
+    const saved = saveOf(crafted);
+    expect(saved.split('__proto__="kept"').length - 1).toBe(injected);
+    expect(saved.replace(/ __proto__="kept"/g, '')).toBe(saveOf(MATLAB_CHUNK));
+  });
+});
+
+// textDictionaryMetadata respells an entry's metadata in a text dictionary's keys whenever
+// it carries a binary reader's (lastModifiedDate, lastModifiedBy, _rawLastMod), and carries
+// every other key across. "Other" was asked with `key in out` of a plain `{}`, which finds
+// `toString` and `constructor` on Object.prototype, and the copy assigned into it, which
+// hands `__proto__` to the prototype setter: all three were dropped from the saved entry.
+describe('an entry\'s metadata keys named after Object.prototype members', () => {
+  it('survive a text dictionary\'s respelling of the binary keys', () => {
+    const json = JSON.parse(new TextDecoder().decode(fixture('sparse_text.sldd')));
+    const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    // A raw JSON splice, so `__proto__` arrives as the own key JSON.parse makes of it.
+    const metadata = JSON.parse(
+      JSON.stringify(entries[0].metadata).replace(/}$/, ',"lastModifiedDate":"2026-10-09T20:50:19Z","toString":"t","constructor":"c","__proto__":"p","other":"o"}'),
+    );
+    entries[0].metadata = metadata;
+    const session = createSession();
+    const source: any = ingest(session, JSON.stringify(json), { filename: 'sparse_text.sldd' });
+    const saved = JSON.parse((session.serializeSource(source.name) as { text: string }).text);
+    const md = saved.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries[0].metadata;
+    expect(Object.keys(md)).toEqual(['uuid', 'namespace', 'lastmod', 'modifiedby', 'isderived', 'toString', 'constructor', '__proto__', 'other']);
+    expect([md.toString, md.constructor, md.other]).toEqual(['t', 'c', 'o']);
+    expect(Object.getOwnPropertyDescriptor(md, '__proto__')?.value).toBe('p');
+  });
+});
