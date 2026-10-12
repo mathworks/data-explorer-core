@@ -238,29 +238,50 @@ describe('a MAT struct field named after an Object.prototype member', () => {
     ]);
   });
 
+  // `s` with field `name`, opened out of a .mat, its element 2's `a` edited to 99, copied
+  // as a host copies a variable, pasted into `file`, saved, and opened again: each element
+  // row's fields, by name and value.
+  function copiedAfterEdit(name: string, dims: number[], file: string): unknown {
+    const source = ingest(createSession(), matWithField(name, dims), { filename: 's.mat' });
+    const s = source.children.find((c) => c.name === 's') as any;
+    expect(s.children[1].children.find((f: any) => f.name === 'a').setProperty('Value', '99')).toBe(true);
+    const copy = JSON.parse(JSON.stringify(s.serialize().value));
+
+    const session = createSession();
+    const dictionary: any = ingest(session, readFileSync(new URL(`./fixtures/${file}`, import.meta.url)), { filename: file });
+    dictionary.getSection('design').parseEntry({ name: 's', metadata: { uuid: '00000000-0000-4000-e800-00000000005a' }, value: copy });
+    const saved = session.serializeSource(dictionary.name)!;
+    const reopened: any = ingest(createSession(), saved.kind === 'text' ? saved.text : saved.bytes, { filename: file });
+    const entry = reopened.getSection('design').children.find((e: any) => e.name === 's');
+    return entry.children.map((c: any) => [c.displayName, c.children.map((f: any) => [f.name, f.displayValue])]);
+  }
+
   // Edited, the struct is written from the tree: as a struct value for a 1x2, and as a
   // MAT stream (cdata) for a 1x1x2, which no struct value can spell. Both rebuilt their
   // field bag in a plain `{}` and lost `__proto__` there; the 1x2's field list still named
   // it, so the reopened struct read the name off Object.prototype as `[object Object]`.
   it.each([
-    ['1x2', [1, 2], 's(1)', 's(2)'],
-    ['1x1x2', [1, 1, 2], 's(1)', 's(2)'],
-  ])('keeps every field of a %s struct copied after an edit into a text dictionary', (_, dims, first, second) => {
+    ['1x2', [1, 2]],
+    ['1x1x2', [1, 1, 2]],
+  ])('keeps every field of a %s struct copied after an edit into a text dictionary', (_, dims) => {
     for (const name of [...INHERITED, 'b']) {
-      const source = ingest(createSession(), matWithField(name, dims as number[]), { filename: 's.mat' });
-      const s = source.children.find((c) => c.name === 's') as any;
-      expect(s.children[1].children.find((f: any) => f.name === 'a').setProperty('Value', '99')).toBe(true);
-      const copy = JSON.parse(JSON.stringify(s.serialize().value));
+      expect([name, copiedAfterEdit(name, dims as number[], 'rt_text.sldd')]).toEqual([name, [
+        ['s(1)', [['a', '1'], [name, '10']]],
+        ['s(2)', [['a', '99'], [name, '20']]],
+      ]]);
+    }
+  });
 
-      const session = createSession();
-      const dictionary: any = ingest(session, readFileSync(new URL('./fixtures/rt_text.sldd', import.meta.url), 'utf8'), { filename: 'rt_text.sldd' });
-      dictionary.getSection('design').parseEntry({ name: 's', metadata: { uuid: '00000000-0000-4000-e800-00000000005a' }, value: copy });
-      const saved = session.serializeSource(dictionary.name)!;
-      const reopened: any = ingest(createSession(), saved.kind === 'text' ? saved.text : saved.bytes, { filename: 'rt_text.sldd' });
-      const entry = reopened.getSection('design').children.find((e: any) => e.name === 's');
-      expect([name, entry.children.map((c: any) => [c.displayName, c.children.map((f: any) => [f.name, f.displayValue])])]).toEqual([name, [
-        [first, [['a', '1'], [name, '10']]],
-        [second, [['a', '99'], [name, '20']]],
+  // A binary dictionary writes the struct as <P Name="…"> elements, and its reader
+  // gathered those into a plain `{}` on the way back in (BinarySlddParser).
+  it.each([
+    ['1x2', [1, 2]],
+    ['1x1x2', [1, 1, 2]],
+  ])('keeps every field of a %s struct copied after an edit into a binary dictionary', (_, dims) => {
+    for (const name of [...INHERITED, 'b']) {
+      expect([name, copiedAfterEdit(name, dims as number[], 'rt_bin.sldd')]).toEqual([name, [
+        ['s(1)', [['a', '1'], [name, '10']]],
+        ['s(2)', [['a', '99'], [name, '20']]],
       ]]);
     }
   });
