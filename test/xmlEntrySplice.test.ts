@@ -7,6 +7,7 @@ import {
   findEntryObjectSpan,
   findEntryElementSpan,
   findEntryInsertionPoint,
+  pNodeText,
 } from '../src/datamodel/parser/xmlEntrySplice.js';
 
 function chunkXml(fixture: string): string {
@@ -177,5 +178,70 @@ describe('findEntryElementSpan', () => {
 
   it('returns null for an unknown name rather than a bogus span', () => {
     expect(findEntryElementSpan(nested, 'NoSuchEntry')).toBeNull();
+  });
+});
+
+describe('the Name and UUID reads, on fragments that are not well-formed entries', () => {
+  // The two patterns `pNodeText` replaced, kept here as the specification it is held to.
+  // Each is quadratic on a fragment holding many opens that no `>` follows soon, which is
+  // why it is not the implementation; every input below is small enough for it to finish.
+  const SPEC: Record<string, RegExp> = {
+    '<P Name="Name"': /<P Name="Name"[^>]*>([^<]*)<\/P>/,
+    '<P Name="UUID"': /<P Name="UUID"[^>]*>([^<]*)<\/P>/,
+  };
+  const viaRegex = (s: string, open: string): string | null => {
+    const m = s.match(SPEC[open]);
+    return m ? m[1] : null;
+  };
+
+  // Random strings over the pieces the patterns give meaning to, seeded so a failure
+  // reproduces: opens with and without their `>`, closes, and the `<` that ends a text.
+  it('reads what the regexes read, on random input', () => {
+    let seed = 1;
+    const rand = (n: number): number => {
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      return (seed >>> 0) % n;
+    };
+    const pieces = [
+      '<P Name="Name"', '<P Name="UUID"', '</P>', '<', '>', '/', 'P', ' ', 'Name="Name"',
+      'x', '\n', '<P Name="Name" Class="char">', '"', '<!-- ', ' -->',
+    ];
+    for (let k = 0; k < 20000; k++) {
+      let s = '';
+      for (let i = 1 + rand(30); i > 0; i--) {
+        s += pieces[rand(pieces.length)];
+      }
+      for (const open of Object.keys(SPEC)) {
+        expect(pNodeText(s, open), JSON.stringify([open, s])).toBe(viaRegex(s, open));
+      }
+    }
+  });
+
+  // An entry ahead of the one looked up, holding a comment of 25,000 Name opens. The
+  // regex retried at each and walked from each to the comment's `>`: the lookup took
+  // 4.1 s. Here it takes 0.4 ms over two full runs, so 1 s is past five times CI's time,
+  // at 3.3 times this machine's (fe238c7).
+  it('looks past an entry holding many Name opens at once', () => {
+    const run = `<!-- ${'<P Name="Name"'.repeat(25_000)} -->`;
+    const xml = nested.replace('<P Name="Name"', run + '<P Name="Name"');
+    const t0 = performance.now();
+    const span = findEntryObjectSpan(xml, 'StructWithParam');
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(xml.slice(span!.offset, span!.offset + span!.length)).toContain('>StructWithParam</P>');
+  });
+
+  // The same run of UUID opens, ahead of the UUID that breaks a tie between two entries
+  // of one name, which is read only once the name has matched. With the regex the lookup
+  // took 4.1 to 5.5 s; here it takes 1.1 ms over two full runs, under the same bound.
+  it('reads the UUID that breaks a name tie past an entry holding many UUID opens, at once', () => {
+    const run = `<!-- ${'<P Name="UUID"'.repeat(25_000)} -->`;
+    const xml = nested.replace('<P Name="UUID"', run + '<P Name="UUID"');
+    const uuid = /<P Name="UUID" Class="char">([^<]*)<\/P>/.exec(nested)![1];
+    const t0 = performance.now();
+    const span = findEntryObjectSpan(xml, { name: 'CellWithParam', uuid });
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(xml.slice(span!.offset, span!.offset + span!.length)).toContain(run);
   });
 });

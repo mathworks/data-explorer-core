@@ -17,7 +17,7 @@
 // of the same diagram — are test/parity/mdl.parity.test.ts.
 import { describe, it, expect } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
-import { parseMdl } from '../src/datamodel/parser/MdlParser.js';
+import { parseMdl, styleWithoutOptions } from '../src/datamodel/parser/MdlParser.js';
 import { parseModel } from '../src/datamodel/parser/ModelParser.js';
 import { parseSlx } from '../src/datamodel/parser/SlxParser.js';
 
@@ -450,6 +450,81 @@ describe('parseMdl — classic .mdl block parameters', () => {
       'deep.mdl',
     );
     expect(parsed.blockParamUsages.map((u) => u.systemPath)).toEqual(['A//B/Deep']);
+  });
+});
+
+describe('parseMdl — classic .mdl mask styles', () => {
+  // The cut `styleWithoutOptions` replaced, kept here as the specification it is held to.
+  // It is quadratic on a style of many `(` ahead of a line terminator, which is why it is
+  // not the implementation; every input below is small enough for it to finish.
+  const viaRegex = (s: string): string => s.replace(/\(.*$/, '');
+
+  // Random strings over the characters the cut gives meaning to, all four line
+  // terminators among them, seeded so a failure reproduces.
+  it('cuts a style where the regex cut it, on random input', () => {
+    let seed = 1;
+    const rand = (n: number): number => {
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      return (seed >>> 0) % n;
+    };
+    const pieces = ['(', ')', 'x', ' ', '\n', '\r', '\u2028', '\u2029', 'popup(', 'edit', '|', ','];
+    for (let k = 0; k < 20000; k++) {
+      let s = '';
+      for (let i = 1 + rand(30); i > 0; i--) {
+        s += pieces[rand(pieces.length)];
+      }
+      expect(styleWithoutOptions(s), JSON.stringify(s)).toBe(viaRegex(s));
+    }
+  });
+
+  // One masked block, its three mask properties spelled as given: escapes and all, since
+  // the scanner unescapes them.
+  const masked = (styles: string, vars: string, values: string): ArrayBuffer =>
+    bytes(`Model {
+  Name                    "m"
+  System {
+    Name                  "m"
+    Block {
+      BlockType           SubSystem
+      Name                "Masked"
+      SID                 "1"
+      MaskStyleString     "${styles}"
+      MaskVariables       "${vars}"
+      MaskValueString     "${values}"
+    }
+  }
+}
+`);
+
+  // `\(.*$` failed at every `(` that a line terminator follows, and each failure walked to
+  // it. The scanner unescapes `\n`, so the first style below holds 80,000 `(` ahead of
+  // one: with the regex it took 3.9 s to read. Here it takes 5 ms over two full runs, so
+  // 1 s is past five times CI's time, at 3.3 times this machine's (fe238c7).
+  it('reads a style of many `(` ahead of a line break at once, and the style after it', () => {
+    const n = 80_000;
+    const t0 = performance.now();
+    const parsed = parseMdl(masked('('.repeat(n) + '\\n' + ')'.repeat(n) + ',edit', 'k=@1;g=@2;', 'Kp|Kg'), 'm.mdl');
+    expect(performance.now() - t0).toBeLessThan(1000);
+    // `k`'s style is no expression type, so only `g` is a row; both are in scope.
+    expect(parsed.blockParamUsages).toEqual([
+      { blockName: 'Masked', blockType: 'SubSystem', paramProperty: 'g', paramValue: 'Kg', sid: '1', systemPath: '' },
+    ]);
+    expect(parsed.masks.map((m) => m.names)).toEqual([['k', 'g']]);
+  });
+
+  // A style was read again for every declaration naming its slot, and reading one is
+  // linear in its length, so the two multiplied: 30,000 declarations naming a style of
+  // 200,000 characters took 3.7 s with the regex. Each slot's style is read once now, and
+  // this takes 21 ms over two full runs, so 1 s is past five times CI's time, at 3.3
+  // times this machine's (fe238c7).
+  it('reads one long style named by many declarations at once', () => {
+    const t0 = performance.now();
+    const parsed = parseMdl(masked(`edit(${'x'.repeat(200_000)})`, 'k=@1;'.repeat(30_000), 'Kp'), 'm.mdl');
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(parsed.blockParamUsages).toHaveLength(30_000);
+    expect(new Set(parsed.blockParamUsages.map((u) => `${u.paramProperty}=${u.paramValue}`))).toEqual(new Set(['k=Kp']));
   });
 });
 

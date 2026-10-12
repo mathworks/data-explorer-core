@@ -30,16 +30,46 @@ export interface XmlSpan {
 // null, so such a fragment is SKIPPED rather than matched — otherwise a search
 // for a real entry name could land on it and splice over the wrong <Object>.
 function entryNameOf(fragment: string): string | null {
-  const m = fragment.match(/<P Name="Name"[^>]*>([^<]*)<\/P>/);
-  return m ? m[1] : null;
+  return pNodeText(fragment, '<P Name="Name"');
 }
 
 // The entry's UUID P-node, or null when the fragment declares none. Attribute-
 // agnostic for the same reason entryNameOf is: BinarySlddParser matches a P-node
 // on its Name attribute alone.
 function entryUuidOf(fragment: string): string | null {
-  const m = fragment.match(/<P Name="UUID"[^>]*>([^<]*)<\/P>/);
-  return m ? m[1] : null;
+  return pNodeText(fragment, '<P Name="UUID"');
+}
+
+/**
+ * The text of the first P-node that `open` begins, exactly as
+ * `fragment.match(/<P Name="Name"[^>]*>([^<]*)<\/P>/)?.[1] ?? null` read it for
+ * `open` = `<P Name="Name"`, and the same pattern with `UUID` for `<P Name="UUID"`,
+ * on every input.
+ *
+ * The regex retried at every `open` in the fragment, and each retry walked to the
+ * next `>` and the `<` after it, so a fragment holding many `open`s that no `>`
+ * follows soon cost their count times that walk: the square of a run that the
+ * file's bytes decide.
+ *
+ * At one start the regex can match only one way. `[^>]*` cannot pass a `>`, so its
+ * `>` is the first one after `open`; `[^<]*` cannot pass a `<`, so the text ends at
+ * the first `<` after that, where `</P>` either is or is not. `open` starts with its
+ * only `<` and holds no `>`, so a later start either lies before that `>` (and meets
+ * the same `>`, the same `<` and the same answer) or lies at or after that `<`. So
+ * the next start worth trying is the next `open` from there, and no character is
+ * read more than a bounded number of times.
+ */
+export function pNodeText(fragment: string, open: string): string | null {
+  let at = fragment.indexOf(open);
+  while (at >= 0) {
+    const gt = fragment.indexOf('>', at + open.length);
+    if (gt < 0) return null;
+    const lt = fragment.indexOf('<', gt + 1);
+    if (lt < 0) return null;
+    if (fragment.startsWith('</P>', lt)) return fragment.slice(gt + 1, lt);
+    at = fragment.indexOf(open, lt);
+  }
+  return null;
 }
 
 /**
