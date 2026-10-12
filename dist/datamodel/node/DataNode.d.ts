@@ -291,12 +291,16 @@ export default class DataNode extends BaseNode {
      * header, a complex text's `_dimensions`. A binary dictionary's reader passes every finite
      * non-negative extent through as read, so one of those is written back as read; what is
      * refused — NaN, an infinity, a negative, a string, an object, a bigint — came from a text
-     * dictionary or a host, and `Dimension="1*x"` is no spelling of anything. A header's
-     * digits are taken `exact`ly: one past 2^53 would be written rounded, as another size.
+     * dictionary or a host, and `Dimension="1*x"` is no spelling of anything. Dims read from
+     * a `header` are held to its digits: digits naming a count no double holds exactly, like
+     * 9007199254740993, would be parsed to another count and written as that one (parser/Size,
+     * isExactDigits).
      */
-    static _sizeOrRefuse(dims: unknown, cls: string, name: string, at: PropertyAt | undefined, exact?: boolean): void;
+    static _sizeOrRefuse(dims: unknown, cls: string, name: string, at: PropertyAt | undefined, header?: string): void;
     /** The extents of a `Matrix(…)` header of digit runs, as numbers, or undefined. */
     static _headerDims(text: string): number[] | undefined;
+    /** Whether each extent of a `Matrix(…)` header parses to the count its digits say, or there is no header. */
+    static _headerExact(text: string): boolean;
     /**
      * A refusal of a write that began at this node, restated for a user: the entry — the one
      * above, or, for a node a writer built on its own to write a raw property value
@@ -305,9 +309,17 @@ export default class DataNode extends BaseNode {
     _budgetFailure(e: MatBudgetError): MatBudgetError;
     /**
      * Refuses to write this node's XML when its dims are not what a Dimension can spell — the
-     * same rule as for a raw property value (_sizeOrRefuse) — naming the entry and the path.
+     * same rule as for a raw property value (_sizeOrRefuse), dims read from a `header` held to
+     * its digits as there — naming the entry and the path.
      */
-    _spellableOrRefuse(dims: unknown, cls: string): void;
+    _spellableOrRefuse(dims: unknown, cls: string, header?: string): void;
+    /**
+     * Refuses to write this node's value as a text dictionary's JSON, or copy it there, when its
+     * dims hold NaN, an infinity or a bigint, which JSON writes as null or cannot write
+     * (parser/Size, isTextExtent), naming the entry and the path, as _spellableOrRefuse does for
+     * a Dimension.
+     */
+    _textSpellableOrRefuse(dims: unknown, cls: string): void;
     /**
      * `at` one level down: element `k` of `n` — its MATLAB subscript, `(k+1)`, unless it is
      * the only one — then `rest`, a field or a property.

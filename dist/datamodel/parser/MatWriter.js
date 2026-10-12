@@ -41,7 +41,7 @@ import { complexClassTag, isExactToken, parseComplexNum, transposeFromColumnMajo
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
-import { dimsText, isSize, MAT_MAX_EXTENT } from './Size.js';
+import { dimsText, isSize, isTextExtent, MAT_MAX_EXTENT } from './Size.js';
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
  * object array), or a class MatParser could not name. Thrown rather than
@@ -1060,12 +1060,23 @@ export function complexTextVariable(raw) {
  * be instead — an extent past an int32, a size that is no count — it leaves as read, being
  * what the file already holds: refused, it failed the save of every entry in the file. The
  * same text pasted in out of a binary dictionary is not one of these, and is refused.
+ *
+ * And for the same reason, dims of its own that hold an infinity: JSON.parse reads an
+ * overflowing extent, `1e400`, as one. JSON has no spelling for it, so a save writes it as
+ * null, as it always has, where any other value's is refused (textDictionaryForm). What is
+ * recorded is the dims array itself, not the bag holding it: an untouched object array is
+ * written as a new bag around its elements (ObjectNode.serializeValue, `{ ...rawVal,
+ * _elements }`), which keeps the array read and is not the bag read.
  */
 const textDictionaryOwn = new WeakSet();
+const isInfinity = (x) => x === Infinity || x === -Infinity;
+/** An extent a text dictionary's own dims can hold: what JSON reads, an infinity for one past any double, never NaN or a bigint. */
+const isReadExtent = (x) => isInfinity(x) || isTextExtent(x);
 /**
- * Records every complex text in `value`, a value as the text dictionary being read holds it.
- * Every entry is walked, so the walk allocates nothing and steps over every primitive: 15 ms
- * of the 420 ms a 138 MB dictionary of 140,000 entries takes to read.
+ * Records every complex text in `value`, a value as the text dictionary being read holds it,
+ * and every dims array that holds an infinity. Every entry is walked, so the walk allocates
+ * nothing and steps over every primitive: 15 ms of the 420 ms a 138 MB dictionary of 140,000
+ * entries takes to read.
  */
 export function heldByTextDictionary(value) {
     if (Array.isArray(value)) {
@@ -1088,6 +1099,11 @@ export function heldByTextDictionary(value) {
     for (const k in o) {
         const v = o[k];
         if (v !== null && typeof v === 'object') {
+            // Asked of the key the walk is on, not looked up on every object: about 4 ms of 140,000
+            // entries' walk, where this costs none that shows.
+            if (k === '_dimensions' && Array.isArray(v) && v.some(isInfinity)) {
+                textDictionaryOwn.add(v);
+            }
             heldByTextDictionary(v);
         }
     }
@@ -1120,6 +1136,19 @@ export function textDictionaryForm(x, at = '') {
         return changed ? out : x;
     }
     const o = x;
+    // Dims holding NaN or an infinity, which JSON.stringify writes as null, or a bigint, which
+    // it cannot write at all. Refused, finally, as an XML writer refuses them
+    // (DataNode._sizeOrRefuse), said where they stand; a hand-made [1, "x"] goes as read, and
+    // so do undefined, a function, a symbol and a hole, which are not asked (parser/Size,
+    // isTextExtent). Not an infinity the text dictionary was read with
+    // (textDictionaryOwn: a complex text's bag, or the dims array); NaN or a bigint, which no
+    // file holds, even there.
+    const dims = o._dimensions;
+    if (Array.isArray(dims) && !dims.every(isTextExtent)
+        && !((textDictionaryOwn.has(o) || textDictionaryOwn.has(dims)) && dims.every(isReadExtent))) {
+        const what = classPhrase(bagClass(o)) + ' declaring dimensions ' + dimsText(dims);
+        throw new MatBudgetError(what + ' was not written', at, what, undefined, 'not-a-count');
+    }
     // A binary dictionary's encoded byte stream (EncodedValue) is the same stream a text
     // dictionary carries for the same value as cdata, four bits a character there and six
     // here — MATLAB's own text twin of a hex sparse array is that cdata character for
@@ -1177,6 +1206,16 @@ export function textDictionaryForm(x, at = '') {
         }
     }
     return out ?? o;
+}
+/** The class a raw bag holds, as the XML writers name it in a refusal: 'cell', 'single', 'Simulink.Parameter'. */
+function bagClass(o) {
+    if (o._type === 'cdata') {
+        return complexClassTag(o._class) ?? 'double';
+    }
+    if (o._array_type === 'Cell' || o._array_type === 'Struct' || o._array_type === 'String') {
+        return o._array_type.toLowerCase();
+    }
+    return typeof o._array_class === 'string' ? o._array_class : 'object';
 }
 /** textDictionaryForm over a record of named values — an object's properties, a struct's fields — each at `.name`. */
 function namedForm(named, at) {

@@ -10,7 +10,16 @@
 //   - an XML Dimension spells extents as text, and a binary dictionary's reader passes every
 //     finite non-negative number through as read (`1*2.5` included), so the XML writers
 //     write any such extent back as read, and refuse only what no Dimension can spell
-//     (isSpellableExtent): NaN, an infinity, a negative, a string, an object.
+//     (isSpellableExtent): NaN, an infinity, a negative, a string, an object;
+//   - a text literal's `Matrix(r,c)` header states its extents as digits, which the writers
+//     parse to doubles, so digits naming a count no double holds exactly (isExactDigits) are
+//     refused too: they would be parsed to another count, and written as that one. A header
+//     a binary dictionary's reader builds from the doubles it read is spelled with their
+//     exact digits (headerDigits), so it never is;
+//   - a text dictionary is written as JSON, so a hand-made `[1, "x"]` is written back as
+//     read, and NaN, an infinity and a bigint are refused (isTextExtent): JSON.stringify
+//     writes the first two as null and cannot write a bigint at all. It writes undefined, a
+//     function, a symbol and an array hole as null too; those are not asked.
 /** The most elements one dimension of a MAT stream may have: its dims word is an int32. */
 export const MAT_MAX_EXTENT = 0x7fffffff;
 /** Whether `x` is one extent of a size: a whole number of elements a double counts exactly. */
@@ -28,6 +37,38 @@ export function isStreamSize(d) {
 /** Whether an XML Dimension can spell `x` as read: a finite non-negative number. */
 export function isSpellableExtent(x) {
     return typeof x === 'number' && Number.isFinite(x) && x >= 0;
+}
+/**
+ * Whether `digits`, one extent of a `Matrix(…)` header, name a count a double holds exactly,
+ * so that the count a writer parses them to is the count they say. A double holds every count
+ * to 2^53 - 1 and only some past it: 2^53 and 2^60 (1152921504606846976) it holds, but
+ * 9007199254740993 parses to 2^53, and 1152921504606847000, the digits String gives 2^60,
+ * parses to 2^60, which is another count. Whether the digits survive a round trip as text
+ * is another question: 2^60's own do not, and String(2^60)'s do. Leading zeros say nothing.
+ * The count is written in a Dimension as String spells it, 2^60 as 1152921504606847000: the
+ * XML writers' spelling of every extent, which this does not change.
+ */
+export function isExactDigits(digits) {
+    if (!/^\d+$/.test(digits)) {
+        return false;
+    }
+    const n = Number(digits);
+    return Number.isFinite(n) && BigInt(digits) === BigInt(n);
+}
+/**
+ * `x`, an extent a binary dictionary's reader read as a double, as the digits of a `Matrix(…)`
+ * header: the count it is. String spells a whole number past 2^53 - 1 with the shortest digits
+ * that parse to it, which can say another count (2^60 as 1152921504606847000), and a header so
+ * spelled is refused (isExactDigits). From 10^21 String spells an exponent instead; that is
+ * left as it was.
+ */
+export function headerDigits(x) {
+    const s = String(x);
+    return Number.isSafeInteger(x) || !/^\d+$/.test(s) ? s : BigInt(x).toString();
+}
+/** Whether `x` is anything but NaN, an infinity or a bigint, the extents a text dictionary refuses. */
+export function isTextExtent(x) {
+    return typeof x === 'number' ? Number.isFinite(x) : typeof x !== 'bigint';
 }
 /** `d` as it was given, for a message: `[1,"x"]`, `[0,Infinity]`, `[NaN,1]`, `[2n,3n]`. */
 export function dimsText(d) {

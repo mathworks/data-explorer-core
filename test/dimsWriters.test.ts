@@ -9,7 +9,9 @@
 //   - an XML Dimension writes back any finite non-negative extent as read — a binary
 //     dictionary's reader passes them through — and refuses what no Dimension can spell:
 //     NaN, an infinity, a negative, a string, an object, a bigint (DataNode._sizeOrRefuse,
-//     _spellableOrRefuse).
+//     _spellableOrRefuse);
+//   - a text dictionary writes back a hand-made extent like "x" as read, and refuses NaN, an
+//     infinity and a bigint (MatWriter.textDictionaryForm), but in its own read values.
 // An unedited value is still written back as read. An edited container holding a member
 // with such dims fails its save or copy, naming the member; the member is never written as
 // 0, false, `[]` or an empty struct, which a damaged member of an edited rank-3 cell was
@@ -21,6 +23,7 @@ import { ingest } from '../src/core/ingest.js';
 import { encodeMatStream, MatBudgetError, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import { BINARY, TEXT, sparseFixture, thrownBy } from './tools/pasteVenues.js';
 import { sparseToDense } from '../src/datamodel/parser/SparseData.js';
+import { isExactDigits } from '../src/datamodel/parser/Size.js';
 
 const buffer = (u8: Uint8Array) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
 const entriesOf = (json: any) => json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
@@ -89,7 +92,8 @@ describe('the case that started this: a NaN charge no longer turns the budget of
     ['[NaN,1]', [NaN, 1], '[NaN,1]'],
     ['[0,1e400]', [0, Infinity], '[0,Infinity]'],
   ] as const) {
-    it(`${label}: pasted into a binary dictionary, the save is refused at the inner cell; into a text one it is saved as pasted`, () => {
+    const textRefuses = label === '[NaN,1]' || label === '[0,1e400]';
+    it(`${label}: pasted into a binary dictionary, the save is refused at the inner cell; into a text one it is ${textRefuses ? 'refused the same' : 'saved as pasted'}`, () => {
       const session = createSession();
       const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
       root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef20-000000000003' }, value: around(d) });
@@ -98,9 +102,162 @@ describe('the case that started this: a NaN charge no longer turns the budget of
       const text = createSession();
       const t: any = ingest(text, sparseFixture(TEXT), { filename: TEXT });
       t.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef20-000000000004' }, value: around(d) });
-      expect(thrownBy(() => text.serializeSource(t.name))[0]).toBeNull();
+      const [textThrown] = thrownBy(() => text.serializeSource(t.name));
+      // These two were toBeNull() too, which pinned the 2c defect: a text save wrote the extent as null.
+      if (textRefuses) expect([textThrown?.name, (textThrown as any)?.reason, textThrown?.message]).toEqual(['MatBudgetError', 'not-a-count', `Cannot write "pasted": pasted{1} is a cell declaring dimensions ${said}${NOT_A_COUNT}`]);
+      else expect(textThrown).toBeNull();
     });
   }
+});
+
+describe('a size holding NaN, an infinity or a bigint, which a text dictionary\'s JSON cannot spell', () => {
+  // A text save wrote NaN and an infinity as null, and a bigint threw a raw TypeError from
+  // JSON.stringify ("Do not know how to serialize a BigInt"); an edited struct threw one
+  // sooner, counting its elements ("Cannot mix BigInt and other types"). Each is refused now
+  // as a binary save refuses it (MatWriter.textDictionaryForm, StructNode.serializeValue).
+  // A hand-made [1,"x"] is written as read; so are the dims a
+  // text dictionary was read with, whose 1e400 JSON.parse reads as an infinity: refused, that
+  // file's own value would fail the save of every entry in it.
+  const cell = (d: unknown[]) => ({ _array_type: 'Cell', _dimensions: d, _elements: [1] });
+  const struct = (d: unknown[]) => ({ _array_type: 'Struct', _dimensions: d, _elements: [{ f: 1 }], _fields: ['f'] });
+  const refusal = (e: Error | null) => e && [e.name, (e as any).reason, e.message];
+  const pasteInto = (file: string, value: unknown, edit?: (entry: any) => unknown) => {
+    const session = createSession();
+    const root: any = ingest(session, sparseFixture(file), { filename: file });
+    const entry = root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef80-000000000001' }, value });
+    if (edit) expect(edit(entry)).toBe(true);
+    const [save] = thrownBy(() => session.serializeSource(root.name));
+    const [copy] = thrownBy(() => entry.serialize());
+    return { save, copy, saved: () => entriesOf(JSON.parse(session.serializeSource(root.name)!.text!)).find((e: any) => e.name === 'pasted').value, entry };
+  };
+
+  for (const [said, d] of [['[NaN,1]', [NaN, 1]], ['[1,Infinity]', [1, Infinity]], ['[1n,2n]', [1n, 2n]]] as const) {
+    it(`${said}: pasted as a cell, a struct, a Parameter's Value or a struct's field, refused by a text save and by serialize() as a binary save refuses it`, () => {
+      const values: [() => unknown, string][] = [
+        [() => cell([...d]), 'pasted is a cell'],
+        [() => struct([...d]), 'pasted is a struct'],
+        [() => ({ _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: cell([...d]) } }] }), 'pasted.Value is a cell'],
+        [() => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: struct([...d]) }], _fields: ['f'] }), 'pasted.f is a struct'],
+      ];
+      for (const [value, at] of values) {
+        const want = ['MatBudgetError', 'not-a-count', `Cannot write "pasted": ${at} declaring dimensions ${said}${NOT_A_COUNT}`];
+        const text = pasteInto(TEXT, value());
+        expect([refusal(text.save), refusal(text.copy), refusal(pasteInto(BINARY, value()).save)], at).toEqual([want, want, want]);
+      }
+    });
+
+    it(`${said}: a pasted cell or struct, edited, the same`, () => {
+      for (const [value, cls] of [[() => cell([...d]), 'cell'], [() => struct([...d]), 'struct']] as const) {
+        const want = ['MatBudgetError', 'not-a-count', `Cannot write "pasted": pasted is a ${cls} declaring dimensions ${said}${NOT_A_COUNT}`];
+        const text = pasteInto(TEXT, value(), (entry) => entry.children[0].setProperty('Value', '2'));
+        expect([refusal(text.save), refusal(text.copy)], cls).toEqual([want, want]);
+      }
+    });
+  }
+
+  it('in a binary dictionary, an edited pasted struct with [NaN,1] or [1,Infinity] is copied as it stands, and its save is refused', () => {
+    // A binary value's serialize() is its copy as it stands; the check is the text writer's.
+    for (const [said, d] of [['[NaN,1]', [NaN, 1]], ['[1,Infinity]', [1, Infinity]]] as const) {
+      const binary = pasteInto(BINARY, struct([...d]), (entry) => entry.children[0].setProperty('Value', '2'));
+      expect([binary.copy, (binary.entry.serialize() as any).value._dimensions, refusal(binary.save)], said).toEqual([
+        null,
+        [...d],
+        ['MatBudgetError', 'not-a-count', `Cannot write "pasted": pasted is a struct declaring dimensions ${said}${NOT_A_COUNT}`],
+      ]);
+    }
+  });
+
+  it('a host\'s dictionary content holding NaN or a bigint, which no text file holds, is refused, as a cell and as complex text', () => {
+    for (const [said, d] of [['[NaN,1]', [NaN, 1]], ['[NaN,Infinity]', [NaN, Infinity]], ['[1n,2n]', [1n, 2n]]] as const) {
+      for (const [value, cls] of [[cell([...d]), 'cell'], [{ _type: 'cdata', _value: '1+2i', _dimensions: [...d] }, 'double']] as const) {
+        const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+        entriesOf(json).push({ name: 'h', metadata: { uuid: '00000000-0000-4000-ef80-000000000002' }, value });
+        const session = createSession();
+        const root: any = session.addDataSource('host.sldd', json);
+        const want = ['MatBudgetError', 'not-a-count', `Cannot write "h": h is a ${cls} declaring dimensions ${said}${NOT_A_COUNT}`];
+        const h = root.getSection('design').children.find((e: any) => e.name === 'h');
+        expect([refusal(thrownBy(() => session.serializeSource(root.name))[0]), refusal(thrownBy(() => h.serialize())[0])], `${said} ${cls}`).toEqual([want, want]);
+      }
+    }
+  });
+
+  it('[1,"x"] and [1,{}], which JSON spells as given, are written as pasted, as a cell and as a struct', () => {
+    for (const d of [[1, 'x'], [1, {}]]) {
+      for (const make of [cell, struct]) {
+        const text = pasteInto(TEXT, make(d));
+        expect([text.save, text.copy, text.saved(), text.entry.serialize().value], JSON.stringify(d)).toEqual([null, null, make(d), make(d)]);
+      }
+    }
+  });
+
+  it('a text dictionary\'s own 1e400, read as an infinity: a save writes it as 671536b does, as read, renamed and beside an edit', () => {
+    const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+    const own: [string, string][] = [
+      ['ownCell', '{"_array_type":"Cell","_dimensions":[0,1e400],"_elements":[],"_mw_element_type":"MATLABArray"}'],
+      ['ownStruct', '{"_array_type":"Struct","_dimensions":[0,1e400],"_elements":[],"_fields":["f"]}'],
+      ['ownField', '{"_array_type":"Struct","_dimensions":[1,1],"_elements":[{"f":{"_array_type":"Cell","_dimensions":[1e400,0],"_elements":[]}}],"_fields":["f"]}'],
+    ];
+    own.forEach(([name], i) => entriesOf(json).push({ name, metadata: { uuid: `00000000-0000-4000-ef80-00000000001${i}` }, value: `@@${name}@@` }));
+    const file = own.reduce((text, [name, value]) => text.replace(`"@@${name}@@"`, value), JSON.stringify(json));
+    // What JSON.stringify makes of the infinity: null. The reader's loss, not this writer's.
+    const written = own.map(([name, value]) => [name, JSON.parse(value.replace('1e400', 'null'))]);
+    const save = (change: (design: any) => void) => {
+      const session = createSession();
+      const root: any = ingest(session, buffer(strToU8(file)), { filename: TEXT });
+      const design = root.getSection('design');
+      change(design);
+      const copies = design.children.filter((e: any) => /^own/.test(e.name)).map((e: any) => thrownBy(() => e.serialize())[0]);
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      if (thrown) return [thrown.name, thrown.message];
+      return [copies, entriesOf(JSON.parse(session.serializeSource(root.name)!.text!)).filter((e: any) => /^own/.test(e.name)).map((e: any) => [e.name, e.value])];
+    };
+    expect(save(() => {})).toEqual([[null, null, null], written]);
+    expect(save((design) => design.children.filter((e: any) => /^own/.test(e.name)).forEach((e: any) => e.setProperty('Name', e.name + 'R'))))
+      .toEqual([[null, null, null], written.map(([name, value]) => [name + 'R', value])]);
+    expect(save((design) => design.children.find((e: any) => e.name === 'dRow').children[1].setProperty('Value', '9'))).toEqual([[null, null, null], written]);
+  });
+
+  it('so is an object array\'s, a Parameter, a Signal and an object of a class with no node of its own, at [0,1e400] and [1,1e400]', () => {
+    // Their nodes write an untouched array as a new bag around the elements
+    // (ObjectNode.serializeValue: `{ ...rawVal, _elements }`), so what the reader records is
+    // the dims array it read, which that bag keeps.
+    const forms: [string, string, string][] = [
+      ['ownParam0', 'ParameterNode', '{"_array_class":"Simulink.Parameter","_dimensions":[0,@],"_elements":[]}'],
+      ['ownParam1', 'ParameterNode', '{"_array_class":"Simulink.Parameter","_dimensions":[1,@],"_elements":[{"_properties":{"Value":1}}]}'],
+      ['ownSignal1', 'SignalNode', '{"_array_class":"Simulink.Signal","_dimensions":[1,@],"_elements":[{"_properties":{"Description":"d"}}]}'],
+      ['ownWidget0', 'ObjectNode', '{"_array_class":"Widget","_dimensions":[0,@],"_elements":[]}'],
+      ['ownWidget1', 'ObjectNode', '{"_array_class":"Widget","_dimensions":[1,@],"_elements":[{"_id":"1","_properties":{"A":1}}]}'],
+    ];
+    const save = (extent: string, change: (design: any) => void) => {
+      const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+      forms.forEach(([name], i) => entriesOf(json).push({ name, metadata: { uuid: `00000000-0000-4000-ef80-00000000002${i}` }, value: `@@${name}@@` }));
+      const file = forms.reduce((text, [name, , value]) => text.replace(`"@@${name}@@"`, value.replace('@', extent)), JSON.stringify(json));
+      const session = createSession();
+      const root: any = ingest(session, buffer(strToU8(file)), { filename: TEXT });
+      const design = root.getSection('design');
+      expect(forms.map(([name]) => design.children.find((e: any) => e.name === name).constructor.name)).toEqual(forms.map(([, cls]) => cls));
+      change(design);
+      const own = design.children.filter((e: any) => /^own/.test(e.name));
+      const copies = own.map((e: any) => thrownBy(() => e.serialize())[0]?.message ?? null);
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      if (thrown) return [copies, thrown.message];
+      return [copies, entriesOf(JSON.parse(session.serializeSource(root.name)!.text!)).filter((e: any) => /^own/.test(e.name)).map((e: any) => [e.name, e.value])];
+    };
+    // What a save writes of the same file with a 7 where the 1e400 is, with null for the 7.
+    const asFinite = (change: (design: any) => void) => {
+      const [copies, saved] = save('7', change);
+      expect(copies).toEqual(forms.map(() => null));
+      return [copies, (saved as [string, any][]).map(([name, value]) => [name, { ...value, _dimensions: value._dimensions.map((x: unknown) => (x === 7 ? null : x)) }])];
+    };
+    const changes: [string, (design: any) => void][] = [
+      ['as read', () => {}],
+      ['renamed', (design) => design.children.filter((e: any) => /^own/.test(e.name)).forEach((e: any) => e.setProperty('Name', e.name + 'R'))],
+      ['beside an edit', (design) => design.children.find((e: any) => e.name === 'dRow').children[1].setProperty('Value', '9')],
+    ];
+    for (const [label, change] of changes) {
+      expect(save('1e400', change), label).toEqual(asFinite(change));
+    }
+  });
 });
 
 describe('a value whose XML is its only spelling in a binary dictionary', () => {
@@ -403,6 +560,227 @@ describe('a binary dictionary\'s raw property is written back as read, Dimension
         const from = saved.indexOf('<P Name="Value"', saved.indexOf('<Element Class="Simulink.Parameter">', saved.indexOf('<P Name="Name" Class="char">pDense</P>')));
         expect(saved.slice(from, saved.indexOf('<P Name="Complexity"', from)).trimEnd(), edit ? 'edited' : 'no-op').toBe(written || read);
       }
+    });
+  }
+});
+
+describe('a Matrix(…) header\'s digits are taken exactly wherever the value stands, not only as a raw property', () => {
+  // 2^53 + 1 is the first count a double does not hold: parsed, it is 2^53, which a
+  // Dimension would spell as another size. The raw property arm has refused it since
+  // eb288ea; an entry, a cell's element and a struct's field wrote it rounded. What is
+  // refused is digits naming a count no double holds exactly, not every count past 2^53 - 1:
+  // one it does hold is written, and it is what a binary dictionary's reader puts in a
+  // header for its own empty cell element (BinarySlddParser.parseCellElement).
+  const PAST = '9007199254740993';
+  const literal = (type: string, dims: string, body = '[]') => ({ _type: type, _value: `Matrix(${dims})\n${body}` });
+  const binaryPaste = (value: unknown) => {
+    const session = createSession();
+    const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
+    root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef60-000000000001' }, value });
+    const [thrown] = thrownBy(() => session.serializeSource(root.name));
+    if (thrown) return [thrown.name, thrown.message];
+    const xml = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+    const from = xml.indexOf('<P Name="Value"', xml.indexOf('<P Name="Name" Class="char">pasted</P>'));
+    return xml.slice(from, xml.indexOf('</Object>', from)).replace(/\s+/g, ' ').trim();
+  };
+  const refused = (said: string) => ['MatBudgetError', `Cannot write "pasted": ${said}${NOT_A_COUNT}`];
+  const cell = (member: unknown) => ({ _array_type: 'Cell', _dimensions: [1, 1], _elements: [member] });
+  const parameter = (value: unknown) => ({ _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: value } }] });
+
+  const cases: [string, unknown, string][] = [
+    ['an entry', literal('double', `0,${PAST}`), 'pasted is a double declaring dimensions [0,9007199254740992]'],
+    ['an int8 entry', literal('int8', `0,${PAST}`), 'pasted is an int8 declaring dimensions [0,9007199254740992]'],
+    ['a char entry', literal('mxchar', `1,${PAST}`, '[97]'), 'pasted is a char declaring dimensions [1,9007199254740992]'],
+    ['a cell entry\'s element', cell(literal('double', `0,${PAST}`)), 'pasted{1} is a double declaring dimensions [0,9007199254740992]'],
+    ['a struct entry\'s field', { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: literal('double', `0,${PAST}`) }], _fields: ['f'] }, 'pasted.f is a double declaring dimensions [0,9007199254740992]'],
+    ['a Parameter Value\'s cell element', parameter(cell(literal('double', `0,${PAST}`))), 'pasted.Value{1} is a double declaring dimensions [0,9007199254740992]'],
+    ['a Parameter Value', parameter(literal('double', `0,${PAST}`)), 'pasted.Value is a double declaring dimensions [0,9007199254740992]'],
+  ];
+  for (const [label, value, said] of cases) {
+    it(`${label}: refused, not written rounded`, () => {
+      expect(binaryPaste(value)).toEqual(refused(said));
+    });
+  }
+
+  it('isExactDigits: digits naming a count a double holds exactly, not digits that survive a round trip as text', () => {
+    // String spells 2^60 as 1152921504606847000, so those digits survived the round trip, and
+    // 2^60's own did not; but the count they say is not 2^60, and no double holds it.
+    const digits: [string, boolean][] = [
+      ['9007199254740991', true], // 2^53 - 1
+      ['9007199254740992', true], // 2^53
+      ['9007199254740993', false], // 2^53 + 1, which parses to 2^53
+      ['1152921504606846976', true], // 2^60
+      ['1152921504606847000', false], // String(2^60), which parses to 2^60
+      ['0009007199254740992', true], // leading zeros say nothing
+      ['1000000000000000000000', true], // 10^21, which String spells 1e+21
+      ['9'.repeat(25), false],
+      ['9'.repeat(400), false], // past any double
+    ];
+    expect(digits.map(([d]) => [d, isExactDigits(d)])).toEqual(digits);
+  });
+
+  it('1152921504606847000, the digits String gives 2^60, is refused in each of those places: no double holds the count it says', () => {
+    const SHORT = '1152921504606847000';
+    for (const [label, value, said] of cases) {
+      expect(binaryPaste(JSON.parse(JSON.stringify(value).replaceAll(PAST, SHORT))), label).toEqual(refused(said.replace('9007199254740992', SHORT)));
+    }
+  });
+
+  // And as a Parameter Value's cell element, which the raw cell-element arm
+  // (DataNode._serializeCellElementXml) writes under its Dimension since 411e108.
+  const written = (digits: string) => {
+    const dims = `0,${digits}`;
+    const said = `0*${digits.replace(/^0+(?=\d)/, '')}`;
+    return [
+      [binaryPaste(literal('double', dims)), `<P Name="Value" Class="double" Dimension="${said}"/>`],
+      [binaryPaste(cell(literal('int8', dims))), `<P Name="Value" Class="cell" Dimension="1*1"> <Element Class="int8" Dimension="${said}"/> </P>`],
+      [binaryPaste({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: literal('double', dims) }], _fields: ['f'] }), `<P Name="Value" Class="struct"> <Element> <P Name="f" Class="double" Dimension="${said}"/> </Element> </P>`],
+      [binaryPaste(parameter(literal('double', dims))), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="double" Dimension="${said}"></P> </Element> </P>`],
+      [binaryPaste(parameter(cell(literal('int8', dims)))), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="cell"> <Element Class="int8" Dimension="${said}"></Element> </P> </Element> </P>`],
+    ];
+  };
+
+  it('2^53 - 1, Number.MAX_SAFE_INTEGER, is written as read as an entry, a cell entry\'s element, a struct entry\'s field, a Parameter\'s Value and its cell\'s element', () => {
+    for (const [got, want] of written('9007199254740991')) expect(got).toBe(want);
+  });
+
+  it('a count past it that a double holds as written — 2^53, 2^53 + 2, 10^20, 2^53 with leading zeros — is written as that count in the same five places', () => {
+    // f535020's raw property arm refused each of these as a Parameter's Value, taking every
+    // count past 2^53 - 1 for a rounded one, and so did 411e108's cell-element arm. None is
+    // written rounded, so none is refused.
+    for (const digits of ['9007199254740992', '9007199254740994', '100000000000000000000', '0009007199254740992']) {
+      for (const [got, want] of written(digits)) expect(got, digits).toBe(want);
+    }
+  });
+
+  it('2^60\'s own digits, which a double holds, are written in the same five places, not refused', () => {
+    // As that double, which a Dimension spells as String does: digits that read back as 2^60.
+    for (const [got] of written('1152921504606846976')) {
+      expect(Number(/ Dimension="0\*(\d+)"/.exec(String(got))?.[1]), String(got)).toBe(2 ** 60);
+    }
+  });
+
+  it('a binary dictionary\'s own empty cell element at or past 2^53 is written back as read on a save that edited nothing', () => {
+    // The reader writes the element's Dimension into a `Matrix(…)` header with the exact
+    // digits of the doubles it read (Size.headerDigits), so the header names a count a
+    // double holds.
+    const OLD = '<P Name="Value" Class="double" Dimension="0*0"/>';
+    const one = (element: string) => `<P Name="Value" Class="cell" Dimension="1*1">\n            ${element}\n        </P>`;
+    const FORMS: [string, string][] = [
+      ['a double', one('<Element Class="double" Dimension="0*9007199254740992"/>')],
+      ['an int8', one('<Element Class="int8" Dimension="0*9007199254740992"/>')],
+      ['a nested cell\'s', one('<Element Class="cell" Dimension="1*1">\n                <Element Class="double" Dimension="0*9007199254740992"/>\n            </Element>')],
+      ['a rank-4', one('<Element Class="double" Dimension="1*2*0*9007199254740992"/>')],
+      ['2^53 + 2', one('<Element Class="double" Dimension="0*9007199254740994"/>')],
+      ['10^20', one('<Element Class="double" Dimension="0*100000000000000000000"/>')],
+    ];
+    for (const [label, read] of FORMS) {
+      const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+      const xml = strFromU8(files['data/chunk0.xml']);
+      expect(xml).toContain(OLD);
+      files['data/chunk0.xml'] = strToU8(xml.replace(OLD, read));
+      const session = createSession();
+      const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      expect(thrown?.message ?? null, label).toBeNull();
+      const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+      const from = saved.indexOf('<P Name="Value"', saved.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
+      expect(saved.slice(from, saved.indexOf('</Object>', from)).trimEnd(), label).toBe(read);
+    }
+  });
+
+  it('so is one in a Parameter\'s Value, which the raw cell-element arm writes', () => {
+    // 411e108 writes such an element under its Dimension, where it had been the scalar 0.0,
+    // and held its header to the safe-integer rule, so a no-op save of a dictionary holding
+    // one at 2^53 was refused whole.
+    const OLD = '<P Name="Value" Class="double" Dimension="3*3">0.0 0.0 6.0 5.0 0.0 0.0 0.0 0.0 0.0</P>';
+    const squeeze = (xml: string) => xml.replace(/\s+/g, ' ').trim();
+    for (const element of [
+      '<Element Class="double" Dimension="0*9007199254740992"/>',
+      '<Element Class="int8" Dimension="0*9007199254740994"/>',
+      '<Element Class="double" Dimension="1*2*0*100000000000000000000"/>',
+    ]) {
+      const read = `<P Name="Value" Class="cell">\n                    ${element}\n                </P>`;
+      const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+      const xml = strFromU8(files['data/chunk0.xml']);
+      expect(xml).toContain(OLD);
+      files['data/chunk0.xml'] = strToU8(xml.replace(OLD, read));
+      const session = createSession();
+      const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      expect(thrown?.message ?? null, element).toBeNull();
+      const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+      const from = saved.indexOf('<P Name="Value"', saved.indexOf('<Element Class="Simulink.Parameter">', saved.indexOf('<P Name="Name" Class="char">pDense</P>')));
+      expect(squeeze(saved.slice(from, saved.indexOf('<P Name="Complexity"', from))), element).toBe(squeeze(read));
+    }
+  });
+
+  it('a binary dictionary\'s own empty cell element at 2^60 is not refused by a save that edited nothing', () => {
+    // String spells 2^60 as 1152921504606847000, digits that say another count, so the
+    // header the reader builds from it is spelled with the double's exact digits. Written,
+    // its Dimension spells that double as String does, as f535020 wrote it. As a cell
+    // entry's element, and in a Parameter's Value, which the raw cell-element arm writes.
+    const OLD = '<P Name="Value" Class="double" Dimension="0*0"/>';
+    const OLD_VALUE = '<P Name="Value" Class="double" Dimension="3*3">0.0 0.0 6.0 5.0 0.0 0.0 0.0 0.0 0.0</P>';
+    for (const dimension of ['0*1152921504606846976', '0*1152921504606847000']) {
+      const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+      files['data/chunk0.xml'] = strToU8(strFromU8(files['data/chunk0.xml']).replace(OLD, `<P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="double" Dimension="${dimension}"/>\n        </P>`));
+      const session = createSession();
+      const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
+      const dEmpty = root.getSection('design').children.find((e: any) => e.name === 'dEmpty');
+      expect(dEmpty.serialize().value._elements, dimension).toEqual([{ _type: 'double', _value: 'Matrix(0,1152921504606846976)' }]);
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      expect(thrown?.message ?? null, dimension).toBeNull();
+      const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+      const from = saved.indexOf('<Element Class="double"', saved.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
+      expect(Number(/^<Element Class="double" Dimension="0\*(\d+)"\/>/.exec(saved.slice(from))?.[1]), dimension).toBe(2 ** 60);
+      const inValue = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+      inValue['data/chunk0.xml'] = strToU8(strFromU8(inValue['data/chunk0.xml']).replace(OLD_VALUE, `<P Name="Value" Class="cell">\n                    <Element Class="double" Dimension="${dimension}"/>\n                </P>`));
+      const valueSession = createSession();
+      const valueRoot: any = ingest(valueSession, buffer(zipSync(inValue)), { filename: BINARY });
+      const [valueThrown] = thrownBy(() => valueSession.serializeSource(valueRoot.name));
+      expect(valueThrown?.message ?? null, `${dimension} in a Parameter's Value`).toBeNull();
+      const valueSaved = strFromU8(unzipSync(valueSession.serializeSource(valueRoot.name)!.bytes!)['data/chunk0.xml']);
+      const at = valueSaved.indexOf('<Element Class="double"', valueSaved.indexOf('<P Name="Name" Class="char">pDense</P>'));
+      expect(Number(/^<Element Class="double" Dimension="0\*(\d+)"\/>/.exec(valueSaved.slice(at))?.[1]), `${dimension} in a Parameter's Value`).toBe(2 ** 60);
+    }
+  });
+});
+
+describe('a binary dictionary\'s complex text is not taken for a text dictionary\'s own', () => {
+  // A text dictionary's own complex text with no stream to be is written back as read
+  // (MatWriter.heldByTextDictionary). The record of what a text dictionary read is kept by
+  // object, and every dictionary's read made it, a binary one's too. So the same value out
+  // of a binary dictionary, handed to a text paste as the object it is, passed for the text
+  // dictionary's own and was written as plain text MATLAB reads back as an empty double.
+  const COMPLEX_PAST = '<P Name="Value" Class="double" IsComplex="1" Dimension="0*2147483648"/>';
+  const binaryWith = (valueXml: string, old: string) => {
+    const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+    const xml = strFromU8(files['data/chunk0.xml']);
+    expect(xml).toContain(old);
+    files['data/chunk0.xml'] = strToU8(xml.replace(old, valueXml));
+    return buffer(zipSync(files));
+  };
+  const intoText = (value: unknown) => {
+    const session = createSession();
+    const root: any = ingest(session, sparseFixture(TEXT), { filename: TEXT });
+    root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef70-000000000001' }, value });
+    return thrownBy(() => session.serializeSource(root.name))[0]?.message ?? null;
+  };
+
+  // What a host has of the entry when it does not JSON-clone it: serialize()'s value itself.
+  const copied = (old: string, name: string) => {
+    const root: any = ingest(createSession(), binaryWith(COMPLEX_PAST, old), { filename: BINARY });
+    return root.getSection('design').children.find((e: any) => e.name === name).serialize().value;
+  };
+  const cases: [string, () => unknown, string][] = [
+    ['a Parameter\'s Value', () => copied('<P Name="Value" Class="double" Dimension="3*3">0.0 0.0 6.0 5.0 0.0 0.0 0.0 0.0 0.0</P>', 'pDense'), 'pasted.Value is a 0x2147483648 double'],
+    ['an entry', () => copied('<P Name="Value" Class="double" Dimension="0*0"/>', 'dEmpty'), 'pasted is a 0x2147483648 double'],
+  ];
+  for (const [label, copy, said] of cases) {
+    it(`${label}, pasted uncloned, is refused as it is when cloned`, () => {
+      const value = copy();
+      expect([intoText(value), intoText(JSON.parse(JSON.stringify(value)))]).toEqual([`Cannot write "pasted": ${said}${PAST_INT32}`, `Cannot write "pasted": ${said}${PAST_INT32}`]);
     });
   }
 });

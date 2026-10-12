@@ -178,6 +178,13 @@ export default class StructNode extends DataNode {
         if (this._isElementNode) {
             return this.serializeElement();
         }
+        // In a text dictionary, dims holding NaN, an infinity or a bigint, refused, finally,
+        // before they are counted: a bigint threw a TypeError there
+        // (DataNode._textSpellableOrRefuse). Elsewhere the value is its copy as it stands, and
+        // a binary save refuses such dims itself (serializeXml).
+        if (this._ownerFormat() === 'json') {
+            this._textSpellableOrRefuse(d, 'struct');
+        }
 
         const elements: Record<string, unknown>[] = [];
         if (this._numElements > 1) {

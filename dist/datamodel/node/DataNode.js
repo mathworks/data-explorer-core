@@ -4,7 +4,7 @@ import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
 import { budgetFailure, classPhrase, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
-import { dimsText, isSize, isSpellableExtent } from '../parser/Size.js';
+import { dimsText, isExactDigits, isSpellableExtent, isTextExtent } from '../parser/Size.js';
 import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
 import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
@@ -1058,7 +1058,7 @@ export default class DataNode extends BaseNode {
         const type = value._type;
         const raw = String(value._value);
         if (type === 'mxchar') {
-            DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', name, at, true);
+            DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', name, at, raw);
         }
         const mxChar = DataNode._mxCharXml(value);
         if (mxChar) {
@@ -1151,10 +1151,10 @@ export default class DataNode extends BaseNode {
             if (!dims.some((d) => d === 0)) {
                 return null;
             }
-            DataNode._sizeOrRefuse(dims, type, name, at, true);
+            DataNode._sizeOrRefuse(dims, type, name, at, raw);
             return open + '/>';
         }
-        DataNode._sizeOrRefuse(dims, type, name, at, true);
+        DataNode._sizeOrRefuse(dims, type, name, at, raw);
         const nums = DataNode._parseMatrixNums(m[2], type);
         const colMajor = transposeToColumnMajorND(nums, dims);
         const formatted = colMajor.map(function (v) {
@@ -1236,11 +1236,13 @@ export default class DataNode extends BaseNode {
      * header, a complex text's `_dimensions`. A binary dictionary's reader passes every finite
      * non-negative extent through as read, so one of those is written back as read; what is
      * refused — NaN, an infinity, a negative, a string, an object, a bigint — came from a text
-     * dictionary or a host, and `Dimension="1*x"` is no spelling of anything. A header's
-     * digits are taken `exact`ly: one past 2^53 would be written rounded, as another size.
+     * dictionary or a host, and `Dimension="1*x"` is no spelling of anything. Dims read from
+     * a `header` are held to its digits: digits naming a count no double holds exactly, like
+     * 9007199254740993, would be parsed to another count and written as that one (parser/Size,
+     * isExactDigits).
      */
-    static _sizeOrRefuse(dims, cls, name, at, exact = false) {
-        if (dims === undefined || (exact ? isSize(dims) : Array.isArray(dims) && dims.every(isSpellableExtent))) {
+    static _sizeOrRefuse(dims, cls, name, at, header) {
+        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : Array.isArray(dims) && dims.every(isSpellableExtent))) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
@@ -1250,6 +1252,11 @@ export default class DataNode extends BaseNode {
     static _headerDims(text) {
         const m = /^Matrix\((\d+(?:,\d+)*)\)/.exec(text);
         return m ? m[1].split(',').map(Number) : undefined;
+    }
+    /** Whether each extent of a `Matrix(…)` header parses to the count its digits say, or there is no header. */
+    static _headerExact(text) {
+        const m = /^Matrix\((\d+(?:,\d+)*)\)/.exec(text);
+        return !m || m[1].split(',').every(isExactDigits);
     }
     /**
      * A refusal of a write that began at this node, restated for a user: the entry — the one
@@ -1266,10 +1273,24 @@ export default class DataNode extends BaseNode {
     }
     /**
      * Refuses to write this node's XML when its dims are not what a Dimension can spell — the
-     * same rule as for a raw property value (_sizeOrRefuse) — naming the entry and the path.
+     * same rule as for a raw property value (_sizeOrRefuse), dims read from a `header` held to
+     * its digits as there — naming the entry and the path.
      */
-    _spellableOrRefuse(dims, cls) {
-        if (dims === undefined || (Array.isArray(dims) && dims.every(isSpellableExtent))) {
+    _spellableOrRefuse(dims, cls, header) {
+        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : Array.isArray(dims) && dims.every(isSpellableExtent))) {
+            return;
+        }
+        const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
+        throw this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-a-count'));
+    }
+    /**
+     * Refuses to write this node's value as a text dictionary's JSON, or copy it there, when its
+     * dims hold NaN, an infinity or a bigint, which JSON writes as null or cannot write
+     * (parser/Size, isTextExtent), naming the entry and the path, as _spellableOrRefuse does for
+     * a Dimension.
+     */
+    _textSpellableOrRefuse(dims, cls) {
+        if (!Array.isArray(dims) || dims.every(isTextExtent)) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
@@ -1421,7 +1442,7 @@ export default class DataNode extends BaseNode {
                 return DataNode._detachedXml(obj, '', 'Element', {}, indent, at);
             }
             if (type === 'mxchar') {
-                DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', '', at, true);
+                DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', '', at, raw);
             }
             const mxChar = DataNode._mxCharXml(obj);
             if (mxChar) {

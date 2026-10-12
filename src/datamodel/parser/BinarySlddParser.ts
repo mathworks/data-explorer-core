@@ -67,6 +67,7 @@ import {
   SAVEOBJ_KEY,
 } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
+import { headerDigits } from './Size.js';
 
 interface XmlNode {
   '@_Class'?: string;
@@ -622,8 +623,9 @@ function parseCellElement(el: XmlNode): unknown {
       const total = dimParts.reduce((a, b) => a * b, 1);
       if (total === 0) {
         // Every extent, so an empty N-D cell element agrees with what
-        // parseMatrixValue reads back.
-        return { _type: elClass, _value: 'Matrix(' + dimParts.join(',') + ')' };
+        // parseMatrixValue reads back, each as the count it is (Size.headerDigits): past
+        // 2^53 - 1 String spells some with digits that say another count.
+        return { _type: elClass, _value: 'Matrix(' + dimParts.map(headerDigits).join(',') + ')' };
       }
       const parts = numericBody(text, elClass);
       const rowMajor = transposeColumnMajor(parts, dimParts);

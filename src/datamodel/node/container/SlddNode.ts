@@ -200,9 +200,15 @@ export default class SlddNode extends ContainerNode {
                     // EncodedValue.recordDecodeFailure). Taken before too, so that nothing
                     // recorded outside this read is reported against this entry.
                     takeDecodeFailures();
-                    // Its complex text is this file's own, which a save writes back as read
-                    // where it has no stream to be instead (MatWriter.heldByTextDictionary).
-                    heldByTextDictionary(entry.value);
+                    // A text dictionary's complex text is this file's own, which a save writes
+                    // back as read where it has no stream to be instead
+                    // (MatWriter.heldByTextDictionary). A binary dictionary's is not: the record
+                    // is by object, so the value of a binary entry, handed to a text paste
+                    // uncloned, passed for that text dictionary's own and was written as
+                    // complex text where it is refused. Not walked on a binary read at all.
+                    if (node.sourceFormat !== 'xml') {
+                        heldByTextDictionary(entry.value);
+                    }
                     section.parseEntry(entry, node.systemComposer);
                     for (const reason of takeDecodeFailures()) {
                         warnings?.push({
