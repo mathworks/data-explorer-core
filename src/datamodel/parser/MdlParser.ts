@@ -862,6 +862,10 @@ function classicMask(block: MdlNode): { names: string[]; params: { name: string;
   const values = (prop(block, 'MaskValueString') || '').split('|');
   const names: string[] = [];
   const params: { name: string; value: string }[] = [];
+  // Whether a slot's style is an expression type, worked out once for each slot. Reading a
+  // style is linear in its length, and every declaration may name the same slot, so
+  // reading it once per declaration cost the product of the two.
+  const expression = new Map<number, boolean>();
   for (const decl of vars.split(';')) {
     const parsed = /^\s*([A-Za-z_]\w*)\s*=\s*([@&])(\d+)\s*$/.exec(decl);
     if (!parsed) {
@@ -875,13 +879,42 @@ function classicMask(block: MdlNode): { names: string[]; params: { name: string;
     if (evaluated !== '@' || slot < 0 || slot >= values.length) {
       continue;
     }
-    const type = (styles[slot] ?? 'edit').replace(/\(.*$/, '').trim().toLowerCase();
-    if (!isExpressionMaskType(type)) {
+    let isExpression = expression.get(slot);
+    if (isExpression === undefined) {
+      const type = styleWithoutOptions(styles[slot] ?? 'edit').trim().toLowerCase();
+      isExpression = isExpressionMaskType(type);
+      expression.set(slot, isExpression);
+    }
+    if (!isExpression) {
       continue;
     }
     params.push({ name, value: values[slot] });
   }
   return { names, params };
+}
+
+/**
+ * A mask style with its options cut off, `popup(a|b)` to `popup`, exactly as
+ * `style.replace(/\(.*$/, '')` cut them, on every input.
+ *
+ * With no `m` flag `$` is the end of the text, and `.` passes no line terminator (`\n`,
+ * `\r`, U+2028, U+2029), so the regex cut at the first `(` that no line terminator
+ * follows. It found that `(` by trying each in turn, and each try walked to the next
+ * line terminator before it failed, so a style of many `(` ahead of one cost their count
+ * times that walk. The scanner keeps a line break inside a quoted value and unescapes
+ * `\n` and `\r`, so a file puts one wherever it likes. The `(` the regex cut at is the
+ * first after the last line terminator, which five scans of the text find.
+ */
+export function styleWithoutOptions(style: string): string {
+  const from =
+    Math.max(
+      style.lastIndexOf('\n'),
+      style.lastIndexOf('\r'),
+      style.lastIndexOf('\u2028'),
+      style.lastIndexOf('\u2029'),
+    ) + 1;
+  const open = style.indexOf('(', from);
+  return open < 0 ? style : style.slice(0, open);
 }
 
 /**
