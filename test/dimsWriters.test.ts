@@ -526,3 +526,41 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
     }
   });
 });
+
+describe('a binary dictionary\'s complex text is not taken for a text dictionary\'s own', () => {
+  // A text dictionary's own complex text with no stream to be is written back as read
+  // (MatWriter.heldByTextDictionary). The record of what a text dictionary read is kept by
+  // object, and every dictionary's read made it, a binary one's too. So the same value out
+  // of a binary dictionary, handed to a text paste as the object it is, passed for the text
+  // dictionary's own and was written as plain text MATLAB reads back as an empty double.
+  const COMPLEX_PAST = '<P Name="Value" Class="double" IsComplex="1" Dimension="0*2147483648"/>';
+  const binaryWith = (valueXml: string, old: string) => {
+    const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+    const xml = strFromU8(files['data/chunk0.xml']);
+    expect(xml).toContain(old);
+    files['data/chunk0.xml'] = strToU8(xml.replace(old, valueXml));
+    return buffer(zipSync(files));
+  };
+  const intoText = (value: unknown) => {
+    const session = createSession();
+    const root: any = ingest(session, sparseFixture(TEXT), { filename: TEXT });
+    root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef70-000000000001' }, value });
+    return thrownBy(() => session.serializeSource(root.name))[0]?.message ?? null;
+  };
+
+  // What a host has of the entry when it does not JSON-clone it: serialize()'s value itself.
+  const copied = (old: string, name: string) => {
+    const root: any = ingest(createSession(), binaryWith(COMPLEX_PAST, old), { filename: BINARY });
+    return root.getSection('design').children.find((e: any) => e.name === name).serialize().value;
+  };
+  const cases: [string, () => unknown, string][] = [
+    ['a Parameter\'s Value', () => copied('<P Name="Value" Class="double" Dimension="3*3">0.0 0.0 6.0 5.0 0.0 0.0 0.0 0.0 0.0</P>', 'pDense'), 'pasted.Value is a 0x2147483648 double'],
+    ['an entry', () => copied('<P Name="Value" Class="double" Dimension="0*0"/>', 'dEmpty'), 'pasted is a 0x2147483648 double'],
+  ];
+  for (const [label, copy, said] of cases) {
+    it(`${label}, pasted uncloned, is refused as it is when cloned`, () => {
+      const value = copy();
+      expect([intoText(value), intoText(JSON.parse(JSON.stringify(value)))]).toEqual([`Cannot write "pasted": ${said}${PAST_INT32}`, `Cannot write "pasted": ${said}${PAST_INT32}`]);
+    });
+  }
+});
