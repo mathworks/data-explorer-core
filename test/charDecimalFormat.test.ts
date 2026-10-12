@@ -7,11 +7,10 @@
 // opened as '1', the 2x3x4 char of codes 1:24 as the 60 characters of '1 2 3 … 24' (and so as
 // a 1x60), and a save wrote that text back as the value, dropping the Format and the shape.
 //
-// The ground truth is MATLAB's bytes: the eight Value lines below are copied verbatim from the
-// corpus test dictionary bug/dSLDD_JSONApi.sldd, the only one of 35 corpus binary dictionaries
-// besides parity/dNJSON_SLDDApi_opc.sldd (whose one is varStr3D's twin) to hold the form, and
-// custom_object_binary.sldd's widget.Ctrl is the fixture's own. Each has to read as the
-// characters its codes are, at its shape, and go back out as the line MATLAB wrote.
+// The ground truth is MATLAB's bytes: the eight Value lines below are copied verbatim from a
+// test dictionary R2027a wrote, outside this repository, and custom_object_binary.sldd's
+// widget.Ctrl is the fixture's own. Each has to read as the characters its codes are, at its
+// shape, and go back out as the line MATLAB wrote.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -49,7 +48,7 @@ const MATLAB: [string, string, number[], number[]][] = [
 
 const text = (codes: number[]) => String.fromCharCode(...codes);
 
-/** char_binary.sldd (MATLAB's) with MATLAB's eight entries added, each its Value line verbatim. */
+/** char_binary.sldd (MATLAB's) with the eight entries added, each with MATLAB's Value line verbatim. */
 function dictionaryChunk(): string {
   const xml = chunkOf(bytesAt('./fixtures/char_binary.sldd'));
   const tail = '    <Object Class="DD.Dictionary">';

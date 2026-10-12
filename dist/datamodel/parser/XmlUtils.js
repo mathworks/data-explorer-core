@@ -436,9 +436,9 @@ export function formatMxCharSerial(text, dims) {
 }
 // MATLAB's THIRD spelling of a char, in the binary flavour: its CODES. A char holding a code
 // unit of this class MATLAB writes as `Format="decimal"`, with a Dimension whatever its shape
-// and the body each UTF-16 code unit, in storage order, as a decimal number. Measured on
-// every such value in the corpus and the fixtures (ten: bug/dSLDD_JSONApi.sldd's eight,
-// parity/dNJSON_SLDDApi_opc.sldd's varStr3D, custom_object_binary.sldd's widget.Ctrl):
+// and the body each UTF-16 code unit, in storage order, as a decimal number. Measured on every
+// such value R2027a wrote into a binary dictionary we hold, ten in all: custom_object_binary.sldd's
+// widget.Ctrl, and nine in two test dictionaries outside this repository.
 //
 //   char(1)                     Dimension="1*1" Format="decimal">1
 //   char(65279), the BOM        Dimension="1*1" Format="decimal">65279
@@ -446,12 +446,13 @@ export function formatMxCharSerial(text, dims) {
 //   char([9 10 13 32:127])      Dimension="1*99" Format="decimal">9 10 13 32 … 127
 //   char(reshape(1:24,2,3,4))   Dimension="2*3*4" Format="decimal">1 2 … 24
 //
-// and NOT a tab, a newline or a carriage return among text, which MATLAB writes as text (the
-// same fixture's widget.Tab and widget.Lf, dSLDD_JSONApi.sldd's varStrCR and varStrCRLF). So
-// the class is the C0 controls but those three, DEL (varStrAscii's only other character), the
+// A tab, a newline and a carriage return are NOT in the class: among text MATLAB writes them as
+// text (the same fixture's widget.Tab and widget.Lf; a CR on its own, and CRs and LFs among
+// letters, are text in the same dictionaries, a CR as `&#xD;`). So the class is the C0
+// controls but those three, DEL (the only other character of char([9 10 13 32:127])), the
 // surrogates, the BOM, and U+FFFE and U+FFFF, which XML 1.0 cannot carry at all. What MATLAB
-// does with a C1 control (U+0080 to U+009F) is not measured — no file holds one — so one is
-// left as text, which XML can carry.
+// does with a C1 control (U+0080 to U+009F) is not measured, since no file holds one, so one
+// is left as text, which XML can carry.
 const WRITTEN_AS_CODES = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uD800-\uDFFF\uFEFF\uFFFE\uFFFF]/;
 /**
  * The attributes after `Class="char"` and the body, for a char MATLAB writes as its codes
