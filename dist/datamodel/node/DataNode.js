@@ -168,6 +168,17 @@ export function owningEntryOf(node) {
     return entry ?? null;
 }
 /**
+ * Whether a struct element is a bag of fields at all. MATLAB writes every element as an object,
+ * but a text dictionary is JSON anyone can edit, so an element can be `null`, a number, a string
+ * or an array. None holds a field, and the last two must be said so: an own-key test answers
+ * for a string's indices and an array's indices and `length`. Asked by StructNode, of the
+ * elements it reads its rows from, and by the raw struct writer below (_structXml), so that the
+ * two agree on which elements hold fields.
+ */
+export function isFieldBag(element) {
+    return element !== null && typeof element === 'object' && !Array.isArray(element);
+}
+/**
  * How many writers of XML are gathering the properties they write as `<P>`s right now
  * (DataNode._xmlProperties). While one is, each node's value under them is asked for in the
  * XML's spelling, which has no null element: a node keeping one (DataNode._keepNullElement)
@@ -1392,9 +1403,12 @@ export default class DataNode extends BaseNode {
                 xml += ip + '<Field Name="' + escapeXml(field) + '"/>\n';
             }
         }
+        // An element that is not a bag of fields (isFieldBag) is written as one holding none, as
+        // StructNode reads it: Object.entries threw on a null one, and failed the whole write, and
+        // wrote a string's or an array's indices as its fields.
         elements.forEach((elem, k) => {
             xml += ip + '<Element>\n';
-            for (const [field, fieldVal] of Object.entries(elem)) {
+            for (const [field, fieldVal] of Object.entries(isFieldBag(elem) ? elem : {})) {
                 xml += DataNode.serializePropertyXml(field, fieldVal, indent + 2, null, DataNode._within(at, elements.length, k, '.' + field)) + '\n';
             }
             xml += ip + '</Element>\n';

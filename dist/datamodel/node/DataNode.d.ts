@@ -33,6 +33,15 @@ export interface SetPropertyResult {
  */
 export declare function owningEntryOf(node: BaseNode | null | undefined): DataNode | null;
 /**
+ * Whether a struct element is a bag of fields at all. MATLAB writes every element as an object,
+ * but a text dictionary is JSON anyone can edit, so an element can be `null`, a number, a string
+ * or an array. None holds a field, and the last two must be said so: an own-key test answers
+ * for a string's indices and an array's indices and `length`. Asked by StructNode, of the
+ * elements it reads its rows from, and by the raw struct writer below (_structXml), so that the
+ * two agree on which elements hold fields.
+ */
+export declare function isFieldBag(element: unknown): element is Record<string, unknown>;
+/**
  * Where a raw property value a writer is writing stands: the entry's name, and the MATLAB
  * path from it to the value (`pSp.Value`, `obj.Prop(2).field`, `obj.Cellprop{3}`).
  */
