@@ -64,7 +64,10 @@ import {
   parseMatlabNum,
   parseNumericBody,
   transposeFromColumnMajorND,
+  ENUM_KEY,
+  ENUMERATION_KEY,
   SAVEOBJ_KEY,
+  type Enumeral,
 } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
 import { headerDigits } from './Size.js';
@@ -76,6 +79,10 @@ interface XmlNode {
   '@_IsComplex'?: string;
   // `decimal` on a char MATLAB wrote as its codes — see charValue.
   '@_Format'?: string;
+  // An enumeration value's wrapper, and each of its enumerals — see enumValue.
+  '@_IsEnum'?: string;
+  '@_EnumerationName'?: string;
+  '@_EnumerationType'?: string;
   // A value MATLAB wrote as an encoded byte stream rather than as XML — see encodedOf.
   '@_Encoding'?: string;
   '@_EncodedLength'?: string;
@@ -603,6 +610,15 @@ function parseCellElement(el: XmlNode): unknown {
   const dimension = el['@_Dimension'] || null;
   const text = getTextContent(el);
 
+  // Before the object tail below, which took the wrapper of an enumeration value for the
+  // classless holder of an object and its enumeral for an object with no properties.
+  if (el['@_IsEnum'] !== undefined) {
+    const enumerated = enumValue(el, dimension);
+    if (enumerated) {
+      return enumerated;
+    }
+  }
+
   if (isNumericClass(elClass)) {
     // Complexity is asked BEFORE the shape, the way parsePropContent asks it one level
     // up. A complex value states its elements as text whatever its shape
@@ -698,6 +714,51 @@ function parseCellElement(el: XmlNode): unknown {
     return objectArrayValue(childElements, [childElements.length, 1]);
   }
   return text || '';
+}
+
+/**
+ * An enumeration value in a cell, as the object bag a classed value is, keeping what MATLAB
+ * wrote of it (XmlUtils.ENUM_KEY): the cell element's `IsEnum`, and each enumeral's
+ * `EnumerationName`, `EnumerationType` and text. Null for an element marked IsEnum that is not
+ * spelled the way MATLAB spells one, which the arms after it read as they always did.
+ *
+ * MATLAB states the value in a cell as it states it at a `<P>`, less the Name: `<Element
+ * IsEnum="1">` around one `<Element Class="GearMode" EnumerationName="Reverse"
+ * EnumerationType="int32">-1</Element>`, `<Element IsEnum="1" Dimension="1*3">` around three,
+ * and an empty one as `<Element IsEnum="1" Class="GearMode" Dimension="0*2"/>`, its class on
+ * the wrapper since there is no enumeral to carry it. Read without the IsEnum, the value was a
+ * GearMode with no properties: `<1x1 GearMode>` on screen, and `<Element><Element
+ * Class="GearMode"/></Element>` on every save, untouched or not.
+ */
+function enumValue(el: XmlNode, dimension: string | null): Record<string, unknown> | null {
+  const members = el.Element || [];
+  const className = members.length > 0 ? members[0]['@_Class'] || '' : el['@_Class'] || '';
+  const enumeral = (m: XmlNode): boolean => !m.P && !m.Element && m['@_Class'] === className;
+  if (!className || !members.every(enumeral)) {
+    return null;
+  }
+  const dims = dimension ? parseDims(dimension) : members.length === 1 ? [1, 1] : [members.length, 1];
+  if (members.length === 0 && (!dimension || dims.reduce((a, b) => a * b, 1) !== 0)) {
+    return null;
+  }
+  return {
+    _array_class: className,
+    _dimensions: dims,
+    _mw_element_type: 'MATLABArray',
+    _elements: members.map((m) => {
+      // Each attribute only when MATLAB wrote it, in the order it writes them.
+      const e: Partial<Enumeral> = {};
+      if (m['@_EnumerationName'] !== undefined) {
+        e.name = m['@_EnumerationName'];
+      }
+      if (m['@_EnumerationType'] !== undefined) {
+        e.type = m['@_EnumerationType'];
+      }
+      e.value = getTextContent(m);
+      return { _properties: {}, [ENUMERATION_KEY]: e as Enumeral };
+    }),
+    [ENUM_KEY]: el['@_IsEnum'],
+  };
 }
 
 function parseStringValue(el: XmlNode, _outerDimension: string | null): unknown {

@@ -36,6 +36,36 @@ export declare const SAVEOBJ_KEY = "_saveobj";
  * drift apart again.
  */
 export declare const CUSTOM_SAVE_KEY = "_custom_save";
+/**
+ * Where an enumeration value in a binary dictionary's CELL keeps what MATLAB wrote of it.
+ *
+ * MATLAB states an enumeration value as a wrapper marked `IsEnum="1"` — a `<P>`, or in a cell
+ * an `<Element>` — around one `<Element Class="GearMode" EnumerationName="Reverse"
+ * EnumerationType="int32">-1</Element>` per enumeral. BinarySlddParser.parseCellElement reads
+ * one as the object bag every classed value is, `{_array_class, _dimensions, _elements}`, with
+ * the wrapper's IsEnum under ENUM_KEY and each enumeral's name, type and value text under
+ * ENUMERATION_KEY on its element ({@link Enumeral}). Those are what a save writes back
+ * (DataNode._enumXml) and what the member shows (ObjectNode.displayValue).
+ *
+ * Only a cell element carries them. An enumeration entry or object property is still read as
+ * a bag with none of the three, as it always was: where the enumeration belongs in THAT shape
+ * is a decision about a parse shape the display and edit layers read, and is not taken here.
+ * Both keys start with '_', so neither can be a property name, and a text dictionary is
+ * written without them (MatWriter.textDictionaryForm), since it spells an enumeration value
+ * another way (`_enum_value`) and has no reader for these.
+ */
+export declare const ENUM_KEY = "_is_enum";
+export declare const ENUMERATION_KEY = "_enumeration";
+/** One enumeral as MATLAB wrote it: `EnumerationName`, `EnumerationType`, and the element's text. */
+export interface Enumeral {
+    name?: string;
+    type?: string;
+    value: string;
+}
+/** Whether `value` is an enumeration value read out of a cell (see ENUM_KEY). */
+export declare function isEnumBag(value: unknown): boolean;
+/** The enumeral `element`, one of an enumeration value's `_elements`, holds, or null. */
+export declare function enumeralOf(element: unknown): Enumeral | null;
 export declare function formatMatlabNum(num: unknown): string;
 export declare function formatComplexNum(re: unknown, im: unknown): string;
 /**

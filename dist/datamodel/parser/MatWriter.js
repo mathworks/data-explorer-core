@@ -37,7 +37,7 @@
 // The tests hold all of it to byte equality against MATLAB's own eighteen cdata
 // streams, so a wrong guess here fails loudly rather than shipping a file MATLAB
 // reads as empty.
-import { complexClassTag, isExactToken, parseComplexNum, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
+import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, isEnumBag, isExactToken, parseComplexNum, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
@@ -1193,6 +1193,25 @@ export function textDictionaryForm(x, at = '') {
             }
             return o;
         }
+    }
+    // An enumeration value read out of a binary dictionary's cell, less what that reader keeps of
+    // it for a binary save (XmlUtils.ENUM_KEY). A text dictionary spells an enumeration value
+    // another way and has no reader for the two keys, so it gets the object bag such a cell
+    // element always went into one as.
+    if (isEnumBag(o)) {
+        const bag = { ...o };
+        delete bag[ENUM_KEY];
+        if (Array.isArray(bag._elements)) {
+            bag._elements = bag._elements.map((e) => {
+                if (!e || typeof e !== 'object') {
+                    return e;
+                }
+                const element = { ...e };
+                delete element[ENUMERATION_KEY];
+                return element;
+            });
+        }
+        return textDictionaryForm(bag, at);
     }
     let out = null;
     for (const k of Object.keys(o)) {

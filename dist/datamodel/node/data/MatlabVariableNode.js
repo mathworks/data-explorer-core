@@ -586,11 +586,18 @@ export default class MatlabVariableNode extends DataNode {
      * it is a summary — a sparse array's `<1x3 sparse double>` at any size, a large array's
      * `<4x3 double>`, a struct's, an object's — or a nested cell's literal holds one: a
      * summary is not the value, and the literal read back as text makes it char cells.
+     *
+     * Nor when an element is an object that takes no editor of its own, whatever its token: an
+     * enumeration value shows `GearMode.Reverse` (ObjectNode.displayValue), and `{1,
+     * GearMode.Reverse}` reads back as a cell holding that char.
      */
     _literalRoundTrips() {
         return this.children.every((c) => {
             const token = this._cellLiteralElement(c);
             if (token.charAt(0) === '<' && token.charAt(token.length - 1) === '>') {
+                return false;
+            }
+            if (!(c instanceof MatlabVariableNode) && !c.valueEditable) {
                 return false;
             }
             return !(c instanceof MatlabVariableNode && c._kind === 'cell') || c._literalRoundTrips();

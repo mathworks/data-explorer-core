@@ -8,6 +8,7 @@ import type { MatVariable } from '../../parser/MatParser.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable, type McosDecoded } from './mcosTypedNode.js';
 import { isEncodedValue } from '../../parser/EncodedValue.js';
+import { isEnumBag } from '../../parser/XmlUtils.js';
 import ConstantNode from './ConstantNode.js';
 import StructNode from './StructNode.js';
 import ObjectNode from './ObjectNode.js';
@@ -143,7 +144,10 @@ export function parseValue(rawVal: unknown, name: string, parent: BaseNode | nul
         // per element, each element parsed as a SCALAR through its own typed node.
         // Only a SINGLE-element value object dispatches straight to its typed class.
         const elements = (obj._elements as unknown[]) || [];
-        if (elements.length > 1) {
+        // An enumeration value read out of a cell (XmlUtils.ENUM_KEY) is ObjectNode's whatever
+        // its class: an enumeration class may share a name with a class registered here, whose
+        // node knows nothing of enumerals.
+        if (elements.length > 1 || isEnumBag(obj)) {
             return ObjectNode.parse(obj, name, parent);
         }
         const NodeClass = getClass(obj._array_class as string);

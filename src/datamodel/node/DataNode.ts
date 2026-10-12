@@ -27,6 +27,9 @@ import {
   pad as xmlPad,
   SAVEOBJ_KEY,
   CUSTOM_SAVE_KEY,
+  ENUM_KEY,
+  enumeralOf,
+  isEnumBag,
 } from '../parser/XmlUtils.js';
 
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
@@ -1421,7 +1424,9 @@ export default class DataNode extends BaseNode {
    * An object bag (`{_array_class, _dimensions, _elements: [{_properties}]}`) under `tag`: a
    * property's `<P Name="…">`, or the classless `<Element>` a cell element holding an object
    * is — cellarr_binary.sldd's cObj is `<Element>` around one `<Element
-   * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two.
+   * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two. An
+   * enumeration value read out of a cell is one of these bags too, and has a spelling of its
+   * own (_enumXml).
    */
   static _objectXml(
     tag: string,
@@ -1432,6 +1437,9 @@ export default class DataNode extends BaseNode {
     ownerNode: DataNode | null,
     at: PropertyAt | undefined,
   ): string {
+    if (isEnumBag(value)) {
+      return DataNode._enumXml(tag, attrs, name, value, indent, at);
+    }
     const p = xmlPad(indent);
     const ip = xmlPad(indent + 1);
     const className = value._array_class as string;
@@ -1476,6 +1484,51 @@ export default class DataNode extends BaseNode {
     });
     xml += p + close;
     return xml;
+  }
+
+  /**
+   * An enumeration value read out of a cell (XmlUtils.ENUM_KEY) under `tag`, as MATLAB wrote
+   * it: the `IsEnum` it carried, then a Dimension unless it is a scalar, around one `<Element
+   * Class="…" EnumerationName="…" EnumerationType="…">` per enumeral holding its value text —
+   * or, empty, self-closed with its class and Dimension, there being no enumeral to name the
+   * class. A cell element's is `<Element IsEnum="1">`; the same value at a property would be
+   * `<P Name="…" IsEnum="1">`, which is how MATLAB writes one there.
+   *
+   * Reached from `_objectXml`, whose object spelling used to take the enumeral for an object
+   * with no properties and write `<Element Class="GearMode"/>`, its name and value gone.
+   */
+  static _enumXml(
+    tag: string,
+    attrs: string,
+    name: string,
+    value: Record<string, unknown>,
+    indent: number,
+    at: PropertyAt | undefined,
+  ): string {
+    const p = xmlPad(indent);
+    const ip = xmlPad(indent + 1);
+    const className = escapeXml(value._array_class as string);
+    DataNode._sizeOrRefuse(value._dimensions, value._array_class as string, name, at);
+    const dims = (value._dimensions as number[]) || [1, 1];
+    const elements = (value._elements as unknown[]) || [];
+    const open = p + '<' + tag + attrs + ' IsEnum="' + escapeXml(String(value[ENUM_KEY])) + '"';
+    if (elements.length === 0) {
+      return open + ' Class="' + className + '" Dimension="' + dims.join('*') + '"/>';
+    }
+    const scalar = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1;
+    let xml = open + (scalar ? '' : ' Dimension="' + dims.join('*') + '"') + '>\n';
+    for (const element of elements) {
+      const e = enumeralOf(element);
+      xml += ip + '<Element Class="' + className + '"';
+      if (e?.name !== undefined) {
+        xml += ' EnumerationName="' + escapeXml(e.name) + '"';
+      }
+      if (e?.type !== undefined) {
+        xml += ' EnumerationType="' + escapeXml(e.type) + '"';
+      }
+      xml += '>' + escapeXml(e ? e.value : '') + '</Element>\n';
+    }
+    return xml + p + '</' + tag + '>';
   }
 
   /**

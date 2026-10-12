@@ -40,6 +40,42 @@ export const SAVEOBJ_KEY = '_saveobj';
  * drift apart again.
  */
 export const CUSTOM_SAVE_KEY = '_custom_save';
+/**
+ * Where an enumeration value in a binary dictionary's CELL keeps what MATLAB wrote of it.
+ *
+ * MATLAB states an enumeration value as a wrapper marked `IsEnum="1"` — a `<P>`, or in a cell
+ * an `<Element>` — around one `<Element Class="GearMode" EnumerationName="Reverse"
+ * EnumerationType="int32">-1</Element>` per enumeral. BinarySlddParser.parseCellElement reads
+ * one as the object bag every classed value is, `{_array_class, _dimensions, _elements}`, with
+ * the wrapper's IsEnum under ENUM_KEY and each enumeral's name, type and value text under
+ * ENUMERATION_KEY on its element ({@link Enumeral}). Those are what a save writes back
+ * (DataNode._enumXml) and what the member shows (ObjectNode.displayValue).
+ *
+ * Only a cell element carries them. An enumeration entry or object property is still read as
+ * a bag with none of the three, as it always was: where the enumeration belongs in THAT shape
+ * is a decision about a parse shape the display and edit layers read, and is not taken here.
+ * Both keys start with '_', so neither can be a property name, and a text dictionary is
+ * written without them (MatWriter.textDictionaryForm), since it spells an enumeration value
+ * another way (`_enum_value`) and has no reader for these.
+ */
+export const ENUM_KEY = '_is_enum';
+export const ENUMERATION_KEY = '_enumeration';
+/** Whether `value` is an enumeration value read out of a cell (see ENUM_KEY). */
+export function isEnumBag(value) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+        return false;
+    }
+    const o = value;
+    return typeof o[ENUM_KEY] === 'string' && typeof o._array_class === 'string' && o._array_class !== '';
+}
+/** The enumeral `element`, one of an enumeration value's `_elements`, holds, or null. */
+export function enumeralOf(element) {
+    if (element === null || typeof element !== 'object') {
+        return null;
+    }
+    const e = element[ENUMERATION_KEY];
+    return e !== null && typeof e === 'object' && typeof e.value === 'string' ? e : null;
+}
 // A number as MATLAB spells it. Only the non-finite values differ from
 // String(num), but they differ in a way that matters: MATLAB cannot read the
 // JavaScript spelling 'Infinity' back, and our own MatlabValueParser rejects it

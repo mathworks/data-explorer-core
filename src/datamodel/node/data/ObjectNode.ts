@@ -11,8 +11,8 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { OBJECT_ICON } from '../icons.js';
-import { escapeXml, pad as xmlPad, SAVEOBJ_KEY } from '../../parser/XmlUtils.js';
-import { effectiveDims, summaryForm } from '../../display/DisplayConvention.js';
+import { ENUM_KEY, ENUMERATION_KEY, enumeralOf, escapeXml, isEnumBag, pad as xmlPad, SAVEOBJ_KEY } from '../../parser/XmlUtils.js';
+import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 import { setOwn } from '../../parser/ownKeys.js';
 
@@ -70,8 +70,25 @@ export default class ObjectNode extends DataNode {
         return effectiveDims(raw._dimensions as number[] | undefined);
     }
 
+    // An enumeration value read out of a cell (XmlUtils.ENUM_KEY) shows its enumeral, as
+    // MATLAB names it, `GearMode.Reverse`; an array of them, or one with no enumeral name, its
+    // summary as any object does, and each element of the array its own enumeral.
     get displayValue(): string {
+        const rawVal = this.serial._rawVal as Record<string, unknown> | undefined;
+        if (rawVal && isEnumBag(rawVal)) {
+            const elements = (rawVal._elements as unknown[]) || [];
+            const enumeral = elements.length === 1 ? enumeralOf(elements[0]) : null;
+            if (enumeral?.name && elementCount(this.dims) === 1) {
+                return this.arrayClass + '.' + enumeral.name;
+            }
+        }
         return summaryForm(this.dims, this.arrayClass);
+    }
+
+    // Nothing here edits an enumeration value, and its enumeral is not text that reads back as
+    // one: `GearMode.Reverse` typed into a MATLAB value is a char.
+    get valueEditable(): boolean {
+        return !isEnumBag(this.serial._rawVal) && super.valueEditable;
     }
 
     getProperties(): PropClass[] {
@@ -97,7 +114,10 @@ export default class ObjectNode extends DataNode {
             return oneWrite(() => this.serializeValue());
         }
         const rawVal = (this.serial._rawVal as Record<string, unknown>) || {};
-        if (this.children.length === 0) {
+        // An enumeration value as it was read, an array of them included: nothing edits one,
+        // and the rebuild below keeps only each element's `_properties`, where an enumeral has
+        // none.
+        if (this.children.length === 0 || isEnumBag(rawVal)) {
             return rawVal;
         }
         // Object ARRAY: each child is a scalar element node (an ObjectNode for a
@@ -155,6 +175,12 @@ export default class ObjectNode extends DataNode {
         }
         // Dims no Dimension can spell, refused, finally (DataNode._spellableOrRefuse).
         this._spellableOrRefuse(((this.serial._rawVal as Record<string, unknown>) || {})._dimensions, this.arrayClass || 'object');
+        // An enumeration value, scalar, array or empty, as it was read (DataNode._enumXml): an
+        // entry's cell writes each element through here.
+        if (isEnumBag(this.serial._rawVal)) {
+            const name = attrs && attrs.Name ? ' Name="' + escapeXml(attrs.Name) + '"' : '';
+            return DataNode._enumXml(tagName, name, this.name, this.serial._rawVal as Record<string, unknown>, indent, undefined);
+        }
         if (!this._isElementArray) {
             return super.serializeXml(tagName, attrs, indent);
         }
@@ -306,13 +332,22 @@ export default class ObjectNode extends DataNode {
                 // unknown/custom class becomes a scalar ObjectNode — the same
                 // dispatch a standalone scalar would take. A null element goes in as
                 // the null it is, which both of those keep (NodeClassMap.parseValue).
-                const elemRaw = {
+                const elemRaw: Record<string, unknown> = {
                     _array_class: arrayClass,
                     _array_type: 'MATLABArray',
                     _dimensions: [1, 1],
                     _mw_element_type: (rawVal._mw_element_type as string) || 'MATLABArray',
                     _elements: [elem === null || elem === undefined ? null : { _properties: (elem._properties as Record<string, unknown>) || {} }],
                 };
+                // An element of an enumeration array is the scalar enumeration value it holds,
+                // so that it shows its own enumeral. A null element holds no enumeral, and
+                // goes in as the null it is.
+                if (isEnumBag(rawVal)) {
+                    elemRaw[ENUM_KEY] = rawVal[ENUM_KEY];
+                    if (elem !== null && elem !== undefined) {
+                        (elemRaw._elements as Record<string, unknown>[])[0][ENUMERATION_KEY] = elem[ENUMERATION_KEY];
+                    }
+                }
                 const elemNode = NodeRegistry.parseValue(elemRaw, String(ei), node) as DataNode;
                 // The MCOS decoder and both SLDD paths deliver elements in MATLAB's
                 // own COLUMN-major order, so element ei is MATLAB's linear index

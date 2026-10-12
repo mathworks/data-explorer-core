@@ -41,6 +41,9 @@
 import type { MatVariable } from './MatParser.js';
 import {
   complexClassTag,
+  ENUM_KEY,
+  ENUMERATION_KEY,
+  isEnumBag,
   isExactToken,
   parseComplexNum,
   transposeFromColumnMajorND,
@@ -1277,6 +1280,25 @@ export function textDictionaryForm(x: unknown, at = ''): unknown {
       }
       return o;
     }
+  }
+  // An enumeration value read out of a binary dictionary's cell, less what that reader keeps of
+  // it for a binary save (XmlUtils.ENUM_KEY). A text dictionary spells an enumeration value
+  // another way and has no reader for the two keys, so it gets the object bag such a cell
+  // element always went into one as.
+  if (isEnumBag(o)) {
+    const bag: Record<string, unknown> = { ...o };
+    delete bag[ENUM_KEY];
+    if (Array.isArray(bag._elements)) {
+      bag._elements = bag._elements.map((e) => {
+        if (!e || typeof e !== 'object') {
+          return e;
+        }
+        const element = { ...(e as Record<string, unknown>) };
+        delete element[ENUMERATION_KEY];
+        return element;
+      });
+    }
+    return textDictionaryForm(bag, at);
   }
   let out: Record<string, unknown> | null = null;
   for (const k of Object.keys(o)) {

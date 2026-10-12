@@ -10,6 +10,7 @@ export default class ObjectNode extends DataNode {
     get isObjectPropertyBag(): boolean;
     get dims(): number[];
     get displayValue(): string;
+    get valueEditable(): boolean;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];
     serializeValue(): unknown;
