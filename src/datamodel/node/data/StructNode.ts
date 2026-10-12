@@ -50,8 +50,15 @@ function fieldsOf(rawVal: Record<string, unknown>): string[] {
 // file's (`_fields`, or element 1's keys for every element), so a name the element does not
 // hold is possible, and a plain read of `constructor` or `toString` off the element then
 // answered an inherited member: the row showed `function Object() { [native code] }`.
-function fieldOf(element: Record<string, unknown>, field: string): unknown {
-    return Object.prototype.hasOwnProperty.call(element, field) ? element[field] : undefined;
+//
+// An element that is not an object at all — `null` in a hand-edited text dictionary — holds
+// no field either. The own-key test threw on it ("Cannot convert undefined or null to
+// object"), and the throw failed the open of the whole dictionary, not just this struct.
+function fieldOf(element: unknown, field: string): unknown {
+    if (element === null || typeof element !== 'object') {
+        return undefined;
+    }
+    return Object.prototype.hasOwnProperty.call(element, field) ? (element as Record<string, unknown>)[field] : undefined;
 }
 
 export default class StructNode extends DataNode {
