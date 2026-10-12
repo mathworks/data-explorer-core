@@ -4,6 +4,26 @@ export interface XmlSpan {
     length: number;
 }
 /**
+ * The text of the first P-node that `open` begins, exactly as
+ * `fragment.match(/<P Name="Name"[^>]*>([^<]*)<\/P>/)?.[1] ?? null` read it for
+ * `open` = `<P Name="Name"`, and the same pattern with `UUID` for `<P Name="UUID"`,
+ * on every input.
+ *
+ * The regex retried at every `open` in the fragment, and each retry walked to the
+ * next `>` and the `<` after it, so a fragment holding many `open`s that no `>`
+ * follows soon cost their count times that walk: the square of a run that the
+ * file's bytes decide.
+ *
+ * At one start the regex can match only one way. `[^>]*` cannot pass a `>`, so its
+ * `>` is the first one after `open`; `[^<]*` cannot pass a `<`, so the text ends at
+ * the first `<` after that, where `</P>` either is or is not. `open` starts with its
+ * only `<` and holds no `>`, so a later start either lies before that `>` (and meets
+ * the same `>`, the same `<` and the same answer) or lies at or after that `<`. So
+ * the next start worth trying is the next `open` from there, and no character is
+ * read more than a bounded number of times.
+ */
+export declare function pNodeText(fragment: string, open: string): string | null;
+/**
  * Byte span of the <Object Class="DD.ENTRY">…</Object> the selector identifies
  * (a bare string means "whichever entry has this name").
  *
