@@ -418,3 +418,97 @@ describe('a dictionary struct field named after an Object.prototype member', () 
     }
   });
 });
+
+// A struct element is an object in every file MATLAB writes, but a text dictionary is JSON
+// anyone can edit, and an element can be `null`. StructNode.parse read each field off the
+// element by an own-key test, which throws on null, and the throw failed the WHOLE
+// dictionary's open: "Cannot convert undefined or null to object". A null element now holds
+// no field, the same as an element that lacks a field the list declares, so the struct and
+// every other entry open. The two shapes are the two that reach the read: a field list
+// declared over a null element, and a struct array whose list comes from a good element 1.
+describe('a text-dictionary struct with a null element', () => {
+  const SHAPES: Array<[string, Record<string, unknown>, string]> = [
+    ['a declared field over a null element', { _array_type: 'Struct', _dimensions: [1, 1], _fields: ['a'], _elements: [null], _mw_element_type: 'MATLABArray' }, '<1x1 struct>'],
+    ['a 1x2 array whose second element is null', { _array_type: 'Struct', _dimensions: [1, 2], _elements: [{ a: 1 }, null], _mw_element_type: 'MATLABArray' }, '<1x2 struct>'],
+  ];
+  const control = readFileSync(fileURLToPath(new URL('./fixtures/rt_text.sldd', import.meta.url))).toString('utf8');
+  const entriesOf = (text: string): any[] => JSON.parse(text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+  // rt_text.sldd with one more entry, `damaged`, holding `value`.
+  const withEntry = (value: unknown): string => {
+    const json = JSON.parse(control);
+    const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    entries.push({ name: 'damaged', metadata: { ...entries[0].metadata, uuid: 'a43e9523-8ba6-426a-b689-6e7d85901371' }, value });
+    return JSON.stringify(json, null, '\t');
+  };
+  // Every row under an entry, by path, with the value it shows.
+  const rowsOf = (source: any, name: string): string[] => {
+    const out: string[] = [];
+    const walk = (n: any, path: string): void => {
+      out.push(path + ' = ' + String(n.displayValue));
+      for (const c of n.children) { walk(c, path + '/' + c.displayName); }
+    };
+    walk(source.flatten().find((n: any) => n.name === name), name);
+    return out;
+  };
+  // A field the element does not hold, as the struct shows it, whatever that is.
+  const absentField = (): string => {
+    const source: any = ingest(createSession(), withEntry({ _array_type: 'Struct', _dimensions: [1, 1], _fields: ['a'], _elements: [{}], _mw_element_type: 'MATLABArray' }), { filename: 'gadget.sldd' });
+    return rowsOf(source, 'damaged')[1].replace(/^damaged\/a = /, '');
+  };
+
+  it.each(SHAPES)('opens with %s, and every other entry is as it was', (_, value, summary) => {
+    const source: any = ingest(createSession(), withEntry(value), { filename: 'gadget.sldd' });
+    expect(rowsOf(source, 'gadget')).toEqual(rowsOf(ingest(createSession(), control, { filename: 'gadget.sldd' }), 'gadget'));
+    const rows = rowsOf(source, 'damaged');
+    expect(rows[0]).toBe('damaged = ' + summary);
+    // The null element's field reads as a field it does not hold.
+    expect(rows[rows.length - 1]).toMatch(/\/a = /);
+    expect(rows[rows.length - 1].replace(/^.*\/a = /, '')).toBe(absentField());
+  });
+
+  it.each(SHAPES)('saves with %s, untouched as it was read, and after an edit', (_, value) => {
+    const session = createSession();
+    const source: any = ingest(session, withEntry(value), { filename: 'gadget.sldd' });
+    const untouched = entriesOf((session.serializeSource(source.name) as { text: string }).text);
+    expect(JSON.stringify(untouched.find((e) => e.name === 'damaged').value)).toBe(JSON.stringify(value));
+
+    // An edit to the null element's field, so that the struct is rebuilt from its rows
+    // rather than replayed; the saved file reopens as the edited tree showed it.
+    const damaged = source.flatten().find((n: any) => n.name === 'damaged');
+    expect(damaged.flatten().filter((n: any) => n.name === 'a').pop().setProperty('Value', '7')).toBe(true);
+    const text = (session.serializeSource(source.name) as { text: string }).text;
+    expect(entriesOf(text).find((e) => e.name === 'gadget')).toEqual(entriesOf(control)[0]);
+    const edited = rowsOf(source, 'damaged');
+    expect(edited[edited.length - 1]).toMatch(/\/a = 7$/);
+    expect(rowsOf(ingest(createSession(), text, { filename: 'gadget.sldd' }), 'damaged')).toEqual(edited);
+    // And written into a binary dictionary, which is where a copy of it would go.
+    expect(damaged.serializeXml('P', { Name: 'Value' }, 2)).toContain('<P Name="a" Class="double">7.0</P>');
+  });
+
+  // Nor is a string or an array a field bag, though both are things an own-key test answers:
+  // a string's indices and an array's indices and `length` are its own keys. Read as fields,
+  // a string element 1 with no `_fields` listed its character indices as the struct's fields,
+  // an array element 1 listed its indices with the array's values, and a declared `length`
+  // over an array showed the array's length.
+  describe('or with an element that is a string or an array', () => {
+    const struct = (element: unknown, fields?: string[]) => ({
+      _array_type: 'Struct', _dimensions: [1, 1], ...(fields ? { _fields: fields } : {}), _elements: [element], _mw_element_type: 'MATLABArray',
+    });
+    const CASES: Array<[string, Record<string, unknown>, string[]]> = [
+      ['a string element and no field list', struct('abc'), []],
+      ['an array element and no field list', struct([1, 2]), []],
+      ['an array element under a declared `length`', struct([1, 2], ['length', 'a']), ['length', 'a']],
+      ['a string element under a declared `length`', struct('abc', ['length', 'a']), ['length', 'a']],
+    ];
+
+    it.each(CASES)('opens %s with no field the element holds, and saves it untouched as read', (_, value, fields) => {
+      const session = createSession();
+      const source: any = ingest(session, withEntry(value), { filename: 'gadget.sldd' });
+      expect(rowsOf(source, 'gadget')).toEqual(rowsOf(ingest(createSession(), control, { filename: 'gadget.sldd' }), 'gadget'));
+      const absent = absentField();
+      expect(rowsOf(source, 'damaged')).toEqual(['damaged = <1x1 struct>', ...fields.map((f) => `damaged/${f} = ${absent}`)]);
+      const saved = entriesOf((session.serializeSource(source.name) as { text: string }).text);
+      expect(JSON.stringify(saved.find((e) => e.name === 'damaged').value)).toBe(JSON.stringify(value));
+    });
+  });
+});

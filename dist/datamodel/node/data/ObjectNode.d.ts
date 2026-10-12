@@ -15,9 +15,9 @@ export default class ObjectNode extends DataNode {
     serializeValue(): unknown;
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _getSerializedProperties(): Record<string, unknown>;
+    _rebuiltProperties(forXml: boolean): Record<string, unknown>;
+    _storedProperties(): Record<string, unknown>;
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): ObjectNode;
     static _addPropertyChildren(node: ObjectNode, properties: Record<string, unknown> | undefined): void;
-    /** The reserved keys of a stored bag — the ones _addPropertyChildren gave no child. */
-    static _reservedProps(bag: Record<string, unknown> | undefined): Record<string, unknown>;
 }
 //# sourceMappingURL=ObjectNode.d.ts.map

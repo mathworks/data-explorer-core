@@ -11,9 +11,10 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { OBJECT_ICON } from '../icons.js';
-import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
+import { escapeXml, pad as xmlPad, SAVEOBJ_KEY } from '../../parser/XmlUtils.js';
 import { effectiveDims, summaryForm } from '../../display/DisplayConvention.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
+import { setOwn } from '../../parser/ownKeys.js';
 
 export default class ObjectNode extends DataNode {
     arrayClass: string;
@@ -121,7 +122,10 @@ export default class ObjectNode extends DataNode {
             });
             return { ...rawVal, _elements: elements };
         }
-        const props = this._getSerializedProperties();
+        // In a binary dictionary this JSON is what the XML is spelled from wherever a parent
+        // writes this object from its value (an object's property, a Parameter's Value), and
+        // what a copy out of it carries, so there it holds only the reserved keys XML can spell.
+        const props = this._rebuiltProperties(this._ownerFormat() === 'xml');
         // Nested-object form { _id?, _object_class, _properties }: keep the identity
         // keys, replace only _properties.
         if (rawVal._object_class) {
@@ -177,24 +181,70 @@ export default class ObjectNode extends DataNode {
         return xml;
     }
 
-    // The property bag rebuilt from live children, keyed by property name and in the
-    // children's order. Each value is the child's own serialized form, so a nested
-    // object/struct/cell edit recurses through the same path. Feeds both the JSON
-    // (serializeValue) and XML (_serializeSimulinkObjectXml) write-back paths.
+    // The property bag the XML writers iterate into <P>s: _serializeSimulinkObjectXml, and
+    // serializeXml for each element of an object array.
     _getSerializedProperties(): Record<string, unknown> {
-        const stored = (this.serial._properties as Record<string, unknown>) || {};
-        if (this.children.length === 0) {
-            return { ...stored };
-        }
-        // The reserved keys FIRST, because they have no child to be rebuilt from: a
-        // saveobj envelope is data the tree deliberately does not show
-        // (_addPropertyChildren), so rebuilding the bag from children alone would drop
-        // the whole of a saveobj-serializing object's state on the first save.
-        const props: Record<string, unknown> = ObjectNode._reservedProps(stored);
+        return this._rebuiltProperties(true);
+    }
+
+    // The property bag rebuilt from live children, in the stored bag's own key order. Each
+    // property's value is its child's own serialized form, so a nested object/struct/cell
+    // edit recurses through the same path.
+    //
+    // A reserved key has no child to be rebuilt from (_addPropertyChildren), so it is
+    // carried across from the stored bag, in its place: rebuilding from children alone
+    // dropped a saveobj envelope, which for a class with no typed node is the object's whole
+    // state, and the `_overridden_*` keys MATLAB writes into a table's bag. A file need not
+    // hold its reserved keys first, so writing them first would reorder a bag on every save.
+    // setOwn because the names are the file's: `__proto__` is a reserved key too, and an
+    // assignment would hand it to the prototype setter.
+    //
+    // `forXml` keeps only the one reserved key XML can spell, SAVEOBJ_KEY, which goes out as
+    // MATLAB's unnamed saveobj <P> (DataNode.pxAttrs). Any other went out as a named <P>, such
+    // as `<P Name="_overridden_data" …>`: a property the class does not have, in a format
+    // MATLAB does not write these keys into, since its binary dictionary holds a table with
+    // none of them.
+    _rebuiltProperties(forXml: boolean): Record<string, unknown> {
+        const stored = this._storedProperties();
+        const rows = new Map<string, DataNode>();
         for (const child of this.children) {
-            props[child.name] = (child as DataNode).serializeValue();
+            if (!rows.has(child.name)) { rows.set(child.name, child as DataNode); }
+        }
+        const props: Record<string, unknown> = {};
+        for (const key of Object.keys(stored)) {
+            const row = rows.get(key);
+            if (row) {
+                setOwn(props, key, row.serializeValue());
+                rows.delete(key);
+            } else if (key.charAt(0) === '_' && (!forXml || key === SAVEOBJ_KEY)) {
+                setOwn(props, key, stored[key]);
+            }
+        }
+        // A row the stored bag has no key for, which nothing builds today: written after the
+        // bag's own keys, where rebuilding from the children always put it.
+        for (const [name, row] of rows) {
+            setOwn(props, name, row.serializeValue());
         }
         return props;
+    }
+
+    // The bag `parse` built this node's rows from, as the file holds it: a nested object's
+    // `_properties`, or a scalar value object's `_elements[0]._properties`. An object array's
+    // own node has none; each element node has its own.
+    //
+    // Read from `_rawVal` rather than copied into `serial._properties` at parse, the key a
+    // typed node keeps its bag under, because BaseNode.toPIObject lists whatever that key
+    // holds in the Property Inspector's "Other" group: every property of an object, which
+    // the tree already shows as its rows, would be listed a second time there.
+    _storedProperties(): Record<string, unknown> {
+        const rawVal = (this.serial._rawVal as Record<string, unknown>) || {};
+        let bag: unknown;
+        if (rawVal._object_class) {
+            bag = rawVal._properties;
+        } else if (Array.isArray(rawVal._elements) && rawVal._elements.length === 1) {
+            bag = (rawVal._elements[0] as Record<string, unknown> | null)?._properties;
+        }
+        return bag && typeof bag === 'object' ? (bag as Record<string, unknown>) : {};
     }
 
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): ObjectNode {
@@ -269,14 +319,5 @@ export default class ObjectNode extends DataNode {
             const child = NodeRegistry.parseValue(properties[propName], propName, node);
             node.addChild(child);
         }
-    }
-
-    /** The reserved keys of a stored bag — the ones _addPropertyChildren gave no child. */
-    static _reservedProps(bag: Record<string, unknown> | undefined): Record<string, unknown> {
-        const out: Record<string, unknown> = {};
-        for (const key of Object.keys(bag || {})) {
-            if (key.charAt(0) === '_') { out[key] = (bag as Record<string, unknown>)[key]; }
-        }
-        return out;
     }
 }

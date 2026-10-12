@@ -35,16 +35,31 @@ function fieldsOf(rawVal) {
         return rawVal._fields;
     }
     const elements = rawVal._elements;
-    if (Array.isArray(elements) && elements.length > 0 && elements[0]) {
+    if (Array.isArray(elements) && elements.length > 0 && isFieldBag(elements[0])) {
         return Object.keys(elements[0]);
     }
     return [];
+}
+// Whether a struct element is a bag of fields at all. MATLAB writes every element as an object,
+// but a text dictionary is JSON anyone can edit, so an element can be `null`, a number, a string
+// or an array. None holds a field, and the last two must be said so: an own-key test answers
+// for a string's indices and an array's indices and `length`, so a string element 1 listed its
+// character indices as the struct's fields and a declared `length` over an array read its length.
+function isFieldBag(element) {
+    return element !== null && typeof element === 'object' && !Array.isArray(element);
 }
 // The value an element holds for a declared field, by OWN key. The field list is the
 // file's (`_fields`, or element 1's keys for every element), so a name the element does not
 // hold is possible, and a plain read of `constructor` or `toString` off the element then
 // answered an inherited member: the row showed `function Object() { [native code] }`.
+//
+// An element that is not a field bag holds no field either (isFieldBag). On `null` the own-key
+// test threw ("Cannot convert undefined or null to object"), and the throw failed the open of
+// the whole dictionary, not just this struct.
 function fieldOf(element, field) {
+    if (!isFieldBag(element)) {
+        return undefined;
+    }
     return Object.prototype.hasOwnProperty.call(element, field) ? element[field] : undefined;
 }
 export default class StructNode extends DataNode {
