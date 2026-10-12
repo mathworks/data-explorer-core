@@ -69,6 +69,7 @@ import {
 import {
   charNeedsShape,
   charTextFromCodes,
+  decimalCharXml,
   escapeXml,
   formatDoubleXml,
   formatNumericXml,
@@ -2350,6 +2351,13 @@ export default class MatlabVariableNode extends DataNode {
       // empty char carry no attribute, exactly as MATLAB leaves them.
       const text = String(val);
       const dims = this._textDims(text);
+      // Except a char MATLAB writes as its CODES (XmlUtils.WRITTEN_AS_CODES), which states
+      // its Dimension at every shape and `Format="decimal"` beside it: bug/dSLDD_JSONApi.sldd's
+      // char(1) is `Dimension="1*1" Format="decimal">1`, and went back as the text `1`.
+      const codes = decimalCharXml(text, dims);
+      if (codes) {
+        return p + '<' + tagName + attrStr + ' Class="char"' + codes.attrs + '>' + codes.body + '</' + tagName + '>';
+      }
       const dimAttr = charNeedsShape(dims) ? ' Dimension="' + dims.join('*') + '"' : '';
       return p + '<' + tagName + attrStr + ' Class="char"' + dimAttr + '>' + escapeXml(text) + '</' + tagName + '>';
     }

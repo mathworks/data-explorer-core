@@ -213,10 +213,11 @@ export default class DataNode extends BaseNode {
      * bracketed group per row); XML wants the plain column-major text under a Dimension
      * (defect 25). Written through the generic typed-value path instead, a char field of
      * a struct went out as `Class="mxchar" Dimension="2*2">97 99 98 100` — a class MATLAB
-     * does not have, holding numbers where its characters were.
+     * does not have, holding numbers where its characters were. A char MATLAB writes as its
+     * codes keeps them, with `Format="decimal"` beside the Dimension (XmlUtils.decimalCharXml).
      */
     static _mxCharXml(value: Record<string, unknown>): {
-        dimAttr: string;
+        attrs: string;
         body: string;
     } | null;
     /**

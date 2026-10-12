@@ -13,6 +13,7 @@ import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import {
   charTextFromCodes,
+  decimalCharXml,
   escapeXml,
   formatDoubleXml,
   formatNumericXml,
@@ -1007,6 +1008,13 @@ export default class DataNode extends BaseNode {
       if (value === '') {
         return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"/>';
       }
+      // A char MATLAB writes as its codes (XmlUtils.WRITTEN_AS_CODES) goes back as them:
+      // custom_object_binary.sldd's widget.Ctrl, char([9 10 13 7 1]), was saved as the text
+      // `9 10 13 7 1` — read as that, and written so, with the Format and Dimension gone.
+      const codes = decimalCharXml(value, [1, value.length]);
+      if (codes) {
+        return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + codes.attrs + '>' + codes.body + '</P>';
+      }
       return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(value) + '</P>';
     }
     if (Array.isArray(value)) {
@@ -1090,9 +1098,10 @@ export default class DataNode extends BaseNode {
    * bracketed group per row); XML wants the plain column-major text under a Dimension
    * (defect 25). Written through the generic typed-value path instead, a char field of
    * a struct went out as `Class="mxchar" Dimension="2*2">97 99 98 100` — a class MATLAB
-   * does not have, holding numbers where its characters were.
+   * does not have, holding numbers where its characters were. A char MATLAB writes as its
+   * codes keeps them, with `Format="decimal"` beside the Dimension (XmlUtils.decimalCharXml).
    */
-  static _mxCharXml(value: Record<string, unknown>): { dimAttr: string; body: string } | null {
+  static _mxCharXml(value: Record<string, unknown>): { attrs: string; body: string } | null {
     if (value._type !== 'mxchar') {
       return null;
     }
@@ -1100,17 +1109,16 @@ export default class DataNode extends BaseNode {
     if (!m) {
       // No header: nothing to state, and the body is already the text (see
       // MatlabVariableNode.parseMxChar, which reads the same shape back as a row).
-      return { dimAttr: '', body: escapeXml(String(value._value)) };
+      const text = String(value._value);
+      return decimalCharXml(text, [1, text.length]) ?? { attrs: '', body: escapeXml(text) };
     }
     const dims = m[1].split(',').map(function (s: string) {
       return parseInt(s, 10);
     });
-    return {
-      dimAttr: ' Dimension="' + dims.join('*') + '"',
-      // Number() rather than a cast: _parseMatrixNums is typed for the 64-bit case now,
-      // and a char code is never one — mxchar is not an integer class.
-      body: escapeXml(charTextFromCodes(DataNode._parseMatrixNums(m[2]).map(Number), dims)),
-    };
+    // Number() rather than a cast: _parseMatrixNums is typed for the 64-bit case now,
+    // and a char code is never one — mxchar is not an integer class.
+    const text = charTextFromCodes(DataNode._parseMatrixNums(m[2]).map(Number), dims);
+    return decimalCharXml(text, dims) ?? { attrs: ' Dimension="' + dims.join('*') + '"', body: escapeXml(text) };
   }
 
   /**
@@ -1174,7 +1182,7 @@ export default class DataNode extends BaseNode {
     const mxChar = DataNode._mxCharXml(value);
     if (mxChar) {
       return (
-        p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + mxChar.dimAttr + '>' + mxChar.body + '</P>'
+        p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + mxChar.attrs + '>' + mxChar.body + '</P>'
       );
     }
 
@@ -1559,6 +1567,10 @@ export default class DataNode extends BaseNode {
       return p + '<Element Class="logical">' + (elem ? '1' : '0') + '</Element>';
     }
     if (typeof elem === 'string') {
+      const codes = decimalCharXml(elem, [1, elem.length]);
+      if (codes) {
+        return p + '<Element Class="char"' + codes.attrs + '>' + codes.body + '</Element>';
+      }
       return p + '<Element Class="char">' + escapeXml(elem) + '</Element>';
     }
     if (Array.isArray(elem)) {
@@ -1601,7 +1613,7 @@ export default class DataNode extends BaseNode {
       }
       const mxChar = DataNode._mxCharXml(obj);
       if (mxChar) {
-        return p + '<Element Class="char"' + mxChar.dimAttr + '>' + mxChar.body + '</Element>';
+        return p + '<Element Class="char"' + mxChar.attrs + '>' + mxChar.body + '</Element>';
       }
       const matrix = DataNode._matrixLiteralXml('Element', '', '', type, raw, indent, at);
       if (matrix !== null) {

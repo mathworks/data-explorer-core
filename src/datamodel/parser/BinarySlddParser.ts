@@ -51,6 +51,7 @@ import { SC_PART_XML, catalogFromDefinitions, scanScXml } from './ScCatalog.js';
 import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
 import { encodedStream, encodedValueOf, isEncodedValue, type EncodedValue } from './EncodedValue.js';
 import {
+  charFromDecimal,
   charNeedsShape,
   complexClassTag,
   formatDoubleXml,
@@ -72,6 +73,8 @@ interface XmlNode {
   '@_Name'?: string;
   '@_Dimension'?: string;
   '@_IsComplex'?: string;
+  // `decimal` on a char MATLAB wrote as its codes — see charValue.
+  '@_Format'?: string;
   // A value MATLAB wrote as an encoded byte stream rather than as XML — see encodedOf.
   '@_Encoding'?: string;
   '@_EncodedLength'?: string;
@@ -548,7 +551,7 @@ function parseEntryValue(prop: XmlNode): unknown {
   // Char (no elements, Class="char") — a row is its bare text, a shaped one carries
   // its extents; see charValue.
   if (className === 'char') {
-    return charValue(getTextContent(prop), dimension);
+    return charValue(getTextContent(prop), dimension, prop['@_Format']);
   }
 
   // Logical scalar (no dimension)
@@ -643,7 +646,7 @@ function parseCellElement(el: XmlNode): unknown {
     return text === '1' || text === 'true';
   }
   if (elClass === 'char') {
-    return charValue(text, dimension);
+    return charValue(text, dimension, el['@_Format']);
   }
   if (elClass === 'struct') {
     // A struct ARRAY in a cell states its shape on the element itself
@@ -792,8 +795,18 @@ function formatTypedVector(values: (number | string)[], type: string): unknown {
  * The mxchar envelope is MATLAB's own spelling for the shaped char in a TEXT
  * dictionary, so handing it back here means both dictionary flavours decode to the
  * identical value and one node parser serves both.
+ *
+ * A char holding a control character, a surrogate or a byte order mark MATLAB writes as its
+ * CODES instead, `Format="decimal"` (XmlUtils.WRITTEN_AS_CODES): char(1) is `Dimension="1*1"
+ * Format="decimal">1`. Nothing here asked for the attribute, so the body was taken as the
+ * text: char(1) read as the char '1', and the 2x3x4 of codes 1:24 as the 60 characters of '1
+ * 2 3 … 24', which the shape arm below then could not fill. The codes are the text now, and
+ * the writers spell such a char back the same way (XmlUtils.decimalCharXml).
  */
-function charValue(text: string, dimension: string | null): unknown {
+function charValue(text: string, dimension: string | null, format?: string): unknown {
+  if (format === 'decimal') {
+    text = charFromDecimal(text) ?? text;
+  }
   if (!dimension) {
     return text || '';
   }
@@ -905,7 +918,7 @@ function parsePropContent(prop: XmlNode): unknown {
       }
     }
     const text = getTextContent(prop);
-    return parseTypedValue(text, propClass, dimension);
+    return parseTypedValue(text, propClass, dimension, prop['@_Format']);
   }
 }
 
@@ -988,7 +1001,7 @@ function parseArrayOfElements(
   return propClass === 'struct' ? structValue(elements, dimParts) : objectArrayValue(elements, dimParts);
 }
 
-function parseTypedValue(text: string, className: string | null, dimension: string | null): unknown {
+function parseTypedValue(text: string, className: string | null, dimension: string | null, format?: string): unknown {
   if (!className) {
     return text;
   }
@@ -1029,7 +1042,7 @@ function parseTypedValue(text: string, className: string | null, dimension: stri
       // The property twin of the entry-value and cell-element arms: a `Class="char"
       // Dimension="2*2"` PROPERTY (a struct field, an object property) states its
       // shape too, and the numeric branch above never claimed it.
-      return charValue(text, dimension);
+      return charValue(text, dimension, format);
     default:
       // Asked as a CLASS, not enumerated. This used to be nine more `case` labels, a
       // second copy of isNumericClass's list — and the bug that copy invites is exactly

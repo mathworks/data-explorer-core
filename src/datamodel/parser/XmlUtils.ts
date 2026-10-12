@@ -457,6 +457,63 @@ export function formatMxCharSerial(text: string, dims: number[]): string {
     return body.indexOf('Matrix(') === 0 ? body : 'Matrix(' + dims.join(',') + ')\n' + body;
 }
 
+// MATLAB's THIRD spelling of a char, in the binary flavour: its CODES. A char holding a code
+// unit of this class MATLAB writes as `Format="decimal"`, with a Dimension whatever its shape
+// and the body each UTF-16 code unit, in storage order, as a decimal number. Measured on
+// every such value in the corpus and the fixtures (ten: bug/dSLDD_JSONApi.sldd's eight,
+// parity/dNJSON_SLDDApi_opc.sldd's varStr3D, custom_object_binary.sldd's widget.Ctrl):
+//
+//   char(1)                     Dimension="1*1" Format="decimal">1
+//   char(65279), the BOM        Dimension="1*1" Format="decimal">65279
+//   a surrogate pair            Dimension="1*2" Format="decimal">55348 56606
+//   char([9 10 13 32:127])      Dimension="1*99" Format="decimal">9 10 13 32 … 127
+//   char(reshape(1:24,2,3,4))   Dimension="2*3*4" Format="decimal">1 2 … 24
+//
+// and NOT a tab, a newline or a carriage return among text, which MATLAB writes as text (the
+// same fixture's widget.Tab and widget.Lf, dSLDD_JSONApi.sldd's varStrCR and varStrCRLF). So
+// the class is the C0 controls but those three, DEL (varStrAscii's only other character), the
+// surrogates, the BOM, and U+FFFE and U+FFFF, which XML 1.0 cannot carry at all. What MATLAB
+// does with a C1 control (U+0080 to U+009F) is not measured — no file holds one — so one is
+// left as text, which XML can carry.
+const WRITTEN_AS_CODES = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uD800-\uDFFF\uFEFF\uFFFE\uFFFF]/;
+
+/**
+ * The attributes after `Class="char"` and the body, for a char MATLAB writes as its codes
+ * (WRITTEN_AS_CODES above), whose stored text is `text` and whose extents are `dims`; null for
+ * a char it writes as text. Written as text, such a char is either not XML at all (char(1))
+ * or not the char MATLAB reads back.
+ */
+export function decimalCharXml(text: string, dims: number[]): { attrs: string; body: string } | null {
+    if (!WRITTEN_AS_CODES.test(text)) {
+        return null;
+    }
+    const codes: number[] = [];
+    for (let i = 0; i < text.length; i++) {
+        codes.push(text.charCodeAt(i));
+    }
+    return { attrs: ' Dimension="' + dims.join('*') + '" Format="decimal"', body: codes.join(' ') };
+}
+
+/**
+ * The stored text a `Format="decimal"` body spells, each whitespace-separated token one
+ * UTF-16 code unit; null for a body that is not such a list (a token that is not digits, or
+ * is past 65535), which a reader then keeps as the text it is rather than as NULs.
+ */
+export function charFromDecimal(body: string): string | null {
+    const tokens = body.trim().split(/\s+/);
+    if (tokens.length === 1 && tokens[0] === '') {
+        return '';
+    }
+    let text = '';
+    for (const token of tokens) {
+        if (!/^\d{1,5}$/.test(token) || Number(token) > 0xffff) {
+            return null;
+        }
+        text += String.fromCharCode(Number(token));
+    }
+    return text;
+}
+
 // Every numeric part of a complex literal has to read as a double, so an integral
 // part gains a '.0'. Match the WHOLE number rather than a trailing run of digits:
 // the run-of-digits form appended '.0' to the EXPONENT, so '1e-7+2e-8i' was written
