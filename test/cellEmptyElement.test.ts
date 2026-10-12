@@ -4,9 +4,9 @@
 //
 // MATLAB states an empty array of an object class as the class and a Dimension on the element
 // that holds it, with no body: at a property `<P Name="Elements_internal"
-// Class="Simulink.BusElement" Dimension="0*0"/>`, which the local corpus holds tens of
-// thousands of times, and in a cell, less the Name, `<Element Class="WidgetPart"
-// Dimension="0*0"/>`. BinarySlddParser.parseCellElement asked a class it does not know for
+// Class="Simulink.BusElement" Dimension="0*0"/>`, which the local corpus holds 11,114 times
+// (and the same with Simulink.ConnectionElement 11,111 times), and in a cell, less the Name,
+// `<Element Class="WidgetPart" Dimension="0*0"/>`. BinarySlddParser.parseCellElement asked a class it does not know for
 // elements to read as objects, found none, and fell to its last arm, the element's text: ''.
 // So the empty opened as a 0x0 char and every save wrote `<Element Class="char"></Element>`.
 //
