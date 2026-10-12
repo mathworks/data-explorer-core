@@ -620,6 +620,18 @@ function parseCellElement(el) {
         // [0] would have dropped the rest.
         return objectArrayValue(childElements, [childElements.length, 1]);
     }
+    // An EMPTY array of any other class: its class and a Dimension with a 0 in it, and nothing
+    // else, which is how MATLAB writes `Simulink.BusElement.empty` at a property (`<P
+    // Name="Elements_internal" Class="Simulink.BusElement" Dimension="0*0"/>`). It is held as the
+    // numeric arm above holds an empty, the class under the bare header of its extents, and
+    // written back from it as read (DataNode._matrixLiteralXml). It used to fall to the text
+    // below: '', a 0x0 char, which every save wrote as `<Element Class="char"></Element>`.
+    if (elClass && dimension && text === '') {
+        const dimParts = parseDims(dimension);
+        if (dimParts.reduce((a, b) => a * b, 1) === 0) {
+            return { _type: elClass, _value: 'Matrix(' + dimParts.map(headerDigits).join(',') + ')' };
+        }
+    }
     return text || '';
 }
 /**
