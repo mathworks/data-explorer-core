@@ -8,9 +8,13 @@
 // discards edits.
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 // Importing the class map registers the NodeRegistry the element dispatch uses.
 import '../src/datamodel/node/data/NodeClassMap.js';
 import ObjectNode from '../src/datamodel/node/data/ObjectNode.js';
+import { createSession, ingest, serializeEntryToXml } from '../src/index.js';
 
 // A top-level value object: { _array_class, _elements: [{ _properties }] }.
 function valueObject(cls: string, elements: Record<string, unknown>[], dimensions?: number[]) {
@@ -215,5 +219,177 @@ describe('ObjectNode.serializeXml', () => {
     // exactly what DataNode writes, or a round-trip would change the file.
     const n = parse(valueObject('My.Thing', [{ A: 1 }]));
     expect(n.serializeXml('P', { Name: 'obj' }, 0)).not.toContain('Dimension=');
+  });
+});
+
+// A `_`-named key in an object's property bag is not a property — a MATLAB identifier cannot
+// begin with `_` — so _addPropertyChildren gives it no row. Two kinds reach a bag. MATLAB's
+// own: a `table` in a text dictionary carries `_overridden_arrayProps`, `_overridden_data`,
+// `_overridden_metaDim`, `_overridden_rowDim` and `_overridden_varDim` beside its
+// properties. And the reader's: a binary dictionary's saveobj envelope, filed under
+// SAVEOBJ_KEY (`_saveobj`), which for a class with no typed node is the object's whole state.
+// A write rebuilds the bag from the rows, so these keys can only come from the bag the rows
+// were read from, and the node looked for that bag in `serial._properties`, which `parse` never
+// set. So every one was dropped: from a text dictionary's object entry on any save, from a
+// table inside a struct on the first edit anywhere in the struct, and an object of an
+// unregistered saveobj class went to a binary dictionary as an empty <Element>.
+describe('ObjectNode keeps the `_`-named keys of its property bag', () => {
+  const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)));
+  const content = (json: any) => json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content;
+  // A file need not hold a bag's `_`-named keys first, so here they sit between properties.
+  const bag = () => ({ Alpha: 1, _overridden_data: [], Beta: 'x', _hidden: { k: 2 }, gamma: 3 });
+  const SHAPES: Array<[string, () => Record<string, unknown>]> = [
+    ['a value object', () => valueObject('My.Thing', [bag()])],
+    ['a nested object', () => ({ _object_class: 'My.Thing', _properties: bag() })],
+  ];
+  const propsOf = (out: any) => (out._object_class ? out._properties : out._elements[0]._properties);
+
+  it.each(SHAPES)('writes each one back where %s had it, untouched and after an edit', (_, raw) => {
+    const n = parse(raw());
+    expect(n.children.map((c: any) => c.name)).toEqual(['Alpha', 'Beta', 'gamma']);
+    expect(JSON.stringify(propsOf(n.serializeValue()))).toBe(JSON.stringify(bag()));
+    expect(n.children[0].setProperty('Value', '7')).toBe(true);
+    expect(JSON.stringify(propsOf(n.serializeValue()))).toBe(JSON.stringify({ ...bag(), Alpha: 7 }));
+  });
+
+  it('writes a `__proto__` key back as the own key it was read as', () => {
+    // JSON.parse makes it an own key; an assignment into the rebuilt bag would hand it to
+    // Object.prototype's setter instead (parser/ownKeys.ts).
+    const text = '{"_object_class":"My.Thing","_properties":{"A":1,"__proto__":{"B":2},"c":3}}';
+    const n = parse(JSON.parse(text));
+    expect(n.children[0].setProperty('Value', '2')).toBe(true);
+    const out = n.serializeValue() as any;
+    expect(Object.getPrototypeOf(out._properties)).toBe(Object.prototype);
+    expect(JSON.stringify(out)).toBe(text.replace('"A":1', '"A":2'));
+  });
+
+  it('saves a text dictionary object entry with every one in its place, untouched and after an edit', () => {
+    const json = JSON.parse(read('./fixtures/rt_text.sldd').toString('utf8'));
+    const value = content(json).entries[0].value;
+    const { Engine, Name, Specs, Tags, Wheels } = value._elements[0]._properties;
+    Engine._properties = { _first: 'e', ...Engine._properties };
+    value._elements[0]._properties = { Engine, Name, _overridden_data: [], Specs, Tags, Wheels, _zz: { _type: 'int8', _value: '3' } };
+    const written = JSON.stringify(value);
+
+    const session = createSession();
+    const source: any = ingest(session, JSON.stringify(json, null, '\t'), { filename: 'gadget.sldd' });
+    const saved = () => JSON.stringify(content(JSON.parse((session.serializeSource(source.name) as { text: string }).text)).entries[0].value);
+    expect(saved()).toBe(written);
+    const wheels = source.flatten().find((n: any) => n.name === 'Wheels');
+    expect(wheels.setProperty('Value', '5')).toBe(true);
+    expect(saved()).toBe(written.replace('"Wheels":4', '"Wheels":5'));
+  });
+
+  it('saves a table inside a struct with its `_overridden_*` keys after an edit elsewhere in the struct', () => {
+    // The shape MATLAB writes for a struct with a table field. The struct replays its raw
+    // value until something in it is edited; from then on each field is rebuilt from its
+    // node, and the table's node is an ObjectNode.
+    const table = {
+      _array_class: 'table',
+      _dimensions: [1, 1],
+      _elements: [{
+        _id: '3',
+        _properties: {
+          _overridden_arrayProps: [], _overridden_data: [], _overridden_metaDim: [], _overridden_rowDim: [], _overridden_varDim: [],
+          data: { _array_type: 'Cell', _dimensions: [1, 2], _elements: [1, 2] },
+          ndims: 2, nrows: 1, nvars: 2,
+          rownames: { _array_type: 'Cell', _dimensions: [0, 0], _elements: [] },
+          varnames: { _array_type: 'Cell', _dimensions: [1, 2], _elements: ['Var1', 'Var2'] },
+        },
+      }],
+    };
+    const json = JSON.parse(read('./fixtures/rt_text.sldd').toString('utf8'));
+    const entries = content(json).entries;
+    entries.push({
+      name: 'mixed',
+      metadata: { ...entries[0].metadata, uuid: 'a43e9523-8ba6-426a-b689-6e7d85901371' },
+      value: { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ fTable: table, fVar: 1 }], _mw_element_type: 'MATLABArray' },
+    });
+    const text = JSON.stringify(json, null, '\t');
+    const tableOf = (value: any) => JSON.stringify(value._elements[0].fTable);
+
+    for (const [edited, to] of [['fVar', '42'], ['nrows', '2']]) {
+      const session = createSession();
+      const source: any = ingest(session, text, { filename: 'gadget.sldd' });
+      const entry = source.flatten().find((n: any) => n.name === 'mixed');
+      expect(entry.flatten().find((n: any) => n.name === edited).setProperty('Value', to)).toBe(true);
+      const expected = edited === 'nrows' ? JSON.stringify(table).replace('"nrows":1', '"nrows":2') : JSON.stringify(table);
+      const saved = content(JSON.parse((session.serializeSource(source.name) as { text: string }).text)).entries;
+      expect([edited, tableOf(saved.find((e: any) => e.name === 'mixed').value)]).toEqual([edited, expected]);
+      // The entry alone, as a host re-serializes the one entry it changed.
+      expect([edited, tableOf((entry.serialize() as any).value)]).toEqual([edited, expected]);
+    }
+  });
+
+  it('saves every bag of custom_object_text.sldd with one added, and nothing else differently', () => {
+    // Its 12 bags span every route into ObjectNode: a top-level object entry, a nested object,
+    // the elements of an object array, a Simulink.Parameter nested in an object, and objects
+    // inside a cell. One marker per bag, last in the bag.
+    const original = read('./fixtures/custom_object_text.sldd').toString('utf8');
+    const json = JSON.parse(original);
+    let added = 0;
+    const mark = (v: unknown): void => {
+      if (Array.isArray(v)) { v.forEach(mark); return; }
+      if (!v || typeof v !== 'object') { return; }
+      const o = v as Record<string, unknown>;
+      if (o._properties && typeof o._properties === 'object' && !Array.isArray(o._properties)) {
+        (o._properties as Record<string, unknown>)._zz = 'marker' + added++;
+      }
+      Object.values(o).forEach(mark);
+    };
+    mark(json);
+    expect(added).toBe(12);
+
+    const save = (text: string) => {
+      const session = createSession();
+      const source: any = ingest(session, text, { filename: 'custom_object.sldd' });
+      return (session.serializeSource(source.name) as { text: string }).text;
+    };
+    const saved = save(JSON.stringify(json, null, '\t'));
+    const kept = [...saved.matchAll(/"_zz": "marker(\d+)"/g)].map((m) => Number(m[1])).sort((a, b) => a - b);
+    expect(kept).toEqual([...Array(12).keys()]);
+    const stripped = JSON.stringify(JSON.parse(saved), (k, v) => (k === '_zz' ? undefined : v));
+    expect(stripped).toBe(JSON.stringify(JSON.parse(save(original))));
+  });
+
+  describe('of a class that serializes through saveobj and has no typed node', () => {
+    // parity/artifacts/binary/cases.sldd's aVariant is a Simulink.VariantVariable, whose
+    // whole state is its saveobj envelope. Under a class name this package does not model,
+    // the same bytes are an ObjectNode with no rows, and the envelope is the bag's one key.
+    const CLASS = 'my.SaveobjCls';
+    const files = unzipSync(new Uint8Array(read('./parity/artifacts/binary/cases.sldd')));
+    const chunk = strFromU8(files['data/chunk0.xml']).replace(
+      '<Element Class="Simulink.VariantVariable">', `<Element Class="${CLASS}">`,
+    );
+    const bytes = zipSync({ ...files, 'data/chunk0.xml': strToU8(chunk) });
+    // The aVariant entry's <P Name="Value"> as the file holds it.
+    const valueOf = (xml: string): string => {
+      const start = xml.indexOf('<P Name="Value">', xml.indexOf('<P Name="Name" Class="char">aVariant</P>'));
+      return xml.slice(start, xml.indexOf('\n        </P>', start) + '\n        </P>'.length);
+    };
+    const written = valueOf(chunk);
+
+    it('reads the class as an object with no rows', () => {
+      expect(written).toContain(`<Element Class="${CLASS}">`);
+      expect(written).toContain('<P Source="saveobj" PropertyType="any" Class="struct">');
+      const source: any = ingest(createSession(), bytes, { filename: 'cases.sldd' });
+      const entry = source.flatten().find((n: any) => n.name === 'aVariant');
+      expect([entry.constructor.name, entry.children.length]).toEqual(['ObjectNode', 0]);
+    });
+
+    it('writes the envelope back on a binary save, as the file had it', () => {
+      const session = createSession();
+      const source: any = ingest(session, bytes, { filename: 'cases.sldd' });
+      const saved = session.serializeSource(source.name) as { bytes: Uint8Array };
+      expect(valueOf(strFromU8(unzipSync(saved.bytes)['data/chunk0.xml']))).toBe(written);
+    });
+
+    it('writes the envelope into the entry a host splices in, untouched and renamed', () => {
+      const source: any = ingest(createSession(), bytes, { filename: 'cases.sldd' });
+      const entry = source.flatten().find((n: any) => n.name === 'aVariant');
+      expect(valueOf(serializeEntryToXml(entry))).toBe(written);
+      expect(entry.setProperty('Name', 'aVariant2')).toBe(true);
+      expect(valueOf(serializeEntryToXml(entry).replace('>aVariant2<', '>aVariant<'))).toBe(written);
+    });
   });
 });

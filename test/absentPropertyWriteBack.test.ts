@@ -665,8 +665,9 @@ describe('a BusElement bound the user cleared', () => {
 // `_zzproto_`, another `_`-named key of the same length, in every property bag of the parity
 // corpus's cases.sldd and the bus_types and custom_object fixtures, in both formats, saves
 // to the same file but for the name. That covers what each class does with a `_`-named key
-// it did not model, which is not always to keep it: a user-class object (ObjectNode) rebuilds
-// its bag from its rows and has no row for one, so both keys go the same way there.
+// it did not model, which is not always to keep it. A user-class object (ObjectNode) rebuilds
+// its property bag from its rows, has no row for one there, and carries it across from the
+// bag it read.
 describe('a property bag key named __proto__', () => {
   const VALUE = {
     _saveobj: { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ Description: 'from-proto' }], _fields: ['Description'], _mw_element_type: 'MATLABArray' },
