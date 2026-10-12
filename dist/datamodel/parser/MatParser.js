@@ -457,6 +457,15 @@ function structFieldCount(view, offset, end) {
 export function parseMatrix(view, baseOffset, length) {
     let offset = baseOffset;
     const end = baseOffset + length;
+    // An miMATRIX of no bytes, its tag alone, is an empty array: MATLAB writes some empty
+    // struct fields that way (a Simulink Design Verifier sldvData in the corpus holds 19),
+    // and reads one back as []. It has no flags to read, and reading on would take them,
+    // the dimensions and the name from the element after its tag: those fields came back
+    // as doubles of rank 12 to 1,314, which showed [ ] and were copied as an empty of that
+    // rank. So it is what a [] MATLAB writes in full reads as.
+    if (length <= 0) {
+        return { name: '', className: 'double', dimensions: [0, 0], isComplex: false, isLogical: false, value: [], fields: null };
+    }
     const flagsSub = readSubelement(view, offset);
     offset += flagsSub.totalSize;
     // A matrix truncated before its own array-flags subelement tells us nothing —

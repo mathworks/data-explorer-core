@@ -22,7 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseMat } from '../src/datamodel/parser/MatParser.js';
+import { parseMat, type MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { createSession } from '../src/index.js';
 import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
@@ -113,6 +113,14 @@ function strideStruct(stride: number, names: string, fields: Uint8Array[], dimen
 /** A scalar struct's fields as [name, value] pairs, in file order. */
 const fieldValues = (v: { fields: Record<string, unknown> | null }) =>
   Object.entries(v.fields!).map(([name, field]) => [name, (field as { value: unknown }).value]);
+
+/** A variable as it was read, without the bytes it was read from. */
+const shapeOf = (v: unknown) => {
+  const { _rawBytes, ...rest } = v as MatVariable;
+  return rest;
+};
+const EMPTY = { name: '', className: 'double', dimensions: [0, 0], isComplex: false, isLogical: false, value: [], fields: null };
+const SCALAR = (n: number) => ({ ...EMPTY, dimensions: [1, 1], value: n });
 
 /** Overwrite the declared byte count of the tag at `tagOffset`, corrupting it. */
 function corruptLength(el: Uint8Array, tagOffset: number, declared: number): Uint8Array {
@@ -519,6 +527,47 @@ describe('parseMat — structs', () => {
     // last, so that a reader without the bound fails on the strides above instead of here.
     const mat = createSession().addMatSource('s.mat', matFile([strideStruct(0x7fffffff, 'abcdefgh', [scalarField(7)])])) as any;
     expect(mat.children[0].children.map((c: any) => [c.name, c.displayValue])).toEqual([['abcdefgh', '7']]);
+  });
+
+  it('REGRESSION: a zero-length field is [], not a reading of the bytes after it', () => {
+    // MATLAB writes some empty struct fields as an miMATRIX of no bytes, its tag alone: one
+    // corpus file, a Simulink Design Verifier sldvData, holds 19. The reader took such a
+    // field's flags, dimensions and name from whatever followed its tag. Each of the 19 read
+    // as a double of rank 12 to 1,314 that showed [ ]. Here e2 and a(2).p read as doubles of
+    // rank 30 out of the header after them, e0 and c{1} as doubles of no dimensions, and
+    // a(1).q, followed by another such field, as a class this reader does not model, with a
+    // warning. Each is the [] MATLAB reads.
+    const parsed = parseMat(
+      matFile([
+        structVar('s', ['e0', 'v1', 'e2'], [{ e0: matrix([]), v1: scalarField(7), e2: matrix([]) }]),
+        structVar('a', ['p', 'q'], [{ p: scalarField(1), q: matrix([]) }, { p: matrix([]), q: scalarField(2) }], [1, 2]),
+        cellVar('c', [matrix([]), scalarField(3)]),
+      ]),
+    );
+    expect(parsed.warnings).toEqual([]);
+    const [s, a, c] = parsed.variables;
+    expect([s.fields!.e0, s.fields!.v1, s.fields!.e2].map(shapeOf)).toEqual([EMPTY, SCALAR(7), EMPTY]);
+    expect([...(a.fields!.p as MatVariable[]), ...(a.fields!.q as MatVariable[])].map(shapeOf)).toEqual([SCALAR(1), EMPTY, EMPTY, SCALAR(2)]);
+    expect((c.value as MatVariable[]).map(shapeOf)).toEqual([EMPTY, SCALAR(3)]);
+    // EMPTY is what a [] MATLAB writes in full reads as: double, 0x0, no elements.
+    const written = only(matFile([structVar('s', ['m'], [{ m: numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [0, 0], real: [] }) }])]));
+    expect(shapeOf(written.fields!.m)).toEqual(EMPTY);
+  });
+
+  it('REGRESSION: a zero-length field shows and copies as a written-out [] does', () => {
+    // Read out of the bytes after it, such a field was copied as what they said: the 19 as
+    // cdata streams of empties of their borrowed rank, which MATLAB would read back as
+    // something else, and z here as null, which it also showed.
+    const mat = createSession().addMatSource(
+      'z.mat',
+      matFile([structVar('s', ['z', 'm'], [{ z: matrix([]), m: numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [0, 0], real: [] }) }])]),
+    ) as any;
+    const [z, m] = mat.children[0].children;
+    const look = (n: any) => [n.className, n._dims, n.displayValue, n.serialize()];
+    expect([look(z), look(m)]).toEqual([
+      ['double', [0, 0], '[ ]', []],
+      ['double', [0, 0], '[ ]', []],
+    ]);
   });
 
   it('leaves fields null when the struct is truncated before its field-name length', () => {
