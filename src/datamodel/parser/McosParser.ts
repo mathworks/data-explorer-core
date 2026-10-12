@@ -4,6 +4,7 @@ import { parseMatrix, MatVariable } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
 import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
+import { setOwn } from './ownKeys.js';
 import {
   complexClassTag,
   formatComplexNum,
@@ -590,7 +591,10 @@ function buildStructValue(cell: MatVariable, ctx: DecodeContext, path: Set<numbe
     for (const fieldName of fieldNames) {
       const fieldVar = fields[fieldName];
       const fv = Array.isArray(fieldVar) ? fieldVar[e] : e === 0 ? fieldVar : undefined;
-      element[fieldName] = fv ? resolveValue(fv, ctx, path, depth) : undefined;
+      // setOwn: assigned into `{}`, a field called `__proto__` was the prototype setter's
+      // argument, the value was lost, and the struct row, whose `_fields` still named it,
+      // read Object.prototype.
+      setOwn(element, fieldName, fv ? resolveValue(fv, ctx, path, depth) : undefined);
     }
     elements.push(element);
   }
@@ -606,6 +610,11 @@ function buildStructValue(cell: MatVariable, ctx: DecodeContext, path: Set<numbe
 // Build the _properties bag for an object id, resolving each triple. Nested calls
 // wrap the result as { _object_class, _properties }; the caller for a root object
 // takes .properties directly.
+//
+// The names are the subsystem's, so each is written with setOwn. Assigned into a plain
+// `{}`, a property called `__proto__` (no MATLAB name, but a file can spell it) was the
+// prototype setter's argument instead: dropped, or, for an object value, made the bag's
+// prototype, so the bag inherited that value's envelope keys.
 function buildProperties(objId: number, ctx: DecodeContext, path: Set<number>, depth: number): Record<string, unknown> {
   const props: Record<string, unknown> = {};
   if (depth > MAX_RECURSION_DEPTH || path.has(objId)) return props;
@@ -623,7 +632,7 @@ function buildProperties(objId: number, ctx: DecodeContext, path: Set<number>, d
       const fv = Array.isArray(fieldVar) ? fieldVar[0] : fieldVar;
       const resolved = resolveValue(fv, ctx, path, depth);
       if (resolved !== undefined) {
-        props[fieldName] = resolved;
+        setOwn(props, fieldName, resolved);
       }
     }
   }
@@ -644,7 +653,7 @@ function buildProperties(objId: number, ctx: DecodeContext, path: Set<number>, d
       continue; // unknown flag — never guess
     }
     if (resolved !== undefined) {
-      props[name] = resolved;
+      setOwn(props, name, resolved);
     }
   }
   path.delete(objId);

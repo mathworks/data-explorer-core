@@ -288,6 +288,22 @@ Model {
 }
 `;
 
+// A part's path is the file's word, and the package's parts were gathered into a plain
+// `{}` keyed by it. A part at `/__proto__` was the prototype setter's argument, so the
+// bag's prototype became the part's bytes, and the reader's for…in over the parts then
+// enumerated every byte index: for a 20,000,000-byte part, 2.6 s and then "RangeError:
+// Too many properties to enumerate". It is left out, as a zip member of that name is
+// (Inflate), because no writer can zip it back up.
+describe('parseMdl — a part named __proto__', () => {
+  it('reads the package around it, as the same model', () => {
+    const big = { path: '__proto__', body: 'x'.repeat(20_000_000) };
+    expect(parseMdl(textPackage([...MODEL_PARTS, big]), 'm.mdl')).toEqual(parseMdl(textPackage(MODEL_PARTS), 'm.mdl'));
+    // And a small one changes nothing either, where the bag used to inherit its bytes.
+    const small = { path: '__proto__', body: 'tiny' };
+    expect(parseMdl(textPackage([small, ...MODEL_PARTS]), 'm.mdl')).toEqual(parseMdl(textPackage(MODEL_PARTS), 'm.mdl'));
+  });
+});
+
 describe('parseMdl — classic .mdl metadata', () => {
   const parsed = parseMdl(bytes(CLASSIC), 'unit.mdl');
 

@@ -25,6 +25,7 @@
 // the node layer made of it.
 import { escapeXml, pad as xmlPad } from './XmlUtils.js';
 import { matStreamFailure } from './MatParser.js';
+import { setOwn } from './ownKeys.js';
 /** The `_type` tag of an encoded value, at every depth and in every layer. */
 export const ENCODED_TYPE = 'encoded';
 /** Is `x` an encoded value? Shape only — whether it DECODES is `encodedBytes`'s question. */
@@ -65,7 +66,9 @@ export function encodedValueOf(attrs, text) {
         }
         const name = key.slice(2);
         if (!POSITIONAL_ATTRS.has(name)) {
-            kept[name] = String(val);
+            // setOwn: the names are the file's, and an attribute called `__proto__` assigned
+            // into `{}` went to the prototype setter and was not written back.
+            setOwn(kept, name, String(val));
         }
     }
     return { _type: ENCODED_TYPE, _attrs: kept, _value: text };

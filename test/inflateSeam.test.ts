@@ -413,3 +413,52 @@ function makeLocalHeaderStreaming(archive: Uint8Array): Uint8Array {
   }
   return out;
 }
+
+// A member name is the archive's word, and both engines gathered members into a plain
+// `{}` keyed by it: the native walk itself, and fflate's own unzipSync. A member named
+// `__proto__` (which no OPC writer produces, but a zip can carry) was the prototype
+// setter's argument there, so the bag's PROTOTYPE became that member's bytes. parseSlx
+// walks the bag with for…in, which then enumerated every byte index of the member: 2.7 s
+// for a 20,000,000-byte member, and then "RangeError: Too many properties to enumerate",
+// so a 20 KB .slx failed to open. The member cannot be kept either: every writer that
+// zips a bag back up (fflate's zipSync, which serializeBinarySldd calls) throws on an
+// own `__proto__` key. So it is left out, by both engines, and the bag stays a bag.
+describe('inflate seam — a member named __proto__', () => {
+  const BIG = 20_000_000;
+
+  // zipSync cannot be handed a `__proto__` key, so the member is written under a
+  // placeholder of the same length and renamed in its local header and its central
+  // directory record. Zeros, so the archive stays small.
+  function withProtoMember(name: string, size = BIG): Uint8Array {
+    const entries = { ...unzipSync(fixtureBytes(name)), __protoX_: new Uint8Array(size) };
+    const zipped = zipSync(entries);
+    const from = strToU8('__protoX_');
+    const to = strToU8('__proto__');
+    let renamed = 0;
+    for (let i = 0; i + from.length <= zipped.length; i++) {
+      if (from.every((b, j) => zipped[i + j] === b)) {
+        zipped.set(to, i);
+        renamed++;
+      }
+    }
+    expect(renamed).toBe(2);
+    return zipped;
+  }
+
+  it.each([['fflate', null], ['native', NATIVE]] as const)('leaves it out, and keeps the bag a plain bag (%s)', (_, engine) => {
+    const bytes = withProtoMember('rt_bin.sldd', 16);
+    const entries = entriesWith(engine, bytes);
+    expect(Object.getPrototypeOf(entries)).toBe(Object.prototype);
+    expect(Object.prototype.hasOwnProperty.call(entries, '__proto__')).toBe(false);
+    expectSameEntries(entriesWith(engine, fixtureBytes('rt_bin.sldd')), entries);
+  });
+
+  it.each([['fflate', null], ['native', NATIVE]] as const)('opens a .slx holding a large one as the same model (%s)', (_, engine) => {
+    const bytes = withProtoMember('model_with_refs.slx');
+    expect(bytes.length).toBeLessThan(30_000);
+    setNativeInflate(engine);
+    const clean = parseSlx(fixtureBuffer('model_with_refs.slx'), 'model_with_refs.slx');
+    const parsed = parseSlx(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, 'model_with_refs.slx');
+    expect(JSON.stringify(parsed)).toBe(JSON.stringify(clean));
+  });
+});

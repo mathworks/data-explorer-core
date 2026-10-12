@@ -112,6 +112,10 @@
 // accept. This file is about which keys reach the file, and about the two paths agreeing.
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
+import { createSession, ingest, type SerializedSource } from '../src/index.js';
 import NumericTypeNode from '../src/datamodel/node/data/NumericTypeNode.js';
 import AliasTypeNode from '../src/datamodel/node/data/AliasTypeNode.js';
 import ValueTypeNode from '../src/datamodel/node/data/ValueTypeNode.js';
@@ -643,5 +647,145 @@ describe('a BusElement bound the user cleared', () => {
     expect(textFileElement(bus)).toMatchObject({ Min: -10, Max: 10 });
     expect(minCell(element(busWith(binaryElement(bus))))).toBe('-10');
     expect(maxCell(element(busWith(textFileElement(bus))))).toBe('10');
+  });
+});
+
+// The same rule — the bag written back is the bag the file held — for the one key a plain
+// object cannot hold as data: `__proto__`. MATLAB cannot write it (an identifier starts
+// with a letter), but a dictionary can spell it, and both readers now keep it as an own key
+// (JSON.parse, and BinarySlddParser's setOwn). Every save path then copied the
+// bag with `Object.assign({}, bag, …)`, which writes each key with [[Set]], so `__proto__`
+// went to the prototype setter: dropped from the saved entry, even an untouched one, and
+// for an object value the COPY took it as its prototype. A text CustomObject whose
+// `__proto__` held a `_saveobj` key then read as a custom-saving class (`SAVEOBJ_KEY in
+// stored`, DataNode._mergeProps), and an untouched save wrote a `_custom_save` envelope the
+// file never had.
+//
+// So the claim is the differential one: the same value under `__proto__` and under
+// `_zzproto_`, another `_`-named key of the same length, in every property bag of the parity
+// corpus's cases.sldd and the bus_types and custom_object fixtures, in both formats, saves
+// to the same file but for the name. That covers what each class does with a `_`-named key
+// it did not model, which is not always to keep it: a user-class object (ObjectNode) rebuilds
+// its bag from its rows and has no row for one, so both keys go the same way there.
+describe('a property bag key named __proto__', () => {
+  const VALUE = {
+    _saveobj: { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ Description: 'from-proto' }], _fields: ['Description'], _mw_element_type: 'MATLABArray' },
+  };
+  const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)));
+  const TEXT = ['./parity/artifacts/text/cases.sldd', './fixtures/bus_types_text.sldd', './fixtures/custom_object_text.sldd'];
+  const BINARY = ['./parity/artifacts/binary/cases.sldd', './fixtures/bus_types_binary.sldd', './fixtures/custom_object_binary.sldd'];
+
+  // Every `_properties` bag in a JSON tree, wherever it sits.
+  function bags(node: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
+    if (Array.isArray(node)) {
+      node.forEach((n) => bags(n, out));
+    } else if (node && typeof node === 'object') {
+      for (const [k, v] of Object.entries(node)) {
+        if (k === '_properties' && v && typeof v === 'object' && !Array.isArray(v)) out.push(v as Record<string, unknown>);
+        bags(v, out);
+      }
+    }
+    return out;
+  }
+
+  // Open, save untouched, rename every entry, save again.
+  function saves(content: string | Uint8Array): SerializedSource[] {
+    const session = createSession();
+    const source: any = ingest(session, content, { filename: 'd.sldd' });
+    const untouched = session.serializeSource(source.name)!;
+    for (const section of source.children) {
+      for (const entry of [...section.children]) {
+        expect(entry.setProperty('Name', `${entry.name}_r`)).toBe(true);
+      }
+    }
+    return [untouched, session.serializeSource(source.name)!];
+  }
+
+  // Every object under an entry's value: the value envelope, each element, each property
+  // bag, each struct element, each nested object, wherever it sits.
+  function objectsUnder(node: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] {
+    if (Array.isArray(node)) {
+      node.forEach((n) => objectsUnder(n, out));
+    } else if (node && typeof node === 'object') {
+      out.push(node as Record<string, unknown>);
+      Object.values(node).forEach((v) => objectsUnder(v, out));
+    }
+    return out;
+  }
+
+  // The text file with `key` first in every object of every entry's value, as JSON.parse
+  // would make it.
+  function textWith(rel: string, key: string): [string, number] {
+    const json = JSON.parse(read(rel).toString('utf8'));
+    const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries as { value: unknown }[];
+    const all = objectsUnder(entries.map((e) => e.value));
+    for (const bag of all) {
+      const entries = Object.entries(bag);
+      for (const k of Object.keys(bag)) delete bag[k];
+      Object.defineProperty(bag, key, { value: VALUE, enumerable: true, writable: true, configurable: true });
+      for (const [k, v] of entries) bag[k] = v;
+    }
+    return [JSON.stringify(json), all.length];
+  }
+
+  it.each(TEXT)('saves %s with one in every bag as it saves another `_`-named key', (rel) => {
+    const [proto, injected] = textWith(rel, '__proto__');
+    const [other] = textWith(rel, '_zzproto_');
+    expect(injected).toBeGreaterThan(0);
+    const viaProto = saves(proto).map((s) => (s as { text: string }).text);
+    const viaOther = saves(other).map((s) => (s as { text: string }).text);
+    for (let i = 0; i < 2; i++) {
+      const kept = viaProto[i].split('"__proto__":').length - 1;
+      expect(kept).toBe(viaOther[i].split('"_zzproto_":').length - 1);
+      expect(kept).toBeGreaterThan(0);
+      expect(viaProto[i].replaceAll('"__proto__":', '"_zzproto_":')).toBe(viaOther[i]);
+    }
+  });
+
+  it('saves a custom-saving object with one in the bag beside its envelope as it saves another `_`-named key', () => {
+    // SimulinkObjectNode._propsOf folds a text element's `_custom_save` envelope into the bag
+    // under SAVEOBJ_KEY, by a copy of the bag. MATLAB writes no `_properties` beside an
+    // envelope; a file can, and the copy is where `__proto__` was lost.
+    const withEnvelope = (key: string): string => {
+      const json = JSON.parse(read('./parity/artifacts/text/cases.sldd').toString('utf8'));
+      const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries as any[];
+      const element = entries.find((e) => e.name === 'aVariant').value._elements[0];
+      element._custom_save = VALUE._saveobj;
+      element._properties = Object.fromEntries([[key, 7], ...Object.entries(element._properties)]);
+      return JSON.stringify(json);
+    };
+    const viaProto = saves(withEnvelope('__proto__')).map((s) => (s as { text: string }).text);
+    const viaOther = saves(withEnvelope('_zzproto_')).map((s) => (s as { text: string }).text);
+    for (let i = 0; i < 2; i++) {
+      expect(viaProto[i].split('"__proto__":').length - 1).toBe(1);
+      expect(viaProto[i].replaceAll('"__proto__":', '"_zzproto_":')).toBe(viaOther[i]);
+    }
+  });
+
+  it.each(BINARY)('saves %s with one in every object element as it saves another `_`-named key', (rel) => {
+    const files = unzipSync(new Uint8Array(read(rel)));
+    const binaryWith = (key: string): [Uint8Array, number] => {
+      let injected = 0;
+      const xml = strFromU8(files['data/chunk0.xml']).replace(
+        /(<Element Class="(?!(?:double|single|char|string|logical|cell|struct|u?int(?:8|16|32|64))")[^"]+">)(\n\s*)/g,
+        (_, open: string, gap: string) => {
+          injected++;
+          return open + gap + `<P Name="${key}" Class="double">7.0</P>` + gap;
+        },
+      );
+      return [zipSync({ ...files, 'data/chunk0.xml': strToU8(xml) }), injected];
+    };
+    const [proto, injected] = binaryWith('__proto__');
+    const [other] = binaryWith('_zzproto_');
+    expect(injected).toBeGreaterThan(0);
+    const chunk = (s: SerializedSource) => strFromU8(unzipSync((s as { bytes: Uint8Array }).bytes)['data/chunk0.xml']);
+    const viaProto = saves(proto).map(chunk);
+    const viaOther = saves(other).map(chunk);
+    for (let i = 0; i < 2; i++) {
+      const kept = viaProto[i].split('<P Name="__proto__"').length - 1;
+      expect(kept).toBe(viaOther[i].split('<P Name="_zzproto_"').length - 1);
+      expect(kept).toBeGreaterThan(0);
+      expect(viaProto[i].replaceAll('<P Name="__proto__"', '<P Name="_zzproto_"')).toBe(viaOther[i]);
+    }
   });
 });

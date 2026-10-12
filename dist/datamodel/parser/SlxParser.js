@@ -105,7 +105,12 @@ function extractConfigSets(entries, configSetInfo, warnings) {
     const configs = [];
     for (const info of configSetInfo) {
         const partPath = info.PartName.replace(/^\//, '');
-        if (!entries[partPath]) {
+        // By OWN key. The part name is the index's word, and the member bag is a plain
+        // object, which answers `toString`, `constructor` and the rest of Object.prototype's
+        // members with an inherited one: a set listed as part `/toString` was "there", and was
+        // reported as a part that "could not be read (The "list" argument must be an instance
+        // of … ArrayBufferView.)" rather than as one this package does not hold.
+        if (!Object.prototype.hasOwnProperty.call(entries, partPath)) {
             // The index part in THIS file names the part, so the package contradicts
             // itself and one configuration set is gone. That makes it the one absent part
             // in this reader that IS a warning: nothing about a release decides whether a

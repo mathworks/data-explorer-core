@@ -26,6 +26,7 @@ import CustomObjectNode from '../src/datamodel/node/data/CustomObjectNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import type { MatVariable } from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { buildTypedNodeFromMcos } from '../src/datamodel/node/data/mcosTypedNode.js';
+import { renameInMat } from './tools/matRename.js';
 
 // A class no entry in CLASS_MAP and no entry in MCOS_ICON_MAP claims — which is
 // what "unknown class" means to every path below.
@@ -149,5 +150,32 @@ describe('an object array out of a real .mat', () => {
     expect([arr.className, arr.displayValue]).toEqual(['Simulink.Parameter', '<1x3 Simulink.Parameter>']);
     expect([arr.icon, ...arr.children.map((c) => c.icon)])
       .toEqual(['wsParameters', 'wsParameters', 'wsParameters', 'wsParameters']);
+  });
+});
+
+// The opaque path's icon table is an object literal keyed by the class name, so a class
+// named after an Object.prototype member drew an inherited FUNCTION as its icon id: a
+// valid MATLAB class name, and an icon no host can resolve. Measured on a real file
+// whose objects the decoder cannot resolve (its subsystem left out), which is the one
+// route that leaves an MCOS object opaque whatever its class.
+describe('an opaque object of a class named after an Object.prototype member', () => {
+  it('draws the object glyph, as its MATLAB-authored class does', () => {
+    const path = fileURLToPath(new URL('./fixtures/mcos/object_props.mat', import.meta.url));
+    const iconOfV = (cls: string) => {
+      const renamed = renameInMat(new Uint8Array(readFileSync(path)), 'Vehicle', cls, true);
+      expect(renamed.hits).toBe(1);
+      const v = MatNode.fromParsed(parseMat(renamed.bytes), 'object_props.mat').children[0] as unknown as MatlabVariableNode;
+      expect([v.constructor.name, v._isOpaque, v.className]).toEqual(['MatlabVariableNode', true, cls]);
+      return v.icon;
+    };
+    expect(iconOfV('Vehicle')).toBe(OBJECT_ICON);
+    expect(iconOfV('valueOf')).toBe(OBJECT_ICON);
+  });
+
+  it('draws the object glyph for every such name on the decoder-recovered-nothing path', () => {
+    for (const cls of ['toString', 'valueOf', 'constructor', 'hasOwnProperty', '__proto__']) {
+      expect(MatlabVariableNode.parseMatVariable(matVar({ className: cls, isOpaque: true }), 'obj', null).icon)
+        .toBe(OBJECT_ICON);
+    }
   });
 });

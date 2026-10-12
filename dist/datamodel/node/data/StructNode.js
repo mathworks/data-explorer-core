@@ -11,6 +11,7 @@ import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
+import { setOwn } from '../../parser/ownKeys.js';
 /**
  * A struct's field names, read from the bytes rather than trusted from a key MATLAB may
  * not have written.
@@ -38,6 +39,13 @@ function fieldsOf(rawVal) {
         return Object.keys(elements[0]);
     }
     return [];
+}
+// The value an element holds for a declared field, by OWN key. The field list is the
+// file's (`_fields`, or element 1's keys for every element), so a name the element does not
+// hold is possible, and a plain read of `constructor` or `toString` off the element then
+// answered an inherited member: the row showed `function Object() { [native code] }`.
+function fieldOf(element, field) {
+    return Object.prototype.hasOwnProperty.call(element, field) ? element[field] : undefined;
 }
 export default class StructNode extends DataNode {
     constructor() {
@@ -108,12 +116,15 @@ export default class StructNode extends DataNode {
             { group: 'General', items: [PropName, PropValue, PropDataType, PropKind, PropClassAtom, PropDescription] }
         ];
     }
+    // setOwn rather than an assignment: the names are the file's, and a field called
+    // `__proto__` assigned into `{}` went to the prototype setter, so a save lost its value
+    // while `_fields` still named it.
     serializeElement() {
         const fields = this.serial._fields || [];
         const elem = {};
         fields.forEach((field) => {
             const child = this.children.find((c) => c.name === field);
-            elem[field] = child ? child.serializeValue() : undefined;
+            setOwn(elem, field, child ? child.serializeValue() : undefined);
         });
         return elem;
     }
@@ -303,7 +314,7 @@ export default class StructNode extends DataNode {
                 // here, so renaming the array relabels its elements.
                 elemNode._subscript = { index: ei, dims, order: 'column-major', bracket: '()' };
                 fields.forEach((field) => {
-                    const childNode = NodeRegistry.parseValue(elem[field], field, elemNode);
+                    const childNode = NodeRegistry.parseValue(fieldOf(elem, field), field, elemNode);
                     elemNode.addChild(childNode);
                 });
                 node.addChild(elemNode);
@@ -311,7 +322,7 @@ export default class StructNode extends DataNode {
         }
         else if (elements.length === 1) {
             fields.forEach((field) => {
-                const childNode = NodeRegistry.parseValue(elements[0][field], field, node);
+                const childNode = NodeRegistry.parseValue(fieldOf(elements[0], field), field, node);
                 node.addChild(childNode);
             });
         }

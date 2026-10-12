@@ -65,6 +65,7 @@ import {
   transposeFromColumnMajorND,
   SAVEOBJ_KEY,
 } from './XmlUtils.js';
+import { setOwn } from './ownKeys.js';
 
 interface XmlNode {
   '@_Class'?: string;
@@ -933,6 +934,10 @@ function parseElement(el: XmlNode): Record<string, unknown> {
 // through exactly the same path — they used to have separate copies, and the
 // array copy passed a flag that skipped struct decoding, writing a struct-valued
 // property back as `Class="char">[object Object]`.
+//
+// Every name is written with setOwn, because the names are the file's: assigned into a plain
+// `{}`, a <P Name="__proto__"> was the prototype setter's argument, so the field vanished, and
+// an object value made the bag inherit its keys.
 function parseStructElement(el: XmlNode): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const prop of el.P || []) {
@@ -964,11 +969,11 @@ function parseStructElement(el: XmlNode): Record<string, unknown> {
     // whatever else the element says about it.
     const encoded = encodedOf(prop);
     if (encoded) {
-      result[prop['@_Name']!] = encoded;
+      setOwn(result, prop['@_Name']!, encoded);
     } else if (!prop.Element?.length && isComplexAttr(prop['@_IsComplex'])) {
-      result[prop['@_Name']!] = complexCdata(getTextContent(prop), prop['@_Dimension'] || null, prop['@_Class']);
+      setOwn(result, prop['@_Name']!, complexCdata(getTextContent(prop), prop['@_Dimension'] || null, prop['@_Class']));
     } else {
-      result[prop['@_Name']!] = parsePropContent(prop);
+      setOwn(result, prop['@_Name']!, parsePropContent(prop));
     }
   }
   return result;

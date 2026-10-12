@@ -6,7 +6,8 @@ import { isMatCdata } from '../parser/CdataCodec.js';
 import { budgetFailure, classPhrase, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
 import { dimsText, isSize, isSpellableExtent } from '../parser/Size.js';
 import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
-import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
+import { setOwn } from '../parser/ownKeys.js';
+import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import { charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
@@ -98,9 +99,7 @@ function writeIntoSaveobj(envelope, key, val) {
     if (!el || typeof el !== 'object') {
         return envelope;
     }
-    return Object.assign({}, env, {
-        _elements: [Object.assign({}, el, { [key]: val })],
-    });
+    return { ...env, _elements: [{ ...el, [key]: val }] };
 }
 /**
  * An entry's metadata as a TEXT dictionary spells it.
@@ -128,9 +127,13 @@ function textDictionaryMetadata(md) {
             out[key] = val;
         }
     }
+    // Every other key is the file's. Asked with `key in out`, a key called `toString` or
+    // `constructor` was "already there" on Object.prototype, and one called `__proto__`
+    // assigned into `out` went to the prototype setter: all three were dropped from the saved
+    // entry. So presence is an own-key question, and the write goes through setOwn.
     for (const [key, val] of Object.entries(md)) {
-        if (!(key in out) && key !== 'lastModifiedDate' && key !== 'lastModifiedBy' && key !== '_rawLastMod') {
-            out[key] = val;
+        if (!Object.prototype.hasOwnProperty.call(out, key) && key !== 'lastModifiedDate' && key !== 'lastModifiedBy' && key !== '_rawLastMod') {
+            setOwn(out, key, val);
         }
     }
     return out;
@@ -180,18 +183,22 @@ export default class DataNode extends BaseNode {
     // The user-facing Kind. A classified entry's Kind comes from its classification
     // token; otherwise it is derived from the Class. Nodes with no known mapping
     // fall back to their raw class name.
+    //
+    // Every lookup is of an own key (kindIn): the class is the file's word, and a class
+    // called `toString` or `constructor` is an unlisted class, not an inherited member.
     get kind() {
         if (this.classification) {
-            return KIND_BY_CLASSIFICATION[this.classification] || this.classification;
+            return kindIn(KIND_BY_CLASSIFICATION, this.classification) || this.classification;
         }
         const cls = this.className;
         // A derived (architectural) entry the catalog didn't classify — e.g. a freshly
         // pasted one, whose new name isn't in the SystemComposer catalog — takes the
         // arch default Kind for its Class (a derived Simulink.Bus is a Data Interface).
-        if (this.isDerived && DERIVED_KIND_BY_CLASS[cls]) {
-            return DERIVED_KIND_BY_CLASS[cls];
+        const derivedKind = this.isDerived ? kindIn(DERIVED_KIND_BY_CLASS, cls) : undefined;
+        if (derivedKind) {
+            return derivedKind;
         }
-        return KIND_BY_CLASS[cls] || cls;
+        return kindIn(KIND_BY_CLASS, cls) || cls;
     }
     // The value shown in the Data Type column. This column shows a real data type
     // only; it never surfaces the node's Class (the class identity, e.g.
@@ -662,11 +669,11 @@ export default class DataNode extends BaseNode {
      */
     _serializeSimulinkObject(propOverrides) {
         const props = this._mergeProps(propOverrides);
-        const result = Object.assign({}, this.serial._rawVal);
+        const result = { ...this.serial._rawVal };
         const rawElements = result._elements || [];
-        const element = Object.assign({}, rawElements[0]);
+        const element = { ...rawElements[0] };
         if (SAVEOBJ_KEY in props) {
-            const siblings = Object.assign({}, props);
+            const siblings = { ...props };
             delete siblings[SAVEOBJ_KEY];
             element[CUSTOM_SAVE_KEY] = props[SAVEOBJ_KEY];
             if (Object.keys(siblings).length > 0) {
@@ -714,7 +721,7 @@ export default class DataNode extends BaseNode {
      * correct and is strictly additive over the old behaviour.
      */
     _mergeProps(propOverrides) {
-        const stored = Object.assign({}, this.serial._properties);
+        const stored = { ...this.serial._properties };
         if (!(SAVEOBJ_KEY in stored)) {
             return Object.assign(stored, propOverrides);
         }
@@ -847,7 +854,7 @@ export default class DataNode extends BaseNode {
         return xml;
     }
     _getSerializedProperties() {
-        return Object.assign({}, this.serial._properties);
+        return { ...this.serial._properties };
     }
     /** Where this node's property `propName` stands, for a writer that writes it from its raw value. */
     _propertyAt(propName) {

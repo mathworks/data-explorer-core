@@ -162,7 +162,11 @@ function decodeOpcTextPackage(bytes, warnings) {
         // `.slice()`, not the subarray: fflate hands every zip entry its own buffer, and
         // parseMxArray reaches through `entry.buffer`. A view into the whole `.mdl` would
         // give it the entire file to parse instead of the one part.
-        if (path) {
+        if (path === '__proto__') {
+            // A plain `{}` hands this one name to the prototype setter, which made the part the
+            // bag's prototype; left out, as Inflate leaves out a zip member of that name.
+        }
+        else if (path) {
             parts[path] = base64 ? decodeBase64(raw) : raw.slice();
         }
         else {

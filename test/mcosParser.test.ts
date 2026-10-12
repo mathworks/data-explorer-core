@@ -7,6 +7,8 @@ import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { parseSlx } from '../src/datamodel/parser/SlxParser.js';
 import type { MatVariable } from '../src/datamodel/node/data/MatlabVariableNode.js';
+import { createSession, ingest } from '../src/index.js';
+import { renameInMat } from './tools/matRename.js';
 
 // Direct unit tests for the MCOS decoder's OWN contract. mcosCrossFormat.test.ts
 // exercises decodeMcosBlob transitively (asserting the resulting typed-node
@@ -813,5 +815,53 @@ describe('decodeMcosBlob — damaged property blocks (byte surgery on the metada
       expect(Object.keys(decoded.properties)).toEqual(['Alignment']);
       expect(decoded.elements).toHaveLength(3);
     }
+  });
+});
+
+// A name the subsystem spells, used as a key: a property name out of the string table,
+// a field name out of a struct cell. MATLAB cannot write `__proto__` (an identifier starts
+// with a letter) but a file can, and the decoder wrote both into plain `{}`s, where that
+// one key is Object.prototype's setter. Derived from object_props.mat (MATLAB-authored:
+// mcos/make_class_fixtures.m) by same-length patches inside its compressed elements.
+describe('decodeMcosBlob — a property or struct field named __proto__', () => {
+  const objectProps = () => new Uint8Array(readFileSync(fileURLToPath(new URL('./fixtures/mcos/object_props.mat', import.meta.url))));
+  const open = (bytes: ArrayBuffer) => ingest(createSession(), bytes, { filename: 'object_props.mat' }) as any;
+  const hex = (h: string) => new Uint8Array(h.match(/../g)!.map((b) => parseInt(b, 16)));
+
+  // v.Specs is a 1x1 struct of two fields, `mass` and `color`, written with a field-name
+  // stride of 6. Stride 12 holds the same 12 bytes as ONE name of up to 11 characters,
+  // so the struct becomes one field holding mass's value, 2200; the color value after it
+  // is left unread, as any value past the declared fields is.
+  const STRIDE_6 = '0500040006000000' + '010000000c000000' + '6d6173730000' + '636f6c6f7200';
+  const oneField = (name: string) =>
+    '050004000c000000' + '010000000c000000' + Array.from(name.padEnd(12, '\0'), (c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+  const specsOf = (fieldName: string) => {
+    const renamed = renameInMat(objectProps(), hex(STRIDE_6), hex(oneField(fieldName)));
+    expect(renamed.hits).toBeGreaterThan(0);
+    const v = open(renamed.bytes).children.find((c: any) => c.name === 'v');
+    const specs = v.children.find((c: any) => c.name === 'Specs');
+    return specs.children.map((f: any) => [f.name, f.displayValue]);
+  };
+
+  it('shows a struct field called __proto__ with its value, as any other field', () => {
+    expect(specsOf('temperature')).toEqual([['temperature', '2200']]);
+    // Was `[object Object]`: the setter dropped the value, the field list still named it,
+    // and the struct row then read the name off Object.prototype.
+    expect(specsOf('__proto__')).toEqual([['__proto__', '2200']]);
+  });
+
+  it('keeps a property called __proto__ in the bag, without re-parenting the bag', () => {
+    // f.FleetName holds a string; renamed, it was the prototype setter's argument, and
+    // f's property bag inherited the string's envelope (`_array_type: 'String'`, …).
+    const renamed = renameInMat(objectProps(), 'FleetName', '__proto__');
+    expect(renamed.hits).toBe(2);
+    const f = open(renamed.bytes).children.find((c: any) => c.name === 'f');
+    const props = f.serial._rawVal._elements[0]._properties;
+    expect(Object.getPrototypeOf(props)).toBe(Object.prototype);
+    expect(Object.keys(props)).toEqual(['__proto__', 'Count', 'Lead', 'Notes']);
+    expect(props._array_type).toBeUndefined();
+    expect(props.__proto__).toMatchObject({ _array_type: 'String', _elements: ['east'] });
+    // No row for it: an object's `_`-named keys are reserved (ObjectNode._addPropertyChildren).
+    expect(f.children.map((c: any) => c.name)).toEqual(['Count', 'Lead', 'Notes']);
   });
 });

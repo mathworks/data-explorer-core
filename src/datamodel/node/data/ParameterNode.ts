@@ -346,7 +346,7 @@ export default class ParameterNode extends DataNode {
         // written before all four — would read this save's own output as evidence about
         // the file and write a property the file never carried.
         const sp = this.serial._properties as Record<string, unknown>;
-        const props = Object.assign({}, sp);
+        const props = { ...sp };
         if (innerValue !== undefined) { props.Value = innerValue; }
         // A cleared bound is written as `[]`, the empty value MATLAB itself stores —
         // NOT as whatever the file held, which is what this used to fall back to: the
@@ -373,8 +373,8 @@ export default class ParameterNode extends DataNode {
             return oneWrite(() => this.serializeValue());
         }
         const props = this._getSerializedProperties();
-        const result = Object.assign({}, this.serial._rawVal as Record<string, unknown>);
-        result._elements = [Object.assign({}, (result._elements as unknown[])[0] as Record<string, unknown>, { _properties: props })];
+        const result = { ...(this.serial._rawVal as Record<string, unknown>) };
+        result._elements = [{ ...((result._elements as unknown[])[0] as Record<string, unknown>), _properties: props }];
         return result;
     }
 

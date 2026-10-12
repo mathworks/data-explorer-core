@@ -6,6 +6,7 @@ import { reasonOf } from './ParseWarning.js';
 import type { ParseWarning } from './ParseWarning.js';
 import { isObjectHandle, objectHandleFromValue } from './McosHandle.js';
 import { emptySparse, unbackedColumns, type SparseData } from './SparseData.js';
+import { setOwn } from './ownKeys.js';
 
 const CLASS_NAMES: Record<number, string> = {
     1: 'cell', 2: 'struct', 3: 'object', 4: 'char',
@@ -750,11 +751,21 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
                         // keep the ones that are really there.
                         const rawLen = Math.min(fieldMatrixSub.totalSize, view.byteLength - fieldStart);
                         child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + fieldStart, Math.max(0, rawLen));
+                        // The field names are the FILE's. `constructor`, `toString`, `valueOf`
+                        // and `hasOwnProperty` are legal MATLAB field names, and on this plain
+                        // `{}` each is already "there" as an inherited member: a struct array's
+                        // `if (!fields[fn]) fields[fn] = []` skipped the `[]` and pushed onto a
+                        // function, so the whole .mat failed with "fields[fn].push is not a
+                        // function". `__proto__` (no MATLAB name, but a file can spell it) went
+                        // to the prototype setter, which threw the same way in a struct array
+                        // and lost the field from a 1x1. So presence is an own-key question,
+                        // and the write goes through setOwn.
                         if (totalElements === 1) {
-                            fields[fn] = child;
-                        } else {
-                            if (!fields[fn]) { fields[fn] = []; }
+                            setOwn(fields, fn, child);
+                        } else if (Object.prototype.hasOwnProperty.call(fields, fn)) {
                             (fields[fn] as MatVariable[]).push(child);
+                        } else {
+                            setOwn<MatVariable | MatVariable[]>(fields, fn, [child]);
                         }
                     }
                     offset += fieldMatrixSub.totalSize;

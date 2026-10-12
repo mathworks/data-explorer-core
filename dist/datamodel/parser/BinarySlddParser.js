@@ -49,6 +49,7 @@ import { SC_PART_XML, catalogFromDefinitions, scanScXml } from './ScCatalog.js';
 import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
 import { encodedStream, encodedValueOf, isEncodedValue } from './EncodedValue.js';
 import { charNeedsShape, complexClassTag, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, SAVEOBJ_KEY, } from './XmlUtils.js';
+import { setOwn } from './ownKeys.js';
 /**
  * Read a `Dimension="d1*d2*...*dn"` attribute into every extent it declares.
  *
@@ -841,6 +842,10 @@ function parseElement(el) {
 // through exactly the same path — they used to have separate copies, and the
 // array copy passed a flag that skipped struct decoding, writing a struct-valued
 // property back as `Class="char">[object Object]`.
+//
+// Every name is written with setOwn, because the names are the file's: assigned into a plain
+// `{}`, a <P Name="__proto__"> was the prototype setter's argument, so the field vanished, and
+// an object value made the bag inherit its keys.
 function parseStructElement(el) {
     const result = {};
     for (const prop of el.P || []) {
@@ -872,13 +877,13 @@ function parseStructElement(el) {
         // whatever else the element says about it.
         const encoded = encodedOf(prop);
         if (encoded) {
-            result[prop['@_Name']] = encoded;
+            setOwn(result, prop['@_Name'], encoded);
         }
         else if (!prop.Element?.length && isComplexAttr(prop['@_IsComplex'])) {
-            result[prop['@_Name']] = complexCdata(getTextContent(prop), prop['@_Dimension'] || null, prop['@_Class']);
+            setOwn(result, prop['@_Name'], complexCdata(getTextContent(prop), prop['@_Dimension'] || null, prop['@_Class']));
         }
         else {
-            result[prop['@_Name']] = parsePropContent(prop);
+            setOwn(result, prop['@_Name'], parsePropContent(prop));
         }
     }
     return result;

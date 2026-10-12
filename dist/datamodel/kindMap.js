@@ -74,6 +74,19 @@ export const KIND_BY_CLASSIFICATION = {
     EnumType: 'Enumerated Type',
     AliasType: 'Alias Type',
 };
+/**
+ * The row `key` names in one of the tables above, or undefined when it names none.
+ *
+ * By OWN key only. The keys are words a file supplies — a class name, a catalog
+ * classification — and `toString`, `valueOf`, `constructor` and the rest of
+ * Object.prototype's members are valid MATLAB class names: on these object literals
+ * `KIND_BY_CLASS['toString']` is the inherited function, so the Kind of such a class
+ * came back a function (and of `constructor`, the Object function) rather than the raw
+ * class name every other unlisted class falls back to.
+ */
+export function kindIn(table, key) {
+    return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
 // The Kind a plain MATLAB variable (className 'double', 'int8', a struct, etc.)
 // shows: 'MATLAB Variable' in Design Data, 'Constant' when derived (arch). A
 // MATLAB variable has no entry in KIND_BY_CLASS (its className is a raw data
@@ -91,13 +104,14 @@ export function kindForClass(className, opts = {}) {
     const { isDerived = false, isMatlabVariable = false, classification } = opts;
     if (isMatlabVariable) {
         if (classification)
-            return KIND_BY_CLASSIFICATION[classification] || classification;
+            return kindIn(KIND_BY_CLASSIFICATION, classification) || classification;
         return matlabVariableKind(isDerived);
     }
     if (classification)
-        return KIND_BY_CLASSIFICATION[classification] || classification;
-    if (isDerived && DERIVED_KIND_BY_CLASS[className])
-        return DERIVED_KIND_BY_CLASS[className];
-    return KIND_BY_CLASS[className] || className;
+        return kindIn(KIND_BY_CLASSIFICATION, classification) || classification;
+    const derivedKind = isDerived ? kindIn(DERIVED_KIND_BY_CLASS, className) : undefined;
+    if (derivedKind)
+        return derivedKind;
+    return kindIn(KIND_BY_CLASS, className) || className;
 }
 //# sourceMappingURL=kindMap.js.map

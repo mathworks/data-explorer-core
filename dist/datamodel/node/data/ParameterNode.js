@@ -319,7 +319,7 @@ export default class ParameterNode extends DataNode {
         // written before all four — would read this save's own output as evidence about
         // the file and write a property the file never carried.
         const sp = this.serial._properties;
-        const props = Object.assign({}, sp);
+        const props = { ...sp };
         if (innerValue !== undefined) {
             props.Value = innerValue;
         }
@@ -351,8 +351,8 @@ export default class ParameterNode extends DataNode {
             return oneWrite(() => this.serializeValue());
         }
         const props = this._getSerializedProperties();
-        const result = Object.assign({}, this.serial._rawVal);
-        result._elements = [Object.assign({}, result._elements[0], { _properties: props })];
+        const result = { ...this.serial._rawVal };
+        result._elements = [{ ...result._elements[0], _properties: props }];
         return result;
     }
     serializeXml(tagName, attrs, indent) {

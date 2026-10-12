@@ -133,7 +133,7 @@ export default class SimulinkObjectNode extends DataNode {
       // there is a separate envelope to fold in and so nothing to alias — may build a new one.
       return props || {};
     }
-    return Object.assign({}, props, { [SAVEOBJ_KEY]: envelope });
+    return { ...props, [SAVEOBJ_KEY]: envelope };
   }
 
   /**

@@ -271,6 +271,25 @@ describe('parseSlx — the warnings channel', () => {
     expect(parsed.configSets.map((c) => c.name)).toEqual(['Fast']);
   });
 
+  it.each(['toString', 'constructor', 'hasOwnProperty', '__proto__'])(
+    'names a config set part called %s that the package does not hold, as any other',
+    (name) => {
+      // The part name is the index's word, and the lookup asked the package's member
+      // bag for it by plain indexing: an inherited member answered, the part "was there",
+      // and the read failed on a function instead, under a reason that blamed the bytes.
+      const index = JSON.stringify({
+        ConfigSetInfo: [
+          { Active: true, ConfigSetName: 'Configuration', PartName: `/${name}` },
+          { ConfigSetName: 'Fast', PartName: '/simulink/configSet1.json' },
+        ],
+      });
+      const parsed = parseSlx(slxWith(SLX_CASES, { 'simulink/configSetInfo.json': index }), 'slxcases.slx');
+      expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', name]]);
+      expect(parsed.warnings[0].message).toContain('which this package does not contain');
+      expect(parsed.configSets.map((c) => c.name)).toEqual(['Fast']);
+    },
+  );
+
   it('reports an unreadable config set index once, not once per set it never saw', () => {
     const parsed = parseSlx(slxWith(SLX_CASES, { 'simulink/configSetInfo.json': '{{{' }), 'slxcases.slx');
     expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', 'simulink/configSetInfo.json']]);

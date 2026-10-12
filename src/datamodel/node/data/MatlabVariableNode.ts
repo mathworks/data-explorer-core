@@ -21,6 +21,7 @@ import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../../display/Subscript.js';
 import { decodeMatStream, type MatVariable } from '../../parser/MatParser.js';
+import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import {
   encodedClass,
@@ -357,7 +358,11 @@ export default class MatlabVariableNode extends DataNode {
       // An MCOS object of a class with no branded icon is still an OBJECT, so it
       // gets the object glyph rather than the plain-variable one — the same answer
       // the dictionary path's ObjectNode gives for the same class.
-      return MCOS_ICON_MAP[this._opaqueClassName!] || OBJECT_ICON;
+      //
+      // By own key: the class is the file's word, and a class called `toString` or
+      // `valueOf` is a class with no branded icon, not an inherited function.
+      const cls = this._opaqueClassName!;
+      return (Object.prototype.hasOwnProperty.call(MCOS_ICON_MAP, cls) && MCOS_ICON_MAP[cls]) || OBJECT_ICON;
     }
     switch (this._kind) {
       case 'scalar':
@@ -2064,7 +2069,10 @@ export default class MatlabVariableNode extends DataNode {
       const bag: Record<string, unknown> = {};
       for (const child of el.children) {
         const c = child as MatlabVariableNode;
-        bag[c.name] = c.serializeValue();
+        // setOwn: the keys are the file's field names, and a field called `__proto__`
+        // assigned into `{}` went to the prototype setter and was lost, while `_fields`
+        // below still named it.
+        setOwn(bag, c.name, c.serializeValue());
         if (!fields.includes(c.name)) {
           fields.push(c.name);
         }
@@ -2518,6 +2526,9 @@ export default class MatlabVariableNode extends DataNode {
     }
     if (this._scalarType === 'struct') {
       v.className = 'struct';
+      // Keyed by the field names, which are the file's, so each is written with setOwn: a
+      // field called `__proto__` assigned into `{}` is the prototype setter's argument, and
+      // was not written back.
       const fields: Record<string, MatVariable | MatVariable[]> = {};
       if (elementCount(this._dims) > 1) {
         // A struct ARRAY models one child per ELEMENT, each holding that
@@ -2534,7 +2545,7 @@ export default class MatlabVariableNode extends DataNode {
           }
         }
         for (const fname of fieldNames) {
-          fields[fname] = this.children.map(function (elem) {
+          setOwn<MatVariable | MatVariable[]>(fields, fname, this.children.map(function (elem) {
             const f = elem.children.find(function (c) {
               return c.name === fname;
             });
@@ -2544,11 +2555,11 @@ export default class MatlabVariableNode extends DataNode {
             // the writer. An empty [] holds the element's slot; dropping it would
             // slide every later element one position early.
             return f ? MatlabVariableNode._memberVar(f) : emptyDouble();
-          });
+          }));
         }
       } else {
         for (const child of this.children) {
-          fields[child.name] = MatlabVariableNode._memberVar(child);
+          setOwn<MatVariable | MatVariable[]>(fields, child.name, MatlabVariableNode._memberVar(child));
         }
       }
       v.fields = fields;

@@ -9,6 +9,10 @@ import { describe, it, expect } from 'vitest';
 import StructNode from '../src/datamodel/node/data/StructNode.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 import { loadFile } from './parity/loadFile.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
+import { createSession, ingest } from '../src/index.js';
 
 // --- helpers ---------------------------------------------------------------
 
@@ -350,5 +354,67 @@ describe('StructNode.execRemoveChild', () => {
     const node = parseStruct(['a'], [{ a: 1 }]);
     const foreign = parseStruct(['a'], [{ a: 9 }]);
     expect((node as any).execRemoveChild(foreign)).toBeNull();
+  });
+});
+
+// A dictionary struct's field names are the FILE's words, in both formats. Three places
+// used them as keys of a plain object:
+//   - the binary reader gathered an element's <P Name="…"> children into `{}`, so a field
+//     called `__proto__` was the prototype setter's argument and vanished on open;
+//   - StructNode.serializeElement rebuilt each element into `{}` on save, so a text
+//     dictionary's `__proto__` field lost its value there while `_fields` still named it;
+//   - StructNode.parse read each declared field off the element by plain indexing, so a
+//     field the list names and the element does not hold read an INHERITED member: the
+//     row showed `function Object() { [native code] }` for `constructor`, and the reopened
+//     `__proto__` field above showed `[object Object]`.
+// Each is now a field like any other. Derived from rt_text.sldd / rt_bin.sldd, whose
+// gadget.Specs is a 1x1 struct of `mass` (1500) and `color` ('red').
+describe('a dictionary struct field named after an Object.prototype member', () => {
+  const INHERITED = [
+    'toString', 'valueOf', 'constructor', 'hasOwnProperty', 'isPrototypeOf',
+    'propertyIsEnumerable', 'toLocaleString', '__proto__', '__defineGetter__',
+  ];
+  const fixture = (name: string) => readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)));
+
+  // `color` renamed, in the element and (text) in the declared field list.
+  const VENUES = {
+    text: (name: string): string => fixture('rt_text.sldd').toString('utf8')
+      .replace('"color": "red"', `${JSON.stringify(name)}: "red"`)
+      .replace(/"_fields": \[\s*"mass",\s*"color"\s*\]/, `"_fields": ["mass", ${JSON.stringify(name)}]`),
+    binary: (name: string): Uint8Array => {
+      const files = unzipSync(new Uint8Array(fixture('rt_bin.sldd')));
+      files['data/chunk0.xml'] = strToU8(strFromU8(files['data/chunk0.xml'])
+        .replace('<P Name="color" Class="char">red</P>', `<P Name="${name}" Class="char">red</P>`));
+      return zipSync(files);
+    },
+  };
+
+  const specsRows = (source: any) => {
+    const specs = source.flatten().find((n: any) => n.name === 'Specs');
+    return specs.children.map((c: any) => [c.name, c.displayValue]);
+  };
+
+  it.each(['text', 'binary'] as const)('opens, edits, saves and reopens one in a %s dictionary', (venue) => {
+    for (const name of [...INHERITED, 'colour']) {
+      const session = createSession();
+      const source: any = ingest(session, VENUES[venue](name), { filename: 'gadget.sldd' });
+      expect([name, specsRows(source)]).toEqual([name, [['mass', '1500'], [name, "'red'"]]]);
+
+      const specs = source.flatten().find((n: any) => n.name === 'Specs');
+      expect(specs.children.find((c: any) => c.name === 'mass').setProperty('Value', '1600')).toBe(true);
+      const saved = session.serializeSource(source.name)!;
+      const reopened = ingest(createSession(), saved.kind === 'text' ? saved.text : saved.bytes, { filename: 'gadget.sldd' });
+      expect([name, specsRows(reopened)]).toEqual([name, [['mass', '1600'], [name, "'red'"]]]);
+    }
+  });
+
+  it('reads a declared field the element does not hold as absent, whatever it is called', () => {
+    const declaring = (name: string) => fixture('rt_text.sldd').toString('utf8')
+      .replace(/"_fields": \[\s*"mass",\s*"color"\s*\]/, `"_fields": ["mass", "color", ${JSON.stringify(name)}]`);
+    const third = (name: string) => specsRows(ingest(createSession(), declaring(name), { filename: 'gadget.sldd' }))[2];
+    const absent = third('other')[1];
+    for (const name of INHERITED) {
+      expect(third(name)).toEqual([name, absent]);
+    }
   });
 });

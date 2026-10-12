@@ -134,6 +134,22 @@ const SIG_LOCAL = 0x04034b50;
 class UnsupportedArchive extends Error {
 }
 /**
+ * Whether a member is one the result bag can hold. Every name but one: `__proto__`.
+ *
+ * The bag is keyed by the archive's own member names, and both engines fill it by plain
+ * assignment, this walk and fflate's unzipSync alike. For `__proto__` that assignment is
+ * Object.prototype's setter, so the member's bytes became the bag's PROTOTYPE: the member
+ * vanished from every reader, and a reader that walks the bag with for…in walked every
+ * byte index of it instead. SlxParser does, so a 20 KB .slx holding a 20,000,000-byte
+ * member of that name failed to open after 2.7 s with "RangeError: Too many properties to
+ * enumerate". Keeping it as an own key is no better: no reader asks for a part of that
+ * name, and fflate's zipSync, which every writer that zips a bag back up calls, throws on
+ * one. So both engines leave it out, which is what every caller already saw of it.
+ */
+function isHoldable(name) {
+    return name !== '__proto__';
+}
+/**
  * Every entry of a zip archive, by name, exactly as `fflate.unzipSync` returns them —
  * including zero-length entries for directory members, which fflate emits and which
  * an archive written by another tool may well contain.
@@ -175,9 +191,7 @@ export function unzipEntries(bytes, wanted) {
 }
 /** The fallback, with the filter expressed in fflate's own terms. */
 function unzipWithFflate(bytes, wanted) {
-    if (wanted === undefined)
-        return unzipSync(bytes);
-    return unzipSync(bytes, { filter: (file) => wanted(file.name) });
+    return unzipSync(bytes, { filter: (file) => isHoldable(file.name) && (wanted === undefined || wanted(file.name)) });
 }
 function walkCentralDirectory(bytes, native, wanted) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -249,7 +263,7 @@ function walkCentralDirectory(bytes, native, wanted) {
         // archive to fflate rather than returning bytes from an addressing scheme we have
         // just seen fail. Skipping the checks for unwanted members would be faster on a
         // damaged file and would trust offsets there is reason to doubt.
-        const keep = wanted === undefined || wanted(name);
+        const keep = isHoldable(name) && (wanted === undefined || wanted(name));
         const raw = bytes.subarray(dataAt, dataAt + compressedSize);
         if (method === 0) {
             // Stored. `.slice()` and not the subarray, because the entry must own its
