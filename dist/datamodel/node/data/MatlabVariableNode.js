@@ -52,6 +52,10 @@ const MCOS_ICON_MAP = {
     // out of a dictionary showed the default one out of a .mat.
     string: 'wsString',
 };
+// The own fields an undo of a Value edit leaves as they are (_restorerFor): where the node
+// stands, which it restores apart (its children) or not at all (its name and parent), and
+// the entry's own bookkeeping, which an undone edit leaves as every edit does.
+const RESTORE_LEAVES = new Set(['name', 'parent', 'children', 'status', 'metadata']);
 /**
  * Does a binary dictionary have to hold this variable as hex? When it holds a sparse array,
  * an MCOS object, or a value of a class MatParser does not model (a function handle is
@@ -63,6 +67,31 @@ function needsHexInBinary(variable) {
     while (stack.length > 0) {
         const v = stack.pop();
         if (v.isSparse || v.isOpaque || v.className === 'unknown') {
+            return true;
+        }
+        for (const field of Object.values(v.fields ?? {})) {
+            stack.push(...(Array.isArray(field) ? field : [field]));
+        }
+        if (v.className === 'cell' && Array.isArray(v.value)) {
+            for (const cell of v.value) {
+                if (cell) {
+                    stack.push(cell);
+                }
+            }
+        }
+    }
+    return false;
+}
+/**
+ * Is there an MCOS object anywhere in this variable — at its top, in a struct field or in a
+ * cell element, at any depth? Such a stream carries the objects' subsystem after the
+ * variable, and has to be decoded with it (MatlabVariableNode._parseCdataObjects).
+ */
+function holdsMcosObject(variable) {
+    const stack = [variable];
+    while (stack.length > 0) {
+        const v = stack.pop();
+        if (v.isOpaque) {
             return true;
         }
         for (const field of Object.values(v.fields ?? {})) {
@@ -754,6 +783,55 @@ export default class MatlabVariableNode extends DataNode {
         }
         return DataNode.prototype.setProperty.call(this, propName, stringValue);
     }
+    /**
+     * For DataModel.editProperty: what puts this value back exactly as it is now, for the
+     * undo of an edit of `propName` about to be made — or null, where the text the property
+     * shows is what restores it.
+     *
+     * The session undid a Value edit by setting the Value back to the text it showed
+     * (readPropertyValue), and for a value that text is not always the value. Every empty
+     * shows `[ ]`, whatever its size and class, and `[ ]` is a 0x0 double: zeros(1,0),
+     * zeros(0,2), int8(zeros(0,3)), an enumeration's empty and a 0x0x2 empty all came back as
+     * a 0x0 double, which the next save wrote. No text this package reads says any of them
+     * (MatlabValueParser has no zeros(...)), and nor does the value's JSON form, in which a
+     * rank-2 empty is `[]`. The node's own state does, and it is what a Value edit replaces:
+     * _applyParsed assigns every field it changes and changes nothing it found in place. So
+     * the undo is that state, held and put back, `_rawInput` with it, so a value undone is
+     * written as it was read.
+     *
+     * Every own field but the node's place (name, parent) and the entry's bookkeeping
+     * (status, metadata), which an undo leaves as any other edit does: Modified, and stamped.
+     * Not for an element of an array, whose edit also writes into the array
+     * (_setConstrainedValue), and whose text is the scalar it holds.
+     */
+    _restorerFor(propName) {
+        if (propName !== 'Value' || this._isConstrainedChild()) {
+            return null;
+        }
+        const own = this;
+        const saved = new Map(Object.entries(own).filter(([key]) => !RESTORE_LEAVES.has(key)));
+        const children = this.children.slice();
+        return () => {
+            // First, so that every node above drops what it was read from (it is written from its
+            // children now, this one among them) and the entry is Modified and its file dirty. The
+            // restore below then gives this node its own back.
+            this._markModified();
+            for (const key of Object.keys(own)) {
+                if (!RESTORE_LEAVES.has(key) && !saved.has(key)) {
+                    delete own[key];
+                }
+            }
+            for (const [key, value] of saved) {
+                own[key] = value;
+            }
+            this.children = children.slice();
+            for (const child of this.children) {
+                child.parent = this;
+            }
+            // As setProperty's own Value edit does: the parent's row for this node follows its shape.
+            this.parent?.childStructureChanged(this);
+        };
+    }
     _isConstrainedChild() {
         if (!this.parent || !(this.parent instanceof MatlabVariableNode)) {
             return false;
@@ -802,6 +880,41 @@ export default class MatlabVariableNode extends DataNode {
         // refusing is the honest one here.
         const isLogicalElement = isArrayElement && parent._scalarType === 'logical';
         const parsed = MatlabValueParser.parse(stringValue);
+        // An element of a complex array takes a complex value too, held as every reader holds
+        // one: a 'complex' scalar whose value is its text (_isComplexValue reads the array's
+        // complexity off that text). Refused, `3+4i` typed into one went nowhere, and neither
+        // did the session's undo of any edit to one, which sets the element back to the text it
+        // showed (DataModel's readPropertyValue): `1+2i` was refused with nothing said, and the
+        // next save wrote the edit it was meant to undo.
+        //
+        // The element's own spelling is taken as written: it is what every reader stores and
+        // every writer reads (XmlUtils.parseComplexNum), and what the element shows, so an undo
+        // puts back the very element it was, a `-0-3i` or an Inf or NaN part included, which
+        // MatlabValueParser reads differently or not at all. Anything else MatlabValueParser
+        // reads as complex is held as it makes it (`3i` is `0+3i`), as a complex scalar typed
+        // whole is (_applyParsed). A real number goes on below, as it always has.
+        //
+        // Not into a REAL array, for the reason a logical one takes only 0 and 1: MATLAB's
+        // answer to `x(1) = 3+4i` is to make the whole ARRAY complex, which an element editor
+        // cannot express. `_elementType` is the array's complexity as it was built, not
+        // _isComplexValue's reading of its elements now, so an array whose elements have all
+        // been set to real numbers still takes back the complex ones an undo restores.
+        if (isArrayElement && parent._elementType === 'complex' && parsed?.type !== 'double') {
+            const typed = stringValue.trim();
+            const text = parseComplexNum(typed, parent._scalarType)
+                ? typed
+                : parsed?.type === 'complex'
+                    ? String(parsed.value)
+                    : null;
+            if (text !== null) {
+                this._scalarType = 'complex';
+                this._scalarValue = text;
+                parent._syncElementFromChild(this);
+                parent._rawInput = undefined;
+                this._markModified();
+                return true;
+            }
+        }
         let accepted;
         if (isLogicalElement) {
             accepted = parsed?.type === 'logical' || (parsed?.type === 'double' && (parsed.value === 0 || parsed.value === 1));
@@ -2813,6 +2926,8 @@ export default class MatlabVariableNode extends DataNode {
     }
     static parseTypedScalar(rawVal, name, parent) {
         if (rawVal._type === 'cdata') {
+            // A DataNode of another class for a stream holding an MCOS object, as parseEncoded's
+            // is for the hex of one (see `parse`).
             return MatlabVariableNode.parseCdata(rawVal, name, parent);
         }
         const node = new MatlabVariableNode(name, parent, rawVal);
@@ -3059,9 +3174,15 @@ export default class MatlabVariableNode extends DataNode {
                 throw new Error('cdata is not a MAT stream: ' + stream.reason);
             }
             const variable = stream.variable;
-            // Always a MatlabVariableNode here: only the opaque arm builds anything else, and
-            // only for a variable a container attached a decode to (mcosDecodedTable), which
-            // one parsed out of a cdata stream a line above has not had the chance to be.
+            if (holdsMcosObject(variable)) {
+                const decoded = MatlabVariableNode._parseCdataObjects(rawVal, bytes, variable, stream.trailingElements, name, parent);
+                if (decoded) {
+                    return decoded;
+                }
+            }
+            // A MatlabVariableNode here: only the opaque arm builds anything else, and only for a
+            // variable whose objects were decoded, which _parseCdataObjects above does for one
+            // that holds any and undoes when what it builds fails.
             const node = MatlabVariableNode.parseMatVariable(variable, name, parent);
             // parseMatVariable's factories set _matVar/_rawBytes but not _rawInput, and
             // an untouched node writes itself back by replaying _rawInput verbatim. Set
@@ -3079,6 +3200,53 @@ export default class MatlabVariableNode extends DataNode {
             node._scalarValue = valStr;
             return node;
         }
+    }
+    /**
+     * A text dictionary's MAT stream holding an MCOS object anywhere in it, decoded with the
+     * stream's own subsystem, as a binary dictionary's hex of the same bytes is (parseEncoded)
+     * — or null, when building it so fails and the variable is built without the decode.
+     *
+     * MATLAB's own text dictionary writes a Simulink object natively and keeps cdata for a
+     * value its JSON cannot spell, but this package writes a hex entry it pastes into one as the
+     * cdata of the same stream (MatWriter.textDictionaryForm), which MATLAB reads back as the
+     * object: a Simulink.Parameter whose Value is sparse, an alias type with a function-handle
+     * property, a struct or a cell of objects. Read without the subsystem, as it was, the
+     * stream's object was the opaque `<1x1 Simulink.Parameter>`: no Value, no properties, and
+     * as a plain variable it took a Value edit that wrote a number over the whole object.
+     *
+     * Like the hex, it is read-only and written back as it was read, for as long as nothing
+     * changes it (DataNode._adoptEncoded): nothing in this package writes the stream of an
+     * MCOS object. A text dictionary and a copy are handed the cdata itself, character for
+     * character; the envelope the adoption keeps is the hex a binary dictionary holds for the
+     * same bytes, under MATLAB's Class, which is what one this is pasted into writes, as it
+     * wrote it for the opaque node before.
+     */
+    static _parseCdataObjects(rawVal, bytes, variable, trailingElements, name, parent) {
+        let node;
+        try {
+            NodeRegistry.attachMcosDecoded(trailingElements[0], [variable]);
+            node = MatlabVariableNode.parseMatVariable(variable, name, parent);
+        }
+        catch (_e) {
+            // Detached again, so the variable builds as it did before there was a decode.
+            NodeRegistry.attachMcosDecoded(null, [variable]);
+            return null;
+        }
+        // The stream's own bytes: uudecode keeps a byte of the NUL padding past the last whole
+        // one (EncodedValue.matStreamPrefix), and a binary dictionary states the length.
+        node._adoptEncoded(hexValue(matStreamPrefix(bytes) ?? bytes, matlabClassOf(variable), 2));
+        node.serializeValue = function () {
+            if (this._encoded) {
+                return rawVal;
+            }
+            return Object.getPrototypeOf(this).serializeValue.call(this);
+        };
+        // What parseCdata gives every MatlabVariableNode it builds, for the same reasons.
+        if (node instanceof MatlabVariableNode) {
+            node._rawInput = rawVal;
+            node._keepStreamElement(bytes);
+        }
+        return node;
     }
     /**
      * Complex text with an Inf or NaN part that this package wrote itself, which the test
