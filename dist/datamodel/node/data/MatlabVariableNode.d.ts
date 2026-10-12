@@ -117,6 +117,28 @@ export default class MatlabVariableNode extends DataNode {
         items: (typeof PropKind | typeof PropDescription)[];
     }[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    /**
+     * For DataModel.editProperty: what puts this value back exactly as it is now, for the
+     * undo of an edit of `propName` about to be made — or null, where the text the property
+     * shows is what restores it.
+     *
+     * The session undid a Value edit by setting the Value back to the text it showed
+     * (readPropertyValue), and for a value that text is not always the value. Every empty
+     * shows `[ ]`, whatever its size and class, and `[ ]` is a 0x0 double: zeros(1,0),
+     * zeros(0,2), int8(zeros(0,3)), an enumeration's empty and a 0x0x2 empty all came back as
+     * a 0x0 double, which the next save wrote. No text this package reads says any of them
+     * (MatlabValueParser has no zeros(...)), and nor does the value's JSON form, in which a
+     * rank-2 empty is `[]`. The node's own state does, and it is what a Value edit replaces:
+     * _applyParsed assigns every field it changes and changes nothing it found in place. So
+     * the undo is that state, held and put back, `_rawInput` with it, so a value undone is
+     * written as it was read.
+     *
+     * Every own field but the node's place (name, parent) and the entry's bookkeeping
+     * (status, metadata), which an undo leaves as any other edit does: Modified, and stamped.
+     * Not for an element of an array, whose edit also writes into the array
+     * (_setConstrainedValue), and whose text is the scalar it holds.
+     */
+    _restorerFor(propName: string): (() => void) | null;
     _isConstrainedChild(): boolean;
     _setConstrainedValue(stringValue: string): true | SetPropertyResult;
     _markModified(): void;

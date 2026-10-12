@@ -131,6 +131,11 @@ const MCOS_ICON_MAP: Record<string, string> = {
   string: 'wsString',
 };
 
+// The own fields an undo of a Value edit leaves as they are (_restorerFor): where the node
+// stands, which it restores apart (its children) or not at all (its name and parent), and
+// the entry's own bookkeeping, which an undone edit leaves as every edit does.
+const RESTORE_LEAVES = new Set(['name', 'parent', 'children', 'status', 'metadata']);
+
 // A text .sldd stores a value its JSON schema cannot spell as uuencoded bytes,
 // and what those bytes CONTAIN is an 8-byte preamble followed by one MAT-file
 // miMATRIX element — so decoding stops at the transport (parser/CdataCodec) and
@@ -938,6 +943,56 @@ export default class MatlabVariableNode extends DataNode {
       return true;
     }
     return DataNode.prototype.setProperty.call(this, propName, stringValue);
+  }
+
+  /**
+   * For DataModel.editProperty: what puts this value back exactly as it is now, for the
+   * undo of an edit of `propName` about to be made — or null, where the text the property
+   * shows is what restores it.
+   *
+   * The session undid a Value edit by setting the Value back to the text it showed
+   * (readPropertyValue), and for a value that text is not always the value. Every empty
+   * shows `[ ]`, whatever its size and class, and `[ ]` is a 0x0 double: zeros(1,0),
+   * zeros(0,2), int8(zeros(0,3)), an enumeration's empty and a 0x0x2 empty all came back as
+   * a 0x0 double, which the next save wrote. No text this package reads says any of them
+   * (MatlabValueParser has no zeros(...)), and nor does the value's JSON form, in which a
+   * rank-2 empty is `[]`. The node's own state does, and it is what a Value edit replaces:
+   * _applyParsed assigns every field it changes and changes nothing it found in place. So
+   * the undo is that state, held and put back, `_rawInput` with it, so a value undone is
+   * written as it was read.
+   *
+   * Every own field but the node's place (name, parent) and the entry's bookkeeping
+   * (status, metadata), which an undo leaves as any other edit does: Modified, and stamped.
+   * Not for an element of an array, whose edit also writes into the array
+   * (_setConstrainedValue), and whose text is the scalar it holds.
+   */
+  _restorerFor(propName: string): (() => void) | null {
+    if (propName !== 'Value' || this._isConstrainedChild()) {
+      return null;
+    }
+    const own = this as unknown as Record<string, unknown>;
+    const saved = new Map(Object.entries(own).filter(([key]) => !RESTORE_LEAVES.has(key)));
+    const children = this.children.slice();
+    return () => {
+      // First, so that every node above drops what it was read from (it is written from its
+      // children now, this one among them) and the entry is Modified and its file dirty. The
+      // restore below then gives this node its own back.
+      this._markModified();
+      for (const key of Object.keys(own)) {
+        if (!RESTORE_LEAVES.has(key) && !saved.has(key)) {
+          delete own[key];
+        }
+      }
+      for (const [key, value] of saved) {
+        own[key] = value;
+      }
+      this.children = children.slice();
+      for (const child of this.children) {
+        child.parent = this;
+      }
+      // As setProperty's own Value edit does: the parent's row for this node follows its shape.
+      this.parent?.childStructureChanged(this);
+    };
   }
 
   _isConstrainedChild(): boolean {

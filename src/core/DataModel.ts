@@ -1438,6 +1438,15 @@ function readPropertyValue(node: INode, propertyName: string, fallback: unknown)
   return fallback;
 }
 
+// What puts `propertyName` back on `node` as it stands now, from the node itself, or null
+// where the text readPropertyValue reads is what restores it. A node offers one where that
+// text is not the value: a MATLAB value's `[ ]`, which every empty shows whatever its size
+// and class (MatlabVariableNode._restorerFor).
+function propertyRestorer(node: INode, propertyName: string): (() => void) | null {
+  const restorerFor = (node as unknown as { _restorerFor?: (prop: string) => (() => void) | null })._restorerFor;
+  return typeof restorerFor === 'function' ? restorerFor.call(node, propertyName) : null;
+}
+
 function editProperty(
   nodeId: string,
   propertyName: string,
@@ -1464,6 +1473,9 @@ function editProperty(
   // captured value is in the shape setProperty round-trips; fall back to the passed
   // `oldValue` if this node does not project the property.
   const priorValue = readPropertyValue(node, propertyName, oldValue);
+  // Unless the node can put the value back itself, which the undo then has it do: the text
+  // it shows is not always its value (an empty's `[ ]` is a 0x0 double, whatever it was).
+  const restore = propertyRestorer(node, propertyName);
 
   const result = node.setProperty(propertyName, newValue);
   if (result !== true) {
@@ -1483,7 +1495,11 @@ function editProperty(
         publish('node/children-changed', { parent: node });
       },
       undo() {
-        node.setProperty!(propertyName, priorValue);
+        if (restore) {
+          restore();
+        } else {
+          node.setProperty!(propertyName, priorValue);
+        }
         publish('node/edited', { source: 'undo', nodeId: node.id, kind });
         if (kind === 'rename') {
           publishActiveChanged();
