@@ -194,7 +194,11 @@ export default class MatlabVariableNode extends DataNode {
             // An MCOS object of a class with no branded icon is still an OBJECT, so it
             // gets the object glyph rather than the plain-variable one — the same answer
             // the dictionary path's ObjectNode gives for the same class.
-            return MCOS_ICON_MAP[this._opaqueClassName] || OBJECT_ICON;
+            //
+            // By own key: the class is the file's word, and a class called `toString` or
+            // `valueOf` is a class with no branded icon, not an inherited function.
+            const cls = this._opaqueClassName;
+            return (Object.prototype.hasOwnProperty.call(MCOS_ICON_MAP, cls) && MCOS_ICON_MAP[cls]) || OBJECT_ICON;
         }
         switch (this._kind) {
             case 'scalar':

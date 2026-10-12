@@ -80,8 +80,17 @@ const CLASS_ALIASES = {
     'mpt.Parameter': 'Simulink.Parameter',
     'mpt.Signal': 'Simulink.Signal',
 };
+// By OWN key, in both tables. The class name is the file's word, and on these object
+// literals a class called `toString` or `constructor` — valid MATLAB class names —
+// answered an inherited function, whose `props` getSchema then mapped over and threw.
+// Every property edit asks for the schema first (schemaBridge.trySetSchemaProperty),
+// so an object of such a class could not be edited at all.
+function own(table, key) {
+    return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
 function classDef(className) {
-    return CLASS_DEFS[className] ?? CLASS_DEFS[CLASS_ALIASES[className]];
+    const alias = own(CLASS_ALIASES, className);
+    return own(CLASS_DEFS, className) ?? (alias === undefined ? undefined : own(CLASS_DEFS, alias));
 }
 const cache = new Map();
 function resolveRef(ref) {

@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import { describe, it, expect } from 'vitest';
-import { getSchema } from '../../src/datamodel/schema/index.js';
+import { getLayout, getSchema } from '../../src/datamodel/schema/index.js';
 
 describe('getSchema — resolve class reference lists', () => {
   it('resolves a bare ref to its registry descriptor', () => {
@@ -29,5 +29,26 @@ describe('getSchema — resolve class reference lists', () => {
 
   it('returns undefined for an unregistered class', () => {
     expect(getSchema('Simulink.NotAThing')).toBeUndefined();
+  });
+});
+
+// The class name is the file's word, and the class-definition and alias tables are
+// object literals: `CLASS_DEFS['toString']` is a function, so getSchema read `.props` off
+// it and threw "Cannot read properties of undefined (reading 'map')". Every property
+// edit asks for the schema first (DataNode.setProperty → trySetSchemaProperty), so an
+// object of such a class — a valid MATLAB class name — could not be edited at all.
+describe('getSchema / getLayout — a class named after an Object.prototype member', () => {
+  const INHERITED = [
+    'toString', 'valueOf', 'constructor', 'hasOwnProperty', 'isPrototypeOf',
+    'propertyIsEnumerable', 'toLocaleString', '__proto__', '__defineGetter__',
+  ];
+
+  it.each(INHERITED)('has no schema and no layout for a class called %s', (name) => {
+    expect(getSchema(name)).toBeUndefined();
+    expect(getLayout(name)).toBeUndefined();
+  });
+
+  it('still resolves an alias the table does list', () => {
+    expect(getSchema('mpt.Parameter')).toEqual(getSchema('Simulink.Parameter'));
   });
 });

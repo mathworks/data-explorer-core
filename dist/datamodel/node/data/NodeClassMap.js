@@ -94,8 +94,16 @@ const STRUCTURAL_PARSERS = [
     { matcher: (val) => !!asObject(val)?._object_class, NodeClass: ObjectNode },
     { matcher: (val) => val === null || val === undefined || typeof val === 'number' || typeof val === 'boolean' || typeof val === 'string', NodeClass: MatlabVariableNode }
 ];
+// The class map answers by OWN key alone. A class name is the file's word, and
+// `toString`, `valueOf`, `constructor`, `hasOwnProperty` and the rest of
+// Object.prototype's members are all valid MATLAB class names: on the object literal
+// above, `CLASS_MAP['toString']` is the inherited function, so a value of that class
+// was dispatched to a "node class" with no `parse`, and the whole dictionary failed to
+// open with "NodeClass.parse is not a function" (`__proto__`, which a file can carry
+// though MATLAB cannot write it, answered Object.prototype itself). Such a class is
+// one this map does not register, and takes the same ObjectNode fallback as any other.
 export function getClass(className) {
-    return CLASS_MAP[className] || null;
+    return Object.prototype.hasOwnProperty.call(CLASS_MAP, className) ? CLASS_MAP[className] : null;
 }
 export function parseValue(rawVal, name, parent) {
     // A binary dictionary's encoded byte stream, ahead of every shape test: none of them
@@ -123,7 +131,7 @@ export function parseValue(rawVal, name, parent) {
         if (elements.length > 1) {
             return ObjectNode.parse(obj, name, parent);
         }
-        const NodeClass = CLASS_MAP[obj._array_class];
+        const NodeClass = getClass(obj._array_class);
         if (NodeClass) {
             return NodeClass.parse(rawVal, name, parent);
         }

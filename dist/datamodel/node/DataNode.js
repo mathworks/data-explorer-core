@@ -6,7 +6,7 @@ import { isMatCdata } from '../parser/CdataCodec.js';
 import { budgetFailure, classPhrase, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
 import { dimsText, isSize, isSpellableExtent } from '../parser/Size.js';
 import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
-import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION } from '../kindMap.js';
+import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import { charTextFromCodes, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
@@ -180,18 +180,22 @@ export default class DataNode extends BaseNode {
     // The user-facing Kind. A classified entry's Kind comes from its classification
     // token; otherwise it is derived from the Class. Nodes with no known mapping
     // fall back to their raw class name.
+    //
+    // Every lookup is of an own key (kindIn): the class is the file's word, and a class
+    // called `toString` or `constructor` is an unlisted class, not an inherited member.
     get kind() {
         if (this.classification) {
-            return KIND_BY_CLASSIFICATION[this.classification] || this.classification;
+            return kindIn(KIND_BY_CLASSIFICATION, this.classification) || this.classification;
         }
         const cls = this.className;
         // A derived (architectural) entry the catalog didn't classify — e.g. a freshly
         // pasted one, whose new name isn't in the SystemComposer catalog — takes the
         // arch default Kind for its Class (a derived Simulink.Bus is a Data Interface).
-        if (this.isDerived && DERIVED_KIND_BY_CLASS[cls]) {
-            return DERIVED_KIND_BY_CLASS[cls];
+        const derivedKind = this.isDerived ? kindIn(DERIVED_KIND_BY_CLASS, cls) : undefined;
+        if (derivedKind) {
+            return derivedKind;
         }
-        return KIND_BY_CLASS[cls] || cls;
+        return kindIn(KIND_BY_CLASS, cls) || cls;
     }
     // The value shown in the Data Type column. This column shows a real data type
     // only; it never surfaces the node's Class (the class identity, e.g.

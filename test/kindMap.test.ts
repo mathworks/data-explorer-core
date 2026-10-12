@@ -100,3 +100,32 @@ describe('kindForClass — MATLAB variables', () => {
     expect(kindForClass('double')).toBe('double');
   });
 });
+
+// The class and the classification are words a FILE supplies, and the three tables
+// are object literals, which answer every name Object.prototype carries. So
+// `kindForClass('toString')` returned Object.prototype.toString and
+// `kindForClass('constructor')` the Object function: a Kind that is not a string, for a
+// class name MATLAB accepts. The webview's drop tooltip (mathworks/data-explorer-vscode,
+// src/webview/dropDecision.ts) labels a drag with this. Such a name is a class like any
+// the tables do not list, and takes the raw-name fallback.
+describe('kindForClass — a name Object.prototype carries', () => {
+  const INHERITED = [
+    'toString', 'valueOf', 'constructor', 'hasOwnProperty', 'isPrototypeOf',
+    'propertyIsEnumerable', 'toLocaleString', '__proto__', '__defineGetter__',
+  ];
+
+  it.each(INHERITED)('reads a class called %s as its raw name, in either section', (name) => {
+    expect(kindForClass(name)).toBe(name);
+    expect(kindForClass(name, { isDerived: true })).toBe(name);
+  });
+
+  it.each(INHERITED)('reads a classification token %s as the raw token', (name) => {
+    expect(kindForClass('Simulink.Bus', { classification: name })).toBe(name);
+    expect(kindForClass('struct', { isMatlabVariable: true, classification: name })).toBe(name);
+  });
+
+  it('still maps the names the tables DO list', () => {
+    expect(kindForClass('Simulink.Bus', { isDerived: true })).toBe('Data Interface');
+    expect(kindForClass('Simulink.Bus', { classification: 'StructType' })).toBe('Struct Type');
+  });
+});

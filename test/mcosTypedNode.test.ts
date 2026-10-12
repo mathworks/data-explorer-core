@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 // Importing the class map registers the NodeRegistry the adapter routes through.
 import '../src/datamodel/node/data/NodeClassMap.js';
 import { loadFile, findEntry } from './parity/loadFile.js';
+import { renameInMat } from './tools/matRename.js';
+import { createSession, ingest } from '../src/index.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import {
   buildTypedNodeFromMcos,
@@ -306,5 +308,39 @@ describe('decodeMcosObjects / modelOpaqueMcosVariable — the shared container p
   // plain-variable path (parseMatVariable / addWorkspaceEntry).
   it('returns null when neither a typed class nor a decode is available', () => {
     expect(modelOpaqueMcosVariable(opaque('d', 'Simulink.DataStore'), undefined, null as never)).toBeNull();
+  });
+});
+
+// The .mat side of an unregistered class named after an Object.prototype member. The
+// bridge asks the class map whether it KNOWS the class, and the map answered `valueOf`
+// with Object.prototype.valueOf — so the object was routed to the typed dispatch, that
+// threw "NodeClass.parse is not a function", and the degrade put it back as an opaque
+// variable with no property rows and a part-unreadable warning. It is a user class like
+// any other, and expands as one.
+describe('an MCOS object of a class named after an Object.prototype member', () => {
+  const objectProps = () => {
+    const path = fileURLToPath(new URL('./fixtures/mcos/object_props.mat', import.meta.url));
+    return new Uint8Array(readFileSync(path));
+  };
+  const open = (bytes: ArrayBuffer) => {
+    const source = ingest(createSession(), bytes, { filename: 'object_props.mat' });
+    const v = source.children.find((c) => c.name === 'v')!;
+    return { source, v: v as unknown as MatlabVariableNode & { kind: string } };
+  };
+
+  it('expands its properties exactly as the same object of its MATLAB-authored class', () => {
+    // `v` is a Vehicle, and `valueOf` is the same length, so nothing else moves.
+    const control = open(renameInMat(objectProps(), 'Vehicle', 'Vehicle').bytes);
+    const renamed = renameInMat(objectProps(), 'Vehicle', 'valueOf');
+    // The variable's own element and the subsystem's class-name table.
+    expect(renamed.hits).toBe(2);
+    const { source, v } = open(renamed.bytes);
+
+    expect(v.constructor.name).toBe('ObjectNode');
+    expect([v.className, v.kind]).toEqual(['valueOf', 'valueOf']);
+    expect(v.children.map((c) => c.name)).toEqual(control.v.children.map((c) => c.name));
+    expect(v.children.map((c) => c.name)).toEqual(['Name', 'Wheels', 'Engine', 'Specs', 'Tags']);
+    expect((source as unknown as { warnings?: unknown }).warnings).toBeUndefined();
+    expect((control.source as unknown as { warnings?: unknown }).warnings).toBeUndefined();
   });
 });
