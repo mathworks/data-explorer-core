@@ -11,7 +11,7 @@
 // from a gallery whose job is to list what the project put there.
 import { describe, it, expect } from 'vitest';
 import { buildProjectPage } from '../src/datamodel/parser/ProjectPage.js';
-import type { ParsedProject } from '../src/datamodel/parser/ProjectParser.js';
+import { parseProject, type ParsedProject } from '../src/datamodel/parser/ProjectParser.js';
 
 /** An empty parse, for a test to fill in only the field it is about. */
 function parsed(over: Partial<ParsedProject> = {}): ParsedProject {
@@ -411,4 +411,29 @@ describe('buildProjectPage — the remaining sections', () => {
     const warnings = [{ code: 'part-unreadable' as const, message: 'lost one', part: 'x.xml' }];
     expect(buildProjectPage(parsed({ warnings })).warnings).toEqual(warnings);
   });
+});
+
+// A working folder's key is the store's word (a Reference's Location), and the English
+// for it came off an object literal by plain indexing: a key called `toString` or
+// `constructor` answered an inherited function, so the page's label for that row was a
+// function rather than text, where any key the table does not list shows itself. Read
+// through parseProject from a monolithic store, as a .prj is.
+describe('buildProjectPage — a working-folder key named after an Object.prototype member', () => {
+  const store = (key: string): Record<string, string> => ({
+    'resources/project/Project.xml':
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<project MetadataType="monolithic"><Info Location="ProjectData"><Info Name="P"/></Info>' +
+      '<WorkingFolders Location="Root">' +
+      `<Reference Location="${key}"><Info Ref="Cache" Type="Relative"/></Reference>` +
+      '</WorkingFolders></project>',
+  });
+
+  it.each(['toString', 'constructor', 'valueOf', 'hasOwnProperty', '__proto__', 'NewInSomeFutureRelease'])(
+    'labels a location keyed %s with its raw key',
+    (key) => {
+      const project = parseProject(store(key), 'P');
+      expect(project.workingFolders).toEqual([{ key, ref: 'Cache' }]);
+      expect(buildProjectPage(project).locations).toEqual([{ key, label: key, ref: 'Cache' }]);
+    },
+  );
 });

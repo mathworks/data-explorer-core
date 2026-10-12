@@ -984,7 +984,10 @@ function encodeElement(v: MatVariable, budget: UnbackedBudget): Uint8Array {
   if (v.isSparse) {
     return encodeSparse(v, budget);
   }
-  const cls = CLASS_CODE[v.className];
+  // By own key: a class name can be a file's word (a text dictionary's `_type`, a binary
+  // one's Class), and `toString` or `constructor` would otherwise answer an inherited
+  // function, slip past this refusal and fail later with an unrelated reason.
+  const cls = Object.prototype.hasOwnProperty.call(CLASS_CODE, v.className) ? CLASS_CODE[v.className] : undefined;
   if (cls === undefined) {
     throw new MatWriteError('no MAT class for "' + v.className + '"');
   }

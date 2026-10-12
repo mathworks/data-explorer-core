@@ -204,9 +204,11 @@ export function buildProjectPage(parsed: ParsedProject): ProjectPage {
     shutdown: runsOf(SHUTDOWN),
     shortcuts: shortcutsOf(parsed.entryPoints, groupNames),
     pathFolders: parsed.pathFolders,
+    // By own key: a location's key is the store's word, and on the object literal a key
+    // called `toString` or `constructor` answered an inherited function as its label.
     locations: parsed.workingFolders.map((w) => ({
       key: w.key,
-      label: LOCATION_LABEL[w.key] ?? w.key,
+      label: (Object.prototype.hasOwnProperty.call(LOCATION_LABEL, w.key) ? LOCATION_LABEL[w.key] : undefined) ?? w.key,
       ref: w.ref,
     })),
     categories: categoriesOf(parsed),

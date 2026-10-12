@@ -592,3 +592,19 @@ describe('a value the model could not hand over whole is still written', () => {
     expect(back.fields).toEqual({});
   });
 });
+
+// The class a value carries can be a file's word (a text dictionary's `_type`, a binary
+// one's Class attribute on a dense empty), and the class-code table is an object literal:
+// `toString` or `constructor` answered an inherited function, got past the refusal of a
+// class with no MAT code, and failed later as "no payload width for MAT element type
+// undefined". Every caller handles one MatWriteError like another, but the reason a
+// refusal gives should be the true one.
+describe('encodeMatVariable — a class named after an Object.prototype member', () => {
+  it.each(['toString', 'constructor', 'valueOf', 'hasOwnProperty', '__proto__', 'nosuchclass'])(
+    'refuses class %s as one with no MAT class',
+    (cls) => {
+      const v: MatVariable = { name: '', className: cls, dimensions: [1, 2], isComplex: false, isLogical: false, value: [1, 2], fields: null };
+      expect(() => encodeMatVariable(v)).toThrow(new MatWriteError(`no MAT class for "${cls}"`));
+    },
+  );
+});
