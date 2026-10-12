@@ -437,8 +437,11 @@ function childLength(view, sub, tagOffset, end) {
     return isOpaque ? Math.max(0, Math.min(sub.bytes, end - (tagOffset + 8))) : sub.bytes;
 }
 // How many fields a struct array whose field-name length subelement is at `offset`
-// declares, as the struct arm of parseMatrix reads them: 0 for a stride that is not
-// there or not positive.
+// declares, as the struct arm of parseMatrix reads them: one name per stride of the
+// name block, the last one however short, and 0 for a stride that is not there or not
+// positive. Counting whole strides only, a block shorter than its stride (which MATLAB
+// never writes: it pads every name to the stride) counted no field while the arm read
+// one, and the array passed the guard below as a fieldless one.
 function structFieldCount(view, offset, end) {
     if (offset + 8 > end) {
         return 0;
@@ -449,7 +452,7 @@ function structFieldCount(view, offset, end) {
     if (stride <= 0 || namesAt + 8 > end) {
         return 0;
     }
-    return Math.floor(readSubelement(view, namesAt).bytes / stride);
+    return Math.ceil(readSubelement(view, namesAt).bytes / stride);
 }
 export function parseMatrix(view, baseOffset, length) {
     let offset = baseOffset;
@@ -638,9 +641,15 @@ export function parseMatrix(view, baseOffset, length) {
             offset += fieldNamesSub.totalSize;
             const fieldNames = [];
             const fnBytes = new Uint8Array(view.buffer, view.byteOffset + fieldNamesSub.dataOffset, fieldNamesSub.bytes);
+            // A name ends at a NUL, at the stride, or at the end of the block, whichever is
+            // first. The block's end is the one the file cannot move: past it `fnBytes[j]` is
+            // undefined, which is not 0, so a stride longer than the block ran the name on in
+            // NULs to the stride's length, and a 264-byte file declaring a stride of 1e8 ran
+            // the heap out building one.
             for (let i = 0; i < fnBytes.length; i += fieldNameLen) {
+                const stop = Math.min(i + fieldNameLen, fnBytes.length);
                 let str = '';
-                for (let j = i; j < i + fieldNameLen && fnBytes[j] !== 0; j++) {
+                for (let j = i; j < stop && fnBytes[j] !== 0; j++) {
                     str += String.fromCharCode(fnBytes[j]);
                 }
                 if (str) {

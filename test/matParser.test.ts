@@ -96,6 +96,24 @@ function denseOf(v: { dimensions: number[]; sparse?: any; value: unknown }): unk
 /** An unnamed 1x1 double, for use as a struct field or cell element. */
 const scalarField = (n: number) => numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [n] });
 
+/** A struct `s` whose field-name block is `names` verbatim, read at field-name stride `stride`. */
+function strideStruct(stride: number, names: string, fields: Uint8Array[], dimensions = [1, 1]): Uint8Array {
+  const lenData = new Uint8Array(4);
+  new DataView(lenData.buffer).setInt32(0, stride, true);
+  return matrix([
+    arrayFlags(CLASS.STRUCT),
+    dims(dimensions),
+    varName('s'),
+    element(MI.INT32, lenData),
+    element(MI.INT8, new TextEncoder().encode(names)),
+    ...fields,
+  ]);
+}
+
+/** A scalar struct's fields as [name, value] pairs, in file order. */
+const fieldValues = (v: { fields: Record<string, unknown> | null }) =>
+  Object.entries(v.fields!).map(([name, field]) => [name, (field as { value: unknown }).value]);
+
 /** Overwrite the declared byte count of the tag at `tagOffset`, corrupting it. */
 function corruptLength(el: Uint8Array, tagOffset: number, declared: number): Uint8Array {
   const copy = el.slice();
@@ -478,6 +496,29 @@ describe('parseMat — structs', () => {
     ]);
     const v = only(matFile([el]));
     expect(v.fields).toEqual({});
+  });
+
+  it('REGRESSION: a field-name stride longer than the name block reads the names the block holds', () => {
+    // The stride is the file's word, and each name was read up to the stride or a NUL but
+    // not up to the end of the block: past it `fnBytes[j] !== 0` is `undefined !== 0`, which
+    // holds, so the name ran on in NULs to the stride's length. MATLAB pads every name to the
+    // stride, so only a damaged file has a block shorter than one, but such a file of 264
+    // bytes declaring a stride of 1e8 ran the heap out while it opened. A name now ends where
+    // the block does, as every other read here ends at the bytes present.
+    for (const stride of [9, 16, 1_000_000]) {
+      expect(fieldValues(only(matFile([strideStruct(stride, 'abcdefgh', [scalarField(7)])]))), `stride ${stride}`).toEqual([
+        ['abcdefgh', 7],
+      ]);
+    }
+    // A block that is not a whole number of strides: its last name is what is left of it.
+    expect(fieldValues(only(matFile([strideStruct(5, 'abcdefgh', [scalarField(1), scalarField(2)])])))).toEqual([
+      ['abcde', 1],
+      ['fgh', 2],
+    ]);
+    // The largest stride an int32 holds, through a session as a host opens the file. Asked
+    // last, so that a reader without the bound fails on the strides above instead of here.
+    const mat = createSession().addMatSource('s.mat', matFile([strideStruct(0x7fffffff, 'abcdefgh', [scalarField(7)])])) as any;
+    expect(mat.children[0].children.map((c: any) => [c.name, c.displayValue])).toEqual([['abcdefgh', '7']]);
   });
 
   it('leaves fields null when the struct is truncated before its field-name length', () => {
@@ -1179,6 +1220,17 @@ describe('parseMat — malformed byte counts', () => {
     expect([v.className, v.dimensions, v.undecoded, v.fields]).toEqual(['struct', [1, 2_000_000], undefined, {}]);
     // With a field, the same declared size is a damaged array.
     expect(only(matFile([structVar('s', ['a'], [{ a: scalarField(1) }], [1, 2_000_000])])).undecoded).toMatch(/^declares 2000000 elements/);
+  });
+
+  it('REGRESSION: a struct array whose name block is shorter than its stride has the field it reads', () => {
+    // The fields were counted as whole strides in the name block, so a block shorter than its
+    // stride counted none while the parse read a name out of it. The array passed for a
+    // fieldless one, and a 264-byte file declaring 2,000,000 elements built a row for each and
+    // ran a 512 MB heap out while it opened. The count is now of the names the parse reads.
+    for (const stride of [8, 64]) {
+      const v = only(matFile([strideStruct(stride, 'abcdefgh', [scalarField(7)], [1, 2_000_000])]));
+      expect([stride, v.undecoded]).toEqual([stride, expect.stringMatching(/^declares 2000000 elements, more than the \d+ bytes left/)]);
+    }
   });
 
   it('reads a variable whose own element length overruns the file', () => {
