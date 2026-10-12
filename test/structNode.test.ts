@@ -484,4 +484,31 @@ describe('a text-dictionary struct with a null element', () => {
     // And written into a binary dictionary, which is where a copy of it would go.
     expect(damaged.serializeXml('P', { Name: 'Value' }, 2)).toContain('<P Name="a" Class="double">7.0</P>');
   });
+
+  // Nor is a string or an array a field bag, though both are things an own-key test answers:
+  // a string's indices and an array's indices and `length` are its own keys. Read as fields,
+  // a string element 1 with no `_fields` listed its character indices as the struct's fields,
+  // an array element 1 listed its indices with the array's values, and a declared `length`
+  // over an array showed the array's length.
+  describe('or with an element that is a string or an array', () => {
+    const struct = (element: unknown, fields?: string[]) => ({
+      _array_type: 'Struct', _dimensions: [1, 1], ...(fields ? { _fields: fields } : {}), _elements: [element], _mw_element_type: 'MATLABArray',
+    });
+    const CASES: Array<[string, Record<string, unknown>, string[]]> = [
+      ['a string element and no field list', struct('abc'), []],
+      ['an array element and no field list', struct([1, 2]), []],
+      ['an array element under a declared `length`', struct([1, 2], ['length', 'a']), ['length', 'a']],
+      ['a string element under a declared `length`', struct('abc', ['length', 'a']), ['length', 'a']],
+    ];
+
+    it.each(CASES)('opens %s with no field the element holds, and saves it untouched as read', (_, value, fields) => {
+      const session = createSession();
+      const source: any = ingest(session, withEntry(value), { filename: 'gadget.sldd' });
+      expect(rowsOf(source, 'gadget')).toEqual(rowsOf(ingest(createSession(), control, { filename: 'gadget.sldd' }), 'gadget'));
+      const absent = absentField();
+      expect(rowsOf(source, 'damaged')).toEqual(['damaged = <1x1 struct>', ...fields.map((f) => `damaged/${f} = ${absent}`)]);
+      const saved = entriesOf((session.serializeSource(source.name) as { text: string }).text);
+      expect(JSON.stringify(saved.find((e) => e.name === 'damaged').value)).toBe(JSON.stringify(value));
+    });
+  });
 });
