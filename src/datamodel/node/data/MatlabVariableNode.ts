@@ -2252,7 +2252,18 @@ export default class MatlabVariableNode extends DataNode {
     // Dims no Dimension can spell — a text dictionary's [1, "x"] or a host's NaN pasted
     // into a binary one — are refused, finally, naming the value, and never written as
     // `Dimension="1*x"` (parser/Size). What a binary dictionary read is spelled as read.
-    this._spellableOrRefuse(this._dims, this._kind === 'cell' ? 'cell' : this._sparse ? 'sparse' : this._scalarType);
+    const cls = this._kind === 'cell' ? 'cell' : this._sparse ? 'sparse' : this._scalarType;
+    this._spellableOrRefuse(this._dims, cls);
+    // A `Matrix(…)` literal nobody edited has its header's digits for dims, held to them as
+    // the property writer holds them (DataNode._sizeOrRefuse): 9007199254740993 parses to
+    // the double beside it, which a Dimension would spell as another size. An entry, a
+    // cell's element and a struct's field are written here, and wrote it so. Digits a
+    // double holds as written are written as read, 2^53 among them, which is what a binary
+    // dictionary's reader puts in the header of its own empty cell element.
+    const read = this._rawInput as Record<string, unknown> | undefined;
+    if (read && typeof read._value === 'string') {
+      this._spellableOrRefuse(DataNode._headerDims(read._value), cls, read._value);
+    }
     this._refuseNoSize();
     // Complex text nobody edited goes back as the text it was read from, through the
     // writer that spells complex text (DataNode._complexTextXml). For a value the node

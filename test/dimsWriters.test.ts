@@ -406,3 +406,123 @@ describe('a binary dictionary\'s raw property is written back as read, Dimension
     });
   }
 });
+
+describe('a Matrix(…) header\'s digits are taken exactly wherever the value stands, not only as a raw property', () => {
+  // 2^53 + 1 is the first count a double does not hold: parsed, it is 2^53, which a
+  // Dimension would spell as another size. The raw property arm has refused it since
+  // eb288ea; an entry, a cell's element and a struct's field wrote it rounded. What is
+  // refused is digits a double does not hold as written, not every count past 2^53 - 1: one
+  // it does hold is written as read, and it is what a binary dictionary's reader puts in a
+  // header for its own empty cell element (BinarySlddParser.parseCellElement).
+  const PAST = '9007199254740993';
+  const literal = (type: string, dims: string, body = '[]') => ({ _type: type, _value: `Matrix(${dims})\n${body}` });
+  const binaryPaste = (value: unknown) => {
+    const session = createSession();
+    const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
+    root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef60-000000000001' }, value });
+    const [thrown] = thrownBy(() => session.serializeSource(root.name));
+    if (thrown) return [thrown.name, thrown.message];
+    const xml = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+    const from = xml.indexOf('<P Name="Value"', xml.indexOf('<P Name="Name" Class="char">pasted</P>'));
+    return xml.slice(from, xml.indexOf('</Object>', from)).replace(/\s+/g, ' ').trim();
+  };
+  const refused = (said: string) => ['MatBudgetError', `Cannot write "pasted": ${said}${NOT_A_COUNT}`];
+  const cell = (member: unknown) => ({ _array_type: 'Cell', _dimensions: [1, 1], _elements: [member] });
+  const parameter = (value: unknown) => ({ _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: value } }] });
+
+  const cases: [string, unknown, string][] = [
+    ['an entry', literal('double', `0,${PAST}`), 'pasted is a double declaring dimensions [0,9007199254740992]'],
+    ['an int8 entry', literal('int8', `0,${PAST}`), 'pasted is an int8 declaring dimensions [0,9007199254740992]'],
+    ['a char entry', literal('mxchar', `1,${PAST}`, '[97]'), 'pasted is a char declaring dimensions [1,9007199254740992]'],
+    ['a cell entry\'s element', cell(literal('double', `0,${PAST}`)), 'pasted{1} is a double declaring dimensions [0,9007199254740992]'],
+    ['a struct entry\'s field', { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: literal('double', `0,${PAST}`) }], _fields: ['f'] }, 'pasted.f is a double declaring dimensions [0,9007199254740992]'],
+    ['a Parameter Value\'s cell element', parameter(cell(literal('double', `0,${PAST}`))), 'pasted.Value{1} is a double declaring dimensions [0,9007199254740992]'],
+    ['a Parameter Value', parameter(literal('double', `0,${PAST}`)), 'pasted.Value is a double declaring dimensions [0,9007199254740992]'],
+  ];
+  for (const [label, value, said] of cases) {
+    it(`${label}: refused, not written rounded`, () => {
+      expect(binaryPaste(value)).toEqual(refused(said));
+    });
+  }
+
+  // And as a Parameter Value's cell element, which the raw cell-element arm
+  // (DataNode._serializeCellElementXml) writes under its Dimension since 411e108.
+  const written = (digits: string) => {
+    const dims = `0,${digits}`;
+    const said = `0*${digits.replace(/^0+(?=\d)/, '')}`;
+    return [
+      [binaryPaste(literal('double', dims)), `<P Name="Value" Class="double" Dimension="${said}"/>`],
+      [binaryPaste(cell(literal('int8', dims))), `<P Name="Value" Class="cell" Dimension="1*1"> <Element Class="int8" Dimension="${said}"/> </P>`],
+      [binaryPaste({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: literal('double', dims) }], _fields: ['f'] }), `<P Name="Value" Class="struct"> <Element> <P Name="f" Class="double" Dimension="${said}"/> </Element> </P>`],
+      [binaryPaste(parameter(literal('double', dims))), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="double" Dimension="${said}"></P> </Element> </P>`],
+      [binaryPaste(parameter(cell(literal('int8', dims)))), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="cell"> <Element Class="int8" Dimension="${said}"></Element> </P> </Element> </P>`],
+    ];
+  };
+
+  it('2^53 - 1, Number.MAX_SAFE_INTEGER, is written as read as an entry, a cell entry\'s element, a struct entry\'s field, a Parameter\'s Value and its cell\'s element', () => {
+    for (const [got, want] of written('9007199254740991')) expect(got).toBe(want);
+  });
+
+  it('a count past it that a double holds as written — 2^53, 2^53 + 2, 10^20, 2^53 with leading zeros — is written as that count in the same five places', () => {
+    // f535020's raw property arm refused each of these as a Parameter's Value, taking every
+    // count past 2^53 - 1 for a rounded one, and so did 411e108's cell-element arm. None is
+    // written rounded, so none is refused.
+    for (const digits of ['9007199254740992', '9007199254740994', '100000000000000000000', '0009007199254740992']) {
+      for (const [got, want] of written(digits)) expect(got, digits).toBe(want);
+    }
+  });
+
+  it('a binary dictionary\'s own empty cell element at or past 2^53 is written back as read on a save that edited nothing', () => {
+    // The reader writes the element's Dimension into a `Matrix(…)` header with
+    // `dims.join(',')`, so its digits are always a double's own and survive the parse.
+    const OLD = '<P Name="Value" Class="double" Dimension="0*0"/>';
+    const one = (element: string) => `<P Name="Value" Class="cell" Dimension="1*1">\n            ${element}\n        </P>`;
+    const FORMS: [string, string][] = [
+      ['a double', one('<Element Class="double" Dimension="0*9007199254740992"/>')],
+      ['an int8', one('<Element Class="int8" Dimension="0*9007199254740992"/>')],
+      ['a nested cell\'s', one('<Element Class="cell" Dimension="1*1">\n                <Element Class="double" Dimension="0*9007199254740992"/>\n            </Element>')],
+      ['a rank-4', one('<Element Class="double" Dimension="1*2*0*9007199254740992"/>')],
+      ['2^53 + 2', one('<Element Class="double" Dimension="0*9007199254740994"/>')],
+      ['10^20', one('<Element Class="double" Dimension="0*100000000000000000000"/>')],
+    ];
+    for (const [label, read] of FORMS) {
+      const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+      const xml = strFromU8(files['data/chunk0.xml']);
+      expect(xml).toContain(OLD);
+      files['data/chunk0.xml'] = strToU8(xml.replace(OLD, read));
+      const session = createSession();
+      const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      expect(thrown?.message ?? null, label).toBeNull();
+      const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+      const from = saved.indexOf('<P Name="Value"', saved.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
+      expect(saved.slice(from, saved.indexOf('</Object>', from)).trimEnd(), label).toBe(read);
+    }
+  });
+
+  it('so is one in a Parameter\'s Value, which the raw cell-element arm writes', () => {
+    // 411e108 writes such an element under its Dimension, where it had been the scalar 0.0,
+    // and held its header to the safe-integer rule, so a no-op save of a dictionary holding
+    // one at 2^53 was refused whole.
+    const OLD = '<P Name="Value" Class="double" Dimension="3*3">0.0 0.0 6.0 5.0 0.0 0.0 0.0 0.0 0.0</P>';
+    const squeeze = (xml: string) => xml.replace(/\s+/g, ' ').trim();
+    for (const element of [
+      '<Element Class="double" Dimension="0*9007199254740992"/>',
+      '<Element Class="int8" Dimension="0*9007199254740994"/>',
+      '<Element Class="double" Dimension="1*2*0*100000000000000000000"/>',
+    ]) {
+      const read = `<P Name="Value" Class="cell">\n                    ${element}\n                </P>`;
+      const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+      const xml = strFromU8(files['data/chunk0.xml']);
+      expect(xml).toContain(OLD);
+      files['data/chunk0.xml'] = strToU8(xml.replace(OLD, read));
+      const session = createSession();
+      const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      expect(thrown?.message ?? null, element).toBeNull();
+      const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+      const from = saved.indexOf('<P Name="Value"', saved.indexOf('<Element Class="Simulink.Parameter">', saved.indexOf('<P Name="Name" Class="char">pDense</P>')));
+      expect(squeeze(saved.slice(from, saved.indexOf('<P Name="Complexity"', from))), element).toBe(squeeze(read));
+    }
+  });
+});
