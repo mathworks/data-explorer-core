@@ -13,7 +13,11 @@
 //     (isSpellableExtent): NaN, an infinity, a negative, a string, an object;
 //   - a text literal's `Matrix(r,c)` header states its extents as digits, which the writers
 //     parse to doubles, so digits a double does not hold as written (isExactDigits) are
-//     refused too: they would be spelled as another count.
+//     refused too: they would be spelled as another count;
+//   - a text dictionary is written as JSON, so a hand-made `[1, "x"]` is written back as
+//     read, and NaN, an infinity and a bigint are refused (isTextExtent): JSON.stringify
+//     writes the first two as null and cannot write a bigint at all. It writes undefined, a
+//     function, a symbol and an array hole as null too; those are not asked.
 /** The most elements one dimension of a MAT stream may have: its dims word is an int32. */
 export const MAT_MAX_EXTENT = 0x7fffffff;
 /** Whether `x` is one extent of a size: a whole number of elements a double counts exactly. */
@@ -42,6 +46,10 @@ export function isSpellableExtent(x) {
  */
 export function isExactDigits(digits) {
     return String(Number(digits)) === digits.replace(/^0+(?=\d)/, '');
+}
+/** Whether `x` is anything but NaN, an infinity or a bigint, the extents a text dictionary refuses. */
+export function isTextExtent(x) {
+    return typeof x === 'number' ? Number.isFinite(x) : typeof x !== 'bigint';
 }
 /** `d` as it was given, for a message: `[1,"x"]`, `[0,Infinity]`, `[NaN,1]`, `[2n,3n]`. */
 export function dimsText(d) {

@@ -17,6 +17,8 @@ export declare function isSpellableExtent(x: unknown): x is number;
  * zeros say nothing.
  */
 export declare function isExactDigits(digits: string): boolean;
+/** Whether `x` is anything but NaN, an infinity or a bigint, the extents a text dictionary refuses. */
+export declare function isTextExtent(x: unknown): boolean;
 /** `d` as it was given, for a message: `[1,"x"]`, `[0,Infinity]`, `[NaN,1]`, `[2n,3n]`. */
 export declare function dimsText(d: unknown): string;
 //# sourceMappingURL=Size.d.ts.map

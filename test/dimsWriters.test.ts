@@ -9,7 +9,9 @@
 //   - an XML Dimension writes back any finite non-negative extent as read — a binary
 //     dictionary's reader passes them through — and refuses what no Dimension can spell:
 //     NaN, an infinity, a negative, a string, an object, a bigint (DataNode._sizeOrRefuse,
-//     _spellableOrRefuse).
+//     _spellableOrRefuse);
+//   - a text dictionary writes back a hand-made extent like "x" as read, and refuses NaN, an
+//     infinity and a bigint (MatWriter.textDictionaryForm), but in its own read values.
 // An unedited value is still written back as read. An edited container holding a member
 // with such dims fails its save or copy, naming the member; the member is never written as
 // 0, false, `[]` or an empty struct, which a damaged member of an edited rank-3 cell was
@@ -89,7 +91,8 @@ describe('the case that started this: a NaN charge no longer turns the budget of
     ['[NaN,1]', [NaN, 1], '[NaN,1]'],
     ['[0,1e400]', [0, Infinity], '[0,Infinity]'],
   ] as const) {
-    it(`${label}: pasted into a binary dictionary, the save is refused at the inner cell; into a text one it is saved as pasted`, () => {
+    const textRefuses = label === '[NaN,1]' || label === '[0,1e400]';
+    it(`${label}: pasted into a binary dictionary, the save is refused at the inner cell; into a text one it is ${textRefuses ? 'refused the same' : 'saved as pasted'}`, () => {
       const session = createSession();
       const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
       root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef20-000000000003' }, value: around(d) });
@@ -98,9 +101,162 @@ describe('the case that started this: a NaN charge no longer turns the budget of
       const text = createSession();
       const t: any = ingest(text, sparseFixture(TEXT), { filename: TEXT });
       t.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef20-000000000004' }, value: around(d) });
-      expect(thrownBy(() => text.serializeSource(t.name))[0]).toBeNull();
+      const [textThrown] = thrownBy(() => text.serializeSource(t.name));
+      // These two were toBeNull() too, which pinned the 2c defect: a text save wrote the extent as null.
+      if (textRefuses) expect([textThrown?.name, (textThrown as any)?.reason, textThrown?.message]).toEqual(['MatBudgetError', 'not-a-count', `Cannot write "pasted": pasted{1} is a cell declaring dimensions ${said}${NOT_A_COUNT}`]);
+      else expect(textThrown).toBeNull();
     });
   }
+});
+
+describe('a size holding NaN, an infinity or a bigint, which a text dictionary\'s JSON cannot spell', () => {
+  // A text save wrote NaN and an infinity as null, and a bigint threw a raw TypeError from
+  // JSON.stringify ("Do not know how to serialize a BigInt"); an edited struct threw one
+  // sooner, counting its elements ("Cannot mix BigInt and other types"). Each is refused now
+  // as a binary save refuses it (MatWriter.textDictionaryForm, StructNode.serializeValue).
+  // A hand-made [1,"x"] is written as read; so are the dims a
+  // text dictionary was read with, whose 1e400 JSON.parse reads as an infinity: refused, that
+  // file's own value would fail the save of every entry in it.
+  const cell = (d: unknown[]) => ({ _array_type: 'Cell', _dimensions: d, _elements: [1] });
+  const struct = (d: unknown[]) => ({ _array_type: 'Struct', _dimensions: d, _elements: [{ f: 1 }], _fields: ['f'] });
+  const refusal = (e: Error | null) => e && [e.name, (e as any).reason, e.message];
+  const pasteInto = (file: string, value: unknown, edit?: (entry: any) => unknown) => {
+    const session = createSession();
+    const root: any = ingest(session, sparseFixture(file), { filename: file });
+    const entry = root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef80-000000000001' }, value });
+    if (edit) expect(edit(entry)).toBe(true);
+    const [save] = thrownBy(() => session.serializeSource(root.name));
+    const [copy] = thrownBy(() => entry.serialize());
+    return { save, copy, saved: () => entriesOf(JSON.parse(session.serializeSource(root.name)!.text!)).find((e: any) => e.name === 'pasted').value, entry };
+  };
+
+  for (const [said, d] of [['[NaN,1]', [NaN, 1]], ['[1,Infinity]', [1, Infinity]], ['[1n,2n]', [1n, 2n]]] as const) {
+    it(`${said}: pasted as a cell, a struct, a Parameter's Value or a struct's field, refused by a text save and by serialize() as a binary save refuses it`, () => {
+      const values: [() => unknown, string][] = [
+        [() => cell([...d]), 'pasted is a cell'],
+        [() => struct([...d]), 'pasted is a struct'],
+        [() => ({ _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: cell([...d]) } }] }), 'pasted.Value is a cell'],
+        [() => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: struct([...d]) }], _fields: ['f'] }), 'pasted.f is a struct'],
+      ];
+      for (const [value, at] of values) {
+        const want = ['MatBudgetError', 'not-a-count', `Cannot write "pasted": ${at} declaring dimensions ${said}${NOT_A_COUNT}`];
+        const text = pasteInto(TEXT, value());
+        expect([refusal(text.save), refusal(text.copy), refusal(pasteInto(BINARY, value()).save)], at).toEqual([want, want, want]);
+      }
+    });
+
+    it(`${said}: a pasted cell or struct, edited, the same`, () => {
+      for (const [value, cls] of [[() => cell([...d]), 'cell'], [() => struct([...d]), 'struct']] as const) {
+        const want = ['MatBudgetError', 'not-a-count', `Cannot write "pasted": pasted is a ${cls} declaring dimensions ${said}${NOT_A_COUNT}`];
+        const text = pasteInto(TEXT, value(), (entry) => entry.children[0].setProperty('Value', '2'));
+        expect([refusal(text.save), refusal(text.copy)], cls).toEqual([want, want]);
+      }
+    });
+  }
+
+  it('in a binary dictionary, an edited pasted struct with [NaN,1] or [1,Infinity] is copied as it stands, and its save is refused', () => {
+    // A binary value's serialize() is its copy as it stands; the check is the text writer's.
+    for (const [said, d] of [['[NaN,1]', [NaN, 1]], ['[1,Infinity]', [1, Infinity]]] as const) {
+      const binary = pasteInto(BINARY, struct([...d]), (entry) => entry.children[0].setProperty('Value', '2'));
+      expect([binary.copy, (binary.entry.serialize() as any).value._dimensions, refusal(binary.save)], said).toEqual([
+        null,
+        [...d],
+        ['MatBudgetError', 'not-a-count', `Cannot write "pasted": pasted is a struct declaring dimensions ${said}${NOT_A_COUNT}`],
+      ]);
+    }
+  });
+
+  it('a host\'s dictionary content holding NaN or a bigint, which no text file holds, is refused, as a cell and as complex text', () => {
+    for (const [said, d] of [['[NaN,1]', [NaN, 1]], ['[NaN,Infinity]', [NaN, Infinity]], ['[1n,2n]', [1n, 2n]]] as const) {
+      for (const [value, cls] of [[cell([...d]), 'cell'], [{ _type: 'cdata', _value: '1+2i', _dimensions: [...d] }, 'double']] as const) {
+        const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+        entriesOf(json).push({ name: 'h', metadata: { uuid: '00000000-0000-4000-ef80-000000000002' }, value });
+        const session = createSession();
+        const root: any = session.addDataSource('host.sldd', json);
+        const want = ['MatBudgetError', 'not-a-count', `Cannot write "h": h is a ${cls} declaring dimensions ${said}${NOT_A_COUNT}`];
+        const h = root.getSection('design').children.find((e: any) => e.name === 'h');
+        expect([refusal(thrownBy(() => session.serializeSource(root.name))[0]), refusal(thrownBy(() => h.serialize())[0])], `${said} ${cls}`).toEqual([want, want]);
+      }
+    }
+  });
+
+  it('[1,"x"] and [1,{}], which JSON spells as given, are written as pasted, as a cell and as a struct', () => {
+    for (const d of [[1, 'x'], [1, {}]]) {
+      for (const make of [cell, struct]) {
+        const text = pasteInto(TEXT, make(d));
+        expect([text.save, text.copy, text.saved(), text.entry.serialize().value], JSON.stringify(d)).toEqual([null, null, make(d), make(d)]);
+      }
+    }
+  });
+
+  it('a text dictionary\'s own 1e400, read as an infinity: a save writes it as 671536b does, as read, renamed and beside an edit', () => {
+    const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+    const own: [string, string][] = [
+      ['ownCell', '{"_array_type":"Cell","_dimensions":[0,1e400],"_elements":[],"_mw_element_type":"MATLABArray"}'],
+      ['ownStruct', '{"_array_type":"Struct","_dimensions":[0,1e400],"_elements":[],"_fields":["f"]}'],
+      ['ownField', '{"_array_type":"Struct","_dimensions":[1,1],"_elements":[{"f":{"_array_type":"Cell","_dimensions":[1e400,0],"_elements":[]}}],"_fields":["f"]}'],
+    ];
+    own.forEach(([name], i) => entriesOf(json).push({ name, metadata: { uuid: `00000000-0000-4000-ef80-00000000001${i}` }, value: `@@${name}@@` }));
+    const file = own.reduce((text, [name, value]) => text.replace(`"@@${name}@@"`, value), JSON.stringify(json));
+    // What JSON.stringify makes of the infinity: null. The reader's loss, not this writer's.
+    const written = own.map(([name, value]) => [name, JSON.parse(value.replace('1e400', 'null'))]);
+    const save = (change: (design: any) => void) => {
+      const session = createSession();
+      const root: any = ingest(session, buffer(strToU8(file)), { filename: TEXT });
+      const design = root.getSection('design');
+      change(design);
+      const copies = design.children.filter((e: any) => /^own/.test(e.name)).map((e: any) => thrownBy(() => e.serialize())[0]);
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      if (thrown) return [thrown.name, thrown.message];
+      return [copies, entriesOf(JSON.parse(session.serializeSource(root.name)!.text!)).filter((e: any) => /^own/.test(e.name)).map((e: any) => [e.name, e.value])];
+    };
+    expect(save(() => {})).toEqual([[null, null, null], written]);
+    expect(save((design) => design.children.filter((e: any) => /^own/.test(e.name)).forEach((e: any) => e.setProperty('Name', e.name + 'R'))))
+      .toEqual([[null, null, null], written.map(([name, value]) => [name + 'R', value])]);
+    expect(save((design) => design.children.find((e: any) => e.name === 'dRow').children[1].setProperty('Value', '9'))).toEqual([[null, null, null], written]);
+  });
+
+  it('so is an object array\'s, a Parameter, a Signal and an object of a class with no node of its own, at [0,1e400] and [1,1e400]', () => {
+    // Their nodes write an untouched array as a new bag around the elements
+    // (ObjectNode.serializeValue: `{ ...rawVal, _elements }`), so what the reader records is
+    // the dims array it read, which that bag keeps.
+    const forms: [string, string, string][] = [
+      ['ownParam0', 'ParameterNode', '{"_array_class":"Simulink.Parameter","_dimensions":[0,@],"_elements":[]}'],
+      ['ownParam1', 'ParameterNode', '{"_array_class":"Simulink.Parameter","_dimensions":[1,@],"_elements":[{"_properties":{"Value":1}}]}'],
+      ['ownSignal1', 'SignalNode', '{"_array_class":"Simulink.Signal","_dimensions":[1,@],"_elements":[{"_properties":{"Description":"d"}}]}'],
+      ['ownWidget0', 'ObjectNode', '{"_array_class":"Widget","_dimensions":[0,@],"_elements":[]}'],
+      ['ownWidget1', 'ObjectNode', '{"_array_class":"Widget","_dimensions":[1,@],"_elements":[{"_id":"1","_properties":{"A":1}}]}'],
+    ];
+    const save = (extent: string, change: (design: any) => void) => {
+      const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+      forms.forEach(([name], i) => entriesOf(json).push({ name, metadata: { uuid: `00000000-0000-4000-ef80-00000000002${i}` }, value: `@@${name}@@` }));
+      const file = forms.reduce((text, [name, , value]) => text.replace(`"@@${name}@@"`, value.replace('@', extent)), JSON.stringify(json));
+      const session = createSession();
+      const root: any = ingest(session, buffer(strToU8(file)), { filename: TEXT });
+      const design = root.getSection('design');
+      expect(forms.map(([name]) => design.children.find((e: any) => e.name === name).constructor.name)).toEqual(forms.map(([, cls]) => cls));
+      change(design);
+      const own = design.children.filter((e: any) => /^own/.test(e.name));
+      const copies = own.map((e: any) => thrownBy(() => e.serialize())[0]?.message ?? null);
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      if (thrown) return [copies, thrown.message];
+      return [copies, entriesOf(JSON.parse(session.serializeSource(root.name)!.text!)).filter((e: any) => /^own/.test(e.name)).map((e: any) => [e.name, e.value])];
+    };
+    // What a save writes of the same file with a 7 where the 1e400 is, with null for the 7.
+    const asFinite = (change: (design: any) => void) => {
+      const [copies, saved] = save('7', change);
+      expect(copies).toEqual(forms.map(() => null));
+      return [copies, (saved as [string, any][]).map(([name, value]) => [name, { ...value, _dimensions: value._dimensions.map((x: unknown) => (x === 7 ? null : x)) }])];
+    };
+    const changes: [string, (design: any) => void][] = [
+      ['as read', () => {}],
+      ['renamed', (design) => design.children.filter((e: any) => /^own/.test(e.name)).forEach((e: any) => e.setProperty('Name', e.name + 'R'))],
+      ['beside an edit', (design) => design.children.find((e: any) => e.name === 'dRow').children[1].setProperty('Value', '9')],
+    ];
+    for (const [label, change] of changes) {
+      expect(save('1e400', change), label).toEqual(asFinite(change));
+    }
+  });
 });
 
 describe('a value whose XML is its only spelling in a binary dictionary', () => {

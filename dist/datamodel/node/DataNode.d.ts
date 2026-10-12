@@ -313,6 +313,13 @@ export default class DataNode extends BaseNode {
      */
     _spellableOrRefuse(dims: unknown, cls: string, header?: string): void;
     /**
+     * Refuses to write this node's value as a text dictionary's JSON, or copy it there, when its
+     * dims hold NaN, an infinity or a bigint, which JSON writes as null or cannot write
+     * (parser/Size, isTextExtent), naming the entry and the path, as _spellableOrRefuse does for
+     * a Dimension.
+     */
+    _textSpellableOrRefuse(dims: unknown, cls: string): void;
+    /**
      * `at` one level down: element `k` of `n` — its MATLAB subscript, `(k+1)`, unless it is
      * the only one — then `rest`, a field or a property.
      */

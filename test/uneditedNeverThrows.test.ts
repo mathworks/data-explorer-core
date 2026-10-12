@@ -12,7 +12,8 @@
 // dense empty (`_emptyDims`) is written from its dims instead, an N-D one as its stream, and
 // replayed where no stream can say them — an extent past an int32, or one that is no count —
 // since an empty needs none; a text dictionary has no spelling for such a one, so its paste
-// there is refused, as a complex value's is.
+// there is refused, as a complex value's is, and as dims holding NaN, an infinity or a
+// bigint are, in any value but the text dictionary's own.
 //
 // serializeXml() never throws for an entry read from a binary dictionary: hex is written as
 // read (_adoptEncoded), and a sparse array there is never anything but hex or a member of a
@@ -172,6 +173,25 @@ describe('an entry nobody has edited: what each writer does', () => {
     const root: any = ingest(session, buffer(strToU8(JSON.stringify(json, null, '\t'))), { filename: TEXT });
     const saved = entriesOf(JSON.parse(session.serializeSource(root.name)!.text!)).find((e: any) => e.name === 'cxSayable').value;
     expect([saved._type, isMatCdata(saved)]).toEqual(['cdata', true]);
+  });
+
+  it('a text dictionary\'s own 1e400, which JSON reads as an infinity, in a cell, a struct or an object array: serialize() never throws, as read or renamed, and the file saves', () => {
+    // serializeXml() is the value's paste into a binary dictionary, which is not asked here.
+    const own: [string, string][] = [
+      ['cInf', '{"_array_type":"Cell","_dimensions":[0,1e400],"_elements":[],"_mw_element_type":"MATLABArray"}'],
+      ['sInf', '{"_array_type":"Struct","_dimensions":[0,1e400],"_elements":[],"_fields":["f"]}'],
+      ['pInf0', '{"_array_class":"Simulink.Parameter","_dimensions":[0,1e400],"_elements":[]}'],
+      ['pInf1', '{"_array_class":"Simulink.Parameter","_dimensions":[1,1e400],"_elements":[{"_properties":{"Value":1}}]}'],
+      ['sigInf', '{"_array_class":"Simulink.Signal","_dimensions":[1,1e400],"_elements":[{"_properties":{"Description":"d"}}]}'],
+      ['wInf', '{"_array_class":"Widget","_dimensions":[1,1e400],"_elements":[{"_id":"1","_properties":{"A":1}}]}'],
+    ];
+    const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+    own.forEach(([name], i) => entriesOf(json).push({ name, metadata: { uuid: `00000000-0000-4000-ee00-${String(i + 1).padStart(12, '0')}` }, value: `@@${name}@@` }));
+    const file = strToU8(own.reduce((text, [name, value]) => text.replace(`"@@${name}@@"`, value), JSON.stringify(json)));
+    expect(throwersIn(TEXT, file).filter((t) => / serialize: /.test(t))).toEqual([]);
+    const session = createSession();
+    const root: any = ingest(session, buffer(file), { filename: TEXT });
+    expect(thrownBy(() => session.serializeSource(root.name))[0]).toBeNull();
   });
 
   it('damaged values read from a file, a binary dictionary\'s hex and a text one\'s cdata declaring 2^31-1 columns: no writer throws', () => {

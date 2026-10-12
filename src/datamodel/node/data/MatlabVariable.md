@@ -273,14 +273,17 @@ dictionary, a host's `[NaN, 1]` or bigints — are read as they come, and refuse
 would write them as something else, finally, naming the value (a `MatBudgetError`, reason
 `not-a-count`): a MAT stream needs every extent a whole number a double counts exactly, and
 an XML Dimension refuses what it cannot spell (NaN, an infinity, a negative, a string, an
-object), writing a binary dictionary's own `1*2.5` back as read. An extent past an int32 is a
-size — MATLAB holds a zeros(0, 2^31) — but no MAT stream can say it, so one that has to be a
-stream is refused too (reason `past-int32`), in a text dictionary as well, where a complex
-value goes as a stream. The exception is complex text the text dictionary was read with,
-which v1.36.0 wrote: it is that file's own, and a save writes it back as read
-(`MatWriter.heldByTextDictionary`). A sparse array's non-zero whose row or column is not a
-whole number is refused the same way (reason `not-an-index`), whatever its shape or class:
-its full form would drop it. An unedited value is written back as read; a container written
+object), writing a binary dictionary's own `1*2.5` back as read, and a text dictionary refuses
+NaN, an infinity and a bigint, which its JSON writes as null or cannot write, writing a
+hand-made `[1, "x"]` back as read. An extent past an int32 is a size — MATLAB holds a zeros(0,
+2^31) — but no MAT stream can say it, so one that has to be a stream is refused too (reason
+`past-int32`), in a text dictionary as well, where a complex value goes as a stream. The
+exception is complex text the text dictionary was read with, which v1.36.0 wrote: it is that
+file's own, and a save writes it back as read (`MatWriter.heldByTextDictionary`). So are dims,
+as the file holds them, that JSON.parse reads as an infinity (`1e400`): a save writes that
+extent as null, as it always has. A sparse array's non-zero whose row or column is not a whole
+number is refused the same way (reason `not-an-index`), whatever its shape or class: its full
+form would drop it. An unedited value is written back as read; a container written
 whole around such a member is refused, naming the member, whatever the order of its members,
 and never writes it as 0, false or `[]`. The exception is a sparse member written as the
 bytes it was read from (`MatWriter.memberElement`): it is copied as read, its dims as its

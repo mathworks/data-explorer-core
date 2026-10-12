@@ -132,9 +132,10 @@ export declare function matStreamOfElement(raw: Uint8Array): Uint8Array | null;
  */
 export declare function complexTextVariable(raw: unknown): MatVariable | null;
 /**
- * Records every complex text in `value`, a value as the text dictionary being read holds it.
- * Every entry is walked, so the walk allocates nothing and steps over every primitive: 15 ms
- * of the 420 ms a 138 MB dictionary of 140,000 entries takes to read.
+ * Records every complex text in `value`, a value as the text dictionary being read holds it,
+ * and every dims array that holds an infinity. Every entry is walked, so the walk allocates
+ * nothing and steps over every primitive: 15 ms of the 420 ms a 138 MB dictionary of 140,000
+ * entries takes to read.
  */
 export declare function heldByTextDictionary(value: unknown): void;
 /**
