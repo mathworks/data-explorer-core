@@ -207,6 +207,12 @@ function handle goes into a binary dictionary as the hex MATLAB writes for it
 (`_binaryEncoded`), and so does a renamed one. Pinned in
 `test/encodedValueWriteBack.test.ts` and `test/encodedValueDecode.test.ts`.
 
+A text-dictionary stream that holds an MCOS object anywhere (a hex entry pasted from a
+binary dictionary is written that way) is decoded with its own subsystem too
+(`_parseCdataObjects`), into the node its hex twin is, and is read-only in the same way. A
+save writes the cdata it was read from, character for character, and a binary dictionary
+it is pasted into writes the hex. Pinned in `test/cdataObjectReopen.test.ts`.
+
 ### A sparse array is held as its non-zeros
 A sparse array is never held as a dense list: what it costs is what it holds, at any
 declared size. `MatParser` reads one into `MatVariable.sparse` (`parser/SparseData`:

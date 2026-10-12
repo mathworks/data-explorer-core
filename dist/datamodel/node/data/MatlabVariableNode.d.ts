@@ -414,7 +414,28 @@ export default class MatlabVariableNode extends DataNode {
      * untouched, as every value read from a file is.
      */
     static createUnnamedObject(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
-    static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
+    static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): DataNode;
+    /**
+     * A text dictionary's MAT stream holding an MCOS object anywhere in it, decoded with the
+     * stream's own subsystem, as a binary dictionary's hex of the same bytes is (parseEncoded)
+     * — or null, when building it so fails and the variable is built without the decode.
+     *
+     * MATLAB's own text dictionary writes a Simulink object natively and keeps cdata for a
+     * value its JSON cannot spell, but this package writes a hex entry it pastes into one as the
+     * cdata of the same stream (MatWriter.textDictionaryForm), which MATLAB reads back as the
+     * object: a Simulink.Parameter whose Value is sparse, an alias type with a function-handle
+     * property, a struct or a cell of objects. Read without the subsystem, as it was, the
+     * stream's object was the opaque `<1x1 Simulink.Parameter>`: no Value, no properties, and
+     * as a plain variable it took a Value edit that wrote a number over the whole object.
+     *
+     * Like the hex, it is read-only and written back as it was read, for as long as nothing
+     * changes it (DataNode._adoptEncoded): nothing in this package writes the stream of an
+     * MCOS object. A text dictionary and a copy are handed the cdata itself, character for
+     * character; the envelope the adoption keeps is the hex a binary dictionary holds for the
+     * same bytes, under MATLAB's Class, which is what one this is pasted into writes, as it
+     * wrote it for the opaque node before.
+     */
+    static _parseCdataObjects(rawVal: Record<string, unknown>, bytes: Uint8Array, variable: MatVariable, trailingElements: Uint8Array[], name: string, parent: BaseNode | null): DataNode | null;
     /**
      * Complex text with an Inf or NaN part that this package wrote itself, which the test
      * above does not admit: McosParser.complexPropertyValue marks the envelope `_nonFinite`

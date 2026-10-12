@@ -180,6 +180,32 @@ function needsHexInBinary(variable: MatVariable): boolean {
 }
 
 /**
+ * Is there an MCOS object anywhere in this variable — at its top, in a struct field or in a
+ * cell element, at any depth? Such a stream carries the objects' subsystem after the
+ * variable, and has to be decoded with it (MatlabVariableNode._parseCdataObjects).
+ */
+function holdsMcosObject(variable: MatVariable): boolean {
+  const stack: MatVariable[] = [variable];
+  while (stack.length > 0) {
+    const v = stack.pop()!;
+    if (v.isOpaque) {
+      return true;
+    }
+    for (const field of Object.values(v.fields ?? {})) {
+      stack.push(...(Array.isArray(field) ? field : [field]));
+    }
+    if (v.className === 'cell' && Array.isArray(v.value)) {
+      for (const cell of v.value as (MatVariable | null)[]) {
+        if (cell) {
+          stack.push(cell);
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * MATLAB's class(value) for a variable, which is what a hex element's `Class` says: a
  * logical is 'logical' however the variable came to be, where the node layer rebuilds one
  * as MAT class uint8 with the logical flag (_buildVarObject).
@@ -3178,7 +3204,9 @@ export default class MatlabVariableNode extends DataNode {
 
   static parseTypedScalar(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode {
     if (rawVal._type === 'cdata') {
-      return MatlabVariableNode.parseCdata(rawVal, name, parent);
+      // A DataNode of another class for a stream holding an MCOS object, as parseEncoded's
+      // is for the hex of one (see `parse`).
+      return MatlabVariableNode.parseCdata(rawVal, name, parent) as MatlabVariableNode;
     }
     const node = new MatlabVariableNode(name, parent, rawVal);
     node._rawInput = rawVal;
@@ -3423,7 +3451,7 @@ export default class MatlabVariableNode extends DataNode {
     return node;
   }
 
-  static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode {
+  static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): DataNode {
     const valStr = rawVal._value as string;
     if (/^[\d.eE+\-i\s]+$/.test(valStr) || MatlabVariableNode._isOwnNonFiniteText(rawVal)) {
       return MatlabVariableNode._parseCdataText(rawVal, name, parent);
@@ -3437,9 +3465,15 @@ export default class MatlabVariableNode extends DataNode {
         throw new Error('cdata is not a MAT stream: ' + stream.reason);
       }
       const variable = stream.variable;
-      // Always a MatlabVariableNode here: only the opaque arm builds anything else, and
-      // only for a variable a container attached a decode to (mcosDecodedTable), which
-      // one parsed out of a cdata stream a line above has not had the chance to be.
+      if (holdsMcosObject(variable)) {
+        const decoded = MatlabVariableNode._parseCdataObjects(rawVal, bytes, variable, stream.trailingElements, name, parent);
+        if (decoded) {
+          return decoded;
+        }
+      }
+      // A MatlabVariableNode here: only the opaque arm builds anything else, and only for a
+      // variable whose objects were decoded, which _parseCdataObjects above does for one
+      // that holds any and undoes when what it builds fails.
       const node = MatlabVariableNode.parseMatVariable(variable, name, parent) as MatlabVariableNode;
       // parseMatVariable's factories set _matVar/_rawBytes but not _rawInput, and
       // an untouched node writes itself back by replaying _rawInput verbatim. Set
@@ -3456,6 +3490,60 @@ export default class MatlabVariableNode extends DataNode {
       node._scalarValue = valStr;
       return node;
     }
+  }
+
+  /**
+   * A text dictionary's MAT stream holding an MCOS object anywhere in it, decoded with the
+   * stream's own subsystem, as a binary dictionary's hex of the same bytes is (parseEncoded)
+   * — or null, when building it so fails and the variable is built without the decode.
+   *
+   * MATLAB's own text dictionary writes a Simulink object natively and keeps cdata for a
+   * value its JSON cannot spell, but this package writes a hex entry it pastes into one as the
+   * cdata of the same stream (MatWriter.textDictionaryForm), which MATLAB reads back as the
+   * object: a Simulink.Parameter whose Value is sparse, an alias type with a function-handle
+   * property, a struct or a cell of objects. Read without the subsystem, as it was, the
+   * stream's object was the opaque `<1x1 Simulink.Parameter>`: no Value, no properties, and
+   * as a plain variable it took a Value edit that wrote a number over the whole object.
+   *
+   * Like the hex, it is read-only and written back as it was read, for as long as nothing
+   * changes it (DataNode._adoptEncoded): nothing in this package writes the stream of an
+   * MCOS object. A text dictionary and a copy are handed the cdata itself, character for
+   * character; the envelope the adoption keeps is the hex a binary dictionary holds for the
+   * same bytes, under MATLAB's Class, which is what one this is pasted into writes, as it
+   * wrote it for the opaque node before.
+   */
+  static _parseCdataObjects(
+    rawVal: Record<string, unknown>,
+    bytes: Uint8Array,
+    variable: MatVariable,
+    trailingElements: Uint8Array[],
+    name: string,
+    parent: BaseNode | null,
+  ): DataNode | null {
+    let node: DataNode;
+    try {
+      NodeRegistry.attachMcosDecoded(trailingElements[0], [variable]);
+      node = MatlabVariableNode.parseMatVariable(variable, name, parent);
+    } catch (_e) {
+      // Detached again, so the variable builds as it did before there was a decode.
+      NodeRegistry.attachMcosDecoded(null, [variable]);
+      return null;
+    }
+    // The stream's own bytes: uudecode keeps a byte of the NUL padding past the last whole
+    // one (EncodedValue.matStreamPrefix), and a binary dictionary states the length.
+    node._adoptEncoded(hexValue(matStreamPrefix(bytes) ?? bytes, matlabClassOf(variable), 2));
+    (node as unknown as { serializeValue: () => unknown }).serializeValue = function (this: DataNode): unknown {
+      if (this._encoded) {
+        return rawVal;
+      }
+      return (Object.getPrototypeOf(this) as DataNode).serializeValue.call(this);
+    };
+    // What parseCdata gives every MatlabVariableNode it builds, for the same reasons.
+    if (node instanceof MatlabVariableNode) {
+      node._rawInput = rawVal;
+      node._keepStreamElement(bytes);
+    }
+    return node;
   }
 
   /**
