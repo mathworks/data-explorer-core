@@ -22,7 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseMat } from '../src/datamodel/parser/MatParser.js';
+import { parseMat, type MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { createSession } from '../src/index.js';
 import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
@@ -95,6 +95,32 @@ function denseOf(v: { dimensions: number[]; sparse?: any; value: unknown }): unk
 
 /** An unnamed 1x1 double, for use as a struct field or cell element. */
 const scalarField = (n: number) => numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [n] });
+
+/** A struct `s` whose field-name block is `names` verbatim, read at field-name stride `stride`. */
+function strideStruct(stride: number, names: string, fields: Uint8Array[], dimensions = [1, 1]): Uint8Array {
+  const lenData = new Uint8Array(4);
+  new DataView(lenData.buffer).setInt32(0, stride, true);
+  return matrix([
+    arrayFlags(CLASS.STRUCT),
+    dims(dimensions),
+    varName('s'),
+    element(MI.INT32, lenData),
+    element(MI.INT8, new TextEncoder().encode(names)),
+    ...fields,
+  ]);
+}
+
+/** A scalar struct's fields as [name, value] pairs, in file order. */
+const fieldValues = (v: { fields: Record<string, unknown> | null }) =>
+  Object.entries(v.fields!).map(([name, field]) => [name, (field as { value: unknown }).value]);
+
+/** A variable as it was read, without the bytes it was read from. */
+const shapeOf = (v: unknown) => {
+  const { _rawBytes, ...rest } = v as MatVariable;
+  return rest;
+};
+const EMPTY = { name: '', className: 'double', dimensions: [0, 0], isComplex: false, isLogical: false, value: [], fields: null };
+const SCALAR = (n: number) => ({ ...EMPTY, dimensions: [1, 1], value: n });
 
 /** Overwrite the declared byte count of the tag at `tagOffset`, corrupting it. */
 function corruptLength(el: Uint8Array, tagOffset: number, declared: number): Uint8Array {
@@ -478,6 +504,70 @@ describe('parseMat — structs', () => {
     ]);
     const v = only(matFile([el]));
     expect(v.fields).toEqual({});
+  });
+
+  it('REGRESSION: a field-name stride longer than the name block reads the names the block holds', () => {
+    // The stride is the file's word, and each name was read up to the stride or a NUL but
+    // not up to the end of the block: past it `fnBytes[j] !== 0` is `undefined !== 0`, which
+    // holds, so the name ran on in NULs to the stride's length. MATLAB pads every name to the
+    // stride, so only a damaged file has a block shorter than one, but such a file of 264
+    // bytes declaring a stride of 1e8 ran the heap out while it opened. A name now ends where
+    // the block does, as every other read here ends at the bytes present.
+    for (const stride of [9, 16, 1_000_000]) {
+      expect(fieldValues(only(matFile([strideStruct(stride, 'abcdefgh', [scalarField(7)])]))), `stride ${stride}`).toEqual([
+        ['abcdefgh', 7],
+      ]);
+    }
+    // A block that is not a whole number of strides: its last name is what is left of it.
+    expect(fieldValues(only(matFile([strideStruct(5, 'abcdefgh', [scalarField(1), scalarField(2)])])))).toEqual([
+      ['abcde', 1],
+      ['fgh', 2],
+    ]);
+    // The largest stride an int32 holds, through a session as a host opens the file. Asked
+    // last, so that a reader without the bound fails on the strides above instead of here.
+    const mat = createSession().addMatSource('s.mat', matFile([strideStruct(0x7fffffff, 'abcdefgh', [scalarField(7)])])) as any;
+    expect(mat.children[0].children.map((c: any) => [c.name, c.displayValue])).toEqual([['abcdefgh', '7']]);
+  });
+
+  it('REGRESSION: a zero-length field is [], not a reading of the bytes after it', () => {
+    // MATLAB writes some empty struct fields as an miMATRIX of no bytes, its tag alone: one
+    // corpus file, a Simulink Design Verifier sldvData, holds 19. The reader took such a
+    // field's flags, dimensions and name from whatever followed its tag. Each of the 19 read
+    // as a double of rank 12 to 1,314 that showed [ ]. Here e2 and a(2).p read as doubles of
+    // rank 30 out of the header after them, e0 and c{1} as doubles of no dimensions, and
+    // a(1).q, followed by another such field, as a class this reader does not model, with a
+    // warning. Each is the [] MATLAB reads.
+    const parsed = parseMat(
+      matFile([
+        structVar('s', ['e0', 'v1', 'e2'], [{ e0: matrix([]), v1: scalarField(7), e2: matrix([]) }]),
+        structVar('a', ['p', 'q'], [{ p: scalarField(1), q: matrix([]) }, { p: matrix([]), q: scalarField(2) }], [1, 2]),
+        cellVar('c', [matrix([]), scalarField(3)]),
+      ]),
+    );
+    expect(parsed.warnings).toEqual([]);
+    const [s, a, c] = parsed.variables;
+    expect([s.fields!.e0, s.fields!.v1, s.fields!.e2].map(shapeOf)).toEqual([EMPTY, SCALAR(7), EMPTY]);
+    expect([...(a.fields!.p as MatVariable[]), ...(a.fields!.q as MatVariable[])].map(shapeOf)).toEqual([SCALAR(1), EMPTY, EMPTY, SCALAR(2)]);
+    expect((c.value as MatVariable[]).map(shapeOf)).toEqual([EMPTY, SCALAR(3)]);
+    // EMPTY is what a [] MATLAB writes in full reads as: double, 0x0, no elements.
+    const written = only(matFile([structVar('s', ['m'], [{ m: numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [0, 0], real: [] }) }])]));
+    expect(shapeOf(written.fields!.m)).toEqual(EMPTY);
+  });
+
+  it('REGRESSION: a zero-length field shows and copies as a written-out [] does', () => {
+    // Read out of the bytes after it, such a field was copied as what they said: the 19 as
+    // cdata streams of empties of their borrowed rank, which MATLAB would read back as
+    // something else, and z here as null, which it also showed.
+    const mat = createSession().addMatSource(
+      'z.mat',
+      matFile([structVar('s', ['z', 'm'], [{ z: matrix([]), m: numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [0, 0], real: [] }) }])]),
+    ) as any;
+    const [z, m] = mat.children[0].children;
+    const look = (n: any) => [n.className, n._dims, n.displayValue, n.serialize()];
+    expect([look(z), look(m)]).toEqual([
+      ['double', [0, 0], '[ ]', []],
+      ['double', [0, 0], '[ ]', []],
+    ]);
   });
 
   it('leaves fields null when the struct is truncated before its field-name length', () => {
@@ -1179,6 +1269,17 @@ describe('parseMat — malformed byte counts', () => {
     expect([v.className, v.dimensions, v.undecoded, v.fields]).toEqual(['struct', [1, 2_000_000], undefined, {}]);
     // With a field, the same declared size is a damaged array.
     expect(only(matFile([structVar('s', ['a'], [{ a: scalarField(1) }], [1, 2_000_000])])).undecoded).toMatch(/^declares 2000000 elements/);
+  });
+
+  it('REGRESSION: a struct array whose name block is shorter than its stride has the field it reads', () => {
+    // The fields were counted as whole strides in the name block, so a block shorter than its
+    // stride counted none while the parse read a name out of it. The array passed for a
+    // fieldless one, and a 264-byte file declaring 2,000,000 elements built a row for each and
+    // ran a 512 MB heap out while it opened. The count is now of the names the parse reads.
+    for (const stride of [8, 64]) {
+      const v = only(matFile([strideStruct(stride, 'abcdefgh', [scalarField(7)], [1, 2_000_000])]));
+      expect([stride, v.undecoded]).toEqual([stride, expect.stringMatching(/^declares 2000000 elements, more than the \d+ bytes left/)]);
+    }
   });
 
   it('reads a variable whose own element length overruns the file', () => {

@@ -577,13 +577,19 @@ describe('the XML catalog scan, on bytes that are not a well-formed catalog', ()
   });
 
   // Random strings over the characters the regex gives meaning to, seeded so a failure
-  // reproduces. 8,182 of the 20,000 hold an attribute walk that fails, and 2,968 a tag
-  // after one: the path the scanner answers from memory rather than by walking.
+  // reproduces. 18,848 of the 20,000 are distinct, 9,573 distinct ones hold an attribute
+  // walk that fails, and 3,657 a tag after one: the path the scanner answers from memory
+  // rather than by walking. The seed steps by xorshift32, as xmlEntrySplice.test.ts's does,
+  // because a draw is `% n` and reads the low bits. The LCG this had,
+  // `(seed * 1103515245 + 12345) & 0x7fffffff`, multiplied in doubles, whose 53 bits drop
+  // the low ones of a product of up to 62: it made 1,039 distinct strings of the 20,000.
   it('returns the tags the regex returned, on random input', () => {
     let seed = 1;
     const rand = (n: number): number => {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      return seed % n;
+      seed ^= seed << 13;
+      seed ^= seed >>> 17;
+      seed ^= seed << 5;
+      return (seed >>> 0) % n;
     };
     const pieces = ['<A', '>', '"', '/', ' ', '-', '.', '<A b="', '">', '</A>', '<B/>', 'x', '<', ':', '!'];
     for (let k = 0; k < 20000; k++) {

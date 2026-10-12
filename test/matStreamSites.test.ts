@@ -259,8 +259,11 @@ describe('every site decodes the streams its fixtures carry exactly as it did', 
 
 function randomText(seed: number, length: number, breaks: boolean): string {
   let state = seed;
+  // The LCG's product is taken in 32-bit integers (Math.imul). As a double, a product of up
+  // to 62 bits kept 53, so the generator was not the LCG it is written as. A draw reads the
+  // high bits, which are an LCG's good ones.
   const next = (): number => {
-    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    state = (Math.imul(state, 1103515245) + 12345) & 0x7fffffff;
     return state / 0x7fffffff;
   };
   let s = '';
@@ -364,9 +367,15 @@ describe('decodeMatStream', () => {
   });
 
   it('never throws, whatever follows a well-formed header', () => {
+    // A byte is the state's low byte, so the state steps by xorshift32. The LCG this had,
+    // multiplied in doubles that dropped the product's low bits, made 19 byte values of 256,
+    // 73.9% of them 0x00 and 16.2% 0x40; done exactly (Math.imul), an LCG modulo 2^31
+    // repeats its low byte every 256 draws.
     let state = 99;
     const next = (): number => {
-      state = (state * 1103515245 + 12345) & 0x7fffffff;
+      state ^= state << 13;
+      state ^= state >>> 17;
+      state ^= state << 5;
       return state & 0xff;
     };
     for (let t = 0; t < 1500; t++) {

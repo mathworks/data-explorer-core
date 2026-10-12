@@ -527,20 +527,33 @@ function childLength(view: DataView, sub: SubElement, tagOffset: number, end: nu
 }
 
 // How many fields a struct array whose field-name length subelement is at `offset`
-// declares, as the struct arm of parseMatrix reads them: 0 for a stride that is not
-// there or not positive.
+// declares, as the struct arm of parseMatrix reads them: one name per stride of the
+// name block, the last one however short, and 0 for a stride that is not there or not
+// positive. Counting whole strides only, a block shorter than its stride (which MATLAB
+// never writes: it pads every name to the stride) counted no field while the arm read
+// one, and the array passed the guard below as a fieldless one.
 function structFieldCount(view: DataView, offset: number, end: number): number {
     if (offset + 8 > end) { return 0; }
     const lenSub = readSubelement(view, offset);
     const stride = lenSub.bytes >= 4 ? view.getInt32(lenSub.dataOffset, true) : 0;
     const namesAt = offset + lenSub.totalSize;
     if (stride <= 0 || namesAt + 8 > end) { return 0; }
-    return Math.floor(readSubelement(view, namesAt).bytes / stride);
+    return Math.ceil(readSubelement(view, namesAt).bytes / stride);
 }
 
 export function parseMatrix(view: DataView, baseOffset: number, length: number): MatVariable {
     let offset = baseOffset;
     const end = baseOffset + length;
+
+    // An miMATRIX of no bytes, its tag alone, is an empty array: MATLAB writes some empty
+    // struct fields that way (a Simulink Design Verifier sldvData in the corpus holds 19),
+    // and reads one back as []. It has no flags to read, and reading on would take them,
+    // the dimensions and the name from the element after its tag: those fields came back
+    // as doubles of rank 12 to 1,314, which showed [ ] and were copied as an empty of that
+    // rank. So it is what a [] MATLAB writes in full reads as.
+    if (length <= 0) {
+        return { name: '', className: 'double', dimensions: [0, 0], isComplex: false, isLogical: false, value: [], fields: null };
+    }
 
     const flagsSub = readSubelement(view, offset);
     offset += flagsSub.totalSize;
@@ -729,9 +742,15 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
             offset += fieldNamesSub.totalSize;
             const fieldNames: string[] = [];
             const fnBytes = new Uint8Array(view.buffer, view.byteOffset + fieldNamesSub.dataOffset, fieldNamesSub.bytes);
+            // A name ends at a NUL, at the stride, or at the end of the block, whichever is
+            // first. The block's end is the one the file cannot move: past it `fnBytes[j]` is
+            // undefined, which is not 0, so a stride longer than the block ran the name on in
+            // NULs to the stride's length, and a 264-byte file declaring a stride of 1e8 ran
+            // the heap out building one.
             for (let i = 0; i < fnBytes.length; i += fieldNameLen) {
+                const stop = Math.min(i + fieldNameLen, fnBytes.length);
                 let str = '';
-                for (let j = i; j < i + fieldNameLen && fnBytes[j] !== 0; j++) {
+                for (let j = i; j < stop && fnBytes[j] !== 0; j++) {
                     str += String.fromCharCode(fnBytes[j]);
                 }
                 if (str) { fieldNames.push(str); }
