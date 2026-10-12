@@ -2257,9 +2257,9 @@ export default class MatlabVariableNode extends DataNode {
     // A `Matrix(…)` literal nobody edited has its header's digits for dims, held to them as
     // the property writer holds them (DataNode._sizeOrRefuse): 9007199254740993 parses to
     // the double beside it, which a Dimension would spell as another size. An entry, a
-    // cell's element and a struct's field are written here, and wrote it so. Digits a
-    // double holds as written are written as read, 2^53 among them, which is what a binary
-    // dictionary's reader puts in the header of its own empty cell element.
+    // cell's element and a struct's field are written here, and wrote it so. Digits naming
+    // a count a double holds exactly are written, 2^53 and 2^60 among them; a binary
+    // dictionary's reader spells the header of its own empty cell element so (Size.headerDigits).
     const read = this._rawInput as Record<string, unknown> | undefined;
     if (read && typeof read._value === 'string') {
       this._spellableOrRefuse(DataNode._headerDims(read._value), cls, read._value);

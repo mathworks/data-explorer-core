@@ -1237,8 +1237,9 @@ export default class DataNode extends BaseNode {
      * non-negative extent through as read, so one of those is written back as read; what is
      * refused — NaN, an infinity, a negative, a string, an object, a bigint — came from a text
      * dictionary or a host, and `Dimension="1*x"` is no spelling of anything. Dims read from
-     * a `header` are held to its digits: digits a double does not hold as written, like
-     * 9007199254740993, would be written rounded, as another size (parser/Size, isExactDigits).
+     * a `header` are held to its digits: digits naming a count no double holds exactly, like
+     * 9007199254740993, would be parsed to another count and written as that one (parser/Size,
+     * isExactDigits).
      */
     static _sizeOrRefuse(dims, cls, name, at, header) {
         if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : Array.isArray(dims) && dims.every(isSpellableExtent))) {

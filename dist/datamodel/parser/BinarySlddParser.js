@@ -50,6 +50,7 @@ import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddPa
 import { encodedStream, encodedValueOf, isEncodedValue } from './EncodedValue.js';
 import { charFromDecimal, charNeedsShape, complexClassTag, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, SAVEOBJ_KEY, } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
+import { headerDigits } from './Size.js';
 /**
  * Read a `Dimension="d1*d2*...*dn"` attribute into every extent it declares.
  *
@@ -537,8 +538,9 @@ function parseCellElement(el) {
             const total = dimParts.reduce((a, b) => a * b, 1);
             if (total === 0) {
                 // Every extent, so an empty N-D cell element agrees with what
-                // parseMatrixValue reads back.
-                return { _type: elClass, _value: 'Matrix(' + dimParts.join(',') + ')' };
+                // parseMatrixValue reads back, each as the count it is (Size.headerDigits): past
+                // 2^53 - 1 String spells some with digits that say another count.
+                return { _type: elClass, _value: 'Matrix(' + dimParts.map(headerDigits).join(',') + ')' };
             }
             const parts = numericBody(text, elClass);
             const rowMajor = transposeColumnMajor(parts, dimParts);

@@ -23,6 +23,7 @@ import { ingest } from '../src/core/ingest.js';
 import { encodeMatStream, MatBudgetError, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import { BINARY, TEXT, sparseFixture, thrownBy } from './tools/pasteVenues.js';
 import { sparseToDense } from '../src/datamodel/parser/SparseData.js';
+import { isExactDigits } from '../src/datamodel/parser/Size.js';
 
 const buffer = (u8: Uint8Array) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
 const entriesOf = (json: any) => json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
@@ -567,8 +568,8 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
   // 2^53 + 1 is the first count a double does not hold: parsed, it is 2^53, which a
   // Dimension would spell as another size. The raw property arm has refused it since
   // eb288ea; an entry, a cell's element and a struct's field wrote it rounded. What is
-  // refused is digits a double does not hold as written, not every count past 2^53 - 1: one
-  // it does hold is written as read, and it is what a binary dictionary's reader puts in a
+  // refused is digits naming a count no double holds exactly, not every count past 2^53 - 1:
+  // one it does hold is written, and it is what a binary dictionary's reader puts in a
   // header for its own empty cell element (BinarySlddParser.parseCellElement).
   const PAST = '9007199254740993';
   const literal = (type: string, dims: string, body = '[]') => ({ _type: type, _value: `Matrix(${dims})\n${body}` });
@@ -601,6 +602,30 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
     });
   }
 
+  it('isExactDigits: digits naming a count a double holds exactly, not digits that survive a round trip as text', () => {
+    // String spells 2^60 as 1152921504606847000, so those digits survived the round trip, and
+    // 2^60's own did not; but the count they say is not 2^60, and no double holds it.
+    const digits: [string, boolean][] = [
+      ['9007199254740991', true], // 2^53 - 1
+      ['9007199254740992', true], // 2^53
+      ['9007199254740993', false], // 2^53 + 1, which parses to 2^53
+      ['1152921504606846976', true], // 2^60
+      ['1152921504606847000', false], // String(2^60), which parses to 2^60
+      ['0009007199254740992', true], // leading zeros say nothing
+      ['1000000000000000000000', true], // 10^21, which String spells 1e+21
+      ['9'.repeat(25), false],
+      ['9'.repeat(400), false], // past any double
+    ];
+    expect(digits.map(([d]) => [d, isExactDigits(d)])).toEqual(digits);
+  });
+
+  it('1152921504606847000, the digits String gives 2^60, is refused in each of those places: no double holds the count it says', () => {
+    const SHORT = '1152921504606847000';
+    for (const [label, value, said] of cases) {
+      expect(binaryPaste(JSON.parse(JSON.stringify(value).replaceAll(PAST, SHORT))), label).toEqual(refused(said.replace('9007199254740992', SHORT)));
+    }
+  });
+
   // And as a Parameter Value's cell element, which the raw cell-element arm
   // (DataNode._serializeCellElementXml) writes under its Dimension since 411e108.
   const written = (digits: string) => {
@@ -628,9 +653,17 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
     }
   });
 
+  it('2^60\'s own digits, which a double holds, are written in the same five places, not refused', () => {
+    // As that double, which a Dimension spells as String does: digits that read back as 2^60.
+    for (const [got] of written('1152921504606846976')) {
+      expect(Number(/ Dimension="0\*(\d+)"/.exec(String(got))?.[1]), String(got)).toBe(2 ** 60);
+    }
+  });
+
   it('a binary dictionary\'s own empty cell element at or past 2^53 is written back as read on a save that edited nothing', () => {
-    // The reader writes the element's Dimension into a `Matrix(…)` header with
-    // `dims.join(',')`, so its digits are always a double's own and survive the parse.
+    // The reader writes the element's Dimension into a `Matrix(…)` header with the exact
+    // digits of the doubles it read (Size.headerDigits), so the header names a count a
+    // double holds.
     const OLD = '<P Name="Value" Class="double" Dimension="0*0"/>';
     const one = (element: string) => `<P Name="Value" Class="cell" Dimension="1*1">\n            ${element}\n        </P>`;
     const FORMS: [string, string][] = [
@@ -679,6 +712,37 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
       const from = saved.indexOf('<P Name="Value"', saved.indexOf('<Element Class="Simulink.Parameter">', saved.indexOf('<P Name="Name" Class="char">pDense</P>')));
       expect(squeeze(saved.slice(from, saved.indexOf('<P Name="Complexity"', from))), element).toBe(squeeze(read));
+    }
+  });
+
+  it('a binary dictionary\'s own empty cell element at 2^60 is not refused by a save that edited nothing', () => {
+    // String spells 2^60 as 1152921504606847000, digits that say another count, so the
+    // header the reader builds from it is spelled with the double's exact digits. Written,
+    // its Dimension spells that double as String does, as f535020 wrote it. As a cell
+    // entry's element, and in a Parameter's Value, which the raw cell-element arm writes.
+    const OLD = '<P Name="Value" Class="double" Dimension="0*0"/>';
+    const OLD_VALUE = '<P Name="Value" Class="double" Dimension="3*3">0.0 0.0 6.0 5.0 0.0 0.0 0.0 0.0 0.0</P>';
+    for (const dimension of ['0*1152921504606846976', '0*1152921504606847000']) {
+      const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+      files['data/chunk0.xml'] = strToU8(strFromU8(files['data/chunk0.xml']).replace(OLD, `<P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="double" Dimension="${dimension}"/>\n        </P>`));
+      const session = createSession();
+      const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
+      const dEmpty = root.getSection('design').children.find((e: any) => e.name === 'dEmpty');
+      expect(dEmpty.serialize().value._elements, dimension).toEqual([{ _type: 'double', _value: 'Matrix(0,1152921504606846976)' }]);
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      expect(thrown?.message ?? null, dimension).toBeNull();
+      const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+      const from = saved.indexOf('<Element Class="double"', saved.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
+      expect(Number(/^<Element Class="double" Dimension="0\*(\d+)"\/>/.exec(saved.slice(from))?.[1]), dimension).toBe(2 ** 60);
+      const inValue = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+      inValue['data/chunk0.xml'] = strToU8(strFromU8(inValue['data/chunk0.xml']).replace(OLD_VALUE, `<P Name="Value" Class="cell">\n                    <Element Class="double" Dimension="${dimension}"/>\n                </P>`));
+      const valueSession = createSession();
+      const valueRoot: any = ingest(valueSession, buffer(zipSync(inValue)), { filename: BINARY });
+      const [valueThrown] = thrownBy(() => valueSession.serializeSource(valueRoot.name));
+      expect(valueThrown?.message ?? null, `${dimension} in a Parameter's Value`).toBeNull();
+      const valueSaved = strFromU8(unzipSync(valueSession.serializeSource(valueRoot.name)!.bytes!)['data/chunk0.xml']);
+      const at = valueSaved.indexOf('<Element Class="double"', valueSaved.indexOf('<P Name="Name" Class="char">pDense</P>'));
+      expect(Number(/^<Element Class="double" Dimension="0\*(\d+)"\/>/.exec(valueSaved.slice(at))?.[1]), `${dimension} in a Parameter's Value`).toBe(2 ** 60);
     }
   });
 });
