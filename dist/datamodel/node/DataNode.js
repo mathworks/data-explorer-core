@@ -1038,8 +1038,13 @@ export default class DataNode extends BaseNode {
     // Class of its own — the class is stated by the Element inside, exactly as MATLAB
     // writes it and as _serializeObjectPropertyXml's `<P>` does for a nested object.
     static _serializeStringPropertyXml(name, elements, dims, indent) {
+        return DataNode._stringXml('P', DataNode.pxAttrs(name), elements, dims, indent);
+    }
+    // The same under any tag: a cell element holding a string is a classless `<Element>` around
+    // the envelope (cellstr_binary.sldd's cStr and cStrArr), as a property is a `<P>` around it.
+    static _stringXml(tag, attrs, elements, dims, indent) {
         const p = xmlPad(indent);
-        return (p + '<P' + DataNode.pxAttrs(name) + '>\n' + DataNode._stringEnvelopeXml(elements, dims, indent) + p + '</P>');
+        return p + '<' + tag + attrs + '>\n' + DataNode._stringEnvelopeXml(elements, dims, indent) + p + '</' + tag + '>';
     }
     static _serializeTypedPropertyXml(name, value, indent, at) {
         const p = xmlPad(indent);
@@ -1081,32 +1086,9 @@ export default class DataNode extends BaseNode {
         if (type === 'sparse') {
             return DataNode._detachedXml(value, name, 'P', { Name: name }, indent, at);
         }
-        // Rank 3 and up spells its header Matrix(2,3,2) — MATLAB's own binary
-        // dictionary writes such an entry as Dimension="2*3*2" with a flat
-        // column-major body, so every extent has to survive the round trip. The
-        // two-group form was the only one matched, so an N-D literal fell through to
-        // the scalar branch below and was written out as the single number 0.
-        const matrixMatch = raw.match(/^Matrix\((\d+(?:,\d+)*)\)\n(.+)$/s);
-        if (matrixMatch) {
-            const dims = matrixMatch[1].split(',').map(function (s) {
-                return parseInt(s, 10);
-            });
-            DataNode._sizeOrRefuse(dims, type, name, at, true);
-            const nums = DataNode._parseMatrixNums(matrixMatch[2], type);
-            const colMajor = transposeToColumnMajorND(nums, dims);
-            const formatted = colMajor.map(function (v) {
-                return formatNumericXml(v, type);
-            });
-            return (p +
-                '<P' +
-                DataNode.pxAttrs(name) +
-                ' Class="' +
-                type +
-                '" Dimension="' +
-                dims.join('*') +
-                '">' +
-                formatted.join(' ') +
-                '</P>');
+        const matrix = DataNode._matrixLiteralXml('P', DataNode.pxAttrs(name), name, type, raw, indent, at);
+        if (matrix !== null) {
+            return matrix;
         }
         const vecMatch = raw.match(/^\[(.+)\]$/);
         if (vecMatch) {
@@ -1129,6 +1111,49 @@ export default class DataNode extends BaseNode {
         }
         const num = DataNode._numToken(raw, type);
         return p + '<P' + DataNode.pxAttrs(name) + ' Class="' + type + '">' + formatNumericXml(num, type) + '</P>';
+    }
+    /**
+     * A typed `Matrix(d1,…,dn)` literal — `{_type: 'int8', _value: 'Matrix(2,2)\n[[1, 2]; [3,
+     * 4]]'}` — as the one element MATLAB holds it in, under `tag`: its class, every extent, and
+     * the elements in MATLAB's column-major order. Null for any other literal, which the
+     * caller's later arms spell. Shared by the property writer and the cell-element writer.
+     *
+     * Rank 3 and up spells its header Matrix(2,3,2) — MATLAB's own binary dictionary writes
+     * such an entry as Dimension="2*3*2" with a flat column-major body, so every extent has to
+     * survive the round trip. The two-group form was the only one matched, so an N-D literal
+     * fell through to the scalar branch and was written out as the single number 0. The
+     * cell-element writer had no arm for the literal at all, so a matrix of any rank in a cell
+     * that is an object's property went out as that 0: cellarr_binary.sldd's 2x3x2 cNd, lifted
+     * into one, was saved as `<Element Class="double">0.0</Element>`.
+     *
+     * parseCellElement states an EMPTY numeric element as the bare header, `Matrix(0,3)`: there
+     * are no elements to carry the shape any other way. It is written as MATLAB writes an
+     * empty, self-closed with its Dimension, where the scalar tail made it `NaN`. A bare header
+     * that declares elements is not a literal this reads.
+     */
+    static _matrixLiteralXml(tag, attrs, name, type, raw, indent, at) {
+        const m = raw.match(/^Matrix\((\d+(?:,\d+)*)\)(?:\n(.+))?$/s);
+        if (!m) {
+            return null;
+        }
+        const dims = m[1].split(',').map(function (s) {
+            return parseInt(s, 10);
+        });
+        const open = xmlPad(indent) + '<' + tag + attrs + ' Class="' + type + '" Dimension="' + dims.join('*') + '"';
+        if (m[2] === undefined) {
+            if (!dims.some((d) => d === 0)) {
+                return null;
+            }
+            DataNode._sizeOrRefuse(dims, type, name, at, true);
+            return open + '/>';
+        }
+        DataNode._sizeOrRefuse(dims, type, name, at, true);
+        const nums = DataNode._parseMatrixNums(m[2], type);
+        const colMajor = transposeToColumnMajorND(nums, dims);
+        const formatted = colMajor.map(function (v) {
+            return formatNumericXml(v, type);
+        });
+        return open + '>' + formatted.join(' ') + '</' + tag + '>';
     }
     /**
      * A complex value in its plain-text form — `{_type: 'cdata', _value: '1+2i 5+6i 3+4i
@@ -1156,25 +1181,26 @@ export default class DataNode extends BaseNode {
         return body === '' ? open + '/>' : open + '>' + body + '</' + tag + '>';
     }
     static _serializeObjectPropertyXml(name, value, indent, ownerNode, at) {
+        return DataNode._objectXml('P', DataNode.pxAttrs(name), name, value, indent, ownerNode, at);
+    }
+    /**
+     * An object bag (`{_array_class, _dimensions, _elements: [{_properties}]}`) under `tag`: a
+     * property's `<P Name="…">`, or the classless `<Element>` a cell element holding an object
+     * is — cellarr_binary.sldd's cObj is `<Element>` around one `<Element
+     * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two.
+     */
+    static _objectXml(tag, attrs, name, value, indent, ownerNode, at) {
         const p = xmlPad(indent);
         const ip = xmlPad(indent + 1);
         const className = value._array_class;
         DataNode._sizeOrRefuse(value._dimensions, className, name, at);
         const dims = value._dimensions || [1, 1];
         const elements = value._elements || [];
+        const close = '</' + tag + '>';
         if (elements.length === 0 ||
             (elements.length === 1 &&
                 (!elements[0]._properties || Object.keys(elements[0]._properties).length === 0))) {
-            return (p +
-                '<P' +
-                DataNode.pxAttrs(name) +
-                '>\n' +
-                ip +
-                '<Element Class="' +
-                escapeXml(className) +
-                '"/>\n' +
-                p +
-                '</P>');
+            return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(className) + '"/>\n' + p + close;
         }
         // Every extent, exactly as the struct sibling below does and for the same
         // reason — see ObjectNode.serializeXml for why a Dimension= that contradicts
@@ -1185,7 +1211,7 @@ export default class DataNode extends BaseNode {
         const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1
             ? ''
             : ' Dimension="' + dims.join('*') + '"';
-        let xml = p + '<P' + DataNode.pxAttrs(name) + dimAttr + '>\n';
+        let xml = p + '<' + tag + attrs + dimAttr + '>\n';
         elements.forEach((elem, k) => {
             const props = elem._properties || {};
             xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
@@ -1194,7 +1220,7 @@ export default class DataNode extends BaseNode {
             }
             xml += ip + '</Element>\n';
         });
-        xml += p + '</P>';
+        xml += p + close;
         return xml;
     }
     /**
@@ -1250,6 +1276,15 @@ export default class DataNode extends BaseNode {
         return at && { entry: at.entry, path: at.path + (n > 1 ? '(' + (k + 1) + ')' : '') + rest };
     }
     static _serializeStructPropertyXml(name, value, indent, at) {
+        return DataNode._structXml('P', DataNode.pxAttrs(name), name, value, indent, at);
+    }
+    /**
+     * A struct bag under `tag`: a property's `<P Name="…" Class="struct">`, or a cell element's
+     * `<Element Class="struct">`. MATLAB states a struct in a cell the way it states a struct
+     * property, shape and all: cellarr_binary.sldd's cStruct is `<Element Class="struct">` over
+     * one `<Element>`, its cStructArr2D `<Element Class="struct" Dimension="2*2">` over four.
+     */
+    static _structXml(tag, attrs, name, value, indent, at) {
         const p = xmlPad(indent);
         const ip = xmlPad(indent + 1);
         DataNode._sizeOrRefuse(value._dimensions, 'struct', name, at);
@@ -1259,7 +1294,7 @@ export default class DataNode extends BaseNode {
         // `Class="struct" Dimension="2*3*2"` for a 2x3x2 struct array, and twelve
         // <Element>s under a `2*3` would read back as a six-element array.
         const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims.join('*') + '"';
-        let xml = p + '<P' + DataNode.pxAttrs(name) + ' Class="struct"' + dimAttr + '>\n';
+        let xml = p + '<' + tag + attrs + ' Class="struct"' + dimAttr + '>\n';
         // An EMPTY struct declares its field names with `<Field Name="…"/>`, and only an empty one
         // does: MATLAB writes them on every struct property of its own with no `<Element>` and on
         // none that has one, because an element's `<P Name="…">` children already spell them.
@@ -1280,21 +1315,54 @@ export default class DataNode extends BaseNode {
             }
             xml += ip + '</Element>\n';
         });
-        xml += p + '</P>';
+        xml += p + '</' + tag + '>';
         return xml;
     }
     static _serializeCellPropertyXml(name, value, indent, at) {
+        return DataNode._cellXml('P', DataNode.pxAttrs(name), name, value, indent, at);
+    }
+    /**
+     * A cell bag under `tag`: a property's `<P Name="…" Class="cell">`, or a cell element's
+     * `<Element Class="cell">`, whose own elements go back through the element writer below, to
+     * any depth.
+     *
+     * A 1x1 cell states no Dimension, at either site, because MATLAB writes none: the corpus's
+     * binary dictionaries hold 81 cell properties that are 1x1 and carry no Dimension, and
+     * cases.sldd a nested one (cellNest), and no cell MATLAB wrote says `Dimension="1*1"`. Both
+     * reading sites take an absent Dimension as 1xN for N elements, so only a cell of exactly
+     * one element goes without.
+     */
+    static _cellXml(tag, attrs, name, value, indent, at) {
         const p = xmlPad(indent);
         DataNode._sizeOrRefuse(value._dimensions, 'cell', name, at);
         const dims = value._dimensions || [1, 1];
         const elements = value._elements || [];
-        let xml = p + '<P' + DataNode.pxAttrs(name) + ' Class="cell" Dimension="' + dims.join('*') + '">\n';
+        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1
+            ? ''
+            : ' Dimension="' + dims.join('*') + '"';
+        let xml = p + '<' + tag + attrs + ' Class="cell"' + dimAttr + '>\n';
         elements.forEach((elem, k) => {
             xml += DataNode._serializeCellElementXml(elem, indent + 1, at && { entry: at.entry, path: at.path + '{' + (k + 1) + '}' }) + '\n';
         });
-        xml += p + '</P>';
+        xml += p + '</' + tag + '>';
         return xml;
     }
+    /**
+     * One element of a cell held as a raw value — an object's property, a struct field, or a
+     * cell inside either — which is what every save of a binary dictionary writes such a cell
+     * from, edited or not. It takes every shape BinarySlddParser.parseCellElement reads an
+     * element as, and writes each in the spelling MATLAB gives it in a cell.
+     *
+     * It used to take only the scalars, a flat numeric row, the typed scalars and vectors,
+     * complex text and an encoded stream. Everything else MATLAB writes in a cell — a nested
+     * cell, a struct, an object, a string, a matrix — was written wrong on a save that touched
+     * nothing, measured with every element of the entry-level cells in cellarr_binary.sldd,
+     * cellstr_binary.sldd, typed_binary.sldd and cases.sldd lifted into an object's property: a
+     * nested cell, a struct or an object as `<Element Class="char">[object Object]</Element>`, a
+     * 2x3x2 double as `0.0`, a string as `Class="double" Dimension="1*1">a`. The containers are
+     * written by the property writers' own code, under `<Element>` where a property has `<P
+     * Name="…">`, so the two sites cannot disagree on a spelling.
+     */
     static _serializeCellElementXml(elem, indent, at) {
         const p = xmlPad(indent);
         if (typeof elem === 'number') {
@@ -1309,6 +1377,12 @@ export default class DataNode extends BaseNode {
         if (Array.isArray(elem)) {
             if (elem.length === 0) {
                 return p + '<Element Class="double" Dimension="0*0"/>';
+            }
+            // A bare list of text is a string, here as for a property (serializePropertyXml): it
+            // is how parseStringValue hands back a 1x1 string, so the numeric arm below wrote
+            // cellstr_binary.sldd's cStr as `<Element Class="double" Dimension="1*1">a</Element>`.
+            if (elem.every((v) => typeof v === 'string')) {
+                return DataNode._stringXml('Element', '', elem, [1, elem.length], indent);
             }
             const formatted = elem.map(function (v) {
                 return formatDoubleXml(v);
@@ -1342,6 +1416,14 @@ export default class DataNode extends BaseNode {
             if (mxChar) {
                 return p + '<Element Class="char"' + mxChar.dimAttr + '>' + mxChar.body + '</Element>';
             }
+            const matrix = DataNode._matrixLiteralXml('Element', '', '', type, raw, indent, at);
+            if (matrix !== null) {
+                return matrix;
+            }
+            // parseCellElement's empty logical, whose extents it does not keep: `[]` is 0x0.
+            if (raw === '[]') {
+                return p + '<Element Class="' + type + '" Dimension="0*0"/>';
+            }
             const vecMatch = raw.match(/^\[(.+)\]$/);
             if (vecMatch) {
                 const parts = vecMatch[1].split(',').map(function (s) {
@@ -1362,6 +1444,31 @@ export default class DataNode extends BaseNode {
             }
             const num = DataNode._numToken(raw, type);
             return p + '<Element Class="' + type + '">' + formatNumericXml(num, type) + '</Element>';
+        }
+        if (typeof elem === 'object' && elem !== null) {
+            const obj = elem;
+            if (obj._array_class) {
+                return DataNode._objectXml('Element', '', '', obj, indent, null, at);
+            }
+            if (obj._object_class) {
+                const wrapped = {
+                    _array_class: obj._object_class,
+                    _dimensions: [1, 1],
+                    _elements: [{ _properties: obj._properties || {} }],
+                };
+                return DataNode._objectXml('Element', '', '', wrapped, indent, null, at);
+            }
+            if (obj._array_type === 'Struct') {
+                return DataNode._structXml('Element', '', '', obj, indent, at);
+            }
+            if (obj._array_type === 'Cell') {
+                return DataNode._cellXml('Element', '', '', obj, indent, at);
+            }
+            if (obj._array_type === 'String') {
+                const elements = obj._elements || [];
+                DataNode._sizeOrRefuse(obj._dimensions, 'string', '', at);
+                return DataNode._stringXml('Element', '', elements, obj._dimensions || [1, elements.length], indent);
+            }
         }
         return p + '<Element Class="char">' + escapeXml(String(elem)) + '</Element>';
     }

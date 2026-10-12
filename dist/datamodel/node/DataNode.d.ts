@@ -237,7 +237,28 @@ export default class DataNode extends BaseNode {
      */
     static _stringEnvelopeXml(elements: unknown[], dims: number[], indent: number): string;
     static _serializeStringPropertyXml(name: string, elements: unknown[], dims: number[], indent: number): string;
+    static _stringXml(tag: string, attrs: string, elements: unknown[], dims: number[], indent: number): string;
     static _serializeTypedPropertyXml(name: string, value: Record<string, unknown>, indent: number, at?: PropertyAt): string;
+    /**
+     * A typed `Matrix(d1,…,dn)` literal — `{_type: 'int8', _value: 'Matrix(2,2)\n[[1, 2]; [3,
+     * 4]]'}` — as the one element MATLAB holds it in, under `tag`: its class, every extent, and
+     * the elements in MATLAB's column-major order. Null for any other literal, which the
+     * caller's later arms spell. Shared by the property writer and the cell-element writer.
+     *
+     * Rank 3 and up spells its header Matrix(2,3,2) — MATLAB's own binary dictionary writes
+     * such an entry as Dimension="2*3*2" with a flat column-major body, so every extent has to
+     * survive the round trip. The two-group form was the only one matched, so an N-D literal
+     * fell through to the scalar branch and was written out as the single number 0. The
+     * cell-element writer had no arm for the literal at all, so a matrix of any rank in a cell
+     * that is an object's property went out as that 0: cellarr_binary.sldd's 2x3x2 cNd, lifted
+     * into one, was saved as `<Element Class="double">0.0</Element>`.
+     *
+     * parseCellElement states an EMPTY numeric element as the bare header, `Matrix(0,3)`: there
+     * are no elements to carry the shape any other way. It is written as MATLAB writes an
+     * empty, self-closed with its Dimension, where the scalar tail made it `NaN`. A bare header
+     * that declares elements is not a literal this reads.
+     */
+    static _matrixLiteralXml(tag: string, attrs: string, name: string, type: string, raw: string, indent: number, at: PropertyAt | undefined): string | null;
     /**
      * A complex value in its plain-text form — `{_type: 'cdata', _value: '1+2i 5+6i 3+4i
      * 7+8i', _dimensions: [2, 2], _class?}`, what BinarySlddParser reads out of a binary
@@ -256,6 +277,13 @@ export default class DataNode extends BaseNode {
      */
     static _complexTextXml(tag: string, attrs: string, value: Record<string, unknown>, indent: number): string;
     static _serializeObjectPropertyXml(name: string, value: Record<string, unknown>, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string;
+    /**
+     * An object bag (`{_array_class, _dimensions, _elements: [{_properties}]}`) under `tag`: a
+     * property's `<P Name="…">`, or the classless `<Element>` a cell element holding an object
+     * is — cellarr_binary.sldd's cObj is `<Element>` around one `<Element
+     * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two.
+     */
+    static _objectXml(tag: string, attrs: string, name: string, value: Record<string, unknown>, indent: number, ownerNode: DataNode | null, at: PropertyAt | undefined): string;
     /**
      * Refuses to write a raw property value whose dims no Dimension can spell (parser/Size): a
      * raw cell, struct, object or string bag, an mxchar's or a typed literal's `Matrix(…)`
@@ -285,7 +313,42 @@ export default class DataNode extends BaseNode {
      */
     static _within(at: PropertyAt | undefined, n: number, k: number, rest: string): PropertyAt | undefined;
     static _serializeStructPropertyXml(name: string, value: Record<string, unknown>, indent: number, at?: PropertyAt): string;
+    /**
+     * A struct bag under `tag`: a property's `<P Name="…" Class="struct">`, or a cell element's
+     * `<Element Class="struct">`. MATLAB states a struct in a cell the way it states a struct
+     * property, shape and all: cellarr_binary.sldd's cStruct is `<Element Class="struct">` over
+     * one `<Element>`, its cStructArr2D `<Element Class="struct" Dimension="2*2">` over four.
+     */
+    static _structXml(tag: string, attrs: string, name: string, value: Record<string, unknown>, indent: number, at: PropertyAt | undefined): string;
     static _serializeCellPropertyXml(name: string, value: Record<string, unknown>, indent: number, at?: PropertyAt): string;
+    /**
+     * A cell bag under `tag`: a property's `<P Name="…" Class="cell">`, or a cell element's
+     * `<Element Class="cell">`, whose own elements go back through the element writer below, to
+     * any depth.
+     *
+     * A 1x1 cell states no Dimension, at either site, because MATLAB writes none: the corpus's
+     * binary dictionaries hold 81 cell properties that are 1x1 and carry no Dimension, and
+     * cases.sldd a nested one (cellNest), and no cell MATLAB wrote says `Dimension="1*1"`. Both
+     * reading sites take an absent Dimension as 1xN for N elements, so only a cell of exactly
+     * one element goes without.
+     */
+    static _cellXml(tag: string, attrs: string, name: string, value: Record<string, unknown>, indent: number, at: PropertyAt | undefined): string;
+    /**
+     * One element of a cell held as a raw value — an object's property, a struct field, or a
+     * cell inside either — which is what every save of a binary dictionary writes such a cell
+     * from, edited or not. It takes every shape BinarySlddParser.parseCellElement reads an
+     * element as, and writes each in the spelling MATLAB gives it in a cell.
+     *
+     * It used to take only the scalars, a flat numeric row, the typed scalars and vectors,
+     * complex text and an encoded stream. Everything else MATLAB writes in a cell — a nested
+     * cell, a struct, an object, a string, a matrix — was written wrong on a save that touched
+     * nothing, measured with every element of the entry-level cells in cellarr_binary.sldd,
+     * cellstr_binary.sldd, typed_binary.sldd and cases.sldd lifted into an object's property: a
+     * nested cell, a struct or an object as `<Element Class="char">[object Object]</Element>`, a
+     * 2x3x2 double as `0.0`, a string as `Class="double" Dimension="1*1">a`. The containers are
+     * written by the property writers' own code, under `<Element>` where a property has `<P
+     * Name="…">`, so the two sites cannot disagree on a spelling.
+     */
     static _serializeCellElementXml(elem: unknown, indent: number, at?: PropertyAt): string;
     /**
      * One number out of a typed literal: '3.14159274F', '18446744073709551615U', '-1'.
