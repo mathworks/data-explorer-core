@@ -1264,8 +1264,8 @@ export default class DataNode extends BaseNode {
    *
    * parseCellElement states an EMPTY numeric element as the bare header, `Matrix(0,3)`: there
    * are no elements to carry the shape any other way. It is written as MATLAB writes an
-   * empty, self-closed with its Dimension, where the scalar tail made it `NaN`. A bare header
-   * that declares elements is not a literal this reads.
+   * empty, self-closed with its Dimension, where the scalar tail wrote the 0x3 as the scalar
+   * `0.0`. A bare header that declares elements is not a literal this reads.
    */
   static _matrixLiteralXml(
     tag: string,
