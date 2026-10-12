@@ -209,6 +209,14 @@ export interface PropertyAt {
   path: string;
 }
 
+/**
+ * How many writers of XML are gathering the properties they write as `<P>`s right now
+ * (DataNode._xmlProperties). While one is, each node's value under them is asked for in the
+ * XML's spelling, which has no null element: a node keeping one (DataNode._keepNullElement)
+ * answers with what its class writes for an element holding no properties.
+ */
+let gatheringXml = 0;
+
 export default class DataNode extends BaseNode {
   metadata: Record<string, unknown> | null;
   serial: Record<string, unknown>;
@@ -871,6 +879,40 @@ export default class DataNode extends BaseNode {
   }
 
   /**
+   * Make `rawVal`, an object value whose one element is `null`, what this node writes as its
+   * value for as long as nothing changes it: `_rawInput`, which every edit at or under the node
+   * drops (_markModified) and a rename keeps (setProperty).
+   *
+   * MATLAB writes every element of an object as an object, but a text dictionary is JSON anyone
+   * can edit. A typed node reads a null element as one holding no properties, and its class
+   * writes the value by rebuilding the element from its bag: as `{"_properties":{}}`, or with
+   * whatever a class writes for a property the file did not hold (a ConfigSet its Name, an
+   * EnumTypeDefinition its Enumerals). So an untouched save rewrote the null. Installed on the
+   * instance, in front of whichever serializeValue its class has, for the reason _adoptEncoded
+   * gives.
+   *
+   * A binary dictionary has no spelling of a null element, so as XML the null is written,
+   * wherever it sits, as `{"_properties":{}}` is written there. Where its node is what writes
+   * it, that is what the class writes for an element holding no properties. The node's own
+   * XML does so from its rows: as an entry, a cell's element or a struct's field. A writer
+   * that writes it from the node's value instead, which is an object's property, a
+   * Parameter's Value and an edited struct or cell there, asks for that value while it
+   * gathers its properties (_xmlProperties), and is given the class's, not the null. An
+   * unedited struct or cell there is written from its value as read, where either is an
+   * element with no properties.
+   */
+  _keepNullElement(rawVal: unknown): void {
+    this._rawInput = rawVal;
+    const own = this as unknown as { serializeValue: () => unknown };
+    own.serializeValue = function (this: DataNode): unknown {
+      if (this._rawInput !== undefined && gatheringXml === 0) {
+        return this._rawInput;
+      }
+      return (Object.getPrototypeOf(this) as DataNode).serializeValue.call(this);
+    };
+  }
+
+  /**
    * The refusal for an edit to a value that is still an encoded byte stream, or null when
    * the edit may go ahead. Every setProperty asks this first, the overrides included.
    *
@@ -935,7 +977,7 @@ export default class DataNode extends BaseNode {
     const ip = xmlPad(indent + 1);
     const rawVal = this.serial._rawVal as Record<string, unknown>;
     const className = rawVal._array_class as string;
-    const props = this._getSerializedProperties();
+    const props = this._xmlProperties();
 
     let attrStr = '';
     if (attrs && attrs.Name) {
@@ -954,6 +996,21 @@ export default class DataNode extends BaseNode {
 
   _getSerializedProperties(): Record<string, unknown> {
     return { ...(this.serial._properties as Record<string, unknown>) };
+  }
+
+  /**
+   * The properties an object's XML writes as `<P>`s (_serializeSimulinkObjectXml, and each
+   * element of an object array): _getSerializedProperties, gathered in the XML's spelling
+   * (gatheringXml). Where it holds a node's value, rather than the node writing itself, that
+   * value is what the XML is written from, and a kept null element is not a spelling of one.
+   */
+  _xmlProperties(): Record<string, unknown> {
+    gatheringXml++;
+    try {
+      return this._getSerializedProperties();
+    } finally {
+      gatheringXml--;
+    }
   }
 
   /** Where this node's property `propName` stands, for a writer that writes it from its raw value. */
@@ -1357,14 +1414,14 @@ export default class DataNode extends BaseNode {
     const className = value._array_class as string;
     DataNode._sizeOrRefuse(value._dimensions, className, name, at);
     const dims = (value._dimensions as number[]) || [1, 1];
-    const elements = (value._elements as Record<string, unknown>[]) || [];
+    const elements = (value._elements as (Record<string, unknown> | null)[]) || [];
     const close = '</' + tag + '>';
+    // An element a text dictionary holds as `null` holds no properties (ObjectNode.parse): reading
+    // `_properties` off it threw, and the write of the whole dictionary with it.
+    const propsOf = (elem: Record<string, unknown> | null): Record<string, unknown> =>
+      ((elem && elem._properties) as Record<string, unknown>) || {};
 
-    if (
-      elements.length === 0 ||
-      (elements.length === 1 &&
-        (!elements[0]._properties || Object.keys(elements[0]._properties as object).length === 0))
-    ) {
+    if (elements.length === 0 || (elements.length === 1 && Object.keys(propsOf(elements[0])).length === 0)) {
       return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(className) + '"/>\n' + p + close;
     }
 
@@ -1380,7 +1437,7 @@ export default class DataNode extends BaseNode {
         : ' Dimension="' + dims.join('*') + '"';
     let xml = p + '<' + tag + attrs + dimAttr + '>\n';
     elements.forEach((elem, k) => {
-      const props = (elem._properties as Record<string, unknown>) || {};
+      const props = propsOf(elem);
       xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
       for (const [propName, propVal] of Object.entries(props)) {
         xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName)) + '\n';

@@ -112,12 +112,20 @@ export default class ObjectNode extends DataNode {
         // entry the outer array holds. Anything else (an element whose node
         // serializes to a bare scalar, or to null) contributes an empty bag: the
         // wrapper is the only shape this array form can carry.
+        //
+        // An element the file held as `null` comes back in that wrapper as `null`, for as long
+        // as nothing changed it (see parse), and goes back as the `null` it was. Gathered for
+        // XML, a typed one comes back as the element its class writes for one holding no
+        // properties instead (DataNode._xmlProperties).
         if (this._isElementArray) {
             const elements = this.children.map((child) => {
                 const elemVal = (child as DataNode).serializeValue() as Record<string, unknown> | null;
                 const first = Array.isArray(elemVal?._elements)
-                    ? (elemVal._elements[0] as Record<string, unknown> | undefined)
+                    ? (elemVal._elements[0] as Record<string, unknown> | null | undefined)
                     : undefined;
+                if (first === null) {
+                    return null;
+                }
                 return { _properties: (first?._properties as Record<string, unknown>) ?? {} };
             });
             return { ...rawVal, _elements: elements };
@@ -171,7 +179,7 @@ export default class ObjectNode extends DataNode {
         let xml = p + '<' + tagName + attrStr + dimAttr + '>\n';
         for (const child of this.children) {
             xml += ip + '<Element Class="' + escapeXml(this.arrayClass) + '">\n';
-            const props = (child as ObjectNode)._getSerializedProperties();
+            const props = (child as ObjectNode)._xmlProperties();
             for (const [propName, propVal] of Object.entries(props)) {
                 xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, child as DataNode, (child as DataNode)._propertyAt(propName)) + '\n';
             }
@@ -268,7 +276,11 @@ export default class ObjectNode extends DataNode {
             ObjectNode._addPropertyChildren(node, rawVal._properties as Record<string, unknown>);
             return node;
         }
-        const elements = (rawVal._elements as Record<string, unknown>[]) || [];
+        // MATLAB writes every element as an object, but a text dictionary is JSON anyone can
+        // edit, and an element can be `null`. Reading `_properties` off one threw, and the throw
+        // failed the open of the whole dictionary. A null element holds no property, so it has
+        // no rows; it is kept as read, and goes back as `null` while nothing changes it.
+        const elements = (rawVal._elements as (Record<string, unknown> | null)[]) || [];
         if (elements.length > 1) {
             node._isElementArray = true;
             const dims = (rawVal._dimensions as number[]) || [1, elements.length];
@@ -277,13 +289,14 @@ export default class ObjectNode extends DataNode {
                 // through NodeRegistry as a single-element value object so a KNOWN
                 // class (Simulink.Parameter, …) becomes its own typed node and an
                 // unknown/custom class becomes a scalar ObjectNode — the same
-                // dispatch a standalone scalar would take.
+                // dispatch a standalone scalar would take. A null element goes in as
+                // the null it is, which both of those keep (NodeClassMap.parseValue).
                 const elemRaw = {
                     _array_class: arrayClass,
                     _array_type: 'MATLABArray',
                     _dimensions: [1, 1],
                     _mw_element_type: (rawVal._mw_element_type as string) || 'MATLABArray',
-                    _elements: [{ _properties: (elem._properties as Record<string, unknown>) || {} }],
+                    _elements: [elem === null || elem === undefined ? null : { _properties: (elem._properties as Record<string, unknown>) || {} }],
                 };
                 const elemNode = NodeRegistry.parseValue(elemRaw, String(ei), node) as DataNode;
                 // The MCOS decoder and both SLDD paths deliver elements in MATLAB's
@@ -296,7 +309,9 @@ export default class ObjectNode extends DataNode {
                 node.addChild(elemNode);
             });
         } else if (elements.length === 1) {
-            ObjectNode._addPropertyChildren(node, elements[0]._properties as Record<string, unknown>);
+            // A scalar whose element is null has no rows, so it writes back the value it read
+            // (serializeValue).
+            ObjectNode._addPropertyChildren(node, elements[0]?._properties as Record<string, unknown> | undefined);
         }
         return node;
     }

@@ -118,7 +118,9 @@ export default class SimulinkObjectNode extends DataNode {
     static _propsOf(rawVal) {
         const elem = (rawVal._elements && rawVal._elements[0]);
         const props = (elem && elem._properties);
-        const envelope = elem && elem[CUSTOM_SAVE_KEY];
+        // Not `elem && …`, which for an element a text dictionary holds as `null` is that null: it
+        // filed an envelope of null, and an edit wrote `{"_custom_save":null}`.
+        const envelope = elem ? elem[CUSTOM_SAVE_KEY] : undefined;
         if (envelope === undefined) {
             // Returned BY REFERENCE, which `_defaultRawVal` documents as a contract: an edit to the
             // node's bag has to reach the bytes through this aliasing. Only the branch below — where

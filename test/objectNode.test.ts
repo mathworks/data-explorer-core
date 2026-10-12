@@ -472,3 +472,222 @@ describe('ObjectNode keeps the `_`-named keys of its property bag', () => {
     });
   });
 });
+
+// An object's element is an object in every file MATLAB writes, but a text dictionary is JSON
+// anyone can edit, and an element can be `null`. ObjectNode.parse read `_properties` off it,
+// which threw ("Cannot read properties of null (reading '_properties')"), and the throw failed
+// the open of the whole dictionary: for a scalar of a class with no node of its own, and for an
+// object array of any class. A typed scalar opened, but its save rebuilt the element, as
+// `{"_properties":{}}`, or as a `_custom_save` envelope of null for a class that saves through
+// saveobj. The null is now kept as read. The element shows as one with no property rows; an
+// untouched or renamed save and a copy write the null back, and so does a save after an edit
+// of a sibling element. Written as XML, for a binary dictionary, which has no spelling of a
+// null element, it is written wherever it sits as `{"_properties":{}}` is written there.
+describe('an object value with a null element', () => {
+  const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)));
+  const control = read('./fixtures/rt_text.sldd').toString('utf8');
+  const content = (json: any) => json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content;
+  // rt_text.sldd with one more entry per value, in order.
+  const withEntries = (values: Record<string, unknown>): string => {
+    const json = JSON.parse(control);
+    const entries = content(json).entries;
+    Object.entries(values).forEach(([name, value], i) => {
+      entries.push({ name, metadata: { ...entries[0].metadata, uuid: `a43e9523-8ba6-426a-b689-6e7d8591${1000 + i}` }, value });
+    });
+    return JSON.stringify(json, null, '\t');
+  };
+  const open = (text: string) => {
+    const session = createSession();
+    const source: any = ingest(session, text, { filename: 'gadget.sldd' });
+    const entry = (name: string) => source.flatten().find((n: any) => n.name === name);
+    const saved = () => (session.serializeSource(source.name) as { text: string }).text;
+    const savedValue = (name: string) => content(JSON.parse(saved())).entries.find((e: any) => e.name === name).value;
+    return { source, entry, saved, savedValue };
+  };
+  // Every row under an entry, by path, with the value it shows.
+  const rowsOf = (node: any, path = node.name): string[] =>
+    [path + ' = ' + String(node.displayValue), ...node.children.flatMap((c: any) => rowsOf(c, path + '/' + c.displayName))];
+  const scalar = (cls: string, element: unknown = null) => ({ _array_class: cls, _dimensions: [1, 1], _elements: [element], _mw_element_type: 'MATLABArray' });
+  const array = (cls: string, props: Record<string, unknown>, second: unknown = null) => ({
+    _array_class: cls, _dimensions: [1, 2], _elements: [{ _properties: props }, second], _mw_element_type: 'MATLABArray',
+  });
+  // A registered class, one with its own typed node, and a class with no node of its own; each
+  // with a first array element to edit and the edit.
+  const CLASSES: Array<[string, string, Record<string, unknown>, (element: any) => unknown]> = [
+    ['Simulink.Parameter', 'ParameterNode', { Value: 1 }, (element) => element.setProperty('Value', '5')],
+    ['Widget', 'ObjectNode', { A: 1 }, (element) => element.children[0].setProperty('Value', '7')],
+    ['Simulink.Signal', 'SignalNode', { Description: 'd' }, (element) => element.setProperty('Description', 'e')],
+  ];
+
+  it.each(CLASSES)('%s: opens, as a scalar and as an array, with no property rows for the null, and saves untouched byte for byte', (cls, nodeClass, props) => {
+    const values = { nullScalar: scalar(cls), nullArray: array(cls, props) };
+    const text = withEntries(values);
+    const { source, entry, saved } = open(text);
+    expect(rowsOf(entry('gadget'))).toEqual(rowsOf(open(control).entry('gadget')));
+    expect([entry('nullScalar').constructor.name, entry('nullScalar').children.length]).toEqual([nodeClass, 0]);
+    const element = entry('nullArray').children[1];
+    expect([element.displayName, element.constructor.name, element.children.length]).toEqual(['nullArray(2)', nodeClass, 0]);
+    expect(saved()).toBe(text);
+    // A copy, as a host takes one, and a rename, which leaves a value as it was read.
+    for (const [name, value] of Object.entries(values)) {
+      expect(JSON.stringify(entry(name).serialize().value)).toBe(JSON.stringify(value));
+    }
+    for (const name of Object.keys(values)) {
+      expect(entry(name).setProperty('Name', name + 'R')).toBe(true);
+    }
+    const renamed = content(JSON.parse(saved())).entries;
+    for (const [name, value] of Object.entries(values)) {
+      expect(JSON.stringify(renamed.find((e: any) => e.name === name + 'R').value)).toBe(JSON.stringify(value));
+    }
+    expect(source.flatten().length).toBe(open(text).source.flatten().length);
+  });
+
+  it.each(CLASSES)('%s: an array keeps its null element when the other element is edited', (cls, _, props, edit) => {
+    // The same edit of the same array whose second element is an element with no properties.
+    const empty = open(withEntries({ arr: array(cls, props, { _properties: {} }) }));
+    expect(edit(empty.entry('arr').children[0])).toBe(true);
+    const edited = empty.savedValue('arr')._elements[0];
+    expect(edited).not.toEqual({ _properties: props });
+
+    const { entry, savedValue } = open(withEntries({ arr: array(cls, props) }));
+    expect(edit(entry('arr').children[0])).toBe(true);
+    expect(savedValue('arr')._elements).toEqual([edited, null]);
+    expect(entry('arr').serialize().value._elements).toEqual([edited, null]);
+  });
+
+  it.each(CLASSES.filter(([, nodeClass]) => nodeClass !== 'ObjectNode'))('%s: an edit of the null scalar itself writes what the same edit writes of an element holding no properties', (cls) => {
+    // The null is kept while nothing changes the value, and no longer.
+    const [nulls, empties] = [null, { _properties: {} }].map((element) => {
+      const { entry, savedValue } = open(withEntries({ s: scalar(cls, element) }));
+      expect(entry('s').setProperty('Description', 'x')).toBe(true);
+      return [savedValue('s'), entry('s').serialize().value];
+    });
+    expect(nulls).toEqual(empties);
+    expect(nulls[0]._elements).toEqual([{ _properties: { Description: 'x' } }]);
+  });
+
+  it.each(CLASSES)('%s: is written as XML as an element holding no properties, and pasted into a binary dictionary', (cls, _, props) => {
+    const values = { nullScalar: scalar(cls), nullArray: array(cls, props) };
+    const empties = { nullScalar: scalar(cls, { _properties: {} }), nullArray: array(cls, props, { _properties: {} }) };
+    const nulls = open(withEntries(values));
+    const control = open(withEntries(empties));
+    for (const name of Object.keys(values)) {
+      const xml = serializeEntryToXml(nulls.entry(name));
+      expect(xml).toBe(serializeEntryToXml(control.entry(name)));
+      const session = createSession();
+      const binary: any = ingest(session, read('./parity/artifacts/binary/cases.sldd'), { filename: 'cases.sldd' });
+      const design = binary.getSection('design');
+      const pasted = design.parseEntry(JSON.parse(JSON.stringify(nulls.entry(name).serialize())));
+      expect(JSON.stringify(pasted.serialize().value)).toBe(JSON.stringify((values as any)[name]));
+      const chunk = strFromU8(unzipSync((session.serializeSource(binary.name) as { bytes: Uint8Array }).bytes)['data/chunk0.xml']);
+      expect(chunk).toContain(xml);
+    }
+  });
+
+  it('every typed class keeps a null scalar element through an untouched save and a copy, and writes it as XML as an element holding no properties', async () => {
+    const { getRegisteredClasses } = await import('../src/datamodel/node/data/NodeClassMap.js');
+    // The three registered names that are not an object's class: they are the Add gallery's.
+    const classes = getRegisteredClasses().filter((c) => !['MatlabVariable', 'Constant', 'MatlabStruct'].includes(c));
+    expect(classes.length).toBeGreaterThan(20);
+    const values = Object.fromEntries(classes.map((c, i) => ['e' + i, scalar(c)]));
+    const text = withEntries(values);
+    const nulls = open(text);
+    expect(nulls.saved()).toBe(text);
+    const control = open(withEntries(Object.fromEntries(classes.map((c, i) => ['e' + i, scalar(c, { _properties: {} })]))));
+    for (const [name, value] of Object.entries(values)) {
+      expect([value._array_class, JSON.stringify(nulls.entry(name).serialize().value)]).toEqual([value._array_class, JSON.stringify(value)]);
+      expect([value._array_class, serializeEntryToXml(nulls.entry(name))]).toEqual([value._array_class, serializeEntryToXml(control.entry(name))]);
+    }
+  });
+
+  it('opens and saves one nested as an object\'s property, a Parameter\'s Value and a cell\'s element', () => {
+    const nested = (element: unknown) => ({
+      inObject: { _array_class: 'Widget', _dimensions: [1, 1], _elements: [{ _properties: { P: scalar('Gadget', element), x: 1 } }], _mw_element_type: 'MATLABArray' },
+      inParameter: { _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: scalar('Gadget', element) } }], _mw_element_type: 'MATLABArray' },
+      inCell: { _array_type: 'Cell', _dimensions: [1, 2], _elements: [scalar('Gadget', element), 1], _mw_element_type: 'MATLABArray' },
+    });
+    const text = withEntries(nested(null));
+    const nulls = open(text);
+    const control = open(withEntries(nested({ _properties: {} })));
+    expect(nulls.saved()).toBe(text);
+    for (const name of Object.keys(nested(null))) {
+      expect(rowsOf(nulls.entry(name))).toEqual(rowsOf(control.entry(name)));
+      expect(JSON.stringify(nulls.entry(name).serialize().value)).toBe(JSON.stringify((nested(null) as any)[name]));
+      expect(serializeEntryToXml(nulls.entry(name))).toBe(serializeEntryToXml(control.entry(name)));
+    }
+    // Beside an edit, the null stays: the object's other property.
+    expect(nulls.entry('inObject').children.find((c: any) => c.name === 'x').setProperty('Value', '2')).toBe(true);
+    expect(nulls.savedValue('inObject')._elements[0]._properties).toEqual({ P: scalar('Gadget'), x: 2 });
+  });
+
+  // A typed class writes the properties it writes for an element holding none, an AliasType its
+  // BaseType, a ConfigSet its Name. As an entry, a cell entry's element or a struct entry's
+  // field, the null is written by its node's own XML, which does that. Nested where a writer
+  // writes it from the node's value, which is an object's property, a Parameter's Value, and an
+  // edited struct there, it was written from the kept null, as an empty `<Element Class="…"/>`:
+  // one value, two XML spellings, by where it sat. An unedited struct there is written from its
+  // value as read, where the null and `{"_properties":{}}` are both an empty element.
+  it('every typed class\'s null element, nested where it is written from its value, is written as XML as an element holding no properties is', async () => {
+    const { getRegisteredClasses } = await import('../src/datamodel/node/data/NodeClassMap.js');
+    const classes = getRegisteredClasses().filter((c) => !['MatlabVariable', 'Constant', 'MatlabStruct'].includes(c));
+    const object = (cls: string, props: Record<string, unknown>) => ({ _array_class: cls, _dimensions: [1, 1], _elements: [{ _properties: props }], _mw_element_type: 'MATLABArray' });
+    const struct = (fields: Record<string, unknown>) => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [fields], _mw_element_type: 'MATLABArray' });
+    // Each route, with the sibling `x` an edit changes where it has one.
+    const ROUTES: Record<string, (v: unknown, x?: number) => unknown> = {
+      inObject: (v, x = 1) => object('Widget', { P: v, x }),
+      inParameter: (v) => object('Simulink.Parameter', { Value: v }),
+      inObjectsObject: (v, x = 1) => object('Widget', { P: object('Gadget', { Q: v, x }) }),
+      inObjectArray: (v, x = 1) => ({ _array_class: 'Widget', _dimensions: [1, 2], _elements: [{ _properties: { P: v, x } }, { _properties: { x: 1 } }], _mw_element_type: 'MATLABArray' }),
+      inParameterStruct: (v, x = 1) => object('Simulink.Parameter', { Value: struct({ s: v, x }) }),
+      inObjectStruct: (v, x = 1) => object('Widget', { P: struct({ s: v, x }) }),
+    };
+    const SHAPES: Record<string, (cls: string, element: unknown) => unknown> = {
+      scalar: (cls, element) => scalar(cls, element),
+      array: (cls, element) => ({ _array_class: cls, _dimensions: [1, 2], _elements: [element, element], _mw_element_type: 'MATLABArray' }),
+    };
+    const cases = Object.keys(ROUTES).flatMap((route) => Object.keys(SHAPES).flatMap((shape) => classes.map((cls, i) => ({ name: `${route}_${shape}_${i}`, route, shape, cls }))));
+    const valueOf = (c: (typeof cases)[number], element: unknown, x?: number) => ROUTES[c.route](SHAPES[c.shape](c.cls, element), x);
+    const valuesOf = (element: unknown) => Object.fromEntries(cases.map((c) => [c.name, valueOf(c, element)]));
+    const text = withEntries(valuesOf(null));
+    const nulls = open(text);
+    const control = open(withEntries(valuesOf({ _properties: {} })));
+    expect(nulls.saved()).toBe(text);
+    // The deepest row named `x`: the sibling an edit changes.
+    const xOf = (node: any): any => node.children.map(xOf).find(Boolean) ?? (node.name === 'x' && node.children.length === 0 ? node : undefined);
+    // An edit stamps the entry's LastMod to the second, so the two are compared without it.
+    const unstamped = (xml: string) => xml.replace(/<P Name="LastMod" Class="char">[^<]*<\/P>/, '');
+    const paste = (from: ReturnType<typeof open>) => {
+      const session = createSession();
+      const binary: any = ingest(session, read('./parity/artifacts/binary/cases.sldd'), { filename: 'cases.sldd' });
+      const design = binary.getSection('design');
+      const pasted: Record<string, any> = Object.fromEntries(cases.map((c) => [c.name, design.parseEntry(JSON.parse(JSON.stringify(from.entry(c.name).serialize())))]));
+      const chunk = () => strFromU8(unzipSync((session.serializeSource(binary.name) as { bytes: Uint8Array }).bytes)['data/chunk0.xml']);
+      return { pasted, chunk };
+    };
+    const [nullsPasted, controlPasted] = [paste(nulls), paste(control)];
+    for (const c of cases) {
+      const label = [c.name, c.cls];
+      expect([...label, JSON.stringify(nulls.entry(c.name).serialize().value)]).toEqual([...label, JSON.stringify(valueOf(c, null))]);
+      expect([...label, serializeEntryToXml(nulls.entry(c.name))]).toEqual([...label, serializeEntryToXml(control.entry(c.name))]);
+      expect([...label, serializeEntryToXml(nullsPasted.pasted[c.name])]).toEqual([...label, serializeEntryToXml(controlPasted.pasted[c.name])]);
+    }
+    // With the sibling edited: in the binary dictionary, and in the text one, whose save keeps
+    // the null.
+    for (const c of cases.filter((c) => c.route !== 'inParameter')) {
+      const label = [c.name, c.cls];
+      for (const from of [nullsPasted, controlPasted]) {
+        expect([...label, xOf(from.pasted[c.name]).setProperty('Value', '2')]).toEqual([...label, true]);
+      }
+      expect([...label, unstamped(serializeEntryToXml(nullsPasted.pasted[c.name]))]).toEqual([...label, unstamped(serializeEntryToXml(controlPasted.pasted[c.name]))]);
+      expect([...label, xOf(nulls.entry(c.name)).setProperty('Value', '2')]).toEqual([...label, true]);
+    }
+    const saved = content(JSON.parse(nulls.saved())).entries;
+    const chunk = nullsPasted.chunk();
+    for (const c of cases) {
+      const label = [c.name, c.cls];
+      const x = c.route === 'inParameter' ? undefined : 2;
+      expect([...label, JSON.stringify(saved.find((e: any) => e.name === c.name).value)]).toEqual([...label, JSON.stringify(valueOf(c, null, x))]);
+      expect([...label, chunk.includes(serializeEntryToXml(nullsPasted.pasted[c.name]))]).toEqual([...label, true]);
+    }
+  });
+});
