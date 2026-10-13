@@ -182,10 +182,11 @@ describe('complexPropertyValue: the binary dictionary\'s complex form', () => {
     expect(complexPropertyValue(complexVar('int64', [1, 1], [c('9223372036854775807', 1)]))?._nonFinite).toBeUndefined();
   });
 
-  it('a marked value reads as the complex doubles it is; the same text unmarked does not', () => {
+  it('a marked value reads as the complex doubles it is, and so does the same text unmarked', () => {
     // [1+2i NaN 3-4i]. Unmarked, this is how a binary dictionary's own non-finite text
-    // reads (MatlabVariableNode._isOwnNonFiniteText says why), and how the decoder's read
-    // before the marker: one quoted char, class char, no element rows.
+    // reaches the node, which read it as one quoted char, class char, no element rows, as
+    // it read the decoder's before the marker. It reads both as numbers now
+    // (MatlabVariableNode._isComplexText).
     const marked = complexPropertyValue(complexVar('double', [1, 3], [c(1, 2), c(NaN, 0), c(3, -4)]))!;
     const node: any = NodeRegistry.parseValue(marked, 'Value', null);
     expect([node.displayValue, node.className]).toEqual(['[1+2i NaN+0i 3-4i]', 'double']);
@@ -193,7 +194,7 @@ describe('complexPropertyValue: the binary dictionary\'s complex form', () => {
     const { _nonFinite, ...unmarked } = marked;
     expect(_nonFinite).toBe(true);
     const plain: any = NodeRegistry.parseValue(unmarked, 'Value', null);
-    expect([plain.displayValue, plain.className, plain.children.length]).toEqual(["'1+2i NaN+0i 3-4i'", 'char', 0]);
+    expect([plain.displayValue, plain.className, plain.children.length]).toEqual(['[1+2i NaN+0i 3-4i]', 'double', 3]);
     // A scalar too, and a part that is NaN and Inf at once.
     for (const [pair, shows] of [
       [c(NaN, NaN), 'NaNNaNi'],

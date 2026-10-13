@@ -229,18 +229,6 @@ const PINNED: [file: string, path: string, shows: string, why: string][] = [
   ],
   [
     'complex_binary.sldd',
-    'pNonFinite',
-    "'Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i'",
-    'MATLAB\'s own text, quoted as a char: parseCdata\'s text test does not admit `Inf` or `NaN`',
-  ],
-  [
-    'complex_binary.sldd',
-    'pMixedNF',
-    "'1.0+2.0i NaN+0.0i 3.0-4.0i'",
-    'the same: one NaN part is enough for the whole of MATLAB\'s text to be quoted as a char',
-  ],
-  [
-    'complex_binary.sldd',
     'pThird',
     '0.33333333333333331+0.1i',
     'MATLAB\'s own text, which a binary dictionary shows as written apart from a trailing `.0`: ' +
@@ -253,7 +241,9 @@ const pinnedAt = (file: string, path: string) => PINNED.find(([f, p]) => f === f
 // Where MATLAB itself does not read a venue's copy back as the value it wrote: MATLAB's
 // mat2str of the reopened value, pinned. The binary dictionary stores complex(1, NaN) as
 // `1.0NaNi` — no sign before a NaN imaginary part — and MATLAB's own reader takes
-// `1.0NaNi -Inf+2.0i` back as two REAL elements, 1 and NaN.
+// `1.0NaNi -Inf+2.0i` back as two REAL elements, 1 and NaN. This package reads the text as
+// the value MATLAB wrote, so that venue's value is graded against the value written, the
+// .mat's record.
 const MATLAB_READS_BACK: [file: string, path: string, mat2str: string][] = [
   ['complex_binary.sldd', 'pNonFinite', '[Inf-1i*Inf NaN+1i 1 NaN]'],
 ];
@@ -355,7 +345,8 @@ describe('every complex Value shows MATLAB\'s numbers, in every venue', () => {
     for (const [path, t] of Object.entries(fx.truth.paths)) {
       if (!isParameter(t)) continue;
       it(`${fx.file}: ${path} (${t.class}) = ${valueLabel(t)}`, () => {
-        expectParameter(nodeAt(variables, path), t, path, fx.file);
+        const written = MATLAB_READS_BACK.some(([f, p]) => f === fx.file && p === path) ? MAT.truth.paths[path] : t;
+        expectParameter(nodeAt(variables, path), written, path, fx.file);
       });
     }
   }

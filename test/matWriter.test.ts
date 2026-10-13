@@ -503,16 +503,17 @@ describe('the integer widths MATLAB’s own corpus never made this writer produc
 // pinned is always the same one — the slot is kept, filled with the nearest thing MATLAB
 // can read, and the rest of the value goes out intact.
 describe('a value the model could not hand over whole is still written', () => {
-  it('writes a non-finite int64 element as zero rather than failing the save', () => {
-    // `BigInt()` throws on Inf and on NaN, and there is no integer to write instead —
-    // an int64 that came in through a path still reading it as a double, or an element a
-    // user typed `Inf` into, has no 64-bit form at all. Zero in the slot keeps every
-    // other element of the array in its own place.
+  it('writes a non-finite int64 element as MATLAB converts it rather than failing the save', () => {
+    // `BigInt()` throws on Inf and on NaN — an int64 that came in through a path still
+    // reading it as a double, or an element a user typed `Inf` into, has no 64-bit form
+    // as it stands. MATLAB's int64(Inf) is intmax('int64') and int64(NaN) is 0
+    // (XmlUtils.toIntegerClass), and each in its own slot keeps every other element of
+    // the array in its own place.
     const back = readElement(
       encodeMatVariable(variable({ className: 'int64', dimensions: [1, 1, 3], value: [1, Infinity, NaN] })),
     );
     expect(back.className).toBe('int64');
-    expect(back.value).toEqual([1, 0, 0]);
+    expect(back.value).toEqual([1, '9223372036854775807', 0]);
   });
 
   it('writes a complex element that lost its imaginary part as x+0i, in its own slot', () => {

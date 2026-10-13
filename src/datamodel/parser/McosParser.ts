@@ -378,11 +378,12 @@ const isComplexPair = (x: unknown): x is ComplexPair =>
  * text, which is MATLAB's own and differs in digits and in sign where MATLAB writes more
  * (`0.33333333333333331+0.1i`, `1.0E-20+2.0E+21i`, `1-0i`).
  *
- * An Inf or NaN part is the other place the two differ, and the reason for
- * `_nonFinite`: parseCdata does not read the binary dictionary's non-finite text as
- * numbers (see MatlabVariableNode._isOwnNonFiniteText for why), and the marker is what
- * lets it read this text, so [1+2i NaN 3-4i] shows the three complex doubles the plain
- * .mat variable shows rather than one quoted char.
+ * An Inf or NaN part is the other place the two differ (MATLAB writes complex(1, NaN)
+ * `1.0NaNi`), and the envelope records one with `_nonFinite`. parseCdata read only text so
+ * marked as numbers, and showed a binary dictionary's own non-finite text quoted; it reads
+ * both now (MatlabVariableNode._isComplexText), so [1+2i NaN 3-4i] shows the three complex
+ * doubles the plain .mat variable shows, from either. The marker stays on the envelope as
+ * it was, which a copy of the value carries.
  *
  * Exported for its unit tests; resolveValue is the one caller.
  */

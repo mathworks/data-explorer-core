@@ -900,8 +900,10 @@ describe("MatlabVariableNode — an array element's data type follows the array"
         [t, t],
         // Suffixed per class: a suffixless body is one MATLAB reads back as double,
         // which would undo the very class this test is about. Bare of a Matrix()
-        // header, because a 1xN row states no shape (defect 21).
-        { _type: t, _value: '[150' + suffixOf(t) + ', 200' + suffixOf(t) + ']' },
+        // header, because a 1xN row states no shape (defect 21). The 150 typed into an
+        // int8 is int8(150), 127: MATLAB saturates at the class's range. The 200 was read,
+        // not typed, and stays as read.
+        { _type: t, _value: '[' + (t === 'int8' ? '127' : '150') + suffixOf(t) + ', 200' + suffixOf(t) + ']' },
       ]);
     }
   });

@@ -69,9 +69,9 @@ with one row per element; before, the decoder passed MatParser's `{re, im}` pair
 and the node showed `[object Object]`. The digits are the plain `.mat` variable's, which
 are not always the binary dictionary's text (`0.3333333333333333` against MATLAB's
 `0.33333333333333331`). A value with an Inf or NaN part carries `_nonFinite`, the one
-place the decoder's form is not the binary dictionary's: it lets the node read the
-elements, where the binary dictionary's own non-finite text is shown quoted (see
-`MatlabVariableNode._isOwnNonFiniteText`). Graded against MATLAB R2027a by
+place the decoder's form is not the binary dictionary's. The node reads the elements of
+either, the binary dictionary's own non-finite text included (see
+`MatlabVariableNode._isComplexText`). Graded against MATLAB R2027a by
 `test/complexMcosFixtures.test.ts` in four venues, and at the decoder by
 `test/complexMcosValue.test.ts`.
 

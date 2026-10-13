@@ -37,7 +37,7 @@
 // The tests hold all of it to byte equality against MATLAB's own eighteen cdata
 // streams, so a wrong guess here fails loudly rather than shipping a file MATLAB
 // reads as empty.
-import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, isEnumBag, isExactToken, parseComplexNum, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
+import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, isEnumBag, isExactToken, parseComplexNum, integerConversion, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
@@ -356,28 +356,34 @@ export function classPhrase(cls) {
     return (/^[aeio]/i.test(name) ? 'an ' : 'a ') + name;
 }
 const HOLE_BYTES = emptyDoubleBytes().length;
+// The integer class each integer payload type holds, which is what its values are converted
+// to (XmlUtils.toIntegerClass).
+const PAYLOAD_INTEGER_CLASS = {
+    [MI_INT8]: 'int8',
+    [MI_UINT8]: 'uint8',
+    [MI_INT16]: 'int16',
+    [MI_UINT16]: 'uint16',
+    [MI_INT32]: 'int32',
+    [MI_UINT32]: 'uint32',
+    [MI_INT64]: 'int64',
+    [MI_UINT64]: 'uint64',
+};
 /**
- * A 64-bit integer payload has to go out as a BigInt.
+ * The payload of a numeric element: each value as its type holds it.
  *
- * The value arrives one of two ways. An exact decimal TOKEN — a string, which is how
- * every channel now carries an int64/uint64 whose magnitude a double cannot hold
- * (XmlUtils.parseExactNum) — converts losslessly, which is the whole reason the text
- * form exists. A plain number may not be an integer any more: a 64-bit value that came
- * in through some path still reading it as a double lost precision above 2^53, and a
- * non-finite one has no integer form at all. BigInt() throws on both, and a throw here
- * would fail the whole save, so round and treat a non-finite as zero.
+ * An integer type's value is MATLAB's conversion of it to that class (toIntegerClass, its
+ * range looked up once for the payload, integerConversion): rounded to the nearest integer,
+ * a tie away from zero, and saturated, with NaN as 0.
+ * DataView's setters wrap modulo the width and truncate instead, so an int16 70000 went
+ * into the stream as 4464, 3.7 as 3 and Inf as 0, and a complex element typed 70000+1i
+ * was saved as 4464+1i. A value the class holds goes in as it always did.
+ *
+ * A 64-bit value goes out as a BigInt, from the exact decimal TOKEN a string carries when a
+ * double cannot hold it (XmlUtils.parseExactNum), so the conversion never puts one through
+ * a double; a plain number is converted the same way. BigInt() throws on what is not an
+ * integer, and setBigInt64 wraps one past the range, which the conversion has already
+ * saturated. (A logical array's payload is uint8, and its 1s and 0s are uint8 values.)
  */
-function toBigInt(n) {
-    if (typeof n === 'string') {
-        try {
-            return BigInt(n);
-        }
-        catch {
-            return 0n;
-        }
-    }
-    return isFinite(n) ? BigInt(Math.round(n)) : 0n;
-}
 function numericPayload(type, values) {
     const width = WIDTH[type];
     if (!width) {
@@ -385,43 +391,47 @@ function numericPayload(type, values) {
     }
     const data = new Uint8Array(values.length * width);
     const view = new DataView(data.buffer);
+    const intClass = PAYLOAD_INTEGER_CLASS[type];
+    const toClass = intClass === undefined ? undefined : integerConversion(intClass);
     for (let i = 0; i < values.length; i++) {
         const v = values[i];
         const at = i * width;
+        if (toClass !== undefined) {
+            const n = toClass(v);
+            switch (type) {
+                case MI_INT8:
+                    view.setInt8(at, Number(n));
+                    break;
+                case MI_UINT8:
+                    view.setUint8(at, Number(n));
+                    break;
+                case MI_INT16:
+                    view.setInt16(at, Number(n), true);
+                    break;
+                case MI_UINT16:
+                    view.setUint16(at, Number(n), true);
+                    break;
+                case MI_INT32:
+                    view.setInt32(at, Number(n), true);
+                    break;
+                case MI_UINT32:
+                    view.setUint32(at, Number(n), true);
+                    break;
+                case MI_INT64:
+                    view.setBigInt64(at, BigInt(n), true);
+                    break;
+                default:
+                    view.setBigUint64(at, BigInt(n), true);
+                    break;
+            }
+            continue;
+        }
         const n = typeof v === 'number' ? v : Number(v);
-        switch (type) {
-            case MI_INT8:
-                view.setInt8(at, n);
-                break;
-            case MI_UINT8:
-                view.setUint8(at, n);
-                break;
-            case MI_INT16:
-                view.setInt16(at, n, true);
-                break;
-            case MI_UINT16:
-                view.setUint16(at, n, true);
-                break;
-            case MI_INT32:
-                view.setInt32(at, n, true);
-                break;
-            case MI_UINT32:
-                view.setUint32(at, n, true);
-                break;
-            case MI_SINGLE:
-                view.setFloat32(at, n, true);
-                break;
-            // `v` and not `n`: the coercion above is a double, and putting an exact 64-bit
-            // token through it is exactly the rounding this representation exists to avoid.
-            case MI_INT64:
-                view.setBigInt64(at, toBigInt(v), true);
-                break;
-            case MI_UINT64:
-                view.setBigUint64(at, toBigInt(v), true);
-                break;
-            default:
-                view.setFloat64(at, n, true);
-                break;
+        if (type === MI_SINGLE) {
+            view.setFloat32(at, n, true);
+        }
+        else {
+            view.setFloat64(at, n, true);
         }
     }
     return element(type, data);

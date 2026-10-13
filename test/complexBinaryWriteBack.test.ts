@@ -213,12 +213,13 @@ describe('the writers state what the value is', () => {
     );
   });
 
-  it('an entry whose complex text the reader shows quoted is saved as that text, not as a char', () => {
+  it('an entry whose complex text has non-finite parts is saved as that text, not as a char', () => {
     // MATLAB's own body for pNonFinite (complex_binary.sldd), as an entry's value rather
-    // than a Parameter's. parseCdata does not read it as numbers and shows it quoted
-    // (MatlabVariableNode._isOwnNonFiniteText says why); the node writer then spelled
-    // what it showed, `Class="char">Inf-Infi NaN+1.0i …`, so an unedited save changed the
-    // class of MATLAB's value. The same text inside a Parameter was always replayed.
+    // than a Parameter's. parseCdata showed it quoted, as a char, and the node writer then
+    // spelled what it showed, `Class="char">Inf-Infi NaN+1.0i …`, so an unedited save
+    // changed the class of MATLAB's value. The same text inside a Parameter was always
+    // replayed. It reads as the numbers it holds now (MatlabVariableNode._isComplexText),
+    // and is still saved as its text.
     const tag = '<P Name="Value" Class="double" IsComplex="1" Dimension="1*4">Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i</P>';
     // Saved as that text, its NaN imaginary part signed (asWritten).
     const saved = '<P Name="Value" Class="double" IsComplex="1" Dimension="1*4">Inf-Infi NaN+1.0i 1.0+NaNi -Inf+2.0i</P>';
@@ -228,7 +229,7 @@ describe('the writers state what the value is', () => {
       `        <P Name="Name" Class="char">zNonFinite</P>\n        ${tag}\n    </Object>\n</DataSource>`;
     const root: any = createSession().addDataSource('mem://complexQuoted', parseBinarySlddParts(xml, {}), { path: 'q.sldd' });
     const entry = root.getSection('design').children[0];
-    expect([entry.displayValue, entry.className]).toEqual(["'Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i'", 'char']);
+    expect([entry.displayValue, entry.className]).toEqual(['[Inf-Infi NaN+1i 1NaNi -Inf+2i]', 'double']);
     expect(complexTags(serializeEntryToXml(entry))).toEqual([saved]);
     // And a rename, which leaves the value as it was.
     expect(entry.setProperty('Name', 'zNonFiniteRenamed')).toBe(true);

@@ -291,6 +291,106 @@ export function exactForClass(value, type) {
     }
     return needsExactInt(type) ? value : Number(value);
 }
+const range = (lo, hi) => ({ lo, hi, min: Number(lo), max: Number(hi) });
+const INTEGER_RANGE = {
+    int8: range(-128n, 127n),
+    uint8: range(0n, 255n),
+    int16: range(-32768n, 32767n),
+    uint16: range(0n, 65535n),
+    int32: range(-2147483648n, 2147483647n),
+    uint32: range(0n, 4294967295n),
+    int64: range(-9223372036854775808n, 9223372036854775807n),
+    uint64: range(0n, 18446744073709551615n),
+};
+/** An integer saturated at range `r`, in exactInt's form: a number, or a 64-bit token. */
+function saturate(big, r) {
+    return exactInt(big < r.lo ? r.lo : big > r.hi ? r.hi : big);
+}
+/** Is this one of MATLAB's eight integer classes? */
+export function isIntegerClass(type) {
+    return typeof type === 'string' && Object.prototype.hasOwnProperty.call(INTEGER_RANGE, type);
+}
+/**
+ * A number as MATLAB converts it to integer class `type`: rounded to the nearest integer, a
+ * tie away from zero, then saturated at the class's range, with NaN as 0. So int16(70000)
+ * is 32767, int16(-70000) is -32768, int8(2.5) is 3, int8(-2.5) is -3, uint8(-1) is 0 and
+ * int16(NaN) is 0. The result is a number, or for an int64/uint64 the exact decimal text a
+ * double cannot hold (exactInt): int64(2^60) is 1152921504606846976, which String() spells
+ * 1152921504606847000, another int64. It is never -0, which no integer class holds:
+ * int8(-0) is 0.
+ *
+ * An exact decimal token (isExactToken) is the integer it spells, saturated, in exactInt's
+ * form. Anything else is read as Number() reads it. A value the class already holds comes
+ * back as the same value: a number as it was given, and a token as it was given too, since
+ * every token a reader makes is already in exactInt's form (parseExactNum, exactInt). So a
+ * value MATLAB wrote is never respelled. The one token that is not is the `-0` a typed `-0`
+ * is (parseExactNum, because String(-0) is '0'), which was returned as given, so `-0` typed
+ * into an int8 was shown as `-0` and written as `"_value": "-0"`.
+ *
+ * The writers each converted their own way, and none of them MATLAB's: a MAT stream through
+ * DataView, which wraps and truncates (int16 70000 went out as 4464, 3.7 as 3), the binary
+ * dictionary's XML through Math.round, which takes a tie up and saturates nothing (-2.5 as
+ * -2, 70000 as 70000), and an edit held the number as typed.
+ */
+export function toIntegerClass(value, type) {
+    return convertTo(value, INTEGER_RANGE[type]);
+}
+/**
+ * toIntegerClass for one class, its range looked up once: for a writer converting each of a
+ * value's elements (MatWriter.numericPayload).
+ */
+export function integerConversion(type) {
+    const r = INTEGER_RANGE[type];
+    return (value) => convertTo(value, r);
+}
+function convertTo(value, r) {
+    // A whole number the class holds, which is every number a file holds, with no BigInt
+    // made for it. The bounds are exact as numbers for the 32-bit classes and the 64-bit
+    // lower ones; a 64-bit upper bound rounds up, past every safe integer. -0 is 0.
+    if (typeof value === 'number' && Number.isSafeInteger(value) && value >= r.min && value <= r.max) {
+        return value === 0 ? 0 : value;
+    }
+    if (isExactToken(value)) {
+        return saturate(BigInt(value), r);
+    }
+    const n = typeof value === 'number' ? value : Number(value);
+    if (Number.isNaN(n)) {
+        return 0;
+    }
+    if (n === Infinity || n === -Infinity) {
+        return exactInt(n > 0 ? r.hi : r.lo);
+    }
+    // Math.round takes a tie up, and on the magnitude up is away from zero. Past 2^52 every
+    // double is a whole number already, which BigInt reads exactly.
+    return saturate(BigInt(n < 0 ? -Math.round(-n) : Math.round(n)), r);
+}
+/**
+ * One EDITED numeric token, stored as its class holds it: under an integer class as MATLAB
+ * converts it (toIntegerClass), under any other as exactForClass narrows it.
+ */
+export function valueForClass(value, type) {
+    return isIntegerClass(type) ? toIntegerClass(value, type) : exactForClass(value, type);
+}
+/**
+ * One complex element's text as integer class `type` holds it: each part converted on its
+ * own (toIntegerClass). The text comes back as it was when neither part changes, so an
+ * element MATLAB wrote keeps its spelling; otherwise it is the converted parts, spelled as
+ * formatComplexNum spells them. Text that is not one element (parseComplexNum) comes back
+ * as it was.
+ *
+ * A part changes when its conversion is not the same value by Object.is, under which -0 is
+ * not 0: compared with ===, a part of -0 was unchanged, so `-0-0i` typed into an int16
+ * element kept its text and was shown as `-0-0i`. Now it is `0+0i`.
+ */
+export function complexForIntegerClass(text, type) {
+    const pair = parseComplexNum(text, type);
+    if (!pair) {
+        return text;
+    }
+    const re = toIntegerClass(pair.re, type);
+    const im = toIntegerClass(pair.im, type);
+    return Object.is(re, pair.re) && Object.is(im, pair.im) ? text : formatComplexNum(re, im);
+}
 export function formatDoubleXml(num) {
     // An exact 64-bit token reaches here only through formatNumLiteral's `double` arm,
     // which a 64-bit class never takes; the guard is here so the exact form can never
@@ -311,6 +411,13 @@ export function formatDoubleXml(num) {
     return s;
 }
 export function formatNumericXml(num, type) {
+    // As MATLAB converts it to the class, the exact decimal text of a 64-bit one included,
+    // which toIntegerClass keeps as it is when the class holds it. Math.round, which this
+    // used, takes a tie up and saturates nothing: an int16 -2.5 went out as -2, and 70000
+    // as 70000.
+    if (isIntegerClass(type)) {
+        return formatMatlabNum(toIntegerClass(num, type));
+    }
     // Already MATLAB's own decimal text (see parseExactNum). Math.round below would put
     // it back through a double and undo the whole point of carrying it as text.
     if (typeof num === 'string' && /^-?\d+$/.test(num)) {
@@ -552,9 +659,19 @@ export function formatComplexXml(complexStr) {
  * complex_binary.sldd's pNonFinite, [complex(Inf,-Inf) complex(NaN,1) complex(1,NaN)
  * complex(-Inf,2)], saved each way: MATLAB read `1.0NaNi` back as [Inf-Infi NaN+1i 1 NaN],
  * as it reads its own file, and `1.0+NaNi` as the value it is.
+ *
+ * An integer class's parts are the integers MATLAB converts them to (complexForIntegerClass),
+ * so text a host hands over as `3.7+70000i` under int16 is written `4+32767i`. An element
+ * the class already holds is written as it is.
  */
 export function formatComplexBodyXml(text, className) {
     const body = text.trim().replace(/Infinity/g, 'Inf').replace(/([^\s+-])NaNi(?=\s|$)/g, '$1+NaNi');
+    if (isIntegerClass(className)) {
+        return body
+            .split(/(\s+)/)
+            .map((token, i) => (i % 2 === 0 && token !== '' ? complexForIntegerClass(token, className) : token))
+            .join('');
+    }
     return className === 'double' || className === 'single' ? formatComplexXml(body) : body;
 }
 export function transposeToColumnMajor(rowMajor, rows, cols) {
