@@ -1554,7 +1554,10 @@ describe('parseMat — malformed byte counts', () => {
     new DataView(stride.buffer).setInt32(0, 8, true);
     const wide = matrix([arrayFlags(CLASS.STRUCT), dims([1, 1_000_000]), varName('w'), element(MI.INT32, stride), element(MI.INT8, names)]);
     const { parsed: wideParsed, fast } = timed(matFile([claimed(wide)]));
-    expect([wideParsed.variables[0].undecoded, wideParsed.variables[0].fields, fast]).toEqual([undefined, {}, true]);
+    // It keeps the names of its fields, none holding an element: read as {}, it was an array
+    // with no fields, which has a row for each element it declares up to 10,000.
+    const noElements = Object.fromEntries(Array.from({ length: 512 }, (_, i) => ['f' + i, []]));
+    expect([wideParsed.variables[0].undecoded, wideParsed.variables[0].fields, fast]).toEqual([undefined, noElements, true]);
     const empty = only(matFile([claimed(cellVar('c', [], [1, 1_000_000]))]));
     expect([empty.undecoded, (empty.value as unknown[]).length]).toEqual([undefined, 0]);
     // Through a session, as a host opens the file. Asked last, so that a reader without the

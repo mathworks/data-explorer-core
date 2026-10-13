@@ -14,7 +14,7 @@ import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../p
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { subscriptLabel } from '../../display/Subscript.js';
-import { decodeMatStream } from '../../parser/MatParser.js';
+import { decodeMatStream, structElementsHeld } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
@@ -2818,7 +2818,14 @@ export default class MatlabVariableNode extends DataNode {
         // first invisible, and forced _buildVarObject to replay them from the parse
         // snapshot on save. MatParser fills fields[f] in MATLAB's column-major
         // order, so element ei is MATLAB's linear index ei+1.
-        for (let ei = 0; ei < count; ei++) {
+        //
+        // One per element the reader HOLDS (structElementsHeld), as a cell has one per element
+        // read, and not one per element the array declares: an element of a struct with fields
+        // takes its fields' bytes, and one past them held nothing to show. A 304-byte file
+        // declaring a 1x999,999 struct with one field and one element's bytes ran a 512 MB heap
+        // out building 999,998 empty rows. For an array MATLAB wrote the two are the same.
+        const rows = fieldNames.length > 0 ? Math.min(count, structElementsHeld(variable)) : count;
+        for (let ei = 0; ei < rows; ei++) {
             const elemNode = new MatlabVariableNode(String(ei + 1), node, {});
             elemNode._kind = 'scalar';
             elemNode._scalarType = 'struct';

@@ -247,6 +247,29 @@ export function isUnheldStructArray(v) {
     const count = (v.dimensions || []).reduce((a, b) => a * b, 1);
     return count > MAX_LAID_OUT_FIELDLESS && Object.keys(v.fields || {}).length === 0;
 }
+/**
+ * How many elements of struct array `v` this reader holds: as many as the longest of its
+ * fields' lists, which hold one entry per element read (parseMatrix's struct arm), and never
+ * more than it declares. An element of a struct with fields takes the bytes of its fields'
+ * matrices, so a struct array whose bytes ran out holds fewer elements than it declares, and
+ * a reader that lays it out an element at a time lays out the ones it holds: MATLAB writes
+ * every field of every element, so for an array it wrote that is every element it declares.
+ * A struct with no fields holds every element it declares, an element of one taking no bytes,
+ * and so does one with a field held as a single variable rather than a list, which this
+ * reader writes for a 1x1 alone and a reader of an array takes for every element's.
+ */
+export function structElementsHeld(v) {
+    const count = (v.dimensions || []).reduce((a, b) => a * b, 1);
+    const lists = Object.values(v.fields || {});
+    if (lists.length === 0 || lists.some((list) => !Array.isArray(list))) {
+        return count;
+    }
+    let held = 0;
+    for (const list of lists) {
+        held = Math.max(held, list.length);
+    }
+    return Math.min(count, held);
+}
 // The non-zeros of a sparse array, as MATLAB's find() lists them: column by column, and
 // within a column by row. Subelement layout, from the MAT-file format spec (Level 5,
 // sparse arrays) — the two index arrays sit between the name and the payload, where a
@@ -833,6 +856,20 @@ export function parseMatrix(view, baseOffset, length) {
                         }
                     }
                     offset += fieldMatrixSub.totalSize;
+                }
+            }
+            // Every field an array names is kept, with the list of its elements read, even one
+            // whose bytes ran out before any element of it was read. Dropped, an array holding no
+            // element read as one with no fields, which has a row for every element it declares
+            // up to MAX_LAID_OUT_FIELDLESS: a 104-byte struct naming a field and declaring 10,000
+            // elements had 10,000 empty rows, and a 104 KB file holding 1,000 of them ran a
+            // 512 MB heap out while it opened. MATLAB writes every field of every element, so an
+            // array it wrote has every list already.
+            if (totalElements > 1) {
+                for (const fn of fieldNames) {
+                    if (!Object.prototype.hasOwnProperty.call(fields, fn)) {
+                        setOwn(fields, fn, []);
+                    }
                 }
             }
             result.fields = fields;

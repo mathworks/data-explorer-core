@@ -150,6 +150,14 @@ tree: a field goes back out as one `MatVariable` per element, in the same order.
 Pinned in `test/matStructArray.test.ts` (against `truth.json` and the real
 `cases.mat`).
 
+One child per element the reader HOLDS (`MatParser.structElementsHeld`), which for an
+array MATLAB wrote is every element it declares. An array with fields whose bytes ran
+out holds fewer, and has a child for each of those alone, as a cell has one per element
+read: a child per declared element let a 304-byte file declaring a 1x999,999 struct run
+a 512 MB heap out while it opened. A copy holds the same elements at the declared size,
+as a short cell's does. `McosParser` lays an object's struct value out a bag per element
+held, and `StructNode` reads one bag of an array as that array's element, not as a 1x1.
+
 ### Opaque objects are read-only
 An opaque MCOS object (e.g. a `Simulink.Parameter` stored as a raw variable rather
 than as a recognized catalog entry) has `valueEditable = false` and

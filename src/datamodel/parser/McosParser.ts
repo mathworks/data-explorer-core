@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { isUnheldStructArray, parseMatrix, MatVariable } from './MatParser.js';
+import { isUnheldStructArray, parseMatrix, structElementsHeld, MatVariable } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
 import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
@@ -593,10 +593,16 @@ const ANONYMOUS_SCOPE_PREFIX = /^sf%\d+@/;
 // used to read element 1 alone while reporting the array's size, so an EnumTypeDefinition, which
 // holds its enumerals as a 1xN struct array, showed its first enumeral and no other — out
 // of a .mat, and out of a binary dictionary's hex value, where its text twin had them all.
+//
+// Every element MatParser HOLDS (structElementsHeld), as a cell's value is the elements read,
+// and not every one the array declares: a Simulink.Parameter whose Value declared a 1x999,999
+// struct with one field and held one element's bytes, in a 1,120-byte .mat, was laid out as
+// 999,999 bags, and StructNode built a row for each until a 512 MB heap ran out. For an array
+// MATLAB wrote the two are the same.
 function buildStructValue(cell: MatVariable, ctx: DecodeContext, path: Set<number>, depth: number): unknown {
   const fields = cell.fields || {};
   const dims = cell.dimensions || [1, 1];
-  const count = dims.reduce((a, b) => a * b, 1);
+  const count = structElementsHeld(cell);
   const fieldNames = Object.keys(fields);
   const elements: Record<string, unknown>[] = [];
   for (let e = 0; e < count; e++) {
