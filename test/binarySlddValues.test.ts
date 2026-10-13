@@ -122,10 +122,13 @@ describe('parseBinarySlddParts — Dimension attributes that are not R*C', () =>
       _value: '[1, 0, 1]',
     });
     // An empty 3-D keeps every extent, so it still reads as empty AND reports the
-    // 0x2x2 that MATLAB's size() reports, not a folded 0x4.
+    // 0x2x2 that MATLAB's size() reports, not a folded 0x4: under the bare header of its
+    // extents, as at a property and in a cell (BinarySlddParser.emptyOf), saying it was read
+    // out of a binary dictionary (XmlUtils.BINARY_EMPTY_KEY).
     expect(value('<P Name="Value" Class="double" Dimension="0*2*2"></P>')).toEqual({
       _type: 'double',
-      _emptyDims: [0, 2, 2],
+      _value: 'Matrix(0,2,2)',
+      _binary_empty: true,
     });
   });
 
@@ -180,7 +183,8 @@ describe('parseBinarySlddParts — cell elements', () => {
       // An empty cell entry keeps its shape in the display string; there are no
       // elements to carry it any other way.
       { _type: 'double', _value: 'Matrix(2,2)\n[[1.0, 3.0]; [2.0, 4.0]]' },
-      { _type: 'double', _value: 'Matrix(0,0)' },
+      // A double 0x0 is `[]`, as at a property and an entry (BinarySlddParser.emptyOf).
+      [],
       { _type: 'cdata', _value: '1.0+2.0i' },
     ]);
   });
@@ -201,7 +205,9 @@ describe('parseBinarySlddParts — cell elements', () => {
       true,
       false,
       { _type: 'logical', _value: '[1, 0, 1]' },
-      { _type: 'logical', _value: '[]' },
+      // An empty under the bare header of its extents, as at a property and an entry
+      // (BinarySlddParser.emptyOf), saying it was read here (XmlUtils.BINARY_EMPTY_KEY).
+      { _type: 'logical', _value: 'Matrix(0,0)', _binary_empty: true },
       'a',
       '',
     ]);

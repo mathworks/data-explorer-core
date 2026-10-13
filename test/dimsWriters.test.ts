@@ -336,14 +336,15 @@ describe('every raw property arm refuses dims no Dimension can spell, naming the
 describe('after the reverts, the readers are 6402869\'s: Dimensions and dims past an int32 are held as read', () => {
   it('binary 1*2.5, 1*4294967296 and 0*2147483648: a no-op save writes each Value as 6402869 did', () => {
     // Each pair: the Value as the file holds it, and as a no-op save writes it — the same
-    // bytes 6402869's dist writes for each (compared against `git archive 6402869 dist`).
-    // Two are not the file's own bytes at 6402869 either: an empty struct array is written
-    // with one empty <Element>, and a double's body read as its two numbers is 1x2.
+    // bytes 6402869's dist writes for each (compared against `git archive 6402869 dist`),
+    // but for the empty struct array, which 6402869 wrote with one empty <Element> it never
+    // had and is now written as the file holds it (StructNode.serializeXml). One is not the
+    // file's own bytes: a double's body read as its two numbers is 1x2.
     const values: [string, string, string][] = [
       ['f', '<P Name="Value" Class="cell" Dimension="1*2.5">\n            <Element Class="double">1.0</Element>\n        </P>', '<P Name="Value" Class="cell" Dimension="1*2.5">\n            <Element Class="double">1.0</Element>\n        </P>'],
       ['w', '<P Name="Value" Class="cell" Dimension="1*4294967296">\n            <Element Class="double">1.0</Element>\n        </P>', '<P Name="Value" Class="cell" Dimension="1*4294967296">\n            <Element Class="double">1.0</Element>\n        </P>'],
       ['z', '<P Name="Value" Class="double" Dimension="0*2147483648"/>', '<P Name="Value" Class="double" Dimension="0*2147483648"/>'],
-      ['zs', '<P Name="Value" Class="struct" Dimension="0*2147483648"/>', '<P Name="Value" Class="struct" Dimension="0*2147483648">\n            <Element>\n            </Element>\n        </P>'],
+      ['zs', '<P Name="Value" Class="struct" Dimension="0*2147483648"/>', '<P Name="Value" Class="struct" Dimension="0*2147483648"/>'],
       ['d', '<P Name="Value" Class="double" Dimension="1*2.5">1.0 2.0</P>', '<P Name="Value" Class="double" Dimension="1*2">1.0 2.0</P>'],
     ];
     const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
@@ -751,7 +752,7 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       const session = createSession();
       const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
       const dEmpty = root.getSection('design').children.find((e: any) => e.name === 'dEmpty');
-      expect(dEmpty.serialize().value._elements, dimension).toEqual([{ _type: 'double', _value: 'Matrix(0,1152921504606846976)' }]);
+      expect(dEmpty.serialize().value._elements, dimension).toEqual([{ _type: 'double', _value: 'Matrix(0,1152921504606846976)', _binary_empty: true }]);
       const [thrown] = thrownBy(() => session.serializeSource(root.name));
       expect(thrown?.message ?? null, dimension).toBeNull();
       const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);

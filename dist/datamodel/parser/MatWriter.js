@@ -37,7 +37,7 @@
 // The tests hold all of it to byte equality against MATLAB's own eighteen cdata
 // streams, so a wrong guess here fails loudly rather than shipping a file MATLAB
 // reads as empty.
-import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, isEnumBag, isExactToken, PROPERTY_SOURCE_KEY, parseComplexNum, integerConversion, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
+import { BINARY_EMPTY_KEY, complexClassTag, ENUM_KEY, ENUMERATION_KEY, emptyHeaderDims, formatMatrixSerial, formatNumLiteral, isEnumBag, isExactToken, needsExactInt, PROPERTY_SOURCE_KEY, parseComplexNum, integerConversion, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
@@ -1133,13 +1133,16 @@ export function heldByTextDictionary(value) {
  * because the replay is whole bags too — a struct's, a cell's, a LookupTable's Table.
  */
 export function textDictionaryForm(x, at = '') {
+    return textForm(x, at, 'value');
+}
+function textForm(x, at, place) {
     if (x === null || typeof x !== 'object') {
         return x;
     }
     if (Array.isArray(x)) {
         let changed = false;
         const out = x.map((e) => {
-            const t = textDictionaryForm(e, at);
+            const t = textForm(e, at, place);
             changed = changed || t !== e;
             return t;
         });
@@ -1169,10 +1172,17 @@ export function textDictionaryForm(x, at = '') {
         const read = encodedBytes(o);
         return read.bytes ? { _type: 'cdata', _value: uuencode(read.bytes) } : o;
     }
-    // A binary dictionary's dense empty as its reader holds it (`_emptyDims`), which a value
-    // replays where no MAT stream can say its N-D dims (MatlabVariableNode.serializeValue): a
-    // text dictionary has no spelling for an N-D value but the stream, so it is refused here,
-    // finally, said where it stands in the value.
+    // A binary dictionary's classed or shaped empty, as its reader holds one, saying so
+    // (XmlUtils.BINARY_EMPTY_KEY): what a text dictionary was given for it (heldTextSpelling). The
+    // same spelling without the key is a text dictionary's own, and goes as it is.
+    if (o[BINARY_EMPTY_KEY] !== undefined) {
+        return heldTextSpelling(o, place, at);
+    }
+    // A binary dictionary's dense empty in the form its reader gives one emptyOf cannot hold
+    // (`_emptyDims`, BinarySlddParser.parseEntryValue), which a value replays where no MAT stream
+    // can say its N-D dims (MatlabVariableNode.serializeValue): a text dictionary has no spelling
+    // for an N-D value but the stream, so it is refused here, finally, said where it stands in
+    // the value.
     if (Array.isArray(o._emptyDims) && typeof o._type === 'string') {
         const empty = { name: '', className: o._type, dimensions: o._emptyDims, isComplex: false, isLogical: o._type === 'logical', value: [], fields: null };
         try {
@@ -1204,11 +1214,20 @@ export function textDictionaryForm(x, at = '') {
             return o;
         }
     }
-    // An enumeration value read out of a binary dictionary's cell, less what that reader keeps of
-    // it for a binary save (XmlUtils.ENUM_KEY). A text dictionary spells an enumeration value
-    // another way and has no reader for the two keys, so it gets the object bag such a cell
-    // element always went into one as.
+    // An enumeration value read out of a binary dictionary, as MATLAB writes one in a text
+    // dictionary (enumTextForm): the binary reader's two keys (XmlUtils.ENUM_KEY) are its own, and
+    // a text dictionary has no reader for them. An empty one is the spelling it had before
+    // (heldTextSpelling). One this cannot spell so is the object bag less the two keys, which is
+    // what every one went into a text dictionary as before #87 read IsEnum.
     if (isEnumBag(o)) {
+        const held = heldTextSpelling(o, place, at);
+        if (held !== undefined) {
+            return held;
+        }
+        const spelled = enumTextForm(o);
+        if (spelled) {
+            return spelled;
+        }
         const bag = { ...o };
         delete bag[ENUM_KEY];
         if (Array.isArray(bag._elements)) {
@@ -1221,7 +1240,7 @@ export function textDictionaryForm(x, at = '') {
                 return element;
             });
         }
-        return textDictionaryForm(bag, at);
+        return textForm(bag, at, place);
     }
     // The Source and PropertyType a binary dictionary's reader keeps of an element's properties
     // (XmlUtils.PROPERTY_SOURCE_KEY), which a text dictionary has no place for: the properties
@@ -1229,14 +1248,14 @@ export function textDictionaryForm(x, at = '') {
     if (Object.prototype.hasOwnProperty.call(o, PROPERTY_SOURCE_KEY)) {
         const element = { ...o };
         delete element[PROPERTY_SOURCE_KEY];
-        return textDictionaryForm(element, at);
+        return textForm(element, at, place);
     }
     let out = null;
     for (const k of Object.keys(o)) {
         const v = o[k];
         const t = k === '_elements' && Array.isArray(v) ? elementsForm(o, at)
             : k === '_properties' && v && typeof v === 'object' && !Array.isArray(v) ? namedForm(v, at)
-                : textDictionaryForm(v, at);
+                : textForm(v, at, place);
         if (t !== o[k]) {
             out = out ?? { ...o };
             out[k] = t;
@@ -1254,11 +1273,186 @@ function bagClass(o) {
     }
     return typeof o._array_class === 'string' ? o._array_class : 'object';
 }
+/**
+ * The spelling a text dictionary was given, before the binary reader kept what it now keeps, for
+ * a value whose spelling there waits on MATLAB reading one back; undefined for every other value.
+ * Held where it was, place by place, because it differed by place:
+ *
+ *   - an empty enumeration array (an enumeration bag with no enumeral): `[]` as a value of its
+ *     own, an entry's, and '' as a property or a field, which is what the reader made of it
+ *     before it read IsEnum there; in a cell, the bag, as the cell reader has held it since it
+ *     read IsEnum. MATLAB's own text dictionary writes `{"_type": "dSomeColors", "_value":
+ *     "[]"}` for one, whatever its size.
+ *   - a shaped empty char, which the binary reader holds as the shaped char's mxchar literal
+ *     with no character (BinarySlddParser.charValue): '', at every place, as it was read;
+ *   - any other classed or shaped empty, which the binary reader holds as its class under a
+ *     bare `Matrix(…)` header (BinarySlddParser.emptyOf), as each place's old form gave it: at
+ *     a property or a field, `[]` for a numeric class and '' for any other; as an entry's
+ *     value, what MatlabVariableNode.serializeValue made of the entry's `{_type, _emptyDims}`
+ *     (entryEmptyText); in a cell, the header as read, which the cell reader always gave, but
+ *     for a logical 0x0, which it held as `{_type: 'logical', _value: '[]'}`. MATLAB's own text
+ *     dictionary writes `{"_type": "int16", "_value": "[]"}` for an int16 0x0 property and `[]`
+ *     for an empty Simulink.BusElement array; how it reads a shaped one back is the open
+ *     question.
+ *
+ * Each is one the binary reader says it read: an enumeration value by its keys (XmlUtils.ENUM_KEY),
+ * an empty by its own (XmlUtils.BINARY_EMPTY_KEY), which is gone from what this returns, the
+ * header kept as read included. The same spelling without that key is a text dictionary's own,
+ * written by MATLAB or by this package, and is never asked here: it is written as it is held,
+ * pasted, copied out of the text dictionary and back, or re-read from it.
+ */
+function heldTextSpelling(o, place, at) {
+    if (isEnumBag(o)) {
+        if (!Array.isArray(o._elements) || o._elements.length > 0) {
+            return undefined;
+        }
+        return place === 'value' ? [] : place === 'named' ? '' : undefined;
+    }
+    const header = { ...o };
+    delete header[BINARY_EMPTY_KEY];
+    if (o._type === 'mxchar') {
+        return '';
+    }
+    const dims = bareEmptyDims(o);
+    if (!dims) {
+        return header;
+    }
+    switch (place) {
+        case 'named':
+            return NUMERIC_CLASS.test(o._type) ? [] : '';
+        case 'value':
+            return entryEmptyText(o._type, dims, at);
+        case 'cell':
+            return o._type === 'logical' && dims.length === 2 && dims[0] === 0 && dims[1] === 0 ? { _type: 'logical', _value: '[]' } : header;
+        default:
+            return header;
+    }
+}
+/**
+ * What a text dictionary was given for an entry's classed or shaped empty while the binary
+ * reader held one as `{_type, _emptyDims}` (MatlabVariableNode.serializeValue): an N-D one as
+ * its MAT stream, as MATLAB writes every N-D value there, and refused, said where it stands, when
+ * its dims are past what a stream can say; `[]` for one of rank 2, and for an N-D one of a class
+ * no MAT stream holds.
+ */
+function entryEmptyText(cls, dims, at) {
+    if (dims.length <= 2) {
+        return [];
+    }
+    try {
+        return { _type: 'cdata', _value: encodeCdata({ name: '', className: cls, dimensions: dims, isComplex: false, isLogical: cls === 'logical', value: [], fields: null }) };
+    }
+    catch (e) {
+        if (e instanceof MatBudgetError) {
+            throw new MatBudgetError(e.message, at + e.at, e.what, undefined, e.reason);
+        }
+        if (e instanceof MatWriteError) {
+            return [];
+        }
+        throw e;
+    }
+}
+/**
+ * An enumeration value as MATLAB writes one in a text dictionary, or null for one it cannot be
+ * spelled as here. MATLAB states the whole value as one element holding the numbers its
+ * enumerals stand for, in their underlying class and spelled as a value of that class is, under
+ * `_enum_value`, and the bag around it is 1x1 whatever the size of the value:
+ *
+ *   gearValue   {"_array_class": "GearMode", "_dimensions": [1, 1], "_elements": [{"_enum_value":
+ *               {"_type": "int32", "_value": "-1"}, "_id": "1"}], "_mw_element_type": "MATLABArray"}
+ *   gearRow     the same around {"_type": "int32", "_value": "[0, 1, -1]"}, a 1x3
+ *   a 7x1       {"_type": "uint8", "_value": "Matrix(7,1)\n[0U, 0U, 0U, 0U, 0U, 0U, 0U]"}
+ *   matEnum3D   {"_type": "cdata", "_value": …}, a 2x2x2's MAT stream of int32, as for any N-D value
+ *
+ * read off custom_object_text.sldd, dNJSON_SLDDApi.sldd and a customer dictionary, each the twin
+ * of a binary dictionary holding the same values. The binary reader holds each enumeral's
+ * `EnumerationType` and its number as MATLAB wrote them (XmlUtils.ENUMERATION_KEY), in MATLAB's
+ * column-major order, and those are the whole of it: the enumeral's name is not in the text form,
+ * which names the class alone. No `_id` is written, as for every object this package writes into
+ * a text dictionary (SimulinkObjectNode._defaultRawVal). MATLAB writes the element without the
+ * bag at an object's property, `{"_enum_value": …, "_id": "2", "_object_class": "GearMode"}`,
+ * and the bag without its `_mw_element_type` at a struct field; this writes the bag at every
+ * place, as it writes every object out of a binary dictionary at every place.
+ *
+ * Null when an enumeral lacks its type or number, when they disagree on the type, when the type is
+ * not an integer class (the only kind the corpus shows MATLAB spelling, and a double's or a
+ * logical's spelling here is unattested), when the size is not the count of enumerals, and for
+ * an empty one, whose spelling waits on MATLAB reading one back (heldTextSpelling).
+ */
+function enumTextForm(o) {
+    const elements = Array.isArray(o._elements) ? o._elements : [];
+    const dims = Array.isArray(o._dimensions) ? o._dimensions : null;
+    if (elements.length === 0 || !dims || dims.length < 2 || !dims.every((d) => typeof d === 'number' && Number.isInteger(d) && d >= 0)) {
+        return null;
+    }
+    let type = null;
+    const tokens = [];
+    for (const e of elements) {
+        const enumeral = e && typeof e === 'object' ? e[ENUMERATION_KEY] : undefined;
+        if (!enumeral || typeof enumeral.type !== 'string' || typeof enumeral.value !== 'string') {
+            return null;
+        }
+        if (type !== null && enumeral.type !== type) {
+            return null;
+        }
+        type = enumeral.type;
+        tokens.push(enumeral.value.trim());
+    }
+    const shape = effectiveDims(dims);
+    if (type === null || !INTEGER_CLASS.test(type) || elementCountOf(shape) !== tokens.length || !tokens.every((t) => /^-?\d+$/.test(t))) {
+        return null;
+    }
+    const exact = needsExactInt(type);
+    const rowMajor = transposeFromColumnMajorND(tokens.map((t) => (exact ? t : Number(t))), shape);
+    let value;
+    if (shape.length > 2) {
+        try {
+            value = { _type: 'cdata', _value: encodeCdata({ name: '', className: type, dimensions: shape, isComplex: false, isLogical: false, value: rowMajor, fields: null }) };
+        }
+        catch (e) {
+            if (e instanceof MatWriteError && !(e instanceof MatBudgetError)) {
+                return null;
+            }
+            throw e;
+        }
+    }
+    else {
+        value = { _type: type, _value: shape[0] === 1 && shape[1] === 1 ? formatNumLiteral(rowMajor[0], type) : formatMatrixSerial(rowMajor, shape, type) };
+    }
+    const out = {};
+    if (o._array_class !== undefined) {
+        out._array_class = o._array_class;
+    }
+    out._dimensions = [1, 1];
+    out._elements = [{ _enum_value: value }];
+    if (o._mw_element_type !== undefined) {
+        out._mw_element_type = o._mw_element_type;
+    }
+    return out;
+}
+const INTEGER_CLASS = /^u?int(?:8|16|32|64)$/;
+/** Dims less the trailing singletons past the second, as MATLAB's size() states them. */
+function effectiveDims(dims) {
+    const d = dims.slice();
+    while (d.length > 2 && d[d.length - 1] === 1) {
+        d.pop();
+    }
+    return d;
+}
+const NUMERIC_CLASS = /^(?:double|single|u?int(?:8|16|32|64))$/;
+/**
+ * The extents of a classed empty as the binary reader holds one, its class under a bare
+ * `Matrix(…)` header with a 0 among them (BinarySlddParser.emptyOf, XmlUtils.emptyHeaderDims), or
+ * null.
+ */
+function bareEmptyDims(o) {
+    return typeof o._type === 'string' ? emptyHeaderDims(o._value) : null;
+}
 /** textDictionaryForm over a record of named values — an object's properties, a struct's fields — each at `.name`. */
 function namedForm(named, at) {
     let out = null;
     for (const name of Object.keys(named)) {
-        const t = textDictionaryForm(named[name], at + '.' + name);
+        const t = textForm(named[name], at + '.' + name, 'named');
         if (t !== named[name]) {
             out = out ?? { ...named };
             out[name] = t;
@@ -1277,7 +1471,7 @@ function elementsForm(o, at) {
     const out = elements.map((e, k) => {
         let t;
         if (o._array_type === 'Cell') {
-            t = textDictionaryForm(e, at + '{' + (k + 1) + '}');
+            t = textForm(e, at + '{' + (k + 1) + '}', 'cell');
         }
         else {
             const here = at + (elements.length > 1 ? '(' + (k + 1) + ')' : '');
@@ -1285,7 +1479,7 @@ function elementsForm(o, at) {
             // its `_properties`.
             t = e && typeof e === 'object' && !Array.isArray(e) && o._array_type === 'Struct'
                 ? namedForm(e, here)
-                : textDictionaryForm(e, here);
+                : textForm(e, here, 'element');
         }
         changed = changed || t !== e;
         return t;

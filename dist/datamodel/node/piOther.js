@@ -8,7 +8,7 @@
 // stays inside the extractable data-model layer. Behavior:
 //   - Nested MATLAB objects ({ _object_class, _properties }) are flattened ONE
 //     level: `CoderInfo.StorageClass`, `CoderInfo.CSCPackageName`, …
-//   - Typed scalars ({ _type, _value }) are unwrapped to their value.
+//   - Typed scalars ({ _type, _value }) are unwrapped to their value, and a typed empty is `[ ]`.
 //   - A `cdata` value — complex text, or a text dictionary's MAT stream — is read
 //     and laid out the way the same channel shows a real value of its shape; a sparse
 //     array, however it is spelled, is its summary (`<3x3 sparse double>`).
@@ -18,7 +18,7 @@
 import { isMatCdata, uudecode } from '../parser/CdataCodec.js';
 import { encodedClass, encodedStream, isEncodedValue } from '../parser/EncodedValue.js';
 import { decodeMatStream } from '../parser/MatParser.js';
-import { sparseSummaryForm } from '../display/DisplayConvention.js';
+import { EMPTY_NUMERIC, sparseSummaryForm } from '../display/DisplayConvention.js';
 import { complexClassTag, formatComplexNum, formatMatlabNum, parseComplexNum, transposeFromColumnMajorND, } from '../parser/XmlUtils.js';
 // Internal serialization-envelope keys — structural, never user properties.
 const ENVELOPE_KEYS = new Set([
@@ -49,6 +49,15 @@ function asTypedScalar(v) {
             ? [Number(header[1]), Number(header[2])]
             : [1, v._value.replace(/^\[|\]$/g, '').split(',').filter((t) => t.trim() !== '').length];
         return sparseSummaryForm(dims, 'double');
+    }
+    // A classed or shaped empty as the binary reader holds one, its class under the bare header of
+    // its extents (`{_type: 'Simulink.BusElement', _value: 'Matrix(0,0)'}`), or a char's with no
+    // character in it: shown as an empty is shown everywhere else, not as the header's text.
+    if (typeof v._value === 'string') {
+        const empty = /^Matrix\((\d+(?:,\d+)*)\)(\n[[\]; ]*)?$/.exec(v._value);
+        if (empty && empty[1].split(',').some((d) => Number(d) === 0) && (empty[2] === undefined || v._type === 'mxchar')) {
+            return v._type === 'mxchar' ? "''" : EMPTY_NUMERIC;
+        }
     }
     if ('_value' in v && !isPlainObject(v._value) && !Array.isArray(v._value)) {
         return String(v._value);

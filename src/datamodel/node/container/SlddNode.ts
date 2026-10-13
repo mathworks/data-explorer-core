@@ -209,7 +209,7 @@ export default class SlddNode extends ContainerNode {
                     if (node.sourceFormat !== 'xml') {
                         heldByTextDictionary(entry.value);
                     }
-                    section.parseEntry(entry, node.systemComposer);
+                    section._readEntry(entry, node.systemComposer);
                     for (const reason of takeDecodeFailures()) {
                         warnings?.push({
                             code: 'part-unreadable',

@@ -29,5 +29,6 @@ export default class SectionNode extends ContainerNode {
     } | null;
     _uniqueName(baseName: string): string;
     parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode;
+    _readEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode;
 }
 //# sourceMappingURL=SectionNode.d.ts.map

@@ -104,9 +104,11 @@ describe('an empty array of an object class in a cell', () => {
   ];
 
   it('reads as an empty of its class, the way an empty of a numeric class in a cell does', () => {
+    // Saying it was read out of a binary dictionary, as every empty the reader reads does
+    // (XmlUtils.BINARY_EMPTY_KEY).
     expect(parsed('property', ELEMENTS)).toEqual([
-      { _type: 'WidgetPart', _value: 'Matrix(0,0)' },
-      { _type: 'Simulink.Parameter', _value: 'Matrix(1,0)' },
+      { _type: 'WidgetPart', _value: 'Matrix(0,0)', _binary_empty: true },
+      { _type: 'Simulink.Parameter', _value: 'Matrix(1,0)', _binary_empty: true },
     ]);
   });
 
@@ -132,8 +134,8 @@ describe('an empty logical in a cell', () => {
 
   it('reads with its extents, as an empty of a numeric class in a cell does', () => {
     expect(parsed('property', ELEMENTS)).toEqual([
-      { _type: 'logical', _value: 'Matrix(1,0)' },
-      { _type: 'logical', _value: 'Matrix(0,3)' },
+      { _type: 'logical', _value: 'Matrix(1,0)', _binary_empty: true },
+      { _type: 'logical', _value: 'Matrix(0,3)', _binary_empty: true },
     ]);
   });
 

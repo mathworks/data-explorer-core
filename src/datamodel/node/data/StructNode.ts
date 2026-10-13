@@ -231,6 +231,23 @@ export default class StructNode extends DataNode {
         // 1x1x3 dropped the attribute entirely (d[0] and d[1] are both 1), which
         // MATLAB's XML reader answers with a segmentation fault rather than an error.
         const dimAttr = d.every((n) => n === 1) ? '' : ' Dimension="' + d.join('*') + '"';
+        // A struct of no element, as MATLAB writes one: self-closed, or around the `<Field
+        // Name="…"/>` of each field it declares, which is the one place the fields of a struct
+        // with no element can be stated (BinarySlddParser.fieldNamesOf reads them back from
+        // there, and DataNode._structXml writes them so). It used to take the arm for one element
+        // below, so a 0x0, 0x2, 2x0 or 0x0x2 struct was saved around an `<Element>` it never had,
+        // and reopened as a struct of one element in a shape that holds none, its fields gone.
+        if (this._numElements === 0) {
+            const fields = (this.serial._fields as string[]) || [];
+            if (fields.length === 0) {
+                return p + '<' + tagName + attrStr + ' Class="struct"' + dimAttr + '/>';
+            }
+            let empty = p + '<' + tagName + attrStr + ' Class="struct"' + dimAttr + '>\n';
+            for (const field of fields) {
+                empty += xmlPad(indent + 1) + '<Field Name="' + escapeXml(field) + '"/>\n';
+            }
+            return empty + p + '</' + tagName + '>';
+        }
         let xml = p + '<' + tagName + attrStr + ' Class="struct"' + dimAttr + '>\n';
         if (this._numElements > 1) {
             for (const elemNode of this.children) {

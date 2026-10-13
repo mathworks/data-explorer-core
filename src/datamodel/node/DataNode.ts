@@ -1332,8 +1332,9 @@ export default class DataNode extends BaseNode {
     }
     const mxChar = DataNode._mxCharXml(value);
     if (mxChar) {
+      // An empty one, a 0x2 char, self-closed with its Dimension, as MATLAB writes it.
       return (
-        p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + mxChar.attrs + '>' + mxChar.body + '</P>'
+        p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + mxChar.attrs + (mxChar.body === '' ? '/>' : '>' + mxChar.body + '</P>')
       );
     }
 
@@ -1373,6 +1374,15 @@ export default class DataNode extends BaseNode {
       return matrix;
     }
 
+    // A typed `[]`, the 0x0 of its class, which is how MATLAB writes one in a text dictionary
+    // (`{"_type": "int16", "_value": "[]"}`): self-closed with its class, as MATLAB writes the
+    // same value in a binary one, and as the cell-element writer has written one. It fell to the
+    // scalar tail below, which read the brackets as the number 0: a copy of a text dictionary's
+    // int16 0x0 into a binary one was saved as `Class="int16">0`.
+    if (raw === '[]') {
+      return p + '<P' + DataNode.pxAttrs(name) + ' Class="' + escapeXml(type) + '" Dimension="0*0"/>';
+    }
+
     const vecMatch = raw.match(/^\[(.+)\]$/);
     if (vecMatch) {
       const parts = vecMatch[1].split(',').map(function (s: string) {
@@ -1386,7 +1396,7 @@ export default class DataNode extends BaseNode {
         '<P' +
         DataNode.pxAttrs(name) +
         ' Class="' +
-        type +
+        escapeXml(type) +
         '" Dimension="1*' +
         parts.length +
         '">' +
@@ -1396,7 +1406,7 @@ export default class DataNode extends BaseNode {
     }
 
     const num = DataNode._numToken(raw, type);
-    return p + '<P' + DataNode.pxAttrs(name) + ' Class="' + type + '">' + formatNumericXml(num, type) + '</P>';
+    return p + '<P' + DataNode.pxAttrs(name) + ' Class="' + escapeXml(type) + '">' + formatNumericXml(num, type) + '</P>';
   }
 
   /**
@@ -1434,7 +1444,7 @@ export default class DataNode extends BaseNode {
     const dims = m[1].split(',').map(function (s: string) {
       return parseInt(s, 10);
     });
-    const open = xmlPad(indent) + '<' + tag + attrs + ' Class="' + type + '" Dimension="' + dims.join('*') + '"';
+    const open = xmlPad(indent) + '<' + tag + attrs + ' Class="' + escapeXml(type) + '" Dimension="' + dims.join('*') + '"';
     if (m[2] === undefined) {
       if (!dims.some((d) => d === 0)) {
         return null;
@@ -1493,8 +1503,7 @@ export default class DataNode extends BaseNode {
    * property's `<P Name="…">`, or the classless `<Element>` a cell element holding an object
    * is — cellarr_binary.sldd's cObj is `<Element>` around one `<Element
    * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two. An
-   * enumeration value read out of a cell is one of these bags too, and has a spelling of its
-   * own (_enumXml).
+   * enumeration value is one of these bags too, and has a spelling of its own (_enumXml).
    */
   static _objectXml(
     tag: string,
@@ -1527,6 +1536,14 @@ export default class DataNode extends BaseNode {
       return envelope === undefined ? props : { ...props, [SAVEOBJ_KEY]: envelope };
     };
 
+    // An array of no element, whose size says it holds none, as MATLAB writes
+    // `Simulink.BusElement.empty`: the class and the Dimension, self-closed. It was written as
+    // the one element with no properties below, a 1x1 object the array never held; a bus with
+    // no elements, which BaseBusNode writes as this, is the commonest. A bag whose size says
+    // 1x1 is one object with no properties, and is still written as one.
+    if (elements.length === 0 && dims.some((d) => d === 0)) {
+      return p + '<' + tag + attrs + ' Class="' + escapeXml(className) + '" Dimension="' + dims.join('*') + '"/>';
+    }
     if (elements.length === 0 || (elements.length === 1 && Object.keys(propsOf(elements[0])).length === 0)) {
       return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(elementClassOf(elements[0], className)) + '"/>\n' + p + close;
     }
@@ -1558,15 +1575,16 @@ export default class DataNode extends BaseNode {
   }
 
   /**
-   * An enumeration value read out of a cell (XmlUtils.ENUM_KEY) under `tag`, as MATLAB wrote
-   * it: the `IsEnum` it carried, then a Dimension unless it is a scalar, around one `<Element
-   * Class="…" EnumerationName="…" EnumerationType="…">` per enumeral holding its value text —
-   * or, empty, self-closed with its class and Dimension, there being no enumeral to name the
-   * class. A cell element's is `<Element IsEnum="1">`; the same value at a property would be
-   * `<P Name="…" IsEnum="1">`, which is how MATLAB writes one there.
+   * An enumeration value (XmlUtils.ENUM_KEY) under `tag`, as MATLAB wrote it: the `IsEnum` it
+   * carried, then a Dimension unless it is a scalar, around one `<Element Class="…"
+   * EnumerationName="…" EnumerationType="…">` per enumeral holding its value text — or, empty,
+   * self-closed with its class and Dimension, there being no enumeral to name the class. A cell
+   * element's is `<Element IsEnum="1">`, a property's or an entry's `<P Name="…" IsEnum="1">`.
    *
-   * Reached from `_objectXml`, whose object spelling used to take the enumeral for an object
-   * with no properties and write `<Element Class="GearMode"/>`, its name and value gone.
+   * Reached from `_objectXml`, for a property or a cell held as a raw value, and from
+   * ObjectNode.serializeXml, for an entry and an entry's cell; the object spelling took the
+   * enumeral for an object with no properties and wrote `<Element Class="GearMode"/>`, its name
+   * and value gone.
    */
   static _enumXml(
     tag: string,
@@ -1850,16 +1868,17 @@ export default class DataNode extends BaseNode {
       }
       const mxChar = DataNode._mxCharXml(obj);
       if (mxChar) {
-        return p + '<Element Class="char"' + mxChar.attrs + '>' + mxChar.body + '</Element>';
+        return p + '<Element Class="char"' + mxChar.attrs + (mxChar.body === '' ? '/>' : '>' + mxChar.body + '</Element>');
       }
       const matrix = DataNode._matrixLiteralXml('Element', '', '', type, raw, indent, at);
       if (matrix !== null) {
         return matrix;
       }
-      // parseCellElement's 0x0 logical. Every other empty logical it reads carries its
-      // extents in a `Matrix(…)` header, which the arm above writes.
+      // A typed `[]`: parseCellElement's 0x0 logical, and a text dictionary's 0x0 of any class.
+      // Every other empty the binary reader reads carries its extents in a `Matrix(…)` header,
+      // which the arm above writes.
       if (raw === '[]') {
-        return p + '<Element Class="' + type + '" Dimension="0*0"/>';
+        return p + '<Element Class="' + escapeXml(type) + '" Dimension="0*0"/>';
       }
       const vecMatch = raw.match(/^\[(.+)\]$/);
       if (vecMatch) {
@@ -1869,7 +1888,7 @@ export default class DataNode extends BaseNode {
         return (
           p +
           '<Element Class="' +
-          type +
+          escapeXml(type) +
           '" Dimension="1*' +
           parts.length +
           '">' +
@@ -1882,7 +1901,7 @@ export default class DataNode extends BaseNode {
         );
       }
       const num = DataNode._numToken(raw, type);
-      return p + '<Element Class="' + type + '">' + formatNumericXml(num, type) + '</Element>';
+      return p + '<Element Class="' + escapeXml(type) + '">' + formatNumericXml(num, type) + '</Element>';
     }
     if (typeof elem === 'object' && elem !== null) {
       const obj = elem as Record<string, unknown>;

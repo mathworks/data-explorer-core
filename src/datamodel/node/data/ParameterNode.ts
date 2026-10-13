@@ -6,7 +6,7 @@ import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
-import { formatMatlabNum, formatMatrixSerial } from '../../parser/XmlUtils.js';
+import { formatMatlabNum, formatMatrixSerial, isEnumBag } from '../../parser/XmlUtils.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -82,6 +82,17 @@ export default class ParameterNode extends DataNode {
             return this._valueNode.displayValue;
         }
         return PropValue.format(this.Value);
+    }
+
+    // A Value that is an enumeration value shows its enumeral, `GearMode.Reverse`, which is not
+    // text that reads back as one: committed unchanged, it would be a char. So it takes no editor
+    // here, as it takes none on a row of its own (ObjectNode.valueEditable). Its summary, which
+    // an array of them shows, took none already.
+    get valueEditable(): boolean {
+        if (this._valueNode && isEnumBag(this._valueNode.serial._rawVal)) {
+            return false;
+        }
+        return super.valueEditable;
     }
 
     // Model `rawValue` as this Parameter's Value, giving it a tree row only when
@@ -186,6 +197,12 @@ export default class ParameterNode extends DataNode {
             return encodedRefusal;
         }
         if (propName === 'Value') {
+            // An enumeration value refuses a value set on it, as it does on a row of its own
+            // (ObjectNode.setProperty), and as it takes no editor here (valueEditable). Taken, what
+            // was typed replaced the enumeral, `2` with a double, and an undo did not put it back.
+            if (this._valueNode && isEnumBag(this._valueNode.serial._rawVal)) {
+                return this._valueNode.setProperty(propName, stringValue);
+            }
             const raw = MatlabValueParser.parse(stringValue);
             if (!raw) {
                 return { error: true, reason: 'Invalid MATLAB expression', invalidValue: stringValue, validValue: this.displayValue };

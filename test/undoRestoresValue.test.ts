@@ -7,10 +7,11 @@
 // (readPropertyValue) and undid the edit by setting the property back to that text. Where
 // the text is not the value, the undo made a different one. Every empty shows `[ ]`,
 // whatever its size and class, and `[ ]` reads back as a 0x0 double. So an entry holding
-// zeros(1,0), zeros(0,2), int8(zeros(0,3)), an empty of an enumeration class or a 0x0x2
-// empty, set to [1 2 3] and undone, was a 0x0 double, and the next save wrote
-// `Class="double" Dimension="0*0"`. MATLAB writes every one of these shapes, and four
-// corpus dictionaries hold them as entries.
+// zeros(1,0), zeros(0,2), int8(zeros(0,3)) or a 0x0x2 empty, set to [1 2 3] and undone, was
+// a 0x0 double, and the next save wrote `Class="double" Dimension="0*0"`. MATLAB writes every
+// one of these shapes, and four corpus dictionaries hold them as entries. An empty of an
+// enumeration class was one of them until its IsEnum was read: it shows `<0x2 dSomeColors>`
+// now, and takes no editor, as one in a cell does.
 //
 // The binary dictionary below is MATLAB's typed_binary.sldd with entries added, each
 // spelled as MATLAB-written dictionaries spell that empty.
@@ -36,6 +37,9 @@ const EMPTIES: [string, string][] = [
   ['enumEmpty', '<P Name="Value" IsEnum="1" Class="dSomeColors" Dimension="0*2"/>'],
   ['ndEmpty', '<P Name="Value" Class="double" Dimension="0*0*2"/>'],
 ];
+
+/** The empties a value can be typed into: all but the enumeration array (see the last case below). */
+const EDITABLE = EMPTIES.filter(([name]) => name !== 'enumEmpty');
 
 /** typed_binary.sldd with one entry for each of EMPTIES. */
 function withEmpties(): ArrayBuffer {
@@ -79,7 +83,7 @@ describe('the dictionary holds the empties as MATLAB spells them', () => {
 });
 
 describe('undoing a Value edit of an empty that is not 0x0 restores it, in a binary dictionary', () => {
-  for (const [name] of EMPTIES) {
+  for (const [name] of EDITABLE) {
     it(name, () => {
       const session = createSession();
       const root = ingest(session, withEmpties(), { filename: 'empties_binary.sldd' });
@@ -104,17 +108,30 @@ describe('undoing a Value edit of an empty that is not 0x0 restores it, in a bin
     const untouched = fresh.serializeSource(ingest(fresh, withEmpties(), { filename: 'empties_binary.sldd' }).name);
     const session = createSession();
     const root = ingest(session, withEmpties(), { filename: 'empties_binary.sldd' });
-    for (const [name] of EMPTIES) {
+    for (const [name] of EDITABLE) {
       const entry = root.getSection('design').children.find((e: any) => e.name === name);
       session.setActive(root, entry);
       expect(session.editProperty(entry.id, 'Value', '[1 2 3]')).toBe(true);
     }
-    for (let i = 0; i < EMPTIES.length; i++) {
+    for (let i = 0; i < EDITABLE.length; i++) {
       session.undo();
     }
     const values = (zip: Uint8Array): string[] =>
       [...strFromU8(unzipSync(zip)['data/chunk0.xml']).matchAll(/<P Name="Value"[^\n]*/g)].map((m) => m[0]);
     expect(values(session.serializeSource(root.name).bytes)).toEqual(values(untouched.bytes));
+  });
+
+  it('and an empty enumeration array takes no editor, so a value typed into it is refused and nothing changes', () => {
+    const session = createSession();
+    const root = ingest(session, withEmpties(), { filename: 'empties_binary.sldd' });
+    const entry = root.getSection('design').children.find((e: any) => e.name === 'enumEmpty');
+    const before = { tag: valueTag(entry), shown: shown(entry) };
+    expect(before).toEqual({ tag: '<P Name="Value" IsEnum="1" Class="dSomeColors" Dimension="0*2"/>', shown: ['<0x2 dSomeColors>', 'dSomeColors', [0, 2]] });
+    expect(entry.valueEditable).toBe(false);
+    session.setActive(root, entry);
+    expect(session.editProperty(entry.id, 'Value', '[1 2 3]')).toMatchObject({ error: true });
+    expect({ tag: valueTag(entry), shown: shown(entry) }).toEqual(before);
+    expect(session.canUndo()).toBe(false);
   });
 
   it('as it already did for a value whose text is the value', () => {

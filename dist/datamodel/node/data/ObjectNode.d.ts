@@ -1,4 +1,4 @@
-import DataNode from '../DataNode.js';
+import DataNode, { type SetPropertyResult } from '../DataNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 export default class ObjectNode extends DataNode {
@@ -11,6 +11,8 @@ export default class ObjectNode extends DataNode {
     get dims(): number[];
     get displayValue(): string;
     get valueEditable(): boolean;
+    get descriptionEditable(): boolean;
+    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[];
     serializeValue(): unknown;
