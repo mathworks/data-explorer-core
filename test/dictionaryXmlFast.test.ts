@@ -339,44 +339,62 @@ describe('entity decoding', () => {
   });
 });
 
-describe('numeric character references, which the engine does NOT decode', () => {
+describe('numeric character references, which both engines decode', () => {
   // This reader used to decline every `&#`. A MATLAB-written fixture then turned up carrying
   // `&#xD;` — `test/fixtures/custom_object_binary.sldd`, where a char property holds a CR — and
   // declining would have sent a whole 74 MB file back to the slow engine over one carriage
   // return. The corpus census that said numeric references never occur was not wrong about the
   // corpus; it was blind, because no dictionary in it held a multi-line value.
   //
-  // `htmlEntities` is off, so `numericAllowed` is off with it, so the engine leaves the reference
-  // standing as literal text. Reading these as text is therefore not a shortcut — it IS the
-  // engine's answer, and the pinned values below are what it returns.
+  // Both engines then left the reference standing as literal text, which XML does not allow: a
+  // reader must replace it with the character. The model showed `&#xD;` and the writer, rightly
+  // escaping the `&` it was handed, saved `&amp;#xD;`. `XmlReader` now asks the engine for XML's
+  // five named entities with numeric references allowed, and this reader decodes them the same
+  // way, so the pinned values below are the engine's answers.
 
-  it('leaves a reference standing, exactly as the engine does', () => {
-    expectRead('<P>a&#xD;b</P>', { P: ['a&#xD;b'] }); // the real fixture's value
-    expectRead('<P>&#65;</P>', { P: ['&#65;'] });
-    expectRead('<P>&#x41;</P>', { P: ['&#x41;'] });
-    expectRead('<P>&#X41;</P>', { P: ['&#X41;'] }); // capital X is a reference too
-    expectRead('<P>&#13;</P>', { P: ['&#13;'] });
-    expectRead('<P>&#9;x</P>', { P: ['&#9;x'] });
-    expectRead('<P>&#x1F600;</P>', { P: ['&#x1F600;'] });
-    expectRead('<P Name="a&#xD;b"/>', { P: [{ '@_Name': 'a&#xD;b' }] });
+  it('decodes a reference to its character, exactly as the engine does', () => {
+    expectRead('<P>a&#xD;b</P>', { P: ['a\rb'] }); // the real fixture's value
+    expectRead('<P>&#65;</P>', { P: ['A'] });
+    expectRead('<P>&#x41;</P>', { P: ['A'] });
+    expectRead('<P>&#X41;</P>', { P: ['A'] }); // capital X is a reference too
+    expectRead('<P>&#13;</P>', { P: ['\r'] });
+    expectRead('<P>&#9;x</P>', { P: ['\tx'] });
+    expectRead('<P>&#x1F600;</P>', { P: ['\u{1F600}'] }); // past the BMP: a surrogate pair
+    expectRead('<P>&#x0041;</P>', { P: ['A'] }); // leading zeros are allowed
+    expectRead('<P Name="a&#xD;b"/>', { P: [{ '@_Name': 'a\rb' }] });
   });
 
-  it('keeps a left-standing reference in a digit-led value as text', () => {
-    // These used to be the inputs that told a left-standing reference from one that reached the
-    // number coercion. There is no coercion now, so the text is the answer.
-    expectRead('<P>7&#48;</P>', { P: ['7&#48;'] });
-    expectRead('<P>1&#48;</P>', { P: ['1&#48;'] });
-    expectRead('<P>&#32;7</P>', { P: ['&#32;7'] });
-    expectRead('<P>&#x30;0</P>', { P: ['&#x30;0'] });
+  it('decodes each reference once, and leaves the text it produces alone', () => {
+    // A decoded `&` is a character, not the start of another reference: `&#38;amp;` is the
+    // five characters `&amp;`, and `&#38;#65;` is `&#65;`, not `A`.
+    expectRead('<P>&#38;amp;</P>', { P: ['&amp;'] });
+    expectRead('<P>&#38;#65;</P>', { P: ['&#65;'] });
+    expectRead('<P>&amp;#65;</P>', { P: ['&#65;'] });
   });
 
-  it('leaves a MALFORMED reference standing too, which is also what the engine does', () => {
+  it('decodes a digit-led value with a reference in it, and keeps it as text', () => {
+    // These used to be the inputs that told a left-standing reference from one that reached
+    // the number coercion. There is no coercion now, so the decoded text is the answer.
+    expectRead('<P>7&#48;</P>', { P: ['70'] });
+    expectRead('<P>1&#48;</P>', { P: ['10'] });
+    expectRead('<P>&#32;7</P>', { P: [' 7'] });
+    expectRead('<P>&#x30;0</P>', { P: ['00'] });
+  });
+
+  it('leaves a MALFORMED reference standing, which is what the engine does', () => {
     expectRead('<P>&#;</P>', { P: ['&#;'] });
     expectRead('<P>&#x;</P>', { P: ['&#x;'] });
     expectRead('<P>&#xZZ;</P>', { P: ['&#xZZ;'] });
     expectRead('<P>&#-1;</P>', { P: ['&#-1;'] });
     expectRead('<P>&#1114112;</P>', { P: ['&#1114112;'] }); // one past U+10FFFF
-    expectRead('<P>&#38;amp;</P>', { P: ['&#38;amp;'] }); // NOT decoded, so NOT `&amp;`
+    expectRead('<P>&#x110000;</P>', { P: ['&#x110000;'] });
+  });
+
+  it('decodes a reference with a lenient tail as the engine reads it', () => {
+    // The engine's two `parseInt` calls stop at the first character that is not a digit of the
+    // base, so `&#65zz;` is U+0041. Odd, and pinned so this reader stays the engine's twin on it.
+    expectRead('<P>&#65zz;</P>', { P: ['A'] });
+    expectRead('<P>&#x41g;</P>', { P: ['A'] });
   });
 
   it('leaves one standing with no `;` in the engine’s 32-character window', () => {
@@ -393,13 +411,17 @@ describe('numeric character references, which the engine does NOT decode', () =>
     expectDeclined(ref(29), { P: [''] }); // token `#x0…01` is 32 characters: a reference
     expectRead(ref(30), { P: [`&#x${'0'.repeat(30)}1;`] }); // 33 characters: not one
     expectRead('<P>&#65</P>', { P: ['&#65'] }); // and no `;` at all is not one either
+    // The same window on a codepoint that decodes rather than one that is deleted.
+    const a = (zeros: number): string => `<P>&#x${'0'.repeat(zeros)}41;</P>`;
+    expectRead(a(28), { P: ['A'] }); // token `#x0…041` is 32 characters: a reference
+    expectRead(a(29), { P: [`&#x${'0'.repeat(29)}41;`] }); // 33 characters: not one
   });
 
   it('declines a codepoint XML 1.0 prohibits, which the engine DELETES', () => {
-    // The engine drops these from the value no matter what `numericAllowed` says, because XML
-    // cannot carry them at all. That table is not reimplemented, so the seam answers instead —
-    // and the engine's answers are pinned here, since "deleted" is a surprising thing for a
-    // reference to do and a future reader of this file should not have to guess.
+    // The engine drops these from the value rather than decode them, because XML cannot carry
+    // them at all. That table is not reimplemented, so the seam answers instead — and the
+    // engine's answers are pinned here, since "deleted" is a surprising thing for a reference to
+    // do and a future reader of this file should not have to guess.
     expectDeclined('<P>&#0;</P>', { P: [''] }); // NUL
     expectDeclined('<P>&#1;</P>', { P: [''] });
     expectDeclined('<P>&#x7;</P>', { P: [''] }); // BEL
@@ -422,34 +444,44 @@ describe('numeric character references, which the engine does NOT decode', () =>
     expectDeclined('<P>&#XD800;</P>', { P: [''] });
   });
 
-  it('accepts the codepoints next to the prohibited ones', () => {
+  it('decodes the codepoints next to the prohibited ones', () => {
     // The boundaries themselves, because an off-by-one in either direction is the likely bug and
     // every one of these would be WRONG to decline.
-    expectRead('<P>&#9;</P>', { P: ['&#9;'] }); // tab, LF and CR are the three C0 exceptions
-    expectRead('<P>&#10;</P>', { P: ['&#10;'] });
-    expectRead('<P>&#13;</P>', { P: ['&#13;'] });
-    expectRead('<P>&#32;</P>', { P: ['&#32;'] }); // one past the C0 block
-    expectRead('<P>&#xD7FF;</P>', { P: ['&#xD7FF;'] }); // one before the surrogates
-    expectRead('<P>&#xE000;</P>', { P: ['&#xE000;'] }); // one after them
-    expectRead('<P>&#x10FFFF;</P>', { P: ['&#x10FFFF;'] }); // the last codepoint there is
+    expectRead('<P>&#9;</P>', { P: ['\t'] }); // tab, LF and CR are the three C0 exceptions
+    expectRead('<P>&#10;</P>', { P: ['\n'] });
+    expectRead('<P>&#13;</P>', { P: ['\r'] });
+    expectRead('<P>&#32;</P>', { P: [' '] }); // one past the C0 block
+    expectRead('<P>&#xD7FF;</P>', { P: ['\uD7FF'] }); // one before the surrogates
+    expectRead('<P>&#xE000;</P>', { P: ['\uE000'] }); // one after them
+    expectRead('<P>&#x10FFFF;</P>', { P: ['\u{10FFFF}'] }); // the last codepoint there is
   });
 
-  it('mixes a reference with the entities it DOES decode', () => {
-    expectRead('<P>&#xD;&amp;</P>', { P: ['&#xD;&'] });
-    expectRead('<P>&amp;&#xD;</P>', { P: ['&&#xD;'] });
-    expectRead('<P>&#x41;&lt;&#x42;</P>', { P: ['&#x41;<&#x42;'] });
+  it('keeps a decoded LF, CR or space even when it is the whole value', () => {
+    // A decoded value is offered to the layout-whitespace hook like any other, so a leaf that is
+    // nothing but `&#xD;` is MATLAB's one-character CR and has to survive as one — the case
+    // dSLDD_JSONApi.sldd's varStrCR is.
+    expectRead('<P Name="v">&#xD;</P>', { P: [{ '#text': '\r', '@_Name': 'v' }] });
+    expectRead('<P>&#32;&#10;</P>', { P: [' \n'] });
+    // Beside a child it is layout, and dropped, as the same characters written raw would be.
+    expectRead('<P>&#xD;<Element/></P>', { P: [{ Element: [''] }] });
+  });
+
+  it('mixes a reference with the named entities', () => {
+    expectRead('<P>&#xD;&amp;</P>', { P: ['\r&'] });
+    expectRead('<P>&amp;&#xD;</P>', { P: ['&\r'] });
+    expectRead('<P>&#x41;&lt;&#x42;</P>', { P: ['A<B'] });
   });
 
   it('declines a value where ONE of two references is prohibited', () => {
     // The whole value goes to the engine, not the prohibited reference alone — a decline is a
     // property of the document, which is the only granularity this reader has.
-    expectDeclined('<P>&#9;&#1;a</P>', { P: ['&#9;a'] });
+    expectDeclined('<P>&#9;&#1;a</P>', { P: ['\ta'] });
     expectDeclined('<P>&#x1;&#x2;</P>', { P: [''] });
   });
 
   it('still declines the entities it never owned, reference or not', () => {
-    expectDeclined('<P>&#xD;&nbsp;</P>', { P: ['&#xD;&nbsp;'] });
-    expectDeclined('<P>a&b&#xD;</P>', { P: ['a&b&#xD;'] });
+    expectDeclined('<P>&#xD;&nbsp;</P>', { P: ['\r&nbsp;'] });
+    expectDeclined('<P>a&b&#xD;</P>', { P: ['a&b\r'] });
   });
 });
 
@@ -522,8 +554,9 @@ describe('line endings, which XML normalizes and a raw slice does not', () => {
   // the pre-pass existed, returning the carriage return it was given.
   //
   // Reachable in practice by a CRLF-lineended or hand-edited part, not by MATLAB: for a CR
-  // *inside* a value MATLAB writes `&#xD;`, a reference neither reader decodes, which is why the
-  // corpus differential over 469.4 MB could not see this.
+  // *inside* a value MATLAB writes `&#xD;`, a reference — which both readers decode AFTER this
+  // normalization, so it survives as the CR it is — and that is why the corpus differential
+  // over 469.4 MB could not see this.
 
   it('turns CRLF and a lone CR into a single LF, in text', () => {
     expectRead('<P>a\r\nb</P>', { P: ['a\nb'] });
@@ -554,9 +587,10 @@ describe('line endings, which XML normalizes and a raw slice does not', () => {
     expectRead('<P> \r </P>', { P: [' \n '] });
   });
 
-  it('leaves `&#xD;` standing beside a literal it normalized', () => {
-    // The two halves of the same character, one of which is text and one of which is not.
-    expectRead('<P>&#xD;\r</P>', { P: ['&#xD;\n'] });
+  it('decodes `&#xD;` to a CR beside a literal CR it normalized to a LF', () => {
+    // The two spellings of the same character, and the reason MATLAB writes the reference: the
+    // literal becomes a LF, as XML requires, and only the reference survives as a CR.
+    expectRead('<P>&#xD;\r</P>', { P: ['\r\n'] });
   });
 
   it('reads a CRLF-lineended document, layout and all', () => {
@@ -660,9 +694,9 @@ describe('what it declines, and what the seam still answers', () => {
   });
 
   describe('entities it will not interpret', () => {
-    // Numeric character references used to be here, and are not any more: the engine leaves them
-    // standing, so reading them as text is its answer rather than a liberty. Their own describe
-    // block above covers them, including the prohibited codepoints that still decline.
+    // Numeric character references used to be here, and are not any more: both engines decode
+    // them, and their own describe block above covers them, including the prohibited codepoints
+    // that still decline.
 
     it('declines an unknown named entity', () => {
       expectDeclined('<P>&nbsp;</P>', { P: ['&nbsp;'] });

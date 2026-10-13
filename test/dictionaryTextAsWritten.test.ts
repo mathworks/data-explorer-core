@@ -13,6 +13,12 @@
 // -0 values; the reader is the only layer that knows the Class, so it is the only layer that
 // can convert the text, and it now does.
 //
+// The second half is the carriage return. MATLAB writes a CR inside a char as `&#xD;`, and the
+// reader handed the five characters `&#xD;` to the model, which showed them and then wrote
+// `&amp;#xD;`. XML requires a reader to decode a numeric character reference, and both engines
+// now do; the writer in turn has to write a CR back as `&#xD;`, because any XML reader turns a
+// raw CR into a LF.
+//
 // The hosts are MATLAB's own fixtures, with entries added in MATLAB's spelling where the
 // fixtures hold no such value.
 import { describe, it, expect } from 'vitest';
@@ -20,6 +26,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest } from '../src/index.js';
+import { escapeXml } from '../src/datamodel/parser/XmlUtils.js';
 import { flatten } from './parity/loadFile.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -261,5 +268,73 @@ describe('a number is still read by its class, and now keeps the sign of zero', 
     for (const [name, , shown] of typed) {
       expect(entryOf(t.root, name).displayValue, name).toBe(shown);
     }
+  });
+});
+
+describe('a carriage return MATLAB wrote as &#xD; is a carriage return', () => {
+  it('at entry level: held and shown as a CR, and written back as &#xD;', () => {
+    const o = open(
+      HOST,
+      chunkWith([
+        entryXml('varStrCR', 0, '<P Name="Value" Class="char">&#xD;</P>'),
+        entryXml('varStrCRLF', 1, '<P Name="Value" Class="char">A\nB&#xD;C\n&#xD;D&#xD;\nE&#xD;&#xD;F</P>'),
+      ]),
+      'char_binary.sldd',
+    );
+    const cr = entryOf(o.root, 'varStrCR');
+    expect(cr._scalarValue).toBe('\r');
+    expect(cr.displayValue).toBe("'\r'");
+    const crlf = entryOf(o.root, 'varStrCRLF');
+    expect(crlf._scalarValue).toBe('A\nB\rC\n\rD\r\nE\r\rF');
+    const saved = saveOf(o);
+    expect(savedEntry(saved, 'varStrCR')).toContain('<P Name="Value" Class="char">&#xD;</P>');
+    expect(savedEntry(saved, 'varStrCRLF')).toContain('<P Name="Value" Class="char">A\nB&#xD;C\n&#xD;D&#xD;\nE&#xD;&#xD;F</P>');
+    expect(saved).not.toContain('&amp;#xD;');
+  });
+
+  it('in an object property of a MATLAB-written fixture (custom_object_binary.sldd widget.Cr)', () => {
+    const host = './fixtures/custom_object_binary.sldd';
+    const chunk = chunkOf(bytesAt(host));
+    expect(chunk).toContain('<P Name="Cr" Class="char">a&#xD;b</P>');
+    const o = open(host, chunk, 'custom_object_binary.sldd');
+    const widget = entryOf(o.root, 'widget');
+    const cr = widget.children.find((c: any) => c.name === 'Cr');
+    expect(cr._scalarValue).toBe('a\rb');
+    expect(cr.displayValue).toBe("'a\rb'");
+    // Another property edited, so the entry is written from the model whatever a save does
+    // with an untouched one.
+    expect(widget.children.find((c: any) => c.name === 'Scalar').setProperty('Value', '2.5')).toBe(true);
+    const saved = saveOf(o);
+    expect(saved).toContain('<P Name="Cr" Class="char">a&#xD;b</P>');
+    expect(saved).not.toContain('&amp;#xD;');
+  });
+
+  it('a renamed entry holding one is written with &#xD; too', () => {
+    const o = open(HOST, chunkWith([entryXml('withCr', 0, '<P Name="Value" Class="char">a&#xD;b</P>')]), 'char_binary.sldd');
+    expect(entryOf(o.root, 'withCr').setProperty('Name', 'withCr2')).toBe(true);
+    expect(savedEntry(saveOf(o), 'withCr2')).toContain('<P Name="Value" Class="char">a&#xD;b</P>');
+  });
+
+  it('other numeric references decode to their characters as well', () => {
+    const o = open(HOST, chunkWith([entryXml('refs', 0, '<P Name="Value" Class="char">&#65;&#x42;&#X43;&#x1F600;</P>')]), 'char_binary.sldd');
+    expect(entryOf(o.root, 'refs')._scalarValue).toBe('ABC\u{1F600}');
+  });
+
+  it('a raw CR in the bytes is still a LF, which is what XML says it is', () => {
+    // The reason MATLAB writes `&#xD;` at all: XML 1.0 §2.11 has a reader present a literal
+    // CR, or a CRLF, as one LF. Decoding the reference does not change that, so this passed
+    // before the change as well; it guards against the decoder taking over line ends.
+    const o = open(HOST, chunkWith([entryXml('rawCr', 0, '<P Name="Value" Class="char">a\r\nb\rc</P>')]), 'char_binary.sldd');
+    expect(entryOf(o.root, 'rawCr')._scalarValue).toBe('a\nb\nc');
+  });
+});
+
+describe('escapeXml', () => {
+  it('writes a CR as &#xD;, and the four characters it already escaped as before', () => {
+    expect(escapeXml('a\rb')).toBe('a&#xD;b');
+    expect(escapeXml('\r\n')).toBe('&#xD;\n');
+    expect(escapeXml('& < > "')).toBe('&amp; &lt; &gt; &quot;');
+    expect(escapeXml('&#xD;')).toBe('&amp;#xD;');
+    expect(escapeXml("a\tb\nc'")).toBe("a\tb\nc'");
   });
 });

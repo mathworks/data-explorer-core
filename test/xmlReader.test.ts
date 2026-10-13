@@ -26,8 +26,8 @@
 // What is NOT pinned here is desirability. That an unclosed tag parses cleanly, or that a
 // model part's `007` reads as 7, is not a behaviour this package chose — it is one the callers
 // have to survive, and the notes in `XmlReader` say which of them survive it how. Where this
-// package DID choose — the dictionary reader keeps its text — the choice is pinned as a
-// difference between the readers.
+// package DID choose — the dictionary reader keeps its text and decodes numeric references —
+// the choice is pinned as a difference between the readers, in the dictionary block below.
 
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -135,11 +135,24 @@ describe('the shape every reader produces', () => {
     everyReader('<Q Flag="true"/>', { Q: { '@_Flag': 'true' } });
   });
 
-  it('decodes a NAMED entity but leaves a numeric character reference alone', () => {
+  it('decodes a NAMED entity but leaves a numeric character reference alone — except the dictionary reader', () => {
     // Both halves matter. The first is why `SlddScan` refuses a name containing an entity
     // rather than mirror a decoder it does not own; the second is why a `&#65;` reaching a
     // cell must still render flat, which `blockParamUsages` asserts from the other side.
-    everyReader('<Q>a&amp;b&#65;</Q>', { Q: 'a&b&#65;' });
+    //
+    // XML requires a reader to replace a numeric character reference, and a dictionary needs
+    // it: MATLAB writes `&#xD;` for every CR inside a char, and a reader that left the five
+    // characters standing showed them and saved them back as `&amp;#xD;`.
+    engineDefaultReaders('<Q>a&amp;b&#65;</Q>', { Q: 'a&b&#65;' }, { Q: 'a&bA' });
+    engineDefaultReaders('<Q>a&#xD;b</Q>', { Q: 'a&#xD;b' }, { Q: 'a\rb' });
+    engineDefaultReaders('<Q N="a&#xD;b"/>', { Q: { '@_N': 'a&#xD;b' } }, { Q: { '@_N': 'a\rb' } });
+  });
+
+  it('decodes no HTML entity in any reader', () => {
+    // The dictionary reader decodes references by asking the engine for XML's own five named
+    // entities with numeric references allowed — not for HTML's table, which XML does not
+    // have and which would turn a hand-written `&nbsp;` into a character MATLAB never wrote.
+    everyReader('<Q>a&nbsp;b&copy;</Q>', { Q: 'a&nbsp;b&copy;' });
   });
 
   it('delivers CDATA as ordinary text, markup characters intact', () => {

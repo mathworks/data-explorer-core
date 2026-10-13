@@ -26,9 +26,10 @@
 //     DICTIONARY reader coerces nothing; see "WHAT THE THREE READERS DO NOT SHARE".
 //   - Attribute values are coerced not at all — `Dim="7"` stays the string '7' and
 //     `Flag="true"` stays the string 'true'.
-//   - Named entities are decoded (`&amp;` -> `&`). NUMERIC character references are NOT:
-//     `&#65;` arrives as the five characters `&#65;`. This is why `SlddScan` carries its
-//     own entity table rather than deciding what to decode for itself.
+//   - Named entities are decoded (`&amp;` -> `&`). NUMERIC character references are not, by
+//     the model and project readers: `&#65;` arrives there as the five characters `&#65;`. The
+//     dictionary reader decodes them. Either way `SlddScan` carries no entity table and
+//     refuses a name with any entity in it, rather than decide what to decode for itself.
 //   - CDATA arrives as ordinary text with its markup characters intact.
 //   - `<P/>` reads as the empty STRING when it carries no attributes, and as an object
 //     with no `#text` key when it does. Both, not one.
@@ -53,7 +54,7 @@
 // ---------------------------------------------------------------------------------------
 // WHAT THE THREE READERS DO NOT SHARE
 //
-// Three options differ, and each is isolated in the test:
+// Four options differ, and each is isolated in the test:
 //
 //   `isArray` (dictionary only) forces `Object`, `P`, `Element` and `Field` to arrays even
 //   when singular. Without it a one-entry dictionary hands back an object where a
@@ -95,6 +96,16 @@
 //   `test/fixtures` and `test/parity/artifacts`: 166 char bodies respelled, and 6 scalar
 //   double -0 values read as +0. A char matrix or an encoded stream whose text looked like a
 //   number lost its characters the same way, though none of the 52 holds one.
+//
+//   `htmlEntities` (dictionary only) is given XML's five named entities as an OBJECT, which is
+//   how this engine is told to decode numeric character references without HTML's named
+//   entities: its decoder takes an object there as the named table to use instead of HTML's,
+//   and allows numeric references exactly when the option is set. XML requires a reader to
+//   replace a reference with its character, and a dictionary needs it — MATLAB writes `&#xD;`
+//   for every CR inside a char, and a reader that left the five characters standing showed
+//   them and saved them back as `&amp;#xD;`. A codepoint XML prohibits is still deleted, as it
+//   was. The typings call the option a boolean, so it is cast; the contract test pins the
+//   behaviour, and is the file that goes red if an engine release stops honouring the object.
 import { XMLParser } from 'fast-xml-parser';
 import { readDictionaryXmlFast } from './DictionaryXmlFast.js';
 /**
@@ -149,11 +160,23 @@ const SHAPE = {
 function dropLayoutWhitespace(_tagName, value, _jPath, _hasAttributes, isLeafNode) {
     return !isLeafNode && value.trim() === '' ? '' : value;
 }
+/** XML's own named entities — and only those: HTML's table is not XML's (see the header). */
+const XML_NAMED_ENTITIES = {
+    amp: '&',
+    lt: '<',
+    gt: '>',
+    quot: '"',
+    apos: "'",
+};
 const dictionaryParser = new XMLParser({
     ...SHAPE,
     isArray: (name) => name === 'Object' || name === 'P' || name === 'Element' || name === 'Field',
     trimValues: false,
     parseTagValue: false,
+    // Typed `boolean` and marked deprecated in favour of a custom `entityDecoder`, which would
+    // mean owning DOCTYPE entity expansion and its limits too. The object form keeps the engine's
+    // own decoder and changes only what the header says.
+    htmlEntities: XML_NAMED_ENTITIES,
     tagValueProcessor: dropLayoutWhitespace,
 });
 // The model and project readers ask for the same thing, so they share one parser rather
@@ -165,7 +188,7 @@ const dictionaryParser = new XMLParser({
 const defaultParser = new XMLParser(SHAPE);
 /**
  * A `.sldd`'s XML part. `Object`, `P` and `Element` are always arrays; text is the text the
- * file holds, never converted; whitespace inside a value is preserved
+ * file holds, entity-decoded and never converted; whitespace inside a value is preserved
  * exactly as written, and whitespace between two tags is not stored at all
  * (`dropLayoutWhitespace`).
  *
@@ -175,12 +198,13 @@ const defaultParser = new XMLParser(SHAPE);
  */
 export function readDictionaryXml(text) {
     // Two engines, ONE contract. `DictionaryXmlFast` reads the subset of XML a dictionary is
-    // actually written in — five element names, quoted attributes, XML's five entities — and
-    // returns `null` for anything else, which is every question about damage, DOCTYPE, CDATA
-    // or a numeric character reference. Those go to the general engine, which is what the
-    // contract above was measured against and still is: the fast reader is held to the
-    // engine's output byte for byte, key order included, over the whole corpus
-    // (`.scratch/probe-differential.mjs`) and case by case in `test/dictionaryXmlFast.test.ts`.
+    // actually written in — five element names, quoted attributes, XML's five entities and
+    // numeric character references — and returns `null` for anything else, which is every
+    // question about damage, DOCTYPE, CDATA or a codepoint XML prohibits. Those go to the
+    // general engine, which is what the contract above was measured against and still is: the
+    // fast reader is held to the engine's output byte for byte, key order included, over the
+    // whole corpus (`.scratch/probe-differential.mjs`) and case by case in
+    // `test/dictionaryXmlFast.test.ts`.
     //
     // So this line is a speed change and not a behaviour change. It is written as a fallback
     // rather than a feature flag because the fallback IS the specification — there is no
