@@ -172,6 +172,71 @@ describe('a save that edits nothing writes every member of the package back as i
   });
 });
 
+/** Each member of a zip as its central directory lists it: name, DOS time and date, method. */
+function directory(zip: Uint8Array): [string, number, number, number][] {
+  const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+  let eocd = zip.length - 22;
+  while (view.getUint32(eocd, true) !== 0x06054b50) eocd--;
+  const out: [string, number, number, number][] = [];
+  let p = view.getUint32(eocd + 16, true);
+  for (let i = view.getUint16(eocd + 10, true); i > 0; i--) {
+    const n = view.getUint16(p + 28, true);
+    out.push([text(zip.subarray(p + 46, p + 46 + n)), view.getUint16(p + 12, true), view.getUint16(p + 14, true), view.getUint16(p + 10, true)]);
+    p += 46 + n + view.getUint16(p + 30, true) + view.getUint16(p + 32, true);
+  }
+  return out;
+}
+
+describe('a save keeps the package\'s own zip-level metadata', () => {
+  // The deflated bytes are the zip writer's, so the archive is not byte for byte the one
+  // read; what it says about its members is.
+  for (const path of BINARY) {
+    it(`${relative(HERE, path)}: the members in their order, with their times and compression`, () => {
+      const { session, root, bytes } = open(path);
+      expect(directory(session.serializeSource(root.name).bytes)).toEqual(directory(bytes));
+    });
+  }
+
+  it('and an edit changes none of it', () => {
+    const { session, root, bytes } = open(join(HERE, 'fixtures', 'arch_binary.sldd'));
+    entries(root)[0].setProperty('Name', 'renamedForTheDirectory');
+    expect(directory(session.serializeSource(root.name).bytes)).toEqual(directory(bytes));
+  });
+
+  it('a member whose stamp names no time is written with the save\'s own, as every member used to be', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 13, 10, 20, 30));
+    try {
+      const zip = new Uint8Array(readFileSync(join(HERE, 'fixtures', 'typed_binary.sldd')));
+      // Month 0 in the central directory's date of the first member: no such date.
+      const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+      let eocd = zip.length - 22;
+      while (view.getUint32(eocd, true) !== 0x06054b50) eocd--;
+      const first = view.getUint32(eocd + 16, true);
+      view.setUint16(first + 14, (46 << 9) | (0 << 5) | 1, true);
+      const session = createSession();
+      const root: any = ingest(session, buffer(zip), { filename: 'typed_binary.sldd' });
+      const [name, time, date] = directory(session.serializeSource(root.name).bytes)[0];
+      expect(name).toBe(directory(zip)[0][0]);
+      expect([date, time]).toEqual([((2026 - 1980) << 9) | (10 << 5) | 13, (10 << 11) | (20 << 5) | 15]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a stored member stays stored, and one a host adds follows the rest', () => {
+    const members = unzipSync(new Uint8Array(readFileSync(join(HERE, 'fixtures', 'typed_binary.sldd'))));
+    const names = Object.keys(members);
+    const zip = zipSync(Object.fromEntries(names.map((n, i) => [n, [members[n], { level: i % 2 === 0 ? 0 : 6, mtime: new Date(2020, 5, 7, 8, 9, 10) }]])) as any);
+    const session = createSession();
+    const root: any = ingest(session, buffer(zip), { filename: 'typed_binary.sldd' });
+    root._zipMetadata['extra/added.xml'] = new TextEncoder().encode('<x/>');
+    const out = directory(session.serializeSource(root.name).bytes);
+    expect(out.slice(0, names.length)).toEqual(directory(zip));
+    expect(out.map(([n]) => n)).toEqual([...names, 'extra/added.xml']);
+  });
+});
+
 describe('the frame of the chunk is kept', () => {
   it('entries of different sections stay in the order the file has them', () => {
     // Design, Other, Design: written from the model, the Other entry moved behind both.

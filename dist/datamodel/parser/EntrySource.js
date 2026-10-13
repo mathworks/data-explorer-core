@@ -149,4 +149,17 @@ export function keptFragmentOf(entry) {
         ? attached.source.fragment
         : null;
 }
+// The package around the chunk: each member's place in the archive, its time stamp and its
+// compression, as read, keyed by the pass-through member bag the reader built (which the
+// dictionary node holds as `_zipMetadata`, by identity). Zip-level metadata only — the
+// members' bytes are the bag's — so a save can put the archive back together as it was.
+const packages = new WeakMap();
+/** Record how the archive a member bag was read from listed its members. */
+export function recordPackageStamps(zipMetadata, stamps) {
+    packages.set(zipMetadata, stamps);
+}
+/** How the archive this member bag was read from listed its members, if it is known. */
+export function packageStampsOf(zipMetadata) {
+    return zipMetadata ? packages.get(zipMetadata) : undefined;
+}
 //# sourceMappingURL=EntrySource.js.map

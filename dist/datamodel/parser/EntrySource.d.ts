@@ -1,3 +1,4 @@
+import type { ZipMemberStamp } from './Inflate.js';
 /** A `[start, end)` character range in the chunk text. */
 export type Span = readonly [number, number];
 /** The chunk an entry was read from, as the reader found it. */
@@ -79,4 +80,8 @@ export declare function entrySourceOf(entry: object): EntrySource | undefined;
  * would have marked it would otherwise show the change and save the bytes it was read from.
  */
 export declare function keptFragmentOf(entry: EntryIdentity & object): string | null;
+/** Record how the archive a member bag was read from listed its members. */
+export declare function recordPackageStamps(zipMetadata: object, stamps: readonly ZipMemberStamp[]): void;
+/** How the archive this member bag was read from listed its members, if it is known. */
+export declare function packageStampsOf(zipMetadata: object | null | undefined): readonly ZipMemberStamp[] | undefined;
 //# sourceMappingURL=EntrySource.d.ts.map

@@ -51,6 +51,8 @@
 //
 // A change made deeper inside the value object is not seen by either.
 
+import type { ZipMemberStamp } from './Inflate.js';
+
 /** A `[start, end)` character range in the chunk text. */
 export type Span = readonly [number, number];
 
@@ -220,3 +222,18 @@ export function keptFragmentOf(entry: EntryIdentity & object): string | null {
     : null;
 }
 
+// The package around the chunk: each member's place in the archive, its time stamp and its
+// compression, as read, keyed by the pass-through member bag the reader built (which the
+// dictionary node holds as `_zipMetadata`, by identity). Zip-level metadata only — the
+// members' bytes are the bag's — so a save can put the archive back together as it was.
+const packages = new WeakMap<object, readonly ZipMemberStamp[]>();
+
+/** Record how the archive a member bag was read from listed its members. */
+export function recordPackageStamps(zipMetadata: object, stamps: readonly ZipMemberStamp[]): void {
+  packages.set(zipMetadata, stamps);
+}
+
+/** How the archive this member bag was read from listed its members, if it is known. */
+export function packageStampsOf(zipMetadata: object | null | undefined): readonly ZipMemberStamp[] | undefined {
+  return zipMetadata ? packages.get(zipMetadata) : undefined;
+}

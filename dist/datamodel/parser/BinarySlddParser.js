@@ -42,7 +42,7 @@
 // wants diagnostics has to know to ask. That is the same bargain `SlxParser`'s
 // internal helpers already make, and the reason the parameter is documented on both
 // exported functions rather than left to be discovered.
-import { unzipEntries } from './Inflate.js';
+import { unzipEntries, zipMemberStamps } from './Inflate.js';
 import { readDictionaryXml } from './XmlReader.js';
 import { ENTRY_OPEN, spellsEntry } from './DictionaryXmlFast.js';
 import { reasonOf } from './ParseWarning.js';
@@ -52,7 +52,7 @@ import { encodedStream, encodedValueOf, isEncodedValue } from './EncodedValue.js
 import { charFromDecimal, charNeedsShape, complexClassTag, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, BINARY_EMPTY_KEY, ENUM_KEY, ENUMERATION_KEY, PROPERTY_SOURCE_KEY, SAVEOBJ_KEY, } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
 import { headerDigits } from './Size.js';
-import { recordReadFrame, recordReadSource } from './EntrySource.js';
+import { recordPackageStamps, recordReadFrame, recordReadSource } from './EntrySource.js';
 /**
  * Read a `Dimension="d1*d2*...*dn"` attribute into every extent it declares.
  *
@@ -122,6 +122,13 @@ export function parseBinarySldd(arrayBuffer, warnings) {
         if (name !== DATA_PART_XML) {
             zipMetadata[name] = data;
         }
+    }
+    // How the archive lists its members — order, time stamps, compression — so a save can
+    // write the package back as it was (BinarySlddSerializer). Nothing at all is recorded
+    // for an archive the directory walk does not understand.
+    const stamps = zipMemberStamps(uint8);
+    if (stamps) {
+        recordPackageStamps(zipMetadata, stamps);
     }
     return parseBinarySlddParts(xmlString, zipMetadata, warnings);
 }

@@ -49,6 +49,23 @@ export declare function nativeInflateAvailable(): boolean;
  * So: pass a filter to avoid holding 25x the bytes, not because the read is slow.
  */
 export declare function unzipEntries(bytes: Uint8Array, wanted?: (name: string) => boolean): Record<string, Uint8Array>;
+/** A member of a zip archive as its central directory lists it, without its bytes. */
+export interface ZipMemberStamp {
+    name: string;
+    /** The MS-DOS time and date fields, as stored. */
+    dosTime: number;
+    dosDate: number;
+    /** 0 stored, 8 deflated. */
+    method: number;
+}
+/**
+ * Every member of a zip archive, in central-directory order, with the time, date and
+ * compression method the directory records for it — what a writer needs to put a package
+ * back together the way it was read. Nothing is inflated. Null for an archive this walk
+ * does not understand (ZIP64, multi-disk, a truncated directory), which a caller takes as
+ * "nothing known".
+ */
+export declare function zipMemberStamps(bytes: Uint8Array): ZipMemberStamp[] | null;
 /**
  * Inflate a zlib-wrapped stream — the framing MAT v5 `miCOMPRESSED` records use.
  *

@@ -336,6 +336,48 @@ function walkCentralDirectory(
   return out;
 }
 
+/** A member of a zip archive as its central directory lists it, without its bytes. */
+export interface ZipMemberStamp {
+  name: string;
+  /** The MS-DOS time and date fields, as stored. */
+  dosTime: number;
+  dosDate: number;
+  /** 0 stored, 8 deflated. */
+  method: number;
+}
+
+/**
+ * Every member of a zip archive, in central-directory order, with the time, date and
+ * compression method the directory records for it — what a writer needs to put a package
+ * back together the way it was read. Nothing is inflated. Null for an archive this walk
+ * does not understand (ZIP64, multi-disk, a truncated directory), which a caller takes as
+ * "nothing known".
+ */
+export function zipMemberStamps(bytes: Uint8Array): ZipMemberStamp[] | null {
+  try {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const eocd = findEndOfCentralDirectory(view);
+    const count = view.getUint16(eocd + 10, true);
+    let p = view.getUint32(eocd + 16, true);
+    if (count === 0xffff || p === 0xffffffff) return null;
+    const out: ZipMemberStamp[] = [];
+    for (let i = 0; i < count; i++) {
+      if (p + 46 > view.byteLength || view.getUint32(p, true) !== SIG_CENTRAL) return null;
+      const nameLength = view.getUint16(p + 28, true);
+      out.push({
+        name: utf8.decode(bytes.subarray(p + 46, p + 46 + nameLength)),
+        method: view.getUint16(p + 10, true),
+        dosTime: view.getUint16(p + 12, true),
+        dosDate: view.getUint16(p + 14, true),
+      });
+      p += 46 + nameLength + view.getUint16(p + 30, true) + view.getUint16(p + 32, true);
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 function findEndOfCentralDirectory(view: DataView): number {
   // The record is at the very end unless there is an archive comment, which may be
   // up to 65535 bytes; 22 is the record's own size. Scanning further back than that

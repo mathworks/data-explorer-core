@@ -43,7 +43,7 @@
 // internal helpers already make, and the reason the parameter is documented on both
 // exported functions rather than left to be discovered.
 
-import { unzipEntries } from './Inflate.js';
+import { unzipEntries, zipMemberStamps } from './Inflate.js';
 import { readDictionaryXml } from './XmlReader.js';
 import { ENTRY_OPEN, spellsEntry, type ReadEntrySpans } from './DictionaryXmlFast.js';
 import { reasonOf, type ParseWarning } from './ParseWarning.js';
@@ -75,7 +75,7 @@ import {
 } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
 import { headerDigits } from './Size.js';
-import { recordReadFrame, recordReadSource, type ChunkFrame, type Span } from './EntrySource.js';
+import { recordPackageStamps, recordReadFrame, recordReadSource, type ChunkFrame, type Span } from './EntrySource.js';
 
 interface XmlNode {
   '@_Class'?: string;
@@ -183,6 +183,14 @@ export function parseBinarySldd(
       zipMetadata[name] = data;
     }
   }
+  // How the archive lists its members — order, time stamps, compression — so a save can
+  // write the package back as it was (BinarySlddSerializer). Nothing at all is recorded
+  // for an archive the directory walk does not understand.
+  const stamps = zipMemberStamps(uint8);
+  if (stamps) {
+    recordPackageStamps(zipMetadata, stamps);
+  }
+
   return parseBinarySlddParts(xmlString, zipMetadata, warnings);
 }
 
