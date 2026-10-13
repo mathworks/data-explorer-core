@@ -691,3 +691,107 @@ describe('an object value with a null element', () => {
     }
   });
 });
+
+// The text twin of the saveobj case above. A text dictionary spells the envelope of an object
+// whose class saves through saveobj as `_custom_save`, beside the element's `_properties` and
+// not in it, and MATLAB writes no `_properties` there at all (XmlUtils' CUSTOM_SAVE_KEY). Of a
+// class with no typed node, ObjectNode looked for the envelope only in the bag, as a binary
+// dictionary files it, so written as XML, as a host writes an entry pasted into a binary
+// dictionary, the object went out as an empty `<Element Class="…"></Element>`, its whole state
+// gone. So did the same object as an object's property, a Parameter's Value or a cell's element
+// there, which the raw object writer (DataNode._objectXml) writes from the element. The text
+// dictionary's own save and a copy keep `_custom_save` as read.
+describe('of a class that serializes through saveobj and has no typed node, read from a text dictionary', () => {
+  const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)));
+  const CLASS = 'my.SaveobjCls';
+  const content = (json: any) => json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content;
+  const ENVELOPE_TAG = '<P Source="saveobj" PropertyType="any" Class="struct">';
+  // parity/artifacts/binary/cases.sldd's aVariant, relabelled as in the binary case above: its
+  // envelope as the binary reader holds it, and its <P Name="Value"> as the file holds it.
+  const files = unzipSync(new Uint8Array(read('./parity/artifacts/binary/cases.sldd')));
+  const chunk = strFromU8(files['data/chunk0.xml']).replace('<Element Class="Simulink.VariantVariable">', `<Element Class="${CLASS}">`);
+  const relabelled = zipSync({ ...files, 'data/chunk0.xml': strToU8(chunk) });
+  const valueOf = (xml: string, name: string): string => {
+    const start = xml.indexOf('<P Name="Value">', xml.indexOf(`<P Name="Name" Class="char">${name}</P>`));
+    return xml.slice(start, xml.indexOf('\n        </P>', start) + '\n        </P>'.length);
+  };
+  const written = valueOf(chunk, 'aVariant');
+  const binaryEntry: any = ingest(createSession(), relabelled, { filename: 'cases.sldd' }).flatten().find((n: any) => n.name === 'aVariant');
+  const envelope = binaryEntry.serial._rawVal._elements[0]._properties._saveobj;
+  // The object in a text dictionary's spelling, and in the binary reader's.
+  const textSpelling = (cls = CLASS) => ({ _array_class: cls, _dimensions: [1, 1], _elements: [{ _custom_save: envelope, _id: '1' }], _mw_element_type: 'MATLABArray' });
+  const binarySpelling = (cls = CLASS) => ({ _array_class: cls, _dimensions: [1, 1], _elements: [{ _properties: { _saveobj: envelope } }], _mw_element_type: 'MATLABArray' });
+  const ROUTES: Record<string, (o: unknown) => unknown> = {
+    saver: (o) => o,
+    inObject: (o) => valueObject('Widget', [{ P: o, x: 1 }]),
+    inParameter: (o) => ({ _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: o } }], _mw_element_type: 'MATLABArray' }),
+    inParameterCell: (o) => ({ _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: { _array_type: 'Cell', _dimensions: [1, 2], _elements: [o, 1] } } }], _mw_element_type: 'MATLABArray' }),
+    inCell: (o) => ({ _array_type: 'Cell', _dimensions: [1, 2], _elements: [o, 1], _mw_element_type: 'MATLABArray' }),
+    inStruct: (o) => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ s: o, x: 1 }], _mw_element_type: 'MATLABArray' }),
+  };
+  const textWith = (spelling: () => unknown): string => {
+    const json = JSON.parse(read('./fixtures/rt_text.sldd').toString('utf8'));
+    const entries = content(json).entries;
+    Object.entries(ROUTES).forEach(([name, route], i) => {
+      entries.push({ name, metadata: { ...entries[0].metadata, uuid: `a43e9523-8ba6-426a-b689-6e7d8593${1000 + i}` }, value: route(spelling()) });
+    });
+    return JSON.stringify(json, null, '\t');
+  };
+  const text = textWith(() => textSpelling());
+
+  it('saves the text dictionary untouched as read, and a copy keeps `_custom_save`', () => {
+    const session = createSession();
+    const source: any = ingest(session, text, { filename: 'gadget.sldd' });
+    expect((session.serializeSource(source.name) as { text: string }).text).toBe(text);
+    for (const name of Object.keys(ROUTES)) {
+      const copy = JSON.stringify(source.flatten().find((n: any) => n.name === name).serialize().value);
+      expect([name, copy.split('"_custom_save":').length - 1, copy.includes('"_saveobj"')]).toEqual([name, 1, false]);
+    }
+  });
+
+  it('writes the envelope into the XML of each, as the binary spelling of the same object is written', () => {
+    const source: any = ingest(createSession(), text, { filename: 'gadget.sldd' });
+    const twin: any = ingest(createSession(), textWith(() => binarySpelling()), { filename: 'gadget.sldd' });
+    for (const name of Object.keys(ROUTES)) {
+      const xml = serializeEntryToXml(source.flatten().find((n: any) => n.name === name));
+      expect([name, xml.split(ENVELOPE_TAG).length - 1]).toEqual([name, 1]);
+      expect([name, xml]).toEqual([name, serializeEntryToXml(twin.flatten().find((n: any) => n.name === name))]);
+    }
+  });
+
+  it('pasted into a binary dictionary, writes the envelope as that dictionary holds it, untouched and renamed, and saves it', () => {
+    const source: any = ingest(createSession(), text, { filename: 'gadget.sldd' });
+    const payload = JSON.parse(JSON.stringify(source.flatten().find((n: any) => n.name === 'saver').serialize()));
+    const session = createSession();
+    const binary: any = ingest(session, relabelled, { filename: 'cases.sldd' });
+    const design = binary.getSection('design');
+    const pasted = design.parseEntry({ ...payload, name: 'saverPasted', metadata: { ...design.children[0].metadata, uuid: 'b43e9523-8ba6-426a-b689-6e7d85901372' } });
+    expect(valueOf(serializeEntryToXml(pasted), 'saverPasted')).toBe(written);
+    const saved = strFromU8(unzipSync((session.serializeSource(binary.name) as { bytes: Uint8Array }).bytes)['data/chunk0.xml']);
+    expect(valueOf(saved, 'saverPasted')).toBe(written);
+    expect(pasted.setProperty('Name', 'saverRenamed')).toBe(true);
+    expect(valueOf(serializeEntryToXml(pasted), 'saverRenamed')).toBe(written);
+  });
+
+  it('so does a typed class that saves through saveobj, wherever it is written from its value, whose node writes the text spelling', () => {
+    // Simulink.VariantVariable's own node holds the envelope in its bag, and writes its value
+    // in the text spelling whatever the dictionary (DataNode._serializeSimulinkObject), so as an
+    // object's property, a Parameter's Value, or a cell or a struct there, it reached the raw
+    // object writer as `_custom_save` too.
+    const routes: Record<string, (o: unknown) => unknown> = {
+      ...ROUTES,
+      inParameterStruct: (o) => ({ _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ s: o, x: 1 }] } } }], _mw_element_type: 'MATLABArray' }),
+    };
+    const json = JSON.parse(read('./fixtures/rt_text.sldd').toString('utf8'));
+    const entries = content(json).entries;
+    Object.entries(routes).forEach(([name, route], i) => {
+      entries.push({ name, metadata: { ...entries[0].metadata, uuid: `a43e9523-8ba6-426a-b689-6e7d8594${1000 + i}` }, value: route(textSpelling('Simulink.VariantVariable')) });
+    });
+    const source: any = ingest(createSession(), JSON.stringify(json, null, '\t'), { filename: 'gadget.sldd' });
+    for (const name of Object.keys(routes)) {
+      const xml = serializeEntryToXml(source.flatten().find((n: any) => n.name === name));
+      expect([name, xml.split(ENVELOPE_TAG).length - 1]).toEqual([name, 1]);
+      expect([name, xml.includes('<Element Class="Simulink.VariantVariable">')]).toEqual([name, true]);
+    }
+  });
+});

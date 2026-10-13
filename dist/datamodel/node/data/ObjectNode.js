@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import DataNode from '../DataNode.js';
+import DataNode, { customSaveOf } from '../DataNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
@@ -172,8 +172,23 @@ export default class ObjectNode extends DataNode {
     }
     // The property bag the XML writers iterate into <P>s: _serializeSimulinkObjectXml, and
     // serializeXml for each element of an object array.
+    //
+    // With the saveobj envelope a text dictionary spells beside the element's bag, as
+    // `_custom_save`, put in it under SAVEOBJ_KEY, the one key the XML spells as MATLAB's unnamed
+    // saveobj <P>, and the spelling a binary dictionary's reader gives the same envelope. For a
+    // class with no typed node it is the object's whole state, and it went out as an empty
+    // <Element>. After the properties, where SimulinkObjectNode._propsOf puts it for a typed
+    // class. Here and not in _storedProperties, because the JSON keeps it where it was read:
+    // serializeValue writes the element's other keys back as they are.
     _getSerializedProperties() {
-        return this._rebuiltProperties(true);
+        const props = this._rebuiltProperties(true);
+        const rawVal = this.serial._rawVal || {};
+        const elements = rawVal._object_class ? undefined : rawVal._elements;
+        const envelope = Array.isArray(elements) && elements.length === 1 ? customSaveOf(elements[0]) : undefined;
+        if (envelope !== undefined) {
+            setOwn(props, SAVEOBJ_KEY, envelope);
+        }
+        return props;
     }
     // The property bag rebuilt from live children, in the stored bag's own key order. Each
     // property's value is its child's own serialized form, so a nested object/struct/cell

@@ -213,6 +213,17 @@ export function isFieldBag(element: unknown): element is Record<string, unknown>
 }
 
 /**
+ * The saveobj envelope of an object's element as a text dictionary spells it, `_custom_save`
+ * beside the element's `_properties` and not in it (XmlUtils' CUSTOM_SAVE_KEY), or undefined.
+ * A binary dictionary's reader files the same envelope in the bag, under SAVEOBJ_KEY, which is
+ * the one spelling every writer of XML knows. Asked by each place that reads a text element's
+ * bag for one: SimulinkObjectNode._propsOf, ObjectNode's XML, and the raw object writer below.
+ */
+export function customSaveOf(element: unknown): unknown {
+  return element && typeof element === 'object' ? (element as Record<string, unknown>)[CUSTOM_SAVE_KEY] : undefined;
+}
+
+/**
  * Where a raw property value a writer is writing stands: the entry's name, and the MATLAB
  * path from it to the value (`pSp.Value`, `obj.Prop(2).field`, `obj.Cellprop{3}`).
  */
@@ -1429,9 +1440,16 @@ export default class DataNode extends BaseNode {
     const elements = (value._elements as (Record<string, unknown> | null)[]) || [];
     const close = '</' + tag + '>';
     // An element a text dictionary holds as `null` holds no properties (ObjectNode.parse): reading
-    // `_properties` off it threw, and the write of the whole dictionary with it.
-    const propsOf = (elem: Record<string, unknown> | null): Record<string, unknown> =>
-      ((elem && elem._properties) as Record<string, unknown>) || {};
+    // `_properties` off it threw, and the write of the whole dictionary with it. One whose class
+    // saves through saveobj carries its envelope beside the bag there (customSaveOf), which went
+    // unwritten, the object's whole state with it: it goes into the bag, where a binary
+    // dictionary has it and pxAttrs writes it as MATLAB's unnamed saveobj <P>, after the
+    // properties, as SimulinkObjectNode._propsOf puts it.
+    const propsOf = (elem: Record<string, unknown> | null): Record<string, unknown> => {
+      const props = ((elem && elem._properties) as Record<string, unknown>) || {};
+      const envelope = customSaveOf(elem);
+      return envelope === undefined ? props : { ...props, [SAVEOBJ_KEY]: envelope };
+    };
 
     if (elements.length === 0 || (elements.length === 1 && Object.keys(propsOf(elements[0])).length === 0)) {
       return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(className) + '"/>\n' + p + close;

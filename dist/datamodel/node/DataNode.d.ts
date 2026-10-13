@@ -42,6 +42,14 @@ export declare function owningEntryOf(node: BaseNode | null | undefined): DataNo
  */
 export declare function isFieldBag(element: unknown): element is Record<string, unknown>;
 /**
+ * The saveobj envelope of an object's element as a text dictionary spells it, `_custom_save`
+ * beside the element's `_properties` and not in it (XmlUtils' CUSTOM_SAVE_KEY), or undefined.
+ * A binary dictionary's reader files the same envelope in the bag, under SAVEOBJ_KEY, which is
+ * the one spelling every writer of XML knows. Asked by each place that reads a text element's
+ * bag for one: SimulinkObjectNode._propsOf, ObjectNode's XML, and the raw object writer below.
+ */
+export declare function customSaveOf(element: unknown): unknown;
+/**
  * Where a raw property value a writer is writing stands: the entry's name, and the MATLAB
  * path from it to the value (`pSp.Value`, `obj.Prop(2).field`, `obj.Cellprop{3}`).
  */
