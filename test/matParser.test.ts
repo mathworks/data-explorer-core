@@ -22,7 +22,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseMat, type MatVariable } from '../src/datamodel/parser/MatParser.js';
+import { zlibSync } from 'fflate';
+import { parseMat, parseMatrix, type MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { createSession } from '../src/index.js';
 import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
@@ -1271,6 +1272,35 @@ describe('parseMat — malformed byte counts', () => {
     expect(only(matFile([structVar('s', ['a'], [{ a: scalarField(1) }], [1, 2_000_000])])).undecoded).toMatch(/^declares 2000000 elements/);
   });
 
+  it('REGRESSION: a struct array with no field names or no bytes left does not walk the rest of its elements', { timeout: 60_000 }, () => {
+    // The element loop ran to the declared size whatever was left to read: for each element it
+    // looked for each field name, and with none it looked for nothing, 1e10 times for a 1e5x1e5
+    // struct(), which took 34 s to parse 208 bytes. It stops when there is no name to look for
+    // or no byte to read one from, and reads what it read before.
+    const timedOnly = (buffer: ArrayBuffer): [MatVariable, number] => {
+      const t0 = performance.now();
+      const v = only(buffer);
+      return [v, performance.now() - t0];
+    };
+    // MATLAB's spelling of a struct with no fields, a stride of 1 and an empty name block, and
+    // this file's structVar's, a stride of 32.
+    for (const [what, buffer] of [
+      ['stride 1', matFile([strideStruct(1, '', [], [1e5, 1e5])])],
+      ['stride 32', matFile([structVar('s', [], [], [1e5, 1e5])])],
+    ] as const) {
+      const [v, ms] = timedOnly(buffer);
+      expect([what, v.className, v.dimensions, v.fields, v.undecoded, ms < 1000]).toEqual([what, 'struct', [1e5, 1e5], {}, undefined, true]);
+    }
+    // A field name and bytes for one element of the million declared: the elements read are
+    // the ones there are bytes for.
+    const [short, ms] = timedOnly(matFile([structVar('s', ['a', 'b'], [{ a: scalarField(1), b: scalarField(2) }], [1, 1_000_000])]));
+    expect([fieldValues({ fields: { a: (short.fields!.a as MatVariable[])[0], b: (short.fields!.b as MatVariable[])[0] } }), (short.fields!.a as MatVariable[]).length, ms < 1000]).toEqual([
+      [['a', 1], ['b', 2]],
+      1,
+      true,
+    ]);
+  });
+
   it('REGRESSION: a struct array whose name block is shorter than its stride has the field it reads', () => {
     // The fields were counted as whole strides in the name block, so a block shorter than its
     // stride counted none while the parse read a name out of it. The array passed for a
@@ -1280,6 +1310,176 @@ describe('parseMat — malformed byte counts', () => {
       const v = only(matFile([strideStruct(stride, 'abcdefgh', [scalarField(7)], [1, 2_000_000])]));
       expect([stride, v.undecoded]).toEqual([stride, expect.stringMatching(/^declares 2000000 elements, more than the \d+ bytes left/)]);
     }
+  });
+
+  it('REGRESSION: a struct whose name block lies past its own end is recorded, not read out of the bytes after it', () => {
+    // The struct arm read its name block wherever its tag was, past the element's end too. A
+    // struct whose element ended after its field-name length took its names from the next
+    // element's bytes, and since there was nothing left to read fields from, ended with
+    // fields {}. structFieldCount counts no field in a block that is not there, so the array
+    // passed the declared-size guard as one with no fields: a 272-byte file declaring
+    // 2,000,000 elements built a row for each and ran a 512 MB heap out while it opened. A
+    // name block outside the element is a damaged struct, and is recorded as one, as the guard
+    // records one: a warning naming it, and no rows.
+    const stride = new Uint8Array(4);
+    new DataView(stride.buffer).setInt32(0, 32, true);
+    const cut = (name: string, d: number[]) => matrix([arrayFlags(CLASS.STRUCT), dims(d), varName(name), element(MI.INT32, stride)]);
+    const x = numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [5] });
+    const reason = (el: Uint8Array) => `its field names lie past the end of its ${el.length - 8} bytes`;
+    for (const d of [[1, 1], [1, 3], [1, 2_000_000]]) {
+      const parsed = parseMat(matFile([cut('s', d), x]));
+      const [s, after] = parsed.variables;
+      expect([s.name, s.dimensions, s.value, s.fields, s.undecoded, after.name, after.value], d.join('x')).toEqual([
+        's', d, `<${d.join('x')} struct, not decoded>`, null, reason(cut('s', d)), 'x', 5,
+      ]);
+      expect(parsed.warnings).toEqual([{ code: 'part-unreadable', message: `"s" was not decoded: ${reason(cut('s', d))}.`, part: 's' }]);
+    }
+    // An element that ends inside its field-name length's tag, read where every reader reads
+    // a matrix: the stride was read out of the bytes past it, here a 0, which would have said
+    // the struct has no fields.
+    const el = cut('', [1, 3]).slice();
+    new DataView(el.buffer).setInt32(56, 0, true);
+    const straddling = parseMatrix(new DataView(el.buffer, el.byteOffset, el.byteLength), 8, 44);
+    expect([straddling.fields, straddling.undecoded]).toEqual([null, 'its field names lie past the end of its 44 bytes']);
+    // As a struct field, the next field's bytes are not taken for its names, and that field is
+    // read as it always was.
+    const t = only(matFile([structVar('t', ['f', 'g'], [{ f: cut('', [1, 3]), g: scalarField(7) }])]));
+    expect([(t.fields!.f as MatVariable).undecoded, (t.fields!.g as MatVariable).value]).toEqual([reason(cut('', [1, 3])), 7]);
+    // Through a session, as a host opens the file. Asked last, so that a reader without the
+    // bound fails on the parse above instead of here.
+    const mat = createSession().addMatSource('s.mat', matFile([cut('s', [1, 2_000_000]), x])) as any;
+    expect(mat.children.map((c: any) => [c.name, c.displayValue, c.children.length])).toEqual([
+      ['s', '<1x2000000 struct, not decoded>', 0],
+      ['x', '5', 0],
+    ]);
+  });
+
+  it('REGRESSION: a struct whose name block runs past its own end is recorded, not read out of the bytes after it', () => {
+    // The case above, with the name block's tag inside the element and its bytes not: a block
+    // of two 32-byte names, the first of them the element's last bytes. The rest of the names
+    // were read out of the next variable's bytes, and with nothing left to read fields from the
+    // struct ended with fields {} and no warning. Below the guard's bound that is a struct
+    // array with no fields, and opened as one: `<1x500000 struct>`, saying nothing of the
+    // damage. Recorded instead, as a name block whose tag lies past the end is.
+    const stride = new Uint8Array(4);
+    new DataView(stride.buffer).setInt32(0, 32, true);
+    const names = new Uint8Array(40);
+    new DataView(names.buffer).setUint32(0, MI.INT8, true);
+    new DataView(names.buffer).setUint32(4, 64, true);
+    names[8] = 0x61;
+    const cut = (name: string, d: number[]) => matrix([arrayFlags(CLASS.STRUCT), dims(d), varName(name), element(MI.INT32, stride), names]);
+    const x = numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [5] });
+    const reason = (el: Uint8Array) => `its field names lie past the end of its ${el.length - 8} bytes`;
+    for (const d of [[1, 1], [1, 3], [1, 500_000]]) {
+      const parsed = parseMat(matFile([cut('s', d), x]));
+      const [s, after] = parsed.variables;
+      expect([s.name, s.dimensions, s.value, s.fields, s.undecoded, after.name, after.value], d.join('x')).toEqual([
+        's', d, `<${d.join('x')} struct, not decoded>`, null, reason(cut('s', d)), 'x', 5,
+      ]);
+      expect(parsed.warnings).toEqual([{ code: 'part-unreadable', message: `"s" was not decoded: ${reason(cut('s', d))}.`, part: 's' }]);
+    }
+    // As a struct field, the next field's bytes are not taken for its names, and that field is
+    // read as it always was.
+    const t = only(matFile([structVar('t', ['f', 'g'], [{ f: cut('', [1, 3]), g: scalarField(7) }])]));
+    expect([(t.fields!.f as MatVariable).undecoded, (t.fields!.g as MatVariable).value]).toEqual([reason(cut('', [1, 3])), 7]);
+    // A block that ends where the element does is read, as it always was: the same struct with
+    // its one name, and its one element's field.
+    const whole = new Uint8Array(names.subarray(0, 40));
+    new DataView(whole.buffer).setUint32(4, 32, true);
+    const field = numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [3] });
+    const s = only(matFile([matrix([arrayFlags(CLASS.STRUCT), dims([1, 1]), varName('s'), element(MI.INT32, stride), whole, field])]));
+    expect([s.undecoded, Object.keys(s.fields!), (s.fields!.a as MatVariable).value]).toEqual([undefined, ['a'], 3]);
+    // Through a session, as a host opens the file.
+    const mat = createSession().addMatSource('s.mat', matFile([cut('s', [1, 500_000]), x])) as any;
+    expect(mat.children.map((c: any) => [c.name, c.displayValue, c.children.length])).toEqual([
+      ['s', '<1x500000 struct, not decoded>', 0],
+      ['x', '5', 0],
+    ]);
+  });
+
+  it('REGRESSION: a record that claims more bytes than the file holds is read as far as its bytes go, not as far as its claim', () => {
+    // parseMatrix took the length it was handed for the element's end, and a top-level
+    // record's length, or the one a compressed record's payload gives its matrix, is the
+    // file's own claim. Every read clamped to the bytes there are, but the walk over a
+    // struct's or a cell's elements, the read of a numeric payload, and the declared-size
+    // guard went by the claim: past the last byte each step read an empty tag, eight bytes
+    // of nothing, and stepped on, up to the half-billion steps a claim of 4 GB allows; and
+    // the guard took the claim for bytes left, so a struct array declaring 500,000,000
+    // elements with one element's bytes was not refused, and a host built a row for every
+    // declared element until the heap ran out. Bounded by the bytes there are, such a
+    // record reads as an element the end of the file cuts short already did inside a struct
+    // or a cell.
+    const claimed = (el: Uint8Array) => corruptLength(el, 0, 0xfffffff0);
+    const zipped = (el: Uint8Array) => {
+      const data = zlibSync(el);
+      const out = new Uint8Array(8 + data.length);
+      out.set(u32le(MI.COMPRESSED), 0);
+      out.set(u32le(data.length), 4);
+      out.set(data, 8);
+      return out;
+    };
+    const timed = (buffer: ArrayBuffer) => {
+      const t0 = performance.now();
+      const parsed = parseMat(buffer);
+      return { parsed, fast: performance.now() - t0 < 1000 };
+    };
+    const refused = (n: number) => new RegExp(`^declares ${n} elements, more than the \\d+ bytes left in it can hold$`);
+    // A struct with a field and one element's bytes, declaring 500,000,000 elements, as a
+    // record and inside a compressed one: the guard refuses it, as it refuses the same
+    // struct whose record claims only what it holds.
+    const big = structVar('s', ['a'], [{ a: scalarField(7) }], [1, 500_000_000]);
+    for (const [what, record] of [['record', claimed(big)], ['compressed', zipped(claimed(big))]] as const) {
+      const { parsed, fast } = timed(matFile([record]));
+      const s = parsed.variables[0];
+      expect([what, s.name, s.value, s.fields, fast], what).toEqual([what, 's', '<1x500000000 struct, not decoded>', null, true]);
+      expect(s.undecoded, what).toMatch(refused(500_000_000));
+      expect(parsed.warnings, what).toContainEqual({ code: 'part-unreadable', message: `"s" was not decoded: ${s.undecoded}.`, part: 's' });
+    }
+    // The record's own warning stands beside it, the file or the payload holding less than
+    // the record says.
+    for (const [record, says] of [
+      [claimed(big), 'A record at byte 128 declares 4294967280 bytes'],
+      [zipped(claimed(big)), 'A compressed record at byte 128 holds a variable that declares 4294967280 bytes'],
+    ] as const) {
+      expect(parseMat(matFile([record])).warnings.map((w) => [w.code, w.part, w.message.slice(0, says.length)])).toEqual([
+        ['part-unreadable', 's', says],
+        ['part-unreadable', 's', expect.stringMatching(/^"s" was not decoded: declares 500000000/)],
+      ]);
+    }
+    // A cell, the same way: past the last byte each step was an element that is not a
+    // matrix, held as a null slot, and the 2,000,000-element cell holding one element was
+    // read as 2,000,000 slots.
+    const cell = only(matFile([claimed(cellVar('c', [scalarField(1)], [1, 2_000_000]))]));
+    expect([cell.value, cell.undecoded]).toEqual(['<1x2000000 cell, not decoded>', expect.stringMatching(refused(2_000_000))]);
+    // A numeric array whose payload lies past the last byte: each declared element was read
+    // out of an empty tag, as a 0 the file does not hold. Past the guard's bound it is
+    // refused; below it, it has no value, as one with no payload inside a struct has.
+    const noPayload = (d: number[]) => claimed(numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: d, real: [], omitData: true }));
+    expect(only(matFile([noPayload([1, 2_000_000])])).undecoded).toMatch(refused(2_000_000));
+    expect(only(matFile([noPayload([1, 3])])).value).toBe(null);
+    // Below the guard's bound the read is the clamped one it always was, and the walk stops
+    // at the last byte: a struct of 512 fields and a million elements, none of them there,
+    // was 512,000,000 steps, 3 s, to read nothing; and a cell of a million elements, none of
+    // them there, was a million null slots, which a host showed as a million rows.
+    const names = new Uint8Array(512 * 8);
+    for (let i = 0; i < 512; i++) {
+      names.set(new TextEncoder().encode('f' + i), i * 8);
+    }
+    const stride = new Uint8Array(4);
+    new DataView(stride.buffer).setInt32(0, 8, true);
+    const wide = matrix([arrayFlags(CLASS.STRUCT), dims([1, 1_000_000]), varName('w'), element(MI.INT32, stride), element(MI.INT8, names)]);
+    const { parsed: wideParsed, fast } = timed(matFile([claimed(wide)]));
+    expect([wideParsed.variables[0].undecoded, wideParsed.variables[0].fields, fast]).toEqual([undefined, {}, true]);
+    const empty = only(matFile([claimed(cellVar('c', [], [1, 1_000_000]))]));
+    expect([empty.undecoded, (empty.value as unknown[]).length]).toEqual([undefined, 0]);
+    // Through a session, as a host opens the file. Asked last, so that a reader without the
+    // bound fails on a parse above instead of here.
+    const opened = (record: Uint8Array) => {
+      const mat = createSession().addMatSource('s.mat', matFile([record])) as any;
+      return mat.children.map((c: any) => [c.name, c.displayValue, c.children.length]);
+    };
+    expect(opened(claimed(big))).toEqual([['s', '<1x500000000 struct, not decoded>', 0]]);
+    expect(opened(claimed(cellVar('c', [], [1, 1_000_000])))).toEqual([['c', '{ }', 0]]);
   });
 
   it('reads a variable whose own element length overruns the file', () => {

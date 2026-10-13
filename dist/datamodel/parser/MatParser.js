@@ -197,6 +197,32 @@ function sparseValue(dimensions, className) {
 // limit past which a sparse array, too, was refused, until a sparse array stopped being
 // held as its dense form.
 const MAX_UNBACKED_ELEMENTS = 1000000;
+// Past this many elements a struct array with no fields has no element rows in the node layer
+// (MatlabVariableNode._createFromMatStruct): MAX_EXPANDED_ELEMENTS, its row cap, restated here
+// because this folder imports nothing from display/ (test/moduleBoundaries.test.ts), and held
+// to it by test/matStructArray.test.ts, which asks each route at the cap and one past it.
+const MAX_LAID_OUT_FIELDLESS = 10000;
+/**
+ * Whether `v` is a struct array whose elements nothing reads one by one: one this reader
+ * recorded without decoding (`undecoded`), or one with no fields declaring more than
+ * MAX_LAID_OUT_FIELDLESS elements, which the node layer shows as its summary alone and the
+ * guard in parseMatrix leaves be, such an element taking no bytes. Either is all declared size,
+ * so a reader that lays a struct out an element at a time lays out what no byte holds:
+ * McosParser's, for an object's property, built one bag per element and StructNode a row per
+ * bag, and a Parameter whose Value was repmat(struct(), 1, 1e6) ran a 512 MB heap out.
+ * Such a struct keeps the bytes it was read from wherever it is read (a cell element too,
+ * below), and is handed over as those.
+ */
+export function isUnheldStructArray(v) {
+    if (v.className !== 'struct') {
+        return false;
+    }
+    if (v.undecoded) {
+        return true;
+    }
+    const count = (v.dimensions || []).reduce((a, b) => a * b, 1);
+    return count > MAX_LAID_OUT_FIELDLESS && Object.keys(v.fields || {}).length === 0;
+}
 // The non-zeros of a sparse array, as MATLAB's find() lists them: column by column, and
 // within a column by row. Subelement layout, from the MAT-file format spec (Level 5,
 // sparse arrays) — the two index arrays sit between the name and the payload, where a
@@ -441,7 +467,10 @@ function childLength(view, sub, tagOffset, end) {
 // name block, the last one however short, and 0 for a stride that is not there or not
 // positive. Counting whole strides only, a block shorter than its stride (which MATLAB
 // never writes: it pads every name to the stride) counted no field while the arm read
-// one, and the array passed the guard below as a fieldless one.
+// one, and the array passed the guard below as a fieldless one. 0 too for a length or a
+// block whose tag does not lie inside the element: the arm records such a struct, and one
+// whose names run on past the element's end, as not decoded, at any size, so the guard
+// need not.
 function structFieldCount(view, offset, end) {
     if (offset + 8 > end) {
         return 0;
@@ -456,7 +485,20 @@ function structFieldCount(view, offset, end) {
 }
 export function parseMatrix(view, baseOffset, length) {
     let offset = baseOffset;
-    const end = baseOffset + length;
+    // The element ends where its length says or where the bytes do, whichever comes first.
+    // `length` can be the file's own claim, unchecked: a top-level record's, or the one a
+    // compressed record's payload gives its matrix. Every read clamps to the bytes there
+    // are (readSubelement), but the walk over a struct's or a cell's elements and the
+    // declared-size guard below went by the end the claim gave: past the last byte each
+    // step read an empty tag and stepped on, up to the half-billion steps a claim of 4 GB
+    // allows, and the guard took the claim for bytes left, so a struct array declaring
+    // 500,000,000 elements with one element's bytes was not refused, and a host built a row
+    // per declared element until the heap ran out. A struct field or a cell element was
+    // always bounded so, its length being readSubelement's, which clamps it; a top-level
+    // record cut short by the end of the file now reads as one of those does. parseMat
+    // says the record, or the payload, was read short.
+    const held = Math.max(0, Math.min(length, view.byteLength - baseOffset));
+    const end = baseOffset + held;
     // An miMATRIX of no bytes, its tag alone, is an empty array: MATLAB writes some empty
     // struct fields that way (a Simulink Design Verifier sldvData in the corpus holds 19),
     // and reads one back as []. It has no flags to read, and reading on would take them,
@@ -633,6 +675,24 @@ export function parseMatrix(view, baseOffset, length) {
     else if (arrayClass === 2) {
         // Struct
         if (offset < end) {
+            // A field-name length, or the name block a positive stride says there is, that
+            // does not lie inside the element (its tag past the end, or its names running on
+            // past it) is a damaged struct, recorded as one, as the guard above records one: a
+            // warning naming it, and no rows. Read where its tag said, the block was the next
+            // element's bytes, a sibling field's or the next variable's, and with no bytes left
+            // for fields the struct ended up with none.
+            // structFieldCount counted none either, so a 272-byte file declaring 2,000,000
+            // elements passed the guard as a struct array with no fields, and a host built a
+            // row for each until the heap ran out. (A struct cut off before its field-name
+            // length is not this: it has fields null and no warning, as it always had.)
+            const pastItsEnd = () => {
+                result.value = undecodedValue(dimensions, className);
+                result.undecoded = 'its field names lie past the end of its ' + held + ' bytes';
+                return result;
+            };
+            if (offset + 8 > end) {
+                return pastItsEnd();
+            }
             const fieldNameLenSub = readSubelement(view, offset);
             offset += fieldNameLenSub.totalSize;
             // The field-name stride comes straight off the file, and it is the loop
@@ -646,7 +706,13 @@ export function parseMatrix(view, baseOffset, length) {
                 result.fields = {};
                 return result;
             }
+            if (offset + 8 > end) {
+                return pastItsEnd();
+            }
             const fieldNamesSub = readSubelement(view, offset);
+            if (fieldNamesSub.dataOffset + fieldNamesSub.bytes > end) {
+                return pastItsEnd();
+            }
             offset += fieldNamesSub.totalSize;
             const fieldNames = [];
             const fnBytes = new Uint8Array(view.buffer, view.byteOffset + fieldNamesSub.dataOffset, fieldNamesSub.bytes);
@@ -666,7 +732,13 @@ export function parseMatrix(view, baseOffset, length) {
                 }
             }
             const fields = {};
-            for (let e = 0; e < totalElements; e++) {
+            // Element by element while there is a name to look for and a byte to read it from:
+            // a byte there is, not one the element's length claims (see `end`).
+            // A struct array with no field names holds nothing per element, and one whose bytes
+            // have run out holds nothing more, so walking the rest of its DECLARED elements read
+            // nothing and only held the parse: 1e10 empty steps, 34 s, for a 1e5x1e5 struct(),
+            // which MATLAB writes in about 200 bytes. What is read is what was read before.
+            for (let e = 0; e < totalElements && fieldNames.length > 0 && offset < end; e++) {
                 for (const fn of fieldNames) {
                     if (offset >= end) {
                         break;
@@ -719,8 +791,11 @@ export function parseMatrix(view, baseOffset, length) {
                 // MCOS property, whose values are a cell's elements — it went into a
                 // dictionary as the text of its placeholder, or as []. A sparse array keeps
                 // them too: they are what it is written back as while nothing edits it, and
-                // what an MCOS property holding one is handed over as (McosParser).
-                if (child.undecoded || child.isSparse) {
+                // what an MCOS property holding one is handed over as (McosParser). So does a
+                // struct array whose elements nothing reads one by one (isUnheldStructArray), for
+                // the same handover and because a copy of it is those bytes
+                // (MatlabVariableNode._matStream).
+                if (child.undecoded || child.isSparse || isUnheldStructArray(child)) {
                     const rawLen = Math.min(cellSub.totalSize, view.byteLength - offset);
                     child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + offset, Math.max(0, rawLen));
                 }
@@ -834,6 +909,24 @@ export function parseMat(arrayBuffer) {
                     variables.push({ name: '', className: '', dimensions: [], isComplex: false, isLogical: false, value: null, fields: null, _rawBytes: new Uint8Array(pako.buffer, pako.byteOffset, pako.byteLength), _anonymous: true });
                 }
                 shortened = nameFor(variables[variables.length - 1]);
+                // The record's warning below, one level in. The matrix's own tag in the
+                // payload may claim more bytes than the payload holds, as a record may claim
+                // more than the file holds, and parseMatrix reads what is there either way;
+                // but the record around it is whole, so the record's warning cannot say so.
+                // A 1x3 struct whose third element lay past the payload's end read two of
+                // them, and nothing said so.
+                const held = deView.byteLength - 8;
+                if (innerBytes > held) {
+                    const short = {
+                        code: 'part-unreadable',
+                        message: `A compressed record at byte ${offset} holds a variable that declares ${innerBytes} bytes, `
+                            + `and its payload holds only ${held}, so it was read short.`,
+                    };
+                    if (shortened) {
+                        short.part = shortened;
+                    }
+                    warnings.push(short);
+                }
             }
             else {
                 warnings.push({

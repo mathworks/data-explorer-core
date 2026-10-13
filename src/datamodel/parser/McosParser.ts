@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { parseMatrix, MatVariable } from './MatParser.js';
+import { isUnheldStructArray, parseMatrix, MatVariable } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
 import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
@@ -454,6 +454,18 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
   const cls = cell.className;
   const val = cell.value;
 
+  // A struct array whose elements MatParser does not hold one by one (isUnheldStructArray):
+  // handed over as the stream of the bytes it was read from, as a sparse array is below, and
+  // read by the node layer as the same struct out of a .mat is, which shows its summary and a
+  // row per element only where there are few enough (MatlabVariableNode._createFromMatStruct).
+  // buildStructValue lays a bag out per DECLARED element, and the node layer a row per bag:
+  // a Simulink.Parameter whose Value is repmat(struct(), 1e4, 1e4) ran the heap out while it
+  // opened. Not re-encoded either: the bytes are MATLAB's, and a copy of the object carries
+  // them as read.
+  if (isUnheldStructArray(cell)) {
+    const stream = cell._rawBytes ? matStreamOfElement(cell._rawBytes) : null;
+    return stream ? { _type: 'cdata', _value: uuencode(stream) } : undefined;
+  }
   if (cls === 'struct') {
     return buildStructValue(cell, ctx, path, depth);
   }

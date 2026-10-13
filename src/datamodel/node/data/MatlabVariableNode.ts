@@ -1448,6 +1448,13 @@ export default class MatlabVariableNode extends DataNode {
     if (this._sparse) {
       return false;
     }
+    // Nor a struct array with no element rows (_unexpandedStruct). Add gives a struct one
+    // `field` row of its own (_addStructField), and such an array is written from the bytes
+    // it was read from wherever it goes (_matStream), so the save lost that row, and the
+    // edit with it, without a word.
+    if (this._unexpandedStruct()) {
+      return false;
+    }
     if (this._kind === 'scalar' && this._scalarType === 'struct') {
       return true;
     }
@@ -1848,7 +1855,10 @@ export default class MatlabVariableNode extends DataNode {
     // sparse array read back as an empty 1x0, a column as a row, a non-finite one
     // reshaped, and a logical or single one full. Asked first, so that saving one never
     // has to look at its elements, which are not held.
-    if (this._sparse || effectiveDims(this._dims).length > 2 || this._isComplexValue()) {
+    //
+    // And a struct array with no element rows (_unexpandedStruct), which a struct value could
+    // spell only as one element per declared element, 1e8 of them for 208 bytes of file.
+    if (this._sparse || effectiveDims(this._dims).length > 2 || this._isComplexValue() || this._unexpandedStruct()) {
       const cdata = this._serializeCdata();
       if (cdata) {
         return cdata;
@@ -1971,6 +1981,15 @@ export default class MatlabVariableNode extends DataNode {
         return own;
       }
     }
+    // A struct array with no element rows, the same way, while nothing has replaced its value
+    // (_applyParsed drops `_matVar`): nothing below it can change it, so the bytes it was read
+    // from are still it, and are MATLAB's — a stride of 1 where MatWriter writes 5.
+    if (this._unexpandedStruct() && this._matVar && this._rawBytes) {
+      const own = matStreamOfElement(this._rawBytes);
+      if (own) {
+        return own;
+      }
+    }
     try {
       return encodeMatStream(this._var);
     } catch (e) {
@@ -1979,6 +1998,26 @@ export default class MatlabVariableNode extends DataNode {
       }
       return null;
     }
+  }
+
+  /**
+   * Is this a struct array past MAX_EXPANDED_ELEMENTS whose elements hold no field — one with
+   * no fields, which _createFromMatStruct builds no element rows for? Its value is its size
+   * alone, and no struct value listing its elements one by one can be made of the 1e8 that a
+   * 208-byte file declares, so it is written as its MAT stream wherever it goes: a text
+   * dictionary and a copy take the stream (serializeValue), a binary dictionary its hex
+   * (serializeXml, _hexValue), as a sparse array does. Not a value the reader recorded without
+   * decoding, which is written as it was before.
+   */
+  _unexpandedStruct(): boolean {
+    return (
+      this._kind === 'scalar' &&
+      this._scalarType === 'struct' &&
+      !this._undecoded &&
+      !this._isOpaque &&
+      elementCount(this._dims) > MAX_EXPANDED_ELEMENTS &&
+      this.children.every((element) => element.children.length === 0)
+    );
   }
 
   /** A budget refusal of a write that began at this node, restated for a user. */
@@ -2304,7 +2343,10 @@ export default class MatlabVariableNode extends DataNode {
     // entry, but it reads one in each of those three places back as the sparse array it
     // was, values, class and complexity equal (R2027a, measured on sparse_text.sldd's st,
     // c, pSp, pSpComplex and pSpLogical pasted into a binary dictionary this way).
-    if (this._sparse) {
+    //
+    // So is a struct array with no element rows (_unexpandedStruct): its XML would be one
+    // <Element> per declared element.
+    if (this._sparse || this._unexpandedStruct()) {
       const hex = this._hexValue(indent);
       if (hex) {
         return encodedXml(tagName, attrStr, hex, indent);
@@ -3030,6 +3072,16 @@ export default class MatlabVariableNode extends DataNode {
       }
       return node;
     }
+    // A struct array with no fields, past MAX_EXPANDED_ELEMENTS, has no element rows: the
+    // summary alone, as a dense array past it has (_buildArrayChildren). Its elements hold
+    // nothing and take no bytes, so its declared size is all there is of it — MATLAB writes
+    // repmat(struct(), 1e4, 1e4) in 208 bytes — and a row per declared element, 1e8 of them,
+    // ran the heap out while it opened. No row was the only copy of anything: the variable
+    // it is written from (_buildVarObject) is the same without them, and wherever it goes it
+    // is written as its stream (_unexpandedStruct).
+    if (fieldNames.length === 0 && count > MAX_EXPANDED_ELEMENTS) {
+      return node;
+    }
 
     // A struct ARRAY gets one child per element, each holding that element's own
     // fields. Keeping only fields[f][0] used to make every element after the
@@ -3396,7 +3448,7 @@ export default class MatlabVariableNode extends DataNode {
     const raw = this._rawInput as Record<string, unknown> | undefined;
     if (raw && isMatCdata(raw) && this._matVar) {
       // The stream it was read from, which is MATLAB's own bytes whatever it holds.
-      if (!needsHexInBinary(this._matVar)) {
+      if (!needsHexInBinary(this._matVar) && !this._unexpandedStruct()) {
         return null;
       }
       const bytes = matStreamPrefix(uudecode(raw._value as string));
@@ -3409,7 +3461,9 @@ export default class MatlabVariableNode extends DataNode {
     // struct is not written whole: its
     // XML carries each sparse field as that field's own hex element (serializeXml), the
     // form MATLAB was measured reading back, where MatWriter's struct stream is not byte
-    // for byte the one MATLAB writes.
+    // for byte the one MATLAB writes. Except a struct array with no element rows
+    // (_unexpandedStruct): it has no field to carry, its stream is the bytes it was read
+    // from (_matStream), and its XML would be an <Element> per declared element.
     //
     // Nor is a cell holding a value that is still a stream of its own (a binary
     // dictionary's nested hex element, _adoptEncoded): written whole, that member would
@@ -3421,7 +3475,11 @@ export default class MatlabVariableNode extends DataNode {
     // string as a char, and MATLAB read the cell back that way. Its XML writes each
     // element as itself, and each sparse one as a hex element of its own (serializeXml),
     // which MATLAB reads back as the cell it was.
-    if (!this._sparse && !(this._kind === 'cell' && this._holdsSparse() && !this._holdsEncoded() && this._matWritable())) {
+    if (
+      !this._sparse &&
+      !this._unexpandedStruct() &&
+      !(this._kind === 'cell' && this._holdsSparse() && !this._holdsEncoded() && this._matWritable())
+    ) {
       return null;
     }
     const bytes = this._matStream();

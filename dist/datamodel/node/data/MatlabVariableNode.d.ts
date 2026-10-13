@@ -230,6 +230,16 @@ export default class MatlabVariableNode extends DataNode {
      * nothing else is written in the value's place.
      */
     _matStream(): Uint8Array | null;
+    /**
+     * Is this a struct array past MAX_EXPANDED_ELEMENTS whose elements hold no field — one with
+     * no fields, which _createFromMatStruct builds no element rows for? Its value is its size
+     * alone, and no struct value listing its elements one by one can be made of the 1e8 that a
+     * 208-byte file declares, so it is written as its MAT stream wherever it goes: a text
+     * dictionary and a copy take the stream (serializeValue), a binary dictionary its hex
+     * (serializeXml, _hexValue), as a sparse array does. Not a value the reader recorded without
+     * decoding, which is written as it was before.
+     */
+    _unexpandedStruct(): boolean;
     /** A budget refusal of a write that began at this node, restated for a user. */
     /**
      * Why MatWriter could not write this sparse array once an element of it were edited — its

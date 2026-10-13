@@ -707,6 +707,31 @@ describe('parseMat — the warnings channel', () => {
     expect(parsed.variables.map((v) => v.name)).toEqual(['x']);
   });
 
+  it('reports a compressed record whose variable declares more bytes than its payload holds', () => {
+    // The same short read one level in: the matrix's own tag inside the payload claims the
+    // bytes, and the record around it is whole, so the record's warning above cannot fire.
+    // The variable opened short and nothing said so.
+    const variable = numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 4], real: [1, 2, 3, 4] });
+    new DataView(variable.buffer, variable.byteOffset, variable.byteLength).setUint32(4, 0xffff, true);
+    const parsed = parseMat(matFile([compressedRecord(variable), compressedRecord(scalar('after', 2))]));
+    expect(parsed.warnings).toEqual([
+      {
+        code: 'part-unreadable',
+        message: `A compressed record at byte 128 holds a variable that declares 65535 bytes, and its payload holds only ${variable.length - 8}, so it was read short.`,
+        part: 'x',
+      },
+    ]);
+    expect(parsed.variables.map((v) => [v.name, v.value])).toEqual([['x', [1, 2, 3, 4]], ['after', 2]]);
+    // A struct array cut short that way, its elements past the payload's end.
+    const s = structVar('s', ['a'], [{ a: scalar('', 1) }, { a: scalar('', 2) }, { a: scalar('', 3) }], [1, 3]);
+    const short = s.slice(0, s.length - 64);
+    const struct = parseMat(matFile([compressedRecord(short)]));
+    expect(codesAndParts(struct.warnings)).toEqual([['part-unreadable', 's']]);
+    expect((struct.variables[0].fields!.a as unknown[]).length).toBe(2);
+    // A payload whose variable claims what it holds says nothing.
+    expect(parseMat(matFile([compressedRecord(s)])).warnings).toEqual([]);
+  });
+
   it('reports a top-level element that is not a variable at all', () => {
     // Only miCOMPRESSED and miMATRIX carry variables; anything else at this level was
     // dropped on the floor, one variable's worth of file at a time.

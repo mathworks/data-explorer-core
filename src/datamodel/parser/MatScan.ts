@@ -149,15 +149,21 @@ function readTag(view: DataView, offset: number): Tag {
 }
 
 /**
- * The name of one `miMATRIX` body starting at `base`, mirroring `parseMatrix` and
- * `parseOpaque` subelement for subelement.
+ * The name of one `miMATRIX` body of `length` declared bytes starting at `base`, mirroring
+ * `parseMatrix` and `parseOpaque` subelement for subelement.
  *
  * `view` may be a HEAD — the first however-many bytes of an inflated record — which is
  * why every read is guarded by `complete` rather than by a length known in advance. A
  * subelement that runs past the end of a head is indistinguishable from one that runs
  * past the end of the record, so both refuse.
  */
-function nameAt(view: DataView, base: number): string {
+function nameAt(view: DataView, base: number, length: number): string {
+  // A body of no bytes, the tag alone: `parseMatrix` reads it as [] with no name, before it
+  // reads anything else, and `parseMat` pushes it as an anonymous variable, so '' is
+  // agreement. Read on, its flags, dimensions and name were whatever followed the tag: in a
+  // compressed record, a matrix body after it in the same payload gave that body's name,
+  // which `parseMat` never gives.
+  if (length <= 0) return '';
   let offset = base;
 
   const flags = readTag(view, offset);
@@ -248,9 +254,9 @@ function scanNames(bytes: Uint8Array): string[] {
       if (headView.getUint32(0, true) !== MI_MATRIX) {
         throw new UnscannableMat(`compressed record at byte ${offset} does not hold a matrix`);
       }
-      names.push(nameAt(headView, 8));
+      names.push(nameAt(headView, 8, headView.getUint32(4, true)));
     } else if (dataType === MI_MATRIX) {
-      names.push(nameAt(view, offset + 8));
+      names.push(nameAt(view, offset + 8, numBytes));
     } else {
       throw new UnscannableMat(`data element of type ${dataType} at byte ${offset} is not a variable`);
     }
