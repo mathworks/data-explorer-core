@@ -130,6 +130,16 @@ function corruptLength(el: Uint8Array, tagOffset: number, declared: number): Uin
   return copy;
 }
 
+/** `el` as the payload of an miCOMPRESSED record, the way MATLAB stores a variable. */
+function zipped(el: Uint8Array): Uint8Array {
+  const data = zlibSync(el);
+  const out = new Uint8Array(8 + data.length);
+  out.set(u32le(MI.COMPRESSED), 0);
+  out.set(u32le(data.length), 4);
+  out.set(data, 8);
+  return out;
+}
+
 // Offsets of the subelement tags inside a numericVar, which writes
 // flags/dims/name/payload as 16-byte long-form elements after the 8-byte matrix tag.
 const TAG = { flags: 8, dims: 24, name: 40, payload: 56 };
@@ -283,16 +293,19 @@ describe('parseMat — numeric shapes', () => {
     }
   });
 
-  it('reports an unrecognized payload element type as zeros rather than throwing', () => {
-    // The reader's own `default` arm. A UTF8-tagged payload under a double class is
-    // not something MATLAB writes, so the only requirement is that it stays inside
-    // the buffer and produces the declared element count.
-    const v = only(
+  it('records a payload of an element type with no width as not decoded, rather than as zeros or a throw', () => {
+    // A UTF8-tagged payload under a double class is not something MATLAB writes. The
+    // reader's width switch has no case for it, and its `default` arm used to push one 0
+    // per declared element, a value the file does not hold. No element of such a payload
+    // can be read, so the variable is recorded the way the reader's other refusals are.
+    const parsed = parseMat(
       matFile([
         numericVar({ name: 'u', cls: CLASS.DOUBLE, dimensions: [1, 2], dataType: MI.UTF8, real: [], rawReal: new Uint8Array(16) }),
       ]),
     );
-    expect(v.value).toEqual([0, 0]);
+    const reason = 'its real part is of MAT data type 16, which has no element width, so none of its 2 elements can be read';
+    expect([parsed.variables[0].value, parsed.variables[0].undecoded]).toEqual(['<1x2 double, not decoded>', reason]);
+    expect(parsed.warnings).toEqual([{ code: 'part-unreadable', message: `"u" was not decoded: ${reason}.`, part: 'u' }]);
   });
 
   it('unwraps a 1x1 array to a bare number but keeps a vector as an array', () => {
@@ -553,6 +566,42 @@ describe('parseMat — structs', () => {
     // EMPTY is what a [] MATLAB writes in full reads as: double, 0x0, no elements.
     const written = only(matFile([structVar('s', ['m'], [{ m: numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [0, 0], real: [] }) }])]));
     expect(shapeOf(written.fields!.m)).toEqual(EMPTY);
+  });
+
+  it('a matrix that claims bytes and holds none is one cut short before its flags, not MATLAB\'s []', () => {
+    // The [] above is a tag that claims no bytes, which is how MATLAB writes one. A tag that
+    // claims bytes and is the last 8 of the bytes holds none of them: cut short before its
+    // array flags, which say its class, so it is the nameless shell of a class unknown, as a
+    // matrix cut inside its flags is, and not an empty double the bytes never said it is.
+    const tagOnly = (claimed: number) => {
+      const bytes = new Uint8Array([...u32le(MI.MATRIX), ...u32le(claimed)]);
+      return parseMatrix(new DataView(bytes.buffer), 8, claimed);
+    };
+    expect(shapeOf(tagOnly(0))).toEqual(EMPTY);
+    expect(shapeOf(tagOnly(64))).toEqual({ name: '', className: 'unknown', dimensions: [], isComplex: false, isLogical: false, value: null, fields: null });
+    // parseMat keeps either as an anonymous variable, so a file whose last record is such a tag
+    // reads the same way either way: the variable before it, the anonymous one, and the
+    // record's warning.
+    const x = numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [5] });
+    for (const claimed of [0, 64]) {
+      const parsed = parseMat(matFile([x, new Uint8Array([...u32le(MI.MATRIX), ...u32le(claimed)])]));
+      expect([claimed, parsed.variables.map((v) => [v.name, v.className, !!v._anonymous]), parsed.warnings.map((w) => w.message)]).toEqual([
+        claimed,
+        [['x', 'double', false], ['', '', true]],
+        claimed ? ['A record at byte 200 declares 64 bytes and the file holds only 0, so it was read short.'] : [],
+      ]);
+    }
+    // The one nested matrix whose claim is not clamped to the bytes: a field in the
+    // small-element form, its 4 claimed bytes in its own tag, as the file's last 8 bytes. It
+    // is read as cut short too, and says so.
+    const stride = new Uint8Array(4);
+    new DataView(stride.buffer).setInt32(0, 32, true);
+    const small = new Uint8Array(8);
+    new DataView(small.buffer).setUint32(0, MI.MATRIX | (4 << 16), true);
+    const fieldNames = new Uint8Array(32);
+    fieldNames[0] = 0x61;
+    const s = parseMat(matFile([matrix([arrayFlags(CLASS.STRUCT), dims([1, 1]), varName('s'), element(MI.INT32, stride), element(MI.INT8, fieldNames), small])]));
+    expect([(s.variables[0].fields!.a as MatVariable).className, s.warnings.map((w) => w.part)]).toEqual(['unknown', ['s.a']]);
   });
 
   it('REGRESSION: a zero-length field shows and copies as a written-out [] does', () => {
@@ -1272,6 +1321,50 @@ describe('parseMat — malformed byte counts', () => {
     expect(only(matFile([structVar('s', ['a'], [{ a: scalarField(1) }], [1, 2_000_000])])).undecoded).toMatch(/^declares 2000000 elements/);
   });
 
+  it('REGRESSION: a struct array with fields is held to 8 bytes a field for each element it declares', () => {
+    // Every element of a struct array with F fields holds F matrices, each at least its 8-byte
+    // tag (an empty one is that tag alone), so its bytes back at most one element per 8F of
+    // them. The guard allowed one element per byte, so a 2 MB file whose record claims exactly
+    // the bytes it holds, a 1x1,500,000 struct with one field and 250,000 elements' bytes,
+    // parsed without being refused, and a host built a row per declared element until the
+    // heap ran out.
+    const empty = element(MI.MATRIX, new Uint8Array(0));
+    const wide = (fieldNames: string[], n: number, held: number, name = 's') =>
+      structVar(name, fieldNames, Array.from({ length: held }, () => Object.fromEntries(fieldNames.map((f) => [f, empty]))), [1, n]);
+    // The bytes the guard counts: those after the name, the field names' two subelements and
+    // the elements.
+    const left = (el: Uint8Array) => el.length - 8 - 16 - 16 - 16;
+    const refused = (n: number, el: Uint8Array, perElement: number) =>
+      `declares ${n} elements, more than the ${left(el)} bytes left in it can hold at ${perElement} bytes an element`;
+    const t0 = performance.now();
+    const one = wide(['a'], 1_500_000, 250_000);
+    const s = only(matFile([one]));
+    expect([s.value, s.fields, s.undecoded, performance.now() - t0 < 2000]).toEqual([
+      '<1x1500000 struct, not decoded>', null, refused(1_500_000, one, 8), true,
+    ]);
+    // Two fields, at 16 bytes an element: 1.6 MB of bytes hold 100,000 of 1,200,000.
+    const two = wide(['a', 'b'], 1_200_000, 100_000);
+    expect(only(matFile([two])).undecoded).toBe(refused(1_200_000, two, 16));
+    // At the bound: one element whose field is a million doubles holds the bytes of
+    // floor(left / 8) elements at 8 bytes apiece, so that many are read and one more is not.
+    const big = numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1_000_000], real: new Array(1_000_000).fill(1) });
+    const bound = Math.floor(left(structVar('s', ['a'], [{ a: big }], [1, 1])) / 8);
+    const atBound = only(matFile([structVar('s', ['a'], [{ a: big }], [1, bound])]));
+    expect([atBound.undecoded, (atBound.fields!.a as MatVariable[]).length]).toEqual([undefined, 1]);
+    const past = structVar('s', ['a'], [{ a: big }], [1, bound + 1]);
+    expect(only(matFile([past])).undecoded).toBe(refused(bound + 1, past, 8));
+    // A refusal whose bytes are fewer than its elements says what it said before.
+    expect(only(matFile([wide(['a'], 2_000_000, 1)])).undecoded).toMatch(/^declares 2000000 elements, more than the \d+ bytes left in it can hold$/);
+    // As a cell element: named in its warning, and kept as its bytes.
+    const cell = parseMat(matFile([cellVar('c', [wide(['a'], 1_500_000, 250_000, '')])]));
+    const element1 = (cell.variables[0].value as MatVariable[])[0];
+    expect([element1.value, !!element1._rawBytes, cell.warnings.map((w) => w.part)]).toEqual(['<1x1500000 struct, not decoded>', true, ['c{1}']]);
+    // Through a session, as a host opens the file. Asked last, so that a reader without the
+    // bound fails on a parse above instead of here.
+    const mat = createSession().addMatSource('s.mat', matFile([one])) as any;
+    expect(mat.children.map((c: any) => [c.name, c.displayValue, c.children.length])).toEqual([['s', '<1x1500000 struct, not decoded>', 0]]);
+  });
+
   it('REGRESSION: a struct array with no field names or no bytes left does not walk the rest of its elements', { timeout: 60_000 }, () => {
     // The element loop ran to the declared size whatever was left to read: for each element it
     // looked for each field name, and with none it looked for nothing, 1e10 times for a 1e5x1e5
@@ -1410,14 +1503,6 @@ describe('parseMat — malformed byte counts', () => {
     // record reads as an element the end of the file cuts short already did inside a struct
     // or a cell.
     const claimed = (el: Uint8Array) => corruptLength(el, 0, 0xfffffff0);
-    const zipped = (el: Uint8Array) => {
-      const data = zlibSync(el);
-      const out = new Uint8Array(8 + data.length);
-      out.set(u32le(MI.COMPRESSED), 0);
-      out.set(u32le(data.length), 4);
-      out.set(data, 8);
-      return out;
-    };
     const timed = (buffer: ArrayBuffer) => {
       const t0 = performance.now();
       const parsed = parseMat(buffer);
@@ -1469,7 +1554,10 @@ describe('parseMat — malformed byte counts', () => {
     new DataView(stride.buffer).setInt32(0, 8, true);
     const wide = matrix([arrayFlags(CLASS.STRUCT), dims([1, 1_000_000]), varName('w'), element(MI.INT32, stride), element(MI.INT8, names)]);
     const { parsed: wideParsed, fast } = timed(matFile([claimed(wide)]));
-    expect([wideParsed.variables[0].undecoded, wideParsed.variables[0].fields, fast]).toEqual([undefined, {}, true]);
+    // It keeps the names of its fields, none holding an element: read as {}, it was an array
+    // with no fields, which has a row for each element it declares up to 10,000.
+    const noElements = Object.fromEntries(Array.from({ length: 512 }, (_, i) => ['f' + i, []]));
+    expect([wideParsed.variables[0].undecoded, wideParsed.variables[0].fields, fast]).toEqual([undefined, noElements, true]);
     const empty = only(matFile([claimed(cellVar('c', [], [1, 1_000_000]))]));
     expect([empty.undecoded, (empty.value as unknown[]).length]).toEqual([undefined, 0]);
     // Through a session, as a host opens the file. Asked last, so that a reader without the
@@ -1480,6 +1568,97 @@ describe('parseMat — malformed byte counts', () => {
     };
     expect(opened(claimed(big))).toEqual([['s', '<1x500000000 struct, not decoded>', 0]]);
     expect(opened(claimed(cellVar('c', [], [1, 1_000_000])))).toEqual([['c', '{ }', 0]]);
+  });
+
+  it('REGRESSION: a numeric payload of an element type with no width is recorded, not read as one 0 per declared element', () => {
+    // readNumericArray clamped its count to the bytes only for a type with a width. For any
+    // other its `default` arm pushed a 0 for each element the array declared, so a payload
+    // holding no byte at all read as a million zeros, below the declared-size guard's bound,
+    // in 64 bytes of file: a 2.7 KB file of 40 such variables opened in 460 MB of heap, and
+    // one of 60 ran a 512 MB heap out. No element of such a payload can be read, so the
+    // variable is recorded the way the reader's other refusals are.
+    const widthless = (name: string, d: number[], dataType: number, bytes = 0) =>
+      numericVar({ name, cls: CLASS.DOUBLE, dimensions: d, dataType, real: [], rawReal: new Uint8Array(bytes) });
+    const reason = (type: number, n: number, part = 'real part') =>
+      `its ${part} is of MAT data type ${type}, which has no element width, so none of its ${n} elements can be read`;
+    const x = numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [5] });
+    // A million elements, which the guard leaves to this read, with no byte of payload.
+    const t0 = performance.now();
+    const parsed = parseMat(matFile([widthless('u', [1, 1_000_000], MI.UTF8), x]));
+    const fast = performance.now() - t0 < 1000;
+    expect(parsed.variables.map((v) => [v.name, v.value, v.undecoded])).toEqual([
+      ['u', '<1x1000000 double, not decoded>', reason(MI.UTF8, 1_000_000)],
+      ['x', 5, undefined],
+    ]);
+    expect([parsed.warnings, fast]).toEqual([[{ code: 'part-unreadable', message: `"u" was not decoded: ${reason(MI.UTF8, 1_000_000)}.`, part: 'u' }], true]);
+    // Each type with no width, a payload's bytes or none, and an integer class as a double.
+    for (const type of [0, MI.MATRIX, MI.COMPRESSED, MI.UTF16, 18, 255]) {
+      for (const bytes of [0, 24]) {
+        const v = only(matFile([widthless('u', [1, 3], type, bytes)]));
+        expect([type, bytes, v.value, v.undecoded]).toEqual([type, bytes, '<1x3 double, not decoded>', reason(type, 3)]);
+      }
+    }
+    const int = only(matFile([numericVar({ name: 'i', cls: CLASS.INT16, dimensions: [2, 2], dataType: MI.UTF8, real: [], rawReal: new Uint8Array(8) })]));
+    expect([int.value, int.undecoded]).toEqual(['<2x2 int16, not decoded>', reason(MI.UTF8, 4)]);
+    // A complex array, by whichever part has no width.
+    const pair = (realType: number, imagType: number) =>
+      matrix([
+        arrayFlags(CLASS.DOUBLE, { complex: true }),
+        dims([1, 2]),
+        varName('z'),
+        element(realType, new Uint8Array(16)),
+        element(imagType, new Uint8Array(16)),
+      ]);
+    for (const [realType, imagType, part] of [[MI.UTF8, MI.DOUBLE, 'real part'], [MI.DOUBLE, MI.UTF8, 'imaginary part']] as const) {
+      const z = only(matFile([pair(realType, imagType)]));
+      expect([part, z.value, z.undecoded]).toEqual([part, '<1x2 double, not decoded>', reason(MI.UTF8, 2, part)]);
+    }
+    expect(only(matFile([pair(MI.DOUBLE, MI.DOUBLE)])).value).toEqual([{ re: 0, im: 0 }, { re: 0, im: 0 }]);
+    // An array that declares no element holds what its bytes do, whatever their type: [].
+    const none = only(matFile([widthless('e', [0, 0], MI.UTF8, 16)]));
+    expect([none.value, none.undecoded]).toEqual([[], undefined]);
+    // As a struct field and as a cell element: named the way MATLAB names it, kept as its
+    // bytes as every refusal is, and the field after it read.
+    const s = parseMat(matFile([structVar('s', ['u', 'g'], [{ u: widthless('', [1, 3], MI.UTF8), g: scalarField(7) }])]));
+    const sf = s.variables[0].fields!;
+    expect([(sf.u as MatVariable).undecoded, (sf.g as MatVariable).value, s.warnings.map((w) => w.part)]).toEqual([reason(MI.UTF8, 3), 7, ['s.u']]);
+    const c = parseMat(matFile([cellVar('c', [widthless('', [1, 3], MI.UTF8), scalarField(8)])]));
+    const [first, second] = c.variables[0].value as MatVariable[];
+    expect([first.undecoded, !!first._rawBytes, second.value, c.warnings.map((w) => w.part)]).toEqual([reason(MI.UTF8, 3), true, 8, ['c{1}']]);
+    // Through a session, as a host opens the file: 40 of them in 2.7 KB, each its summary
+    // with no rows. Asked last, so that a reader without the bound fails on a parse above.
+    const many = Array.from({ length: 40 }, (_, i) => widthless('u' + i, [1, 1_000_000], MI.UTF8));
+    const mat = createSession().addMatSource('w.mat', matFile(many)) as any;
+    expect(new Set(mat.children.map((n: any) => `${n.displayValue} ${n.children.length}`))).toEqual(new Set(['<1x1000000 double, not decoded> 0']));
+    expect(mat.children.length).toBe(40);
+  });
+
+  it('REGRESSION: a numeric array cut short inside its payload\'s tag is recorded, not read as zeros', () => {
+    // readSubelement reports a tag that does not fit in the bytes as one of type 0, which has
+    // no width, so a record cut 1 to 7 bytes into its payload's tag read [0 0 0] for a 1x3
+    // double. Cut before the tag it has no value, and cut after the whole tag, with none of
+    // its data, it is [], as before.
+    const el = numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 3], real: [1, 2, 3] });
+    const cutReason = (k: number, part = 'real part') => `the bytes end ${k} byte${k === 1 ? '' : 's'} into its ${part}'s 8-byte tag`;
+    for (const [what, wrap] of [['record', (b: Uint8Array) => b], ['compressed', zipped]] as const) {
+      for (let k = 1; k <= 7; k++) {
+        const parsed = parseMat(matFile([wrap(el.slice(0, TAG.payload + k))]));
+        const v = parsed.variables[0];
+        expect([what, k, v.name, v.value, v.undecoded], `${what} ${k}`).toEqual([what, k, 'x', '<1x3 double, not decoded>', cutReason(k)]);
+        expect(parsed.warnings.map((w) => [w.part, w.message.slice(0, 20)]), `${what} ${k}`).toEqual([
+          ['x', what === 'record' ? 'A record at byte 128' : 'A compressed record '],
+          ['x', '"x" was not decoded:'],
+        ]);
+      }
+      const before = only(matFile([wrap(el.slice(0, TAG.payload))]));
+      const after = only(matFile([wrap(el.slice(0, TAG.payload + 8))]));
+      expect([what, before.value, before.undecoded, after.value, after.undecoded]).toEqual([what, null, undefined, [], undefined]);
+    }
+    // The imaginary part's tag, the same way.
+    const z = numericVar({ name: 'z', cls: CLASS.DOUBLE, dimensions: [1, 2], real: [1, 3], imag: [2, -4] });
+    const imagAt = TAG.payload + 8 + 16;
+    const cutImag = only(matFile([z.slice(0, imagAt + 3)]));
+    expect([cutImag.value, cutImag.undecoded]).toEqual(['<1x2 double, not decoded>', cutReason(3, 'imaginary part')]);
   });
 
   it('reads a variable whose own element length overruns the file', () => {

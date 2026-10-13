@@ -384,6 +384,19 @@ describe('scanMat — what it refuses, and what the caller gets instead', () => 
     expect(run.whole).toBeGreaterThan(0);
   });
 
+  it('falls back for a compressed record that inflates to fewer bytes than a tag, and gives parseMat\'s names', () => {
+    // A head too short to read is a refusal here, and `parseMat` answers. It read the
+    // payload's tag without asking for its 8 bytes, so it threw a bare RangeError, and so
+    // did this, from its fallback. It now warns, reads on, and pushes nothing for the record.
+    for (const length of [0, 4, 7]) {
+      const short = record(MI_COMPRESSED, new Uint8Array(deflateSync(new Uint8Array(length))));
+      const buffer = matFile([short, compressed(doubleVariable('a')), doubleVariable('b'), TERMINATOR]);
+      const run = withCounting(NATIVE, () => scanMat(buffer).names);
+      expect(parseMat(buffer).variables.map((v) => v.name)).toEqual(['a', 'b']);
+      expect([length, run.result, run.whole > 0]).toEqual([length, ['a', 'b'], true]);
+    }
+  });
+
   it('raises parseMat\'s error for bytes that are not a v5 MAT-file at all', () => {
     const short = new Uint8Array(64).buffer;
     expect(() => scanMat(short)).toThrow('Not a MAT-file: shorter than the 128-byte header');

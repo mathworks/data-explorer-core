@@ -188,11 +188,19 @@ function readNumericArray(view: DataView, sub: SubElement, count: number): (numb
     // catches — a single bad byte range would take down the whole open. Clamp to
     // what the payload and the buffer really hold and return a short array; the
     // node layer already renders fewer elements than the dimensions claim.
+    //
+    // A payload of a type with no width holds no element this can read, so none is read.
+    // Its `default` arm used to push a 0 for each DECLARED element, the one count here no
+    // byte bounded: a 64-byte variable read as a million zeros, and a 4 KB file of 60 ran a
+    // 512 MB heap out. The full-array arm of parseMatrix records such a payload as not
+    // decoded (unreadablePart). A sparse array's pr of such a type holds no non-zero, as
+    // before: readSparse's `keep` reads a value that is not there as 0, and drops a 0.
     const width = ELEMENT_WIDTH[sub.type];
-    if (width) {
-        const available = Math.min(sub.bytes, Math.max(0, view.byteLength - off));
-        count = Math.min(count, Math.floor(available / width));
+    if (!width) {
+        return values;
     }
+    const available = Math.min(sub.bytes, Math.max(0, view.byteLength - off));
+    count = Math.min(count, Math.floor(available / width));
 
     for (let i = 0; i < count; i++) {
         switch (sub.type) {
@@ -206,10 +214,27 @@ function readNumericArray(view: DataView, sub: SubElement, count: number): (numb
         case MI_UINT32: values.push(view.getUint32(off + i * 4, true)); break;
         case MI_INT64: values.push(exactInt(view.getBigInt64(off + i * 8, true))); break;
         case MI_UINT64: values.push(exactInt(view.getBigUint64(off + i * 8, true))); break;
-        default: values.push(0);
         }
     }
     return values;
+}
+
+// Why the numeric part whose tag is at `at` holds none of the `count` elements its array
+// declares, or null when it holds what its bytes do. Either its tag is cut short by the end of
+// the bytes, which readSubelement reports as a tag of type 0, or its type has no width: in both
+// readNumericArray reads nothing, so there is no value to give, and the variable is recorded as
+// the reader's other refusals are rather than read as the zeros it was. An array declaring no
+// element holds all of it whatever the type, which is [].
+function unreadablePart(view: DataView, at: number, sub: SubElement, count: number, part: string): string | null {
+    if (!(count > 0) || ELEMENT_WIDTH[sub.type]) {
+        return null;
+    }
+    if (at + 8 > view.byteLength) {
+        const there = Math.max(0, view.byteLength - at);
+        return 'the bytes end ' + there + (there === 1 ? ' byte' : ' bytes') + ' into its ' + part + "'s 8-byte tag";
+    }
+    return 'its ' + part + ' is of MAT data type ' + sub.type + ', which has no element width, so none of its '
+        + count + ' elements can be read';
 }
 
 function readString(view: DataView, sub: SubElement): string {
@@ -309,6 +334,30 @@ export function isUnheldStructArray(v: MatVariable): boolean {
     }
     const count = (v.dimensions || []).reduce((a, b) => a * b, 1);
     return count > MAX_LAID_OUT_FIELDLESS && Object.keys(v.fields || {}).length === 0;
+}
+
+/**
+ * How many elements of struct array `v` this reader holds: as many as the longest of its
+ * fields' lists, which hold one entry per element read (parseMatrix's struct arm), and never
+ * more than it declares. An element of a struct with fields takes the bytes of its fields'
+ * matrices, so a struct array whose bytes ran out holds fewer elements than it declares, and
+ * a reader that lays it out an element at a time lays out the ones it holds: MATLAB writes
+ * every field of every element, so for an array it wrote that is every element it declares.
+ * A struct with no fields holds every element it declares, an element of one taking no bytes,
+ * and so does one with a field held as a single variable rather than a list, which this
+ * reader writes for a 1x1 alone and a reader of an array takes for every element's.
+ */
+export function structElementsHeld(v: MatVariable): number {
+    const count = (v.dimensions || []).reduce((a, b) => a * b, 1);
+    const lists = Object.values(v.fields || {});
+    if (lists.length === 0 || lists.some((list) => !Array.isArray(list))) {
+        return count;
+    }
+    let held = 0;
+    for (const list of lists) {
+        held = Math.max(held, (list as MatVariable[]).length);
+    }
+    return Math.min(count, held);
 }
 
 // The non-zeros of a sparse array, as MATLAB's find() lists them: column by column, and
@@ -577,7 +626,8 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
     // The element ends where its length says or where the bytes do, whichever comes first.
     // `length` can be the file's own claim, unchecked: a top-level record's, or the one a
     // compressed record's payload gives its matrix. Every read clamps to the bytes there
-    // are (readSubelement), but the walk over a struct's or a cell's elements and the
+    // are (readSubelement, and readNumericArray, which reads none of a payload of a type
+    // with no width), but the walk over a struct's or a cell's elements and the
     // declared-size guard below went by the end the claim gave: past the last byte each
     // step read an empty tag and stepped on, up to the half-billion steps a claim of 4 GB
     // allows, and the guard took the claim for bytes left, so a struct array declaring
@@ -595,6 +645,17 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
     // the dimensions and the name from the element after its tag: those fields came back
     // as doubles of rank 12 to 1,314, which showed [ ] and were copied as an empty of that
     // rank. So it is what a [] MATLAB writes in full reads as.
+    //
+    // The tag's CLAIM of no bytes, deliberately, not `held`: the claim is MATLAB's spelling of
+    // [], and a matrix that claims bytes and holds none (its tag the last 8 bytes of a file or
+    // a payload) is one cut short before its array flags, read below as the nameless shell of
+    // a class unknown, as one cut inside its flags is. Taken for [], it would be an empty
+    // double the bytes never said it is. parseMat keeps either shell as an anonymous variable.
+    // Every other caller hands over a length clamped to the bytes, where the claim and `held`
+    // are one, but for a struct field or a cell element written in the small-element form,
+    // whose claim of up to 4 bytes readSubelement does not clamp: MATLAB writes no matrix that
+    // way, and one that is the last 8 bytes is read as cut short too, with the warning a class
+    // unknown gets.
     if (length <= 0) {
         return { name: '', className: 'double', dimensions: [0, 0], isComplex: false, isLogical: false, value: [], fields: null };
     }
@@ -665,14 +726,27 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
     // the clamped read it always was, and so does a struct array with no fields, whose
     // elements take no bytes at all. A sparse array's elements take no bytes either — its
     // non-zeros do, and readSparse reads only those.
+    //
+    // A struct array's element is held to what it takes at the least: its F fields' tags, 8
+    // bytes each, a field of [] being its tag alone. Held to a byte, the guard let through
+    // eight times the elements such an array's bytes can back, or more with more fields: a
+    // 2 MB file whose record claims exactly the bytes it holds, a 1x1,500,000 struct with one
+    // field and 250,000 elements' bytes, was not refused, and a host built a row per declared
+    // element until the heap ran out. MATLAB writes every field of every element, so an array
+    // it wrote always has its 8F bytes apiece. A refusal its bytes alone explain reads as it
+    // did; one the 8F explain says so.
     const bytesLeft = Math.max(0, end - offset);
+    const fieldCount = arrayClass === 2 ? structFieldCount(view, offset, end) : 0;
+    const perElement = fieldCount > 0 ? 8 * fieldCount : 1;
     if (
-        !isSparse && arrayClass !== 3 && totalElements > MAX_UNBACKED_ELEMENTS && totalElements > bytesLeft
-        && !(arrayClass === 2 && structFieldCount(view, offset, end) === 0)
+        !isSparse && arrayClass !== 3 && totalElements > MAX_UNBACKED_ELEMENTS
+        && totalElements > Math.floor(bytesLeft / perElement)
+        && !(arrayClass === 2 && fieldCount === 0)
     ) {
         result.value = undecodedValue(dimensions, className);
         result.undecoded =
-            'declares ' + totalElements + ' elements, more than the ' + bytesLeft + ' bytes left in it can hold';
+            'declares ' + totalElements + ' elements, more than the ' + bytesLeft + ' bytes left in it can hold'
+            + (totalElements > bytesLeft ? '' : ' at ' + perElement + ' bytes an element');
         return result;
     }
 
@@ -707,12 +781,23 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
         result.value = sparseValue(dimensions, className);
     } else if (arrayClass >= 6 && arrayClass <= 15) {
         if (offset < end) {
+            const realAt = offset;
             const realSub = readSubelement(view, offset);
             offset += realSub.totalSize;
+            const imagAt = offset;
+            const imagSub = isComplex && offset < end ? readSubelement(view, offset) : null;
+            // A part that holds none of the elements declared, its tag cut short or of a type
+            // with no width, leaves no value to read (unreadablePart).
+            const unread = unreadablePart(view, realAt, realSub, totalElements, 'real part')
+                ?? (imagSub && unreadablePart(view, imagAt, imagSub, totalElements, 'imaginary part'));
+            if (unread) {
+                result.value = undecodedValue(dimensions, className);
+                result.undecoded = unread;
+                return result;
+            }
             const realValues = readNumericArray(view, realSub, totalElements);
 
-            if (isComplex && offset < end) {
-                const imagSub = readSubelement(view, offset);
+            if (imagSub) {
                 offset += imagSub.totalSize;
                 const imagValues = readNumericArray(view, imagSub, totalElements);
                 const colMajor = realValues.map((r, i) => ({ re: r, im: imagValues[i] }));
@@ -864,6 +949,20 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
                     offset += fieldMatrixSub.totalSize;
                 }
             }
+            // Every field an array names is kept, with the list of its elements read, even one
+            // whose bytes ran out before any element of it was read. Dropped, an array holding no
+            // element read as one with no fields, which has a row for every element it declares
+            // up to MAX_LAID_OUT_FIELDLESS: a 104-byte struct naming a field and declaring 10,000
+            // elements had 10,000 empty rows, and a 104 KB file holding 1,000 of them ran a
+            // 512 MB heap out while it opened. MATLAB writes every field of every element, so an
+            // array it wrote has every list already.
+            if (totalElements > 1) {
+                for (const fn of fieldNames) {
+                    if (!Object.prototype.hasOwnProperty.call(fields, fn)) {
+                        setOwn<MatVariable | MatVariable[]>(fields, fn, []);
+                    }
+                }
+            }
             result.fields = fields;
         }
     } else if (arrayClass === 1) {
@@ -993,9 +1092,21 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
                 continue;
             }
             const deView = new DataView(pako.buffer, pako.byteOffset, pako.byteLength);
-            const innerType = deView.getUint32(0, true);
-            const innerBytes = deView.getUint32(4, true);
-            if (innerType === MI_MATRIX) {
+            // The payload's tag, the 8 bytes everything in it is read from, has to be there
+            // before either word of it can be read. Read regardless, a payload of 0 to 7 bytes
+            // threw a bare RangeError out of parseMat, and the whole open failed with the
+            // variables after it. Such a record holds no variable this can read, and is
+            // reported as one that will not inflate is.
+            const tagged = deView.byteLength >= 8;
+            const innerType = tagged ? deView.getUint32(0, true) : 0;
+            const innerBytes = tagged ? deView.getUint32(4, true) : 0;
+            if (!tagged) {
+                warnings.push({
+                    code: 'part-unreadable',
+                    message: `A compressed record at byte ${offset} inflates to ${deView.byteLength} bytes, fewer than the 8 `
+                        + "of a data element's tag, so the variable it holds was not read.",
+                });
+            } else if (innerType === MI_MATRIX) {
                 const variable = parseMatrix(deView, 8, innerBytes);
                 if (variable.name) {
                     variable._rawBytes = new Uint8Array(pako.buffer, pako.byteOffset, pako.byteLength);
@@ -1115,6 +1226,24 @@ function collectUndecoded(variable: MatVariable, path: string, warnings: ParseWa
     }
 
     if (variable.fields) {
+        // A struct array with fields whose bytes ran out holds fewer elements than it
+        // declares: the file contradicting itself, as a short cell does below, and reported
+        // once for the array, as that is. It said nothing, while a host showed a row for each
+        // declared element, the ones past the bytes empty. Counted in whole elements, every
+        // field of them read: one cut inside its fields has a row for those it holds
+        // (structElementsHeld), and is reported as not read.
+        const declared = variable.dimensions.reduce((a, b) => a * b, 1);
+        let read = declared;
+        for (const list of Object.values(variable.fields)) {
+            if (Array.isArray(list)) { read = Math.min(read, list.length); }
+        }
+        if (declared > read) {
+            warnings.push({
+                code: 'part-unreadable',
+                message: `"${path}" declares ${declared} element(s) and only ${read} could be read.`,
+                part: path,
+            });
+        }
         for (const [name, field] of Object.entries(variable.fields)) {
             if (Array.isArray(field)) {
                 // A struct ARRAY: one entry per element, so the path names the element

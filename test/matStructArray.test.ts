@@ -5,7 +5,7 @@
 // struct displayed one field value and the other two were invisible.
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { strFromU8, unzipSync, zipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import StructNode from '../src/datamodel/node/data/StructNode.js';
 import type { MatVariable } from '../src/datamodel/parser/MatParser.js';
@@ -13,12 +13,12 @@ import { loadFile, findEntry } from './parity/loadFile.js';
 import { decodeMatStream, parseMat } from '../src/datamodel/parser/MatParser.js';
 import { encodeMatVariable } from '../src/datamodel/parser/MatWriter.js';
 import { decodeMcosBlob, decodeMcosVariables } from '../src/datamodel/parser/McosParser.js';
-import { uudecode } from '../src/datamodel/parser/CdataCodec.js';
+import { uudecode, uuencode } from '../src/datamodel/parser/CdataCodec.js';
 import { encodedBytes, matStreamPrefix } from '../src/datamodel/parser/EncodedValue.js';
 import { MAX_EXPANDED_ELEMENTS } from '../src/datamodel/display/DisplayConvention.js';
-import { CLASS, MI, arrayFlags, cellVar, dims, element, matFile, matrix, structVar, varName } from './tools/matBytes.js';
+import { CLASS, MI, arrayFlags, cellVar, dims, element, matFile, matrix, numericVar, structVar, varName } from './tools/matBytes.js';
 import { renameInMat } from './tools/matRename.js';
-import { BINARY, TEXT, copyOf, sparseFixture } from './tools/pasteVenues.js';
+import { BINARY, TEXT, copyOf, pasteSaveReopen, sparseFixture } from './tools/pasteVenues.js';
 import { createSession, ingest } from '../src/index.js';
 
 function num(name: string, v: number): MatVariable {
@@ -549,6 +549,133 @@ describe('a MAT struct array with no fields, past the row cap', () => {
       const { entry } = pastedTwice(file, copied);
       const status = entry.status;
       expect([entry.canAddChild(), entry.execAddChild(), entry.children.length, entry.status], file).toEqual([false, null, 0, status]);
+    }
+  });
+});
+
+describe('a MAT struct array with fields whose bytes hold fewer elements than it declares', () => {
+  const one = (n: number) => numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [n] });
+  // A struct array of `d` with fields `names`, holding the bytes of its first `held` elements,
+  // its record claiming what it holds.
+  const cut = (name: string, d: number[], held: number, names = ['a']) =>
+    structVar(name, names, Array.from({ length: held }, (_, i) => Object.fromEntries(names.map((f, k) => [f, one(10 * (i + 1) + k)]))), d);
+  const opened = (...variables: Uint8Array[]): any[] => (createSession().addMatSource('s.mat', matFile(variables)) as any).children;
+  const shown = (n: any) => [n.name, n.displayValue, n.children.length];
+  const rowsOf = (n: any) => n.children.map((e: any) => [e.displayName, e.children.map((f: any) => [f.name, f.displayValue])]);
+  const nodesUnder = (n: any) => {
+    let count = 0;
+    const stack = [n];
+    while (stack.length) {
+      const x = stack.pop();
+      count++;
+      stack.push(...x.children);
+    }
+    return count;
+  };
+  const PREAMBLE = [0x00, 0x01, 0x49, 0x4d, 0x00, 0x00, 0x00, 0x00];
+  const cdataOf = (el: Uint8Array) => ({ _type: 'cdata', _value: uuencode(Uint8Array.from([...PREAMBLE, ...el])) });
+
+  it('has a row for each element its bytes hold, as a short cell does, not one for each it declares', () => {
+    // A 1x3 holding two elements' bytes had three rows, the third empty, and a copy of it three
+    // bags, the third holding no field.
+    const [s] = opened(cut('s', [1, 3], 2));
+    expect([shown(s), rowsOf(s)]).toEqual([['s', '<1x3 struct>', 2], [['s(1)', [['a', '10']]], ['s(2)', [['a', '20']]]]]);
+    const copied = copyOf(s) as any;
+    expect([copied._dimensions, copied._elements.length, copied._fields]).toEqual([[1, 3], 2, ['a']]);
+    // A 2x2 with two fields, cut inside its third element: the elements it holds, the third
+    // with the one field it holds, labelled as MATLAB indexes them.
+    const el = cut('m', [2, 2], 3, ['a', 'b']);
+    const [m] = opened(el.slice(0, el.length - 64));
+    expect(rowsOf(m)).toEqual([['m(1,1)', [['a', '10'], ['b', '11']]], ['m(2,1)', [['a', '20'], ['b', '21']]], ['m(1,2)', [['a', '30']]]]);
+    // An array that names its fields and holds none of its elements kept no field: it read as
+    // a struct array with no fields, which has a row for each element it declares.
+    const named = structVar('n', ['a', 'b'], [], [1, 5]);
+    expect(parseMat(matFile([named])).variables[0].fields).toEqual({ a: [], b: [] });
+    expect(shown(opened(named)[0])).toEqual(['n', '<1x5 struct>', 0]);
+    // An array MATLAB wrote holds every element it declares, and has a row for each.
+    expect(shown(opened(cut('w', [1, 3], 3))[0])).toEqual(['w', '<1x3 struct>', 3]);
+    // The sizes that ran a 512 MB heap out while the file opened, asked last so that a reader
+    // without the bound fails above instead: a 1x999,999 with one element's bytes, one at the
+    // guard's bound of a million, 50 of the first in a cell, and arrays below the bound nested
+    // in an array, each of 1,000 elements a 1x9,999 holding one, or a 1x10,000 holding none.
+    const t0 = performance.now();
+    const [a, b, c, d, e] = opened(
+      cut('a', [1, 999_999], 1),
+      cut('b', [1, 1_000_000], 1),
+      cellVar('c', Array.from({ length: 50 }, () => cut('', [1, 999_999], 1)), [1, 50]),
+      structVar('d', ['f'], Array.from({ length: 1000 }, () => ({ f: cut('', [1, 9_999], 1) })), [1, 1000]),
+      structVar('e', ['f'], Array.from({ length: 1000 }, () => ({ f: structVar('', ['a'], [], [1, 10_000]) })), [1, 1000]),
+    );
+    const fast = performance.now() - t0 < 2000;
+    expect([shown(a), rowsOf(a), shown(b), shown(c.children[49]), shown(c.children[49].children[0])]).toEqual([
+      ['a', '<1x999999 struct>', 1], [['a(1)', [['a', '10']]]], ['b', '<1x1000000 struct>', 1],
+      ['50', '<1x999999 struct>', 1], ['1', '<1x1 struct>', 1],
+    ]);
+    expect([nodesUnder(c), nodesUnder(d), nodesUnder(e), fast]).toEqual([1 + 50 * 3, 1 + 1000 * 4, 1 + 1000 * 2, true]);
+  });
+
+  // fixtures/sparse/sparse_binary.sldd with its entry `st`'s hex Value holding the stream of
+  // `el`, opened as a host opens it.
+  function hexOpened(el: Uint8Array): any {
+    const parts = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+    const chunk = strFromU8(parts['data/chunk0.xml']);
+    const at = chunk.indexOf('<P Name="Value" Class="struct" Encoding="hex"');
+    expect(at).toBeGreaterThan(0);
+    const stream = [...PREAMBLE, ...el];
+    const digits = stream.map((b) => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+    const tag = `<P Name="Value" Class="struct" Encoding="hex" EncodedLength="${stream.length}">`;
+    const zip = zipSync({ ...parts, 'data/chunk0.xml': strToU8(chunk.slice(0, at) + tag + digits + chunk.slice(chunk.indexOf('</P>', at))) });
+    const root: any = ingest(createSession(), zip.buffer.slice(zip.byteOffset, zip.byteOffset + zip.byteLength) as ArrayBuffer, { filename: BINARY });
+    return root.getSection('design').children.find((e: any) => e.name === 'st');
+  }
+
+  it('in a dictionary\'s value, as cdata and as hex, has a row for each element its bytes hold', () => {
+    // A text dictionary holds such a value as the cdata of its stream, and a binary one as its
+    // hex, both read by the .mat reader: the cdata pasted, saved and opened again, in either
+    // dictionary, and the hex as a binary dictionary holds it.
+    for (const d of [[1, 3], [1, 999_999]]) {
+      const el = cut('', d, 1);
+      const want = [`<${d.join('x')} struct>`, [[['a', '10']]]];
+      const at = (entry: any) => [entry.displayValue, entry.children.map((e: any) => e.children.map((f: any) => [f.name, f.displayValue]))];
+      for (const file of [TEXT, BINARY]) {
+        expect([String(d), file, at(pasteSaveReopen(file, cdataOf(el)).entry)]).toEqual([String(d), file, want]);
+      }
+      expect([String(d), 'hex', at(hexOpened(el))]).toEqual([String(d), 'hex', want]);
+    }
+  });
+
+  // arr(3).Value of fixtures/mcos/paramArray.mat, MATLAB's struct('a', 1), respelled in place
+  // as a struct array of `d`: its field `a` kept, and the one element's bytes after it.
+  const paramArray = new Uint8Array(readFileSync(new URL('./fixtures/mcos/paramArray.mat', import.meta.url)));
+  const paramStruct = (d: number[]) =>
+    Uint8Array.from([5, 0, 0, 0, 8, 0, 0, 0, ...new Uint8Array(Int32Array.from(d).buffer), 1, 0, 0, 0, 0, 0, 0, 0, 5, 0, 4, 0, 5, 0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0x61]);
+  const paramOpened = (d: number[]): any => {
+    const out = renameInMat(paramArray, paramStruct([1, 1]), paramStruct(d));
+    expect(out.hits).toBe(1);
+    return (createSession().addMatSource('paramArray.mat', out.bytes) as any).children.find((c: any) => c.name === 'arr');
+  };
+
+  it('as a property of an object, is laid out a bag for each element its bytes hold, and a row for each bag', () => {
+    // Laid out a bag for each element it declares, the bags past the bytes holding no field,
+    // and a row for each. One bag of an array of three was read as a 1x1's, its fields the
+    // array's rows.
+    const value = paramOpened([1, 3]).children[2].children[0];
+    expect([shown(value), value instanceof StructNode, rowsOf(value)]).toEqual([['Value', '<1x3 struct>', 1], true, [['Value(1)', [['a', '1']]]]]);
+    // A copy of the Parameter carries the bag it holds.
+    const copied = (copyOf(paramOpened([1, 3])) as any)._elements[2]._properties.Value;
+    expect([copied._dimensions, copied._elements]).toEqual([[1, 3], [{ a: 1 }]]);
+    // The size that ran a 512 MB heap out while the file opened, asked last.
+    expect(shown(paramOpened([1, 999_999]).children[2].children[0])).toEqual(['Value', '<1x999999 struct>', 1]);
+  });
+
+  it('pasted as one bag of an array, has that bag as its element row, and is saved as one', () => {
+    // A copy of such an array, out of a .mat or an object, holds one bag: read as a 1x1's, the
+    // bag's fields were the array's rows, and an edit to one saved each field as an element.
+    for (const file of [TEXT, BINARY]) {
+      const { entry } = pasteSaveReopen(file, { _array_type: 'Struct', _dimensions: [1, 3], _elements: [{ a: 1, b: 2 }], _fields: ['a', 'b'], _mw_element_type: 'MATLABArray' });
+      expect([file, shown(entry), entry instanceof StructNode, rowsOf(entry)]).toEqual([file, ['pasted', '<1x3 struct>', 1], true, [['pasted(1)', [['a', '1'], ['b', '2']]]]]);
+      expect(entry.children[0].children[0].setProperty('Value', '5'), file).toBe(true);
+      expect((copyOf(entry) as any)._elements, file).toEqual([{ a: 5, b: 2 }]);
     }
   });
 });

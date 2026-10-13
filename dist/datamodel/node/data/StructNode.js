@@ -315,7 +315,17 @@ export default class StructNode extends DataNode {
         node._rawInput = rawVal;
         node._fieldsDeclared = Array.isArray(rawVal._fields);
         const elements = rawVal._elements || [];
-        if (elements.length > 1) {
+        // An ARRAY's elements are its rows whatever number of them it holds, as every other
+        // reader of the node asks (_isScalarStruct, serializeValue, serializeXml), and not only
+        // when it holds more than one. A struct array whose bytes held one element of the
+        // many it declares holds one bag (McosParser.buildStructValue, a copy of a .mat one):
+        // read as a 1x1's, its fields were the array's rows, and a save wrote each field as an
+        // element. MATLAB writes a bag for every element, so an array it wrote has more than
+        // one or is a 1x1. Counted from extents that are numbers alone: one that is a bigint
+        // cannot be counted (serializeValue refuses it), and counted here it threw.
+        const extents = rawVal._dimensions;
+        const counted = Array.isArray(extents) && extents.every((x) => typeof x === 'number');
+        if (elements.length > 1 || (elements.length === 1 && counted && node._numElements > 1)) {
             const dims = rawVal._dimensions || [1, elements.length];
             elements.forEach((elem, ei) => {
                 const elemSerial = {

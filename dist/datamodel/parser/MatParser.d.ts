@@ -38,6 +38,18 @@ export interface ParsedMat {
  * below), and is handed over as those.
  */
 export declare function isUnheldStructArray(v: MatVariable): boolean;
+/**
+ * How many elements of struct array `v` this reader holds: as many as the longest of its
+ * fields' lists, which hold one entry per element read (parseMatrix's struct arm), and never
+ * more than it declares. An element of a struct with fields takes the bytes of its fields'
+ * matrices, so a struct array whose bytes ran out holds fewer elements than it declares, and
+ * a reader that lays it out an element at a time lays out the ones it holds: MATLAB writes
+ * every field of every element, so for an array it wrote that is every element it declares.
+ * A struct with no fields holds every element it declares, an element of one taking no bytes,
+ * and so does one with a field held as a single variable rather than a list, which this
+ * reader writes for a 1x1 alone and a reader of an array takes for every element's.
+ */
+export declare function structElementsHeld(v: MatVariable): number;
 export declare function parseMatrix(view: DataView, baseOffset: number, length: number): MatVariable;
 export declare function parseMat(arrayBuffer: ArrayBuffer): ParsedMat;
 /** A MAT stream read: the variable and the elements after it, or why there is none. */
