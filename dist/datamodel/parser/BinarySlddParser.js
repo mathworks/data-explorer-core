@@ -804,31 +804,35 @@ function cellValue(elements, dimParts) {
 // accepts: it is falsy, so the node registry does not route it and the serializer
 // writes `Class="char">[object Object]`, losing every field on the next save. So an
 // unclassed element set decodes as the struct array it is.
-function objectArrayValue(elements, dimParts) {
+//
+// `base` is the class the array's place names, where it names one (componentsBaseOf): it is
+// the array's class whatever its elements are.
+function objectArrayValue(elements, dimParts, base) {
     const first = elements.length > 0 ? elements[0]['@_Class'] || '' : '';
     if (!first) {
         return structValue(elements, dimParts);
     }
     const classes = elements.map((e) => e['@_Class'] || first);
-    const arrayClass = arrayClassOf(classes);
+    const arrayClass = base ?? arrayClassOf(classes);
     return {
         _array_class: arrayClass,
         _dimensions: dimParts,
         _mw_element_type: 'MATLABArray',
-        _elements: elements.map((e, k) => objectElement(e, classes[k] === arrayClass ? undefined : classes[k])),
+        _elements: elements.map((e, k) => objectElement(e, classes[k], arrayClass)),
     };
 }
 /**
- * One element of an object, `el`: its `_object_class` where it is of another class than its
- * array's (`ownClass`), its property bag, and the Source and PropertyType MATLAB wrote on any of
- * its properties (XmlUtils.PROPERTY_SOURCE_KEY), each only where there is one, in that order.
+ * One element of an object, `el`, of class `ownClass` in an array of `arrayClass`: its
+ * `_object_class` where the two differ, its property bag, and the Source and PropertyType MATLAB
+ * wrote on any of its properties (XmlUtils.PROPERTY_SOURCE_KEY), each only where there is one, in
+ * that order.
  */
-function objectElement(el, ownClass) {
+function objectElement(el, ownClass, arrayClass) {
     const element = {};
-    if (ownClass !== undefined) {
+    if (ownClass !== arrayClass) {
         element._object_class = ownClass;
     }
-    element._properties = parseStructElement(el);
+    element._properties = parseStructElement(el, ownClass);
     const sources = propertySources(el);
     if (sources) {
         element[PROPERTY_SOURCE_KEY] = sources;
@@ -869,7 +873,12 @@ function propertySources(el) {
  * The class an object array of elements of `classes` is, as MATLAB's text format names it in
  * `_array_class`: the class every element shares; for elements of several classes, the common
  * base class where it can be derived (heterogeneousBaseOf); and otherwise the first element's,
- * which is what this reader named every such array before it kept the elements' own.
+ * which is what this reader named every such array before it kept the elements' own. A config
+ * set's Components does not come here: its place names its class (componentsBaseOf).
+ *
+ * The first element's class is still what an array of no derivable base reads as: of the 71
+ * mixed arrays the binary dictionaries of the test fixtures, the parity artifacts and the local
+ * corpus hold, one, a simmechanics.ConfigurationSet's Components of two simmechanics classes.
  */
 function arrayClassOf(classes) {
     if (classes.every((c) => c === classes[0])) {
@@ -881,18 +890,57 @@ function arrayClassOf(classes) {
  * The common base class of an array mixing `classes`, where this reader can derive one, or
  * undefined.
  *
- * A binary dictionary does not state it: its `<P Name="Components" Dimension="9*1">` carries
- * no Class, and each element names only its own. A text dictionary does, and the one base it
- * names for the arrays found mixed in binary dictionaries is Simulink.ConfigComponent: every
- * Components array of a Simulink.ConfigSet and of a Simulink.RTWCC that MATLAB wrote into a
- * text dictionary is `_array_class` Simulink.ConfigComponent (30 of 30, in five dictionaries),
- * over classes each listed in CONFIG_COMPONENTS, on its element as its `_object_class`. So an
- * array whose classes all belong to that list is a Simulink.ConfigComponent array. Of any
- * other class (a component no text dictionary has shown, or a subclass of Simulink.Signal
- * beside a Simulink.Signal), this reader has no hierarchy to derive a base from, and says so.
+ * A binary dictionary does not state it: its `<P Name="UserMLArray2" Dimension="1*2">` carries
+ * no Class, and each element names only its own. A text dictionary does, and two rules give the
+ * base it names from the classes alone:
+ * - Simulink.ConfigComponent, for an array whose classes each belong to CONFIG_COMPONENTS: every
+ *   Components array of a Simulink.ConfigSet and of a Simulink.RTWCC that MATLAB wrote into a
+ *   text dictionary is `_array_class` Simulink.ConfigComponent (30 of 30, in five
+ *   dictionaries), over classes each listed there.
+ * - The one known MathWorks class (isMathWorksClass) of an array mixing it with classes that are
+ *   not: a user's class can derive from a MathWorks class and a MathWorks class never from a
+ *   user's, so the MathWorks class is the base the user classes extend. A text dictionary MATLAB
+ *   wrote names a Simulink.Signal subclass beside a Simulink.Signal `{"_array_class":
+ *   "Simulink.Signal", …}`, and this reader read the binary twin of that array, in two
+ *   dictionaries, as the subclass, the first element's class.
+ * Of two MathWorks classes or more beside other classes, or of none, it names no base.
  */
 function heterogeneousBaseOf(classes) {
-    return classes.every((c) => c === CONFIG_COMPONENT || CONFIG_COMPONENTS.has(c)) ? CONFIG_COMPONENT : undefined;
+    if (classes.every((c) => c === CONFIG_COMPONENT || CONFIG_COMPONENTS.has(c))) {
+        return CONFIG_COMPONENT;
+    }
+    const known = new Set(classes.filter(isMathWorksClass));
+    return known.size === 1 ? [...known][0] : undefined;
+}
+/**
+ * Whether `cls` is a known MathWorks class: a class of a package whose classes this package
+ * already names as MathWorks' (MATHWORKS_PACKAGES). Simulink and mpt are the packages of every
+ * class the node registry, the schema and the Kind column name (NodeClassMap, schema/index,
+ * kindMap), and the two the test suite tells MATLAB's own objects from custom ones by; SlCovCC,
+ * Sldv and hdlcoderui are the packages of the config components CONFIG_COMPONENTS names. A class
+ * of any other package, MathWorks' or not (CoderTarget, SSC, simmechanics, AUTOSAR among them),
+ * is not known here, and counts as one that is not MathWorks' (heterogeneousBaseOf).
+ */
+function isMathWorksClass(cls) {
+    const dot = cls.indexOf('.');
+    return dot > 0 && MATHWORKS_PACKAGES.has(cls.slice(0, dot));
+}
+/** The packages of the known MathWorks classes (isMathWorksClass). */
+const MATHWORKS_PACKAGES = new Set(['Simulink', 'mpt', 'SlCovCC', 'Sldv', 'hdlcoderui']);
+/**
+ * The class the place of a property named `name` of an object of `ownerClass` names for an
+ * object array there, or undefined where it names none: Simulink.ConfigComponent, for the
+ * Components of a Simulink.ConfigSet or a Simulink.RTWCC, whatever components it holds.
+ *
+ * Every such array MATLAB wrote into a text dictionary is `_array_class`
+ * Simulink.ConfigComponent (30 of 30, in five dictionaries). A binary dictionary names no base
+ * for it, and can hold components no text dictionary has shown, so that CONFIG_COMPONENTS does
+ * not list them: a CoderTarget.SettingsController, in seven config sets of a corpus dictionary,
+ * and an SSC.SimscapeCC, in one of another. Those arrays used to read under their first
+ * component's class, a Simulink.SolverCC.
+ */
+function componentsBaseOf(ownerClass, name) {
+    return name === 'Components' && (ownerClass === 'Simulink.ConfigSet' || ownerClass === 'Simulink.RTWCC') ? CONFIG_COMPONENT : undefined;
 }
 const CONFIG_COMPONENT = 'Simulink.ConfigComponent';
 /** Each class MATLAB's text format lists as an element of a Simulink.ConfigComponent array (see heterogeneousBaseOf). */
@@ -1371,7 +1419,8 @@ function logicalValue(text, dimParts) {
     }
     return formatMatrix(rowMajor, dimParts, 'logical');
 }
-function parsePropContent(prop) {
+// `base` is the class the property's place names for an object array there (componentsBaseOf).
+function parsePropContent(prop, base) {
     const encoded = encodedOf(prop);
     if (encoded) {
         return encoded;
@@ -1395,7 +1444,7 @@ function parsePropContent(prop) {
             return cellValue(childElements, dimension ? parseDims(dimension) : [1, childElements.length]);
         }
         else if (dimension) {
-            return parseArrayOfElements(childElements, dimension, propClass);
+            return parseArrayOfElements(childElements, dimension, propClass, base);
         }
         else if (propClass === 'struct') {
             return structValue(childElements, [1, 1]);
@@ -1417,7 +1466,7 @@ function parsePropContent(prop) {
         // could only spell `Class="double">[object Object] [object Object]` — every
         // property of every element gone from the file. Nx1 matches the entry-level
         // path's default for the same undimensioned case.
-        return objectArrayValue(childElements, [childElements.length, 1]);
+        return objectArrayValue(childElements, [childElements.length, 1], base);
     }
     else {
         // An EMPTY struct or cell property. MATLAB states the shape on the `<P>` and writes no
@@ -1462,7 +1511,7 @@ function parseElement(el) {
         _array_class: className,
         _dimensions: [1, 1],
         _mw_element_type: 'MATLABArray',
-        _elements: [objectElement(el)],
+        _elements: [objectElement(el, className, className)],
     };
 }
 // The <P> children of one <Element>, as a plain name → value bag. Serves both the
@@ -1475,7 +1524,9 @@ function parseElement(el) {
 // Every name is written with setOwn, because the names are the file's: assigned into a plain
 // `{}`, a <P Name="__proto__"> was the prototype setter's argument, so the field vanished, and
 // an object value made the bag inherit its keys.
-function parseStructElement(el) {
+//
+// `ownerClass` is the class of the object `el` is an element of, where it is one.
+function parseStructElement(el, ownerClass) {
     const result = {};
     for (const prop of el.P || []) {
         // MATLAB's saveobj envelope. A class that serializes through saveobj writes its
@@ -1512,14 +1563,14 @@ function parseStructElement(el) {
             setOwn(result, prop['@_Name'], complexCdata(getTextContent(prop), prop['@_Dimension'] || null, prop['@_Class']));
         }
         else {
-            setOwn(result, prop['@_Name'], parsePropContent(prop));
+            setOwn(result, prop['@_Name'], parsePropContent(prop, componentsBaseOf(ownerClass, prop['@_Name'])));
         }
     }
     return result;
 }
-function parseArrayOfElements(elements, dimension, propClass) {
+function parseArrayOfElements(elements, dimension, propClass, base) {
     const dimParts = parseDims(dimension);
-    return propClass === 'struct' ? structValue(elements, dimParts) : objectArrayValue(elements, dimParts);
+    return propClass === 'struct' ? structValue(elements, dimParts) : objectArrayValue(elements, dimParts, base);
 }
 function parseTypedValue(text, className, dimension, format) {
     if (!className) {
