@@ -26,6 +26,18 @@ export interface ParsedMat {
     variables: MatVariable[];
     warnings: ParseWarning[];
 }
+/**
+ * Whether `v` is a struct array whose elements this reader does not hold one by one: one it
+ * recorded without decoding (`undecoded`), or one with no fields declaring more than
+ * MAX_UNBACKED_ELEMENTS elements, which the guard in parseMatrix leaves be because such an
+ * element takes no bytes. Either is all declared size, so a reader that lays a struct out an
+ * element at a time would lay out what no byte holds: McosParser's, for an object's
+ * property, built one bag per element of a repmat(struct(), 1e4, 1e4), and the open ran the
+ * heap out.
+ * Such a struct keeps the bytes it was read from wherever it is read (a cell element too,
+ * below), and is handed over as those.
+ */
+export declare function isUnheldStructArray(v: MatVariable): boolean;
 export declare function parseMatrix(view: DataView, baseOffset: number, length: number): MatVariable;
 export declare function parseMat(arrayBuffer: ArrayBuffer): ParsedMat;
 /** A MAT stream read: the variable and the elements after it, or why there is none. */

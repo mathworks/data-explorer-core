@@ -197,6 +197,27 @@ function sparseValue(dimensions, className) {
 // limit past which a sparse array, too, was refused, until a sparse array stopped being
 // held as its dense form.
 const MAX_UNBACKED_ELEMENTS = 1000000;
+/**
+ * Whether `v` is a struct array whose elements this reader does not hold one by one: one it
+ * recorded without decoding (`undecoded`), or one with no fields declaring more than
+ * MAX_UNBACKED_ELEMENTS elements, which the guard in parseMatrix leaves be because such an
+ * element takes no bytes. Either is all declared size, so a reader that lays a struct out an
+ * element at a time would lay out what no byte holds: McosParser's, for an object's
+ * property, built one bag per element of a repmat(struct(), 1e4, 1e4), and the open ran the
+ * heap out.
+ * Such a struct keeps the bytes it was read from wherever it is read (a cell element too,
+ * below), and is handed over as those.
+ */
+export function isUnheldStructArray(v) {
+    if (v.className !== 'struct') {
+        return false;
+    }
+    if (v.undecoded) {
+        return true;
+    }
+    const count = (v.dimensions || []).reduce((a, b) => a * b, 1);
+    return count > MAX_UNBACKED_ELEMENTS && Object.keys(v.fields || {}).length === 0;
+}
 // The non-zeros of a sparse array, as MATLAB's find() lists them: column by column, and
 // within a column by row. Subelement layout, from the MAT-file format spec (Level 5,
 // sparse arrays) — the two index arrays sit between the name and the payload, where a
@@ -719,8 +740,9 @@ export function parseMatrix(view, baseOffset, length) {
                 // MCOS property, whose values are a cell's elements — it went into a
                 // dictionary as the text of its placeholder, or as []. A sparse array keeps
                 // them too: they are what it is written back as while nothing edits it, and
-                // what an MCOS property holding one is handed over as (McosParser).
-                if (child.undecoded || child.isSparse) {
+                // what an MCOS property holding one is handed over as (McosParser). So does a
+                // struct array whose elements nothing here holds, for the same handover.
+                if (child.undecoded || child.isSparse || isUnheldStructArray(child)) {
                     const rawLen = Math.min(cellSub.totalSize, view.byteLength - offset);
                     child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + offset, Math.max(0, rawLen));
                 }
