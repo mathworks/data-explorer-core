@@ -1,3 +1,12 @@
+/**
+ * Text or an attribute value, as XML has to carry it.
+ *
+ * A carriage return is written as `&#xD;`, because XML 1.0 §2.11 has every reader present a raw
+ * CR as a LF: written as itself, it would be read back as a different char. That is why MATLAB
+ * writes `&#xD;` for each CR inside a char, and the dictionary reader decodes the reference to a
+ * CR (XmlReader), so a CR read from a dictionary goes back out as the reference it came in as.
+ * A tab and a LF need no reference in text and get none, as MATLAB writes them.
+ */
 export declare function escapeXml(str: string): string;
 /**
  * The property-bag key MATLAB's saveobj envelope is filed under.

@@ -12,9 +12,10 @@
 export declare const ATTRIBUTE_PREFIX = "@_";
 export declare const TEXT_KEY = "#text";
 /**
- * A `.sldd`'s XML part. `Object`, `P` and `Element` are always arrays; whitespace inside a
- * value is preserved exactly as written, and whitespace between two tags is not stored at
- * all (`dropLayoutWhitespace`).
+ * A `.sldd`'s XML part. `Object`, `P` and `Element` are always arrays; text is the text the
+ * file holds, entity-decoded and never converted; whitespace inside a value is preserved
+ * exactly as written, and whitespace between two tags is not stored at all
+ * (`dropLayoutWhitespace`).
  *
  * Returns `unknown` on purpose: the empty object is a valid, common answer that means
  * "nothing readable here", so a caller has to narrow before it can trust a key. Every

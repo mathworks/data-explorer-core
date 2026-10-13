@@ -39,7 +39,8 @@
 // multi-line value. A MATLAB-written fixture found it in minutes
 // (`test/fixtures/custom_object_binary.sldd`). A census measures the files you have; what makes
 // this reader safe is not the census but the bail, and the fix was to read `&#xD;` rather than
-// decline a 74.7 MB file over one carriage return.
+// decline a 74.7 MB file over one carriage return — as the CR it is, once `XmlReader` had the
+// general engine decode numeric references too.
 //
 // The attribute line is blind in the same way and it does not matter, which is the useful half of
 // the comparison. That same fixture carries a fifteenth name, `Format="decimal"`, found in none of
@@ -83,16 +84,11 @@
 //     attributes and no keys at all it collapses to the empty string. An element WITH
 //     attributes never collapses — which is why `<P Name="x"/>` is an object with no `#text`
 //     while `<P/>` is `''`.
-//   * Text is entity-decoded, then offered to `dropLayoutWhitespace`, and only then coerced —
-//     and coerced ONLY IF IT EQUALS ITS OWN TRIM, because `trimValues: false` makes
-//     fast-xml-parser hand back any padded value raw. `' 7 '` stays three characters; `7`
-//     becomes the number. That asymmetry is load-bearing: it is how a MATLAB char array keeps
-//     its padding.
-//   * Coercion itself is NOT reimplemented. `strnum` does it, with the same options
-//     fast-xml-parser passes, so `007`, `0x1F`, `1.0` and an integer too large for a double
-//     all land where they landed before by construction rather than by my having read its
-//     source carefully enough. See `strnum.d.ts` for why that dependency is declared.
-//   * Attribute values are never coerced and never trimmed (`parseAttributeValue: false`).
+//   * Text is entity-decoded — XML's five named entities and numeric character references —
+//     then offered to `dropLayoutWhitespace`, and is otherwise handed back AS TEXT: the
+//     dictionary parser runs with `parseTagValue: false`, so `007`, `1.0`, `-0` and `true` are
+//     the strings the file holds. Converting them is `BinarySlddParser`'s job, by Class.
+//   * Attribute values are entity-decoded the same way, and never trimmed or converted.
 //
 // `.scratch/probe-differential.mjs` compares the two readers' output over every binary
 // dictionary available — 32 files, 469.4 MB, 18,505,864 keys, identical including key order.
@@ -107,17 +103,14 @@
 // checking the suite goes red; it is the check that found four of the five real holes in those
 // tests, and `docs/deep-work/2026-09-30-sldd-xml-fast-reader/testing.md` says which. The fifth
 // was found by a new fixture, and is the numeric-reference story above.
-import toNumber from 'strnum';
-/** The options fast-xml-parser's OptionsBuilder defaults to; see `numberParseOptions`. */
-const NUMBER_OPTIONS = { hex: true, leadingZeros: true, eNotation: true, unicode: false };
 const TEXT_KEY = '#text';
 /**
  * fast-xml-parser's `maxNestedTags` default, which `XmlReader` does not override.
  *
  * Past it the engine throws `Maximum nested tags exceeded` rather than returning a tree, so this
- * is one of the two numbers in this file copied from the engine's options rather than from the
- * corpus (`NUMBER_OPTIONS` is the other). Dictionaries nest in single digits; this exists only so
- * that a document the engine refuses is refused here too.
+ * is the one number in this file copied from the engine's options rather than from the corpus.
+ * Dictionaries nest in single digits; this exists only so that a document the engine refuses is
+ * refused here too.
  */
 const MAX_NESTED_TAGS = 100;
 /**
@@ -159,11 +152,6 @@ const SPACE = 0x20;
 const TAB = 0x09;
 const LF = 0x0a;
 const CR = 0x0d;
-const DIGIT_0 = 0x30;
-const DIGIT_9 = 0x39;
-const PLUS = 0x2b;
-const MINUS = 0x2d;
-const DOT = 0x2e;
 const UPPER_P = 0x50;
 const HASH = 0x23; // #
 const SEMI = 0x3b; // ;
@@ -198,12 +186,12 @@ function entityEnd(value, at) {
     return j < value.length && value.charCodeAt(j) === SEMI ? j : -1;
 }
 /**
- * Whether the entity decoder DELETES this codepoint instead of leaving its reference standing: a
- * C0 control other than tab/LF/CR — NUL included — or a surrogate half. XML 1.0 cannot carry any
- * of them at all, so the decoder drops them even though it otherwise decodes no numeric reference.
+ * Whether the entity decoder DELETES this codepoint instead of decoding its reference: a C0
+ * control other than tab/LF/CR — NUL included — or a surrogate half. XML 1.0 cannot carry any of
+ * them at all, so the decoder drops them where it decodes every other codepoint.
  *
- * A codepoint it cannot parse, or one out of Unicode's range, is NOT deleted — it is left alone,
- * which is the same thing that happens to an ordinary one.
+ * A codepoint it cannot parse, or one out of Unicode's range, is NOT deleted — its reference is
+ * left standing as text (`isCodePoint`).
  *
  * NUL has no case of its own even though the decoder gives it a separate, separately configurable
  * rule, because every setting of that rule still deletes it and `0 <= 0x1f` already says so. It
@@ -215,21 +203,28 @@ function entityEnd(value, at) {
  * disagreement in this file has to fall.
  */
 function isProhibitedCodePoint(cp) {
-    if (Number.isNaN(cp) || cp < 0 || cp > 0x10ffff)
+    if (!isCodePoint(cp))
         return false;
     if (cp <= 0x1f)
         return cp !== TAB && cp !== LF && cp !== CR;
     return cp >= 0xd800 && cp <= 0xdfff;
 }
 /**
- * The five entities XML defines, and the only five a dictionary uses. `htmlEntities` is off and
- * `numericAllowed` follows it, so fast-xml-parser decodes exactly these five and nothing else;
- * `&nbsp;` and a bare `&` are a bail, so this never has to be the authority on what the other
- * engine would have done with them.
+ * Whether a parsed reference names a codepoint at all. One that does not — NaN, negative, past
+ * U+10FFFF — the decoder leaves standing as the text it is, which is what this reader does too.
+ */
+function isCodePoint(cp) {
+    return !Number.isNaN(cp) && cp >= 0 && cp <= 0x10ffff;
+}
+/**
+ * The five entities XML defines, and the only five a dictionary uses, plus numeric character
+ * references. `XmlReader` gives the engine exactly these — XML's five as its named table, with
+ * numeric references allowed — so it decodes these and nothing else; `&nbsp;` and a bare `&`
+ * are a bail, so this never has to be the authority on what the other engine would have done
+ * with them.
  *
- * A numeric character reference is the one case worth more than a bail. The engine does not
- * decode `&#xD;` — it leaves it standing as literal text — and MATLAB writes exactly that for a
- * CR inside a char property, which `test/fixtures/custom_object_binary.sldd` now contains. The
+ * A numeric character reference is the one case worth more than a bail. MATLAB writes `&#xD;`
+ * for a CR inside a char property, which `test/fixtures/custom_object_binary.sldd` contains. The
  * 32-dictionary corpus had none and said these never occur; it was simply blind, since none of
  * those files held a multi-line value. Declining would have been correct and would have cost the
  * whole file: one CR anywhere in 74 MB sends every byte of it back to the slow engine.
@@ -263,23 +258,30 @@ function decodeEntities(value) {
             from = at + 6;
         }
         else if (value.charCodeAt(at + 1) === HASH) {
-            // Left standing, reference and all — EXCEPT a codepoint XML 1.0 prohibits, which the engine
-            // deletes from the value. That table is not reimplemented here: nothing a dictionary holds
-            // reaches it, so this bails and lets the engine be the one that knows.
+            // Decoded to its character — EXCEPT a codepoint XML 1.0 prohibits, which the engine deletes
+            // from the value. That table is not reimplemented here: nothing a dictionary holds reaches
+            // it, so this bails and lets the engine be the one that knows. A reference with no `;` in
+            // the decoder's window, or one naming no codepoint, is left standing as text, as there.
             const end = entityEnd(value, at);
+            let cp = NaN;
             if (end !== -1) {
                 const c = value.charCodeAt(at + 2);
                 const hex = c === LOWER_X || c === UPPER_X;
                 // The same two `parseInt` calls the decoder makes, lenient tail and all, because a token
                 // like `&#1zz;` has to be classified the way it classifies it.
-                const cp = hex
-                    ? parseInt(value.slice(at + 3, end), 16)
-                    : parseInt(value.slice(at + 2, end), 10);
+                cp = hex ? parseInt(value.slice(at + 3, end), 16) : parseInt(value.slice(at + 2, end), 10);
                 if (isProhibitedCodePoint(cp))
                     return null;
             }
-            out += '&';
-            from = at + 1;
+            if (isCodePoint(cp)) {
+                // `cp` is still NaN when the window held no `;`, so here `end` is that `;`.
+                out += String.fromCodePoint(cp);
+                from = end + 1;
+            }
+            else {
+                out += '&';
+                from = at + 1;
+            }
         }
         else {
             return null; // not ours to interpret
@@ -290,15 +292,15 @@ function decodeEntities(value) {
 }
 /**
  * The text pipeline, in fast-xml-parser's order: decode, then offer to the layout-whitespace
- * hook, then coerce only an unpadded value.
+ * hook. Nothing is converted after that — `parseTagValue` is off — so the text is the answer.
  *
  * Returns `undefined` for "add no `#text` key", which is how both the empty chunk and the
  * dropped layout whitespace arrive — `saveTextToParentTag` adds the key only for a non-empty
  * processed value. Returns `null` for "bail", which text can only do by carrying an entity
  * this reader will not interpret.
  *
- * `trim` is called ONCE. It used to be called twice, which cost a second pass over every
- * value in the file for a question the first pass had already answered.
+ * `trim` is called only for a non-leaf, which is the only question it answers here: a leaf is
+ * kept whatever it holds, padding included, which is how a MATLAB char array keeps its padding.
  */
 function processText(raw, isLeaf) {
     let decoded = raw;
@@ -308,27 +310,11 @@ function processText(raw, isLeaf) {
             return null;
         decoded = d;
     }
-    const trimmed = decoded.trim();
     // `dropLayoutWhitespace`: whitespace between two tags is layout, and removing the KEY rather
-    // than emptying it is what the real hook achieves by returning ''.
-    if (trimmed === '' && !isLeaf)
+    // than emptying it is what the real hook achieves by returning ''. Asked of the DECODED text,
+    // as the hook is: a `&#xD;` beside a child is layout as much as a raw newline there is.
+    if (!isLeaf && decoded.trim() === '')
         return undefined;
-    if (trimmed !== decoded)
-        return decoded; // padded: handed back raw, uncoerced
-    if (decoded === 'true')
-        return true;
-    if (decoded === 'false')
-        return false;
-    // `strnum` can only ever return a number for a value whose first character is a digit, a
-    // sign or a dot — EXCEPT when it is leading whitespace, and the line above has just proved
-    // there is none. Verified exhaustively over all 65,535 BMP first characters: the only ones
-    // that coerce despite not being digit-like are the 25 that `trim` strips. So this guard
-    // skips the call for every name, class and enum literal in the file, which is most of them,
-    // without being able to change an answer.
-    const c0 = decoded.charCodeAt(0);
-    if ((c0 >= DIGIT_0 && c0 <= DIGIT_9) || c0 === PLUS || c0 === MINUS || c0 === DOT) {
-        return toNumber(decoded, NUMBER_OPTIONS);
-    }
     return decoded;
 }
 /** `Object`, `P`, `Element` and `Field` are forced to arrays by `isArray`; nothing else is. */
@@ -464,8 +450,9 @@ export function readDictionaryXmlFast(input) {
     // lone `\r` as `\n` — and a reader that slices raw substrings skips it silently: `<P>a&#13;b`
     // written as a literal CR came back `'a\r\nb'` here and `'a\nb'` from the engine, a non-null
     // disagreement in a plain char property. MATLAB writes `&#xD;` for a CR *inside* a value, which
-    // is a reference and survives both (neither decodes it), so this is reachable mainly by a
-    // CRLF-lineended or hand-edited part — and it is a wrong answer either way.
+    // is a reference: both readers decode it AFTER this pass, so it survives as the CR it is, and
+    // this is reachable mainly by a CRLF-lineended or hand-edited part — and it is a wrong answer
+    // either way.
     //
     // The guard is the point: a scan for one byte costs a few ms on 74.7 MB and nothing is copied
     // unless a CR is really there. Declining instead would have been correct and would have cost
@@ -554,8 +541,7 @@ export function readDictionaryXmlFast(input) {
                         return null;
                     if (processed !== undefined) {
                         const d = depth - 1;
-                        textVal[d] =
-                            textCount[d] === 0 ? processed : `${String(textVal[d])}${String(processed)}`;
+                        textVal[d] = textCount[d] === 0 ? processed : `${textVal[d]}${processed}`;
                         textCount[d]++;
                     }
                 }

@@ -185,9 +185,9 @@ const ATTR_NAMES = [
 ];
 
 /**
- * Text chunks chosen so each decides something: the coercion spellings, the padding rule, the
- * entity table and its edges, the layout-whitespace hook, and the values that only LOOK
- * coercible.
+ * Text chunks chosen so each decides something: the numeric spellings the readers used to
+ * coerce and now must both keep as text, the padding rule, the entity table and its edges, the
+ * layout-whitespace hook, and the values that only LOOK numeric.
  */
 const TEXTS = [
   '',
@@ -211,6 +211,9 @@ const TEXTS = [
   '.5',
   '9007199254740993',
   '12345678901234567890123',
+  '-0.0',
+  '1.0E+6',
+  '2.384185791015625e-07',
   'true',
   'false',
   'True',
@@ -224,17 +227,16 @@ const TEXTS = [
   '&lt;x&gt;',
   '&quot;&apos;',
   '&amp;amp;',
-  // Digit-leading AND entity-bearing: the only shape that reaches the coercion branch with
-  // something to decode, so the only shape that can tell `toNumber(decoded)` from
-  // `toNumber(raw)`. Mutation testing found that pair indistinguishable without these.
+  // Digit-leading AND entity-bearing: once the only shape that reached the coercion branch with
+  // something to decode. Kept, because a digit-led value still has to be decoded.
   '7&amp;8',
   '1&lt;2',
   '-1&gt;0',
   '.5&amp;',
-  // Numeric character references, which the engine leaves standing — so the reader reads them as
-  // text and these are not bails. The prohibited codepoints next to them ARE bails, and both
-  // kinds belong here: the generator is the only check that the two are told apart in
-  // combinations nobody wrote down, including a value carrying one of each.
+  // Numeric character references, which both engines decode — so these are not bails. The
+  // prohibited codepoints next to them ARE bails, and both kinds belong here: the generator is the
+  // only check that the two are told apart in combinations nobody wrote down, including a value
+  // carrying one of each, and a decoded CR or LF landing where the layout-whitespace hook looks.
   '&#65;',
   '&#xD;',
   'a&#xD;b',
@@ -252,6 +254,13 @@ const TEXTS = [
   '&#X1;', // capital X, the spelling mutation testing caught no test reaching
   '&#xD800;',
   '&#9;&#1;a',
+  '&#38;amp;',
+  '&#38;#65;',
+  '&#65zz;',
+  '&#x110000;',
+  '&#10;',
+  '&#32;&#10;',
+  '&#xD;&#xD;',
   '&nbsp;',
   'a & b',
   // Carriage returns, which XML normalizes (`\r\n` and a lone `\r` both become `\n`) and a reader
@@ -289,6 +298,7 @@ const ATTR_VALUES = [
   '&amp;',
   '&#65;',
   'a&#xD;b',
+  '&#38;#65;',
   '&#1;', // deleted inside an attribute value too
   "a'b",
   'a"b',

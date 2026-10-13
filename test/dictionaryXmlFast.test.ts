@@ -120,35 +120,35 @@ describe('the object shape', () => {
 
   it('nests', () => {
     expectRead('<DataSource><Object Class="c"><P Name="n">7</P></Object></DataSource>', {
-      DataSource: { Object: [{ P: [{ '#text': 7, '@_Name': 'n' }], '@_Class': 'c' }] },
+      DataSource: { Object: [{ P: [{ '#text': '7', '@_Name': 'n' }], '@_Class': 'c' }] },
     });
   });
 });
 
 describe('array forcing', () => {
   it('makes a SINGLE `P`, `Element`, `Object` or `Field` an array', () => {
-    expectRead('<DataSource><P>1</P></DataSource>', { DataSource: { P: [1] } });
-    expectRead('<DataSource><Element>1</Element></DataSource>', { DataSource: { Element: [1] } });
-    expectRead('<DataSource><Object>1</Object></DataSource>', { DataSource: { Object: [1] } });
-    expectRead('<DataSource><Field>1</Field></DataSource>', { DataSource: { Field: [1] } });
+    expectRead('<DataSource><P>1</P></DataSource>', { DataSource: { P: ['1'] } });
+    expectRead('<DataSource><Element>1</Element></DataSource>', { DataSource: { Element: ['1'] } });
+    expectRead('<DataSource><Object>1</Object></DataSource>', { DataSource: { Object: ['1'] } });
+    expectRead('<DataSource><Field>1</Field></DataSource>', { DataSource: { Field: ['1'] } });
   });
 
   it('does NOT force a name outside that list', () => {
     // `DataSource` is the only other name in the vocabulary, so it is the only name available
     // to prove the un-forced path is still there. One stays an object...
     expectRead('<DataSource><DataSource>1</DataSource></DataSource>', {
-      DataSource: { DataSource: 1 },
+      DataSource: { DataSource: '1' },
     });
     // ...and a repeat becomes an array, which is the behaviour `isArray` exists to remove.
     expectRead(
       '<DataSource><DataSource>1</DataSource><DataSource>2</DataSource></DataSource>',
-      { DataSource: { DataSource: [1, 2] } },
+      { DataSource: { DataSource: ['1', '2'] } },
     );
   });
 
   it('collects interleaved repeats under one key, in document order', () => {
     expectRead('<DataSource><P>1</P><Element>2</Element><P>3</P></DataSource>', {
-      DataSource: { P: [1, 3], Element: [2] },
+      DataSource: { P: ['1', '3'], Element: ['2'] },
     });
   });
 });
@@ -220,42 +220,46 @@ describe('the XML declaration', () => {
   });
 });
 
-describe('text coercion', () => {
-  it('coerces a numeric-looking value, in every spelling the engine accepts', () => {
-    expectRead('<P>7</P>', { P: [7] });
-    expectRead('<P>007</P>', { P: [7] }); // leadingZeros
-    expectRead('<P>1.0</P>', { P: [1] }); // the spelling is gone
-    expectRead('<P>0x1F</P>', { P: [31] }); // hex
-    expectRead('<P>1e3</P>', { P: [1000] }); // eNotation
-    expectRead('<P>+7</P>', { P: [7] });
-    expectRead('<P>-7</P>', { P: [-7] });
-    expectRead('<P>.5</P>', { P: [0.5] });
+describe('text is never coerced', () => {
+  // Both engines used to turn a numeric-looking value into a number (and `true`/`false` into
+  // booleans) before `BinarySlddParser` had read the element's Class, so a CHAR that looked like
+  // a number came back in JavaScript's spelling of it — 193 char bodies in the local corpus, and
+  // every -0. The reader converts each value by its Class now, so both engines hand back the text.
+
+  it('keeps a numeric-looking value as the text it is, in every spelling', () => {
+    expectRead('<P>7</P>', { P: ['7'] });
+    expectRead('<P>007</P>', { P: ['007'] }); // leading zeros
+    expectRead('<P>1.0</P>', { P: ['1.0'] }); // the spelling is kept
+    expectRead('<P>0x1F</P>', { P: ['0x1F'] }); // hex
+    expectRead('<P>1e3</P>', { P: ['1e3'] }); // e-notation
+    expectRead('<P>+7</P>', { P: ['+7'] });
+    expectRead('<P>-7</P>', { P: ['-7'] });
+    expectRead('<P>.5</P>', { P: ['.5'] });
+    expectRead('<P>-0</P>', { P: ['-0'] }); // and the sign of zero
+    expectRead('<P>2.384185791015625e-07</P>', { P: ['2.384185791015625e-07'] });
   });
 
-  it('leaves a value whose first character is not digit-like alone', () => {
-    // The `charCodeAt` guard in `processText` skips `strnum` entirely for these, which is most
-    // of a real dictionary — every name, class and enum literal. `e3` is the interesting one:
-    // it LOOKS like e-notation and is not, and the guard and `strnum` agree that it is not.
+  it('keeps a value whose first character is not digit-like, as before', () => {
     expectRead('<P>e3</P>', { P: ['e3'] });
     expectRead('<P>True</P>', { P: ['True'] });
   });
 
-  it('coerces `true` and `false` to booleans, lowercase only', () => {
-    expectRead('<P>true</P>', { P: [true] });
-    expectRead('<P>false</P>', { P: [false] });
+  it('keeps `true` and `false` as text', () => {
+    expectRead('<P>true</P>', { P: ['true'] });
+    expectRead('<P>false</P>', { P: ['false'] });
   });
 
-  it('declines an integer that cannot round-trip through a double', () => {
-    // `strnum` protecting itself, not us. Length is not the rule — the 23-digit value below
-    // DOES become a number, because it was never going to be exact either way.
+  it('keeps an integer of any length as text', () => {
+    // The old coercion declined the first (it cannot round-trip through a double) and rounded the
+    // second; neither question exists now.
     expectRead('<P>9007199254740993</P>', { P: ['9007199254740993'] });
-    expectRead('<P>12345678901234567890123</P>', { P: [1.2345678901234568e22] });
+    expectRead('<P>12345678901234567890123</P>', { P: ['12345678901234567890123'] });
   });
 
-  it('hands back a PADDED value raw and uncoerced', () => {
+  it('hands back a PADDED value raw', () => {
     // The load-bearing half of `trimValues: false`: this is how a MATLAB char array keeps its
-    // padding. `' 7 '` is three characters and `' true '` is six, not a number and not a
-    // boolean, and the in-place editor is seeded with exactly what the file said.
+    // padding. `' 7 '` is three characters and `' true '` is six, and the in-place editor is
+    // seeded with exactly what the file said.
     expectRead('<P> 7 </P>', { P: [' 7 '] });
     expectRead('<P> true </P>', { P: [' true '] });
   });
@@ -323,12 +327,9 @@ describe('entity decoding', () => {
     expectRead('<P>&amp;amp;</P>', { P: ['&amp;'] });
   });
 
-  it('coerces the DECODED value, not the raw one', () => {
-    // Also found by mutation testing. These are the only inputs that can tell the two apart: a
-    // value that enters the coercion branch (first character digit-like, equal to its own trim)
-    // and ALSO carries an entity. `strnum` hands back its own argument when it cannot parse, so
-    // coercing the raw text would return the undecoded string and leave `&amp;` in a value —
-    // visible in the table, and wrong, with every other entity test still green.
+  it('decodes a digit-led value too', () => {
+    // These were the inputs that told "coerce the decoded value" from "coerce the raw one" while
+    // there was a coercion; they stay as the cases that a digit-led value is decoded at all.
     expectRead('<P>7&amp;8</P>', { P: ['7&8'] });
     expectRead('<P>1&lt;2</P>', { P: ['1<2'] });
     expectRead('<P>-1&gt;0</P>', { P: ['-1>0'] });
@@ -338,44 +339,62 @@ describe('entity decoding', () => {
   });
 });
 
-describe('numeric character references, which the engine does NOT decode', () => {
+describe('numeric character references, which both engines decode', () => {
   // This reader used to decline every `&#`. A MATLAB-written fixture then turned up carrying
   // `&#xD;` — `test/fixtures/custom_object_binary.sldd`, where a char property holds a CR — and
   // declining would have sent a whole 74 MB file back to the slow engine over one carriage
   // return. The corpus census that said numeric references never occur was not wrong about the
   // corpus; it was blind, because no dictionary in it held a multi-line value.
   //
-  // `htmlEntities` is off, so `numericAllowed` is off with it, so the engine leaves the reference
-  // standing as literal text. Reading these as text is therefore not a shortcut — it IS the
-  // engine's answer, and the pinned values below are what it returns.
+  // Both engines then left the reference standing as literal text, which XML does not allow: a
+  // reader must replace it with the character. The model showed `&#xD;` and the writer, rightly
+  // escaping the `&` it was handed, saved `&amp;#xD;`. `XmlReader` now asks the engine for XML's
+  // five named entities with numeric references allowed, and this reader decodes them the same
+  // way, so the pinned values below are the engine's answers.
 
-  it('leaves a reference standing, exactly as the engine does', () => {
-    expectRead('<P>a&#xD;b</P>', { P: ['a&#xD;b'] }); // the real fixture's value
-    expectRead('<P>&#65;</P>', { P: ['&#65;'] });
-    expectRead('<P>&#x41;</P>', { P: ['&#x41;'] });
-    expectRead('<P>&#X41;</P>', { P: ['&#X41;'] }); // capital X is a reference too
-    expectRead('<P>&#13;</P>', { P: ['&#13;'] });
-    expectRead('<P>&#9;x</P>', { P: ['&#9;x'] });
-    expectRead('<P>&#x1F600;</P>', { P: ['&#x1F600;'] });
-    expectRead('<P Name="a&#xD;b"/>', { P: [{ '@_Name': 'a&#xD;b' }] });
+  it('decodes a reference to its character, exactly as the engine does', () => {
+    expectRead('<P>a&#xD;b</P>', { P: ['a\rb'] }); // the real fixture's value
+    expectRead('<P>&#65;</P>', { P: ['A'] });
+    expectRead('<P>&#x41;</P>', { P: ['A'] });
+    expectRead('<P>&#X41;</P>', { P: ['A'] }); // capital X is a reference too
+    expectRead('<P>&#13;</P>', { P: ['\r'] });
+    expectRead('<P>&#9;x</P>', { P: ['\tx'] });
+    expectRead('<P>&#x1F600;</P>', { P: ['\u{1F600}'] }); // past the BMP: a surrogate pair
+    expectRead('<P>&#x0041;</P>', { P: ['A'] }); // leading zeros are allowed
+    expectRead('<P Name="a&#xD;b"/>', { P: [{ '@_Name': 'a\rb' }] });
   });
 
-  it('does not let a left-standing reference reach the number coercion', () => {
-    // `&` is not digit-like, so the guard skips `strnum` entirely for a leading reference; a
-    // trailing one reaches it and must come back unchanged rather than as its leading digits.
-    expectRead('<P>7&#48;</P>', { P: ['7&#48;'] });
-    expectRead('<P>1&#48;</P>', { P: ['1&#48;'] });
-    expectRead('<P>&#32;7</P>', { P: ['&#32;7'] });
-    expectRead('<P>&#x30;0</P>', { P: ['&#x30;0'] });
+  it('decodes each reference once, and leaves the text it produces alone', () => {
+    // A decoded `&` is a character, not the start of another reference: `&#38;amp;` is the
+    // five characters `&amp;`, and `&#38;#65;` is `&#65;`, not `A`.
+    expectRead('<P>&#38;amp;</P>', { P: ['&amp;'] });
+    expectRead('<P>&#38;#65;</P>', { P: ['&#65;'] });
+    expectRead('<P>&amp;#65;</P>', { P: ['&#65;'] });
   });
 
-  it('leaves a MALFORMED reference standing too, which is also what the engine does', () => {
+  it('decodes a digit-led value with a reference in it, and keeps it as text', () => {
+    // These used to be the inputs that told a left-standing reference from one that reached
+    // the number coercion. There is no coercion now, so the decoded text is the answer.
+    expectRead('<P>7&#48;</P>', { P: ['70'] });
+    expectRead('<P>1&#48;</P>', { P: ['10'] });
+    expectRead('<P>&#32;7</P>', { P: [' 7'] });
+    expectRead('<P>&#x30;0</P>', { P: ['00'] });
+  });
+
+  it('leaves a MALFORMED reference standing, which is what the engine does', () => {
     expectRead('<P>&#;</P>', { P: ['&#;'] });
     expectRead('<P>&#x;</P>', { P: ['&#x;'] });
     expectRead('<P>&#xZZ;</P>', { P: ['&#xZZ;'] });
     expectRead('<P>&#-1;</P>', { P: ['&#-1;'] });
     expectRead('<P>&#1114112;</P>', { P: ['&#1114112;'] }); // one past U+10FFFF
-    expectRead('<P>&#38;amp;</P>', { P: ['&#38;amp;'] }); // NOT decoded, so NOT `&amp;`
+    expectRead('<P>&#x110000;</P>', { P: ['&#x110000;'] });
+  });
+
+  it('decodes a reference with a lenient tail as the engine reads it', () => {
+    // The engine's two `parseInt` calls stop at the first character that is not a digit of the
+    // base, so `&#65zz;` is U+0041. Odd, and pinned so this reader stays the engine's twin on it.
+    expectRead('<P>&#65zz;</P>', { P: ['A'] });
+    expectRead('<P>&#x41g;</P>', { P: ['A'] });
   });
 
   it('leaves one standing with no `;` in the engine’s 32-character window', () => {
@@ -392,20 +411,24 @@ describe('numeric character references, which the engine does NOT decode', () =>
     expectDeclined(ref(29), { P: [''] }); // token `#x0…01` is 32 characters: a reference
     expectRead(ref(30), { P: [`&#x${'0'.repeat(30)}1;`] }); // 33 characters: not one
     expectRead('<P>&#65</P>', { P: ['&#65'] }); // and no `;` at all is not one either
+    // The same window on a codepoint that decodes rather than one that is deleted.
+    const a = (zeros: number): string => `<P>&#x${'0'.repeat(zeros)}41;</P>`;
+    expectRead(a(28), { P: ['A'] }); // token `#x0…041` is 32 characters: a reference
+    expectRead(a(29), { P: [`&#x${'0'.repeat(29)}41;`] }); // 33 characters: not one
   });
 
   it('declines a codepoint XML 1.0 prohibits, which the engine DELETES', () => {
-    // The engine drops these from the value no matter what `numericAllowed` says, because XML
-    // cannot carry them at all. That table is not reimplemented, so the seam answers instead —
-    // and the engine's answers are pinned here, since "deleted" is a surprising thing for a
-    // reference to do and a future reader of this file should not have to guess.
+    // The engine drops these from the value rather than decode them, because XML cannot carry
+    // them at all. That table is not reimplemented, so the seam answers instead — and the
+    // engine's answers are pinned here, since "deleted" is a surprising thing for a reference to
+    // do and a future reader of this file should not have to guess.
     expectDeclined('<P>&#0;</P>', { P: [''] }); // NUL
     expectDeclined('<P>&#1;</P>', { P: [''] });
     expectDeclined('<P>&#x7;</P>', { P: [''] }); // BEL
     expectDeclined('<P>&#31;</P>', { P: [''] }); // last C0
     expectDeclined('<P>a&#1;b</P>', { P: ['ab'] }); // deleted from the MIDDLE of a value
-    expectDeclined('<P>7&#1;</P>', { P: [7] }); // and then what is left COERCES
-    expectDeclined('<P>&#1;7</P>', { P: [7] });
+    expectDeclined('<P>7&#1;</P>', { P: ['7'] }); // and what is left stays text
+    expectDeclined('<P>&#1;7</P>', { P: ['7'] });
     expectDeclined('<P Name="a&#1;b"/>', { P: [{ '@_Name': 'ab' }] }); // attributes too
     expectDeclined('<P>&#xD800;</P>', { P: [''] }); // lone surrogate
     expectDeclined('<P>&#xDFFF;x</P>', { P: ['x'] });
@@ -421,34 +444,44 @@ describe('numeric character references, which the engine does NOT decode', () =>
     expectDeclined('<P>&#XD800;</P>', { P: [''] });
   });
 
-  it('accepts the codepoints next to the prohibited ones', () => {
+  it('decodes the codepoints next to the prohibited ones', () => {
     // The boundaries themselves, because an off-by-one in either direction is the likely bug and
     // every one of these would be WRONG to decline.
-    expectRead('<P>&#9;</P>', { P: ['&#9;'] }); // tab, LF and CR are the three C0 exceptions
-    expectRead('<P>&#10;</P>', { P: ['&#10;'] });
-    expectRead('<P>&#13;</P>', { P: ['&#13;'] });
-    expectRead('<P>&#32;</P>', { P: ['&#32;'] }); // one past the C0 block
-    expectRead('<P>&#xD7FF;</P>', { P: ['&#xD7FF;'] }); // one before the surrogates
-    expectRead('<P>&#xE000;</P>', { P: ['&#xE000;'] }); // one after them
-    expectRead('<P>&#x10FFFF;</P>', { P: ['&#x10FFFF;'] }); // the last codepoint there is
+    expectRead('<P>&#9;</P>', { P: ['\t'] }); // tab, LF and CR are the three C0 exceptions
+    expectRead('<P>&#10;</P>', { P: ['\n'] });
+    expectRead('<P>&#13;</P>', { P: ['\r'] });
+    expectRead('<P>&#32;</P>', { P: [' '] }); // one past the C0 block
+    expectRead('<P>&#xD7FF;</P>', { P: ['\uD7FF'] }); // one before the surrogates
+    expectRead('<P>&#xE000;</P>', { P: ['\uE000'] }); // one after them
+    expectRead('<P>&#x10FFFF;</P>', { P: ['\u{10FFFF}'] }); // the last codepoint there is
   });
 
-  it('mixes a reference with the entities it DOES decode', () => {
-    expectRead('<P>&#xD;&amp;</P>', { P: ['&#xD;&'] });
-    expectRead('<P>&amp;&#xD;</P>', { P: ['&&#xD;'] });
-    expectRead('<P>&#x41;&lt;&#x42;</P>', { P: ['&#x41;<&#x42;'] });
+  it('keeps a decoded LF, CR or space even when it is the whole value', () => {
+    // A decoded value is offered to the layout-whitespace hook like any other, so a leaf that is
+    // nothing but `&#xD;` is MATLAB's one-character CR and has to survive as one — the case
+    // dSLDD_JSONApi.sldd's varStrCR is.
+    expectRead('<P Name="v">&#xD;</P>', { P: [{ '#text': '\r', '@_Name': 'v' }] });
+    expectRead('<P>&#32;&#10;</P>', { P: [' \n'] });
+    // Beside a child it is layout, and dropped, as the same characters written raw would be.
+    expectRead('<P>&#xD;<Element/></P>', { P: [{ Element: [''] }] });
+  });
+
+  it('mixes a reference with the named entities', () => {
+    expectRead('<P>&#xD;&amp;</P>', { P: ['\r&'] });
+    expectRead('<P>&amp;&#xD;</P>', { P: ['&\r'] });
+    expectRead('<P>&#x41;&lt;&#x42;</P>', { P: ['A<B'] });
   });
 
   it('declines a value where ONE of two references is prohibited', () => {
     // The whole value goes to the engine, not the prohibited reference alone — a decline is a
     // property of the document, which is the only granularity this reader has.
-    expectDeclined('<P>&#9;&#1;a</P>', { P: ['&#9;a'] });
+    expectDeclined('<P>&#9;&#1;a</P>', { P: ['\ta'] });
     expectDeclined('<P>&#x1;&#x2;</P>', { P: [''] });
   });
 
   it('still declines the entities it never owned, reference or not', () => {
-    expectDeclined('<P>&#xD;&nbsp;</P>', { P: ['&#xD;&nbsp;'] });
-    expectDeclined('<P>a&b&#xD;</P>', { P: ['a&b&#xD;'] });
+    expectDeclined('<P>&#xD;&nbsp;</P>', { P: ['\r&nbsp;'] });
+    expectDeclined('<P>a&b&#xD;</P>', { P: ['a&b\r'] });
   });
 });
 
@@ -456,7 +489,7 @@ describe('whitespace', () => {
   it('drops the layout whitespace of a pretty-printed file', () => {
     // 204,373 such gaps in the corpus's largest dictionary. The KEY is removed, not emptied.
     expectRead('<DataSource>\n  <P>1</P>\n  <P>2</P>\n</DataSource>', {
-      DataSource: { P: [1, 2] },
+      DataSource: { P: ['1', '2'] },
     });
   });
 
@@ -495,7 +528,7 @@ describe('whitespace', () => {
     expectRead('<P>　<Element/></P>', { P: [{ Element: [''] }] }); // ideographic space
     expectRead('<P> <Element/></P>', { P: [{ Element: [''] }] }); // no-break space
     expectRead('<P>\f\n <Element/></P>', { P: [{ Element: [''] }] }); // mixed with ASCII
-    expectRead('<DataSource>\f<P>1</P></DataSource>', { DataSource: { P: [1] } });
+    expectRead('<DataSource>\f<P>1</P></DataSource>', { DataSource: { P: ['1'] } });
   });
 
   it('keeps unicode whitespace that is the whole value of a leaf', () => {
@@ -508,7 +541,7 @@ describe('whitespace', () => {
 
   it('allows whitespace around the root and inside a close tag', () => {
     expectRead('\n  <DataSource/>\n  ', { DataSource: '' });
-    expectRead('<DataSource><P>1</P\t\n></DataSource>', { DataSource: { P: [1] } });
+    expectRead('<DataSource><P>1</P\t\n></DataSource>', { DataSource: { P: ['1'] } });
     expectRead('<P ></P>', { P: [''] });
   });
 });
@@ -521,8 +554,9 @@ describe('line endings, which XML normalizes and a raw slice does not', () => {
   // the pre-pass existed, returning the carriage return it was given.
   //
   // Reachable in practice by a CRLF-lineended or hand-edited part, not by MATLAB: for a CR
-  // *inside* a value MATLAB writes `&#xD;`, a reference neither reader decodes, which is why the
-  // corpus differential over 469.4 MB could not see this.
+  // *inside* a value MATLAB writes `&#xD;`, a reference — which both readers decode AFTER this
+  // normalization, so it survives as the CR it is — and that is why the corpus differential
+  // over 469.4 MB could not see this.
 
   it('turns CRLF and a lone CR into a single LF, in text', () => {
     expectRead('<P>a\r\nb</P>', { P: ['a\nb'] });
@@ -545,23 +579,23 @@ describe('line endings, which XML normalizes and a raw slice does not', () => {
     expectRead('<P Name="a\r"/>', { P: [{ '@_Name': 'a\n' }] });
   });
 
-  it('normalizes BEFORE the padding test, so a trailing CR still defeats coercion', () => {
-    // `1\r` is padded, and a padded value is handed back raw and uncoerced. The order matters in
-    // both directions: normalizing after would compare `'1\r'` against `'1'` and reach the same
-    // answer by luck, while trimming CR as layout would coerce it to the number 1.
+  it('normalizes a trailing CR in a value, and keeps it as the LF it becomes', () => {
+    // `1\r` is the value `1` and a line ending, and the line ending is a LF once normalized —
+    // it is not layout to be trimmed off, because the element is a leaf.
     expectRead('<P>1\r</P>', { P: ['1\n'] });
     expectRead('<P>1\r\n</P>', { P: ['1\n'] });
     expectRead('<P> \r </P>', { P: [' \n '] });
   });
 
-  it('leaves `&#xD;` standing beside a literal it normalized', () => {
-    // The two halves of the same character, one of which is text and one of which is not.
-    expectRead('<P>&#xD;\r</P>', { P: ['&#xD;\n'] });
+  it('decodes `&#xD;` to a CR beside a literal CR it normalized to a LF', () => {
+    // The two spellings of the same character, and the reason MATLAB writes the reference: the
+    // literal becomes a LF, as XML requires, and only the reference survives as a CR.
+    expectRead('<P>&#xD;\r</P>', { P: ['\r\n'] });
   });
 
   it('reads a CRLF-lineended document, layout and all', () => {
     expectRead('<DataSource>\r\n  <P Name="a">1</P>\r\n</DataSource>', {
-      DataSource: { P: [{ '#text': 1, '@_Name': 'a' }] },
+      DataSource: { P: [{ '#text': '1', '@_Name': 'a' }] },
     });
     expectRead('<P>\r<Element/></P>', { P: [{ Element: [''] }] });
   });
@@ -579,8 +613,8 @@ describe('the per-depth state is reused, so a stale slot must not leak', () => {
       {
         DataSource: {
           Object: [
-            { P: [{ '#text': 1, '@_Name': 'p1' }], '@_Class': 'a' },
-            { P: [{ '#text': 2, '@_Name': 'p2' }], '@_Class': 'b' },
+            { P: [{ '#text': '1', '@_Name': 'p1' }], '@_Class': 'a' },
+            { P: [{ '#text': '2', '@_Name': 'p2' }], '@_Class': 'b' },
           ],
         },
       },
@@ -590,7 +624,7 @@ describe('the per-depth state is reused, so a stale slot must not leak', () => {
   it('lets a different tag name occupy a depth the previous subtree used (`tags`)', () => {
     expectRead(
       '<DataSource><Object><Object><P>1</P></Object></Object><Object><P>2</P></Object></DataSource>',
-      { DataSource: { Object: [{ Object: [{ P: [1] }] }, { P: [2] }] } },
+      { DataSource: { Object: [{ Object: [{ P: ['1'] }] }, { P: ['2'] }] } },
     );
   });
 
@@ -607,7 +641,7 @@ describe('the per-depth state is reused, so a stale slot must not leak', () => {
   });
 
   it('forgets the previous sibling’s text (`textVal`, `textCount`)', () => {
-    expectRead('<DataSource><P>1</P><P/></DataSource>', { DataSource: { P: [1, ''] } });
+    expectRead('<DataSource><P>1</P><P/></DataSource>', { DataSource: { P: ['1', ''] } });
   });
 
   it('forgets the previous sibling’s children (`kidCount`)', () => {
@@ -617,10 +651,11 @@ describe('the per-depth state is reused, so a stale slot must not leak', () => {
   });
 
   it('lets text follow a subtree at the same depth (`kidCount` decides the collapse)', () => {
-    // The second `Object` is a leaf whose text must coerce; if `kidCount` had carried over from
-    // the first it would have been treated as a parent and the `2` would be a `#text` key.
+    // The second `Object` is a leaf whose text collapses to the value; if `kidCount` had carried
+    // over from the first it would have been treated as a parent and the `2` would be a `#text`
+    // key.
     expectRead('<DataSource><Object><P>1</P></Object><Object>2</Object></DataSource>', {
-      DataSource: { Object: [{ P: [1] }, 2] },
+      DataSource: { Object: [{ P: ['1'] }, '2'] },
     });
   });
 });
@@ -632,7 +667,7 @@ describe('what it declines, and what the seam still answers', () => {
 
   describe('markup this reader deliberately does not own', () => {
     it('declines a comment', () => {
-      expectDeclined('<DataSource><!-- c --><P>1</P></DataSource>', { DataSource: { P: [1] } });
+      expectDeclined('<DataSource><!-- c --><P>1</P></DataSource>', { DataSource: { P: ['1'] } });
     });
 
     it('declines CDATA, which the engine reads as ordinary text', () => {
@@ -659,9 +694,9 @@ describe('what it declines, and what the seam still answers', () => {
   });
 
   describe('entities it will not interpret', () => {
-    // Numeric character references used to be here, and are not any more: the engine leaves them
-    // standing, so reading them as text is its answer rather than a liberty. Their own describe
-    // block above covers them, including the prohibited codepoints that still decline.
+    // Numeric character references used to be here, and are not any more: both engines decode
+    // them, and their own describe block above covers them, including the prohibited codepoints
+    // that still decline.
 
     it('declines an unknown named entity', () => {
       expectDeclined('<P>&nbsp;</P>', { P: ['&nbsp;'] });
@@ -695,15 +730,15 @@ describe('what it declines, and what the seam still answers', () => {
 
   describe('damage, every judgement about which belongs to the engine', () => {
     it('declines a mismatched close tag, which the engine ACCEPTS', () => {
-      expectDeclined('<DataSource><P>1</Element></DataSource>', { DataSource: { P: [1] } });
+      expectDeclined('<DataSource><P>1</Element></DataSource>', { DataSource: { P: ['1'] } });
     });
 
     it('declines a close tag carrying trailing junk', () => {
-      expectDeclined('<DataSource><P>1</P x></DataSource>', { DataSource: { P: [1] } });
+      expectDeclined('<DataSource><P>1</P x></DataSource>', { DataSource: { P: ['1'] } });
     });
 
     it('declines an unclosed element', () => {
-      expectDeclined('<DataSource><P>1</DataSource>', { DataSource: { P: [1] } });
+      expectDeclined('<DataSource><P>1</DataSource>', { DataSource: { P: ['1'] } });
     });
 
     it('declines a close tag with nothing open', () => {
