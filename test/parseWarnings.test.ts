@@ -37,7 +37,7 @@ import { parseBinarySldd, parseBinarySlddParts } from '../src/datamodel/parser/B
 // Through the public entry point, which is what registers the node classes
 // SlddNode.parse builds a tree out of. A deep import of SlddNode alone leaves
 // NodeRegistry empty and parseEntry with nothing to route an entry to.
-import { SlddNode } from '../src/index.js';
+import { SlddNode, createSession } from '../src/index.js';
 import { reasonOf } from '../src/datamodel/parser/ParseWarning.js';
 import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
 import {
@@ -693,6 +693,28 @@ describe('parseMat — the warnings channel', () => {
     expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', undefined]]);
     expect(parsed.warnings[0].message).toContain('compressed');
     expect(parsed.variables.map((v) => v.name)).toEqual(['before', 'after']);
+  });
+
+  it('reports a compressed record that inflates to fewer bytes than a tag, and reads the variables after it', () => {
+    // parseMat read the inflated payload's first 8 bytes as its matrix's tag without asking
+    // whether there were 8, so a payload of 0 to 7 bytes threw a bare RangeError ("Offset is
+    // outside the bounds of the DataView") out of parseMat, and the whole open failed with
+    // the variables after it. No `part`, as for a record that will not inflate: the name is
+    // inside the payload, and there is none.
+    for (const length of [0, 4, 7]) {
+      const parsed = parseMat(matFile([compressedRecord(new Uint8Array(length)), compressedRecord(scalar('after', 2)), scalar('last', 3)]));
+      expect([length, parsed.variables.map((v) => [v.name, v.value])]).toEqual([length, [['after', 2], ['last', 3]]]);
+      expect(parsed.warnings, `${length}`).toEqual([
+        {
+          code: 'part-unreadable',
+          message: `A compressed record at byte 128 inflates to ${length} bytes, fewer than the 8 of a data element's tag, `
+            + 'so the variable it holds was not read.',
+        },
+      ]);
+    }
+    // Through a session, as a host opens the file.
+    const mat = createSession().addMatSource('z.mat', matFile([compressedRecord(new Uint8Array(4)), scalar('after', 2)])) as any;
+    expect(mat.children.map((c: any) => [c.name, c.displayValue])).toEqual([['after', '2']]);
   });
 
   it('reports a record that declares more bytes than the file holds', () => {

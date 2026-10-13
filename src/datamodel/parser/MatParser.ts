@@ -1043,9 +1043,21 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
                 continue;
             }
             const deView = new DataView(pako.buffer, pako.byteOffset, pako.byteLength);
-            const innerType = deView.getUint32(0, true);
-            const innerBytes = deView.getUint32(4, true);
-            if (innerType === MI_MATRIX) {
+            // The payload's tag, the 8 bytes everything in it is read from, has to be there
+            // before either word of it can be read. Read regardless, a payload of 0 to 7 bytes
+            // threw a bare RangeError out of parseMat, and the whole open failed with the
+            // variables after it. Such a record holds no variable this can read, and is
+            // reported as one that will not inflate is.
+            const tagged = deView.byteLength >= 8;
+            const innerType = tagged ? deView.getUint32(0, true) : 0;
+            const innerBytes = tagged ? deView.getUint32(4, true) : 0;
+            if (!tagged) {
+                warnings.push({
+                    code: 'part-unreadable',
+                    message: `A compressed record at byte ${offset} inflates to ${deView.byteLength} bytes, fewer than the 8 `
+                        + "of a data element's tag, so the variable it holds was not read.",
+                });
+            } else if (innerType === MI_MATRIX) {
                 const variable = parseMatrix(deView, 8, innerBytes);
                 if (variable.name) {
                     variable._rawBytes = new Uint8Array(pako.buffer, pako.byteOffset, pako.byteLength);
