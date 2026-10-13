@@ -121,3 +121,30 @@ describe('an empty array of an object class in a cell', () => {
     });
   }
 });
+
+describe('an empty logical in a cell', () => {
+  // MATLAB writes an empty logical as it writes an empty of a numeric class, `<Element
+  // Class="logical" Dimension="1*0"/>`. The reader answered every one of them `{_type:
+  // 'logical', _value: '[]'}`, whose only size is 0x0: a 1x0 or a 0x3 was saved as
+  // `Dimension="0*0"` from an object property, and from an entry's cell as `Dimension="1*1">0`,
+  // a false. The 0x0 itself keeps that shape (binarySlddValues.test.ts pins it).
+  const ELEMENTS = ['<Element Class="logical" Dimension="1*0"/>', '<Element Class="logical" Dimension="0*3"/>'];
+
+  it('reads with its extents, as an empty of a numeric class in a cell does', () => {
+    expect(parsed('property', ELEMENTS)).toEqual([
+      { _type: 'logical', _value: 'Matrix(1,0)' },
+      { _type: 'logical', _value: 'Matrix(0,3)' },
+    ]);
+  });
+
+  for (const venue of VENUES) {
+    it(`opens with its size, and is saved as MATLAB wrote it, in ${venue === 'property' ? 'an object property' : "an entry's cell"}`, () => {
+      const { shown, saved } = roundTrip(venue, ELEMENTS);
+      expect(shown).toEqual([
+        ['logical', '[ ]', [1, 0]],
+        ['logical', '[ ]', [0, 3]],
+      ]);
+      expect(saved).toContain(cellP(venue === 'property' ? 'Cells' : 'Value', ELEMENTS, venue === 'property' ? 16 : 8));
+    });
+  }
+});

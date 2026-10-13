@@ -170,6 +170,8 @@ const SYNTHETIC: { entry: string; element: string }[] = [
   ['a 0x3 double', '<Element Class="double" Dimension="0*3"/>'],
   ['a 3x0 int16', '<Element Class="int16" Dimension="3*0"/>'],
   ['a 0x0 logical', '<Element Class="logical" Dimension="0*0"/>'],
+  ['a 1x0 logical', '<Element Class="logical" Dimension="1*0"/>'],
+  ['a 0x3 logical', '<Element Class="logical" Dimension="0*3"/>'],
   ['an empty object array', '<Element Class="WidgetPart" Dimension="0*0"/>'],
   ['an empty 1x0 Simulink.Parameter array', '<Element Class="Simulink.Parameter" Dimension="1*0"/>'],
   ['an empty cell', '<Element Class="cell" Dimension="0*0">\n            </Element>'],

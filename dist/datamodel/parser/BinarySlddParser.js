@@ -563,8 +563,15 @@ function parseCellElement(el) {
         if (dimension) {
             const dimParts = parseDims(dimension);
             const total = dimParts.reduce((a, b) => a * b, 1);
-            if (total === 0) {
+            // Any other empty under the bare header of its extents, as the numeric arm above holds
+            // one, which both cell writers spell back as read. `[]` says 0x0 and nothing else, so a
+            // 1x0 or a 0x3 held that way was saved as `Dimension="0*0"` from a property's cell, and
+            // as `Dimension="1*1">0`, a false, from an entry's.
+            if (total === 0 && dimParts.length === 2 && dimParts[0] === 0 && dimParts[1] === 0) {
                 return { _type: 'logical', _value: '[]' };
+            }
+            if (total === 0) {
+                return { _type: 'logical', _value: 'Matrix(' + dimParts.map(headerDigits).join(',') + ')' };
             }
             return logicalValue(text, dimParts);
         }

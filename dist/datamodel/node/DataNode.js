@@ -1582,7 +1582,8 @@ export default class DataNode extends BaseNode {
             if (matrix !== null) {
                 return matrix;
             }
-            // parseCellElement's empty logical, whose extents it does not keep: `[]` is 0x0.
+            // parseCellElement's 0x0 logical. Every other empty logical it reads carries its
+            // extents in a `Matrix(…)` header, which the arm above writes.
             if (raw === '[]') {
                 return p + '<Element Class="' + type + '" Dimension="0*0"/>';
             }
