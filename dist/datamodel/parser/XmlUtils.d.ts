@@ -65,6 +65,30 @@ export declare const CUSTOM_SAVE_KEY = "_custom_save";
  */
 export declare const ENUM_KEY = "_is_enum";
 export declare const ENUMERATION_KEY = "_enumeration";
+/**
+ * Where an object's element in a binary dictionary keeps the `Source` and `PropertyType` MATLAB
+ * wrote on a named property of it, by property name.
+ *
+ * MATLAB marks a dynamic property, the options a custom or AUTOSAR target adds to a config
+ * component, as `<P Name="AutosarSchemaVersion" Source="dynamic" PropertyType="…"
+ * Class="char">`. BinarySlddParser reads the property into the element's bag like any other,
+ * which is where it is shown and edited, and these two attributes onto the element under this
+ * key, as `{AutosarSchemaVersion: {source: 'dynamic', propertyType: '…'}}`; the writers of an
+ * object's element write them back (DataNode._elementPropertyXml). The unnamed saveobj
+ * envelope's own Source is SAVEOBJ_KEY's, and is not one of these.
+ *
+ * Binary-only, as ENUM_KEY is: a text dictionary has no place for either attribute (MATLAB puts
+ * a dynamic property there in `_dynamic_properties`, beside `_properties`), so it is written
+ * without the key (MatWriter.textDictionaryForm).
+ */
+export declare const PROPERTY_SOURCE_KEY = "_property_source";
+/** The `Source` and `PropertyType` of one property, each as MATLAB wrote it where it wrote one. */
+export interface PropertySource {
+    source?: string;
+    propertyType?: string;
+}
+/** The PROPERTY_SOURCE_KEY record of `element`, one of an object's `_elements`, or null. */
+export declare function propertySourcesOf(element: unknown): Record<string, PropertySource> | null;
 /** One enumeral as MATLAB wrote it: `EnumerationName`, `EnumerationType`, and the element's text. */
 export interface Enumeral {
     name?: string;

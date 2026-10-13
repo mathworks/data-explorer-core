@@ -30,6 +30,8 @@ import {
   ENUM_KEY,
   enumeralOf,
   isEnumBag,
+  propertySourcesOf,
+  type PropertySource,
 } from '../parser/XmlUtils.js';
 
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
@@ -1044,8 +1046,9 @@ export default class DataNode extends BaseNode {
 
     let xml = p + '<' + tagName + attrStr + '>\n';
     xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
+    const sources = propertySourcesOf(((rawVal._elements as unknown[]) || [])[0]);
     for (const [propName, propVal] of Object.entries(props)) {
-      xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, this, this._propertyAt(propName)) + '\n';
+      xml += DataNode._elementPropertyXml(propName, propVal, indent + 2, this, this._propertyAt(propName), sources) + '\n';
     }
     xml += ip + '</Element>\n';
     xml += p + '</' + tagName + '>';
@@ -1105,6 +1108,39 @@ export default class DataNode extends BaseNode {
    */
   static pxAttrs(name: string): string {
     return name === SAVEOBJ_KEY ? ' Source="saveobj" PropertyType="any"' : ' Name="' + escapeXml(name) + '"';
+  }
+
+  /**
+   * serializePropertyXml for a property of an object's element, whose `sources` (the element's
+   * XmlUtils.PROPERTY_SOURCE_KEY record) may give it the Source and PropertyType MATLAB wrote on
+   * it: a dynamic property is `<P Name="AutosarSchemaVersion" Source="dynamic" PropertyType="…"
+   * Class="char">`, the two after the Name as MATLAB writes them. Every arm of
+   * serializePropertyXml opens with the `<P` and pxAttrs, so they go in after that, whatever the
+   * value. Asked by each writer of an object's element: _objectXml, _serializeSimulinkObjectXml
+   * and ObjectNode.serializeXml.
+   */
+  static _elementPropertyXml(
+    name: string,
+    value: unknown,
+    indent: number,
+    ownerNode: DataNode | null,
+    at: PropertyAt | undefined,
+    sources: Record<string, PropertySource> | null,
+  ): string {
+    const xml = DataNode.serializePropertyXml(name, value, indent, ownerNode, at);
+    const source = sources && name !== SAVEOBJ_KEY && Object.prototype.hasOwnProperty.call(sources, name) ? sources[name] : undefined;
+    const head = xmlPad(indent) + '<P' + DataNode.pxAttrs(name);
+    if (!source || typeof source !== 'object' || !xml.startsWith(head)) {
+      return xml;
+    }
+    let attrs = '';
+    if (typeof source.source === 'string') {
+      attrs += ' Source="' + escapeXml(source.source) + '"';
+    }
+    if (typeof source.propertyType === 'string') {
+      attrs += ' PropertyType="' + escapeXml(source.propertyType) + '"';
+    }
+    return head + attrs + xml.slice(head.length);
   }
 
   static serializePropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string {
@@ -1510,9 +1546,10 @@ export default class DataNode extends BaseNode {
     // every one was written as the array's.
     elements.forEach((elem, k) => {
       const props = propsOf(elem);
+      const sources = propertySourcesOf(elem);
       xml += ip + '<Element Class="' + escapeXml(elementClassOf(elem, className)) + '">\n';
       for (const [propName, propVal] of Object.entries(props)) {
-        xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName)) + '\n';
+        xml += DataNode._elementPropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName), sources) + '\n';
       }
       xml += ip + '</Element>\n';
     });

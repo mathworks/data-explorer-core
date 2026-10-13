@@ -3,6 +3,7 @@ import type { PropClass } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { MatBudgetError } from '../parser/MatWriter.js';
 import { type EncodedValue } from '../parser/EncodedValue.js';
+import { type PropertySource } from '../parser/XmlUtils.js';
 export interface SetPropertyResult {
     error: boolean;
     reason: string;
@@ -273,6 +274,16 @@ export default class DataNode extends BaseNode {
      * serializePropertyXml its payload takes.
      */
     static pxAttrs(name: string): string;
+    /**
+     * serializePropertyXml for a property of an object's element, whose `sources` (the element's
+     * XmlUtils.PROPERTY_SOURCE_KEY record) may give it the Source and PropertyType MATLAB wrote on
+     * it: a dynamic property is `<P Name="AutosarSchemaVersion" Source="dynamic" PropertyType="…"
+     * Class="char">`, the two after the Name as MATLAB writes them. Every arm of
+     * serializePropertyXml opens with the `<P` and pxAttrs, so they go in after that, whatever the
+     * value. Asked by each writer of an object's element: _objectXml, _serializeSimulinkObjectXml
+     * and ObjectNode.serializeXml.
+     */
+    static _elementPropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at: PropertyAt | undefined, sources: Record<string, PropertySource> | null): string;
     static serializePropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string;
     /**
      * The `Class="char" Dimension="r*c"` attributes and body of an mxchar literal, or

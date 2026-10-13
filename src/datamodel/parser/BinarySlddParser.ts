@@ -66,8 +66,10 @@ import {
   transposeFromColumnMajorND,
   ENUM_KEY,
   ENUMERATION_KEY,
+  PROPERTY_SOURCE_KEY,
   SAVEOBJ_KEY,
   type Enumeral,
+  type PropertySource,
 } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
 import { headerDigits } from './Size.js';
@@ -86,7 +88,9 @@ interface XmlNode {
   // A value MATLAB wrote as an encoded byte stream rather than as XML — see encodedOf.
   '@_Encoding'?: string;
   '@_EncodedLength'?: string;
+  // A named property's, on a dynamic property (see propertySources); the saveobj envelope's.
   '@_Source'?: string;
+  '@_PropertyType'?: string;
   '@_FormatVersion'?: string;
   '@_MinRelease'?: string;
   '@_Arch'?: string;
@@ -528,11 +532,57 @@ function objectArrayValue(elements: XmlNode[], dimParts: number[]): Record<strin
     _array_class: arrayClass,
     _dimensions: dimParts,
     _mw_element_type: 'MATLABArray',
-    _elements: elements.map((e, k) => {
-      const properties = parseStructElement(e);
-      return classes[k] === arrayClass ? { _properties: properties } : { _object_class: classes[k], _properties: properties };
-    }),
+    _elements: elements.map((e, k) => objectElement(e, classes[k] === arrayClass ? undefined : classes[k])),
   };
+}
+
+/**
+ * One element of an object, `el`: its `_object_class` where it is of another class than its
+ * array's (`ownClass`), its property bag, and the Source and PropertyType MATLAB wrote on any of
+ * its properties (XmlUtils.PROPERTY_SOURCE_KEY), each only where there is one, in that order.
+ */
+function objectElement(el: XmlNode, ownClass?: string): Record<string, unknown> {
+  const element: Record<string, unknown> = {};
+  if (ownClass !== undefined) {
+    element._object_class = ownClass;
+  }
+  element._properties = parseStructElement(el);
+  const sources = propertySources(el);
+  if (sources) {
+    element[PROPERTY_SOURCE_KEY] = sources;
+  }
+  return element;
+}
+
+/**
+ * The Source and PropertyType MATLAB wrote on each named property of `el`, by name, or null when
+ * it wrote neither on any. MATLAB writes them on a dynamic property, `<P
+ * Name="AutosarSchemaVersion" Source="dynamic" PropertyType="…" Class="char">`, which
+ * parseStructElement reads into the bag like any other property: these two used to be dropped
+ * there, so a save wrote the property as an ordinary one. The unnamed saveobj envelope's are
+ * not here: parseStructElement files the envelope under SAVEOBJ_KEY, and DataNode.pxAttrs
+ * writes its Source back.
+ */
+function propertySources(el: XmlNode): Record<string, PropertySource> | null {
+  let sources: Record<string, PropertySource> | null = null;
+  for (const prop of el.P || []) {
+    const name = prop['@_Name'];
+    const source = prop['@_Source'];
+    const propertyType = prop['@_PropertyType'];
+    if (name === undefined || source === 'saveobj' || (source === undefined && propertyType === undefined)) {
+      continue;
+    }
+    const kept: PropertySource = {};
+    if (source !== undefined) {
+      kept.source = source;
+    }
+    if (propertyType !== undefined) {
+      kept.propertyType = propertyType;
+    }
+    sources = sources ?? {};
+    setOwn(sources, name, kept);
+  }
+  return sources;
 }
 
 /**
@@ -1084,7 +1134,7 @@ function parseElement(el: XmlNode): Record<string, unknown> {
     _array_class: className,
     _dimensions: [1, 1],
     _mw_element_type: 'MATLABArray',
-    _elements: [{ _properties: parseStructElement(el) }],
+    _elements: [objectElement(el)],
   };
 }
 

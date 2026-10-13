@@ -45,6 +45,7 @@ import {
   ENUMERATION_KEY,
   isEnumBag,
   isExactToken,
+  PROPERTY_SOURCE_KEY,
   parseComplexNum,
   integerConversion,
   transposeFromColumnMajorND,
@@ -1310,6 +1311,14 @@ export function textDictionaryForm(x: unknown, at = ''): unknown {
       });
     }
     return textDictionaryForm(bag, at);
+  }
+  // The Source and PropertyType a binary dictionary's reader keeps of an element's properties
+  // (XmlUtils.PROPERTY_SOURCE_KEY), which a text dictionary has no place for: the properties
+  // themselves are in the element's `_properties`, and stay there.
+  if (Object.prototype.hasOwnProperty.call(o, PROPERTY_SOURCE_KEY)) {
+    const element: Record<string, unknown> = { ...o };
+    delete element[PROPERTY_SOURCE_KEY];
+    return textDictionaryForm(element, at);
   }
   let out: Record<string, unknown> | null = null;
   for (const k of Object.keys(o)) {

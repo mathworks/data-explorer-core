@@ -48,7 +48,7 @@ import { reasonOf } from './ParseWarning.js';
 import { SC_PART_XML, catalogFromDefinitions, scanScXml } from './ScCatalog.js';
 import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
 import { encodedStream, encodedValueOf, isEncodedValue } from './EncodedValue.js';
-import { charFromDecimal, charNeedsShape, complexClassTag, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, ENUM_KEY, ENUMERATION_KEY, SAVEOBJ_KEY, } from './XmlUtils.js';
+import { charFromDecimal, charNeedsShape, complexClassTag, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, ENUM_KEY, ENUMERATION_KEY, PROPERTY_SOURCE_KEY, SAVEOBJ_KEY, } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
 import { headerDigits } from './Size.js';
 /**
@@ -445,11 +445,55 @@ function objectArrayValue(elements, dimParts) {
         _array_class: arrayClass,
         _dimensions: dimParts,
         _mw_element_type: 'MATLABArray',
-        _elements: elements.map((e, k) => {
-            const properties = parseStructElement(e);
-            return classes[k] === arrayClass ? { _properties: properties } : { _object_class: classes[k], _properties: properties };
-        }),
+        _elements: elements.map((e, k) => objectElement(e, classes[k] === arrayClass ? undefined : classes[k])),
     };
+}
+/**
+ * One element of an object, `el`: its `_object_class` where it is of another class than its
+ * array's (`ownClass`), its property bag, and the Source and PropertyType MATLAB wrote on any of
+ * its properties (XmlUtils.PROPERTY_SOURCE_KEY), each only where there is one, in that order.
+ */
+function objectElement(el, ownClass) {
+    const element = {};
+    if (ownClass !== undefined) {
+        element._object_class = ownClass;
+    }
+    element._properties = parseStructElement(el);
+    const sources = propertySources(el);
+    if (sources) {
+        element[PROPERTY_SOURCE_KEY] = sources;
+    }
+    return element;
+}
+/**
+ * The Source and PropertyType MATLAB wrote on each named property of `el`, by name, or null when
+ * it wrote neither on any. MATLAB writes them on a dynamic property, `<P
+ * Name="AutosarSchemaVersion" Source="dynamic" PropertyType="…" Class="char">`, which
+ * parseStructElement reads into the bag like any other property: these two used to be dropped
+ * there, so a save wrote the property as an ordinary one. The unnamed saveobj envelope's are
+ * not here: parseStructElement files the envelope under SAVEOBJ_KEY, and DataNode.pxAttrs
+ * writes its Source back.
+ */
+function propertySources(el) {
+    let sources = null;
+    for (const prop of el.P || []) {
+        const name = prop['@_Name'];
+        const source = prop['@_Source'];
+        const propertyType = prop['@_PropertyType'];
+        if (name === undefined || source === 'saveobj' || (source === undefined && propertyType === undefined)) {
+            continue;
+        }
+        const kept = {};
+        if (source !== undefined) {
+            kept.source = source;
+        }
+        if (propertyType !== undefined) {
+            kept.propertyType = propertyType;
+        }
+        sources = sources ?? {};
+        setOwn(sources, name, kept);
+    }
+    return sources;
 }
 /**
  * The class an object array of elements of `classes` is, as MATLAB's text format names it in
@@ -975,7 +1019,7 @@ function parseElement(el) {
         _array_class: className,
         _dimensions: [1, 1],
         _mw_element_type: 'MATLABArray',
-        _elements: [{ _properties: parseStructElement(el) }],
+        _elements: [objectElement(el)],
     };
 }
 // The <P> children of one <Element>, as a plain name → value bag. Serves both the

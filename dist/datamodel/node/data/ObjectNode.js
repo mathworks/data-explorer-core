@@ -8,7 +8,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { OBJECT_ICON } from '../icons.js';
-import { ENUM_KEY, enumeralOf, escapeXml, isEnumBag, pad as xmlPad, SAVEOBJ_KEY } from '../../parser/XmlUtils.js';
+import { ENUM_KEY, enumeralOf, escapeXml, isEnumBag, pad as xmlPad, propertySourcesOf, SAVEOBJ_KEY } from '../../parser/XmlUtils.js';
 import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 import { setOwn } from '../../parser/ownKeys.js';
@@ -249,8 +249,12 @@ export default class ObjectNode extends DataNode {
         for (const child of this.children) {
             xml += ip + '<Element Class="' + escapeXml(elementNodeClass(child, this.arrayClass)) + '">\n';
             const props = child._xmlProperties();
+            // The Source and PropertyType MATLAB wrote on a property of the element, which its
+            // node holds on the element it was handed (see parse).
+            const element = child.serial?._rawVal?._elements?.[0];
+            const sources = propertySourcesOf(element);
             for (const [propName, propVal] of Object.entries(props)) {
-                xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, child, child._propertyAt(propName)) + '\n';
+                xml += DataNode._elementPropertyXml(propName, propVal, indent + 2, child, child._propertyAt(propName), sources) + '\n';
             }
             xml += ip + '</Element>\n';
         }
