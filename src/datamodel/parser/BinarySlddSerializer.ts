@@ -5,6 +5,11 @@
 // document); `serializeEntryToXml` builds ONE entry's <Object> fragment (used by the
 // entry-level splice edit path). Untouched bytes are preserved by the splice caller,
 // not here.
+//
+// `regenerateEntryXml` and `regenerateChunkXml` are the same writes, named for what they
+// do: every entry written from the model. They are the writers' own entry points, for
+// their tests and for scripts/save-fidelity.mjs, which measures what a full rewrite of a
+// real dictionary costs; a save is free to write less than they do.
 
 import { zipSync } from 'fflate';
 import { escapeXml, matlabTimestampNow } from './XmlUtils.js';
@@ -31,6 +36,20 @@ export function serializeBinarySldd(slddNode: SlddNode): ArrayBuffer {
 }
 
 export function buildDataChunkXml(slddNode: SlddNode): string {
+    return generatedChunkXml(slddNode, serializeEntryToXml);
+}
+
+/**
+ * The whole chunk written from the model: a fixed prolog, every entry regenerated in
+ * section order, then the dictionary-level objects. Internal: the writers' whole-document
+ * entry point, for the tests that exercise them and for the fidelity census
+ * (scripts/save-fidelity.mjs).
+ */
+export function regenerateChunkXml(slddNode: SlddNode): string {
+    return generatedChunkXml(slddNode, regenerateEntryXml);
+}
+
+function generatedChunkXml(slddNode: SlddNode, entryXml: (entryNode: DataNode) => string): string {
     const attrs = slddNode._dataSourceAttrs || { FormatVersion: '1', MinRelease: 'R2014a', Arch: '' };
     const archAttr = attrs.Arch ? ' Arch="' + attrs.Arch + '"' : '';
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
@@ -38,11 +57,17 @@ export function buildDataChunkXml(slddNode: SlddNode): string {
 
     slddNode.children.forEach(function (section) {
         section.children.forEach(function (entryNode) {
-            xml += serializeEntryToXml(entryNode as unknown as DataNode);
+            xml += entryXml(entryNode as unknown as DataNode);
         });
     });
 
-    // Referenced sub-dictionaries, if any, precede the dictionary object.
+    return xml + generatedEpilog(slddNode);
+}
+
+// The objects after the entries, and the close of the document: referenced
+// sub-dictionaries, if any, precede the dictionary object.
+function generatedEpilog(slddNode: SlddNode): string {
+    let xml = '';
     for (const sub of slddNode.dictionaryReferences || []) {
         xml += '    <Object Class="DD.DICTIONARYREFERENCE">\n';
         xml += '        <P Name="Subdictionary" Class="char">' + escapeXml(String(sub)) + '</P>\n';
@@ -56,7 +81,16 @@ export function buildDataChunkXml(slddNode: SlddNode): string {
     return xml;
 }
 
+/** One entry's `<Object>` as a line: four spaces, the object, a newline. */
 export function serializeEntryToXml(entryNode: DataNode): string {
+    return regenerateEntryXml(entryNode);
+}
+
+/**
+ * One entry's `<Object>` line written from the model. Internal: the writers' entry point,
+ * for their tests and the fidelity census.
+ */
+export function regenerateEntryXml(entryNode: DataNode): string {
     const meta = entryNode.metadata || {};
     // Prefer whichever raw timestamp the entry actually carries, in the same order
     // DataNode's `lastModified` getter reads them: `_rawLastMod` for an entry parsed
