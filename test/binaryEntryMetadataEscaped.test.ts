@@ -56,12 +56,33 @@ const savedChunk = (session: any, root: any): string =>
   new TextDecoder().decode(unzipSync(session.serializeSource(root.name).bytes)['data/chunk0.xml']);
 const entries = (root: any): any[] => root.children.flatMap((s: any) => s.children);
 
+/** `xml` without its CDATA sections, comments and processing instructions, read left to right. */
+function withoutMarkupSections(xml: string): string {
+  const sections: Array<[string, string]> = [['<![CDATA[', ']]>'], ['<!--', '-->'], ['<?', '?>']];
+  let out = '';
+  let at = 0;
+  for (;;) {
+    let start = -1;
+    let open = '';
+    let close = '';
+    for (const [o, c] of sections) {
+      const i = xml.indexOf(o, at);
+      if (i !== -1 && (start === -1 || i < start)) [start, open, close] = [i, o, c];
+    }
+    if (start === -1) return out + xml.slice(at);
+    out += xml.slice(at, start);
+    const end = xml.indexOf(close, start + open.length);
+    if (end === -1) return out; // a section left open runs to the end
+    at = end + close.length;
+  }
+}
+
 /** Why `xml` is not well-formed, strictly; empty when it is. */
 function malformed(xml: string): string[] {
   const out: string[] = [];
   const verdict = XMLValidator.validate(xml);
   if (verdict !== true) out.push(`XMLValidator: ${verdict.err.msg}`);
-  const markup = xml.replace(/<!\[CDATA\[[\s\S]*?\]\]>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>/g, '');
+  const markup = withoutMarkupSections(xml);
   for (const m of markup.matchAll(/&(?!(?:lt|gt|amp|quot|apos|#[0-9]+|#x[0-9A-Fa-f]+);)/g)) {
     out.push(`a bare & at ${m.index}: ${JSON.stringify(markup.slice(m.index - 20, m.index + 20))}`);
   }
