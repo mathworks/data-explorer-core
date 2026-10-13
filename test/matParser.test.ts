@@ -1271,6 +1271,35 @@ describe('parseMat — malformed byte counts', () => {
     expect(only(matFile([structVar('s', ['a'], [{ a: scalarField(1) }], [1, 2_000_000])])).undecoded).toMatch(/^declares 2000000 elements/);
   });
 
+  it('REGRESSION: a struct array with no field names or no bytes left does not walk the rest of its elements', { timeout: 60_000 }, () => {
+    // The element loop ran to the declared size whatever was left to read: for each element it
+    // looked for each field name, and with none it looked for nothing, 1e10 times for a 1e5x1e5
+    // struct(), which took 34 s to parse 208 bytes. It stops when there is no name to look for
+    // or no byte to read one from, and reads what it read before.
+    const timedOnly = (buffer: ArrayBuffer): [MatVariable, number] => {
+      const t0 = performance.now();
+      const v = only(buffer);
+      return [v, performance.now() - t0];
+    };
+    // MATLAB's spelling of a struct with no fields, a stride of 1 and an empty name block, and
+    // this file's structVar's, a stride of 32.
+    for (const [what, buffer] of [
+      ['stride 1', matFile([strideStruct(1, '', [], [1e5, 1e5])])],
+      ['stride 32', matFile([structVar('s', [], [], [1e5, 1e5])])],
+    ] as const) {
+      const [v, ms] = timedOnly(buffer);
+      expect([what, v.className, v.dimensions, v.fields, v.undecoded, ms < 1000]).toEqual([what, 'struct', [1e5, 1e5], {}, undefined, true]);
+    }
+    // A field name and bytes for one element of the million declared: the elements read are
+    // the ones there are bytes for.
+    const [short, ms] = timedOnly(matFile([structVar('s', ['a', 'b'], [{ a: scalarField(1), b: scalarField(2) }], [1, 1_000_000])]));
+    expect([fieldValues({ fields: { a: (short.fields!.a as MatVariable[])[0], b: (short.fields!.b as MatVariable[])[0] } }), (short.fields!.a as MatVariable[]).length, ms < 1000]).toEqual([
+      [['a', 1], ['b', 2]],
+      1,
+      true,
+    ]);
+  });
+
   it('REGRESSION: a struct array whose name block is shorter than its stride has the field it reads', () => {
     // The fields were counted as whole strides in the name block, so a block shorter than its
     // stride counted none while the parse read a name out of it. The array passed for a

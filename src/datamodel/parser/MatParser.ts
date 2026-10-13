@@ -779,7 +779,12 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
             }
 
             const fields: Record<string, MatVariable | MatVariable[]> = {};
-            for (let e = 0; e < totalElements; e++) {
+            // Element by element while there is a name to look for and a byte to read it from.
+            // A struct array with no field names holds nothing per element, and one whose bytes
+            // have run out holds nothing more, so walking the rest of its DECLARED elements read
+            // nothing and only held the parse: 1e10 empty steps, 34 s, for a 1e5x1e5 struct(),
+            // which MATLAB writes in about 200 bytes. What is read is what was read before.
+            for (let e = 0; e < totalElements && fieldNames.length > 0 && offset < end; e++) {
                 for (const fn of fieldNames) {
                     if (offset >= end) { break; }
                     const fieldStart = offset;

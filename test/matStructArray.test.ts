@@ -348,9 +348,7 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     ]);
   });
 
-  // Six pastes, each saved and opened twice, 4.2 s here: give it headroom, as the other
-  // paste-venue tests have.
-  it('is copied as the stream of the bytes it was read from, and pastes, saves and reopens as itself', { timeout: 60_000 }, () => {
+  it('is copied as the stream of the bytes it was read from, and pastes, saves and reopens as itself', () => {
     // MATLAB's element with its name emptied, as every stream's is (MatWriter.matStreamOfElement):
     // its stride of 1 included, where MatWriter, writing the value afresh, writes 5. One past
     // the cap first, so that a reader without the cap fails here and not on the size below.
