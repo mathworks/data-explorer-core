@@ -22,6 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { zlibSync } from 'fflate';
 import { parseMat, parseMatrix, type MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { createSession } from '../src/index.js';
@@ -1394,6 +1395,86 @@ describe('parseMat — malformed byte counts', () => {
       ['s', '<1x500000 struct, not decoded>', 0],
       ['x', '5', 0],
     ]);
+  });
+
+  it('REGRESSION: a record that claims more bytes than the file holds is read as far as its bytes go, not as far as its claim', () => {
+    // parseMatrix took the length it was handed for the element's end, and a top-level
+    // record's length, or the one a compressed record's payload gives its matrix, is the
+    // file's own claim. Every read clamped to the bytes there are, but the walk over a
+    // struct's or a cell's elements, the read of a numeric payload, and the declared-size
+    // guard went by the claim: past the last byte each step read an empty tag, eight bytes
+    // of nothing, and stepped on, up to the half-billion steps a claim of 4 GB allows; and
+    // the guard took the claim for bytes left, so a struct array declaring 500,000,000
+    // elements with one element's bytes was not refused, and a host built a row for every
+    // declared element until the heap ran out. Bounded by the bytes there are, such a
+    // record reads as an element the end of the file cuts short already did inside a struct
+    // or a cell.
+    const claimed = (el: Uint8Array) => corruptLength(el, 0, 0xfffffff0);
+    const zipped = (el: Uint8Array) => {
+      const data = zlibSync(el);
+      const out = new Uint8Array(8 + data.length);
+      out.set(u32le(MI.COMPRESSED), 0);
+      out.set(u32le(data.length), 4);
+      out.set(data, 8);
+      return out;
+    };
+    const timed = (buffer: ArrayBuffer) => {
+      const t0 = performance.now();
+      const parsed = parseMat(buffer);
+      return { parsed, fast: performance.now() - t0 < 1000 };
+    };
+    const refused = (n: number) => new RegExp(`^declares ${n} elements, more than the \\d+ bytes left in it can hold$`);
+    // A struct with a field and one element's bytes, declaring 500,000,000 elements, as a
+    // record and inside a compressed one: the guard refuses it, as it refuses the same
+    // struct whose record claims only what it holds.
+    const big = structVar('s', ['a'], [{ a: scalarField(7) }], [1, 500_000_000]);
+    for (const [what, record] of [['record', claimed(big)], ['compressed', zipped(claimed(big))]] as const) {
+      const { parsed, fast } = timed(matFile([record]));
+      const s = parsed.variables[0];
+      expect([what, s.name, s.value, s.fields, fast], what).toEqual([what, 's', '<1x500000000 struct, not decoded>', null, true]);
+      expect(s.undecoded, what).toMatch(refused(500_000_000));
+      expect(parsed.warnings, what).toContainEqual({ code: 'part-unreadable', message: `"s" was not decoded: ${s.undecoded}.`, part: 's' });
+    }
+    // As a record, the record's own warning stands beside it: the file holds less than the
+    // record says.
+    expect(parseMat(matFile([claimed(big)])).warnings.map((w) => [w.code, w.part, w.message.slice(0, 40)])).toEqual([
+      ['part-unreadable', 's', 'A record at byte 128 declares 4294967280'],
+      ['part-unreadable', 's', expect.stringMatching(/^"s" was not decoded: declares 500000000/)],
+    ]);
+    // A cell, the same way: past the last byte each step was an element that is not a
+    // matrix, held as a null slot, and the 2,000,000-element cell holding one element was
+    // read as 2,000,000 slots.
+    const cell = only(matFile([claimed(cellVar('c', [scalarField(1)], [1, 2_000_000]))]));
+    expect([cell.value, cell.undecoded]).toEqual(['<1x2000000 cell, not decoded>', expect.stringMatching(refused(2_000_000))]);
+    // A numeric array whose payload lies past the last byte: each declared element was read
+    // out of an empty tag, as a 0 the file does not hold. Past the guard's bound it is
+    // refused; below it, it has no value, as one with no payload inside a struct has.
+    const noPayload = (d: number[]) => claimed(numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: d, real: [], omitData: true }));
+    expect(only(matFile([noPayload([1, 2_000_000])])).undecoded).toMatch(refused(2_000_000));
+    expect(only(matFile([noPayload([1, 3])])).value).toBe(null);
+    // Below the guard's bound the read is the clamped one it always was, and the walk stops
+    // at the last byte: a struct of 512 fields and a million elements, none of them there,
+    // was 512,000,000 steps, 3 s, to read nothing; and a cell of a million elements, none of
+    // them there, was a million null slots, which a host showed as a million rows.
+    const names = new Uint8Array(512 * 8);
+    for (let i = 0; i < 512; i++) {
+      names.set(new TextEncoder().encode('f' + i), i * 8);
+    }
+    const stride = new Uint8Array(4);
+    new DataView(stride.buffer).setInt32(0, 8, true);
+    const wide = matrix([arrayFlags(CLASS.STRUCT), dims([1, 1_000_000]), varName('w'), element(MI.INT32, stride), element(MI.INT8, names)]);
+    const { parsed: wideParsed, fast } = timed(matFile([claimed(wide)]));
+    expect([wideParsed.variables[0].undecoded, wideParsed.variables[0].fields, fast]).toEqual([undefined, {}, true]);
+    const empty = only(matFile([claimed(cellVar('c', [], [1, 1_000_000]))]));
+    expect([empty.undecoded, (empty.value as unknown[]).length]).toEqual([undefined, 0]);
+    // Through a session, as a host opens the file. Asked last, so that a reader without the
+    // bound fails on a parse above instead of here.
+    const opened = (record: Uint8Array) => {
+      const mat = createSession().addMatSource('s.mat', matFile([record])) as any;
+      return mat.children.map((c: any) => [c.name, c.displayValue, c.children.length]);
+    };
+    expect(opened(claimed(big))).toEqual([['s', '<1x500000000 struct, not decoded>', 0]]);
+    expect(opened(claimed(cellVar('c', [], [1, 1_000_000])))).toEqual([['c', '{ }', 0]]);
   });
 
   it('reads a variable whose own element length overruns the file', () => {

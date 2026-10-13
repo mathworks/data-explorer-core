@@ -574,7 +574,20 @@ function structFieldCount(view: DataView, offset: number, end: number): number {
 
 export function parseMatrix(view: DataView, baseOffset: number, length: number): MatVariable {
     let offset = baseOffset;
-    const end = baseOffset + length;
+    // The element ends where its length says or where the bytes do, whichever comes first.
+    // `length` can be the file's own claim, unchecked: a top-level record's, or the one a
+    // compressed record's payload gives its matrix. Every read clamps to the bytes there
+    // are (readSubelement), but the walk over a struct's or a cell's elements and the
+    // declared-size guard below went by the end the claim gave: past the last byte each
+    // step read an empty tag and stepped on, up to the half-billion steps a claim of 4 GB
+    // allows, and the guard took the claim for bytes left, so a struct array declaring
+    // 500,000,000 elements with one element's bytes was not refused, and a host built a row
+    // per declared element until the heap ran out. A struct field or a cell element was
+    // always bounded so, its length being readSubelement's, which clamps it; a top-level
+    // record cut short by the end of the file now reads as one of those does. parseMat
+    // says the record was read short.
+    const held = Math.max(0, Math.min(length, view.byteLength - baseOffset));
+    const end = baseOffset + held;
 
     // An miMATRIX of no bytes, its tag alone, is an empty array: MATLAB writes some empty
     // struct fields that way (a Simulink Design Verifier sldvData in the corpus holds 19),
@@ -767,7 +780,7 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
             // length is not this: it has fields null and no warning, as it always had.)
             const pastItsEnd = (): MatVariable => {
                 result.value = undecodedValue(dimensions, className);
-                result.undecoded = 'its field names lie past the end of its ' + length + ' bytes';
+                result.undecoded = 'its field names lie past the end of its ' + held + ' bytes';
                 return result;
             };
             if (offset + 8 > end) {
@@ -812,7 +825,8 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
             }
 
             const fields: Record<string, MatVariable | MatVariable[]> = {};
-            // Element by element while there is a name to look for and a byte to read it from.
+            // Element by element while there is a name to look for and a byte to read it from:
+            // a byte there is, not one the element's length claims (see `end`).
             // A struct array with no field names holds nothing per element, and one whose bytes
             // have run out holds nothing more, so walking the rest of its DECLARED elements read
             // nothing and only held the parse: 1e10 empty steps, 34 s, for a 1e5x1e5 struct(),
