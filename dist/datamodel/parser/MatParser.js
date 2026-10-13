@@ -468,8 +468,9 @@ function childLength(view, sub, tagOffset, end) {
 // positive. Counting whole strides only, a block shorter than its stride (which MATLAB
 // never writes: it pads every name to the stride) counted no field while the arm read
 // one, and the array passed the guard below as a fieldless one. 0 too for a length or a
-// block that does not lie inside the element: the arm records such a struct as not
-// decoded, at any size, so the guard need not.
+// block whose tag does not lie inside the element: the arm records such a struct, and one
+// whose names run on past the element's end, as not decoded, at any size, so the guard
+// need not.
 function structFieldCount(view, offset, end) {
     if (offset + 8 > end) {
         return 0;
@@ -661,11 +662,12 @@ export function parseMatrix(view, baseOffset, length) {
     else if (arrayClass === 2) {
         // Struct
         if (offset < end) {
-            // A field-name length, or the name block a positive stride says there is, whose
-            // tag does not lie inside the element is a damaged struct, recorded as one, as
-            // the guard above records one: a warning naming it, and no rows. Read where its
-            // tag said, the block was the next element's bytes, a sibling field's or the next
-            // variable's, and with no bytes left for fields the struct ended up with none.
+            // A field-name length, or the name block a positive stride says there is, that
+            // does not lie inside the element (its tag past the end, or its names running on
+            // past it) is a damaged struct, recorded as one, as the guard above records one: a
+            // warning naming it, and no rows. Read where its tag said, the block was the next
+            // element's bytes, a sibling field's or the next variable's, and with no bytes left
+            // for fields the struct ended up with none.
             // structFieldCount counted none either, so a 272-byte file declaring 2,000,000
             // elements passed the guard as a struct array with no fields, and a host built a
             // row for each until the heap ran out. (A struct cut off before its field-name
@@ -695,6 +697,9 @@ export function parseMatrix(view, baseOffset, length) {
                 return pastItsEnd();
             }
             const fieldNamesSub = readSubelement(view, offset);
+            if (fieldNamesSub.dataOffset + fieldNamesSub.bytes > end) {
+                return pastItsEnd();
+            }
             offset += fieldNamesSub.totalSize;
             const fieldNames = [];
             const fnBytes = new Uint8Array(view.buffer, view.byteOffset + fieldNamesSub.dataOffset, fieldNamesSub.bytes);

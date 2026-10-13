@@ -1353,6 +1353,49 @@ describe('parseMat — malformed byte counts', () => {
     ]);
   });
 
+  it('REGRESSION: a struct whose name block runs past its own end is recorded, not read out of the bytes after it', () => {
+    // The case above, with the name block's tag inside the element and its bytes not: a block
+    // of two 32-byte names, the first of them the element's last bytes. The rest of the names
+    // were read out of the next variable's bytes, and with nothing left to read fields from the
+    // struct ended with fields {} and no warning. Below the guard's bound that is a struct
+    // array with no fields, and opened as one: `<1x500000 struct>`, saying nothing of the
+    // damage. Recorded instead, as a name block whose tag lies past the end is.
+    const stride = new Uint8Array(4);
+    new DataView(stride.buffer).setInt32(0, 32, true);
+    const names = new Uint8Array(40);
+    new DataView(names.buffer).setUint32(0, MI.INT8, true);
+    new DataView(names.buffer).setUint32(4, 64, true);
+    names[8] = 0x61;
+    const cut = (name: string, d: number[]) => matrix([arrayFlags(CLASS.STRUCT), dims(d), varName(name), element(MI.INT32, stride), names]);
+    const x = numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [5] });
+    const reason = (el: Uint8Array) => `its field names lie past the end of its ${el.length - 8} bytes`;
+    for (const d of [[1, 1], [1, 3], [1, 500_000]]) {
+      const parsed = parseMat(matFile([cut('s', d), x]));
+      const [s, after] = parsed.variables;
+      expect([s.name, s.dimensions, s.value, s.fields, s.undecoded, after.name, after.value], d.join('x')).toEqual([
+        's', d, `<${d.join('x')} struct, not decoded>`, null, reason(cut('s', d)), 'x', 5,
+      ]);
+      expect(parsed.warnings).toEqual([{ code: 'part-unreadable', message: `"s" was not decoded: ${reason(cut('s', d))}.`, part: 's' }]);
+    }
+    // As a struct field, the next field's bytes are not taken for its names, and that field is
+    // read as it always was.
+    const t = only(matFile([structVar('t', ['f', 'g'], [{ f: cut('', [1, 3]), g: scalarField(7) }])]));
+    expect([(t.fields!.f as MatVariable).undecoded, (t.fields!.g as MatVariable).value]).toEqual([reason(cut('', [1, 3])), 7]);
+    // A block that ends where the element does is read, as it always was: the same struct with
+    // its one name, and its one element's field.
+    const whole = new Uint8Array(names.subarray(0, 40));
+    new DataView(whole.buffer).setUint32(4, 32, true);
+    const field = numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [3] });
+    const s = only(matFile([matrix([arrayFlags(CLASS.STRUCT), dims([1, 1]), varName('s'), element(MI.INT32, stride), whole, field])]));
+    expect([s.undecoded, Object.keys(s.fields!), (s.fields!.a as MatVariable).value]).toEqual([undefined, ['a'], 3]);
+    // Through a session, as a host opens the file.
+    const mat = createSession().addMatSource('s.mat', matFile([cut('s', [1, 500_000]), x])) as any;
+    expect(mat.children.map((c: any) => [c.name, c.displayValue, c.children.length])).toEqual([
+      ['s', '<1x500000 struct, not decoded>', 0],
+      ['x', '5', 0],
+    ]);
+  });
+
   it('reads a variable whose own element length overruns the file', () => {
     const bad = new Uint8Array(numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [1] }));
     new DataView(bad.buffer).setUint32(4, overlong, true);
