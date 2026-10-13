@@ -2140,6 +2140,30 @@ export default class MatlabVariableNode extends DataNode {
     return this._scalarValue;
   }
 
+  /**
+   * The JSON form of an array holding no element: `[]`, a double 0x0, but for the 0x0 of an
+   * integer or single class, which is that class's `[]` literal, `{"_type": "int8", "_value":
+   * "[]"}`, as MATLAB writes one in a text dictionary. Both readers take that for the 0x0 of its
+   * class (parseTypedVector), and the property and cell writers spell it `Class="int8"
+   * Dimension="0*0"/>`, as _serializeArrayXml spells the same node at an entry.
+   *
+   * An edit to `[]` keeps such a class (classAfterEdit), so the node shows it, and an entry of a
+   * binary dictionary, written from the node, was saved with it. Everything else is written from
+   * this form, and it was `[]` for every class: an int8 or int16 property edited to `[]`, in a
+   * binary dictionary, and an entry or a property in a text one, showed its class and was saved,
+   * and reopened, as a double.
+   *
+   * Only the classes classAfterEdit keeps, and only the 0x0, which is all `[]` makes: a shaped
+   * empty's text spelling waits on MATLAB reading one back (MatWriter.heldTextSpelling).
+   */
+  _serializeEmpty(): unknown {
+    const d = effectiveDims(this._dims);
+    if (TYPED_NUMERIC_CLASS.test(this._scalarType) && d.length === 2 && d[0] === 0 && d[1] === 0) {
+      return { _type: this._scalarType, _value: '[]' };
+    }
+    return [];
+  }
+
   _serializeArray(): unknown {
     let elems: unknown[];
     if (this._sparse) {
@@ -2152,7 +2176,7 @@ export default class MatlabVariableNode extends DataNode {
       elems = dense;
     } else {
       if (this._elements.length === 0) {
-        return [];
+        return this._serializeEmpty();
       }
       if (this.children.length === 0) {
         return this.serial;

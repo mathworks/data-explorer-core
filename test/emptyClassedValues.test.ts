@@ -477,6 +477,79 @@ describe('an empty of a class that XML must escape, or a function handle', () =>
   });
 });
 
+describe('an integer or single value edited to `[]` keeps its class, as it shows, in what is saved', () => {
+  // The edit keeps the class (classAfterEdit), and an entry of a binary dictionary was saved so,
+  // being written from the node: `<P Name="Value" Class="int8" Dimension="0*0"/>`. A property was
+  // written from its value's JSON form, which was a bare `[]` for an empty of every class: an
+  // int8 or int16 property edited to `[]` showed as int8 or int16 and was saved `Class="double"
+  // Dimension="0*0"/>`, and so was a text dictionary's entry or property, as `[]`. Each reopened as
+  // a double.
+  const editTo = (session: any, root: any, node: any, text: string) => {
+    session.setActive(root, node);
+    expect(session.editProperty(node.id, 'Value', text)).toBe(true);
+  };
+  const cls = (name: string) => SHAPES.find((s) => s.name === name.replace(/^e/, ''))!.cls;
+
+  it('at a property and an entry of a binary dictionary', () => {
+    const { session, root } = open(hostXml());
+    const props = ['I8', 'I16'];
+    const entries = ['eI8', 'eI16'];
+    for (const name of props) {
+      editTo(session, root, childOf(entryNode(root, 'widget'), name), '[]');
+    }
+    for (const name of entries) {
+      editTo(session, root, entryNode(root, name), '[]');
+    }
+    const shownIn = (r: any) => [...props.map((p) => shown(childOf(entryNode(r, 'widget'), p))), ...entries.map((e) => shown(entryNode(r, e)))];
+    const expected = [...props, ...entries].map((n) => [cls(n), '[ ]', [0, 0]]);
+    expect(shownIn(root)).toEqual(expected);
+    const saved = chunkOf(session.serializeSource(root.name)!.bytes!);
+    for (const name of props) {
+      expect(lineOf(entryOf(saved, 'widget'), `<P Name="${name}" `), name).toBe(`<P Name="${name}" Class="${cls(name)}" Dimension="0*0"/>`);
+    }
+    for (const name of entries) {
+      expect(lineOf(entryOf(saved, name), '<P Name="Value"'), name).toBe(`<P Name="Value" Class="${cls(name)}" Dimension="0*0"/>`);
+    }
+    expect(shownIn(open(saved).root)).toEqual(expected);
+  });
+
+  it('and at a property and an entry of a text dictionary, as MATLAB writes the 0x0 of its class there', () => {
+    const json = JSON.parse(strFromU8(bytesAt(TEXT_HOST)));
+    const entries: any[] = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const props = entries.find((e) => e.name === 'widget').value._elements[0]._properties;
+    props.I8 = { _type: 'int8', _value: '[1, 2]' };
+    props.Sg = { _type: 'single', _value: '[1.5F, 2F]' };
+    const e = JSON.parse(JSON.stringify(entries.find((x) => x.name === 'gearValue')));
+    entries.push({ ...e, name: 'eI8', metadata: { ...e.metadata, uuid: '00000000-0000-4000-d000-000000000001' }, value: { _type: 'int8', _value: '[1, 2]' } });
+    const session = createSession();
+    const txt: any = ingest(session, buffer(strToU8(JSON.stringify(json, null, '\t'))), { filename: 'custom_object_text.sldd' });
+    for (const name of ['I8', 'Sg']) {
+      editTo(session, txt, childOf(entryNode(txt, 'widget'), name), '[]');
+    }
+    editTo(session, txt, entryNode(txt, 'eI8'), '[]');
+    const shownIn = (r: any) => [shown(childOf(entryNode(r, 'widget'), 'I8')), shown(childOf(entryNode(r, 'widget'), 'Sg')), shown(entryNode(r, 'eI8'))];
+    const edited = [['int8', '[ ]', [0, 0]], ['single', '[ ]', [0, 0]], ['int8', '[ ]', [0, 0]]];
+    expect(shownIn(txt)).toEqual(edited);
+    const text = session.serializeSource(txt.name)!.text!;
+    const saved: any[] = JSON.parse(text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const widget = saved.find((x) => x.name === 'widget').value._elements[0]._properties;
+    expect([widget.I8, widget.Sg, saved.find((x) => x.name === 'eI8').value]).toEqual([
+      { _type: 'int8', _value: '[]' },
+      { _type: 'single', _value: '[]' },
+      { _type: 'int8', _value: '[]' },
+    ]);
+    expect(shownIn(ingest(createSession(), buffer(strToU8(text)), { filename: 'reopened_text.sldd' }))).toEqual(edited);
+  });
+
+  it('and a double edited to `[]` is still `[]`', () => {
+    const { session, root } = open(hostXml());
+    editTo(session, root, childOf(entryNode(root, 'widget'), 'Scalar'), '[]');
+    expect(shown(childOf(entryNode(root, 'widget'), 'Scalar'))).toEqual(['double', '[ ]', [0, 0]]);
+    const saved = chunkOf(session.serializeSource(root.name)!.bytes!);
+    expect(lineOf(entryOf(saved, 'widget'), '<P Name="Scalar" ')).toBe('<P Name="Scalar" Class="double" Dimension="0*0"/>');
+  });
+});
+
 /** What `node` and every row under it shows. */
 function tree(node: any): unknown[] {
   const out: unknown[] = [];

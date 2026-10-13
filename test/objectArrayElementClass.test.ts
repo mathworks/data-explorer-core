@@ -14,10 +14,11 @@
 // share in `_array_class` (Simulink.ConfigComponent for Components) and the class of each element
 // that differs from it in that element's `_object_class`. That is the spelling the binary reader
 // now holds: `_array_class` is the class every element shares, or the common base class where it
-// can be derived, or else the first element's class, and `_object_class` is on each element of
-// another class. The consumers read it: ObjectNode builds each element as its own class,
-// serializeValue keeps it, and both object-array writers (DataNode._objectXml and
-// ObjectNode.serializeXml) write each element's own Class.
+// can be derived (a config set's Components, or the one MathWorks class beside user classes), or
+// else the first element's class, and `_object_class` is on each element of another class. The
+// consumers read it: ObjectNode builds each element as its own class, serializeValue keeps it,
+// and both object-array writers (DataNode._objectXml and ObjectNode.serializeXml) write each
+// element's own Class.
 //
 // No fixture holds a mixed array, so the inputs are built here in MATLAB's spelling: a config set
 // shaped as every config set MATLAB writes is (nine components, and the RTWCC's own Components of
@@ -159,10 +160,10 @@ describe('a binary dictionary\'s mixed-class object array', () => {
     expect(rtw._elements.map((e: any) => e._object_class)).toEqual(RTW_COMPONENTS);
   });
 
-  it('reads a mixed array whose common base class cannot be derived under its first element\'s class, and marks each element of another class', () => {
+  it('reads a Simulink.Signal subclass beside a Simulink.Signal under the Simulink.Signal, and marks the subclass element', () => {
     const array = openBinary().entry('alias').serial._rawVal._elements[0]._properties.UserMLArray2;
-    expect(array._array_class).toBe('MySubclasses.MySlSignal');
-    expect(array._elements.map((e: any) => e._object_class)).toEqual([undefined, 'Simulink.Signal']);
+    expect(array._array_class).toBe('Simulink.Signal');
+    expect(array._elements.map((e: any) => e._object_class)).toEqual(['MySubclasses.MySlSignal', undefined]);
   });
 
   it('opens each element as a node of its own class', () => {
@@ -171,7 +172,7 @@ describe('a binary dictionary\'s mixed-class object array', () => {
       ['ObjectNode', 'MySubclasses.MySlSignal'],
       ['SignalNode', 'Simulink.Signal'],
     ]);
-    expect([array.className, array.icon]).toEqual(['MySubclasses.MySlSignal', array.children[0].icon]);
+    expect([array.className, array.icon]).toEqual(['Simulink.Signal', array.children[1].icon]);
   });
 
   it('writes each element\'s own Class, on an untouched save and a regenerated entry', () => {
@@ -215,7 +216,7 @@ describe('a binary dictionary\'s mixed-class object array', () => {
     expect(components._array_class).toBe('Simulink.ConfigComponent');
     expect(components._elements.map((e: any) => e._object_class)).toEqual(COMPONENT_CLASSES);
     const array = JSON.parse(JSON.stringify(entry('alias').serialize())).value._elements[0]._properties.UserMLArray2;
-    expect(array._elements.map((e: any) => e._object_class)).toEqual([undefined, 'Simulink.Signal']);
+    expect(array._elements.map((e: any) => e._object_class)).toEqual(['MySubclasses.MySlSignal', undefined]);
   });
 
   it('pasted into a text dictionary, saves each element\'s own class there', () => {
@@ -228,8 +229,8 @@ describe('a binary dictionary\'s mixed-class object array', () => {
     const saved = JSON.parse((session.serializeSource(text.name) as { text: string }).text);
     const pasted = saved.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'alias');
     const array = pasted.value._elements[0]._properties.UserMLArray2;
-    expect(array._array_class).toBe('MySubclasses.MySlSignal');
-    expect(array._elements.map((e: any) => e._object_class)).toEqual([undefined, 'Simulink.Signal']);
+    expect(array._array_class).toBe('Simulink.Signal');
+    expect(array._elements.map((e: any) => e._object_class)).toEqual(['MySubclasses.MySlSignal', undefined]);
   });
 });
 
@@ -288,6 +289,94 @@ describe('a binary dictionary\'s mixed array of config components, in the shapes
     expect(classesIn(spanOf(serializeEntryToXml(entry('classless')), pad(16) + '<P Name="Components" Dimension="3*1">'))).toEqual([
       'Simulink.SolverCC', 'Simulink.DataIOCC',
     ]);
+  });
+});
+
+// A binary dictionary has no place for an object array's class, so the reader derives it from
+// its elements' (BinarySlddParser.arrayClassOf). Two rules name a base the classes alone cannot:
+// the one MathWorks class beside classes that are not MathWorks' is the array's class, a user
+// class deriving from a MathWorks class and never the other way; and the Components of a
+// Simulink.ConfigSet or a Simulink.RTWCC is a Simulink.ConfigComponent array, whatever its
+// components, as every one MATLAB writes in a text dictionary is. Where neither rule names one the
+// reader keeps the first element's class.
+describe('a binary dictionary\'s mixed object array, under the base its classes name', () => {
+  const element = (cls: string, props: string, at = 20) => pad(at) + '<Element Class="' + cls + '">\n' + props + pad(at) + '</Element>\n';
+  const named = (name: string, at: number) => pad(at) + '<P Name="Name" Class="char">' + name + '</P>\n';
+  const arrayOf = (name: string, classes: string[], at = 16) =>
+    pad(at) + '<P Name="' + name + '" Dimension="1*' + classes.length + '">\n' + classes.map((c, k) => element(c, named(c + k, at + 8), at + 4)).join('') + pad(at) + '</P>';
+  const owned = (cls: string, props: string) => '        <P Name="Value">\n' + element(cls, props + '\n', 12) + '        </P>';
+  const configSet = (components: string[], rtw: string[]) =>
+    owned('Simulink.ConfigSet',
+      pad(16) + '<P Name="Components" Dimension="' + components.length + '*1">\n' +
+      components.map((c) => c === 'Simulink.RTWCC'
+        ? element(c, pad(24) + '<P Name="Components" Dimension="' + rtw.length + '*1">\n' + rtw.map((r) => element(r, named(r, 32), 28)).join('') + pad(24) + '</P>\n')
+        : element(c, named(c, 24))).join('') +
+      pad(16) + '</P>');
+  const CODER_TARGET = 'CoderTarget.SettingsController';
+  const entries: [string, string, string][] = [
+    ['coder', NS_CONFIG, configSet(['Simulink.SolverCC', 'Simulink.DataIOCC', 'Simulink.RTWCC', CODER_TARGET], ['Simulink.CodeAppCC', CODER_TARGET])],
+    ['simscape', NS_CONFIG, configSet(['Simulink.SolverCC', 'SSC.SimscapeCC'], [])],
+    ['oneClass', NS_DESIGN, owned('MySubclasses.MyAliasType', arrayOf('UserMLArray2', ['Simulink.Signal', 'Simulink.Signal']))],
+    ['listed', NS_DESIGN, owned('MySubclasses.MyAliasType', arrayOf('UserMLArray2', ['Simulink.SolverCC', 'Simulink.DataIOCC']))],
+    ['users', NS_DESIGN, owned('MySubclasses.MyAliasType', arrayOf('UserMLArray2', ['My.A', 'My.B']))],
+    ['twoKnown', NS_DESIGN, owned('MySubclasses.MyAliasType', arrayOf('UserMLArray2', ['MySubclasses.MySlSignal', 'Simulink.Signal', 'Simulink.Parameter']))],
+    ['userComponents', NS_DESIGN, owned('My.Holder', arrayOf('Components', ['My.A', 'My.B']))],
+  ];
+  const BASES = zipSync({
+    'data/chunk0.xml': strToU8(
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<DataSource FormatVersion="1" MinRelease="R2014a" Arch="maca64">\n' +
+      entries.map(([name, ns, value], k) => entryXml(name, 'a1b2c3d4-0000-4000-8000-0000000001' + String(k).padStart(2, '0'), ns, value)).join('') +
+      '    <Object Class="DD.Dictionary">\n' +
+      '        <P Name="AccessBaseWorkspace" Class="logical">0</P>\n' +
+      '    </Object>\n' +
+      '</DataSource>',
+    ),
+    'metadata/mwcoreProperties.xml': META,
+  });
+  const read1 = (array: any) => [array._array_class, array._elements.map((e: any) => e._object_class)];
+  const propertyOf = (entry: any, name: string) => entry.serial._rawVal._elements[0]._properties[name];
+
+  it('reads a Simulink.Signal subclass beside a Simulink.Signal as a Simulink.Signal array, at an alias type\'s property', () => {
+    const { entry, saved } = openBinary();
+    expect(read1(propertyOf(entry('alias'), 'UserMLArray2'))).toEqual(['Simulink.Signal', ['MySubclasses.MySlSignal', undefined]]);
+    const array = entry('alias').children.find((c: any) => c.name === 'UserMLArray2');
+    expect([array.className, array.displayValue]).toEqual(['Simulink.Signal', '<1x2 Simulink.Signal>']);
+    expect(spanOf(saved(), USER_ARRAY_OPEN)).toBe(USER_ARRAY);
+    // The save keeps the unedited entry's bytes; the writer writes each element's own Class too.
+    expect(spanOf(regenerateEntryXml(entry('alias')), USER_ARRAY_OPEN), 'written from the model').toBe(USER_ARRAY);
+  });
+
+  it('reads the same array as a Simulink.Signal array where it is an entry\'s value', () => {
+    const { entry, saved } = openBinary();
+    const signals = entry('signals');
+    expect(read1(signals.serial._rawVal)).toEqual(['Simulink.Signal', ['MySubclasses.MySlSignal', undefined]]);
+    expect([signals.className, signals.displayValue]).toEqual(['Simulink.Signal', '<1x2 Simulink.Signal>']);
+    expect(signals.children.map((c: any) => [c.constructor.name, c.className])).toEqual([['ObjectNode', 'MySubclasses.MySlSignal'], ['SignalNode', 'Simulink.Signal']]);
+    expect(spanOf(saved(), '        <P Name="Value" Dimension="1*2">')).toBe(ARRAY_VALUE);
+    expect(spanOf(regenerateEntryXml(signals), '        <P Name="Value" Dimension="1*2">'), 'written from the model').toBe(ARRAY_VALUE);
+  });
+
+  it('reads a config set\'s Components, and its RTWCC\'s, as Simulink.ConfigComponent arrays, whatever components they hold', () => {
+    const { entry } = openBinary(BASES);
+    const components = propertyOf(entry('coder'), 'Components');
+    expect(read1(components)).toEqual(['Simulink.ConfigComponent', ['Simulink.SolverCC', 'Simulink.DataIOCC', 'Simulink.RTWCC', CODER_TARGET]]);
+    expect(read1(components._elements[2]._properties.Components)).toEqual(['Simulink.ConfigComponent', ['Simulink.CodeAppCC', CODER_TARGET]]);
+    expect(read1(propertyOf(entry('simscape'), 'Components'))).toEqual(['Simulink.ConfigComponent', ['Simulink.SolverCC', 'SSC.SimscapeCC']]);
+    // An unedited entry's serializeEntryToXml is its own bytes; the writer is asked directly.
+    expect(classesIn(spanOf(regenerateEntryXml(entry('coder')), pad(16) + '<P Name="Components" Dimension="4*1">')), 'written from the model').toEqual([
+      'Simulink.SolverCC', 'Simulink.DataIOCC', 'Simulink.RTWCC', 'Simulink.CodeAppCC', CODER_TARGET, CODER_TARGET,
+    ]);
+  });
+
+  it('reads an array of one class, a mix of listed config components, and a mix with no MathWorks class or two of them as before', () => {
+    const { entry } = openBinary(BASES);
+    expect(read1(propertyOf(entry('oneClass'), 'UserMLArray2'))).toEqual(['Simulink.Signal', [undefined, undefined]]);
+    expect(read1(propertyOf(entry('listed'), 'UserMLArray2'))).toEqual(['Simulink.ConfigComponent', ['Simulink.SolverCC', 'Simulink.DataIOCC']]);
+    expect(read1(propertyOf(entry('users'), 'UserMLArray2'))).toEqual(['My.A', [undefined, 'My.B']]);
+    expect(read1(propertyOf(entry('twoKnown'), 'UserMLArray2'))).toEqual(['MySubclasses.MySlSignal', [undefined, 'Simulink.Signal', 'Simulink.Parameter']]);
+    // Only a config set's and an RTWCC's Components are config components.
+    expect(read1(propertyOf(entry('userComponents'), 'Components'))).toEqual(['My.A', [undefined, 'My.B']]);
   });
 });
 
@@ -385,7 +474,55 @@ describe('a text dictionary\'s mixed-class object array', () => {
     ]);
     expect(classesIn(spanOf(serializeEntryToXml(entry('alias')), USER_ARRAY_OPEN))).toEqual(['MySubclasses.MySlSignal', 'Simulink.Signal']);
   });
+
+  // A binary dictionary writes the array as `<P Name="UserMLArray2" Dimension="1*2">` over an
+  // element of each class, as MATLAB writes it there, and its reader derives the array's class
+  // from those (BinarySlddParser.arrayClassOf). It used to derive the first element's, so a paste
+  // showed `<1x2 Simulink.Signal>`, as the text names it, and saved and reopened
+  // `<1x2 MySubclasses.MySlSignal>`.
+  it('pasted into a binary dictionary, shows what its save writes and a reopen reads', () => {
+    const { entry: textEntry } = openText();
+    const host = openBinary();
+    const design = host.source.getSection('design');
+    const config = host.source.getSection('config');
+    const signals = { _array_class: 'Simulink.Signal', _dimensions: [1, 2], _elements: alias._elements[0]._properties.UserMLArray2._elements, _mw_element_type: 'MATLABArray' };
+    const payloads: [string, any, any][] = [
+      ['alias', textEntry('alias').serialize(), design],
+      ['cs', textEntry('cs').serialize(), config],
+      ['sigs', { ...textEntry('alias').serialize(), value: signals }, design],
+    ];
+    const pasted = payloads.map(([name, payload, section], k) => {
+      const p = JSON.parse(JSON.stringify(payload));
+      return section.parseEntry({ ...p, name: name + 'B', metadata: { ...p.metadata, uuid: 'd1b2c3d4-0000-4000-8000-00000000000' + k } });
+    });
+    const shownAs = (node: any) => JSON.stringify(rows(node)).split(node.name).join('#');
+    const pastedRows = pasted.map(shownAs);
+    const saved = host.saved();
+    const again = openBinary(zipSync({ 'data/chunk0.xml': strToU8(saved), 'metadata/mwcoreProperties.xml': META }));
+    expect(payloads.map(([name]) => shownAs(again.entry(name + 'B')))).toEqual(pastedRows);
+    // The array shows the class the text names, each element its own, and is saved as MATLAB
+    // writes it.
+    const array = pasted[0].children.find((c: any) => c.name === 'UserMLArray2');
+    expect([array.className, ...array.children.map((c: any) => c.className)]).toEqual(['Simulink.Signal', 'MySubclasses.MySlSignal', 'Simulink.Signal']);
+    expect([pasted[2].className, pasted[2].displayValue]).toEqual(['Simulink.Signal', '<1x2 Simulink.Signal>']);
+    // The pasted entry's, not the host's own alias, which the save keeps as its bytes.
+    const aliasB = saved.indexOf('<P Name="Name" Class="char">aliasB</P>');
+    expect(aliasB).toBeGreaterThanOrEqual(0);
+    expect(classesIn(spanOf(saved.slice(aliasB), USER_ARRAY_OPEN))).toEqual(['MySubclasses.MySlSignal', 'Simulink.Signal']);
+    expect(again.entry('csB').serial._rawVal._elements[0]._properties.Components._array_class).toBe('Simulink.ConfigComponent');
+  });
 });
+
+/** Each row `node` shows, itself and every one under it. */
+function rows(node: any): unknown[] {
+  const out: unknown[] = [];
+  const walk = (n: any, at: string) => {
+    out.push([at, n.name, n.constructor.name, n.className, n.displayValue, n.dims, n.valueEditable]);
+    (n.children || []).forEach((c: any, i: number) => walk(c, at + '/' + i));
+  };
+  walk(node, '');
+  return out;
+}
 
 // An object value of one element is an object of that element's class. MATLAB's text format
 // spells a mixed-class array with the class its elements share in `_array_class` and each
