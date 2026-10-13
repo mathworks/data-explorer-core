@@ -533,11 +533,11 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     expect([inT._type, inC._type]).toEqual(['cdata', 'cdata']);
     expect([streamOf(inT), streamOf(inC)]).toEqual([own, own]);
   });
-  // Add Child adds a field to every element row, and past the cap there is none: the row it
-  // made held the only copy of the edit, and the save, which writes such an array from the
-  // bytes it was read from, dropped it. So it is refused, as a sparse array's is. Up to the cap
-  // it is offered as before.
-  it('takes no Add Child past the cap, where there is no element row to add a field to', () => {
+  // Add Child gives a struct one `field` row of its own, and past the cap that row held the
+  // only copy of the edit: the save, which writes such an array from the bytes it was read
+  // from, dropped it. So it is refused, as a sparse array's is. Up to the cap it is offered as
+  // before.
+  it('takes no Add Child past the cap, where the save would drop the row it adds', () => {
     expect(opened(fieldless('s', [1, MAX]))[0].canAddChild()).toBe(true);
     for (const d of [[1, MAX + 1], BIG]) {
       const [s] = opened(fieldless('s', d));

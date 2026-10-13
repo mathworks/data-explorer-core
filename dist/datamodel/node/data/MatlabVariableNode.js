@@ -1254,9 +1254,10 @@ export default class MatlabVariableNode extends DataNode {
         if (this._sparse) {
             return false;
         }
-        // Nor a struct array with no element rows (_unexpandedStruct): a field is added to every
-        // element row, and it has none, so the row Add made was the edit's only copy, and the
-        // save, which writes such an array from the bytes it was read from (_matStream), lost it.
+        // Nor a struct array with no element rows (_unexpandedStruct). Add gives a struct one
+        // `field` row of its own (_addStructField), and such an array is written from the bytes
+        // it was read from wherever it goes (_matStream), so the save lost that row, and the
+        // edit with it, without a word.
         if (this._unexpandedStruct()) {
             return false;
         }
