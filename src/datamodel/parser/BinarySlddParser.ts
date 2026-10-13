@@ -500,11 +500,17 @@ function cellValue(elements: XmlNode[], dimParts: number[]): Record<string, unkn
   };
 }
 
-// The SLDD object-array envelope. The class lives on the WRAPPER and is read from
-// the first element, so a LATER element carrying no Class of its own still
-// contributes its <P> bag: this path used to re-enter parseElement per element and
-// index into the single-element wrapper it returns, which threw on a classless later
-// element and took the whole file's read down with it.
+// The SLDD object-array envelope, in MATLAB's text spelling of one: the class the elements
+// share on the WRAPPER (`_array_class`), and on each element of another class that element's
+// own (`_object_class`). MATLAB states each element's class on its own <Element>, and a
+// config set's Components mixes nine or more: this used to read the first element's class
+// for the whole array and drop the rest, so every component read, showed, copied and saved
+// as a Simulink.SolverCC.
+//
+// A LATER element carrying no Class of its own still contributes its <P> bag, as one of the
+// first element's class: this path used to re-enter parseElement per element and index into
+// the single-element wrapper it returns, which threw on a classless later element and took
+// the whole file's read down with it.
 //
 // With no class at all there is no object array to describe — a classless <Element>
 // is a struct element — and an empty _array_class is a shape NOTHING downstream
@@ -512,17 +518,74 @@ function cellValue(elements: XmlNode[], dimParts: number[]): Record<string, unkn
 // writes `Class="char">[object Object]`, losing every field on the next save. So an
 // unclassed element set decodes as the struct array it is.
 function objectArrayValue(elements: XmlNode[], dimParts: number[]): Record<string, unknown> {
-  const className = elements.length > 0 ? elements[0]['@_Class'] || '' : '';
-  if (!className) {
+  const first = elements.length > 0 ? elements[0]['@_Class'] || '' : '';
+  if (!first) {
     return structValue(elements, dimParts);
   }
+  const classes = elements.map((e) => e['@_Class'] || first);
+  const arrayClass = arrayClassOf(classes);
   return {
-    _array_class: className,
+    _array_class: arrayClass,
     _dimensions: dimParts,
     _mw_element_type: 'MATLABArray',
-    _elements: elements.map((e) => ({ _properties: parseStructElement(e) })),
+    _elements: elements.map((e, k) => {
+      const properties = parseStructElement(e);
+      return classes[k] === arrayClass ? { _properties: properties } : { _object_class: classes[k], _properties: properties };
+    }),
   };
 }
+
+/**
+ * The class an object array of elements of `classes` is, as MATLAB's text format names it in
+ * `_array_class`: the class every element shares; for elements of several classes, the common
+ * base class where it can be derived (heterogeneousBaseOf); and otherwise the first element's,
+ * which is what this reader named every such array before it kept the elements' own.
+ */
+function arrayClassOf(classes: string[]): string {
+  if (classes.every((c) => c === classes[0])) {
+    return classes[0];
+  }
+  return heterogeneousBaseOf(classes) ?? classes[0];
+}
+
+/**
+ * The common base class of an array mixing `classes`, where this reader can derive one, or
+ * undefined.
+ *
+ * A binary dictionary does not state it: its `<P Name="Components" Dimension="9*1">` carries
+ * no Class, and each element names only its own. A text dictionary does, and the one base it
+ * names for the arrays found mixed in binary dictionaries is Simulink.ConfigComponent: every
+ * Components array of a Simulink.ConfigSet and of a Simulink.RTWCC that MATLAB wrote into a
+ * text dictionary is `_array_class` Simulink.ConfigComponent (30 of 30, in five dictionaries),
+ * over classes each listed in CONFIG_COMPONENTS, on its element as its `_object_class`. So an
+ * array whose classes all belong to that list is a Simulink.ConfigComponent array. Of any
+ * other class (a component no text dictionary has shown, or a subclass of Simulink.Signal
+ * beside a Simulink.Signal), this reader has no hierarchy to derive a base from, and says so.
+ */
+function heterogeneousBaseOf(classes: string[]): string | undefined {
+  return classes.every((c) => c === CONFIG_COMPONENT || CONFIG_COMPONENTS.has(c)) ? CONFIG_COMPONENT : undefined;
+}
+
+const CONFIG_COMPONENT = 'Simulink.ConfigComponent';
+
+/** Each class MATLAB's text format lists as an element of a Simulink.ConfigComponent array (see heterogeneousBaseOf). */
+const CONFIG_COMPONENTS: ReadonlySet<string> = new Set([
+  'Simulink.SolverCC',
+  'Simulink.DataIOCC',
+  'Simulink.OptimizationCC',
+  'Simulink.DebuggingCC',
+  'Simulink.HardwareCC',
+  'Simulink.ModelReferenceCC',
+  'Simulink.SFSimCC',
+  'Simulink.RTWCC',
+  'Simulink.CodeAppCC',
+  'Simulink.GRTTargetCC',
+  'Simulink.ERTTargetCC',
+  'Simulink.STFCustomTargetCC',
+  'SlCovCC.ConfigComp',
+  'Sldv.ConfigComp',
+  'hdlcoderui.hdlcc',
+]);
 
 function parseEntryValue(prop: XmlNode): unknown {
   const encoded = encodedOf(prop);

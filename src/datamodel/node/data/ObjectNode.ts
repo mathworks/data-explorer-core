@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import DataNode, { customSaveOf } from '../DataNode.js';
+import DataNode, { customSaveOf, elementClassOf, objectValueClassOf } from '../DataNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
@@ -15,6 +15,14 @@ import { ENUM_KEY, ENUMERATION_KEY, enumeralOf, escapeXml, isEnumBag, pad as xml
 import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 import { setOwn } from '../../parser/ownKeys.js';
+
+// The class of `child`, one of the element nodes of an object array of class `arrayClass`: the
+// class ObjectNode.parse built it as, which its value's wrapper names, and otherwise the array's.
+function elementNodeClass(child: DataNode, arrayClass: string): string {
+    const raw = child.serial?._rawVal as Record<string, unknown> | null | undefined;
+    const own = raw && typeof raw === 'object' ? raw._array_class : undefined;
+    return typeof own === 'string' && own !== '' ? own : arrayClass;
+}
 
 export default class ObjectNode extends DataNode {
     arrayClass: string;
@@ -42,9 +50,12 @@ export default class ObjectNode extends DataNode {
         // the class name here — the element node is what decides how that class
         // looks, so the two can never come to disagree, and an array of a class this
         // data model has no icon for still lands on OBJECT_ICON because its elements
-        // are ObjectNodes that answer exactly that.
+        // are ObjectNodes that answer exactly that. Of an array mixing classes, an element of
+        // the array's own class answers, where there is one: a Simulink.Signal array whose
+        // first element is a subclass with no node of its own reads as the signals it holds.
         if (this._isElementArray && this.children.length > 0) {
-            return (this.children[0] as DataNode).icon;
+            const own = this.children.find((c) => elementNodeClass(c as DataNode, this.arrayClass) === this.arrayClass);
+            return ((own ?? this.children[0]) as DataNode).icon;
         }
         return OBJECT_ICON;
     }
@@ -137,6 +148,11 @@ export default class ObjectNode extends DataNode {
         // as nothing changed it (see parse), and goes back as the `null` it was. Gathered for
         // XML, a typed one comes back as the element its class writes for one holding no
         // properties instead (DataNode._xmlProperties).
+        //
+        // An element of a class other than the array's goes back with that class as its
+        // `_object_class`, as MATLAB's text format spells it: each element node is of its
+        // element's own class (see parse), so a mixed array's subclass element was copied and
+        // saved as one of the array's class.
         if (this._isElementArray) {
             const elements = this.children.map((child) => {
                 const elemVal = (child as DataNode).serializeValue() as Record<string, unknown> | null;
@@ -146,7 +162,9 @@ export default class ObjectNode extends DataNode {
                 if (first === null) {
                     return null;
                 }
-                return { _properties: (first?._properties as Record<string, unknown>) ?? {} };
+                const properties = (first?._properties as Record<string, unknown>) ?? {};
+                const own = elementNodeClass(child as DataNode, this.arrayClass);
+                return own === this.arrayClass ? { _properties: properties } : { _object_class: own, _properties: properties };
             });
             return { ...rawVal, _elements: elements };
         }
@@ -203,8 +221,11 @@ export default class ObjectNode extends DataNode {
         // known to be accepted for an N-D array of things.
         const dimAttr = ' Dimension="' + (dims.length > 1 ? dims.join('*') : dims[0] + '*1') + '"';
         let xml = p + '<' + tagName + attrStr + dimAttr + '>\n';
+        // Each element under its own class, which its node is of (see parse): every one was
+        // written as the array's, so a subclass element beside a Simulink.Signal was saved as a
+        // second subclass element.
         for (const child of this.children) {
-            xml += ip + '<Element Class="' + escapeXml(this.arrayClass) + '">\n';
+            xml += ip + '<Element Class="' + escapeXml(elementNodeClass(child as DataNode, this.arrayClass)) + '">\n';
             const props = (child as ObjectNode)._xmlProperties();
             for (const [propName, propVal] of Object.entries(props)) {
                 xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, child as DataNode, (child as DataNode)._propertyAt(propName)) + '\n';
@@ -304,7 +325,9 @@ export default class ObjectNode extends DataNode {
         //     wrapper), reached when a struct field or cell element is itself an
         //     object. NodeRegistry dispatches both here so nested objects expand no
         //     matter where in the graph they sit.
-        const arrayClass = (rawVal._object_class ?? rawVal._array_class) as string;
+        // A value object of one element is an object of its element's class
+        // (DataNode.objectValueClassOf), which an element of another class names.
+        const arrayClass = (rawVal._object_class ?? objectValueClassOf(rawVal)) as string;
         const node = new ObjectNode(name, parent, arrayClass, serial);
         // Surface the object's serialized properties as child nodes so it expands
         // in the tree like a struct.
@@ -326,14 +349,16 @@ export default class ObjectNode extends DataNode {
             node._isElementArray = true;
             const dims = (rawVal._dimensions as number[]) || [1, elements.length];
             elements.forEach((elem, ei) => {
-                // Each element is a SCALAR object of the same class. Route it back
-                // through NodeRegistry as a single-element value object so a KNOWN
+                // Each element is a SCALAR object of its own class: the array's, or the
+                // `_object_class` an element of another class carries, as MATLAB's text format
+                // and the binary reader spell a mixed-class array (DataNode.elementClassOf). Route
+                // it back through NodeRegistry as a single-element value object so a KNOWN
                 // class (Simulink.Parameter, …) becomes its own typed node and an
                 // unknown/custom class becomes a scalar ObjectNode — the same
                 // dispatch a standalone scalar would take. A null element goes in as
                 // the null it is, which both of those keep (NodeClassMap.parseValue).
                 const elemRaw: Record<string, unknown> = {
-                    _array_class: arrayClass,
+                    _array_class: elementClassOf(elem, arrayClass),
                     _array_type: 'MATLABArray',
                     _dimensions: [1, 1],
                     _mw_element_type: (rawVal._mw_element_type as string) || 'MATLABArray',

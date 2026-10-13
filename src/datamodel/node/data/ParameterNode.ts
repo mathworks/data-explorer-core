@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import DataNode from '../DataNode.js';
+import DataNode, { objectValueClassOf } from '../DataNode.js';
 import type { SetPropertyResult } from '../DataNode.js';
 import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
@@ -58,11 +58,13 @@ export default class ParameterNode extends DataNode {
     // for: the Embedded Coder subclass mpt.Parameter is parsed by this node too, and
     // a user must keep seeing `mpt.Parameter` in the Class column. Only the
     // treatment — typed columns, Kind, PI layout — is inherited from the
-    // superclass. Falls back to CLASS_NAME for a node with no parsed value behind
-    // it (a directly constructed one), so the Class column is never blank.
+    // superclass. Of a value spelled as an array of one element, that is the
+    // element's class (objectValueClassOf). Falls back to CLASS_NAME for a node with
+    // no parsed value behind it (a directly constructed one), so the Class column is
+    // never blank.
     get className(): string {
         const raw = this.serial._rawVal as Record<string, unknown> | undefined;
-        return (raw && (raw._array_class as string)) || CLASS_NAME;
+        return (raw && objectValueClassOf(raw)) || CLASS_NAME;
     }
 
     // A Parameter's declared data type IS a real data type ('int16', 'boolean',

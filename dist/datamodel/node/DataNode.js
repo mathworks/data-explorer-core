@@ -189,6 +189,34 @@ export function customSaveOf(element) {
     return element && typeof element === 'object' ? element[CUSTOM_SAVE_KEY] : undefined;
 }
 /**
+ * The class of `element`, one of the `_elements` of an object array of class `arrayClass`: its
+ * own `_object_class` where it carries one, and otherwise the array's. MATLAB's text format
+ * spells a mixed-class object array so, `_array_class` naming the class the elements share and
+ * `_object_class` each element of another class, and the binary reader holds one so too
+ * (BinarySlddParser.objectArrayValue). Asked by both writers of an object array's elements,
+ * DataNode._objectXml and ObjectNode.serializeXml, by ObjectNode.parse, and for a value of one
+ * element by objectValueClassOf.
+ */
+export function elementClassOf(element, arrayClass) {
+    const own = element && typeof element === 'object' ? element._object_class : undefined;
+    return typeof own === 'string' && own !== '' ? own : arrayClass;
+}
+/**
+ * The class of `value`, an object value (`{_array_class, _dimensions, _elements}`): of one
+ * element, that element's own (elementClassOf); otherwise the array's. A 1x1 object is an object
+ * of its element's class, and MATLAB's text format can spell one as it spells a mixed-class
+ * array, the class the elements share in `_array_class` and the element's own in its
+ * `_object_class`: `{_array_class: 'Simulink.Signal', _elements: [{_object_class: 'mpt.Signal',
+ * …}]}` is an mpt.Signal. Asked wherever a value's class decides its node or what is written for
+ * it: NodeClassMap.parseValue, ObjectNode.parse, the className of each typed node that reports
+ * the class the file holds, and DataNode._serializeSimulinkObjectXml.
+ */
+export function objectValueClassOf(value) {
+    const elements = value._elements;
+    const arrayClass = value._array_class;
+    return Array.isArray(elements) && elements.length === 1 ? elementClassOf(elements[0], arrayClass) : arrayClass;
+}
+/**
  * How many writers of XML are gathering the properties they write as `<P>`s right now
  * (DataNode._xmlProperties). While one is, each node's value under them is asked for in the
  * XML's spelling, which has no null element: a node keeping one (DataNode._keepNullElement)
@@ -899,7 +927,9 @@ export default class DataNode extends BaseNode {
         const p = xmlPad(indent);
         const ip = xmlPad(indent + 1);
         const rawVal = this.serial._rawVal;
-        const className = rawVal._array_class;
+        // The class of the one object written, its element's: an array of one element of another
+        // class was written as an object of the array's.
+        const className = objectValueClassOf(rawVal);
         const props = this._xmlProperties();
         let attrStr = '';
         if (attrs && attrs.Name) {
@@ -1267,7 +1297,7 @@ export default class DataNode extends BaseNode {
         return DataNode._objectXml('P', DataNode.pxAttrs(name), name, value, indent, ownerNode, at);
     }
     /**
-     * An object bag (`{_array_class, _dimensions, _elements: [{_properties}]}`) under `tag`: a
+     * An object bag (`{_array_class, _dimensions, _elements: [{_object_class?, _properties}]}`) under `tag`: a
      * property's `<P Name="…">`, or the classless `<Element>` a cell element holding an object
      * is — cellarr_binary.sldd's cObj is `<Element>` around one `<Element
      * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two. An
@@ -1297,7 +1327,7 @@ export default class DataNode extends BaseNode {
             return envelope === undefined ? props : { ...props, [SAVEOBJ_KEY]: envelope };
         };
         if (elements.length === 0 || (elements.length === 1 && Object.keys(propsOf(elements[0])).length === 0)) {
-            return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(className) + '"/>\n' + p + close;
+            return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(elementClassOf(elements[0], className)) + '"/>\n' + p + close;
         }
         // Every extent, exactly as the struct sibling below does and for the same
         // reason — see ObjectNode.serializeXml for why a Dimension= that contradicts
@@ -1309,9 +1339,11 @@ export default class DataNode extends BaseNode {
             ? ''
             : ' Dimension="' + dims.join('*') + '"';
         let xml = p + '<' + tag + attrs + dimAttr + '>\n';
+        // Each element under its own class: a config set's Components holds nine or more, and
+        // every one was written as the array's.
         elements.forEach((elem, k) => {
             const props = propsOf(elem);
-            xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
+            xml += ip + '<Element Class="' + escapeXml(elementClassOf(elem, className)) + '">\n';
             for (const [propName, propVal] of Object.entries(props)) {
                 xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName)) + '\n';
             }

@@ -50,6 +50,21 @@ numeric rule one level over (an int32 array's elements are int32s — see
 Handing the container's `_array_class` to a Data Type column would put a class name
 in a type column for every unrecognized object in the tree.
 
+Each element row is a node of its ELEMENT's class, which need not be the array's. MATLAB
+writes a mixed-class array, such as a config set's `Components` or a `Simulink.Signal`
+array holding a subclass element, with the class the elements share in `_array_class`
+and each element of another class carrying its own in `_object_class`, in a text
+dictionary; a binary dictionary names each element's class on its `<Element>`, and its
+reader holds the array in the text spelling (`BinarySlddParser.objectArrayValue`). So
+`serializeValue` puts an `_object_class` back on each element whose row is of another
+class, and `serializeXml` writes each `<Element>` under its row's class. The container
+reads as an element of the array's own class where it has one (its icon).
+
+A value of ONE element spelled the same way, `_array_class` naming one class and its
+element's `_object_class` another, is an object of the element's class
+(`DataNode.objectValueClassOf`): it is dispatched, shown and written to XML as that class,
+and its JSON keeps the file's spelling.
+
 ## Read-only / host status
 
 - `displayValue` returns `<RxC ClassName>` which triggers BaseNode's
