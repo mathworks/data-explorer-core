@@ -2286,11 +2286,11 @@ export default class MatlabVariableNode extends DataNode {
     // Complex text nobody edited goes back as the text it was read from, through the
     // writer that spells complex text (DataNode._complexTextXml). For a value the node
     // read as numbers that is the same bytes the arms below would write; it matters for
-    // the value it could not read — a binary dictionary's own text with a NaN or Inf part,
-    // which parseCdata shows as a quoted char (see _isOwnNonFiniteText) — which the char
-    // arm used to write back as `Class="char"`, so a save that edited nothing turned
-    // MATLAB's [Inf NaN -2 5000i] into a char row. (Untouched or only renamed, as
-    // serializeValue asks it.)
+    // the value it could not read — complex text with an element no reader reads, which
+    // parseCdata shows as a quoted char, and which the char arm used to write back as
+    // `Class="char"` — and it is what writes a binary dictionary's own text with a NaN or
+    // Inf part, which it reads as numbers (see _isComplexText), as the text it was.
+    // (Untouched or only renamed, as serializeValue asks it.)
     const raw = this._rawInput as Record<string, unknown> | undefined;
     const attrStr = attrs && attrs.Name ? ' Name="' + escapeXml(attrs.Name) + '"' : '';
     if (raw && raw._type === 'cdata' && !isMatCdata(raw)) {
@@ -3490,7 +3490,7 @@ export default class MatlabVariableNode extends DataNode {
 
   static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): DataNode {
     const valStr = rawVal._value as string;
-    if (/^[\d.eE+\-i\s]+$/.test(valStr) || MatlabVariableNode._isOwnNonFiniteText(rawVal)) {
+    if (/^[\d.eE+\-i\s]+$/.test(valStr) || MatlabVariableNode._isComplexText(rawVal)) {
       return MatlabVariableNode._parseCdataText(rawVal, name, parent);
     }
     try {
@@ -3584,43 +3584,62 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   /**
-   * Complex text with an Inf or NaN part that this package wrote itself, which the test
-   * above does not admit: McosParser.complexPropertyValue marks the envelope `_nonFinite`
-   * when it spells such a part, and every element has to read as one.
+   * Complex text with an Inf or NaN part, which the test above does not admit: every
+   * element is one XmlUtils.parseComplexNum reads. A binary dictionary's own text, in the
+   * spellings MATLAB writes there — `Inf`, `-Inf` and `NaN` for a part, an imaginary NaN
+   * unsigned (complex_binary.sldd's pNonFinite is `Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i`) or
+   * signed, as this package writes it (`1.0+NaNi`) — and the MCOS decoder's, which spells
+   * such a part with formatComplexNum and marks the envelope `_nonFinite`.
    *
-   * The test stays closed to the binary dictionary's own non-finite text on purpose.
-   * MATLAB writes complex(1, NaN) there as `1.0NaNi` and its own reader takes
-   * `1.0NaNi -Inf+2.0i` back as two REAL elements (complex_binary_sldd.truth.json's
-   * pNonFinite), so what that text means is an open question, and that copy keeps the
-   * quoted-char fallback below (test/parity/matlab/DESIGN.md, defect 57). The decoder's
-   * text has no such question — it is formatComplexNum's spelling of numbers MATLAB's own
-   * .mat bytes hold — and through the fallback a single NaN turned a whole complex array
-   * into one char: `[1+2i NaN 3-4i]` showed `'1+2i NaN+0i 3-4i'`, class char, no rows,
-   * where the plain .mat variable beside it showed three complex doubles.
+   * Only the decoder's marked text was admitted. A binary dictionary's went to the quoted
+   * char below, so MATLAB's own pNonFinite and pMixedNF, [1+2i NaN 3-4i], showed as one
+   * char, class char, with no element rows, and since #82 typing `1+Infi` into an element
+   * of a binary dictionary's complex array, then saving, reopened the whole array as the
+   * text `'1.0+Infi 2.5-3.5i'`. The value read is the one MATLAB wrote, which a text
+   * dictionary's twin holds as its stream. MATLAB's own reader (R2027a) takes `1.0NaNi
+   * -Inf+2.0i` back as two REAL elements, 1 and NaN (complex_binary_sldd.truth.json),
+   * which is why this package's writer signs the NaN (XmlUtils.formatComplexBodyXml).
+   *
+   * A MAT stream is never taken for this: its six-bit characters have no lowercase
+   * letter, and an element ends in `i`. So its first token fails and the text is read no
+   * further, which matters because every stream a text dictionary holds comes through here:
+   * split into its tokens first, as the test did for the decoder's marked text only, one of
+   * hundreds of megabytes would cost what the stream does. What a save writes does not
+   * change, because complex text nobody edited is written back from the text it was read
+   * from (serializeXml).
    */
-  static _isOwnNonFiniteText(rawVal: Record<string, unknown>): boolean {
-    if (rawVal._nonFinite !== true || typeof rawVal._value !== 'string') {
+  static _isComplexText(rawVal: Record<string, unknown>): boolean {
+    if (typeof rawVal._value !== 'string') {
       return false;
     }
-    const parts = rawVal._value.trim().split(/\s+/);
-    return parts.length > 0 && parts.every((t) => parseComplexNum(t) !== null);
+    const token = /\S+/g;
+    let any = false;
+    for (let m = token.exec(rawVal._value); m !== null; m = token.exec(rawVal._value)) {
+      if (parseComplexNum(m[0]) === null) {
+        return false;
+      }
+      any = true;
+    }
+    return any;
   }
 
-  // MATLAB's `.0` is dropped from each part: `3.0+4.0i` reads as `3+4i`. `(?<!\d)` lets a
-  // match start only at the first digit of a run of digits, and that changes no match.
-  // `\.0` has to follow `\d+`, so from any digit of a run `\d+` takes the rest of the run,
-  // and the match holds or fails on what follows the run: the same for every start in it.
-  // The scan tries a run's first digit before the rest, because it never resumes inside a
-  // run (what follows a match is `+`, `-`, `i` or the end). So a start inside a run only
-  // ever failed, and each walked the rest of the run to do it: 100,000 digits took 4.3 s,
-  // and take 0.6 ms now. The text is a dictionary's cdata as read (a binary one's complex
-  // value, or a text one's), so the bytes are the file's.
+  // MATLAB's `.0` is dropped from each part: `3.0+4.0i` reads as `3+4i`, and `1.0NaNi` as
+  // `1NaNi`. A NaN imaginary part is shown unsigned, as formatComplexNum spells it, so the
+  // `1.0+NaNi` this package writes for MATLAB's `1.0NaNi` reads back as the same element.
+  // `(?<!\d)` lets a match start only at the first digit of a run of digits, and that
+  // changes no match. `\.0` has to follow `\d+`, so from any digit of a run `\d+` takes the
+  // rest of the run, and the match holds or fails on what follows the run: the same for
+  // every start in it. The scan tries a run's first digit before the rest, because it never
+  // resumes inside a run (what follows a match is `+`, `-`, `i`, `N` or the end). So a
+  // start inside a run only ever failed, and each walked the rest of the run to do it:
+  // 100,000 digits took 4.3 s, and take 0.6 ms now. The text is a dictionary's cdata as read
+  // (a binary one's complex value, or a text one's), so the bytes are the file's.
   static _parseCdataText(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode {
     const colMajorParts = (rawVal._value as string)
       .trim()
       .split(/\s+/)
       .map(function (s) {
-        return s.replace(/(?<!\d)(\d+)\.0(?=[+\-i]|$)/g, '$1');
+        return s.replace(/(?<!\d)(\d+)\.0(?=[+\-iN]|$)/g, '$1').replace(/([^\s+-])\+NaNi$/, '$1NaNi');
       });
     if (colMajorParts.length === 1) {
       const node = new MatlabVariableNode(name, parent, rawVal);

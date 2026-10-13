@@ -441,21 +441,31 @@ export default class MatlabVariableNode extends DataNode {
      */
     static _parseCdataObjects(rawVal: Record<string, unknown>, bytes: Uint8Array, variable: MatVariable, trailingElements: Uint8Array[], name: string, parent: BaseNode | null): DataNode | null;
     /**
-     * Complex text with an Inf or NaN part that this package wrote itself, which the test
-     * above does not admit: McosParser.complexPropertyValue marks the envelope `_nonFinite`
-     * when it spells such a part, and every element has to read as one.
+     * Complex text with an Inf or NaN part, which the test above does not admit: every
+     * element is one XmlUtils.parseComplexNum reads. A binary dictionary's own text, in the
+     * spellings MATLAB writes there — `Inf`, `-Inf` and `NaN` for a part, an imaginary NaN
+     * unsigned (complex_binary.sldd's pNonFinite is `Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i`) or
+     * signed, as this package writes it (`1.0+NaNi`) — and the MCOS decoder's, which spells
+     * such a part with formatComplexNum and marks the envelope `_nonFinite`.
      *
-     * The test stays closed to the binary dictionary's own non-finite text on purpose.
-     * MATLAB writes complex(1, NaN) there as `1.0NaNi` and its own reader takes
-     * `1.0NaNi -Inf+2.0i` back as two REAL elements (complex_binary_sldd.truth.json's
-     * pNonFinite), so what that text means is an open question, and that copy keeps the
-     * quoted-char fallback below (test/parity/matlab/DESIGN.md, defect 57). The decoder's
-     * text has no such question — it is formatComplexNum's spelling of numbers MATLAB's own
-     * .mat bytes hold — and through the fallback a single NaN turned a whole complex array
-     * into one char: `[1+2i NaN 3-4i]` showed `'1+2i NaN+0i 3-4i'`, class char, no rows,
-     * where the plain .mat variable beside it showed three complex doubles.
+     * Only the decoder's marked text was admitted. A binary dictionary's went to the quoted
+     * char below, so MATLAB's own pNonFinite and pMixedNF, [1+2i NaN 3-4i], showed as one
+     * char, class char, with no element rows, and since #82 typing `1+Infi` into an element
+     * of a binary dictionary's complex array, then saving, reopened the whole array as the
+     * text `'1.0+Infi 2.5-3.5i'`. The value read is the one MATLAB wrote, which a text
+     * dictionary's twin holds as its stream. MATLAB's own reader (R2027a) takes `1.0NaNi
+     * -Inf+2.0i` back as two REAL elements, 1 and NaN (complex_binary_sldd.truth.json),
+     * which is why this package's writer signs the NaN (XmlUtils.formatComplexBodyXml).
+     *
+     * A MAT stream is never taken for this: its six-bit characters have no lowercase
+     * letter, and an element ends in `i`. So its first token fails and the text is read no
+     * further, which matters because every stream a text dictionary holds comes through here:
+     * split into its tokens first, as the test did for the decoder's marked text only, one of
+     * hundreds of megabytes would cost what the stream does. What a save writes does not
+     * change, because complex text nobody edited is written back from the text it was read
+     * from (serializeXml).
      */
-    static _isOwnNonFiniteText(rawVal: Record<string, unknown>): boolean;
+    static _isComplexText(rawVal: Record<string, unknown>): boolean;
     static _parseCdataText(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseTypedVector(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     /**

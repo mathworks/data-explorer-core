@@ -2175,6 +2175,14 @@ Two findings from that hardening, measured and deliberately NOT acted on:
     for an infinite part, as a plain `.mat` variable does. Both dictionary spellings are
     pinned in `complexMcosFixtures.test.ts`.
 
+    Since answered, by `binaryNonFiniteComplex.test.ts`: parseCdata reads complex text as
+    elements whenever every one of them parses, marked or not
+    (`MatlabVariableNode._isComplexText`, which replaced `_isOwnNonFiniteText`), so the
+    binary dictionary's pNonFinite reads as the value MATLAB wrote, the one its text twin
+    holds, `[Inf-Infi NaN+1i 1NaNi -Inf+2i]`, and pMixedNF as `[1+2i NaN+0i 3-4i]`. A save
+    still writes the text as it was read. MATLAB's own read-back of pNonFinite stays recorded
+    in `complexMcosFixtures.test.ts`, which grades that venue against the value written.
+
     **The class of a complex array.** The envelope said nothing about class, and
     `_parseCdataText` classed every complex array `double`: an int16 Value showed `<1x60
     double>`, with Data Type double on its Value row, in a `.mat`, a workspace AND a binary
