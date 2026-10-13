@@ -626,9 +626,12 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
     // [], and a matrix that claims bytes and holds none (its tag the last 8 bytes of a file or
     // a payload) is one cut short before its array flags, read below as the nameless shell of
     // a class unknown, as one cut inside its flags is. Taken for [], it would be an empty
-    // double the bytes never said it is. parseMat keeps either shell as an anonymous variable,
-    // and every other caller hands over a length already clamped to the bytes, where the claim
-    // and `held` are one.
+    // double the bytes never said it is. parseMat keeps either shell as an anonymous variable.
+    // Every other caller hands over a length clamped to the bytes, where the claim and `held`
+    // are one, but for a struct field or a cell element written in the small-element form,
+    // whose claim of up to 4 bytes readSubelement does not clamp: MATLAB writes no matrix that
+    // way, and one that is the last 8 bytes is read as cut short too, with the warning a class
+    // unknown gets.
     if (length <= 0) {
         return { name: '', className: 'double', dimensions: [0, 0], isComplex: false, isLogical: false, value: [], fields: null };
     }

@@ -591,6 +591,17 @@ describe('parseMat — structs', () => {
         claimed ? ['A record at byte 200 declares 64 bytes and the file holds only 0, so it was read short.'] : [],
       ]);
     }
+    // The one nested matrix whose claim is not clamped to the bytes: a field in the
+    // small-element form, its 4 claimed bytes in its own tag, as the file's last 8 bytes. It
+    // is read as cut short too, and says so.
+    const stride = new Uint8Array(4);
+    new DataView(stride.buffer).setInt32(0, 32, true);
+    const small = new Uint8Array(8);
+    new DataView(small.buffer).setUint32(0, MI.MATRIX | (4 << 16), true);
+    const fieldNames = new Uint8Array(32);
+    fieldNames[0] = 0x61;
+    const s = parseMat(matFile([matrix([arrayFlags(CLASS.STRUCT), dims([1, 1]), varName('s'), element(MI.INT32, stride), element(MI.INT8, fieldNames), small])]));
+    expect([(s.variables[0].fields!.a as MatVariable).className, s.warnings.map((w) => w.part)]).toEqual(['unknown', ['s.a']]);
   });
 
   it('REGRESSION: a zero-length field shows and copies as a written-out [] does', () => {
