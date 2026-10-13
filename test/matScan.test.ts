@@ -279,6 +279,25 @@ describe('scanMat — what it refuses, and what the caller gets instead', () => 
     expect([run.head, run.whole]).toEqual([2, 0]);
   });
 
+  it('answers "" on the FAST path for a matrix of no bytes, and reads nothing after its tag', () => {
+    // `parseMatrix` reads an miMATRIX of no bytes as [] with no name (MATLAB writes some empty
+    // struct fields that way), and `parseMat` pushes one at top level as an anonymous variable.
+    // The scanner read on past its tag for array flags, dimensions and a name. Compressed,
+    // with a matrix body after the tag inside the same payload, that body's name came back,
+    // `notMine`, which `parseMat` never gives. Uncompressed, the next record's bytes were read
+    // as its flags, and the doubt they raised sent the whole file to `parseMat`.
+    const empty = record(MI_MATRIX, new Uint8Array(0));
+    const inPayload = matFile([compressed(concat(empty, doubleVariable('notMine').subarray(8))), compressed(doubleVariable('a')), TERMINATOR]);
+    const run = withCounting(NATIVE, () => scanMat(inPayload).names);
+    expect(parseMat(inPayload).variables.map((v) => v.name)).toEqual(['', 'a']);
+    expect([run.result, run.head, run.whole]).toEqual([['', 'a'], 2, 0]);
+
+    const alone = matFile([empty, compressed(doubleVariable('a')), TERMINATOR]);
+    const aloneRun = withCounting(NATIVE, () => scanMat(alone).names);
+    expect(parseMat(alone).variables.map((v) => v.name)).toEqual(['', 'a']);
+    expect([aloneRun.result, aloneRun.head, aloneRun.whole]).toEqual([['', 'a'], 1, 0]);
+  });
+
   it('falls back for a record that declares more bytes than the file holds', () => {
     // `parseMat` clamps every declared length against the buffer and reads the record
     // short, still producing a variable. Reproducing a clamp is reproducing a repair, so
