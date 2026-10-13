@@ -560,10 +560,11 @@ describe('a chunk with no entries', () => {
   // the added entry into the declaration: a document that lost the entry on its next read.
   // The declaration is not one XML allows (an encoding name is letters, digits and `._-`), and
   // the fast reader reads the document all the same. Input the readers accept that is not
-  // well-formed is kept as read where nobody edited it, and a save does not repair it: so the
-  // saved document is no better formed than this one. What these pin is that the declaration is
-  // kept as read, and that what the save writes into the file (an added entry, base-workspace
-  // access) is kept.
+  // well-formed is kept as read where nobody edited it, and a save does not repair it: so by
+  // the XML spec the saved document is no better formed than this one. What these pin is that
+  // the declaration is kept as read, and that what the save writes into the file (an added
+  // entry, base-workspace access) is kept. This file's checker (XMLValidator and tag nesting)
+  // accepts the declaration, so it still checks the structure of what the save writes.
   const declaration = '<?xml version="1.0" encoding="<DataSource>"?>';
   const declared = `${declaration}\n<DataSource FormatVersion="1" MinRelease="R2014a">\n${DICTIONARY}</DataSource>\n`;
 
@@ -583,6 +584,7 @@ describe('a chunk with no entries', () => {
     // The declaration as read, and the entry straight after the DataSource tag itself.
     expect(out.startsWith(declaration + '\n<DataSource FormatVersion="1" MinRelease="R2014a">\n'), 'the declaration, as read').toBe(true);
     expect(out).toBe(xml.slice(0, at) + '\n' + serializer.regenerateEntryXml(added).slice(0, -1) + xml.slice(at));
+    expectWellFormed(out, 'an entry added');
     // And the entry is kept: reopened, the file holds it.
     expect(entries(fromChunk(out).root).map((e: any) => e.name)).toEqual(['pFirst']);
   });
@@ -594,6 +596,7 @@ describe('a chunk with no entries', () => {
     toggled.root.allowAccessBWS = true;
     const written = savedChunk(toggled.session, toggled.root);
     expect(written.startsWith(xml.slice(0, at)), 'the declaration, as read').toBe(true);
+    expectWellFormed(written, 'base-workspace access set');
     expect(fromChunk(written).root.allowAccessBWS).toBe(true);
   });
 });

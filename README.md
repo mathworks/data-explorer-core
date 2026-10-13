@@ -73,9 +73,13 @@ both are part of the contract:
   `editProperty` (a rename is one), `addEntry`, `addChild`, `deleteNode` and the
   session's other edit methods, with their `undo` and `redo`. Each marks the entry
   it changes, `Modified` (or `New` for an added one), and the save writes a marked
-  entry from the model. A direct assignment to a node object's fields, such as
-  `p.Value = 42`, marks nothing and is not saved: the entry is written as the
-  bytes it was read from.
+  entry from the model. A change made around the API marks nothing, so it is not
+  guaranteed to be saved: a value changed in place, such as `p.Value = 42`, is
+  not, and the entry is written as the bytes it was read from. Before it writes an
+  unedited entry's bytes, the save does check the entry's name, section and the
+  metadata it writes, and writes the entry from the model where any of those has
+  changed; that guards against some edits made around the API but does not widen
+  the contract.
 
 ## Usage across a folder
 
