@@ -167,6 +167,29 @@ describe('a size holding NaN, an infinity or a bigint, which a text dictionary\'
     }
   });
 
+  it('in a binary dictionary, an edited pasted struct with bigint dims is refused by serialize() as not a count, as in a text one, and so is its save', () => {
+    // StructNode.serializeValue counts an edited struct's elements, and a bigint extent threw a
+    // raw TypeError there, "Cannot mix BigInt and other types, use explicit conversions". A
+    // bigint is refused before the count now, as the text path refuses it. NaN and an
+    // infinity are still copied as they stand there (the case above), and an unedited struct
+    // is its value as read.
+    for (const [said, d] of [['[1n,2n]', [1n, 2n]], ['[1,2n]', [1, 2n]]] as const) {
+      const values: [() => unknown, (entry: any) => unknown, string][] = [
+        [() => struct([...d]), (entry) => entry.children[0].setProperty('Value', '2'), 'pasted is a struct'],
+        [() => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: struct([...d]) }], _fields: ['f'] }), (entry) => entry.children[0].children[0].setProperty('Value', '2'), 'pasted.f is a struct'],
+        // A Parameter's Value is written from its value, so there the save threw the TypeError too.
+        [() => ({ _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: struct([...d]) } }] }), (entry) => entry.children[0].children[0].setProperty('Value', '2'), 'pasted.Value is a struct'],
+      ];
+      for (const [value, edit, at] of values) {
+        const want = ['MatBudgetError', 'not-a-count', `Cannot write "pasted": ${at} declaring dimensions ${said}${NOT_A_COUNT}`];
+        const binary = pasteInto(BINARY, value(), edit);
+        expect([refusal(binary.copy), refusal(binary.save)], `${said} ${at}`).toEqual([want, want]);
+        const unedited = pasteInto(BINARY, value());
+        expect([unedited.copy, refusal(unedited.save)], `${said} ${at}, unedited`).toEqual([null, want]);
+      }
+    }
+  });
+
   it('a host\'s dictionary content holding NaN or a bigint, which no text file holds, is refused, as a cell and as complex text', () => {
     for (const [said, d] of [['[NaN,1]', [NaN, 1]], ['[NaN,Infinity]', [NaN, Infinity]], ['[1n,2n]', [1n, 2n]]] as const) {
       for (const [value, cls] of [[cell([...d]), 'cell'], [{ _type: 'cdata', _value: '1+2i', _dimensions: [...d] }, 'double']] as const) {

@@ -176,8 +176,11 @@ export default class StructNode extends DataNode {
         // In a text dictionary, dims holding NaN, an infinity or a bigint, refused, finally,
         // before they are counted: a bigint threw a TypeError there
         // (DataNode._textSpellableOrRefuse). Elsewhere the value is its copy as it stands, and
-        // a binary save refuses such dims itself (serializeXml).
-        if (this._ownerFormat() === 'json') {
+        // a binary save refuses such dims itself (serializeXml). But a bigint cannot be counted
+        // anywhere: there it threw the same raw TypeError, "Cannot mix BigInt and other types",
+        // out of serialize(). So dims holding one are refused there too, by the same refusal,
+        // and NaN and an infinity, which count, are still copied as they stand.
+        if (this._ownerFormat() === 'json' || d.some((x) => typeof x === 'bigint')) {
             this._textSpellableOrRefuse(d, 'struct');
         }
 
