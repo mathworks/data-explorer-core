@@ -1226,6 +1226,24 @@ function collectUndecoded(variable: MatVariable, path: string, warnings: ParseWa
     }
 
     if (variable.fields) {
+        // A struct array with fields whose bytes ran out holds fewer elements than it
+        // declares: the file contradicting itself, as a short cell does below, and reported
+        // once for the array, as that is. It said nothing, while a host showed a row for each
+        // declared element, the ones past the bytes empty. Counted in whole elements, every
+        // field of them read: one cut inside its fields has a row for those it holds
+        // (structElementsHeld), and is reported as not read.
+        const declared = variable.dimensions.reduce((a, b) => a * b, 1);
+        let read = declared;
+        for (const list of Object.values(variable.fields)) {
+            if (Array.isArray(list)) { read = Math.min(read, list.length); }
+        }
+        if (declared > read) {
+            warnings.push({
+                code: 'part-unreadable',
+                message: `"${path}" declares ${declared} element(s) and only ${read} could be read.`,
+                part: path,
+            });
+        }
         for (const [name, field] of Object.entries(variable.fields)) {
             if (Array.isArray(field)) {
                 // A struct ARRAY: one entry per element, so the path names the element

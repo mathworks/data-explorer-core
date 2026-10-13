@@ -671,6 +671,41 @@ describe('parseMat — the warnings channel', () => {
     expect(names(parsed.warnings)).toEqual(['c{2}']);
   });
 
+  it('reports a struct array whose bytes hold fewer elements than it declares, once, as it reports a short cell', () => {
+    // MATLAB writes every field of every element, so a struct array holding fewer elements
+    // than it declares is the file contradicting itself, as a cell holding fewer cells is.
+    // It said nothing, and a host showed a row for each declared element, the ones past the
+    // bytes empty; it shows the elements held now, and this says why there are no more.
+    const short = (name: string, d: number[], held: number, fields = ['a']) =>
+      structVar(name, fields, Array.from({ length: held }, () => Object.fromEntries(fields.map((f) => [f, scalar('', 1)]))), d);
+    const said = (path: string, declared: number, read: number) => ({
+      code: 'part-unreadable',
+      message: `"${path}" declares ${declared} element(s) and only ${read} could be read.`,
+      part: path,
+    });
+    expect(parseMat(matFile([short('s', [1, 3], 2)])).warnings).toEqual([said('s', 3, 2)]);
+    // Counted in whole elements: a 1x3 whose third element lost its second field, beside the
+    // warning of the record that lost it.
+    const m = short('m', [1, 3], 3, ['a', 'b']);
+    expect(parseMat(matFile([m.slice(0, m.length - 64)])).warnings.slice(1)).toEqual([said('m', 3, 2)]);
+    // One that names its fields and holds none of its elements.
+    expect(parseMat(matFile([short('s', [2, 5], 0, ['a', 'b'])])).warnings).toEqual([said('s', 10, 0)]);
+    // Named the way MATLAB names it: in a struct, an element of a struct array, and a cell.
+    const parsed = parseMat(
+      matFile([
+        structVar('t', ['f'], [{ f: short('', [1, 4], 1) }]),
+        structVar('u', ['f'], [{ f: short('', [1, 2], 2) }, { f: short('', [1, 9], 3) }], [1, 2]),
+        cellVar('c', [scalar('', 1), short('', [3, 1], 1)]),
+      ]),
+    );
+    expect(parsed.warnings).toEqual([said('t.f', 4, 1), said('u(2).f', 9, 3), said('c{2}', 3, 1)]);
+    // Silent for one holding every element it declares, a 1x1, an empty one and one with no
+    // fields, which MATLAB writes with a stride of 1 and no names.
+    const stride = new Uint8Array([1, 0, 0, 0]);
+    const fieldless = matrix([arrayFlags(CLASS.STRUCT), dims([1, 5]), varName('n'), element(MI.INT32, stride), element(MI.INT8, new Uint8Array(0))]);
+    expect(parseMat(matFile([short('w', [2, 3], 6), short('o', [1, 1], 1), short('e', [0, 0], 0), fieldless])).warnings).toEqual([]);
+  });
+
   it('names a variable whose array class this reader does not model', () => {
     // Class 16 is a function handle. The variable IS in the file and comes back with a
     // null value, which is indistinguishable from an empty one — the exact confusion
@@ -744,11 +779,14 @@ describe('parseMat — the warnings channel', () => {
       },
     ]);
     expect(parsed.variables.map((v) => [v.name, v.value])).toEqual([['x', [1, 2, 3, 4]], ['after', 2]]);
-    // A struct array cut short that way, its elements past the payload's end.
+    // A struct array cut short that way, its elements past the payload's end: the record's
+    // warning, and the array's own, that it holds fewer elements than it declares, the two a
+    // cell cut short that way has.
     const s = structVar('s', ['a'], [{ a: scalar('', 1) }, { a: scalar('', 2) }, { a: scalar('', 3) }], [1, 3]);
     const short = s.slice(0, s.length - 64);
     const struct = parseMat(matFile([compressedRecord(short)]));
-    expect(codesAndParts(struct.warnings)).toEqual([['part-unreadable', 's']]);
+    expect(codesAndParts(struct.warnings)).toEqual([['part-unreadable', 's'], ['part-unreadable', 's']]);
+    expect(struct.warnings[1].message).toBe('"s" declares 3 element(s) and only 2 could be read.');
     expect((struct.variables[0].fields!.a as unknown[]).length).toBe(2);
     // A payload whose variable claims what it holds says nothing.
     expect(parseMat(matFile([compressedRecord(s)])).warnings).toEqual([]);
