@@ -159,6 +159,53 @@ export declare function needsExactInt(type: string | null | undefined): boolean;
  * Numbers pass through untouched, so this is safe to map over a whole element list.
  */
 export declare function exactForClass(value: unknown, type: string | null | undefined): unknown;
+/** Is this one of MATLAB's eight integer classes? */
+export declare function isIntegerClass(type: string | null | undefined): type is string;
+/**
+ * A number as MATLAB converts it to integer class `type`: rounded to the nearest integer, a
+ * tie away from zero, then saturated at the class's range, with NaN as 0. So int16(70000)
+ * is 32767, int16(-70000) is -32768, int8(2.5) is 3, int8(-2.5) is -3, uint8(-1) is 0 and
+ * int16(NaN) is 0. The result is a number, or for an int64/uint64 the exact decimal text a
+ * double cannot hold (exactInt): int64(2^60) is 1152921504606846976, which String() spells
+ * 1152921504606847000, another int64. It is never -0, which no integer class holds:
+ * int8(-0) is 0.
+ *
+ * An exact decimal token (isExactToken) is the integer it spells, saturated, in exactInt's
+ * form. Anything else is read as Number() reads it. A value the class already holds comes
+ * back as the same value: a number as it was given, and a token as it was given too, since
+ * every token a reader makes is already in exactInt's form (parseExactNum, exactInt). So a
+ * value MATLAB wrote is never respelled. The one token that is not is the `-0` a typed `-0`
+ * is (parseExactNum, because String(-0) is '0'), which was returned as given, so `-0` typed
+ * into an int8 was shown as `-0` and written as `"_value": "-0"`.
+ *
+ * The writers each converted their own way, and none of them MATLAB's: a MAT stream through
+ * DataView, which wraps and truncates (int16 70000 went out as 4464, 3.7 as 3), the binary
+ * dictionary's XML through Math.round, which takes a tie up and saturates nothing (-2.5 as
+ * -2, 70000 as 70000), and an edit held the number as typed.
+ */
+export declare function toIntegerClass(value: unknown, type: string): number | string;
+/**
+ * toIntegerClass for one class, its range looked up once: for a writer converting each of a
+ * value's elements (MatWriter.numericPayload).
+ */
+export declare function integerConversion(type: string): (value: unknown) => number | string;
+/**
+ * One EDITED numeric token, stored as its class holds it: under an integer class as MATLAB
+ * converts it (toIntegerClass), under any other as exactForClass narrows it.
+ */
+export declare function valueForClass(value: unknown, type: string | null | undefined): unknown;
+/**
+ * One complex element's text as integer class `type` holds it: each part converted on its
+ * own (toIntegerClass). The text comes back as it was when neither part changes, so an
+ * element MATLAB wrote keeps its spelling; otherwise it is the converted parts, spelled as
+ * formatComplexNum spells them. Text that is not one element (parseComplexNum) comes back
+ * as it was.
+ *
+ * A part changes when its conversion is not the same value by Object.is, under which -0 is
+ * not 0: compared with ===, a part of -0 was unchanged, so `-0-0i` typed into an int16
+ * element kept its text and was shown as `-0-0i`. Now it is `0+0i`.
+ */
+export declare function complexForIntegerClass(text: string, type: string): string;
 export declare function formatDoubleXml(num: unknown): string;
 export declare function formatNumericXml(num: unknown, type: string): string;
 export declare function formatNumLiteral(num: unknown, type: string): string;
@@ -226,6 +273,10 @@ export declare function formatComplexXml(complexStr: string): string;
  * complex_binary.sldd's pNonFinite, [complex(Inf,-Inf) complex(NaN,1) complex(1,NaN)
  * complex(-Inf,2)], saved each way: MATLAB read `1.0NaNi` back as [Inf-Infi NaN+1i 1 NaN],
  * as it reads its own file, and `1.0+NaNi` as the value it is.
+ *
+ * An integer class's parts are the integers MATLAB converts them to (complexForIntegerClass),
+ * so text a host hands over as `3.7+70000i` under int16 is written `4+32767i`. An element
+ * the class already holds is written as it is.
  */
 export declare function formatComplexBodyXml(text: string, className: string): string;
 export declare function transposeToColumnMajor<T>(rowMajor: T[], rows: number, cols: number): T[];

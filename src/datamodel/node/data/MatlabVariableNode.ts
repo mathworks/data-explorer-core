@@ -85,7 +85,9 @@ import {
   complexClassTag,
   isExactToken,
   needsExactInt,
-  exactForClass,
+  valueForClass,
+  complexForIntegerClass,
+  isIntegerClass,
   transposeToColumnMajorND,
   transposeFromColumnMajorND,
   pad as xmlPad,
@@ -1097,6 +1099,11 @@ export default class MatlabVariableNode extends DataNode {
     // cannot express. `_elementType` is the array's complexity as it was built, not
     // _isComplexValue's reading of its elements now, so an array whose elements have all
     // been set to real numbers still takes back the complex ones an undo restores.
+    //
+    // An integer class's element holds each part as MATLAB converts it to the class
+    // (XmlUtils.complexForIntegerClass): `70000+1i` and `3.7+4.2i` in an int16 array are
+    // 32767+1i and 4+4i. They were held as typed, and the writers wrapped and truncated
+    // them into 4464+1i and 3+4i. Text whose parts the class already holds stays as typed.
     if (isArrayElement && parent._elementType === 'complex' && parsed?.type !== 'double') {
       const typed = stringValue.trim();
       const text = parseComplexNum(typed, parent._scalarType)
@@ -1106,7 +1113,7 @@ export default class MatlabVariableNode extends DataNode {
           : null;
       if (text !== null) {
         this._scalarType = 'complex';
-        this._scalarValue = text;
+        this._scalarValue = isIntegerClass(parent._scalarType) ? complexForIntegerClass(text, parent._scalarType) : text;
         parent._syncElementFromChild(this);
         parent._rawInput = undefined;
         this._markModified();
@@ -1145,13 +1152,14 @@ export default class MatlabVariableNode extends DataNode {
     // store a logical ARRAY as 1/0 (see parseTypedVector). An edited element must not
     // become the only boolean in it.
     //
-    // exactForClass on the numeric arm for the same reason as _applyParsed: a uint64
-    // array's element is the one element that can be an integer no double holds, and
-    // the container's class — read one line above — is what says so.
+    // valueForClass on the numeric arm for the same reason as _applyParsed: a uint64
+    // array's element is the one element that can be an integer no double holds, and an
+    // integer class's element is the integer MATLAB converts the number to (int16 70000 is
+    // 32767, 3.7 is 4); the container's class, read one line above, is what says so.
     this._scalarValue = isLogicalElement
       ? (parsed.value ? 1 : 0)
       : isArrayElement
-        ? exactForClass(parsed.value, this._scalarType)
+        ? valueForClass(parsed.value, this._scalarType)
         : parsed.value;
     if (!isArrayElement) {
       // A string-array element is a string-KIND node (see _makeStringElement), and
@@ -1224,23 +1232,26 @@ export default class MatlabVariableNode extends DataNode {
     // class, so classAfterEdit lets it survive the parser's 'double' default — see
     // its comment. Read before any arm overwrites it.
     const prevType = this._scalarType;
-    // exactForClass, not the parser's token as-is: MatlabValueParser hands back exact
+    // valueForClass, not the parser's token as-is: MatlabValueParser hands back exact
     // decimal TEXT for an integer a double cannot hold (defect 42 — typing intmax('uint64')
     // used to store 18446744073709552000), and this is the one edit path that knows the
     // class the value is about to have, so it is the one that can say whether the text
     // form is meaningful. Under int64/uint64 it is kept and the writers spell it
     // untouched; under any other class it collapses to the double, which is what MATLAB
-    // itself stores for a bare decimal literal. Hence _scalarType is computed FIRST here.
+    // itself stores for a bare decimal literal. And under an integer class each number is
+    // the integer MATLAB converts it to: an int16 entry set to 70000 holds 32767, as
+    // int16(70000) is, where it held 70000 and a text dictionary wrote `"70000"` for it.
+    // Hence _scalarType is computed FIRST here.
     if (parsed.type === 'double' && Array.isArray(parsed.value) && parsed.value.length === 1) {
       this._kind = 'scalar';
       this._scalarType = classAfterEdit(prevType, 'double');
-      this._scalarValue = exactForClass(parsed.value[0], this._scalarType);
+      this._scalarValue = valueForClass(parsed.value[0], this._scalarType);
       this._dims = [1, 1];
       this.serial = {};
     } else if (parsed.type === 'double' && Array.isArray(parsed.value)) {
       this._kind = 'array';
       this._scalarType = classAfterEdit(prevType, 'double');
-      this._elements = parsed.value.map((v) => exactForClass(v, this._scalarType));
+      this._elements = parsed.value.map((v) => valueForClass(v, this._scalarType));
       this._dims = parsed.dims!;
       this._syncArraySerial();
       this._buildArrayChildren();
@@ -1283,9 +1294,9 @@ export default class MatlabVariableNode extends DataNode {
       this._scalarType = classAfterEdit(prevType, parsed.type);
       // The bare-scalar arm (`5`, `18446744073709551615`) shares this branch with char,
       // string, logical and complex, so the exact-token narrowing is gated on the parsed
-      // TYPE: a char value can be all digits ('123'), and exactForClass would turn it
+      // TYPE: a char value can be all digits ('123'), and valueForClass would turn it
       // into a number.
-      this._scalarValue = parsed.type === 'double' ? exactForClass(parsed.value, this._scalarType) : parsed.value;
+      this._scalarValue = parsed.type === 'double' ? valueForClass(parsed.value, this._scalarType) : parsed.value;
       // A char is the one scalar-KIND value that can be bigger than 1x1: it is stored
       // as one string, so ['ab'; 'cd'] arrives here as the 4-character 'acbd' with
       // dims [2,2] beside it (see charFromRows). Forcing [1, 1] made committing a char
