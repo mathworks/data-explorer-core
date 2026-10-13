@@ -20,9 +20,8 @@
 // spelling of an empty enumeration entry (`<P Name="Value" IsEnum="1" Class="dSomeColors"
 // Dimension="0*2"/>`, test/undoRestoresValue.test.ts), moved the same way, of GearMode.
 //
-// Only the cell element changes. An enumeration entry or object property still reads as it
-// did (the last describe pins that), which is the open item about enumeration values outside
-// cells.
+// An enumeration entry or object property reads the same way (the last describe pins that;
+// test/enumEntryProperty.test.ts has the rest of it).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -252,10 +251,11 @@ describe('and is saved as MATLAB wrote it', () => {
     expect(copy).toContain(cellP('Cells', CELL, 16));
   });
 
-  it('and pasted into a text dictionary, it is written with no key a text dictionary has no reader for', () => {
-    // A text dictionary spells an enumeration value another way (`_enum_value`); converting
-    // between the two is part of the open item about enumeration values, so the paste writes
-    // the object bag it always wrote, and nothing this reader keeps for a binary save.
+  it('and pasted into a text dictionary, it is written as MATLAB writes one there, with no key a text dictionary has no reader for', () => {
+    // A text dictionary spells an enumeration value as one element holding the numbers its
+    // enumerals stand for, under `_enum_value`, in a 1x1 bag (MatWriter.enumTextForm), as
+    // custom_object_text.sldd holds gearValue and gearRow. An empty one is the bag it was
+    // written as before, how a text dictionary spells one waiting on MATLAB reading one back.
     const session = createSession();
     const bin: any = ingest(session, buffer(zipSync({ ...unzipSync(bytesAt(HOST)), 'data/chunk0.xml': strToU8(VENUES[0].build(HOST_XML, CELL)) })), { filename: 'custom_object_binary.sldd' });
     const txt: any = ingest(session, buffer(bytesAt(TEXT_HOST)), { filename: 'custom_object_text.sldd' });
@@ -267,7 +267,8 @@ describe('and is saved as MATLAB wrote it', () => {
     const text = session.serializeSource(txt.name)!.text!;
     const entries: any[] = JSON.parse(text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
     const cells = entries.find((e) => e.name === 'widgetCopy').value._elements[0]._properties.Cells;
-    expect(cells._elements[1]).toEqual({ _array_class: 'GearMode', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: {} }] });
+    const enumValue = (value: string) => ({ _array_class: 'GearMode', _dimensions: [1, 1], _elements: [{ _enum_value: { _type: 'int32', _value: value } }], _mw_element_type: 'MATLABArray' });
+    expect(cells._elements.slice(1)).toEqual([enumValue('-1'), enumValue('[0, 1, -1]'), { _array_class: 'GearMode', _dimensions: [0, 2], _mw_element_type: 'MATLABArray', _elements: [] }]);
     expect(JSON.stringify(cells)).not.toMatch(/_is_enum|_enumeration/);
   });
 });
@@ -304,10 +305,10 @@ describe('the parsed cell element keeps what MATLAB wrote', () => {
     ]);
   });
 
-  it('and an enumeration entry or object property reads as it did', () => {
-    const bag = { _array_class: 'GearMode', _dimensions: [1, 1], _mw_element_type: 'MATLABArray', _elements: [{ _properties: {} }] };
-    expect(valueOf(HOST_XML, 'gearValue')).toEqual(bag);
-    expect(valueOf(HOST_XML, 'widget')._elements[0]._properties.Mode).toEqual(bag);
-    expect(valueOf(HOST_XML, 'gearRow')).toEqual({ ...bag, _dimensions: [1, 3], _elements: [{ _properties: {} }, { _properties: {} }, { _properties: {} }] });
+  it('and an enumeration entry or object property reads as one in a cell does', () => {
+    const [, scalar, row] = valueOf(VENUES[0].build(HOST_XML, CELL), 'widget')._elements[0]._properties.Cells._elements;
+    expect(valueOf(HOST_XML, 'gearValue')).toEqual(scalar);
+    expect(valueOf(HOST_XML, 'widget')._elements[0]._properties.Mode).toEqual(scalar);
+    expect(valueOf(HOST_XML, 'gearRow')).toEqual(row);
   });
 });

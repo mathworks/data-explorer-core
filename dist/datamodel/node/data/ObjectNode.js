@@ -106,9 +106,10 @@ export default class ObjectNode extends DataNode {
         // all — it is always a scalar, which effectiveDims spells [1, 1].
         return effectiveDims(raw._dimensions);
     }
-    // An enumeration value read out of a cell (XmlUtils.ENUM_KEY) shows its enumeral, as
-    // MATLAB names it, `GearMode.Reverse`; an array of them, or one with no enumeral name, its
-    // summary as any object does, and each element of the array its own enumeral.
+    // An enumeration value (XmlUtils.ENUM_KEY), at an entry, a property or in a cell, shows its
+    // enumeral, as MATLAB names it, `GearMode.Reverse`; an array of them, or one with no
+    // enumeral name, its summary as any object does, and each element of the array its own
+    // enumeral.
     get displayValue() {
         const rawVal = this.serial._rawVal;
         if (rawVal && isEnumBag(rawVal)) {
@@ -124,6 +125,26 @@ export default class ObjectNode extends DataNode {
     // one: `GearMode.Reverse` typed into a MATLAB value is a char.
     get valueEditable() {
         return !isEnumBag(this.serial._rawVal) && super.valueEditable;
+    }
+    // Nor a Description: an enumeration value has none in the file to hold one (`<P Name="Value"
+    // IsEnum="1">` is all MATLAB writes of it), so one typed here would show and be gone on the
+    // next read. An empty enumeration entry refused one already, while it read as a numeric empty.
+    get descriptionEditable() {
+        return !isEnumBag(this.serial._rawVal) && super.descriptionEditable;
+    }
+    // And a value set on one is refused rather than taken: DataNode's generic tail would keep the
+    // text on a field nothing writes, and report the edit done. An entry holding an empty
+    // enumeration array took an editor this way, as a numeric empty, before its IsEnum was read.
+    setProperty(propName, stringValue) {
+        if (isEnumBag(this.serial._rawVal) && this._resolveProperty(propName) === 'Value') {
+            return {
+                error: true,
+                reason: `'${this.displayName}' is an enumeration value, which this editor shows but cannot change.`,
+                invalidValue: stringValue,
+                validValue: this.displayValue,
+            };
+        }
+        return super.setProperty(propName, stringValue);
     }
     getProperties() {
         return [PropName, PropValue, PropDataType, PropDescription];
@@ -214,7 +235,7 @@ export default class ObjectNode extends DataNode {
         // Dims no Dimension can spell, refused, finally (DataNode._spellableOrRefuse).
         this._spellableOrRefuse((this.serial._rawVal || {})._dimensions, this.arrayClass || 'object');
         // An enumeration value, scalar, array or empty, as it was read (DataNode._enumXml): an
-        // entry's cell writes each element through here.
+        // entry holding one is written through here, and so is each element of an entry's cell.
         if (isEnumBag(this.serial._rawVal)) {
             const name = attrs && attrs.Name ? ' Name="' + escapeXml(attrs.Name) + '"' : '';
             return DataNode._enumXml(tagName, name, this.name, this.serial._rawVal, indent, undefined);

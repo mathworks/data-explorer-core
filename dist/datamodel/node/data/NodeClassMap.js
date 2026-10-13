@@ -130,7 +130,7 @@ export function parseValue(rawVal, name, parent) {
         // per element, each element parsed as a SCALAR through its own typed node.
         // Only a SINGLE-element value object dispatches straight to its typed class.
         const elements = obj._elements || [];
-        // An enumeration value read out of a cell (XmlUtils.ENUM_KEY) is ObjectNode's whatever
+        // An enumeration value (XmlUtils.ENUM_KEY) is ObjectNode's whatever
         // its class: an enumeration class may share a name with a class registered here, whose
         // node knows nothing of enumerals.
         if (elements.length > 1 || isEnumBag(obj)) {

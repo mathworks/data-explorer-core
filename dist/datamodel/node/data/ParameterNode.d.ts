@@ -15,6 +15,7 @@ export default class ParameterNode extends DataNode {
     get className(): string;
     get dataType(): string;
     get displayValue(): string;
+    get valueEditable(): boolean;
     _adoptValueNode(rawValue: unknown, edited?: boolean): void;
     static _needsValueRow(valueNode: BaseNode): boolean;
     childStructureChanged(child: BaseNode): void;

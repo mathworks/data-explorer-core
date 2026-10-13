@@ -551,6 +551,15 @@ function parseEntryValue(prop) {
     const className = prop['@_Class'] || null;
     const dimension = prop['@_Dimension'] || null;
     const elements = prop.Element;
+    // Before the object arm below, which took an enumeration value's enumeral for an object
+    // with no properties, and before the numeric tail, which took an empty one for a numeric
+    // empty of its class: the cell reader's question, asked of an entry (see enumValue).
+    if (prop['@_IsEnum'] !== undefined) {
+        const enumerated = enumValue(prop, dimension);
+        if (enumerated) {
+            return enumerated;
+        }
+    }
     // Struct: Class="struct" with Element children (no Class on Element)
     if (className === 'struct') {
         return structValue(elements || [], dimension ? parseDims(dimension) : [1, 1], fieldNamesOf(prop));
@@ -745,18 +754,22 @@ function parseCellElement(el) {
     return text || '';
 }
 /**
- * An enumeration value in a cell, as the object bag a classed value is, keeping what MATLAB
- * wrote of it (XmlUtils.ENUM_KEY): the cell element's `IsEnum`, and each enumeral's
- * `EnumerationName`, `EnumerationType` and text. Null for an element marked IsEnum that is not
- * spelled the way MATLAB spells one, which the arms after it read as they always did.
+ * An enumeration value, as the object bag a classed value is, keeping what MATLAB wrote of it
+ * (XmlUtils.ENUM_KEY): the wrapper's `IsEnum`, and each enumeral's `EnumerationName`,
+ * `EnumerationType` and text. Null for a wrapper marked IsEnum that is not spelled the way MATLAB
+ * spells one, which the arms after it read as they always did. Asked first at each of the three
+ * places a value is read, an entry's Value (parseEntryValue), an object's property or a struct's
+ * field (parsePropContent) and a cell's element (parseCellElement), so that the same value reads
+ * the same wherever it sits.
  *
- * MATLAB states the value in a cell as it states it at a `<P>`, less the Name: `<Element
- * IsEnum="1">` around one `<Element Class="GearMode" EnumerationName="Reverse"
- * EnumerationType="int32">-1</Element>`, `<Element IsEnum="1" Dimension="1*3">` around three,
- * and an empty one as `<Element IsEnum="1" Class="GearMode" Dimension="0*2"/>`, its class on
- * the wrapper since there is no enumeral to carry it. Read without the IsEnum, the value was a
- * GearMode with no properties: `<1x1 GearMode>` on screen, and `<Element><Element
- * Class="GearMode"/></Element>` on every save, untouched or not.
+ * MATLAB writes `<P Name="Value" IsEnum="1">` around one `<Element Class="GearMode"
+ * EnumerationName="Reverse" EnumerationType="int32">-1</Element>`, `<P … IsEnum="1"
+ * Dimension="1*3">` around three, and an empty one as `<P … IsEnum="1" Class="dSomeColors"
+ * Dimension="0*2"/>`, its class on the wrapper since there is no enumeral to carry it; in a
+ * cell the same, less the Name, under `<Element>`. Read without the IsEnum, the value was a
+ * GearMode with no properties, `<1x1 GearMode>` on screen and `<Element Class="GearMode">` on
+ * every save, untouched or not; and the empty one a numeric empty that lost its IsEnum, or at a
+ * property, ''.
  */
 function enumValue(el, dimension) {
     const members = el.Element || [];
@@ -944,6 +957,14 @@ function parsePropContent(prop) {
     const propClass = prop['@_Class'] || null;
     const dimension = prop['@_Dimension'] || null;
     const childElements = prop.Element;
+    // An enumeration value, as at an entry and in a cell (see enumValue): before the arms
+    // below, which read its enumerals as objects with no properties and an empty one as ''.
+    if (prop['@_IsEnum'] !== undefined) {
+        const enumerated = enumValue(prop, dimension);
+        if (enumerated) {
+            return enumerated;
+        }
+    }
     if (childElements && childElements.length > 0) {
         if (propClass === 'cell') {
             // A nested cell property (with or without a Dimension) serializes its

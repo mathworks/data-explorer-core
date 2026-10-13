@@ -1327,8 +1327,7 @@ export default class DataNode extends BaseNode {
      * property's `<P Name="…">`, or the classless `<Element>` a cell element holding an object
      * is — cellarr_binary.sldd's cObj is `<Element>` around one `<Element
      * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two. An
-     * enumeration value read out of a cell is one of these bags too, and has a spelling of its
-     * own (_enumXml).
+     * enumeration value is one of these bags too, and has a spelling of its own (_enumXml).
      */
     static _objectXml(tag, attrs, name, value, indent, ownerNode, at) {
         if (isEnumBag(value)) {
@@ -1380,15 +1379,16 @@ export default class DataNode extends BaseNode {
         return xml;
     }
     /**
-     * An enumeration value read out of a cell (XmlUtils.ENUM_KEY) under `tag`, as MATLAB wrote
-     * it: the `IsEnum` it carried, then a Dimension unless it is a scalar, around one `<Element
-     * Class="…" EnumerationName="…" EnumerationType="…">` per enumeral holding its value text —
-     * or, empty, self-closed with its class and Dimension, there being no enumeral to name the
-     * class. A cell element's is `<Element IsEnum="1">`; the same value at a property would be
-     * `<P Name="…" IsEnum="1">`, which is how MATLAB writes one there.
+     * An enumeration value (XmlUtils.ENUM_KEY) under `tag`, as MATLAB wrote it: the `IsEnum` it
+     * carried, then a Dimension unless it is a scalar, around one `<Element Class="…"
+     * EnumerationName="…" EnumerationType="…">` per enumeral holding its value text — or, empty,
+     * self-closed with its class and Dimension, there being no enumeral to name the class. A cell
+     * element's is `<Element IsEnum="1">`, a property's or an entry's `<P Name="…" IsEnum="1">`.
      *
-     * Reached from `_objectXml`, whose object spelling used to take the enumeral for an object
-     * with no properties and write `<Element Class="GearMode"/>`, its name and value gone.
+     * Reached from `_objectXml`, for a property or a cell held as a raw value, and from
+     * ObjectNode.serializeXml, for an entry and an entry's cell; the object spelling took the
+     * enumeral for an object with no properties and wrote `<Element Class="GearMode"/>`, its name
+     * and value gone.
      */
     static _enumXml(tag, attrs, name, value, indent, at) {
         const p = xmlPad(indent);

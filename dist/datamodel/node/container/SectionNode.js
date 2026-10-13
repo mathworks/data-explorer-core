@@ -5,6 +5,7 @@ import ContainerNode from '../ContainerNode.js';
 // reach the class map without a cycle. NodeClassMap installs itself into it.
 import * as NodeRegistry from '../NodeRegistry.js';
 import { matlabTimestampNow } from '../../parser/XmlUtils.js';
+import { MatBudgetError, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
 import { classificationOf as _classificationOf, renameInCatalog as _renameInCatalog, } from '../../parser/ScCatalog.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
@@ -223,7 +224,34 @@ export default class SectionNode extends ContainerNode {
     // Always returns a node: parseValue's matcher chain falls through to
     // MatlabVariableNode for any shape it does not recognize, so an unfamiliar value
     // still models as something rather than dropping the entry out of the file.
+    //
+    // An entry handed in to a text dictionary, a paste or a drop, is held as the text dictionary
+    // will hold it (MatWriter.textDictionaryForm), so that what it shows is what a save writes and
+    // a reopen reads. A value copied out of a binary dictionary is in that reader's form, which a
+    // text dictionary spells otherwise: an enumeration value, an empty that keeps its class and
+    // size. Held in it, the pasted entry showed `GearMode.Reverse` or `<0x2 dSomeColors>`, and the
+    // save wrote what a text dictionary holds for it, which reopened as `<1x1 GearMode>` or `[ ]`.
+    // A value the save will refuse is held as it came, so that the refusal is the save's, naming
+    // the entry (DataNode.serialize). A file's own entries are read as they are (_readEntry).
     parseEntry(rawEntry, systemComposer) {
+        if (this.parent?.sourceFormat === 'json' && rawEntry.value !== undefined) {
+            let value = rawEntry.value;
+            try {
+                value = oneWrite(() => textDictionaryForm(rawEntry.value));
+            }
+            catch (e) {
+                if (!(e instanceof MatBudgetError)) {
+                    throw e;
+                }
+            }
+            if (value !== rawEntry.value) {
+                rawEntry = { ...rawEntry, value };
+            }
+        }
+        return this._readEntry(rawEntry, systemComposer);
+    }
+    // parseEntry for an entry of the file being read, as the file holds it (SlddNode.parse).
+    _readEntry(rawEntry, systemComposer) {
         const entryName = rawEntry.name || '';
         let dataNode = NodeRegistry.parseValue(rawEntry.value, entryName, this);
         dataNode.metadata = rawEntry.metadata || null;
