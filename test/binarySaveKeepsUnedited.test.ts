@@ -23,7 +23,8 @@
 //   * an entry's span is its element, found by its tags: text that spells a tag in a comment,
 //     an instruction, a CDATA section or an attribute value neither ends nor nests it, and
 //     every save of such a chunk is well-formed;
-//   * every edit path marks its entry, since the mark is what decides it.
+//   * every edit path marks its entry, since the mark is what decides it;
+//   * a renamed entry is renamed in the System Composer catalog the save writes.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +37,7 @@ import { entrySpans, parseBinarySlddParts } from '../src/datamodel/parser/Binary
 import { readDictionaryXmlFast, type ReadEntrySpans } from '../src/datamodel/parser/DictionaryXmlFast.js';
 import * as serializer from '../src/datamodel/parser/BinarySlddSerializer.js';
 import * as layout from '../src/datamodel/parser/ChunkLayout.js';
+import { SC_PART_XML, applyScEdits, scRenameEdits, scanScXml } from '../src/datamodel/parser/ScCatalog.js';
 import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../src/datamodel/parser/SlddParts.js';
 import { WRITTEN_METADATA } from '../src/datamodel/parser/EntrySource.js';
 import { NS_DESIGN, NS_OTHER } from '../src/datamodel/SectionConstants.js';
@@ -1304,4 +1306,81 @@ describe('no accepted edit of any binary fixture leaves the entry it changes unm
       expect(accepted).toBeGreaterThan(0);
     }, 120_000);
   }
+});
+
+describe('a renamed entry is renamed in the System Composer catalog the save writes', () => {
+  const PATH = join(HERE, 'fixtures', 'arch_binary.sldd');
+  const catalogOf = (zip: Uint8Array): string => text(unzipSync(zip)[SC_PART_XML]);
+  const kinds = (root: any): Record<string, string> =>
+    Object.fromEntries(entries(root).map((e: any) => [e.name, e.classification]));
+
+  /** The member as the host's rename patch writes it: each rename applied to the text in turn. */
+  const patched = (xml: string, renames: [string, string][]): string =>
+    renames.reduce((x, [from, to]) => applyScEdits(x, scRenameEdits(scanScXml(x), from, to)), xml);
+
+  it('a struct type renamed reopens as a struct type under its new name', () => {
+    const { session, root, bytes } = open(PATH);
+    const before = catalogOf(bytes);
+    expect(kinds(root).StructType).toBe('StructType');
+    expect(entries(root).find((e: any) => e.name === 'StructType').setProperty('Name', 'StructTypeRenamed')).toBe(true);
+    const out = session.serializeSource(root.name).bytes;
+    expect(catalogOf(out)).toBe(patched(before, [['StructType', 'StructTypeRenamed']]));
+    const reopened = createSession();
+    const again: any = ingest(reopened, buffer(out), { filename: 'arch_binary.sldd' });
+    expect(kinds(again)).toEqual({ ...kinds(root) });
+    expect(kinds(again).StructTypeRenamed).toBe('StructType');
+  });
+
+  it('a value type renamed moves its definition and its own descriptor, not an element that shares the name', () => {
+    const { session, root, bytes } = open(PATH);
+    const before = catalogOf(bytes);
+    expect(entries(root).find((e: any) => e.name === 'ValueType').setProperty('Name', 'VT2')).toBe(true);
+    const after = catalogOf(session.serializeSource(root.name).bytes);
+    expect(after).toBe(patched(before, [['ValueType', 'VT2']]));
+    expect(after.match(/<p_Name>VT2<\/p_Name>/g)).toHaveLength(2);
+    // DataInterface's element is named after the value type it references, and stays so.
+    expect(after).toContain('<p_Index>1</p_Index>\n          <p_Name>ValueType</p_Name>');
+  });
+
+  it('a rename undone, a chain and a swap write what the names are at the save', () => {
+    const { session, root, bytes } = open(PATH);
+    const before = catalogOf(bytes);
+    const named = (n: string): any => entries(root).find((e: any) => e.name === n);
+    session.setActiveContext(root);
+
+    named('StructType').setProperty('Name', 'CompA');
+    named('CompA').setProperty('Name', 'StructType');
+    expect(catalogOf(session.serializeSource(root.name).bytes)).toBe(before);
+
+    named('StructType').setProperty('Name', 'CompA');
+    named('CompA').setProperty('Name', 'CompB');
+    expect(catalogOf(session.serializeSource(root.name).bytes)).toBe(patched(before, [['StructType', 'CompB']]));
+
+    named('NumericType').setProperty('Name', 'Tmp');
+    named('CompB').setProperty('Name', 'NumericType');
+    named('Tmp').setProperty('Name', 'StructType');
+    expect(catalogOf(session.serializeSource(root.name).bytes)).toBe(
+      patched(before, [['StructType', 'Tmp'], ['NumericType', 'StructType'], ['Tmp', 'NumericType']]),
+    );
+    expect(kinds(ingest(createSession(), buffer(session.serializeSource(root.name).bytes), { filename: 'a.sldd' }))).toEqual(kinds(root));
+  });
+
+  it('a rename the catalog does not know leaves the member as read', () => {
+    const { session, root, bytes } = open(join(HERE, 'parity', 'artifacts', 'binary', 'params.sldd'));
+    void bytes;
+    entries(root)[0].setProperty('Name', 'renamed');
+    expect(unzipSync(session.serializeSource(root.name).bytes)[SC_PART_XML]).toBeUndefined();
+    const arch = open(PATH);
+    entries(arch.root).find((e: any) => e.name === 'DataInterface').children[0].setProperty('Name', 'Elem2');
+    expect(catalogOf(arch.session.serializeSource(arch.root.name).bytes)).toBe(catalogOf(arch.bytes));
+  });
+
+  it('the package is rebuilt from the member as read, not from a re-serialization of it', () => {
+    // Same member, zipped by another writer: the bytes are what the reader holds.
+    const members = unzipSync(new Uint8Array(readFileSync(PATH)));
+    const rezipped = zipSync(members, { level: 1 });
+    const session = createSession();
+    const root: any = ingest(session, buffer(rezipped), { filename: 'arch_binary.sldd' });
+    expect(catalogOf(session.serializeSource(root.name).bytes)).toBe(text(members[SC_PART_XML]));
+  });
 });

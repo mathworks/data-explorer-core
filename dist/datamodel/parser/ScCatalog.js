@@ -606,6 +606,65 @@ export function renameInCatalog(catalog, oldName, newName) {
         delete bag[oldName];
         moved = true;
     });
+    if (moved) {
+        recordRename(catalog, oldName, newName);
+    }
     return moved;
+}
+// For each catalog, what every definition that has moved is called NOW, keyed to what it
+// was called when the catalog was read: current name -> name in the file. By identity, so
+// a copy of the catalog starts with nothing renamed, and nothing about its public shape
+// changes. Chains fold (A -> B -> C is one rename, A -> C), and a definition renamed back
+// is dropped, so a rename that is undone leaves nothing for a save to write.
+const fileNames = new WeakMap();
+function recordRename(catalog, oldName, newName) {
+    let names = fileNames.get(catalog);
+    if (!names) {
+        names = new Map();
+        fileNames.set(catalog, names);
+    }
+    const inFile = names.has(oldName) ? names.get(oldName) : oldName;
+    names.delete(oldName);
+    if (inFile === newName) {
+        names.delete(newName);
+    }
+    else {
+        names.set(newName, inFile);
+    }
+}
+/**
+ * Every definition of this catalog renamed since it was read, as name in the file ->
+ * name now. Empty for a catalog nothing has been renamed in, and for none at all.
+ */
+export function catalogRenames(catalog) {
+    const renames = new Map();
+    const names = catalog ? fileNames.get(catalog) : undefined;
+    for (const [now, inFile] of names ?? []) {
+        renames.set(inFile, now);
+    }
+    return renames;
+}
+/**
+ * A compressed-binary dictionary's interface dictionary member, with every renamed
+ * definition's name written where the definition spells it (`scRenameEdits`'s sites:
+ * the definition and its own value-type descriptor, never a reference elsewhere that
+ * happens to share the name), and every other byte as it was.
+ *
+ * All renames are applied in one pass over the member as read, so a swap of two names
+ * (A -> B and B -> A) lands as a swap rather than as two definitions named A.
+ */
+export function scXmlWithRenames(xml, renames) {
+    if (renames.size === 0) {
+        return xml;
+    }
+    const edits = [];
+    scanScXml(xml).forEach((def) => {
+        const now = renames.get(def.name);
+        if (now === undefined || now === def.name) {
+            return;
+        }
+        def.nameSites.forEach((site) => edits.push({ start: site.start, end: site.end, text: now }));
+    });
+    return edits.length === 0 ? xml : applyScEdits(xml, edits);
 }
 //# sourceMappingURL=ScCatalog.js.map
