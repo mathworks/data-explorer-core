@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import SimulinkObjectNode from '../SimulinkObjectNode.js';
+import { objectValueClassOf } from '../DataNode.js';
 import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
 const CLASS_NAME = 'Simulink.VariantConfigurationData';
@@ -8,7 +9,7 @@ export default class VariantConfigurationDataNode extends SimulinkObjectNode {
     get icon() { return 'variantSettings'; }
     // Report the real class identity from the parsed value (e.g. the container
     // is 'Simulink.VariantConfigurations'), falling back to the data class name.
-    get className() { const raw = this.serial._rawVal; return (raw && raw._array_class) || CLASS_NAME; }
+    get className() { const raw = this.serial._rawVal; return (raw && objectValueClassOf(raw)) || CLASS_NAME; }
     // A VariantConfiguration has no scalar "value" — the Value column is empty and not editable.
     get displayValue() { return ''; }
     get valueEditable() { return false; }

@@ -37,7 +37,7 @@
 // The tests hold all of it to byte equality against MATLAB's own eighteen cdata
 // streams, so a wrong guess here fails loudly rather than shipping a file MATLAB
 // reads as empty.
-import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, isEnumBag, isExactToken, parseComplexNum, integerConversion, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
+import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, isEnumBag, isExactToken, PROPERTY_SOURCE_KEY, parseComplexNum, integerConversion, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
@@ -1222,6 +1222,14 @@ export function textDictionaryForm(x, at = '') {
             });
         }
         return textDictionaryForm(bag, at);
+    }
+    // The Source and PropertyType a binary dictionary's reader keeps of an element's properties
+    // (XmlUtils.PROPERTY_SOURCE_KEY), which a text dictionary has no place for: the properties
+    // themselves are in the element's `_properties`, and stay there.
+    if (Object.prototype.hasOwnProperty.call(o, PROPERTY_SOURCE_KEY)) {
+        const element = { ...o };
+        delete element[PROPERTY_SOURCE_KEY];
+        return textDictionaryForm(element, at);
     }
     let out = null;
     for (const k of Object.keys(o)) {

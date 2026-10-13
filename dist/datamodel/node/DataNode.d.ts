@@ -3,6 +3,7 @@ import type { PropClass } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { MatBudgetError } from '../parser/MatWriter.js';
 import { type EncodedValue } from '../parser/EncodedValue.js';
+import { type PropertySource } from '../parser/XmlUtils.js';
 export interface SetPropertyResult {
     error: boolean;
     reason: string;
@@ -49,6 +50,27 @@ export declare function isFieldBag(element: unknown): element is Record<string, 
  * bag for one: SimulinkObjectNode._propsOf, ObjectNode's XML, and the raw object writer below.
  */
 export declare function customSaveOf(element: unknown): unknown;
+/**
+ * The class of `element`, one of the `_elements` of an object array of class `arrayClass`: its
+ * own `_object_class` where it carries one, and otherwise the array's. MATLAB's text format
+ * spells a mixed-class object array so, `_array_class` naming the class the elements share and
+ * `_object_class` each element of another class, and the binary reader holds one so too
+ * (BinarySlddParser.objectArrayValue). Asked by both writers of an object array's elements,
+ * DataNode._objectXml and ObjectNode.serializeXml, by ObjectNode.parse, and for a value of one
+ * element by objectValueClassOf.
+ */
+export declare function elementClassOf(element: unknown, arrayClass: string): string;
+/**
+ * The class of `value`, an object value (`{_array_class, _dimensions, _elements}`): of one
+ * element, that element's own (elementClassOf); otherwise the array's. A 1x1 object is an object
+ * of its element's class, and MATLAB's text format can spell one as it spells a mixed-class
+ * array, the class the elements share in `_array_class` and the element's own in its
+ * `_object_class`: `{_array_class: 'Simulink.Signal', _elements: [{_object_class: 'mpt.Signal',
+ * …}]}` is an mpt.Signal. Asked wherever a value's class decides its node or what is written for
+ * it: NodeClassMap.parseValue, ObjectNode.parse, the className of each typed node that reports
+ * the class the file holds, and DataNode._serializeSimulinkObjectXml.
+ */
+export declare function objectValueClassOf(value: Record<string, unknown>): string;
 /**
  * Where a raw property value a writer is writing stands: the entry's name, and the MATLAB
  * path from it to the value (`pSp.Value`, `obj.Prop(2).field`, `obj.Cellprop{3}`).
@@ -252,6 +274,16 @@ export default class DataNode extends BaseNode {
      * serializePropertyXml its payload takes.
      */
     static pxAttrs(name: string): string;
+    /**
+     * serializePropertyXml for a property of an object's element, whose `sources` (the element's
+     * XmlUtils.PROPERTY_SOURCE_KEY record) may give it the Source and PropertyType MATLAB wrote on
+     * it: a dynamic property is `<P Name="AutosarSchemaVersion" Source="dynamic" PropertyType="…"
+     * Class="char">`, the two after the Name as MATLAB writes them. Every arm of
+     * serializePropertyXml opens with the `<P` and pxAttrs, so they go in after that, whatever the
+     * value. Asked by each writer of an object's element: _objectXml, _serializeSimulinkObjectXml
+     * and ObjectNode.serializeXml.
+     */
+    static _elementPropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at: PropertyAt | undefined, sources: Record<string, PropertySource> | null): string;
     static serializePropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string;
     /**
      * The `Class="char" Dimension="r*c"` attributes and body of an mxchar literal, or
@@ -327,7 +359,7 @@ export default class DataNode extends BaseNode {
     static _complexTextXml(tag: string, attrs: string, value: Record<string, unknown>, indent: number): string;
     static _serializeObjectPropertyXml(name: string, value: Record<string, unknown>, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string;
     /**
-     * An object bag (`{_array_class, _dimensions, _elements: [{_properties}]}`) under `tag`: a
+     * An object bag (`{_array_class, _dimensions, _elements: [{_object_class?, _properties}]}`) under `tag`: a
      * property's `<P Name="…">`, or the classless `<Element>` a cell element holding an object
      * is — cellarr_binary.sldd's cObj is `<Element>` around one `<Element
      * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two. An

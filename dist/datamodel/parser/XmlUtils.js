@@ -74,6 +74,31 @@ export const CUSTOM_SAVE_KEY = '_custom_save';
  */
 export const ENUM_KEY = '_is_enum';
 export const ENUMERATION_KEY = '_enumeration';
+/**
+ * Where an object's element in a binary dictionary keeps the `Source` and `PropertyType` MATLAB
+ * wrote on a named property of it, by property name.
+ *
+ * MATLAB marks a dynamic property, the options a custom or AUTOSAR target adds to a config
+ * component, as `<P Name="AutosarSchemaVersion" Source="dynamic" PropertyType="…"
+ * Class="char">`. BinarySlddParser reads the property into the element's bag like any other,
+ * which is where it is shown and edited, and these two attributes onto the element under this
+ * key, as `{AutosarSchemaVersion: {source: 'dynamic', propertyType: '…'}}`; the writers of an
+ * object's element write them back (DataNode._elementPropertyXml). The unnamed saveobj
+ * envelope's own Source is SAVEOBJ_KEY's, and is not one of these.
+ *
+ * Binary-only, as ENUM_KEY is: a text dictionary has no place for either attribute (MATLAB puts
+ * a dynamic property there in `_dynamic_properties`, beside `_properties`), so it is written
+ * without the key (MatWriter.textDictionaryForm).
+ */
+export const PROPERTY_SOURCE_KEY = '_property_source';
+/** The PROPERTY_SOURCE_KEY record of `element`, one of an object's `_elements`, or null. */
+export function propertySourcesOf(element) {
+    if (element === null || typeof element !== 'object') {
+        return null;
+    }
+    const r = element[PROPERTY_SOURCE_KEY];
+    return r !== null && typeof r === 'object' && !Array.isArray(r) ? r : null;
+}
 /** Whether `value` is an enumeration value read out of a cell (see ENUM_KEY). */
 export function isEnumBag(value) {
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {

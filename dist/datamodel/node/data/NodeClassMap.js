@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import * as NodeRegistry from '../NodeRegistry.js';
+import { objectValueClassOf } from '../DataNode.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from './mcosTypedNode.js';
 import { isEncodedValue } from '../../parser/EncodedValue.js';
@@ -135,7 +136,10 @@ export function parseValue(rawVal, name, parent) {
         if (elements.length > 1 || isEnumBag(obj)) {
             return ObjectNode.parse(obj, name, parent);
         }
-        const NodeClass = getClass(obj._array_class);
+        // By the class of the one object it is, its element's (DataNode.objectValueClassOf): an
+        // mpt.Signal spelled as a Simulink.Signal array of one mpt.Signal element opened as a
+        // Simulink.Signal, and a subclass of a registered class as the registered class.
+        const NodeClass = getClass(objectValueClassOf(obj));
         if (NodeClass) {
             const node = NodeClass.parse(rawVal, name, parent);
             // A text dictionary's element can be `null`, which every typed class reads as an

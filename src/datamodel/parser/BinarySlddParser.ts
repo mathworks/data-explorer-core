@@ -66,8 +66,10 @@ import {
   transposeFromColumnMajorND,
   ENUM_KEY,
   ENUMERATION_KEY,
+  PROPERTY_SOURCE_KEY,
   SAVEOBJ_KEY,
   type Enumeral,
+  type PropertySource,
 } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
 import { headerDigits } from './Size.js';
@@ -86,7 +88,9 @@ interface XmlNode {
   // A value MATLAB wrote as an encoded byte stream rather than as XML — see encodedOf.
   '@_Encoding'?: string;
   '@_EncodedLength'?: string;
+  // A named property's, on a dynamic property (see propertySources); the saveobj envelope's.
   '@_Source'?: string;
+  '@_PropertyType'?: string;
   '@_FormatVersion'?: string;
   '@_MinRelease'?: string;
   '@_Arch'?: string;
@@ -500,11 +504,17 @@ function cellValue(elements: XmlNode[], dimParts: number[]): Record<string, unkn
   };
 }
 
-// The SLDD object-array envelope. The class lives on the WRAPPER and is read from
-// the first element, so a LATER element carrying no Class of its own still
-// contributes its <P> bag: this path used to re-enter parseElement per element and
-// index into the single-element wrapper it returns, which threw on a classless later
-// element and took the whole file's read down with it.
+// The SLDD object-array envelope, in MATLAB's text spelling of one: the class the elements
+// share on the WRAPPER (`_array_class`), and on each element of another class that element's
+// own (`_object_class`). MATLAB states each element's class on its own <Element>, and a
+// config set's Components mixes nine or more: this used to read the first element's class
+// for the whole array and drop the rest, so every component read, showed, copied and saved
+// as a Simulink.SolverCC.
+//
+// A LATER element carrying no Class of its own still contributes its <P> bag, as one of the
+// first element's class: this path used to re-enter parseElement per element and index into
+// the single-element wrapper it returns, which threw on a classless later element and took
+// the whole file's read down with it.
 //
 // With no class at all there is no object array to describe — a classless <Element>
 // is a struct element — and an empty _array_class is a shape NOTHING downstream
@@ -512,17 +522,120 @@ function cellValue(elements: XmlNode[], dimParts: number[]): Record<string, unkn
 // writes `Class="char">[object Object]`, losing every field on the next save. So an
 // unclassed element set decodes as the struct array it is.
 function objectArrayValue(elements: XmlNode[], dimParts: number[]): Record<string, unknown> {
-  const className = elements.length > 0 ? elements[0]['@_Class'] || '' : '';
-  if (!className) {
+  const first = elements.length > 0 ? elements[0]['@_Class'] || '' : '';
+  if (!first) {
     return structValue(elements, dimParts);
   }
+  const classes = elements.map((e) => e['@_Class'] || first);
+  const arrayClass = arrayClassOf(classes);
   return {
-    _array_class: className,
+    _array_class: arrayClass,
     _dimensions: dimParts,
     _mw_element_type: 'MATLABArray',
-    _elements: elements.map((e) => ({ _properties: parseStructElement(e) })),
+    _elements: elements.map((e, k) => objectElement(e, classes[k] === arrayClass ? undefined : classes[k])),
   };
 }
+
+/**
+ * One element of an object, `el`: its `_object_class` where it is of another class than its
+ * array's (`ownClass`), its property bag, and the Source and PropertyType MATLAB wrote on any of
+ * its properties (XmlUtils.PROPERTY_SOURCE_KEY), each only where there is one, in that order.
+ */
+function objectElement(el: XmlNode, ownClass?: string): Record<string, unknown> {
+  const element: Record<string, unknown> = {};
+  if (ownClass !== undefined) {
+    element._object_class = ownClass;
+  }
+  element._properties = parseStructElement(el);
+  const sources = propertySources(el);
+  if (sources) {
+    element[PROPERTY_SOURCE_KEY] = sources;
+  }
+  return element;
+}
+
+/**
+ * The Source and PropertyType MATLAB wrote on each named property of `el`, by name, or null when
+ * it wrote neither on any. MATLAB writes them on a dynamic property, `<P
+ * Name="AutosarSchemaVersion" Source="dynamic" PropertyType="…" Class="char">`, which
+ * parseStructElement reads into the bag like any other property: these two used to be dropped
+ * there, so a save wrote the property as an ordinary one. The unnamed saveobj envelope's are
+ * not here: parseStructElement files the envelope under SAVEOBJ_KEY, and DataNode.pxAttrs
+ * writes its Source back.
+ */
+function propertySources(el: XmlNode): Record<string, PropertySource> | null {
+  let sources: Record<string, PropertySource> | null = null;
+  for (const prop of el.P || []) {
+    const name = prop['@_Name'];
+    const source = prop['@_Source'];
+    const propertyType = prop['@_PropertyType'];
+    if (name === undefined || source === 'saveobj' || (source === undefined && propertyType === undefined)) {
+      continue;
+    }
+    const kept: PropertySource = {};
+    if (source !== undefined) {
+      kept.source = source;
+    }
+    if (propertyType !== undefined) {
+      kept.propertyType = propertyType;
+    }
+    sources = sources ?? {};
+    setOwn(sources, name, kept);
+  }
+  return sources;
+}
+
+/**
+ * The class an object array of elements of `classes` is, as MATLAB's text format names it in
+ * `_array_class`: the class every element shares; for elements of several classes, the common
+ * base class where it can be derived (heterogeneousBaseOf); and otherwise the first element's,
+ * which is what this reader named every such array before it kept the elements' own.
+ */
+function arrayClassOf(classes: string[]): string {
+  if (classes.every((c) => c === classes[0])) {
+    return classes[0];
+  }
+  return heterogeneousBaseOf(classes) ?? classes[0];
+}
+
+/**
+ * The common base class of an array mixing `classes`, where this reader can derive one, or
+ * undefined.
+ *
+ * A binary dictionary does not state it: its `<P Name="Components" Dimension="9*1">` carries
+ * no Class, and each element names only its own. A text dictionary does, and the one base it
+ * names for the arrays found mixed in binary dictionaries is Simulink.ConfigComponent: every
+ * Components array of a Simulink.ConfigSet and of a Simulink.RTWCC that MATLAB wrote into a
+ * text dictionary is `_array_class` Simulink.ConfigComponent (30 of 30, in five dictionaries),
+ * over classes each listed in CONFIG_COMPONENTS, on its element as its `_object_class`. So an
+ * array whose classes all belong to that list is a Simulink.ConfigComponent array. Of any
+ * other class (a component no text dictionary has shown, or a subclass of Simulink.Signal
+ * beside a Simulink.Signal), this reader has no hierarchy to derive a base from, and says so.
+ */
+function heterogeneousBaseOf(classes: string[]): string | undefined {
+  return classes.every((c) => c === CONFIG_COMPONENT || CONFIG_COMPONENTS.has(c)) ? CONFIG_COMPONENT : undefined;
+}
+
+const CONFIG_COMPONENT = 'Simulink.ConfigComponent';
+
+/** Each class MATLAB's text format lists as an element of a Simulink.ConfigComponent array (see heterogeneousBaseOf). */
+const CONFIG_COMPONENTS: ReadonlySet<string> = new Set([
+  'Simulink.SolverCC',
+  'Simulink.DataIOCC',
+  'Simulink.OptimizationCC',
+  'Simulink.DebuggingCC',
+  'Simulink.HardwareCC',
+  'Simulink.ModelReferenceCC',
+  'Simulink.SFSimCC',
+  'Simulink.RTWCC',
+  'Simulink.CodeAppCC',
+  'Simulink.GRTTargetCC',
+  'Simulink.ERTTargetCC',
+  'Simulink.STFCustomTargetCC',
+  'SlCovCC.ConfigComp',
+  'Sldv.ConfigComp',
+  'hdlcoderui.hdlcc',
+]);
 
 function parseEntryValue(prop: XmlNode): unknown {
   const encoded = encodedOf(prop);
@@ -1021,7 +1134,7 @@ function parseElement(el: XmlNode): Record<string, unknown> {
     _array_class: className,
     _dimensions: [1, 1],
     _mw_element_type: 'MATLABArray',
-    _elements: [{ _properties: parseStructElement(el) }],
+    _elements: [objectElement(el)],
   };
 }
 

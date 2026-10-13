@@ -30,6 +30,8 @@ import {
   ENUM_KEY,
   enumeralOf,
   isEnumBag,
+  propertySourcesOf,
+  type PropertySource,
 } from '../parser/XmlUtils.js';
 
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
@@ -224,6 +226,36 @@ export function isFieldBag(element: unknown): element is Record<string, unknown>
  */
 export function customSaveOf(element: unknown): unknown {
   return element && typeof element === 'object' ? (element as Record<string, unknown>)[CUSTOM_SAVE_KEY] : undefined;
+}
+
+/**
+ * The class of `element`, one of the `_elements` of an object array of class `arrayClass`: its
+ * own `_object_class` where it carries one, and otherwise the array's. MATLAB's text format
+ * spells a mixed-class object array so, `_array_class` naming the class the elements share and
+ * `_object_class` each element of another class, and the binary reader holds one so too
+ * (BinarySlddParser.objectArrayValue). Asked by both writers of an object array's elements,
+ * DataNode._objectXml and ObjectNode.serializeXml, by ObjectNode.parse, and for a value of one
+ * element by objectValueClassOf.
+ */
+export function elementClassOf(element: unknown, arrayClass: string): string {
+  const own = element && typeof element === 'object' ? (element as Record<string, unknown>)._object_class : undefined;
+  return typeof own === 'string' && own !== '' ? own : arrayClass;
+}
+
+/**
+ * The class of `value`, an object value (`{_array_class, _dimensions, _elements}`): of one
+ * element, that element's own (elementClassOf); otherwise the array's. A 1x1 object is an object
+ * of its element's class, and MATLAB's text format can spell one as it spells a mixed-class
+ * array, the class the elements share in `_array_class` and the element's own in its
+ * `_object_class`: `{_array_class: 'Simulink.Signal', _elements: [{_object_class: 'mpt.Signal',
+ * …}]}` is an mpt.Signal. Asked wherever a value's class decides its node or what is written for
+ * it: NodeClassMap.parseValue, ObjectNode.parse, the className of each typed node that reports
+ * the class the file holds, and DataNode._serializeSimulinkObjectXml.
+ */
+export function objectValueClassOf(value: Record<string, unknown>): string {
+  const elements = value._elements;
+  const arrayClass = value._array_class as string;
+  return Array.isArray(elements) && elements.length === 1 ? elementClassOf(elements[0], arrayClass) : arrayClass;
 }
 
 /**
@@ -1002,7 +1034,9 @@ export default class DataNode extends BaseNode {
     const p = xmlPad(indent);
     const ip = xmlPad(indent + 1);
     const rawVal = this.serial._rawVal as Record<string, unknown>;
-    const className = rawVal._array_class as string;
+    // The class of the one object written, its element's: an array of one element of another
+    // class was written as an object of the array's.
+    const className = objectValueClassOf(rawVal);
     const props = this._xmlProperties();
 
     let attrStr = '';
@@ -1012,8 +1046,9 @@ export default class DataNode extends BaseNode {
 
     let xml = p + '<' + tagName + attrStr + '>\n';
     xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
+    const sources = propertySourcesOf(((rawVal._elements as unknown[]) || [])[0]);
     for (const [propName, propVal] of Object.entries(props)) {
-      xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, this, this._propertyAt(propName)) + '\n';
+      xml += DataNode._elementPropertyXml(propName, propVal, indent + 2, this, this._propertyAt(propName), sources) + '\n';
     }
     xml += ip + '</Element>\n';
     xml += p + '</' + tagName + '>';
@@ -1073,6 +1108,39 @@ export default class DataNode extends BaseNode {
    */
   static pxAttrs(name: string): string {
     return name === SAVEOBJ_KEY ? ' Source="saveobj" PropertyType="any"' : ' Name="' + escapeXml(name) + '"';
+  }
+
+  /**
+   * serializePropertyXml for a property of an object's element, whose `sources` (the element's
+   * XmlUtils.PROPERTY_SOURCE_KEY record) may give it the Source and PropertyType MATLAB wrote on
+   * it: a dynamic property is `<P Name="AutosarSchemaVersion" Source="dynamic" PropertyType="…"
+   * Class="char">`, the two after the Name as MATLAB writes them. Every arm of
+   * serializePropertyXml opens with the `<P` and pxAttrs, so they go in after that, whatever the
+   * value. Asked by each writer of an object's element: _objectXml, _serializeSimulinkObjectXml
+   * and ObjectNode.serializeXml.
+   */
+  static _elementPropertyXml(
+    name: string,
+    value: unknown,
+    indent: number,
+    ownerNode: DataNode | null,
+    at: PropertyAt | undefined,
+    sources: Record<string, PropertySource> | null,
+  ): string {
+    const xml = DataNode.serializePropertyXml(name, value, indent, ownerNode, at);
+    const source = sources && name !== SAVEOBJ_KEY && Object.prototype.hasOwnProperty.call(sources, name) ? sources[name] : undefined;
+    const head = xmlPad(indent) + '<P' + DataNode.pxAttrs(name);
+    if (!source || typeof source !== 'object' || !xml.startsWith(head)) {
+      return xml;
+    }
+    let attrs = '';
+    if (typeof source.source === 'string') {
+      attrs += ' Source="' + escapeXml(source.source) + '"';
+    }
+    if (typeof source.propertyType === 'string') {
+      attrs += ' PropertyType="' + escapeXml(source.propertyType) + '"';
+    }
+    return head + attrs + xml.slice(head.length);
   }
 
   static serializePropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string {
@@ -1421,7 +1489,7 @@ export default class DataNode extends BaseNode {
   }
 
   /**
-   * An object bag (`{_array_class, _dimensions, _elements: [{_properties}]}`) under `tag`: a
+   * An object bag (`{_array_class, _dimensions, _elements: [{_object_class?, _properties}]}`) under `tag`: a
    * property's `<P Name="…">`, or the classless `<Element>` a cell element holding an object
    * is — cellarr_binary.sldd's cObj is `<Element>` around one `<Element
    * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two. An
@@ -1460,7 +1528,7 @@ export default class DataNode extends BaseNode {
     };
 
     if (elements.length === 0 || (elements.length === 1 && Object.keys(propsOf(elements[0])).length === 0)) {
-      return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(className) + '"/>\n' + p + close;
+      return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(elementClassOf(elements[0], className)) + '"/>\n' + p + close;
     }
 
     // Every extent, exactly as the struct sibling below does and for the same
@@ -1474,11 +1542,14 @@ export default class DataNode extends BaseNode {
         ? ''
         : ' Dimension="' + dims.join('*') + '"';
     let xml = p + '<' + tag + attrs + dimAttr + '>\n';
+    // Each element under its own class: a config set's Components holds nine or more, and
+    // every one was written as the array's.
     elements.forEach((elem, k) => {
       const props = propsOf(elem);
-      xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
+      const sources = propertySourcesOf(elem);
+      xml += ip + '<Element Class="' + escapeXml(elementClassOf(elem, className)) + '">\n';
       for (const [propName, propVal] of Object.entries(props)) {
-        xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName)) + '\n';
+        xml += DataNode._elementPropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName), sources) + '\n';
       }
       xml += ip + '</Element>\n';
     });
