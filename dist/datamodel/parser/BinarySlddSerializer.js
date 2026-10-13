@@ -67,9 +67,13 @@ export function regenerateChunkXml(slddNode) {
 }
 function generatedChunkXml(slddNode, entryXml) {
     const attrs = slddNode._dataSourceAttrs || { FormatVersion: '1', MinRelease: 'R2014a', Arch: '' };
-    const archAttr = attrs.Arch ? ' Arch="' + attrs.Arch + '"' : '';
+    // Escaped as every attribute the writers write is: the reader decodes XML's references in
+    // them, so an Arch read from `a&quot;b` is `a"b`, which written back as it stood ended the
+    // attribute early.
+    const archAttr = attrs.Arch ? ' Arch="' + escapeXml(String(attrs.Arch)) + '"' : '';
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    xml += '<DataSource FormatVersion="' + attrs.FormatVersion + '" MinRelease="' + attrs.MinRelease + '"' + archAttr + '>\n';
+    xml += '<DataSource FormatVersion="' + escapeXml(String(attrs.FormatVersion)) + '" MinRelease="'
+        + escapeXml(String(attrs.MinRelease)) + '"' + archAttr + '>\n';
     slddNode.children.forEach(function (section) {
         section.children.forEach(function (entryNode) {
             xml += entryXml(entryNode);
@@ -228,15 +232,20 @@ export function regenerateEntryXml(entryNode) {
     // `_rawLastMod` used to display one timestamp in the Last Modified column and
     // write a different one to disk on every save of a newly added entry.
     const lastMod = meta._rawLastMod || meta.lastmod || matlabTimestampNow();
+    // The text of every line is escaped, as the Name's and the Value's always were: the reader
+    // decodes XML's references in all of them, so a UUID read from `x&amp;y` is `x&y`, and an
+    // IsDerived read from a CDATA section can be `</P>`. Written back as they stood, those were
+    // a bare `&`, a `<` that starts no tag, and a close tag too many.
+    const field = (value) => escapeXml(String(value));
     let xml = '    <Object Class="DD.ENTRY">\n';
-    xml += '        <P Name="Name" Class="char">' + escapeXml(entryNode.name) + '</P>\n';
-    xml += '        <P Name="UUID" Class="char">' + (meta.uuid || '') + '</P>\n';
-    xml += '        <P Name="Namespace" Class="char">' + (meta.namespace || '') + '</P>\n';
-    xml += '        <P Name="LastMod" Class="char">' + lastMod + '</P>\n';
+    xml += '        <P Name="Name" Class="char">' + field(entryNode.name) + '</P>\n';
+    xml += '        <P Name="UUID" Class="char">' + field(meta.uuid || '') + '</P>\n';
+    xml += '        <P Name="Namespace" Class="char">' + field(meta.namespace || '') + '</P>\n';
+    xml += '        <P Name="LastMod" Class="char">' + field(lastMod) + '</P>\n';
     // `modifiedby` is the same fact as a text dictionary's entry files it, for an entry
     // pasted in from one (DataNode's textDictionaryMetadata is the other direction).
-    xml += '        <P Name="LastModBy" Class="char">' + escapeXml(meta.lastModifiedBy || meta.modifiedby || '') + '</P>\n';
-    xml += '        <P Name="IsDerived" Class="char">' + (meta.isderived || '0') + '</P>\n';
+    xml += '        <P Name="LastModBy" Class="char">' + field(meta.lastModifiedBy || meta.modifiedby || '') + '</P>\n';
+    xml += '        <P Name="IsDerived" Class="char">' + field(meta.isderived || '0') + '</P>\n';
     // A value whose only binary spelling is hex, and whose bytes the node still holds
     // (DataNode._binaryEncoded), goes in as the hex MATLAB writes for it; everything else
     // writes itself. A value READ from hex replays it through serializeXml already. Either
