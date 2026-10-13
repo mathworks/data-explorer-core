@@ -12,7 +12,7 @@ import { loadFile } from './parity/loadFile.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { createSession, ingest } from '../src/index.js';
+import { createSession, ingest, serializeEntryToXml } from '../src/index.js';
 
 // --- helpers ---------------------------------------------------------------
 
@@ -511,4 +511,61 @@ describe('a text-dictionary struct with a null element', () => {
       expect(JSON.stringify(saved.find((e) => e.name === 'damaged').value)).toBe(JSON.stringify(value));
     });
   });
+});
+
+// The same struct written as XML from its raw value, which is how a binary dictionary holds a
+// struct that is a Parameter's Value, an element of a cell there, or an object's property. A
+// host reaches it by pasting the entry into a binary dictionary. The raw struct writer
+// (DataNode._structXml) listed each element's fields with Object.entries, which threw on a
+// null element, "Cannot convert undefined or null to object", and failed the whole write; and
+// on a string or an array element it wrote the indices as fields (`<P Name="0" …>`). None of
+// them holds a field (StructNode.fieldOf), so each is written as an element holding none is,
+// as `{}` is.
+describe('a text-dictionary struct with an element that is not a field bag, written as XML', () => {
+  const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)));
+  const control = read('./fixtures/rt_text.sldd').toString('utf8');
+  const struct = (elements: unknown[], fields?: string[]) => ({
+    _array_type: 'Struct', _dimensions: [1, elements.length], ...(fields ? { _fields: fields } : {}), _elements: elements, _mw_element_type: 'MATLABArray',
+  });
+  // Each struct, and the same struct with `{}` for every element that is not a bag of fields.
+  const SHAPES: Array<[string, (bad: unknown) => Record<string, unknown>]> = [
+    ['a declared field over it', (bad) => struct([bad], ['a'])],
+    ['a 1x2 array whose second element it is', (bad) => struct([{ a: 1 }, bad])],
+  ];
+  const BAD: Array<[string, unknown]> = [['null', null], ['a string', 'abc'], ['an array', [1, 2]]];
+  // The routes on which the struct is written from its raw value.
+  const ROUTES: Record<string, (s: Record<string, unknown>) => Record<string, unknown>> = {
+    inParameter: (s) => ({ _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: s } }], _mw_element_type: 'MATLABArray' }),
+    inParameterCell: (s) => ({ _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _properties: { Value: { _array_type: 'Cell', _dimensions: [1, 2], _elements: [s, 1] } } }], _mw_element_type: 'MATLABArray' }),
+    inObject: (s) => ({ _array_class: 'Widget', _dimensions: [1, 1], _elements: [{ _properties: { P: s, x: 1 } }], _mw_element_type: 'MATLABArray' }),
+  };
+  const withEntries = (make: (route: (s: Record<string, unknown>) => Record<string, unknown>) => Record<string, unknown>): string => {
+    const json = JSON.parse(control);
+    const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    Object.entries(ROUTES).forEach(([name, route], i) => {
+      entries.push({ name, metadata: { ...entries[0].metadata, uuid: `a43e9523-8ba6-426a-b689-6e7d8592${1000 + i}` }, value: make(route) });
+    });
+    return JSON.stringify(json, null, '\t');
+  };
+
+  for (const [label, bad] of BAD) {
+    it.each(SHAPES)(`${label} element, with %s, is written as {} is, and pasted into a binary dictionary`, (_, shape) => {
+      const text = withEntries((route) => route(shape(bad)));
+      const session = createSession();
+      const source: any = ingest(session, text, { filename: 'gadget.sldd' });
+      expect((session.serializeSource(source.name) as { text: string }).text).toBe(text);
+      const empty: any = ingest(createSession(), withEntries((route) => route(shape({}))), { filename: 'gadget.sldd' });
+      for (const name of Object.keys(ROUTES)) {
+        const entry = source.flatten().find((n: any) => n.name === name);
+        const xml = serializeEntryToXml(entry);
+        expect([name, xml]).toEqual([name, serializeEntryToXml(empty.flatten().find((n: any) => n.name === name))]);
+        expect(xml).not.toContain('<P Name="0"');
+        const binarySession = createSession();
+        const binary: any = ingest(binarySession, read('./parity/artifacts/binary/cases.sldd'), { filename: 'cases.sldd' });
+        binary.getSection('design').parseEntry(JSON.parse(JSON.stringify(entry.serialize())));
+        const chunk = strFromU8(unzipSync((binarySession.serializeSource(binary.name) as { bytes: Uint8Array }).bytes)['data/chunk0.xml']);
+        expect(chunk).toContain(xml);
+      }
+    });
+  }
 });

@@ -167,6 +167,34 @@ export function owningEntryOf(node) {
     }
     return entry ?? null;
 }
+/**
+ * Whether a struct element is a bag of fields at all. MATLAB writes every element as an object,
+ * but a text dictionary is JSON anyone can edit, so an element can be `null`, a number, a string
+ * or an array. None holds a field, and the last two must be said so: an own-key test answers
+ * for a string's indices and an array's indices and `length`. Asked by StructNode, of the
+ * elements it reads its rows from, and by the raw struct writer below (_structXml), so that the
+ * two agree on which elements hold fields.
+ */
+export function isFieldBag(element) {
+    return element !== null && typeof element === 'object' && !Array.isArray(element);
+}
+/**
+ * The saveobj envelope of an object's element as a text dictionary spells it, `_custom_save`
+ * beside the element's `_properties` and not in it (XmlUtils' CUSTOM_SAVE_KEY), or undefined.
+ * A binary dictionary's reader files the same envelope in the bag, under SAVEOBJ_KEY, which is
+ * the one spelling every writer of XML knows. Asked by each place that reads a text element's
+ * bag for one: SimulinkObjectNode._propsOf, ObjectNode's XML, and the raw object writer below.
+ */
+export function customSaveOf(element) {
+    return element && typeof element === 'object' ? element[CUSTOM_SAVE_KEY] : undefined;
+}
+/**
+ * How many writers of XML are gathering the properties they write as `<P>`s right now
+ * (DataNode._xmlProperties). While one is, each node's value under them is asked for in the
+ * XML's spelling, which has no null element: a node keeping one (DataNode._keepNullElement)
+ * answers with what its class writes for an element holding no properties.
+ */
+let gatheringXml = 0;
 export default class DataNode extends BaseNode {
     constructor(name, parent, serial) {
         super(name, parent);
@@ -780,6 +808,39 @@ export default class DataNode extends BaseNode {
         };
     }
     /**
+     * Make `rawVal`, an object value whose one element is `null`, what this node writes as its
+     * value for as long as nothing changes it: `_rawInput`, which every edit at or under the node
+     * drops (_markModified) and a rename keeps (setProperty).
+     *
+     * MATLAB writes every element of an object as an object, but a text dictionary is JSON anyone
+     * can edit. A typed node reads a null element as one holding no properties, and its class
+     * writes the value by rebuilding the element from its bag: as `{"_properties":{}}`, or with
+     * whatever a class writes for a property the file did not hold (a ConfigSet its Name, an
+     * EnumTypeDefinition its Enumerals). So an untouched save rewrote the null. Installed on the
+     * instance, in front of whichever serializeValue its class has, for the reason _adoptEncoded
+     * gives.
+     *
+     * A binary dictionary has no spelling of a null element, so as XML the null is written,
+     * wherever it sits, as `{"_properties":{}}` is written there. Where its node is what writes
+     * it, that is what the class writes for an element holding no properties. The node's own
+     * XML does so from its rows: as an entry, a cell's element or a struct's field. A writer
+     * that writes it from the node's value instead, which is an object's property, a
+     * Parameter's Value and an edited struct or cell there, asks for that value while it
+     * gathers its properties (_xmlProperties), and is given the class's, not the null. An
+     * unedited struct or cell there is written from its value as read, where either is an
+     * element with no properties.
+     */
+    _keepNullElement(rawVal) {
+        this._rawInput = rawVal;
+        const own = this;
+        own.serializeValue = function () {
+            if (this._rawInput !== undefined && gatheringXml === 0) {
+                return this._rawInput;
+            }
+            return Object.getPrototypeOf(this).serializeValue.call(this);
+        };
+    }
+    /**
      * The refusal for an edit to a value that is still an encoded byte stream, or null when
      * the edit may go ahead. Every setProperty asks this first, the overrides included.
      *
@@ -839,7 +900,7 @@ export default class DataNode extends BaseNode {
         const ip = xmlPad(indent + 1);
         const rawVal = this.serial._rawVal;
         const className = rawVal._array_class;
-        const props = this._getSerializedProperties();
+        const props = this._xmlProperties();
         let attrStr = '';
         if (attrs && attrs.Name) {
             attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
@@ -855,6 +916,21 @@ export default class DataNode extends BaseNode {
     }
     _getSerializedProperties() {
         return { ...this.serial._properties };
+    }
+    /**
+     * The properties an object's XML writes as `<P>`s (_serializeSimulinkObjectXml, and each
+     * element of an object array): _getSerializedProperties, gathered in the XML's spelling
+     * (gatheringXml). Where it holds a node's value, rather than the node writing itself, that
+     * value is what the XML is written from, and a kept null element is not a spelling of one.
+     */
+    _xmlProperties() {
+        gatheringXml++;
+        try {
+            return this._getSerializedProperties();
+        }
+        finally {
+            gatheringXml--;
+        }
     }
     /** Where this node's property `propName` stands, for a writer that writes it from its raw value. */
     _propertyAt(propName) {
@@ -1204,9 +1280,18 @@ export default class DataNode extends BaseNode {
         const dims = value._dimensions || [1, 1];
         const elements = value._elements || [];
         const close = '</' + tag + '>';
-        if (elements.length === 0 ||
-            (elements.length === 1 &&
-                (!elements[0]._properties || Object.keys(elements[0]._properties).length === 0))) {
+        // An element a text dictionary holds as `null` holds no properties (ObjectNode.parse): reading
+        // `_properties` off it threw, and the write of the whole dictionary with it. One whose class
+        // saves through saveobj carries its envelope beside the bag there (customSaveOf), which went
+        // unwritten, the object's whole state with it: it goes into the bag, where a binary
+        // dictionary has it and pxAttrs writes it as MATLAB's unnamed saveobj <P>, after the
+        // properties, as SimulinkObjectNode._propsOf puts it.
+        const propsOf = (elem) => {
+            const props = (elem && elem._properties) || {};
+            const envelope = customSaveOf(elem);
+            return envelope === undefined ? props : { ...props, [SAVEOBJ_KEY]: envelope };
+        };
+        if (elements.length === 0 || (elements.length === 1 && Object.keys(propsOf(elements[0])).length === 0)) {
             return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(className) + '"/>\n' + p + close;
         }
         // Every extent, exactly as the struct sibling below does and for the same
@@ -1220,7 +1305,7 @@ export default class DataNode extends BaseNode {
             : ' Dimension="' + dims.join('*') + '"';
         let xml = p + '<' + tag + attrs + dimAttr + '>\n';
         elements.forEach((elem, k) => {
-            const props = elem._properties || {};
+            const props = propsOf(elem);
             xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
             for (const [propName, propVal] of Object.entries(props)) {
                 xml += DataNode.serializePropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName)) + '\n';
@@ -1336,9 +1421,12 @@ export default class DataNode extends BaseNode {
                 xml += ip + '<Field Name="' + escapeXml(field) + '"/>\n';
             }
         }
+        // An element that is not a bag of fields (isFieldBag) is written as one holding none, as
+        // StructNode reads it: Object.entries threw on a null one, and failed the whole write, and
+        // wrote a string's or an array's indices as its fields.
         elements.forEach((elem, k) => {
             xml += ip + '<Element>\n';
-            for (const [field, fieldVal] of Object.entries(elem)) {
+            for (const [field, fieldVal] of Object.entries(isFieldBag(elem) ? elem : {})) {
                 xml += DataNode.serializePropertyXml(field, fieldVal, indent + 2, null, DataNode._within(at, elements.length, k, '.' + field)) + '\n';
             }
             xml += ip + '</Element>\n';

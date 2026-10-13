@@ -33,6 +33,23 @@ export interface SetPropertyResult {
  */
 export declare function owningEntryOf(node: BaseNode | null | undefined): DataNode | null;
 /**
+ * Whether a struct element is a bag of fields at all. MATLAB writes every element as an object,
+ * but a text dictionary is JSON anyone can edit, so an element can be `null`, a number, a string
+ * or an array. None holds a field, and the last two must be said so: an own-key test answers
+ * for a string's indices and an array's indices and `length`. Asked by StructNode, of the
+ * elements it reads its rows from, and by the raw struct writer below (_structXml), so that the
+ * two agree on which elements hold fields.
+ */
+export declare function isFieldBag(element: unknown): element is Record<string, unknown>;
+/**
+ * The saveobj envelope of an object's element as a text dictionary spells it, `_custom_save`
+ * beside the element's `_properties` and not in it (XmlUtils' CUSTOM_SAVE_KEY), or undefined.
+ * A binary dictionary's reader files the same envelope in the bag, under SAVEOBJ_KEY, which is
+ * the one spelling every writer of XML knows. Asked by each place that reads a text element's
+ * bag for one: SimulinkObjectNode._propsOf, ObjectNode's XML, and the raw object writer below.
+ */
+export declare function customSaveOf(element: unknown): unknown;
+/**
  * Where a raw property value a writer is writing stands: the entry's name, and the MATLAB
  * path from it to the value (`pSp.Value`, `obj.Prop(2).field`, `obj.Cellprop{3}`).
  */
@@ -152,6 +169,30 @@ export default class DataNode extends BaseNode {
      */
     _adoptEncoded(encoded: EncodedValue): void;
     /**
+     * Make `rawVal`, an object value whose one element is `null`, what this node writes as its
+     * value for as long as nothing changes it: `_rawInput`, which every edit at or under the node
+     * drops (_markModified) and a rename keeps (setProperty).
+     *
+     * MATLAB writes every element of an object as an object, but a text dictionary is JSON anyone
+     * can edit. A typed node reads a null element as one holding no properties, and its class
+     * writes the value by rebuilding the element from its bag: as `{"_properties":{}}`, or with
+     * whatever a class writes for a property the file did not hold (a ConfigSet its Name, an
+     * EnumTypeDefinition its Enumerals). So an untouched save rewrote the null. Installed on the
+     * instance, in front of whichever serializeValue its class has, for the reason _adoptEncoded
+     * gives.
+     *
+     * A binary dictionary has no spelling of a null element, so as XML the null is written,
+     * wherever it sits, as `{"_properties":{}}` is written there. Where its node is what writes
+     * it, that is what the class writes for an element holding no properties. The node's own
+     * XML does so from its rows: as an entry, a cell's element or a struct's field. A writer
+     * that writes it from the node's value instead, which is an object's property, a
+     * Parameter's Value and an edited struct or cell there, asks for that value while it
+     * gathers its properties (_xmlProperties), and is given the class's, not the null. An
+     * unedited struct or cell there is written from its value as read, where either is an
+     * element with no properties.
+     */
+    _keepNullElement(rawVal: unknown): void;
+    /**
      * The refusal for an edit to a value that is still an encoded byte stream, or null when
      * the edit may go ahead. Every setProperty asks this first, the overrides included.
      *
@@ -181,6 +222,13 @@ export default class DataNode extends BaseNode {
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _serializeSimulinkObjectXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _getSerializedProperties(): Record<string, unknown>;
+    /**
+     * The properties an object's XML writes as `<P>`s (_serializeSimulinkObjectXml, and each
+     * element of an object array): _getSerializedProperties, gathered in the XML's spelling
+     * (gatheringXml). Where it holds a node's value, rather than the node writing itself, that
+     * value is what the XML is written from, and a kept null element is not a spelling of one.
+     */
+    _xmlProperties(): Record<string, unknown>;
     /** Where this node's property `propName` stands, for a writer that writes it from its raw value. */
     _propertyAt(propName: string): PropertyAt;
     /**

@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import DataNode from './DataNode.js';
-import { SAVEOBJ_KEY, CUSTOM_SAVE_KEY } from '../parser/XmlUtils.js';
+import DataNode, { customSaveOf } from './DataNode.js';
+import { SAVEOBJ_KEY } from '../parser/XmlUtils.js';
 import { oneWrite, writeUnderWay } from '../parser/MatWriter.js';
 
 /**
@@ -126,7 +126,9 @@ export default class SimulinkObjectNode extends DataNode {
       | Record<string, unknown>
       | undefined;
     const props = (elem && elem._properties) as Record<string, unknown> | undefined;
-    const envelope = elem && elem[CUSTOM_SAVE_KEY];
+    // Not `elem && …`, which for an element a text dictionary holds as `null` is that null: it
+    // filed an envelope of null, and an edit wrote `{"_custom_save":null}`.
+    const envelope = customSaveOf(elem);
     if (envelope === undefined) {
       // Returned BY REFERENCE, which `_defaultRawVal` documents as a contract: an edit to the
       // node's bag has to reach the bytes through this aliasing. Only the branch below — where

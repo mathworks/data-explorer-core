@@ -133,7 +133,13 @@ export function parseValue(rawVal, name, parent) {
         }
         const NodeClass = getClass(obj._array_class);
         if (NodeClass) {
-            return NodeClass.parse(rawVal, name, parent);
+            const node = NodeClass.parse(rawVal, name, parent);
+            // A text dictionary's element can be `null`, which every typed class reads as an
+            // element holding no properties and would write as one (DataNode._keepNullElement).
+            if (elements.length === 1 && (elements[0] === null || elements[0] === undefined)) {
+                node._keepNullElement(rawVal);
+            }
+            return node;
         }
         // An UNKNOWN _array_class falls through to the matcher chain, where the
         // `_array_class` entry routes it to ObjectNode as a generic object.

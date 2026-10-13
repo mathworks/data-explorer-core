@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import DataNode from '../DataNode.js';
+import DataNode, { isFieldBag } from '../DataNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
@@ -46,14 +46,9 @@ function fieldsOf(rawVal: Record<string, unknown>): string[] {
     return [];
 }
 
-// Whether a struct element is a bag of fields at all. MATLAB writes every element as an object,
-// but a text dictionary is JSON anyone can edit, so an element can be `null`, a number, a string
-// or an array. None holds a field, and the last two must be said so: an own-key test answers
-// for a string's indices and an array's indices and `length`, so a string element 1 listed its
-// character indices as the struct's fields and a declared `length` over an array read its length.
-function isFieldBag(element: unknown): element is Record<string, unknown> {
-    return element !== null && typeof element === 'object' && !Array.isArray(element);
-}
+// Whether a struct element is a bag of fields at all is DataNode's isFieldBag, which the raw
+// struct writer asks too. Read as fields, a string element 1 listed its character indices as the
+// struct's fields, and a declared `length` over an array read its length.
 
 // The value an element holds for a declared field, by OWN key. The field list is the
 // file's (`_fields`, or element 1's keys for every element), so a name the element does not
@@ -181,8 +176,11 @@ export default class StructNode extends DataNode {
         // In a text dictionary, dims holding NaN, an infinity or a bigint, refused, finally,
         // before they are counted: a bigint threw a TypeError there
         // (DataNode._textSpellableOrRefuse). Elsewhere the value is its copy as it stands, and
-        // a binary save refuses such dims itself (serializeXml).
-        if (this._ownerFormat() === 'json') {
+        // a binary save refuses such dims itself (serializeXml). But a bigint cannot be counted
+        // anywhere: there it threw the same raw TypeError, "Cannot mix BigInt and other types",
+        // out of serialize(). So dims holding one are refused there too, by the same refusal,
+        // and NaN and an infinity, which count, are still copied as they stand.
+        if (this._ownerFormat() === 'json' || d.some((x) => typeof x === 'bigint')) {
             this._textSpellableOrRefuse(d, 'struct');
         }
 
