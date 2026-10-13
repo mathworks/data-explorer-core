@@ -533,4 +533,22 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     expect([inT._type, inC._type]).toEqual(['cdata', 'cdata']);
     expect([streamOf(inT), streamOf(inC)]).toEqual([own, own]);
   });
+  // Add Child adds a field to every element row, and past the cap there is none: the row it
+  // made held the only copy of the edit, and the save, which writes such an array from the
+  // bytes it was read from, dropped it. So it is refused, as a sparse array's is. Up to the cap
+  // it is offered as before.
+  it('takes no Add Child past the cap, where there is no element row to add a field to', () => {
+    expect(opened(fieldless('s', [1, MAX]))[0].canAddChild()).toBe(true);
+    for (const d of [[1, MAX + 1], BIG]) {
+      const [s] = opened(fieldless('s', d));
+      expect([s.canAddChild(), s.execAddChild(), s.children.length], String(d)).toEqual([false, null, 0]);
+    }
+    // Nor read back out of a dictionary it was pasted into, where the entry stays as it was.
+    const copied = copyOf(opened(fieldless('s', [1, MAX + 1]))[0]);
+    for (const file of [TEXT, BINARY]) {
+      const { entry } = pastedTwice(file, copied);
+      const status = entry.status;
+      expect([entry.canAddChild(), entry.execAddChild(), entry.children.length, entry.status], file).toEqual([false, null, 0, status]);
+    }
+  });
 });
