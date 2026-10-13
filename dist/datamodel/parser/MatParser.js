@@ -594,12 +594,25 @@ export function parseMatrix(view, baseOffset, length) {
     // the clamped read it always was, and so does a struct array with no fields, whose
     // elements take no bytes at all. A sparse array's elements take no bytes either — its
     // non-zeros do, and readSparse reads only those.
+    //
+    // A struct array's element is held to what it takes at the least: its F fields' tags, 8
+    // bytes each, a field of [] being its tag alone. Held to a byte, the guard let through
+    // eight times the elements such an array's bytes can back, or more with more fields: a
+    // 2 MB file whose record claims exactly the bytes it holds, a 1x1,500,000 struct with one
+    // field and 250,000 elements' bytes, was not refused, and a host built a row per declared
+    // element until the heap ran out. MATLAB writes every field of every element, so an array
+    // it wrote always has its 8F bytes apiece. A refusal its bytes alone explain reads as it
+    // did; one the 8F explain says so.
     const bytesLeft = Math.max(0, end - offset);
-    if (!isSparse && arrayClass !== 3 && totalElements > MAX_UNBACKED_ELEMENTS && totalElements > bytesLeft
-        && !(arrayClass === 2 && structFieldCount(view, offset, end) === 0)) {
+    const fieldCount = arrayClass === 2 ? structFieldCount(view, offset, end) : 0;
+    const perElement = fieldCount > 0 ? 8 * fieldCount : 1;
+    if (!isSparse && arrayClass !== 3 && totalElements > MAX_UNBACKED_ELEMENTS
+        && totalElements > Math.floor(bytesLeft / perElement)
+        && !(arrayClass === 2 && fieldCount === 0)) {
         result.value = undecodedValue(dimensions, className);
         result.undecoded =
-            'declares ' + totalElements + ' elements, more than the ' + bytesLeft + ' bytes left in it can hold';
+            'declares ' + totalElements + ' elements, more than the ' + bytesLeft + ' bytes left in it can hold'
+                + (totalElements > bytesLeft ? '' : ' at ' + perElement + ' bytes an element');
         return result;
     }
     if (isSparse) {

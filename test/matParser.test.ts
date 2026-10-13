@@ -1285,6 +1285,50 @@ describe('parseMat — malformed byte counts', () => {
     expect(only(matFile([structVar('s', ['a'], [{ a: scalarField(1) }], [1, 2_000_000])])).undecoded).toMatch(/^declares 2000000 elements/);
   });
 
+  it('REGRESSION: a struct array with fields is held to 8 bytes a field for each element it declares', () => {
+    // Every element of a struct array with F fields holds F matrices, each at least its 8-byte
+    // tag (an empty one is that tag alone), so its bytes back at most one element per 8F of
+    // them. The guard allowed one element per byte, so a 2 MB file whose record claims exactly
+    // the bytes it holds, a 1x1,500,000 struct with one field and 250,000 elements' bytes,
+    // parsed without being refused, and a host built a row per declared element until the
+    // heap ran out.
+    const empty = element(MI.MATRIX, new Uint8Array(0));
+    const wide = (fieldNames: string[], n: number, held: number, name = 's') =>
+      structVar(name, fieldNames, Array.from({ length: held }, () => Object.fromEntries(fieldNames.map((f) => [f, empty]))), [1, n]);
+    // The bytes the guard counts: those after the name, the field names' two subelements and
+    // the elements.
+    const left = (el: Uint8Array) => el.length - 8 - 16 - 16 - 16;
+    const refused = (n: number, el: Uint8Array, perElement: number) =>
+      `declares ${n} elements, more than the ${left(el)} bytes left in it can hold at ${perElement} bytes an element`;
+    const t0 = performance.now();
+    const one = wide(['a'], 1_500_000, 250_000);
+    const s = only(matFile([one]));
+    expect([s.value, s.fields, s.undecoded, performance.now() - t0 < 2000]).toEqual([
+      '<1x1500000 struct, not decoded>', null, refused(1_500_000, one, 8), true,
+    ]);
+    // Two fields, at 16 bytes an element: 1.6 MB of bytes hold 100,000 of 1,200,000.
+    const two = wide(['a', 'b'], 1_200_000, 100_000);
+    expect(only(matFile([two])).undecoded).toBe(refused(1_200_000, two, 16));
+    // At the bound: one element whose field is a million doubles holds the bytes of
+    // floor(left / 8) elements at 8 bytes apiece, so that many are read and one more is not.
+    const big = numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1_000_000], real: new Array(1_000_000).fill(1) });
+    const bound = Math.floor(left(structVar('s', ['a'], [{ a: big }], [1, 1])) / 8);
+    const atBound = only(matFile([structVar('s', ['a'], [{ a: big }], [1, bound])]));
+    expect([atBound.undecoded, (atBound.fields!.a as MatVariable[]).length]).toEqual([undefined, 1]);
+    const past = structVar('s', ['a'], [{ a: big }], [1, bound + 1]);
+    expect(only(matFile([past])).undecoded).toBe(refused(bound + 1, past, 8));
+    // A refusal whose bytes are fewer than its elements says what it said before.
+    expect(only(matFile([wide(['a'], 2_000_000, 1)])).undecoded).toMatch(/^declares 2000000 elements, more than the \d+ bytes left in it can hold$/);
+    // As a cell element: named in its warning, and kept as its bytes.
+    const cell = parseMat(matFile([cellVar('c', [wide(['a'], 1_500_000, 250_000, '')])]));
+    const element1 = (cell.variables[0].value as MatVariable[])[0];
+    expect([element1.value, !!element1._rawBytes, cell.warnings.map((w) => w.part)]).toEqual(['<1x1500000 struct, not decoded>', true, ['c{1}']]);
+    // Through a session, as a host opens the file. Asked last, so that a reader without the
+    // bound fails on a parse above instead of here.
+    const mat = createSession().addMatSource('s.mat', matFile([one])) as any;
+    expect(mat.children.map((c: any) => [c.name, c.displayValue, c.children.length])).toEqual([['s', '<1x1500000 struct, not decoded>', 0]]);
+  });
+
   it('REGRESSION: a struct array with no field names or no bytes left does not walk the rest of its elements', { timeout: 60_000 }, () => {
     // The element loop ran to the declared size whatever was left to read: for each element it
     // looked for each field name, and with none it looked for nothing, 1e10 times for a 1e5x1e5
