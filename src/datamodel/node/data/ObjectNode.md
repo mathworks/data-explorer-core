@@ -65,6 +65,14 @@ element's `_object_class` another, is an object of the element's class
 (`DataNode.objectValueClassOf`): it is dispatched, shown and written to XML as that class,
 and its JSON keeps the file's spelling.
 
+Each element row is handed its element whole: every key MATLAB wrote on it, `_id` and
+`_custom_save` among them, less the `_object_class` its row's class already says. The
+array writes each element back as its row writes it, with `_object_class` restored in the
+place the file had it. A row built from `{_properties}` alone wrote that back, so a text
+dictionary's untouched save dropped every element's `_id`, and an element of a class that
+saves through saveobj, whose `_custom_save` is its whole state, was saved as
+`{"_properties":{}}`.
+
 ## Read-only / host status
 
 - `displayValue` returns `<RxC ClassName>` which triggers BaseNode's

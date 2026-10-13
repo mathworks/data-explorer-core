@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import DataNode, { customSaveOf, elementClassOf, objectValueClassOf } from '../DataNode.js';
+import DataNode, { customSaveOf, elementClassOf, isFieldBag, objectValueClassOf } from '../DataNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
@@ -11,7 +11,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { OBJECT_ICON } from '../icons.js';
-import { ENUM_KEY, ENUMERATION_KEY, enumeralOf, escapeXml, isEnumBag, pad as xmlPad, SAVEOBJ_KEY } from '../../parser/XmlUtils.js';
+import { ENUM_KEY, enumeralOf, escapeXml, isEnumBag, pad as xmlPad, SAVEOBJ_KEY } from '../../parser/XmlUtils.js';
 import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 import { setOwn } from '../../parser/ownKeys.js';
@@ -22,6 +22,49 @@ function elementNodeClass(child: DataNode, arrayClass: string): string {
     const raw = child.serial?._rawVal as Record<string, unknown> | null | undefined;
     const own = raw && typeof raw === 'object' ? raw._array_class : undefined;
     return typeof own === 'string' && own !== '' ? own : arrayClass;
+}
+
+// One element of an object array as its own node is handed it (ObjectNode.parse): every key it
+// was read with but `_object_class`, which is the class of the node's wrapper instead. An element
+// that is not an object at all, which only a hand-edited text dictionary holds, holds no
+// properties, as it always did.
+function elementBody(element: unknown): Record<string, unknown> {
+    if (!isFieldBag(element)) {
+        return { _properties: {} };
+    }
+    const body: Record<string, unknown> = {};
+    for (const key of Object.keys(element)) {
+        if (key !== '_object_class') {
+            setOwn(body, key, element[key]);
+        }
+    }
+    return body;
+}
+
+// One element of an object array as it is written back: `written`, what its node wrote for it,
+// with `_object_class` naming its class `own` where that is not the array's `arrayClass`, in the
+// place `read`, the element as it was read, held it, and otherwise first, as MATLAB writes its
+// keys in order and `_object_class` sorts before `_properties`.
+function elementWritten(written: Record<string, unknown>, read: unknown, own: string, arrayClass: string): Record<string, unknown> {
+    const body = elementBody(written);
+    if (own === arrayClass) {
+        return body;
+    }
+    const order = read && typeof read === 'object' && '_object_class' in read ? Object.keys(read) : ['_object_class'];
+    const out: Record<string, unknown> = {};
+    for (const key of order) {
+        if (key === '_object_class') {
+            out._object_class = own;
+        } else if (Object.prototype.hasOwnProperty.call(body, key)) {
+            setOwn(out, key, body[key]);
+        }
+    }
+    for (const key of Object.keys(body)) {
+        if (!Object.prototype.hasOwnProperty.call(out, key)) {
+            setOwn(out, key, body[key]);
+        }
+    }
+    return out;
 }
 
 export default class ObjectNode extends DataNode {
@@ -149,12 +192,14 @@ export default class ObjectNode extends DataNode {
         // XML, a typed one comes back as the element its class writes for one holding no
         // properties instead (DataNode._xmlProperties).
         //
-        // An element of a class other than the array's goes back with that class as its
-        // `_object_class`, as MATLAB's text format spells it: each element node is of its
-        // element's own class (see parse), so a mixed array's subclass element was copied and
-        // saved as one of the array's class.
+        // Each element goes back as its node wrote it, every key the element was read with
+        // included (see parse), with an element of a class other than the array's carrying that
+        // class as its `_object_class`, as MATLAB's text format spells it. It went back as
+        // `{_properties}` alone: each element's `_id`, `_custom_save` and `_object_class` were
+        // gone from the file on every save, an untouched one included.
         if (this._isElementArray) {
-            const elements = this.children.map((child) => {
+            const read = (rawVal._elements as unknown[]) || [];
+            const elements = this.children.map((child, k) => {
                 const elemVal = (child as DataNode).serializeValue() as Record<string, unknown> | null;
                 const first = Array.isArray(elemVal?._elements)
                     ? (elemVal._elements[0] as Record<string, unknown> | null | undefined)
@@ -162,9 +207,7 @@ export default class ObjectNode extends DataNode {
                 if (first === null) {
                     return null;
                 }
-                const properties = (first?._properties as Record<string, unknown>) ?? {};
-                const own = elementNodeClass(child as DataNode, this.arrayClass);
-                return own === this.arrayClass ? { _properties: properties } : { _object_class: own, _properties: properties };
+                return elementWritten(first ?? { _properties: {} }, read[k], elementNodeClass(child as DataNode, this.arrayClass), this.arrayClass);
             });
             return { ...rawVal, _elements: elements };
         }
@@ -357,21 +400,24 @@ export default class ObjectNode extends DataNode {
                 // unknown/custom class becomes a scalar ObjectNode — the same
                 // dispatch a standalone scalar would take. A null element goes in as
                 // the null it is, which both of those keep (NodeClassMap.parseValue).
+                //
+                // The element goes in whole, every key MATLAB wrote on it with it: its `_id`, its
+                // `_custom_save`, which for a class that saves through saveobj is its whole
+                // state, and an enumeral (XmlUtils.ENUMERATION_KEY). Only its `_object_class`
+                // stays out, being the class of the wrapper it goes in. It used to go in as
+                // `{_properties}` alone, which every save then wrote back, an untouched one of
+                // a text dictionary included.
                 const elemRaw: Record<string, unknown> = {
                     _array_class: elementClassOf(elem, arrayClass),
                     _array_type: 'MATLABArray',
                     _dimensions: [1, 1],
                     _mw_element_type: (rawVal._mw_element_type as string) || 'MATLABArray',
-                    _elements: [elem === null || elem === undefined ? null : { _properties: (elem._properties as Record<string, unknown>) || {} }],
+                    _elements: [elem === null || elem === undefined ? null : elementBody(elem)],
                 };
                 // An element of an enumeration array is the scalar enumeration value it holds,
-                // so that it shows its own enumeral. A null element holds no enumeral, and
-                // goes in as the null it is.
+                // so that it shows its own enumeral.
                 if (isEnumBag(rawVal)) {
                     elemRaw[ENUM_KEY] = rawVal[ENUM_KEY];
-                    if (elem !== null && elem !== undefined) {
-                        (elemRaw._elements as Record<string, unknown>[])[0][ENUMERATION_KEY] = elem[ENUMERATION_KEY];
-                    }
                 }
                 const elemNode = NodeRegistry.parseValue(elemRaw, String(ei), node) as DataNode;
                 // The MCOS decoder and both SLDD paths deliver elements in MATLAB's
