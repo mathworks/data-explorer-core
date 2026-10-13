@@ -1115,11 +1115,23 @@ function encodedOf(node) {
 // entries to walk for an unreadable stream without a scan of the whole document. The
 // reader is synchronous and resets it before each entry.
 let encodedInEntry = false;
+/**
+ * An element's text, exactly as the file holds it — the one thing every value site reads.
+ *
+ * It used to be `String(node['#text'])`, because the XML reader handed over a NUMBER for any
+ * text that looked like one, before anything here had read the element's Class. The String()
+ * gave that number back in JavaScript's spelling, so a char was respelled ('0.0' read as '0',
+ * '1e-3' as '0.001') and a double's -0.0 read as +0. The reader keeps the text now, and each
+ * site converts it by Class: a char keeps it, and a numeric class parses it (parseMatlabNum,
+ * numericBody, parseInt), which keeps the sign of a double's zero. What the old conversion
+ * changed besides those two was measured to change no value: over the 52 distinct binary
+ * dictionaries among the local corpus's (up to 100 MB) and every one under `test/fixtures` and
+ * `test/parity/artifacts`, it altered 462,302 double and 551 single bodies' text, and every one
+ * but the six -0s parses to the same number from either spelling; it altered no integer,
+ * logical, complex or encoded body at all.
+ */
 function getTextContent(node) {
-    if (node['#text'] !== undefined) {
-        return String(node['#text']);
-    }
-    return '';
+    return node['#text'] ?? '';
 }
 function getProperty(obj, name) {
     const props = obj.P || [];

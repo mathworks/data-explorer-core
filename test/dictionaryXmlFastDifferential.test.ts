@@ -185,9 +185,9 @@ const ATTR_NAMES = [
 ];
 
 /**
- * Text chunks chosen so each decides something: the coercion spellings, the padding rule, the
- * entity table and its edges, the layout-whitespace hook, and the values that only LOOK
- * coercible.
+ * Text chunks chosen so each decides something: the numeric spellings the readers used to
+ * coerce and now must both keep as text, the padding rule, the entity table and its edges, the
+ * layout-whitespace hook, and the values that only LOOK numeric.
  */
 const TEXTS = [
   '',
@@ -211,6 +211,9 @@ const TEXTS = [
   '.5',
   '9007199254740993',
   '12345678901234567890123',
+  '-0.0',
+  '1.0E+6',
+  '2.384185791015625e-07',
   'true',
   'false',
   'True',
@@ -224,9 +227,8 @@ const TEXTS = [
   '&lt;x&gt;',
   '&quot;&apos;',
   '&amp;amp;',
-  // Digit-leading AND entity-bearing: the only shape that reaches the coercion branch with
-  // something to decode, so the only shape that can tell `toNumber(decoded)` from
-  // `toNumber(raw)`. Mutation testing found that pair indistinguishable without these.
+  // Digit-leading AND entity-bearing: once the only shape that reached the coercion branch with
+  // something to decode. Kept, because a digit-led value still has to be decoded.
   '7&amp;8',
   '1&lt;2',
   '-1&gt;0',

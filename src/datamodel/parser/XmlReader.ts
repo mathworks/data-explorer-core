@@ -19,13 +19,13 @@
 // Shape, all three readers:
 //
 //   - An attribute is a key prefixed `@_`; an element's text is the key `#text`.
-//   - TEXT is coerced, and more widely than "numbers": `007` and `1.0` read as 7 and 1,
-//     `0x1F` reads as 31, and `true`/`false` — lowercase only — read as BOOLEANS. The
-//     spelling is gone once it has, so anything that must round-trip a literal exactly
-//     reads it from the bytes. An integer too large for a double is the one case the
-//     coercion declines: it stays a string rather than lose precision.
+//   - TEXT is coerced by the model and project readers, and more widely than "numbers": `007`
+//     and `1.0` read as 7 and 1, `0x1F` reads as 31, and `true`/`false` — lowercase only — read
+//     as BOOLEANS. The spelling is gone once it has. An integer too large for a double is the
+//     one case the coercion declines: it stays a string rather than lose precision. The
+//     DICTIONARY reader coerces nothing; see "WHAT THE THREE READERS DO NOT SHARE".
 //   - Attribute values are coerced not at all — `Dim="7"` stays the string '7' and
-//     `Flag="true"` stays the string 'true'. One rule for text, another for attributes.
+//     `Flag="true"` stays the string 'true'.
 //   - Named entities are decoded (`&amp;` -> `&`). NUMERIC character references are NOT:
 //     `&#65;` arrives as the five characters `&#65;`. This is why `SlddScan` carries its
 //     own entity table rather than deciding what to decode for itself.
@@ -53,7 +53,7 @@
 // ---------------------------------------------------------------------------------------
 // WHAT THE THREE READERS DO NOT SHARE
 //
-// Only two options differ, and each is isolated in the test:
+// Three options differ, and each is isolated in the test:
 //
 //   `isArray` (dictionary only) forces `Object`, `P`, `Element` and `Field` to arrays even
 //   when singular. Without it a one-entry dictionary hands back an object where a
@@ -79,11 +79,22 @@
 //   left with only the two effects that are about fidelity. Leaf whitespace, padded
 //   values and interior whitespace are untouched.
 //
-//   It has a second effect that is not in its name, and it is the more useful half: with
-//   trimming off the engine returns any value that DIFFERS FROM ITS OWN TRIM raw and
-//   unparsed, so padding protects a dictionary value from every coercion above. `' 7 '`
-//   stays three characters where the model reader would make it the number 7. Interior
-//   whitespace is untouched either way — trimming is not normalization.
+//   It has a second effect that is not in its name: with trimming off the engine returns any
+//   value that DIFFERS FROM ITS OWN TRIM raw and unparsed, so `' 7 '` stays three characters
+//   where the model reader would make it the number 7. Interior whitespace is untouched either
+//   way — trimming is not normalization.
+//
+//   `parseTagValue: false` (dictionary only) turns the text coercion off. Its only caller,
+//   `BinarySlddParser`, converts every value itself by the Class the element declares —
+//   `parseMatlabNum`, `parseNumericBody`, `parseExactBody`, `parseInt` — so the engine's
+//   conversion did nothing for it but run before the Class was known. That was a loss, not a
+//   redundancy: a char whose text looked like a number came back in JavaScript's spelling of
+//   it (`'0.0'` as '0', `'1e-3'` as '0.001', `'2.384185791015625e-07'` with its exponent's zero
+//   gone), and `String(-0)` handed a double's -0.0 back as '0'. Measured over the 52 distinct
+//   binary dictionaries among the local corpus's (up to 100 MB) and every one under
+//   `test/fixtures` and `test/parity/artifacts`: 166 char bodies respelled, and 6 scalar
+//   double -0 values read as +0. A char matrix or an encoded stream whose text looked like a
+//   number lost its characters the same way, though none of the 52 holds one.
 
 import { XMLParser } from 'fast-xml-parser';
 
@@ -155,6 +166,7 @@ const dictionaryParser = new XMLParser({
   isArray: (name: string) =>
     name === 'Object' || name === 'P' || name === 'Element' || name === 'Field',
   trimValues: false,
+  parseTagValue: false,
   tagValueProcessor: dropLayoutWhitespace,
 });
 
@@ -167,9 +179,10 @@ const dictionaryParser = new XMLParser({
 const defaultParser = new XMLParser(SHAPE);
 
 /**
- * A `.sldd`'s XML part. `Object`, `P` and `Element` are always arrays; whitespace inside a
- * value is preserved exactly as written, and whitespace between two tags is not stored at
- * all (`dropLayoutWhitespace`).
+ * A `.sldd`'s XML part. `Object`, `P` and `Element` are always arrays; text is the text the
+ * file holds, never converted; whitespace inside a value is preserved
+ * exactly as written, and whitespace between two tags is not stored at all
+ * (`dropLayoutWhitespace`).
  *
  * Returns `unknown` on purpose: the empty object is a valid, common answer that means
  * "nothing readable here", so a caller has to narrow before it can trust a key. Every

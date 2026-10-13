@@ -83,16 +83,11 @@
 //     attributes and no keys at all it collapses to the empty string. An element WITH
 //     attributes never collapses — which is why `<P Name="x"/>` is an object with no `#text`
 //     while `<P/>` is `''`.
-//   * Text is entity-decoded, then offered to `dropLayoutWhitespace`, and only then coerced —
-//     and coerced ONLY IF IT EQUALS ITS OWN TRIM, because `trimValues: false` makes
-//     fast-xml-parser hand back any padded value raw. `' 7 '` stays three characters; `7`
-//     becomes the number. That asymmetry is load-bearing: it is how a MATLAB char array keeps
-//     its padding.
-//   * Coercion itself is NOT reimplemented. `strnum` does it, with the same options
-//     fast-xml-parser passes, so `007`, `0x1F`, `1.0` and an integer too large for a double
-//     all land where they landed before by construction rather than by my having read its
-//     source carefully enough. See `strnum.d.ts` for why that dependency is declared.
-//   * Attribute values are never coerced and never trimmed (`parseAttributeValue: false`).
+//   * Text is entity-decoded, then offered to `dropLayoutWhitespace`, and is otherwise handed
+//     back AS TEXT: the dictionary parser runs with `parseTagValue: false`, so `007`, `1.0`,
+//     `-0` and `true` are the strings the file holds. Converting them is `BinarySlddParser`'s
+//     job, by Class.
+//   * Attribute values are entity-decoded the same way, and never trimmed or converted.
 //
 // `.scratch/probe-differential.mjs` compares the two readers' output over every binary
 // dictionary available — 32 files, 469.4 MB, 18,505,864 keys, identical including key order.
@@ -108,20 +103,15 @@
 // tests, and `docs/deep-work/2026-09-30-sldd-xml-fast-reader/testing.md` says which. The fifth
 // was found by a new fixture, and is the numeric-reference story above.
 
-import toNumber from 'strnum';
-
-/** The options fast-xml-parser's OptionsBuilder defaults to; see `numberParseOptions`. */
-const NUMBER_OPTIONS = { hex: true, leadingZeros: true, eNotation: true, unicode: false };
-
 const TEXT_KEY = '#text';
 
 /**
  * fast-xml-parser's `maxNestedTags` default, which `XmlReader` does not override.
  *
  * Past it the engine throws `Maximum nested tags exceeded` rather than returning a tree, so this
- * is one of the two numbers in this file copied from the engine's options rather than from the
- * corpus (`NUMBER_OPTIONS` is the other). Dictionaries nest in single digits; this exists only so
- * that a document the engine refuses is refused here too.
+ * is the one number in this file copied from the engine's options rather than from the corpus.
+ * Dictionaries nest in single digits; this exists only so that a document the engine refuses is
+ * refused here too.
  */
 const MAX_NESTED_TAGS = 100;
 
@@ -165,11 +155,6 @@ const SPACE = 0x20;
 const TAB = 0x09;
 const LF = 0x0a;
 const CR = 0x0d;
-const DIGIT_0 = 0x30;
-const DIGIT_9 = 0x39;
-const PLUS = 0x2b;
-const MINUS = 0x2d;
-const DOT = 0x2e;
 const UPPER_P = 0x50;
 const HASH = 0x23; // #
 const SEMI = 0x3b; // ;
@@ -292,40 +277,27 @@ function decodeEntities(value: string): string | null {
 
 /**
  * The text pipeline, in fast-xml-parser's order: decode, then offer to the layout-whitespace
- * hook, then coerce only an unpadded value.
+ * hook. Nothing is converted after that — `parseTagValue` is off — so the text is the answer.
  *
  * Returns `undefined` for "add no `#text` key", which is how both the empty chunk and the
  * dropped layout whitespace arrive — `saveTextToParentTag` adds the key only for a non-empty
  * processed value. Returns `null` for "bail", which text can only do by carrying an entity
  * this reader will not interpret.
  *
- * `trim` is called ONCE. It used to be called twice, which cost a second pass over every
- * value in the file for a question the first pass had already answered.
+ * `trim` is called only for a non-leaf, which is the only question it answers here: a leaf is
+ * kept whatever it holds, padding included, which is how a MATLAB char array keeps its padding.
  */
-function processText(raw: string, isLeaf: boolean): string | number | boolean | undefined | null {
+function processText(raw: string, isLeaf: boolean): string | undefined | null {
   let decoded = raw;
   if (raw.indexOf('&') !== -1) {
     const d = decodeEntities(raw);
     if (d === null) return null;
     decoded = d;
   }
-  const trimmed = decoded.trim();
   // `dropLayoutWhitespace`: whitespace between two tags is layout, and removing the KEY rather
-  // than emptying it is what the real hook achieves by returning ''.
-  if (trimmed === '' && !isLeaf) return undefined;
-  if (trimmed !== decoded) return decoded; // padded: handed back raw, uncoerced
-  if (decoded === 'true') return true;
-  if (decoded === 'false') return false;
-  // `strnum` can only ever return a number for a value whose first character is a digit, a
-  // sign or a dot — EXCEPT when it is leading whitespace, and the line above has just proved
-  // there is none. Verified exhaustively over all 65,535 BMP first characters: the only ones
-  // that coerce despite not being digit-like are the 25 that `trim` strips. So this guard
-  // skips the call for every name, class and enum literal in the file, which is most of them,
-  // without being able to change an answer.
-  const c0 = decoded.charCodeAt(0);
-  if ((c0 >= DIGIT_0 && c0 <= DIGIT_9) || c0 === PLUS || c0 === MINUS || c0 === DOT) {
-    return toNumber(decoded, NUMBER_OPTIONS);
-  }
+  // than emptying it is what the real hook achieves by returning ''. Asked of the DECODED text,
+  // as the hook is.
+  if (!isLeaf && decoded.trim() === '') return undefined;
   return decoded;
 }
 
@@ -478,7 +450,7 @@ export function readDictionaryXmlFast(input: string): Record<string, unknown> | 
   const tags: string[] = [];
   const kids: Array<Record<string, unknown>> = [];
   const kidCount: number[] = [];
-  const textVal: Array<string | number | boolean | undefined> = [];
+  const textVal: Array<string | undefined> = [];
   const textCount: number[] = [];
   const attrKey: string[][] = [];
   const attrVal: string[][] = [];
@@ -552,8 +524,7 @@ export function readDictionaryXmlFast(input: string): Record<string, unknown> | 
           if (processed === null) return null;
           if (processed !== undefined) {
             const d = depth - 1;
-            textVal[d] =
-              textCount[d] === 0 ? processed : `${String(textVal[d])}${String(processed)}`;
+            textVal[d] = textCount[d] === 0 ? processed : `${textVal[d]}${processed}`;
             textCount[d]++;
           }
         }
