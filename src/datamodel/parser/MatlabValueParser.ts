@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import { parseExactNum, formatMatrixSerial, formatMxCharSerial } from './XmlUtils.js';
+import { parseExactNum, formatComplexNum, parseComplexNum, formatMatrixSerial, formatMxCharSerial } from './XmlUtils.js';
 
 export interface ParsedValue {
     type: string;
@@ -168,21 +168,53 @@ function parseString(str: string): ParsedValue | null {
     return value === null ? null : { type: 'string', value };
 }
 
+// One part of a complex literal, unsigned: a decimal, as parseMatlabNumber reads one (and
+// `\d+(?:\.\d*)?` for the same reason), or Inf or NaN.
+const COMPLEX_LITERAL_PART = '(?:Inf|NaN|(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)';
+// A complex literal: a real part and a sign, with or without spaces around the sign
+// (`3 + 4i`), or a sign alone; then the imaginary part, which a bare unit stands for 1 of
+// (`i` is 0+1i, `1-i` is 1-1i); then the unit, `i` or `j`. With a decimal imaginary part,
+// or a bare unit, these are MATLAB's forms. An Inf or NaN imaginary part before the unit
+// (`Infi`, `1+NaNi`) is not MATLAB syntax, where complex(Inf,-Inf) is `Inf-1i*Inf` and
+// complex(1,NaN) is `1+1i*NaN`; it is how this package shows such a part
+// (XmlUtils.formatComplexNum), and is read so that a value it shows can be typed back.
+const COMPLEX_LITERAL = new RegExp(
+    '^(?:([+-]?)(' + COMPLEX_LITERAL_PART + ')\\s*([+-])\\s*|([+-]?))(' + COMPLEX_LITERAL_PART + ')?[ij]$',
+);
+
+// One part's value: its digits, Inf or NaN, under its sign. A part not written is 1.
+function complexPart(sign: string, part: string | undefined): number {
+    const magnitude = part === undefined ? 1 : part === 'Inf' ? Infinity : part === 'NaN' ? NaN : parseFloat(part);
+    return sign === '-' ? -magnitude : magnitude;
+}
+
+// A complex scalar typed in, as the complex text every reader holds one in
+// (XmlUtils.formatComplexNum: `3+4i`, `0-1i`, `1+Infi`, `1NaNi`), which for finite parts is
+// the text this always made. It read `3+4i` and `2i`, and refused MATLAB's `i`, `-i`, `1+2j`
+// and `3 + 4i`, and `Infi` and `NaNi`, which are not MATLAB syntax but the form this package
+// shows such a part in (see COMPLEX_LITERAL). An element of a complex array takes what this
+// reads (MatlabVariableNode._setConstrainedValue), so each of those six was refused there
+// too. No file's text comes through here: a reader reads complex text with
+// XmlUtils.parseComplexNum.
+//
+// And the spellings this package shows a complex value in, which are parseComplexNum's: a
+// value is set back to the text it shows, by a commit of that text unchanged and by the
+// undo of a later edit, which for a Parameter's Value types the text it showed back in. Two
+// of them are not among the forms above: an imaginary NaN with no sign, formatComplexNum's
+// (`NaNi` is shown as `0NaNi`, `1+NaNi` as `1NaNi`), and an infinite part spelled
+// `Infinity`, a text dictionary's MAT stream's (SparseData.complexElement: `1+Infinityi`).
+// Refused, the commit of a value as it showed failed with "Invalid MATLAB expression", and
+// the undo was dropped, so the save wrote the edit that was undone. Either reads as the
+// value it shows, which is then spelled as every other one is: `1+Infinityi` is `1+Infi`.
 function parseComplex(str: string): ParsedValue | null {
-    const m = str.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)([+-](?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)i$/);
+    const m = COMPLEX_LITERAL.exec(str);
     if (m) {
-        const re = parseFloat(m[1]);
-        const im = parseFloat(m[2]);
-        const formatted = im >= 0 ? re + '+' + im + 'i' : re + '' + im + 'i';
-        return { type: 'complex', value: formatted };
+        const re = m[2] === undefined ? 0 : complexPart(m[1], m[2]);
+        const im = complexPart(m[3] ?? m[4], m[5]);
+        return { type: 'complex', value: formatComplexNum(re, im) };
     }
-    const mi = str.match(/^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)i$/);
-    if (mi) {
-        const im = parseFloat(mi[1]);
-        const formatted = '0' + (im >= 0 ? '+' + im + 'i' : '' + im + 'i');
-        return { type: 'complex', value: formatted };
-    }
-    return null;
+    const shown = parseComplexNum(str);
+    return shown ? { type: 'complex', value: formatComplexNum(shown.re, shown.im) } : null;
 }
 
 function parseArray(str: string): ParsedValue | null {
