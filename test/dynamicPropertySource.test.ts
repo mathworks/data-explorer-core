@@ -24,6 +24,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest, serializeEntryToXml } from '../src/index.js';
+import { regenerateEntryXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)));
@@ -159,6 +160,8 @@ describe('a dynamic property of a config component', () => {
     const { entry, saved } = openBinary();
     expect(spanOf(saved(), RTW_OPEN)).toBe(RTW_COMPONENTS);
     expect(spanOf(serializeEntryToXml(entry('cs')), RTW_OPEN)).toBe(RTW_COMPONENTS);
+    // An unedited entry's serializeEntryToXml is its own bytes; the writer is asked directly.
+    expect(spanOf(regenerateEntryXml(entry('cs')), RTW_OPEN), 'written from the model').toBe(RTW_COMPONENTS);
   });
 
   it('is copied with them, and pasted into a binary dictionary writes them', () => {
@@ -209,6 +212,7 @@ describe('a dynamic property of an object this package has no node for', () => {
     const open = '        <P Name="Value" Dimension="1*2">';
     expect(spanOf(entryOf(saved(), 'targets'), open)).toBe(TARGETS_VALUE);
     expect(spanOf(serializeEntryToXml(entry('targets')), open)).toBe(TARGETS_VALUE);
+    expect(spanOf(regenerateEntryXml(entry('targets')), open), 'written from the model').toBe(TARGETS_VALUE);
     expect(entry('targets').children[1].children.map((c: any) => c.name)).toEqual(['Name', 'AutosarCompilerAbstraction', 'AutosarMaxShortNameLength', 'AutosarSchemaVersion']);
   });
 });
@@ -242,5 +246,6 @@ describe('a property written with a PropertyType and no Source', () => {
     expect(entry('typed').serial._rawVal._elements[0]._property_source).toEqual({ AutosarCompilerAbstraction: { propertyType: 'slbool' } });
     expect(spanOf(entryOf(saved(), 'typed'), VALUE_OPEN)).toBe(TYPED_VALUE);
     expect(spanOf(serializeEntryToXml(entry('typed')), VALUE_OPEN)).toBe(TYPED_VALUE);
+    expect(spanOf(regenerateEntryXml(entry('typed')), VALUE_OPEN), 'written from the model').toBe(TYPED_VALUE);
   });
 });

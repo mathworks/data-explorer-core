@@ -19,6 +19,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
+import { zipSync } from 'fflate';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const fixture = (name: string): ArrayBuffer => {
@@ -46,6 +48,16 @@ function saveAndReopen(session: any, root: any): any {
   return ingest(createSession(), bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), {
     filename: root.name,
   });
+}
+
+/**
+ * The package with every entry written from the model, reopened. A save writes an unedited
+ * entry as the bytes it was read from, so this is how the writers are asked for the entries
+ * nobody edited.
+ */
+function regenerateAndReopen(root: any): any {
+  const bytes = zipSync({ ...root._zipMetadata, 'data/chunk0.xml': new TextEncoder().encode(regenerateChunkXml(root)) });
+  return ingest(createSession(), bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), { filename: root.name });
 }
 
 /** Every element of a complex array that offers an editor, as read. */
@@ -130,8 +142,13 @@ describe('an edit to an element of a complex array is undone, redone and undone 
         expect(el.displayValue, el.id).toBe(shown);
       }
       expect(complexRows(root)).toEqual(before);
-      // And the file it saves is the one an untouched save writes, row for row.
+      // And the file it saves is the one an untouched save writes, row for row, as is a
+      // binary one written from the model.
       expect(complexRows(saveAndReopen(session, root))).toEqual(untouched);
+      if (root.sourceFormat === 'xml') {
+        expect(complexRows(regenerateAndReopen(root))).toEqual(untouched);
+        expect(complexRows(regenerateAndReopen(open(file))), 'the untouched file, written from the model').toEqual(untouched);
+      }
     });
   }
 });

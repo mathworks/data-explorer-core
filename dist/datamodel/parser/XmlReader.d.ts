@@ -1,3 +1,4 @@
+import { type ReadEntrySpans } from './DictionaryXmlFast.js';
 /**
  * The two keys that are not an element name, exported because one walker has to tell
  * them apart from one.
@@ -20,8 +21,12 @@ export declare const TEXT_KEY = "#text";
  * Returns `unknown` on purpose: the empty object is a valid, common answer that means
  * "nothing readable here", so a caller has to narrow before it can trust a key. Every
  * caller already does.
+ *
+ * `entries`, when given, is where the fast reader records each entry's span as it reads
+ * (`readDictionaryXmlFast`). Its `read` is set only when the fast reader read the document at
+ * the input's own offsets; the general engine records nothing.
  */
-export declare function readDictionaryXml(text: string): unknown;
+export declare function readDictionaryXml(text: string, entries?: ReadEntrySpans): unknown;
 /**
  * The same document through the general engine, with no fast path consulted.
  *

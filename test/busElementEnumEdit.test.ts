@@ -37,6 +37,7 @@ import {
   loadModel,
   entryByName,
   serializeModel,
+  regenerateModel,
   reparseEntry,
   type SlddFormat,
 } from './parity/fidelity/roundTripHarness.js';
@@ -259,9 +260,13 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
       // the first option, the assertions above would still pass.
       const { model, entry } = freshMyBus('control');
       expect(entry.children[0].Complexity).toBe('real');
-      const fresh = reparseEntry(serializeModel(model, format), format, 'params.sldd', 'MyBus');
-      expect(fresh.children.map((c: any) => c.Complexity)).toEqual(['real', 'real']);
-      expect(fresh.children.map((c: any) => c.DimensionsMode)).toEqual(['Fixed', 'Fixed']);
+      // As saved, and as written from the model: a save of an unedited entry writes its
+      // own bytes, so it is the second that holds the write-back to the values.
+      for (const bytes of [serializeModel(model, format), regenerateModel(model, format)]) {
+        const fresh = reparseEntry(bytes, format, 'params.sldd', 'MyBus');
+        expect(fresh.children.map((c: any) => c.Complexity)).toEqual(['real', 'real']);
+        expect(fresh.children.map((c: any) => c.DimensionsMode)).toEqual(['Fixed', 'Fixed']);
+      }
     });
   });
 }

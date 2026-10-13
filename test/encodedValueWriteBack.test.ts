@@ -16,13 +16,18 @@
 // one, three Simulink.Parameters whose Value is one, and an AliasType subclass with a
 // function-handle property. Every way this package writes an entry is checked against the
 // bytes MATLAB wrote for it.
+//
+// A save writes an entry nobody edited as the bytes it was read from, so the writers are
+// not reached by one (BinarySlddSerializer). Each check below that a save keeps the bytes
+// is therefore made of the writer too, through regenerateChunkXml / regenerateEntryXml,
+// which write every entry from the model the way every save used to.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { unzipSync, zipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
-import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import { regenerateChunkXml, regenerateEntryXml, serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { uudecode } from '../src/datamodel/parser/CdataCodec.js';
 import { readMxArrayRecords } from '../src/datamodel/parser/MxArrayParser.js';
 import { cellVar, matFile, sparseVar } from './tools/matBytes.js';
@@ -97,10 +102,12 @@ describe('a save that edits nothing writes every hex value back byte for byte', 
   const session = createSession();
   const root = open(session);
   const ours = chunkOf(session.serializeSource(root.name)!.bytes);
+  const regenerated = regenerateChunkXml(root);
 
   for (const name of HEX) {
     it(name, () => {
       expect(valueTag(ours, name)).toBe(valueTag(MATLAB_CHUNK, name));
+      expect(valueTag(regenerated, name), 'written from the model').toBe(valueTag(MATLAB_CHUNK, name));
     });
   }
 });
@@ -113,6 +120,7 @@ describe('a save after editing a different entry writes every hex value back byt
   // dRow is MATLAB's [0 2 0 4 0]: its second element becomes 7.
   expect(dRow.children[1].setProperty('Value', '7')).toBe(true);
   const ours = chunkOf(session.serializeSource(root.name)!.bytes);
+  const regenerated = regenerateChunkXml(root);
 
   it('the edit itself is written', () => {
     expect(valueTag(ours, 'dRow')).toContain('>0.0 7.0 0.0 4.0 0.0</P>');
@@ -120,6 +128,7 @@ describe('a save after editing a different entry writes every hex value back byt
   for (const name of HEX) {
     it(name, () => {
       expect(valueTag(ours, name)).toBe(valueTag(MATLAB_CHUNK, name));
+      expect(valueTag(regenerated, name), 'written from the model').toBe(valueTag(MATLAB_CHUNK, name));
     });
   }
 });
@@ -213,8 +222,9 @@ describe('a hex value is read-only, all the way down, and its name is not', () =
           expect(result, `${label} ${prop}`).toMatchObject({ error: true });
         }
       }
-      // And none of that changed what is written.
+      // And none of that changed what is written, or what the model would write.
       expect(valueTag(serializeEntryToXml(entry), name)).toBe(valueTag(MATLAB_CHUNK, name));
+      expect(valueTag(regenerateEntryXml(entry), name)).toBe(valueTag(MATLAB_CHUNK, name));
     });
   }
 });
@@ -286,12 +296,17 @@ describe('a text dictionary\'s MAT stream pasted into a binary dictionary goes i
       expect(pasted.setProperty('Name', entry.name + 'Renamed'), entry.name).toBe(true);
       expect(valueTag(serializeEntryToXml(pasted), entry.name + 'Renamed'), entry.name).toBe(valueTag(MATLAB_CHUNK, entry.name));
     }
-    const reopened: any = ingest(createSession(), buffer(session.serializeSource(target.name)!.bytes), { filename: 'r.sldd' });
-    const design = reopened.getSection('design');
-    for (const entry of streams) {
-      const own = design.children.find((e: any) => e.name === entry.name);
-      const renamed = design.children.find((e: any) => e.name === entry.name + 'Renamed');
-      expect([renamed.displayValue, renamed.dims], entry.name).toEqual([own.displayValue, own.dims]);
+    // Reopened as saved, and as written from the model: the save writes the unedited
+    // entries beside the pasted ones as their own bytes, so the second asks the writers.
+    const regenerated = zipSync({ ...target._zipMetadata, 'data/chunk0.xml': new TextEncoder().encode(regenerateChunkXml(target)) });
+    for (const bytes of [session.serializeSource(target.name)!.bytes, regenerated]) {
+      const reopened: any = ingest(createSession(), buffer(bytes), { filename: 'r.sldd' });
+      const design = reopened.getSection('design');
+      for (const entry of streams) {
+        const own = design.children.find((e: any) => e.name === entry.name);
+        const renamed = design.children.find((e: any) => e.name === entry.name + 'Renamed');
+        expect([renamed.displayValue, renamed.dims], entry.name).toEqual([own.displayValue, own.dims]);
+      }
     }
   });
 
@@ -468,8 +483,9 @@ describe('one damaged hex value does not stop the dictionary opening', () => {
     expect(design.children.map((e: any) => e.name).sort()).toEqual([...ENTRIES].sort());
     expect(design.children.find((e: any) => e.name === 'c').displayValue).toBe('<1x2 cell, not decoded>');
     expect(root.warnings).toEqual([expect.objectContaining({ code: 'part-unreadable', part: 'c' })]);
-    // And a save writes the damaged bytes back as they were.
+    // And a save writes the damaged bytes back as they were, as does the writer.
     expect(valueTag(chunkOf(session.serializeSource(root.name)!.bytes), 'c')).toBe(damaged);
+    expect(valueTag(regenerateChunkXml(root), 'c')).toBe(damaged);
   });
 });
 
@@ -492,6 +508,12 @@ describe('an encoded element with an attribute named __proto__', () => {
     const saved = saveOf(crafted);
     expect(saved.split('__proto__="kept"').length - 1).toBe(injected);
     expect(saved.replace(/ __proto__="kept"/g, '')).toBe(saveOf(MATLAB_CHUNK));
+    // The writer, which is what puts the attribute back once the entry is edited.
+    const regeneratedOf = (chunk: string): string =>
+      regenerateChunkXml(ingest(createSession(), zipSync({ ...files, 'data/chunk0.xml': new TextEncoder().encode(chunk) }), { filename: 'sparse_binary.sldd' }) as any);
+    const regenerated = regeneratedOf(crafted);
+    expect(regenerated.split('__proto__="kept"').length - 1).toBe(injected);
+    expect(regenerated.replace(/ __proto__="kept"/g, '')).toBe(regeneratedOf(MATLAB_CHUNK));
   });
 });
 

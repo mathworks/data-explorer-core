@@ -20,7 +20,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import DataModel from '../../../src/core/DataModel.js';
 import { parseBinarySldd } from '../../../src/datamodel/parser/BinarySlddParser.js';
-import { serializeBinarySldd } from '../../../src/datamodel/parser/BinarySlddSerializer.js';
+import { regenerateChunkXml, serializeBinarySldd } from '../../../src/datamodel/parser/BinarySlddSerializer.js';
+import { zipSync } from 'fflate';
 import '../../../src/datamodel/node/data/NodeClassMap.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
@@ -94,6 +95,21 @@ export function serializeModel(model: any, format: SlddFormat): Uint8Array {
   }
   const json = JSON.stringify(model.serialize(), null, '\t');
   return new TextEncoder().encode(json);
+}
+
+/**
+ * The same package with every entry written from the model (regenerateChunkXml). A save
+ * writes an unedited binary entry as the bytes it was read from, so a round trip of an
+ * untouched entry through `serializeModel` no longer reaches the writers; this does. A
+ * text dictionary is written from the model either way.
+ */
+export function regenerateModel(model: any, format: SlddFormat): Uint8Array {
+  if (format !== 'binary') {
+    return serializeModel(model, format);
+  }
+  const parts: Record<string, Uint8Array> = { ...((model._zipMetadata ?? {}) as Record<string, Uint8Array>) };
+  parts['data/chunk0.xml'] = new TextEncoder().encode(regenerateChunkXml(model));
+  return zipSync(parts);
 }
 
 /**

@@ -15,6 +15,7 @@ import {
   loadModel,
   entryByName,
   serializeModel,
+  regenerateModel,
   reparseEntry,
   matlabAvailable,
   matlabAssertRoundTrip,
@@ -187,11 +188,12 @@ describe('MatlabVariable round-trip fidelity', () => {
         const node = entryByName(model, uri, 'emptyD');
         expect(node._kind).toBe('array');
         expect(node._elements).toEqual([]);
-        // Serialize and re-read to verify empty survives
-        const bytes = serializeModel(model, format);
-        const fresh = reparseEntry(bytes, format, FIXTURE, 'emptyD');
-        expect(fresh._kind).toBe('array');
-        expect(fresh._elements).toEqual([]);
+        // Serialize and re-read to verify empty survives, as saved and as written from the model
+        for (const bytes of [serializeModel(model, format), regenerateModel(model, format)]) {
+          const fresh = reparseEntry(bytes, format, FIXTURE, 'emptyD');
+          expect(fresh._kind).toBe('array');
+          expect(fresh._elements).toEqual([]);
+        }
       });
 
       // --- Cell (in-process only) ---
@@ -201,10 +203,11 @@ describe('MatlabVariable round-trip fidelity', () => {
         const node = entryByName(model, uri, 'myCell');
         expect(node._kind).toBe('cell');
         expect(node._dims).toEqual([1, 3]);
-        const bytes = serializeModel(model, format);
-        const fresh = reparseEntry(bytes, format, FIXTURE, 'myCell');
-        expect(fresh._kind).toBe('cell');
-        expect(fresh._dims).toEqual([1, 3]);
+        for (const bytes of [serializeModel(model, format), regenerateModel(model, format)]) {
+          const fresh = reparseEntry(bytes, format, FIXTURE, 'myCell');
+          expect(fresh._kind).toBe('cell');
+          expect(fresh._dims).toEqual([1, 3]);
+        }
       });
 
       // --- Struct (top-level _array_type:"Struct" entries parse as StructNode,
@@ -229,10 +232,11 @@ describe('MatlabVariable round-trip fidelity', () => {
         expect(node._kind).toBe('string');
         expect(node._dims).toEqual([1, 3]);
         expect(node._elements).toEqual(['a', 'bb', 'ccc']);
-        const bytes = serializeModel(model, format);
-        const fresh = reparseEntry(bytes, format, FIXTURE, 'strArray');
-        expect(fresh._kind).toBe('string');
-        expect(fresh._elements).toEqual(['a', 'bb', 'ccc']);
+        for (const bytes of [serializeModel(model, format), regenerateModel(model, format)]) {
+          const fresh = reparseEntry(bytes, format, FIXTURE, 'strArray');
+          expect(fresh._kind).toBe('string');
+          expect(fresh._elements).toEqual(['a', 'bb', 'ccc']);
+        }
       });
 
       // --- Logical vector ---
@@ -242,10 +246,11 @@ describe('MatlabVariable round-trip fidelity', () => {
         const node = entryByName(model, uri, 'boolVec');
         expect(node._kind).toBe('array');
         expect(node._scalarType).toBe('logical');
-        const bytes = serializeModel(model, format);
-        const fresh = reparseEntry(bytes, format, FIXTURE, 'boolVec');
-        expect(fresh._kind).toBe('array');
-        expect(fresh._scalarType).toBe('logical');
+        for (const bytes of [serializeModel(model, format), regenerateModel(model, format)]) {
+          const fresh = reparseEntry(bytes, format, FIXTURE, 'boolVec');
+          expect(fresh._kind).toBe('array');
+          expect(fresh._scalarType).toBe('logical');
+        }
       });
     });
   }

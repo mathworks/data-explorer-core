@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest } from '../src/index.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { flatten } from './parity/loadFile.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -204,12 +205,14 @@ describe('an enumeration value at an entry or a property opens as its enumeral',
     // enumeral with a double, an undo did not put it back, and the save wrote `Class="double">2.0`.
     const { session, root } = open(hostXml());
     const param = entryNode(root, 'gearParam');
+    // The writer is asked as well as the save, which writes an unedited entry as its own bytes.
     const now = () => ({
       shown: [param.displayValue, param.valueEditable],
       saved: spanOf(entryOf(chunkOf(session.serializeSource(root.name)!.bytes!), 'gearParam'), '                <P Name="Value"'),
+      written: spanOf(entryOf(regenerateChunkXml(root), 'gearParam'), '                <P Name="Value"'),
     });
     const before = now();
-    expect(before).toEqual({ shown: ['GearMode.Reverse', false], saved: PARAM_VALUE });
+    expect(before).toEqual({ shown: ['GearMode.Reverse', false], saved: PARAM_VALUE, written: PARAM_VALUE });
     session.setActive(root, param);
     expect(session.editProperty(param.id, 'Value', '2')).toMatchObject({ error: true });
     expect(param.setProperty('Value', 'GearMode.Drive')).toMatchObject({ error: true });
@@ -235,9 +238,13 @@ describe('and is saved as MATLAB wrote it', () => {
         expect(entryNode(first.root, from).setProperty('Name', to)).toBe(true);
       }
       const saved = chunkOf(first.session.serializeSource(first.root.name)!.bytes!);
-      const back = renames.reduce((x, [from, to]) => x.replace('<P Name="Name" Class="char">' + to + '</P>', '<P Name="Name" Class="char">' + from + '</P>'), saved);
+      const named = (xml: string) => renames.reduce((x, [from, to]) => x.replace('<P Name="Name" Class="char">' + to + '</P>', '<P Name="Name" Class="char">' + from + '</P>'), xml);
+      const back = named(saved);
+      // A save writes an unedited entry as its own bytes, so the writer is asked too, from the model.
+      const regenerated = named(regenerateChunkXml(first.root));
       for (const site of SITES) {
         expect(site.span(back), site.label).toBe(site.expected);
+        expect(site.span(regenerated), `${site.label}, written from the model`).toBe(site.expected);
       }
       // And reopened, it is the value that was saved.
       const again = open(back);
@@ -249,9 +256,11 @@ describe('and is saved as MATLAB wrote it', () => {
     const xml = chunkOf(bytesAt(DERIVED));
     const { session, root } = open(xml, DERIVED);
     const saved = chunkOf(session.serializeSource(root.name)!.bytes!);
+    const regenerated = regenerateChunkXml(root);
     for (const name of ['dpGain', 'dpPlain']) {
       const modeOpen = '                <P Name="Mode" IsEnum="1">';
       expect(spanOf(entryOf(saved, name), modeOpen), name).toBe(spanOf(entryOf(xml, name), modeOpen));
+      expect(spanOf(entryOf(regenerated, name), modeOpen), `${name}, written from the model`).toBe(spanOf(entryOf(xml, name), modeOpen));
     }
   });
 

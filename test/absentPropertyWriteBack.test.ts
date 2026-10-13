@@ -116,6 +116,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest, type SerializedSource } from '../src/index.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import NumericTypeNode from '../src/datamodel/node/data/NumericTypeNode.js';
 import AliasTypeNode from '../src/datamodel/node/data/AliasTypeNode.js';
 import ValueTypeNode from '../src/datamodel/node/data/ValueTypeNode.js';
@@ -796,7 +797,12 @@ describe('a property bag key named __proto__', () => {
     const chunk = (s: SerializedSource) => strFromU8(unzipSync((s as { bytes: Uint8Array }).bytes)['data/chunk0.xml']);
     const viaProto = saves(proto).map(chunk);
     const viaOther = saves(other).map(chunk);
-    for (let i = 0; i < 2; i++) {
+    // The untouched save is each entry's own bytes, so the writer is asked for the untouched
+    // file as well: every entry written from the model.
+    const regenerated = (content: Uint8Array): string => regenerateChunkXml(ingest(createSession(), content, { filename: 'd.sldd' }) as any);
+    viaProto.push(regenerated(proto));
+    viaOther.push(regenerated(other));
+    for (let i = 0; i < 3; i++) {
       const kept = viaProto[i].split('<P Name="__proto__"').length - 1;
       expect(kept).toBe(viaOther[i].split('<P Name="_zzproto_"').length - 1);
       expect(kept).toBeGreaterThan(0);

@@ -11,6 +11,7 @@ import { SC_PART, emptyCatalogBag } from '../../parser/ScCatalog.js';
 import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.js';
 import { takeDecodeFailures } from '../../parser/EncodedValue.js';
 import { heldByTextDictionary } from '../../parser/MatWriter.js';
+import { attachChunkFrame, attachEntrySource, readFrameOf, readSourceOf } from '../../parser/EntrySource.js';
 const SECTION_DEFS = [
     { key: 'design', label: 'Design Data', icon: 'databaseFolderDesign' },
     { key: 'arch', label: 'Architectural Data', icon: 'databaseFolderArchitecture' },
@@ -88,11 +89,22 @@ export default class SlddNode extends ContainerNode {
     static parse(json, filename, warnings) {
         const node = new SlddNode(filename);
         node.coreProperties = json.__MW_TEXT_COREPROPERTIES__ || null;
-        if (json.__rawXml) {
+        // The frame the binary reader verified, if this is the very content object it
+        // returned: what lets a save write each unedited entry back as the bytes it was
+        // read from (parser/EntrySource). A copy of the content carries none, and is
+        // regenerated whole, as it always was.
+        const frame = readFrameOf(json);
+        // Whether the binary reader wrote the content, by the part it always writes, and not by
+        // whether that part has any text: a package whose data/chunk0.xml is empty used to be
+        // taken for a text dictionary, and saved as one, with no package bytes at all.
+        if (typeof json.__rawXml === 'string') {
             node.sourceFormat = 'xml';
             node.rawXml = json.__rawXml;
             node._zipMetadata = json.__zipMetadata || null;
             node._dataSourceAttrs = json.__dataSourceAttrs || null;
+            if (frame && frame.xml === node.rawXml) {
+                attachChunkFrame(node, frame);
+            }
         }
         // `TEXT_PARTS`, not the literal: `serializeJson` below WRITES this bag through the
         // constant, and a reader in the same file spelling it by hand is the two-copies-of-
@@ -176,7 +188,15 @@ export default class SlddNode extends ContainerNode {
                     if (node.sourceFormat !== 'xml') {
                         heldByTextDictionary(entry.value);
                     }
-                    section._readEntry(entry, node.systemComposer);
+                    // Here and not in _readEntry: this is the one read that has the bytes
+                    // in hand. _readEntry is also how a pasted or restored RECORD becomes a
+                    // node (through parseEntry), and a record has no bytes to claim. Asked
+                    // before the node is built, of the entry as the host handed it over.
+                    const source = readSourceOf(entry);
+                    const entryNode = section._readEntry(entry, node.systemComposer);
+                    if (source && frame && source.frame === frame && frame.xml === node.rawXml) {
+                        attachEntrySource(entryNode, source);
+                    }
                     for (const reason of takeDecodeFailures()) {
                         warnings?.push({
                             code: 'part-unreadable',

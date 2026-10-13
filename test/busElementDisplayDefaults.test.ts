@@ -31,6 +31,7 @@ import {
   loadModel,
   entryByName,
   serializeModel,
+  regenerateModel,
   reparseEntry,
   type SlddFormat,
 } from './parity/fidelity/roundTripHarness.js';
@@ -177,9 +178,13 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
       const { model, entry } = freshMyBus('clean');
       const before = entry.children.map((c: any) => Object.keys(c.serial._properties as Record<string, unknown>).sort());
 
-      const fresh = reparseEntry(serializeModel(model, format), format, 'params.sldd', 'MyBus');
-      const after = fresh.children.map((c: any) => Object.keys(c.serial._properties as Record<string, unknown>).sort());
-      expect(after).toEqual(before);
+      // As saved, and as written from the model (which a save of an untouched entry no
+      // longer asks the writers for).
+      for (const bytes of [serializeModel(model, format), regenerateModel(model, format)]) {
+        const fresh = reparseEntry(bytes, format, 'params.sldd', 'MyBus');
+        const after = fresh.children.map((c: any) => Object.keys(c.serial._properties as Record<string, unknown>).sort());
+        expect(after).toEqual(before);
+      }
     });
 
     it('an edited element enum survives the round trip while its siblings gain nothing', () => {

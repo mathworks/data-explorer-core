@@ -21,6 +21,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { encodeMatStream, MatBudgetError, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { BINARY, TEXT, sparseFixture, thrownBy } from './tools/pasteVenues.js';
 import { sparseToDense } from '../src/datamodel/parser/SparseData.js';
 import { isExactDigits } from '../src/datamodel/parser/Size.js';
@@ -334,12 +335,13 @@ describe('every raw property arm refuses dims no Dimension can spell, naming the
 });
 
 describe('after the reverts, the readers are 6402869\'s: Dimensions and dims past an int32 are held as read', () => {
-  it('binary 1*2.5, 1*4294967296 and 0*2147483648: a no-op save writes each Value as 6402869 did', () => {
-    // Each pair: the Value as the file holds it, and as a no-op save writes it — the same
-    // bytes 6402869's dist writes for each (compared against `git archive 6402869 dist`),
-    // but for the empty struct array, which 6402869 wrote with one empty <Element> it never
-    // had and is now written as the file holds it (StructNode.serializeXml). One is not the
-    // file's own bytes: a double's body read as its two numbers is 1x2.
+  it('binary 1*2.5, 1*4294967296 and 0*2147483648: the writer writes each Value as 6402869 did, and a no-op save as read', () => {
+    // Each pair: the Value as the file holds it, and as the writer writes it from the model
+    // — the same bytes 6402869's dist writes for each (compared against `git archive
+    // 6402869 dist`), which is what a no-op save wrote until it kept an unedited entry's
+    // bytes, but for the empty struct array, which 6402869 wrote with one empty <Element> it
+    // never had and is now written as the file holds it (StructNode.serializeXml). One is not
+    // the file's own bytes: a double's body read as its two numbers is 1x2.
     const values: [string, string, string][] = [
       ['f', '<P Name="Value" Class="cell" Dimension="1*2.5">\n            <Element Class="double">1.0</Element>\n        </P>', '<P Name="Value" Class="cell" Dimension="1*2.5">\n            <Element Class="double">1.0</Element>\n        </P>'],
       ['w', '<P Name="Value" Class="cell" Dimension="1*4294967296">\n            <Element Class="double">1.0</Element>\n        </P>', '<P Name="Value" Class="cell" Dimension="1*4294967296">\n            <Element Class="double">1.0</Element>\n        </P>'],
@@ -358,9 +360,14 @@ describe('after the reverts, the readers are 6402869\'s: Dimensions and dims pas
     const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
     expect(root.warnings ?? []).toEqual([]);
     const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
-    for (const [name, , written] of values) {
-      const from = saved.indexOf('<P Name="Value"', saved.indexOf(`<P Name="Name" Class="char">${name}</P>`));
-      expect(saved.slice(from, saved.indexOf('</Object>', from)).trimEnd(), name).toBe(written);
+    const regenerated = regenerateChunkXml(root);
+    const valueIn = (xml: string, name: string): string => {
+      const from = xml.indexOf('<P Name="Value"', xml.indexOf(`<P Name="Name" Class="char">${name}</P>`));
+      return xml.slice(from, xml.indexOf('</Object>', from)).trimEnd();
+    };
+    for (const [name, read, written] of values) {
+      expect(valueIn(regenerated, name), name).toBe(written);
+      expect(valueIn(saved, name), `${name}, saved untouched`).toBe(read);
     }
   });
 
@@ -581,8 +588,13 @@ describe('a binary dictionary\'s raw property is written back as read, Dimension
         const p = root.getSection('design').children.find((e: any) => e.name === 'pDense');
         if (edit) expect(p.setProperty('Description', 'edited')).toBe(true);
         const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
-        const from = saved.indexOf('<P Name="Value"', saved.indexOf('<Element Class="Simulink.Parameter">', saved.indexOf('<P Name="Name" Class="char">pDense</P>')));
-        expect(saved.slice(from, saved.indexOf('<P Name="Complexity"', from)).trimEnd(), edit ? 'edited' : 'no-op').toBe(written || read);
+        const valueIn = (xml: string): string => {
+          const from = xml.indexOf('<P Name="Value"', xml.indexOf('<Element Class="Simulink.Parameter">', xml.indexOf('<P Name="Name" Class="char">pDense</P>')));
+          return xml.slice(from, xml.indexOf('<P Name="Complexity"', from)).trimEnd();
+        };
+        // Unedited, a save writes the entry's own bytes, so the writer is asked directly.
+        expect(valueIn(edit ? saved : regenerateChunkXml(root)), edit ? 'edited' : 'no-op').toBe(written || read);
+        if (!edit) expect(valueIn(saved), 'saved untouched').toBe(read);
       }
     });
   }
@@ -710,6 +722,10 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
       const from = saved.indexOf('<P Name="Value"', saved.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
       expect(saved.slice(from, saved.indexOf('</Object>', from)).trimEnd(), label).toBe(read);
+      // The save keeps the unedited entry's bytes; the writer has to write them as read too.
+      const regenerated = regenerateChunkXml(root);
+      const at = regenerated.indexOf('<P Name="Value"', regenerated.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
+      expect(regenerated.slice(at, regenerated.indexOf('</Object>', at)).trimEnd(), `${label}, written from the model`).toBe(read);
     }
   });
 
@@ -736,6 +752,9 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
       const from = saved.indexOf('<P Name="Value"', saved.indexOf('<Element Class="Simulink.Parameter">', saved.indexOf('<P Name="Name" Class="char">pDense</P>')));
       expect(squeeze(saved.slice(from, saved.indexOf('<P Name="Complexity"', from))), element).toBe(squeeze(read));
+      const regenerated = regenerateChunkXml(root);
+      const at = regenerated.indexOf('<P Name="Value"', regenerated.indexOf('<Element Class="Simulink.Parameter">', regenerated.indexOf('<P Name="Name" Class="char">pDense</P>')));
+      expect(squeeze(regenerated.slice(at, regenerated.indexOf('<P Name="Complexity"', at))), `${element}, written from the model`).toBe(squeeze(read));
     }
   });
 
@@ -758,6 +777,10 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
       const from = saved.indexOf('<Element Class="double"', saved.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
       expect(Number(/^<Element Class="double" Dimension="0\*(\d+)"\/>/.exec(saved.slice(from))?.[1]), dimension).toBe(2 ** 60);
+      // The save writes the unedited entry's own bytes; the writer is not refused either.
+      const regenerated = regenerateChunkXml(root);
+      const regenAt = regenerated.indexOf('<Element Class="double"', regenerated.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
+      expect(Number(/^<Element Class="double" Dimension="0\*(\d+)"\/>/.exec(regenerated.slice(regenAt))?.[1]), `${dimension}, written from the model`).toBe(2 ** 60);
       const inValue = unzipSync(new Uint8Array(sparseFixture(BINARY)));
       inValue['data/chunk0.xml'] = strToU8(strFromU8(inValue['data/chunk0.xml']).replace(OLD_VALUE, `<P Name="Value" Class="cell">\n                    <Element Class="double" Dimension="${dimension}"/>\n                </P>`));
       const valueSession = createSession();
@@ -767,6 +790,9 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       const valueSaved = strFromU8(unzipSync(valueSession.serializeSource(valueRoot.name)!.bytes!)['data/chunk0.xml']);
       const at = valueSaved.indexOf('<Element Class="double"', valueSaved.indexOf('<P Name="Name" Class="char">pDense</P>'));
       expect(Number(/^<Element Class="double" Dimension="0\*(\d+)"\/>/.exec(valueSaved.slice(at))?.[1]), `${dimension} in a Parameter's Value`).toBe(2 ** 60);
+      const valueRegenerated = regenerateChunkXml(valueRoot);
+      const regenValueAt = valueRegenerated.indexOf('<Element Class="double"', valueRegenerated.indexOf('<P Name="Name" Class="char">pDense</P>'));
+      expect(Number(/^<Element Class="double" Dimension="0\*(\d+)"\/>/.exec(valueRegenerated.slice(regenValueAt))?.[1]), `${dimension} in a Parameter's Value, written from the model`).toBe(2 ** 60);
     }
   });
 });

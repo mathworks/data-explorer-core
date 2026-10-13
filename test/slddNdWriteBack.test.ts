@@ -19,7 +19,7 @@ import { unzipSync } from 'fflate';
 import DataModel from '../src/core/DataModel.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
-import { buildDataChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import { buildDataChunkXml, regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { loadFile, findEntry } from './parity/loadFile.js';
 
 function chunkOf(fixture: string): string {
@@ -60,8 +60,10 @@ function markAll(node: any): void {
 
 // Re-emit a whole fixture through the data model and hand back the chunk XML.
 // `modify` drops the `_rawInput` passthrough, so what comes out is what our own
-// writers built rather than the bytes we read.
-function rewritten(fixture: string, modify = false): string {
+// writers built rather than the bytes we read. `write` is the save's chunk writer by
+// default, which writes an unedited entry as the bytes it was read from;
+// regenerateChunkXml writes every entry from the model.
+function rewritten(fixture: string, modify = false, write: (model: any) => string = buildDataChunkXml): string {
   const uri = 'mem://ndwb-' + fixture + modify;
   DataModel.removeDataSource(uri);
   const p = fileURLToPath(new URL('./fixtures/' + fixture, import.meta.url));
@@ -77,7 +79,7 @@ function rewritten(fixture: string, modify = false): string {
   if (modify) {
     markAll(model);
   }
-  return buildDataChunkXml(model);
+  return write(model);
 }
 
 // fixture -> the entries in it, with the MATLAB shape each one is there to pin.
@@ -95,6 +97,7 @@ describe('an untouched N-D entry is written back exactly as MATLAB wrote it', ()
   for (const [fixture, entry, what] of CASES) {
     it(entry + ' (' + what + ')', () => {
       expect(valueXml(rewritten(fixture), entry)).toBe(valueXml(chunkOf(fixture), entry));
+      expect(valueXml(rewritten(fixture, false, regenerateChunkXml), entry), 'written from the model').toBe(valueXml(chunkOf(fixture), entry));
     });
   }
 });

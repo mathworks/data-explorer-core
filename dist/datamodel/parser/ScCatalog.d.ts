@@ -134,4 +134,19 @@ export declare function applyScEdits(text: string, edits: ScTextEdit[]): string;
  * rename into the file at all.
  */
 export declare function renameInCatalog(catalog: SystemComposerCatalog | null | undefined, oldName: string, newName: string): boolean;
+/**
+ * Every definition of this catalog renamed since it was read, as name in the file ->
+ * name now. Empty for a catalog nothing has been renamed in, and for none at all.
+ */
+export declare function catalogRenames(catalog: SystemComposerCatalog | null | undefined): Map<string, string>;
+/**
+ * A compressed-binary dictionary's interface dictionary member, with every renamed
+ * definition's name written where the definition spells it (`scRenameEdits`'s sites:
+ * the definition and its own value-type descriptor, never a reference elsewhere that
+ * happens to share the name), and every other byte as it was.
+ *
+ * All renames are applied in one pass over the member as read, so a swap of two names
+ * (A -> B and B -> A) lands as a swap rather than as two definitions named A.
+ */
+export declare function scXmlWithRenames(xml: string, renames: ReadonlyMap<string, string>): string;
 //# sourceMappingURL=ScCatalog.d.ts.map

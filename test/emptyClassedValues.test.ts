@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest } from '../src/index.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import DataNode from '../src/datamodel/node/DataNode.js';
 import { flatten } from './parity/loadFile.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
@@ -172,14 +173,18 @@ describe('and is saved as MATLAB wrote it', () => {
         expect(entryNode(first.root, name).setProperty('Name', name + 'X')).toBe(true);
       }
       const saved = chunkOf(first.session.serializeSource(first.root.name)!.bytes!);
-      const back = renames.reduce((x, name) => x.replace('<P Name="Name" Class="char">' + name + 'X</P>', '<P Name="Name" Class="char">' + name + '</P>'), saved);
-      const widget = entryOf(back, 'widget');
-      const cell = widget.slice(widget.indexOf('<P Name="Empties"'));
-      SHAPES.forEach((s, k) => {
-        expect(lineOf(widget, `<P Name="${s.name}" `), 'property ' + s.name).toBe(pSpelling(s));
-        expect(cell.split('\n')[k + 1].trim(), 'cell ' + s.name).toBe(eSpelling(s));
-        expect(lineOf(entryOf(back, 'e' + s.name), '<P Name="Value"'), 'entry ' + s.name).toBe(`<P Name="Value" Class="${s.cls}" Dimension="${s.dim}"/>`);
-      });
+      const named = (xml: string) => renames.reduce((x, name) => x.replace('<P Name="Name" Class="char">' + name + 'X</P>', '<P Name="Name" Class="char">' + name + '</P>'), xml);
+      const back = named(saved);
+      // A save writes an unedited entry as its own bytes, so the writer is asked too, from the model.
+      for (const [what, xml] of [['saved', back], ['written from the model', named(regenerateChunkXml(first.root))]]) {
+        const widget = entryOf(xml, 'widget');
+        const cell = widget.slice(widget.indexOf('<P Name="Empties"'));
+        SHAPES.forEach((s, k) => {
+          expect(lineOf(widget, `<P Name="${s.name}" `), `${what}: property ${s.name}`).toBe(pSpelling(s));
+          expect(cell.split('\n')[k + 1].trim(), `${what}: cell ${s.name}`).toBe(eSpelling(s));
+          expect(lineOf(entryOf(xml, 'e' + s.name), '<P Name="Value"'), `${what}: entry ${s.name}`).toBe(`<P Name="Value" Class="${s.cls}" Dimension="${s.dim}"/>`);
+        });
+      }
       // And reopened, each is the value it was.
       const again = open(back);
       SHAPES.forEach((s) => expect(shown(childOf(entryNode(again.root, 'widget'), s.name)), s.name).toEqual([s.cls, s.display, s.dims]));
@@ -303,6 +308,8 @@ describe('a typed `[]` is the 0x0 of its class', () => {
     expect(shown(member)).toEqual(['logical', '[ ]', [0, 0]]);
     const saved = entryOf(chunkOf(session.serializeSource(root.name)!.bytes!), 'partCell');
     expect(saved).toContain('        <P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
+    // The save keeps the unedited entry's bytes; the writer writes the same from the model.
+    expect(entryOf(regenerateChunkXml(root), 'partCell'), 'written from the model').toContain('        <P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
   });
 });
 

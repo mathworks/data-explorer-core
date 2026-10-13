@@ -24,10 +24,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { unzipSync } from 'fflate';
+import { unzipSync, zipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
-import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import { regenerateChunkXml, serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 import { parseComplexNum } from '../src/datamodel/parser/XmlUtils.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
@@ -135,20 +135,39 @@ describe('a save that edits nothing writes them as it did', () => {
     const session = createSession();
     const root = open(BINARY, session);
     const saved = chunkOf(session.serializeSource(root.name).bytes);
-    // As the save wrote them while the reader showed them as chars: MATLAB's text, the NaN
-    // imaginary part signed (test/complexBinaryWriteBack.test.ts).
-    expect(complexTags(entryBlock(saved, 'pNonFinite'))).toEqual([
+    // Written from the model, as the save wrote them while the reader showed them as chars:
+    // MATLAB's text, the NaN imaginary part signed (test/complexBinaryWriteBack.test.ts).
+    const regenerated = regenerateChunkXml(root);
+    expect(complexTags(entryBlock(regenerated, 'pNonFinite'))).toEqual([
       '<P Name="Value" Class="double" IsComplex="1" Dimension="1*4">Inf-Infi NaN+1.0i 1.0+NaNi -Inf+2.0i</P>',
+    ]);
+    expect(complexTags(entryBlock(regenerated, 'pMixedNF'))).toEqual([
+      '<P Name="Value" Class="double" IsComplex="1" Dimension="1*3">1.0+2.0i NaN+0.0i 3.0-4.0i</P>',
+    ]);
+    // The save itself writes each unedited entry as the bytes it was read from: MATLAB's
+    // own unsigned `1.0NaNi` included.
+    expect(complexTags(entryBlock(saved, 'pNonFinite'))).toEqual([
+      '<P Name="Value" Class="double" IsComplex="1" Dimension="1*4">Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i</P>',
     ]);
     expect(complexTags(entryBlock(saved, 'pMixedNF'))).toEqual([
       '<P Name="Value" Class="double" IsComplex="1" Dimension="1*3">1.0+2.0i NaN+0.0i 3.0-4.0i</P>',
     ]);
-    // And a rename, which leaves the value as it was.
+    // And a rename, which leaves the value as it was, written from the model.
     const entry = nodeAt(root, ['pNonFinite']);
     expect(entry.setProperty('Name', 'pNonFiniteRenamed')).toBe(true);
-    expect(complexTags(serializeEntryToXml(entry))).toEqual(complexTags(entryBlock(saved, 'pNonFinite')));
+    expect(complexTags(serializeEntryToXml(entry))).toEqual(complexTags(entryBlock(regenerated, 'pNonFinite')));
   });
 });
+
+/**
+ * The package with every entry written from the model, opened again: a save writes an
+ * unedited entry as the bytes it was read from, so this is how the writers are asked for the
+ * entries nobody edited.
+ */
+function regenerateAndReopen(root: any): any {
+  const bytes = zipSync({ ...root._zipMetadata, 'data/chunk0.xml': new TextEncoder().encode(regenerateChunkXml(root)) });
+  return ingest(createSession(), bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), { filename: root.name });
+}
 
 /** What a save writes, opened again in a session of its own. */
 function saveAndReopen(session: any, root: any): any {
@@ -211,10 +230,15 @@ describe('a non-finite part typed into a binary dictionary reopens as a number',
       }
     }
     const reopened = saveAndReopen(session, root);
+    // And each written from the model, the untouched one too.
+    const regenerated = regenerateAndReopen(root);
+    const regeneratedUntouched = regenerateAndReopen(open(BINARY, createSession()));
     for (const [name, value] of NON_FINITE) {
       const rows = (r: any) => nodeAt(r, [name, 'Value']).children.map((el: any) => el.displayValue);
       expect(rows(reopened), name).toEqual(rows(untouched));
       expect(numbersOf(nodeAt(reopened, [name, 'Value'])).elements, name).toEqual(value);
+      expect(rows(regenerated), `${name}, written from the model`).toEqual(rows(untouched));
+      expect(rows(regeneratedUntouched), `${name}, untouched, written from the model`).toEqual(rows(untouched));
     }
   });
 });

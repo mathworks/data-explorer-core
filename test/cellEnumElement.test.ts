@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest } from '../src/index.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { flatten } from './parity/loadFile.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -194,6 +195,8 @@ describe('an enumeration value in a cell opens as its enumeral', () => {
     expect([member.className, member.displayValue, member.valueEditable]).toEqual(['Constant', 'Constant.Reverse', false]);
     const saved = chunkOf(session.serializeSource(root.name)!.bytes!);
     expect(saved).toContain(cellP('Cells', [DOUBLE, constant], 16));
+    // A save writes an unedited entry's own bytes; the writer writes the same from the model.
+    expect(regenerateChunkXml(root)).toContain(cellP('Cells', [DOUBLE, constant], 16));
   });
 
   it('and a cell whose literal shows one takes no editor, since the literal would read back as text', () => {
@@ -206,6 +209,7 @@ describe('an enumeration value in a cell opens as its enumeral', () => {
     expect(cell.setProperty('Value', cell.displayValue)).toMatchObject({ error: true });
     const saved = chunkOf(session.serializeSource(root.name)!.bytes!);
     expect(saved).toContain(cellP('Cells', [DOUBLE, SCALAR], 16));
+    expect(regenerateChunkXml(root)).toContain(cellP('Cells', [DOUBLE, SCALAR], 16));
   });
 });
 
@@ -232,6 +236,10 @@ describe('and is saved as MATLAB wrote it', () => {
         const saved = chunkOf(first.session.serializeSource(first.root.name)!.bytes!);
         const back = spanOf(saved, ' '.repeat(venue.indent) + '<P Name="' + venue.name + '" Class="cell" Dimension="1*' + CELL.length + '">');
         expect(childElements(back.split('\n'))).toEqual(expected);
+        // And as the writer writes it from the model, which is what a save of an unedited
+        // entry no longer asks it for.
+        const regenerated = spanOf(regenerateChunkXml(first.root), ' '.repeat(venue.indent) + '<P Name="' + venue.name + '" Class="cell" Dimension="1*' + CELL.length + '">');
+        expect(childElements(regenerated.split('\n')), 'written from the model').toEqual(expected);
         // And reopened, it is the value that was saved.
         const again = open(saved);
         expect(shown(venue.cell(again.root))).toEqual(before);

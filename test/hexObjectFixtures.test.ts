@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { unzipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
-import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import { regenerateChunkXml, regenerateEntryXml, serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const FIXTURES = new URL('./fixtures/sparse/', import.meta.url);
@@ -110,8 +110,10 @@ describe('under a hex value, every node is read-only, whatever its class', () =>
           }
         }
       }
-      // And none of that changed what is written.
+      // And none of that changed what is written, or what the model would write: a save
+      // writes an unedited entry as the bytes it was read from, so the writer is asked too.
       expect(valueTag(serializeEntryToXml(entry), name)).toBe(valueTag(MATLAB_CHUNK, name));
+      expect(valueTag(regenerateEntryXml(entry), name)).toBe(valueTag(MATLAB_CHUNK, name));
     });
   }
 });
@@ -121,13 +123,17 @@ describe('a save writes every hex value back byte for byte', () => {
     const session = createSession();
     const root = open('hexobj_binary.sldd', session);
     const noop = new TextDecoder().decode(unzipSync(session.serializeSource(root.name)!.bytes)['data/chunk0.xml']);
+    const noopRegenerated = regenerateChunkXml(root);
     const control = root.getSection('design').children.find((e: any) => e.name === 'control');
     expect(control.setProperty('Value', '6')).toBe(true);
     const edited = new TextDecoder().decode(unzipSync(session.serializeSource(root.name)!.bytes)['data/chunk0.xml']);
+    const editedRegenerated = regenerateChunkXml(root);
     expect(valueTag(edited, 'control')).toBe('<P Name="Value" Class="double">6.0</P>');
     for (const name of HEX) {
       expect(valueTag(noop, name), name).toBe(valueTag(MATLAB_CHUNK, name));
       expect(valueTag(edited, name), name).toBe(valueTag(MATLAB_CHUNK, name));
+      expect(valueTag(noopRegenerated, name), `${name}, written from the model`).toBe(valueTag(MATLAB_CHUNK, name));
+      expect(valueTag(editedRegenerated, name), `${name}, written from the model`).toBe(valueTag(MATLAB_CHUNK, name));
     }
   });
 });

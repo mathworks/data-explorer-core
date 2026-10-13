@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
-import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import { regenerateEntryXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const fixture = (name: string): Uint8Array =>
@@ -64,9 +64,13 @@ function withEmpties(): ArrayBuffer {
   return buffer(zipSync(zip));
 }
 
-/** An entry's Value element as a save writes it. */
+/**
+ * An entry's Value element as the writer writes it from the model. Not as a save writes
+ * it: a save writes an unedited entry as the bytes it was read from, which would compare
+ * the file's bytes before the edit with the writer's after it.
+ */
 function valueTag(entry: any): string {
-  const xml = serializeEntryToXml(entry);
+  const xml = regenerateEntryXml(entry);
   const from = xml.indexOf('<P Name="Value"');
   return xml.slice(from, xml.indexOf('\n', from));
 }

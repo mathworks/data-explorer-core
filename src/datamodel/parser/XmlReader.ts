@@ -109,7 +109,7 @@
 
 import { XMLParser } from 'fast-xml-parser';
 
-import { readDictionaryXmlFast } from './DictionaryXmlFast.js';
+import { readDictionaryXmlFast, type ReadEntrySpans } from './DictionaryXmlFast.js';
 
 /**
  * The two keys that are not an element name, exported because one walker has to tell
@@ -211,8 +211,12 @@ const defaultParser = new XMLParser(SHAPE);
  * Returns `unknown` on purpose: the empty object is a valid, common answer that means
  * "nothing readable here", so a caller has to narrow before it can trust a key. Every
  * caller already does.
+ *
+ * `entries`, when given, is where the fast reader records each entry's span as it reads
+ * (`readDictionaryXmlFast`). Its `read` is set only when the fast reader read the document at
+ * the input's own offsets; the general engine records nothing.
  */
-export function readDictionaryXml(text: string): unknown {
+export function readDictionaryXml(text: string, entries?: ReadEntrySpans): unknown {
   // Two engines, ONE contract. `DictionaryXmlFast` reads the subset of XML a dictionary is
   // actually written in — five element names, quoted attributes, XML's five entities and
   // numeric character references — and returns `null` for anything else, which is every
@@ -226,7 +230,7 @@ export function readDictionaryXml(text: string): unknown {
   // rather than a feature flag because the fallback IS the specification — there is no
   // configuration in which the fast reader is the only reader, and a dictionary it declines
   // is read exactly as it was before.
-  return readDictionaryXmlFast(text) ?? readDictionaryXmlGeneric(text);
+  return readDictionaryXmlFast(text, entries) ?? readDictionaryXmlGeneric(text);
 }
 
 /**

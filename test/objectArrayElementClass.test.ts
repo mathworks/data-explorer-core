@@ -28,6 +28,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest, serializeEntryToXml } from '../src/index.js';
+import { regenerateEntryXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)));
@@ -180,6 +181,9 @@ describe('a binary dictionary\'s mixed-class object array', () => {
     expect(spanOf(xml, USER_ARRAY_OPEN)).toBe(USER_ARRAY);
     expect(spanOf(serializeEntryToXml(entry('cs')), COMPONENTS_OPEN)).toBe(COMPONENTS);
     expect(spanOf(serializeEntryToXml(entry('alias')), USER_ARRAY_OPEN)).toBe(USER_ARRAY);
+    // An unedited entry's serializeEntryToXml is its own bytes; the writer is asked directly.
+    expect(spanOf(regenerateEntryXml(entry('cs')), COMPONENTS_OPEN), 'written from the model').toBe(COMPONENTS);
+    expect(spanOf(regenerateEntryXml(entry('alias')), USER_ARRAY_OPEN), 'written from the model').toBe(USER_ARRAY);
     expect(classesIn(spanOf(xml, COMPONENTS_OPEN))).toEqual([
       ...COMPONENT_CLASSES.slice(0, 7), 'Simulink.RTWCC', ...RTW_COMPONENTS, 'SlCovCC.ConfigComp',
     ]);
@@ -191,6 +195,7 @@ describe('a binary dictionary\'s mixed-class object array', () => {
     expect(entry('signals').children.map((c: any) => c.className)).toEqual(['MySubclasses.MySlSignal', 'Simulink.Signal']);
     expect(spanOf(saved(), open)).toBe(ARRAY_VALUE);
     expect(spanOf(serializeEntryToXml(entry('signals')), open)).toBe(ARRAY_VALUE);
+    expect(spanOf(regenerateEntryXml(entry('signals')), open), 'written from the model').toBe(ARRAY_VALUE);
   });
 
   it('writes each element\'s own Class after an edit inside the array', () => {
@@ -264,6 +269,9 @@ describe('a binary dictionary\'s mixed array of config components, in the shapes
     expect(classesIn(spanOf(serializeEntryToXml(entry('withBase')), pad(16) + '<P Name="Components" Dimension="2*1">'))).toEqual([
       'Simulink.SolverCC', 'Simulink.ConfigComponent',
     ]);
+    expect(classesIn(spanOf(regenerateEntryXml(entry('withBase')), pad(16) + '<P Name="Components" Dimension="2*1">')), 'written from the model').toEqual([
+      'Simulink.SolverCC', 'Simulink.ConfigComponent',
+    ]);
   });
 
   it('reads a later element with no Class as one of the first element\'s class, in an array of config components', () => {
@@ -272,8 +280,13 @@ describe('a binary dictionary\'s mixed array of config components, in the shapes
     expect(components._array_class).toBe('Simulink.ConfigComponent');
     expect(components._elements.map((e: any) => e._object_class)).toEqual(['Simulink.SolverCC', 'Simulink.DataIOCC', 'Simulink.SolverCC']);
     expect(components._elements[2]._properties).toEqual({ Name: 'unclassed' });
-    expect(classesIn(spanOf(serializeEntryToXml(entry('classless')), pad(16) + '<P Name="Components" Dimension="3*1">'))).toEqual([
+    // Written from the model, the classless element is written with the class it is read as.
+    expect(classesIn(spanOf(regenerateEntryXml(entry('classless')), pad(16) + '<P Name="Components" Dimension="3*1">'))).toEqual([
       'Simulink.SolverCC', 'Simulink.DataIOCC', 'Simulink.SolverCC',
+    ]);
+    // Unedited, the entry is its own bytes, where that element states no Class.
+    expect(classesIn(spanOf(serializeEntryToXml(entry('classless')), pad(16) + '<P Name="Components" Dimension="3*1">'))).toEqual([
+      'Simulink.SolverCC', 'Simulink.DataIOCC',
     ]);
   });
 });
@@ -287,6 +300,7 @@ describe('an object array whose elements share one class', () => {
     expect(entry.serial._rawVal._elements.every((e: any) => !('_object_class' in e))).toBe(true);
     expect(JSON.stringify(entry.serialize())).not.toContain('_object_class');
     expect(classesIn(serializeEntryToXml(entry))).toEqual(['Simulink.Parameter', 'Simulink.Parameter', 'Simulink.Parameter']);
+    expect(classesIn(regenerateEntryXml(entry)), 'written from the model').toEqual(['Simulink.Parameter', 'Simulink.Parameter', 'Simulink.Parameter']);
   });
 });
 

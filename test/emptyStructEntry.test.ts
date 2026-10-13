@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest } from '../src/index.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { flatten } from './parity/loadFile.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -104,8 +105,11 @@ describe('a struct entry with no elements is written as MATLAB writes it', () =>
         }
       }
       const saved = chunkOf(first.session.serializeSource(first.root.name)!.bytes!).replace(/char">(struct\w+)X</g, 'char">$1<');
+      // A save writes an unedited entry as its own bytes, so the writer is asked too.
+      const regenerated = regenerateChunkXml(first.root).replace(/char">(struct\w+)X</g, 'char">$1<');
       for (const [name, value] of STRUCTS) {
         expect(valueOf(saved, name), name).toBe(value);
+        expect(valueOf(regenerated, name), `${name}, written from the model`).toBe(value);
       }
       // And reopened, each is the struct it was, with no element and its fields.
       const again = open(saved);

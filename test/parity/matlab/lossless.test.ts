@@ -9,7 +9,7 @@
 // harness, and serializeModel is defined for 'json' | 'binary' alone.
 import { describe, it, expect } from 'vitest';
 import { loadArtifact, hasArtifact, type Artifact } from './loadTruth.js';
-import { serializeModel, reparseModel } from '../fidelity/roundTripHarness.js';
+import { regenerateModel, serializeModel, reparseModel } from '../fidelity/roundTripHarness.js';
 
 // Compare the whole display tree, not one value. Name, value and type per row, in
 // tree order, so a dropped child or a reordered element shows up as a diff too.
@@ -36,6 +36,10 @@ for (const fmt of ['sldd-text', 'sldd-binary'] as Artifact[]) {
       const bytes = serializeModel(before, format);
       const after = reparseModel(bytes, format, 'cases.sldd', 'test://lossless-' + fmt);
       expect(displayTree(after)).toEqual(tree);
+      // And written from the model, which an untouched binary save no longer asks for: it
+      // writes each unedited entry as the bytes it was read from.
+      const regenerated = reparseModel(regenerateModel(before, format), format, 'cases.sldd', 'test://lossless-regenerated-' + fmt);
+      expect(displayTree(regenerated)).toEqual(tree);
     });
   });
 }
