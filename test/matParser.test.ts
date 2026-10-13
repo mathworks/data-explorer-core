@@ -22,7 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { parseMat, type MatVariable } from '../src/datamodel/parser/MatParser.js';
+import { parseMat, parseMatrix, type MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { createSession } from '../src/index.js';
 import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
@@ -1309,6 +1309,48 @@ describe('parseMat — malformed byte counts', () => {
       const v = only(matFile([strideStruct(stride, 'abcdefgh', [scalarField(7)], [1, 2_000_000])]));
       expect([stride, v.undecoded]).toEqual([stride, expect.stringMatching(/^declares 2000000 elements, more than the \d+ bytes left/)]);
     }
+  });
+
+  it('REGRESSION: a struct whose name block lies past its own end is recorded, not read out of the bytes after it', () => {
+    // The struct arm read its name block wherever its tag was, past the element's end too. A
+    // struct whose element ended after its field-name length took its names from the next
+    // element's bytes, and since there was nothing left to read fields from, ended with
+    // fields {}. structFieldCount counts no field in a block that is not there, so the array
+    // passed the declared-size guard as one with no fields: a 272-byte file declaring
+    // 2,000,000 elements built a row for each and ran a 512 MB heap out while it opened. A
+    // name block outside the element is a damaged struct, and is recorded as one, as the guard
+    // records one: a warning naming it, and no rows.
+    const stride = new Uint8Array(4);
+    new DataView(stride.buffer).setInt32(0, 32, true);
+    const cut = (name: string, d: number[]) => matrix([arrayFlags(CLASS.STRUCT), dims(d), varName(name), element(MI.INT32, stride)]);
+    const x = numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [5] });
+    const reason = (el: Uint8Array) => `its field names lie past the end of its ${el.length - 8} bytes`;
+    for (const d of [[1, 1], [1, 3], [1, 2_000_000]]) {
+      const parsed = parseMat(matFile([cut('s', d), x]));
+      const [s, after] = parsed.variables;
+      expect([s.name, s.dimensions, s.value, s.fields, s.undecoded, after.name, after.value], d.join('x')).toEqual([
+        's', d, `<${d.join('x')} struct, not decoded>`, null, reason(cut('s', d)), 'x', 5,
+      ]);
+      expect(parsed.warnings).toEqual([{ code: 'part-unreadable', message: `"s" was not decoded: ${reason(cut('s', d))}.`, part: 's' }]);
+    }
+    // An element that ends inside its field-name length's tag, read where every reader reads
+    // a matrix: the stride was read out of the bytes past it, here a 0, which would have said
+    // the struct has no fields.
+    const el = cut('', [1, 3]).slice();
+    new DataView(el.buffer).setInt32(56, 0, true);
+    const straddling = parseMatrix(new DataView(el.buffer, el.byteOffset, el.byteLength), 8, 44);
+    expect([straddling.fields, straddling.undecoded]).toEqual([null, 'its field names lie past the end of its 44 bytes']);
+    // As a struct field, the next field's bytes are not taken for its names, and that field is
+    // read as it always was.
+    const t = only(matFile([structVar('t', ['f', 'g'], [{ f: cut('', [1, 3]), g: scalarField(7) }])]));
+    expect([(t.fields!.f as MatVariable).undecoded, (t.fields!.g as MatVariable).value]).toEqual([reason(cut('', [1, 3])), 7]);
+    // Through a session, as a host opens the file. Asked last, so that a reader without the
+    // bound fails on the parse above instead of here.
+    const mat = createSession().addMatSource('s.mat', matFile([cut('s', [1, 2_000_000]), x])) as any;
+    expect(mat.children.map((c: any) => [c.name, c.displayValue, c.children.length])).toEqual([
+      ['s', '<1x2000000 struct, not decoded>', 0],
+      ['x', '5', 0],
+    ]);
   });
 
   it('reads a variable whose own element length overruns the file', () => {
