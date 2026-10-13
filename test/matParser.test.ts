@@ -568,6 +568,31 @@ describe('parseMat — structs', () => {
     expect(shapeOf(written.fields!.m)).toEqual(EMPTY);
   });
 
+  it('a matrix that claims bytes and holds none is one cut short before its flags, not MATLAB\'s []', () => {
+    // The [] above is a tag that claims no bytes, which is how MATLAB writes one. A tag that
+    // claims bytes and is the last 8 of the bytes holds none of them: cut short before its
+    // array flags, which say its class, so it is the nameless shell of a class unknown, as a
+    // matrix cut inside its flags is, and not an empty double the bytes never said it is.
+    const tagOnly = (claimed: number) => {
+      const bytes = new Uint8Array([...u32le(MI.MATRIX), ...u32le(claimed)]);
+      return parseMatrix(new DataView(bytes.buffer), 8, claimed);
+    };
+    expect(shapeOf(tagOnly(0))).toEqual(EMPTY);
+    expect(shapeOf(tagOnly(64))).toEqual({ name: '', className: 'unknown', dimensions: [], isComplex: false, isLogical: false, value: null, fields: null });
+    // parseMat keeps either as an anonymous variable, so a file whose last record is such a tag
+    // reads the same way either way: the variable before it, the anonymous one, and the
+    // record's warning.
+    const x = numericVar({ name: 'x', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [5] });
+    for (const claimed of [0, 64]) {
+      const parsed = parseMat(matFile([x, new Uint8Array([...u32le(MI.MATRIX), ...u32le(claimed)])]));
+      expect([claimed, parsed.variables.map((v) => [v.name, v.className, !!v._anonymous]), parsed.warnings.map((w) => w.message)]).toEqual([
+        claimed,
+        [['x', 'double', false], ['', '', true]],
+        claimed ? ['A record at byte 200 declares 64 bytes and the file holds only 0, so it was read short.'] : [],
+      ]);
+    }
+  });
+
   it('REGRESSION: a zero-length field shows and copies as a written-out [] does', () => {
     // Read out of the bytes after it, such a field was copied as what they said: the 19 as
     // cdata streams of empties of their borrowed rank, which MATLAB would read back as

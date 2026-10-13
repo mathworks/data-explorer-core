@@ -530,6 +530,14 @@ export function parseMatrix(view, baseOffset, length) {
     // the dimensions and the name from the element after its tag: those fields came back
     // as doubles of rank 12 to 1,314, which showed [ ] and were copied as an empty of that
     // rank. So it is what a [] MATLAB writes in full reads as.
+    //
+    // The tag's CLAIM of no bytes, deliberately, not `held`: the claim is MATLAB's spelling of
+    // [], and a matrix that claims bytes and holds none (its tag the last 8 bytes of a file or
+    // a payload) is one cut short before its array flags, read below as the nameless shell of
+    // a class unknown, as one cut inside its flags is. Taken for [], it would be an empty
+    // double the bytes never said it is. parseMat keeps either shell as an anonymous variable,
+    // and every other caller hands over a length already clamped to the bytes, where the claim
+    // and `held` are one.
     if (length <= 0) {
         return { name: '', className: 'double', dimensions: [0, 0], isComplex: false, isLogical: false, value: [], fields: null };
     }
