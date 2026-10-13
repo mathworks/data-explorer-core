@@ -24,6 +24,7 @@ import DataModel from '../src/core/DataModel.js';
 import { parseBinarySldd } from '../src/datamodel/parser/BinarySlddParser.js';
 import {
   buildDataChunkXml,
+  regenerateEntryXml,
   serializeBinarySldd,
   serializeEntryToXml,
 } from '../src/datamodel/parser/BinarySlddSerializer.js';
@@ -97,6 +98,8 @@ describe('serializeBinarySldd', () => {
     const entry = model.children.flatMap((s: any) => s.children)[0];
     const raw = entry.metadata._rawLastMod as string;
     expect(serializeEntryToXml(entry)).toContain('<P Name="LastMod" Class="char">' + raw + '</P>');
+    // The unedited entry is its own bytes; the writer keeps the stamp too.
+    expect(regenerateEntryXml(entry)).toContain('<P Name="LastMod" Class="char">' + raw + '</P>');
   });
 
   // A newly added entry has no `_rawLastMod` — addEntry stamps `lastmod` instead —

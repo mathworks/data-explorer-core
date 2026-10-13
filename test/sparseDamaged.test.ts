@@ -24,6 +24,7 @@ import { createSession, parseMat } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { uudecode, uuencode } from '../src/datamodel/parser/CdataCodec.js';
 import { encodeMatStream, matStreamOfElement, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { matFile, sparseVar } from './tools/matBytes.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -70,8 +71,8 @@ function patchBinaryEntry(entry: string, from: number[], to: number[]): Uint8Arr
 }
 
 /** The value tag of an entry in a binary dictionary's chunk, exactly as written. */
-function valueTag(zip: Uint8Array, entry: string): string {
-  const xml = strFromU8(unzipSync(zip)['data/chunk0.xml']);
+function valueTag(zip: Uint8Array | string, entry: string): string {
+  const xml = typeof zip === 'string' ? zip : strFromU8(unzipSync(zip)['data/chunk0.xml']);
   const at = xml.indexOf(`<P Name="Name" Class="char">${entry}</P>`);
   const from = xml.indexOf('<P Name="Value"', at);
   return xml.slice(from, xml.indexOf('</P>', from) + 4);
@@ -126,10 +127,14 @@ describe('a damaged column count in an MCOS-held sparse array opens, as what its
         `a sparse array declaring ${cols} columns is backed for 2, and the rest of its column index, ${4 * (cols - 2)} bytes no data backs, is more than one write may put out (16777216)`,
       );
       expect(() => encodeMatStream(pTall._valueNode._var)).toThrow(MatWriteError);
-      // Untouched, it is written back byte for byte: a save never re-encodes it.
+      // Untouched, it is written back byte for byte: a save never re-encodes it. A save
+      // writes an unedited entry as its own bytes, so the writer is asked as well.
       const [saved, saveMs] = timed(() => session.serializeSource(root.name)!.bytes!);
       expect(saveMs).toBeLessThan(1000);
       expect(valueTag(saved, 'pTall')).toBe(valueTag(damaged, 'pTall'));
+      const [regenerated, regenMs] = timed(() => regenerateChunkXml(root));
+      expect(regenMs).toBeLessThan(1000);
+      expect(valueTag(regenerated, 'pTall')).toBe(valueTag(damaged, 'pTall'));
     });
   }
 

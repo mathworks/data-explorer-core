@@ -45,6 +45,7 @@
 
 import { unzipEntries } from './Inflate.js';
 import { readDictionaryXml } from './XmlReader.js';
+import { ENTRY_OPEN, spellsEntry, type ReadEntrySpans } from './DictionaryXmlFast.js';
 import { reasonOf, type ParseWarning } from './ParseWarning.js';
 import type { SystemComposerCatalog } from './ScCatalog.js';
 import { SC_PART_XML, catalogFromDefinitions, scanScXml } from './ScCatalog.js';
@@ -74,6 +75,7 @@ import {
 } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
 import { headerDigits } from './Size.js';
+import { recordReadFrame, recordReadSource, type ChunkFrame, type Span } from './EntrySource.js';
 
 interface XmlNode {
   '@_Class'?: string;
@@ -181,7 +183,6 @@ export function parseBinarySldd(
       zipMetadata[name] = data;
     }
   }
-
   return parseBinarySlddParts(xmlString, zipMetadata, warnings);
 }
 
@@ -238,8 +239,9 @@ export function parseBinarySlddParts(
   // legacy file" failure — so a present key is taken at its word and read as empty.
   let doc: Record<string, unknown> = {};
   let refused = false;
+  const read: ReadEntrySpans = { spans: [], clean: true, read: false };
   try {
-    doc = readDictionaryXml(xmlString) as Record<string, unknown>;
+    doc = readDictionaryXml(xmlString, read) as Record<string, unknown>;
   } catch (err) {
     refused = true;
     warnings?.push({
@@ -269,7 +271,9 @@ export function parseBinarySlddParts(
     Arch: dataSource['@_Arch'] || '',
   };
 
-  const entryXmlFragments = extractEntryFragments(xmlString);
+  // Where each entry sits in the text, found by reading the markup: by the fast reader, as it
+  // read the chunk, or, for a chunk it declined, by a scan that reads the markup the same way.
+  const { spans, clean } = read.read ? read : entrySpans(xmlString);
   const ddEntries: Record<string, unknown>[] = [];
   const objects = (dataSource.Object || []) as XmlNode[];
 
@@ -278,7 +282,8 @@ export function parseBinarySlddParts(
     const objClass = obj['@_Class'];
     if (objClass === 'DD.ENTRY') {
       encodedInEntry = false;
-      const entry = parseEntry(obj, entryXmlFragments[entryIdx] || '');
+      const span = spans[entryIdx];
+      const entry = parseEntry(obj, span ? xmlString.substring(span[0], span[1]) : '');
       ddEntries.push(entry);
       // Only an entry that HAS an encoded value is walked for unreadable ones — the walk
       // visits every value, and nearly every entry of every dictionary has none.
@@ -322,7 +327,7 @@ export function parseBinarySlddParts(
     }
   }
 
-  return {
+  const content = {
     __MW_TEXT_COREPROPERTIES__: { release },
     [TEXT_PARTS]: {
       [DATA_PART_KEY]: {
@@ -338,6 +343,134 @@ export function parseBinarySlddParts(
     __dataSourceAttrs: dataSourceAttrs,
     ...scCatalogOf(zipMetadata, decoder),
   };
+
+  // The bytes each entry was read from, for the save that writes an unedited entry back
+  // as them (BinarySlddSerializer). Recorded only for a document this reader read, and
+  // only when every entry pairs with its span — see `entryFrame` for what is checked.
+  const frame = refused || !Object.prototype.hasOwnProperty.call(doc, 'DataSource')
+    ? null
+    : entryFrame(xmlString, spans, clean, ddEntries, { allowAccessBWS, dictionaryReferences, dataSourceAttrs });
+  if (frame) {
+    recordReadFrame(content, frame);
+    ddEntries.forEach((entry, index) => {
+      recordReadSource(entry, { frame, index, fragment: entry.rawXml as string });
+    });
+  }
+  return content;
+}
+
+/**
+ * The frame of a chunk whose every entry is paired with the span of text it was read
+ * from, or null when the pairing cannot be trusted.
+ *
+ * The spans come from reading the chunk's markup (the fast reader's record of it, or
+ * `entrySpans`) and the entries from the XML reader, and nothing but this check ties the two
+ * together. One pair out of step, and every pair after it, would have the save write an entry
+ * as ANOTHER entry's bytes. Each span is one element, read as XML reads it; the checks below
+ * hold the spans and the reader's entries to each other, and stay even where that reading
+ * alone would answer. So a chunk is paired only when all of these hold, and on any failure no
+ * entry of the file gets a source — it is regenerated whole, exactly as before:
+ *
+ *   - the scan vouches for its spans (`clean`): it met no markup it cannot account for, no
+ *     entry tag MATLAB does not write, and no object nested in an entry;
+ *   - as many spans as entries;
+ *   - each span spells the Name the reader read for its entry, and the UUID too when the
+ *     span has one;
+ *   - between two entries there is only whitespace, nothing before the first entry is an
+ *     object, and `</DataSource>` follows the last one: every other object in the chunk
+ *     sits after the entries, which is where a save writes the dictionary-level objects
+ *     back when they change;
+ *   - outside the entries there is no comment, CDATA section or processing instruction but
+ *     the XML declaration, and nothing after the last entry spells `DD.ENTRY`: the text a
+ *     save keeps around the entries is what it writes the objects after them into.
+ *
+ * A chunk with no entries is framed too, so a save that adds none can keep it whole.
+ */
+function entryFrame(
+  xml: string,
+  spans: Span[],
+  clean: boolean,
+  entries: Record<string, unknown>[],
+  read: { allowAccessBWS: boolean; dictionaryReferences: string[]; dataSourceAttrs: Record<string, string> },
+): ChunkFrame | null {
+  if (!clean || spans.length !== entries.length) {
+    return null;
+  }
+  for (let i = 0; i < spans.length; i++) {
+    const [start, end] = spans[i];
+    const fragment = xml.substring(start, end);
+    const metadata = (entries[i].metadata || {}) as Record<string, unknown>;
+    if (charPropOf(fragment, 'Name') !== (entries[i].name as string)) {
+      return null;
+    }
+    const uuid = charPropOf(fragment, 'UUID');
+    if (uuid !== null && uuid !== metadata.uuid) {
+      return null;
+    }
+    const before = i === 0 ? '' : xml.substring(spans[i - 1][1], start);
+    if (before.trim() !== '') {
+      return null;
+    }
+  }
+  const head = spans.length > 0 ? xml.substring(0, spans[0][0]) : xml;
+  const tail = spans.length > 0 ? xml.substring(spans[spans.length - 1][1]) : xml;
+  if (spans.length > 0 && (head.indexOf('<Object') >= 0 || tail.indexOf('</DataSource>') < 0)) {
+    return null;
+  }
+  // Outside the entries: no comment, CDATA section or processing instruction but the XML
+  // declaration, for a span to lie inside, and no DD.ENTRY after the last span. A span inside
+  // one, standing in for an entry the search did not find (one after it, in quotes MATLAB
+  // does not write), passes every check above.
+  const declaration = head.indexOf('<?');
+  if (head.indexOf('<!') >= 0
+    || (declaration >= 0 && (!head.startsWith('<?xml', declaration) || head.indexOf('<?', declaration + 2) >= 0))
+    || (spans.length > 0 && (tail.indexOf('<!') >= 0 || tail.indexOf('<?') >= 0 || tail.indexOf('DD.ENTRY') >= 0))) {
+    return null;
+  }
+  return {
+    xml,
+    spans,
+    insertAt: spans.length > 0 ? -1 : dataSourceContentStart(xml),
+    allowAccessBWS: read.allowAccessBWS,
+    dictionaryReferences: [...read.dictionaryReferences],
+    dataSourceAttrs: { ...read.dataSourceAttrs },
+  };
+}
+
+/**
+ * The text of the first `<P Name="…" …>` of that name in an entry's span, with XML's five
+ * named entities decoded; '' for a self-closed one, null for none. The reader decodes numeric
+ * character references too, and this does not: a Name or UUID that holds one is not the
+ * reader's, and the chunk is not paired. That costs nothing measured (every entry of the 57
+ * binary dictionaries pairs), and keeps a second copy of the reader's decoder out of here.
+ */
+function charPropOf(fragment: string, name: string): string | null {
+  const at = fragment.indexOf(`<P Name="${name}"`);
+  if (at < 0) {
+    return null;
+  }
+  const gt = fragment.indexOf('>', at);
+  if (gt < 0) {
+    return null;
+  }
+  if (fragment.charCodeAt(gt - 1) === 0x2f) {
+    return '';
+  }
+  const lt = fragment.indexOf('<', gt + 1);
+  const text = fragment.substring(gt + 1, lt < 0 ? fragment.length : lt);
+  return text.replace(/&(lt|gt|amp|quot|apos);/g, (_m, e: string) =>
+    e === 'lt' ? '<' : e === 'gt' ? '>' : e === 'amp' ? '&' : e === 'quot' ? '"' : "'");
+}
+
+// Just past the `<DataSource …>` open tag, where a first entry goes in a chunk that has
+// none, as the span scan reads the markup: text that spells `<DataSource` in the XML
+// declaration, a comment or an attribute value is not the tag, where a search of the text
+// took it for one and a save wrote the entry into the declaration. -1 for a self-closed
+// `<DataSource/>`, a root of another name, or a chunk the scan cannot vouch for; a save that
+// adds an entry to such a chunk, or rewrites its dictionary-level objects, generates it whole.
+function dataSourceContentStart(xml: string): number {
+  const root = { contentAt: -1 };
+  return entrySpans(xml, root).clean ? root.contentAt : -1;
 }
 
 /**
@@ -407,24 +540,266 @@ function warnUnreadableEncoded(value: unknown, entryName: string, warnings: Pars
   }
 }
 
-function extractEntryFragments(xmlString: string): string[] {
-  const fragments: string[] = [];
-  const openTag = '<Object Class="DD.ENTRY">';
-  const closeTag = '</Object>';
+/**
+ * Where each entry's `<Object Class="DD.ENTRY">…</Object>` sits in the chunk, in document
+ * order, found by reading the chunk's markup rather than by searching its text.
+ *
+ * A search for the open tag and the first `</Object>` after it trusts every such text to be a
+ * tag, and XML lets text that spells one sit inside an entry in five places: a comment, a
+ * processing instruction, a CDATA section, and an attribute value in either quote. A
+ * `</Object>` in one of them ended the span early; in the last entry nothing after it could
+ * tell, and renaming or deleting that entry wrote a document with one `</Object>` too many.
+ * So this reads the chunk as XML does, one piece of markup after another: a comment, CDATA
+ * section or processing instruction is skipped to its end, a tag is read attribute by attribute
+ * with each value skipped to its closing quote, and every element is closed by name. A span is
+ * then exactly one element: a direct child of the root whose open tag is MATLAB's, from that
+ * tag to the `</Object>` that closes it.
+ *
+ * The fast reader (`DictionaryXmlFast`) records the same spans as it reads a chunk, so this
+ * scan is run only for a chunk that reader declines, or one whose line ends it normalized:
+ * it is the general engine's half of the same answer. The two are held to each other over
+ * every binary fixture (test/binarySaveKeepsUnedited.test.ts).
+ *
+ * `clean` is false wherever the scan cannot vouch for the spans, and `entryFrame` then pairs
+ * nothing:
+ *   - markup it cannot account for: a comment, CDATA section or processing instruction that is
+ *     never closed, a DOCTYPE or any other `<!`, a `<` that starts no tag, a tag that is not
+ *     a name followed by quoted attributes, or a close tag that does not close the element
+ *     open. The scan stops there, and the spans it has are the entries before that point,
+ *     which is what `rawXml` needs;
+ *   - a document that is not one element: a second root, or an element still open at the end;
+ *   - a processing instruction the reader would end elsewhere. XML ends one at its first `?>`,
+ *     and fast-xml-parser at the first `?>` outside quotes, so a quote in one can make the two
+ *     read different elements from that point on. The scan stops there too;
+ *   - an object open tag at the top that is not MATLAB's entry tag (`<Object Class="DD.ENTRY">`)
+ *     and spells `DD.ENTRY` or holds an entity (`spellsEntry`), as `<Object  Class='DD.ENTRY'>`
+ *     does, which the reader reads as an entry. The scan stops there, since the entries after
+ *     it could no longer be counted off against the reader's;
+ *   - an object nested in an entry, or an entry closed other than by `</Object>`. Neither is
+ *     a doubt about the span, and the scan goes on, but MATLAB writes neither, and the pairing
+ *     declines them as it did when the search could not tell them from a span cut short.
+ *
+ * Given `root`, the scan also sets `root.contentAt` to just past the root's open tag when the
+ * root is a `<DataSource …>` that is not self-closed, and to -1 otherwise: where a first entry
+ * goes in a chunk that has none (`dataSourceContentStart`).
+ *
+ * Linear in the chunk's length: every step moves forward, and none searches past the point
+ * where the scan then stops. It reads the 5.7 M tags of the largest chunk measured (207 MB,
+ * 140,000 entries) in 323 ms.
+ */
+export function entrySpans(xml: string, root?: { contentAt: number }): { spans: Span[]; clean: boolean } {
+  const spans: Span[] = [];
+  const n = xml.length;
+  // The open elements, as where each one's name starts and how long it is, by depth.
+  const nameAt: number[] = [];
+  const nameLen: number[] = [];
+  let depth = 0;
+  let roots = 0;
+  let clean = true;
+  let entryAt = -1; // where the entry being read began, or -1 between entries
   let pos = 0;
-  while (true) {
-    const start = xmlString.indexOf(openTag, pos);
-    if (start < 0) {
+  for (;;) {
+    const lt = xml.indexOf('<', pos);
+    if (lt < 0) {
       break;
     }
-    const end = xmlString.indexOf(closeTag, start);
-    if (end < 0) {
-      break;
+    const c = xml.charCodeAt(lt + 1);
+    if (c === SLASH) {
+      const start = lt + 2;
+      let k = start;
+      let ch = xml.charCodeAt(k);
+      while (isNameChar(ch)) {
+        ch = xml.charCodeAt(++k);
+      }
+      const len = k - start;
+      while (isXmlSpace(ch)) {
+        ch = xml.charCodeAt(++k);
+      }
+      if (len === 0 || ch !== GT || depth === 0 || !sameName(xml, nameAt[depth - 1], nameLen[depth - 1], start, len)) {
+        return { spans, clean: false };
+      }
+      depth--;
+      if (depth === 1 && entryAt >= 0) {
+        if (k !== lt + CLOSE_OBJECT.length - 1) {
+          clean = false;
+        }
+        spans.push([entryAt, k + 1]);
+        entryAt = -1;
+      }
+      pos = k + 1;
+      continue;
     }
-    fragments.push(xmlString.substring(start, end + closeTag.length));
-    pos = end + closeTag.length;
+    if (c === BANG) {
+      const end = xml.startsWith('!--', lt + 1) ? xml.indexOf('-->', lt + 4)
+        : xml.startsWith('![CDATA[', lt + 1) ? xml.indexOf(']]>', lt + 9)
+          : -1;
+      if (end < 0) {
+        return { spans, clean: false };
+      }
+      pos = end + 3;
+      continue;
+    }
+    if (c === QUESTION) {
+      const end = xml.indexOf('?>', lt + 2);
+      if (end < 0 || piEndOutsideQuotes(xml, lt + 1) !== end) {
+        return { spans, clean: false };
+      }
+      pos = end + 2;
+      continue;
+    }
+    if (!isNameStart(c)) {
+      return { spans, clean: false };
+    }
+    let k = lt + 2;
+    let ch = xml.charCodeAt(k);
+    while (isNameChar(ch)) {
+      ch = xml.charCodeAt(++k);
+    }
+    const len = k - lt - 1;
+    // name="value" or name='value', each after whitespace, up to `>` or `/>`.
+    for (;;) {
+      const gap = k;
+      while (isXmlSpace(ch)) {
+        ch = xml.charCodeAt(++k);
+      }
+      if (ch === GT || ch === SLASH) {
+        break;
+      }
+      if (k === gap || !isNameStart(ch)) {
+        return { spans, clean: false };
+      }
+      ch = xml.charCodeAt(++k);
+      while (isNameChar(ch)) {
+        ch = xml.charCodeAt(++k);
+      }
+      while (isXmlSpace(ch)) {
+        ch = xml.charCodeAt(++k);
+      }
+      if (ch !== EQUALS) {
+        return { spans, clean: false };
+      }
+      ch = xml.charCodeAt(++k);
+      while (isXmlSpace(ch)) {
+        ch = xml.charCodeAt(++k);
+      }
+      if (ch !== QUOTE && ch !== APOS) {
+        return { spans, clean: false };
+      }
+      const close = xml.indexOf(ch === QUOTE ? '"' : "'", k + 1);
+      if (close < 0) {
+        return { spans, clean: false };
+      }
+      k = close + 1;
+      ch = xml.charCodeAt(k);
+    }
+    const selfClosed = ch === SLASH;
+    if (selfClosed && xml.charCodeAt(++k) !== GT) {
+      return { spans, clean: false };
+    }
+    const end = k + 1;
+    if (depth === 0) {
+      roots++;
+      if (root !== undefined && roots === 1) {
+        root.contentAt = !selfClosed && len === DATA_SOURCE.length && xml.startsWith(DATA_SOURCE, lt + 1) ? end : -1;
+      }
+    }
+    if (len === 6 && xml.startsWith('Object', lt + 1)) {
+      if (depth === 1) {
+        if (xml.startsWith(ENTRY_OPEN, lt)) {
+          entryAt = lt;
+        } else if (spellsEntry(xml.substring(lt, end))) {
+          return { spans, clean: false };
+        }
+      } else if (entryAt >= 0) {
+        clean = false;
+      }
+    }
+    if (!selfClosed) {
+      nameAt[depth] = lt + 1;
+      nameLen[depth] = len;
+      depth++;
+    }
+    pos = end;
   }
-  return fragments;
+  return { spans, clean: clean && depth === 0 && roots === 1 };
+}
+
+const CLOSE_OBJECT = '</Object>';
+const DATA_SOURCE = 'DataSource';
+const GT = 0x3e;
+const SLASH = 0x2f;
+const BANG = 0x21;
+const QUESTION = 0x3f;
+const EQUALS = 0x3d;
+const QUOTE = 0x22;
+const APOS = 0x27;
+
+// What each ASCII character is to a tag, as a table, because the scan asks it of nearly every
+// character of every tag: XML's four whitespace characters, the only ones that separate a
+// tag's parts, and the ASCII part of XML's name characters, which is every name a dictionary
+// uses. Any other character in a tag is markup the scan does not account for. A table rather
+// than comparisons: 323 ms against 360 ms over the largest chunk measured.
+const SPACE_CHAR = 1;
+const NAME_CHAR = 2;
+const NAME_START = 4;
+const CHAR_KIND = new Uint8Array(128);
+for (const c of [0x20, 0x0a, 0x09, 0x0d]) {
+  CHAR_KIND[c] = SPACE_CHAR;
+}
+for (let c = 0; c < 128; c++) {
+  const start = (c >= 0x61 && c <= 0x7a) || (c >= 0x41 && c <= 0x5a) || c === 0x5f || c === 0x3a;
+  if (start) {
+    CHAR_KIND[c] = NAME_START | NAME_CHAR;
+  } else if ((c >= 0x30 && c <= 0x39) || c === 0x2d || c === 0x2e) {
+    CHAR_KIND[c] = NAME_CHAR;
+  }
+}
+
+// `c` is a char code, or NaN past the end, which is none of these.
+function isXmlSpace(c: number): boolean {
+  return c < 128 && CHAR_KIND[c] === SPACE_CHAR;
+}
+
+function isNameStart(c: number): boolean {
+  return c < 128 && (CHAR_KIND[c] & NAME_START) !== 0;
+}
+
+function isNameChar(c: number): boolean {
+  return c < 128 && (CHAR_KIND[c] & NAME_CHAR) !== 0;
+}
+
+// Whether the name at `b` (`bLen` long) is the one at `a`, compared in place: a close tag is
+// matched against its open one for each of the millions a chunk has, so no string is made.
+function sameName(xml: string, a: number, aLen: number, b: number, bLen: number): boolean {
+  if (aLen !== bLen) {
+    return false;
+  }
+  for (let i = 0; i < aLen; i++) {
+    if (xml.charCodeAt(a + i) !== xml.charCodeAt(b + i)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Where fast-xml-parser ends a processing instruction it starts reading at `from`, just past the
+// `<`: the first `?>` outside a quoted run, a quote of either kind opening one and the same kind
+// closing it.
+function piEndOutsideQuotes(xml: string, from: number): number {
+  let quote = 0;
+  for (let k = from; k < xml.length; k++) {
+    const c = xml.charCodeAt(k);
+    if (quote !== 0) {
+      if (c === quote) {
+        quote = 0;
+      }
+    } else if (c === QUOTE || c === APOS) {
+      quote = c;
+    } else if (c === QUESTION && xml.charCodeAt(k + 1) === GT) {
+      return k;
+    }
+  }
+  return -1;
 }
 
 function parseEntry(obj: XmlNode, rawXml: string): Record<string, unknown> {

@@ -34,7 +34,7 @@
 // MATLAB does not have" — read only the TEXT run, which is exactly how 57 survived it.
 import { describe, it, expect } from 'vitest';
 import '../src/datamodel/node/data/NodeClassMap.js';
-import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import { regenerateEntryXml, serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 import { SAVEOBJ_KEY, CUSTOM_SAVE_KEY } from '../src/datamodel/parser/XmlUtils.js';
 import DataModel from '../src/core/DataModel.js';
@@ -297,6 +297,9 @@ describe('defect 58: an empty struct or cell survives the binary round trip', ()
       // LastMod is a timestamp the writer stamps, and the only key allowed to differ.
       const stable = (xml: string): string => xml.replace(/<P Name="LastMod"[^<]*<\/P>/, '');
       expect(stable(again), spec.className).toBe(stable(first));
+      // `again` is the bytes it was read from, since nothing edited it; the writer has to
+      // reproduce them from what it read as well.
+      expect(stable(regenerateEntryXml(reopen(first))), spec.className + ', written from the model').toBe(stable(first));
     }
   });
 });

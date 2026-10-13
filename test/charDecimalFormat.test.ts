@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest } from '../src/index.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { flatten } from './parity/loadFile.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -78,6 +79,12 @@ function open(host: string, chunk: string, filename: string): { session: ReturnT
 
 const entryOf = (root: any, name: string) => flatten(root).find((n: any) => n?.isEntry && n.name === name);
 const saveOf = (o: { session: any; root: any }) => chunkOf(o.session.serializeSource(o.root.name)!.bytes!);
+// A save writes an unedited entry as the bytes it was read from, so each check of what is
+// written is made of the writer too: every entry written from the model.
+const writtenBoth = (o: { session: any; root: any }): [string, string][] => [
+  ['saved', saveOf(o)],
+  ['written from the model', regenerateChunkXml(o.root)],
+];
 
 describe('a Format="decimal" char MATLAB wrote reads as the characters its codes are', () => {
   for (const [name, , codes, dims] of MATLAB) {
@@ -122,12 +129,13 @@ describe('and is written back as MATLAB wrote it', () => {
           expect(entryOf(o.root, name).setProperty('Name', name + '_r')).toBe(true);
         }
       }
-      const saved = saveOf(o);
-      for (const [name, line] of MATLAB) {
-        const at = saved.indexOf('<P Name="Name" Class="char">' + name + (edit === 'renamed' ? '_r' : '') + '</P>');
-        expect(at, name).toBeGreaterThanOrEqual(0);
-        const value = saved.slice(saved.indexOf('<P Name="Value"', at), saved.indexOf('</Object>', at)).trimEnd();
-        expect(value, name).toBe(line);
+      for (const [how, saved] of writtenBoth(o)) {
+        for (const [name, line] of MATLAB) {
+          const at = saved.indexOf('<P Name="Name" Class="char">' + name + (edit === 'renamed' ? '_r' : '') + '</P>');
+          expect(at, `${name}, ${how}`).toBeGreaterThanOrEqual(0);
+          const value = saved.slice(saved.indexOf('<P Name="Value"', at), saved.indexOf('</Object>', at)).trimEnd();
+          expect(value, `${name}, ${how}`).toBe(line);
+        }
       }
     });
   }
@@ -147,9 +155,10 @@ describe('and is written back as MATLAB wrote it', () => {
       if (edit !== 'untouched') {
         expect(entryOf(o.root, 'widget').children.find((c: any) => c.name === 'Scalar').setProperty('Value', '2.5')).toBe(true);
       }
-      const saved = saveOf(o);
-      for (const line of [CTRL, ...PLAIN]) {
-        expect(saved, line).toContain(line);
+      for (const [how, saved] of writtenBoth(o)) {
+        for (const line of [CTRL, ...PLAIN]) {
+          expect(saved, `${line}, ${how}`).toContain(line);
+        }
       }
     });
   }
@@ -186,8 +195,9 @@ describe('and is written back as MATLAB wrote it', () => {
       ['bom', '﻿\r', [1, 2]],
       ['grid', text([1, 2, 3, 4]), [2, 2]],
     ]);
-    const saved = saveOf(o);
-    expect(saved).toContain(CELL);
-    expect(saved).toContain(FIELDS);
+    for (const [how, saved] of writtenBoth(o)) {
+      expect(saved, how).toContain(CELL);
+      expect(saved, how).toContain(FIELDS);
+    }
   });
 });

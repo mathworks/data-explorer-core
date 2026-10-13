@@ -20,6 +20,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest } from '../src/index.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { flatten } from './parity/loadFile.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -249,6 +250,12 @@ function roundTrip(elements: { entry: string; element: string }[], venue: Venue,
   const wrong = elements.flatMap(({ entry }, k) =>
     ours[k] === expected[k] ? [] : [entry + '\n  read:    ' + expected[k].trim() + '\n  written: ' + (ours[k] ?? '').trim()],
   );
+  // And as the writer writes it from the model. A save writes an unedited entry as the bytes
+  // it was read from, so for one the save alone no longer reaches the writer.
+  const regenerated = childElements(spanOf(regenerateChunkXml(first.root), written.split('\n')[0]).split('\n'));
+  wrong.push(...elements.flatMap(({ entry }, k) =>
+    regenerated[k] === expected[k] ? [] : [entry + ' (written from the model)\n  read:    ' + expected[k].trim() + '\n  written: ' + (regenerated[k] ?? '').trim()],
+  ));
   return { wrong, count: ours.length, before, after: readBack(open(saved).root, venue) };
 }
 

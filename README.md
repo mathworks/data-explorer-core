@@ -53,6 +53,30 @@ Filesystem loading lives in the Node-only subpath, the only part that touches
 import { createSession, loadFromPath, loadDirectory } from 'data-explorer-core/node';
 ```
 
+## Saving a file
+
+`session.serializeSource(srcId)` answers a `.sldd` in the form it arrived in:
+`{ kind: 'binary', bytes }` for a compressed-binary package, `{ kind: 'text', text }`
+for a text dictionary. The other formats are read-only and answer `null`.
+
+A binary dictionary's save writes each entry nobody edited as the bytes it was
+read from, in its own place, and writes from the model only what was edited or
+added. (Where the reader cannot pair every entry with the bytes it was read
+from, the save writes the whole chunk from the model.) Two rules follow, and
+both are part of the contract:
+
+- **Malformed in, malformed out.** The readers accept some input that is not
+  well-formed XML: a bad XML declaration, text outside the root element, a
+  duplicate attribute, a bare `&` inside an entry. In the parts nobody edited, a
+  save keeps it as it was read. The save does not repair it.
+- **The API is the contract.** Only an edit made through core's API is saved:
+  `editProperty` (a rename is one), `addEntry`, `addChild`, `deleteNode` and the
+  session's other edit methods, with their `undo` and `redo`. Each marks the entry
+  it changes, `Modified` (or `New` for an added one), and the save writes a marked
+  entry from the model. A direct assignment to a node object's fields, such as
+  `p.Value = 42`, marks nothing and is not saved: the entry is written as the
+  bytes it was read from.
+
 ## Usage across a folder
 
 `session.findUsages(nodeId)` answers "what refers to this?" off the trees a

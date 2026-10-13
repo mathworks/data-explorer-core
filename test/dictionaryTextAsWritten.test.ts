@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest } from '../src/index.js';
 import { escapeXml } from '../src/datamodel/parser/XmlUtils.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { flatten } from './parity/loadFile.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -70,6 +71,12 @@ function open(host: string, chunk: string, filename: string): { session: ReturnT
 const entryOf = (root: any, name: string) => flatten(root).find((n: any) => n?.isEntry && n.name === name);
 const childOf = (node: any, name: string) => flatten(node).find((n: any) => n !== node && n.name === name);
 const saveOf = (o: { session: any; root: any }) => chunkOf(o.session.serializeSource(o.root.name)!.bytes!);
+// A save writes an unedited entry as the bytes it was read from, so each check of what is
+// written is made of the writer too: every entry written from the model.
+const writtenBoth = (o: { session: any; root: any }): [string, string][] => [
+  ['saved', saveOf(o)],
+  ['written from the model', regenerateChunkXml(o.root)],
+];
 /** The saved fragment of one entry, from its Name line to its closing tag. */
 function savedEntry(saved: string, name: string): string {
   const at = saved.indexOf('<P Name="Name" Class="char">' + name + '</P>');
@@ -109,7 +116,9 @@ describe('a char that looks like a number is held, shown and written as MATLAB w
       expect([n._kind, n._scalarType]).toEqual(['scalar', 'char']);
       expect(n._scalarValue).toBe(s);
       expect(n.displayValue).toBe("'" + s + "'");
-      expect(savedEntry(saveOf(o), 'c' + k)).toContain('<P Name="Value" Class="char">' + s + '</P>');
+      for (const [how, saved] of writtenBoth(o)) {
+        expect(savedEntry(saved, 'c' + k), how).toContain('<P Name="Value" Class="char">' + s + '</P>');
+      }
     });
   }
 
@@ -137,10 +146,12 @@ describe('a char that looks like a number is held, shown and written as MATLAB w
     expect(pi.Unit).toBe('1e-3');
     expect(sig.serial._properties.Min).toBe(1e-5);
     expect(sig.serial._properties.Max).toBe(10);
-    const saved = savedEntry(saveOf(o), 'sig');
-    expect(saved).toContain('<P Name="InitialValue" Class="char">2.384185791015625e-07</P>');
-    expect(saved).toContain('<P Name="Description" Class="char">0.0</P>');
-    expect(saved).toContain('<P Name="DocUnits" Class="char">1e-3</P>');
+    for (const [how, written] of writtenBoth(o)) {
+      const saved = savedEntry(written, 'sig');
+      expect(saved, how).toContain('<P Name="InitialValue" Class="char">2.384185791015625e-07</P>');
+      expect(saved, how).toContain('<P Name="Description" Class="char">0.0</P>');
+      expect(saved, how).toContain('<P Name="DocUnits" Class="char">1e-3</P>');
+    }
   });
 
   it('a struct field, a cell element and a string', () => {
@@ -170,20 +181,23 @@ describe('a char that looks like a number is held, shown and written as MATLAB w
     expect(childOf(entryOf(o.root, 'st'), 'gain')._scalarValue).toBe(2);
     expect(entryOf(o.root, 'ce').children.map((c: any) => c._scalarValue)).toEqual(['0.0', '0', '5.0']);
     expect([entryOf(o.root, 'sg')._kind, entryOf(o.root, 'sg')._elements]).toEqual(['string', ['007']]);
-    const saved = saveOf(o);
-    expect(savedEntry(saved, 'st')).toContain('<P Name="tol" Class="char">1e-3</P>');
-    const cells = savedEntry(saved, 'ce');
-    expect(cells).toContain('<Element Class="char">0.0</Element>');
-    expect(cells).toContain('<Element Class="char">0</Element>');
-    expect(cells).toContain('<Element Class="char">5.0</Element>');
-    expect(savedEntry(saved, 'sg')).toContain('<Element Class="char">007</Element>');
+    for (const [how, saved] of writtenBoth(o)) {
+      expect(savedEntry(saved, 'st'), how).toContain('<P Name="tol" Class="char">1e-3</P>');
+      const cells = savedEntry(saved, 'ce');
+      expect(cells, how).toContain('<Element Class="char">0.0</Element>');
+      expect(cells, how).toContain('<Element Class="char">0</Element>');
+      expect(cells, how).toContain('<Element Class="char">5.0</Element>');
+      expect(savedEntry(saved, 'sg'), how).toContain('<Element Class="char">007</Element>');
+    }
   });
 
   it('an entry header field', () => {
     // LastModBy is a user name, and a user name can be digits.
     const o = open(HOST, chunkWith([entryXml('who', 0, '<P Name="Value" Class="double">1.0</P>', '007')]), 'char_binary.sldd');
     expect(entryOf(o.root, 'who').metadata.lastModifiedBy).toBe('007');
-    expect(savedEntry(saveOf(o), 'who')).toContain('<P Name="LastModBy" Class="char">007</P>');
+    for (const [how, saved] of writtenBoth(o)) {
+      expect(savedEntry(saved, 'who'), how).toContain('<P Name="LastModBy" Class="char">007</P>');
+    }
   });
 });
 
@@ -199,7 +213,9 @@ describe('a body the coercion took for a number keeps its shape and its digits',
     expect(n._dims).toEqual([2, 2]);
     expect(n.displayValue).toBe("['00'; '.0']");
     expect(n.serialize().value).toEqual({ _type: 'mxchar', _value: 'Matrix(2,2)\n[[48, 48]; [46, 48]]' });
-    expect(savedEntry(saveOf(o), 'shaped')).toContain('<P Name="Value" Class="char" Dimension="2*2">0.00</P>');
+    for (const [how, saved] of writtenBoth(o)) {
+      expect(savedEntry(saved, 'shaped'), how).toContain('<P Name="Value" Class="char" Dimension="2*2">0.00</P>');
+    }
   });
 
   it('an encoded stream that is all digits keeps its leading zeros', () => {
@@ -212,7 +228,9 @@ describe('a body the coercion took for a number keeps its shape and its digits',
       _attrs: { Class: 'double', Encoding: 'hex', EncodedLength: '4' },
       _value: '00010203',
     });
-    expect(savedEntry(saveOf(o), 'hexDigits')).toContain(value);
+    for (const [how, saved] of writtenBoth(o)) {
+      expect(savedEntry(saved, 'hexDigits'), how).toContain(value);
+    }
   });
 });
 
@@ -286,10 +304,11 @@ describe('a carriage return MATLAB wrote as &#xD; is a carriage return', () => {
     expect(cr.displayValue).toBe("'\r'");
     const crlf = entryOf(o.root, 'varStrCRLF');
     expect(crlf._scalarValue).toBe('A\nB\rC\n\rD\r\nE\r\rF');
-    const saved = saveOf(o);
-    expect(savedEntry(saved, 'varStrCR')).toContain('<P Name="Value" Class="char">&#xD;</P>');
-    expect(savedEntry(saved, 'varStrCRLF')).toContain('<P Name="Value" Class="char">A\nB&#xD;C\n&#xD;D&#xD;\nE&#xD;&#xD;F</P>');
-    expect(saved).not.toContain('&amp;#xD;');
+    for (const [how, saved] of writtenBoth(o)) {
+      expect(savedEntry(saved, 'varStrCR'), how).toContain('<P Name="Value" Class="char">&#xD;</P>');
+      expect(savedEntry(saved, 'varStrCRLF'), how).toContain('<P Name="Value" Class="char">A\nB&#xD;C\n&#xD;D&#xD;\nE&#xD;&#xD;F</P>');
+      expect(saved, how).not.toContain('&amp;#xD;');
+    }
   });
 
   it('in an object property of a MATLAB-written fixture (custom_object_binary.sldd widget.Cr)', () => {

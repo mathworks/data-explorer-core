@@ -428,6 +428,17 @@ function readAttributes(text, from, limit, keys, vals) {
     }
     return count;
 }
+/** MATLAB's open tag of an entry, the only one whose span is recorded. */
+export const ENTRY_OPEN = '<Object Class="DD.ENTRY">';
+const CLOSE_OBJECT = '</Object>';
+/**
+ * Whether an object's open tag, not MATLAB's, could be an entry's: one that spells `DD.ENTRY`,
+ * or holds an entity reference that could. Past one, the entries could no longer be counted off
+ * against the spans. Shared with `BinarySlddParser.entrySpans`, so both stop at the same tag.
+ */
+export function spellsEntry(openTag) {
+    return openTag.indexOf('DD.ENTRY') !== -1 || openTag.indexOf('&') !== -1;
+}
 /**
  * Read a dictionary XML part, or decline.
  *
@@ -442,8 +453,26 @@ function readAttributes(text, from, limit, keys, vals) {
  * immediately. Dictionaries nest shallowly (single digits), so the arrays below are indexed by
  * DEPTH and reused: a `<P>` at depth 3 writes over the state of the previous `<P>` at depth 3.
  * The element's own object (`kids[d]`) is of course fresh each time, because it is the output.
+ *
+ * WHERE EACH ENTRY SITS, for the save that writes an unedited entry back as its bytes
+ * (`BinarySlddParser`, `parser/EntrySource`). Given `entries`, this reader also records the
+ * text span of every `<Object Class="DD.ENTRY">` it reads as an entry, from its open tag to the
+ * `</Object>` that closes it, at the input's own offsets. It is the reader's own reading, so
+ * each span is the element the entry was read from by construction: no text that spells a tag
+ * is taken for one, because this reader takes nothing for a tag that it did not read as one.
+ * The spans are the ones `BinarySlddParser.entrySpans` finds by scanning the markup, which it
+ * does for a chunk this reader declines, and the two are held to each other over every binary
+ * fixture; that scan is the stricter about a tag's syntax, and refuses some this reader reads.
+ * As there, `clean` is false for an object nested in an entry and for an entry closed other
+ * than by `</Object>`, and an object tag at the top that is not MATLAB's entry tag but could be
+ * an entry's (`spellsEntry`) stops the recording there. `read` is set only when this reader
+ * read the whole document and its offsets are the input's — not after a line-end
+ * normalization, which moves them — so a span that is not recorded is never mistaken for one
+ * that is. Recording costs a comparison per tag, where scanning the chunk separately made a
+ * read of the largest dictionary measured (207 MB, 140,000 entries) 0.29 s slower: 2.28-2.33 s
+ * against 1.99-2.02 s, over three runs.
  */
-export function readDictionaryXmlFast(input) {
+export function readDictionaryXmlFast(input, entries) {
     // XML line-ending normalization, with the engine's own expression: `OrderedObjParser.parseXml`
     // opens with `xmlData = xmlData.replace(/\r\n?/g, "\n")` (marked TODO there, and load-bearing
     // here). It is not optional leniency — XML 1.0 §2.11 requires a parser to present `\r\n` and a
@@ -460,6 +489,11 @@ export function readDictionaryXmlFast(input) {
     const text = input.indexOf('\r') === -1 ? input : input.replace(/\r\n?/g, '\n');
     const n = text.length;
     const root = {};
+    // Where each entry sits (see above): only while the offsets are the input's, and only until an
+    // entry tag MATLAB does not write. `entryAt` is where the entry being read began.
+    const recording = entries !== undefined && text === input;
+    let spans = recording ? entries : undefined;
+    let entryAt = -1;
     // Per-depth element state, grown on demand and then reused. `kidCount` is how the collapse
     // rules are decided without calling `Object.keys` 6.9 M times: "no child keys" is exactly
     // "no child was attached", and that is the only thing those rules need to know.
@@ -611,6 +645,12 @@ export function readDictionaryXmlFast(input) {
                 return null;
             if (emit(depth, tag, closeSlot(depth)))
                 sawRoot = true;
+            if (spans !== undefined && depth === 1 && entryAt >= 0) {
+                if (gt !== i + CLOSE_OBJECT.length - 1)
+                    spans.clean = false;
+                spans.spans.push([entryAt, gt + 1]);
+                entryAt = -1;
+            }
             i = gt + 1;
             continue;
         }
@@ -650,6 +690,20 @@ export function readDictionaryXmlFast(input) {
         textVal[d] = undefined;
         textCount[d] = 0;
         attrCount[d] = count;
+        if (spans !== undefined && tag === 'Object') {
+            if (d === 1) {
+                if (text.startsWith(ENTRY_OPEN, i)) {
+                    entryAt = i;
+                }
+                else if (spellsEntry(text.slice(i, gt + 1))) {
+                    spans.clean = false;
+                    spans = undefined;
+                }
+            }
+            else if (entryAt >= 0) {
+                spans.clean = false;
+            }
+        }
         if (selfClosing) {
             if (emit(d, tag, closeSlot(d)))
                 sawRoot = true;
@@ -663,6 +717,8 @@ export function readDictionaryXmlFast(input) {
     // "no markup" reads as the empty object there, and this reader must not invent that.
     if (depth > 0 || !sawRoot)
         return null;
+    if (recording)
+        entries.read = true;
     return root;
 }
 //# sourceMappingURL=DictionaryXmlFast.js.map

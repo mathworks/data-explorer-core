@@ -14,7 +14,7 @@ import { unzipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
-import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import { regenerateEntryXml, serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import {
   encodedBytes,
   encodedStream,
@@ -66,11 +66,20 @@ const entryOf = (valueXml: string, warnings?: ParseWarning[]): any => dictionary
 
 const subtree = (node: any): any[] => [node, ...node.children.flatMap(subtree)];
 
-/** The entry's Value element as serializeEntryToXml writes it. */
-const writtenValue = (entry: any): string => {
-  const xml = serializeEntryToXml(entry);
+const valueIn = (xml: string): string => {
   const at = xml.indexOf('<P Name="Value"');
   return xml.slice(at, xml.indexOf('</P>', at) + 4);
+};
+
+/**
+ * The entry's Value element as serializeEntryToXml writes it — for an unedited entry, the
+ * bytes it was read from — and checked against what the writer writes for it from the
+ * model (regenerateEntryXml), which is what a save writes once the entry is edited.
+ */
+const writtenValue = (entry: any): string => {
+  const written = valueIn(serializeEntryToXml(entry));
+  expect(valueIn(regenerateEntryXml(entry)), 'written from the model').toBe(written);
+  return written;
 };
 
 describe('the envelope keeps what the element said', () => {
@@ -198,6 +207,7 @@ describe('a hex value shows what it holds', () => {
         expect(n.valueEditable, n.id).toBe(false);
       }
       expect(serializeEntryToXml(entry)).toContain(body);
+      expect(regenerateEntryXml(entry)).toContain(body);
     }
     expect(struct.children.find((c: any) => c.name === 'g').valueEditable).toBe(true);
     expect(param.toRow()._descriptionEditable).toBe(true);
@@ -484,9 +494,10 @@ describe('an encoded value in an object\'s cell property is written back as read
         `                    ${element}\n                    <Element Class="double">7.0</Element>\n                </P>\n` +
         `            </Element>\n        </P>`;
       const entry = entryOf(tag);
-      const xml = serializeEntryToXml(entry);
-      expect(xml, cls).toContain(element);
-      expect(xml, cls).not.toContain('Class="encoded"');
+      for (const xml of [serializeEntryToXml(entry), regenerateEntryXml(entry)]) {
+        expect(xml, cls).toContain(element);
+        expect(xml, cls).not.toContain('Class="encoded"');
+      }
     });
   }
 });
@@ -505,6 +516,7 @@ describe('the two reader sites MATLAB has not been seen writing an encoded value
     const entry = entryOf(tag);
     expect(entry.children.find((c: any) => c.name === 'f').displayValue).toBe('<2x3 sparse double>');
     expect(serializeEntryToXml(entry)).toContain(body);
+    expect(regenerateEntryXml(entry)).toContain(body);
   });
 
   it('a saveobj property is the stream, not a number read out of its text', () => {

@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest } from '../src/index.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { flatten } from './parity/loadFile.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
@@ -86,12 +87,15 @@ function parsed(venue: 'property' | 'entry', elements: string[]): unknown[] {
   return cell._elements;
 }
 
-/** What each member of the cell shows, and the elements a save writes, untouched. */
-function roundTrip(venue: 'property' | 'entry', elements: string[]): { shown: unknown[]; saved: string } {
+/**
+ * What each member of the cell shows, the elements a save writes, untouched — which is the
+ * entry's own bytes — and what the writer writes for them from the model.
+ */
+function roundTrip(venue: 'property' | 'entry', elements: string[]): { shown: unknown[]; saved: string; regenerated: string } {
   const { session, root } = open(chunkWith(venue, elements));
   const shown = cellOf(root, venue).children.map((c: any) => [c.className, c.displayValue, c.dims]);
   const saved = chunkOf(session.serializeSource(root.name)!.bytes!);
-  return { shown, saved };
+  return { shown, saved, regenerated: regenerateChunkXml(root) };
 }
 
 const VENUES = ['property', 'entry'] as const;
@@ -114,12 +118,13 @@ describe('an empty array of an object class in a cell', () => {
 
   for (const venue of VENUES) {
     it(`opens with its class and size, and is saved as MATLAB wrote it, in ${venue === 'property' ? 'an object property' : "an entry's cell"}`, () => {
-      const { shown, saved } = roundTrip(venue, ELEMENTS);
+      const { shown, saved, regenerated } = roundTrip(venue, ELEMENTS);
       expect(shown).toEqual([
         ['WidgetPart', '[ ]', [0, 0]],
         ['Simulink.Parameter', '[ ]', [1, 0]],
       ]);
       expect(saved).toContain(cellP(venue === 'property' ? 'Cells' : 'Value', ELEMENTS, venue === 'property' ? 16 : 8));
+      expect(regenerated, 'written from the model').toContain(cellP(venue === 'property' ? 'Cells' : 'Value', ELEMENTS, venue === 'property' ? 16 : 8));
     });
   }
 });
@@ -141,12 +146,13 @@ describe('an empty logical in a cell', () => {
 
   for (const venue of VENUES) {
     it(`opens with its size, and is saved as MATLAB wrote it, in ${venue === 'property' ? 'an object property' : "an entry's cell"}`, () => {
-      const { shown, saved } = roundTrip(venue, ELEMENTS);
+      const { shown, saved, regenerated } = roundTrip(venue, ELEMENTS);
       expect(shown).toEqual([
         ['logical', '[ ]', [1, 0]],
         ['logical', '[ ]', [0, 3]],
       ]);
       expect(saved).toContain(cellP(venue === 'property' ? 'Cells' : 'Value', ELEMENTS, venue === 'property' ? 16 : 8));
+      expect(regenerated, 'written from the model').toContain(cellP(venue === 'property' ? 'Cells' : 'Value', ELEMENTS, venue === 'property' ? 16 : 8));
     });
   }
 });

@@ -5,7 +5,8 @@
 // complex_objects.mat hold the same values, both authored by make_complex_fixtures.m on
 // R2027a, so every complex `<P>` MATLAB wrote is the answer for three ways of writing one:
 //
-//   * a save that edits nothing, which rebuilds every entry from the model;
+//   * every entry rebuilt from the model (`regenerateChunkXml`), which is what a save that
+//     edits nothing wrote until it kept each unedited entry's own bytes;
 //   * a save after editing some OTHER property of the entry, which rewrites that entry
 //     with its Value untouched;
 //   * a Parameter out of the .mat put into the dictionary, which writes the MCOS decoder's
@@ -20,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { unzipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
-import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import { regenerateChunkXml, regenerateEntryXml, serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 import { parseComplexNum } from '../src/datamodel/parser/XmlUtils.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
@@ -75,16 +76,19 @@ describe('the fixture is what these tests need', () => {
 
 describe('a save that edits nothing writes every complex value back as MATLAB wrote it', () => {
   const { session, root } = openBinary();
-  const out = session.serializeSource(root.name);
-  const ours = chunkOf(out.bytes);
+  const ours = regenerateChunkXml(root);
+  // A save that edits nothing writes each entry's own bytes (BinarySlddSerializer), so it
+  // is MATLAB's chunk, unedited spellings and all.
+  const saved = chunkOf(session.serializeSource(root.name).bytes);
 
   for (const name of WITH_COMPLEX) {
     it(name, () => {
       expect(complexTags(entryBlock(ours, name))).toEqual(asWritten(complexTags(entryBlock(MATLAB_CHUNK, name))));
+      expect(complexTags(entryBlock(saved, name))).toEqual(complexTags(entryBlock(MATLAB_CHUNK, name)));
     });
   }
 
-  it('which differs from MATLAB\'s only where MATLAB wrote a NaN imaginary part unsigned', () => {
+  it('which differs from MATLAB\'s only where MATLAB wrote a NaN imaginary part unsigned, and only once it is edited', () => {
     const changed = WITH_COMPLEX.filter((n) => {
       const tags = complexTags(entryBlock(MATLAB_CHUNK, n));
       return asWritten(tags).join('\n') !== tags.join('\n');
@@ -92,6 +96,11 @@ describe('a save that edits nothing writes every complex value back as MATLAB wr
     expect(changed).toEqual(['pNonFinite']);
     expect(complexTags(entryBlock(ours, 'pNonFinite'))).toEqual([
       '<P Name="Value" Class="double" IsComplex="1" Dimension="1*4">Inf-Infi NaN+1.0i 1.0+NaNi -Inf+2.0i</P>',
+    ]);
+    // Saved untouched, it is MATLAB's own `1.0NaNi`: nobody changed that value, so it is
+    // not rewritten, and MATLAB reads those bytes back exactly as it read them before.
+    expect(complexTags(entryBlock(saved, 'pNonFinite'))).toEqual([
+      '<P Name="Value" Class="double" IsComplex="1" Dimension="1*4">Inf-Infi NaN+1.0i 1.0NaNi -Inf+2.0i</P>',
     ]);
   });
 });
@@ -230,7 +239,9 @@ describe('the writers state what the value is', () => {
     const root: any = createSession().addDataSource('mem://complexQuoted', parseBinarySlddParts(xml, {}), { path: 'q.sldd' });
     const entry = root.getSection('design').children[0];
     expect([entry.displayValue, entry.className]).toEqual(['[Inf-Infi NaN+1i 1NaNi -Inf+2i]', 'double']);
-    expect(complexTags(serializeEntryToXml(entry))).toEqual([saved]);
+    expect(complexTags(regenerateEntryXml(entry))).toEqual([saved]);
+    // Saved untouched, it is the bytes it was read from.
+    expect(complexTags(serializeEntryToXml(entry))).toEqual([tag]);
     // And a rename, which leaves the value as it was.
     expect(entry.setProperty('Name', 'zNonFiniteRenamed')).toBe(true);
     expect(complexTags(serializeEntryToXml(entry))).toEqual([saved]);
@@ -253,11 +264,13 @@ describe('the writers state what the value is', () => {
     const root: any = createSession().addDataSource('mem://complexCell', parseBinarySlddParts(xml, {}), { path: 'c.sldd' });
     const entry = root.getSection('design').children[0];
     expect(entry.displayValue).toBe('{1+2i, [3+4i 5-6i]}');
-    const out = serializeEntryToXml(entry);
-    expect(out).not.toContain('Class="cdata"');
-    expect(complexTags(out)).toEqual([
-      '<Element Class="double" IsComplex="1">1.0+2.0i</Element>',
-      '<Element Class="int16" IsComplex="1" Dimension="1*2">3+4i 5-6i</Element>',
-    ]);
+    // As a save writes it, which for an unedited entry is its bytes, and as the writer does.
+    for (const out of [serializeEntryToXml(entry), regenerateEntryXml(entry)]) {
+      expect(out).not.toContain('Class="cdata"');
+      expect(complexTags(out)).toEqual([
+        '<Element Class="double" IsComplex="1">1.0+2.0i</Element>',
+        '<Element Class="int16" IsComplex="1" Dimension="1*2">3+4i 5-6i</Element>',
+      ]);
+    }
   });
 });

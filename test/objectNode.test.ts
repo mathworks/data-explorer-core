@@ -15,6 +15,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import '../src/datamodel/node/data/NodeClassMap.js';
 import ObjectNode from '../src/datamodel/node/data/ObjectNode.js';
 import { createSession, ingest, serializeEntryToXml } from '../src/index.js';
+import { regenerateChunkXml, regenerateEntryXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 
 // A top-level value object: { _array_class, _elements: [{ _properties }] }.
 function valueObject(cls: string, elements: Record<string, unknown>[], dimensions?: number[]) {
@@ -382,12 +383,15 @@ describe('ObjectNode keeps the `_`-named keys of its property bag', () => {
       const source: any = ingest(session, bytes, { filename: 'cases.sldd' });
       const saved = session.serializeSource(source.name) as { bytes: Uint8Array };
       expect(valueOf(strFromU8(unzipSync(saved.bytes)['data/chunk0.xml']))).toBe(written);
+      // A save writes the unedited entry as its own bytes; the writer writes the same.
+      expect(valueOf(regenerateChunkXml(source))).toBe(written);
     });
 
     it('writes the envelope into the entry a host splices in, untouched and renamed', () => {
       const source: any = ingest(createSession(), bytes, { filename: 'cases.sldd' });
       const entry = source.flatten().find((n: any) => n.name === 'aVariant');
       expect(valueOf(serializeEntryToXml(entry))).toBe(written);
+      expect(valueOf(regenerateEntryXml(entry))).toBe(written);
       expect(entry.setProperty('Name', 'aVariant2')).toBe(true);
       expect(valueOf(serializeEntryToXml(entry).replace('>aVariant2<', '>aVariant<'))).toBe(written);
     });

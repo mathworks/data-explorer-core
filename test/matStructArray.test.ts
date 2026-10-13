@@ -4,7 +4,7 @@
 // per field; the node layer used to keep element 1 and drop the rest, so a 1x3
 // struct displayed one field value and the other two were invisible.
 import { readFileSync } from 'node:fs';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import StructNode from '../src/datamodel/node/data/StructNode.js';
@@ -20,6 +20,7 @@ import { CLASS, MI, arrayFlags, cellVar, dims, element, matFile, matrix, numeric
 import { renameInMat } from './tools/matRename.js';
 import { BINARY, TEXT, copyOf, pasteSaveReopen, sparseFixture } from './tools/pasteVenues.js';
 import { createSession, ingest } from '../src/index.js';
+import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 
 function num(name: string, v: number): MatVariable {
   return {
@@ -319,10 +320,22 @@ describe('a MAT struct array with no fields, past the row cap', () => {
   // The stream a cdata value holds: uudecode keeps a byte of its padding (matStreamPrefix).
   const streamOf = (cdata: any) => Array.from(matStreamPrefix(uudecode(cdata._value)) ?? []);
 
+  // The clock is frozen for these cases. pastedTwice asks the writer for the dictionary before
+  // and after the reopen, and the entry it pastes carries no LastMod of its own, so the writer
+  // stamps it with the time now, to the second (regenerateEntryXml): two writes that straddled
+  // a second boundary differed, and the comparison of them failed.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-13T12:00:00.000Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   // `value` pasted into a fresh copy of `file`, saved, and the saved file opened again; the
   // reopened copy saved once more, untouched. The two saves' entries are compared as written:
   // the text, or the chunk a binary dictionary keeps its entries in.
-  function pastedTwice(file: string, value: unknown): { entry: any; first: string; second: string; copied: unknown } {
+  function pastedTwice(file: string, value: unknown): { entry: any; first: string; second: string; copied: unknown; regenerated: [string, string] | null } {
     const written = (out: any) => (out.kind === 'text' ? out.text : strFromU8(unzipSync(out.bytes)['data/chunk0.xml']));
     const session = createSession();
     const root: any = ingest(session, sparseFixture(file), { filename: file });
@@ -332,7 +345,10 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     const reopened: any = ingest(again, out.kind === 'text' ? out.text : out.bytes, { filename: file });
     const entry = reopened.getSection('design').children.find((e: any) => e.name === 'pasted');
     const copied = copyOf(entry);
-    return { entry, first: written(out), second: written(again.serializeSource(reopened.name)), copied };
+    // A binary save writes the reopened file's entries as the bytes they were read from, so the
+    // writer is asked for both as well: written from the model before and after the reopen.
+    const regenerated: [string, string] | null = out.kind === 'text' ? null : [regenerateChunkXml(root), regenerateChunkXml(reopened)];
+    return { entry, first: written(out), second: written(again.serializeSource(reopened.name)), copied, regenerated };
   }
 
   it('has a row per element up to the cap, and past it the summary alone', () => {
@@ -369,6 +385,9 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     for (const file of [TEXT, BINARY]) {
       const r = pastedTwice(file, copied);
       expect([shown(r.entry), r.second === r.first], file).toEqual([['pasted', '<10000x10000 struct>', 0], true]);
+      if (r.regenerated) {
+        expect(r.regenerated[1] === r.regenerated[0], `${file}, written from the model`).toBe(true);
+      }
       const inT = pastedTwice(file, nested[0]).entry.children[0];
       const inC = pastedTwice(file, nested[1]).entry.children[0];
       expect([shown(inT), shown(inC)], file).toEqual([
@@ -478,8 +497,10 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     const bytes = holderRespelled(BIG);
     const { session, root, holder, digits } = holderOpened(bytes);
     expect(shown(holder.children.find((c: any) => c.name === 'S'))).toEqual(['S', '<10000x10000 struct>', 0]);
-    // Untouched, the entry is saved and copied as the hex it was read as.
+    // Untouched, the entry is saved and copied as the hex it was read as, and the writer
+    // writes that hex too: the save writes an unedited entry's own bytes without asking it.
     expect(strFromU8(unzipSync((session.serializeSource(root.name) as any).bytes)['data/chunk0.xml'])).toContain(digits);
+    expect(regenerateChunkXml(root)).toContain(digits);
     expect(Array.from(encodedBytes(copyOf(holder) as any).bytes ?? [])).toEqual(Array.from(bytes));
   });
   // The handover above began past MAX_UNBACKED_ELEMENTS, the parser's bound on elements no byte
@@ -517,6 +538,7 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     const { session, root, holder, digits } = holderOpened(bytes);
     expect(shown(S(holder))).toEqual(['S', `<1x${MAX + 1} struct>`, 0]);
     expect(strFromU8(unzipSync((session.serializeSource(root.name) as any).bytes)['data/chunk0.xml'])).toContain(digits);
+    expect(regenerateChunkXml(root)).toContain(digits);
     expect(Array.from(encodedBytes(copyOf(holder) as any).bytes ?? [])).toEqual(Array.from(bytes));
     // The size that ran the heap out, asked last.
     expect(shown(S(holderOpened(holderRespelled([1, 1_000_000])).holder))).toEqual(['S', '<1x1000000 struct>', 0]);
