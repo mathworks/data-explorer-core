@@ -197,14 +197,19 @@ function sparseValue(dimensions, className) {
 // limit past which a sparse array, too, was refused, until a sparse array stopped being
 // held as its dense form.
 const MAX_UNBACKED_ELEMENTS = 1000000;
+// Past this many elements a struct array with no fields has no element rows in the node layer
+// (MatlabVariableNode._createFromMatStruct): MAX_EXPANDED_ELEMENTS, its row cap, restated here
+// because this folder imports nothing from display/ (test/moduleBoundaries.test.ts), and held
+// to it by test/matStructArray.test.ts, which asks each route at the cap and one past it.
+const MAX_LAID_OUT_FIELDLESS = 10000;
 /**
- * Whether `v` is a struct array whose elements this reader does not hold one by one: one it
+ * Whether `v` is a struct array whose elements nothing reads one by one: one this reader
  * recorded without decoding (`undecoded`), or one with no fields declaring more than
- * MAX_UNBACKED_ELEMENTS elements, which the guard in parseMatrix leaves be because such an
- * element takes no bytes. Either is all declared size, so a reader that lays a struct out an
- * element at a time would lay out what no byte holds: McosParser's, for an object's
- * property, built one bag per element of a repmat(struct(), 1e4, 1e4), and the open ran the
- * heap out.
+ * MAX_LAID_OUT_FIELDLESS elements, which the node layer shows as its summary alone and the
+ * guard in parseMatrix leaves be, such an element taking no bytes. Either is all declared size,
+ * so a reader that lays a struct out an element at a time lays out what no byte holds:
+ * McosParser's, for an object's property, built one bag per element and StructNode a row per
+ * bag, and a Parameter whose Value was repmat(struct(), 1, 1e6) ran a 512 MB heap out.
  * Such a struct keeps the bytes it was read from wherever it is read (a cell element too,
  * below), and is handed over as those.
  */
@@ -216,7 +221,7 @@ export function isUnheldStructArray(v) {
         return true;
     }
     const count = (v.dimensions || []).reduce((a, b) => a * b, 1);
-    return count > MAX_UNBACKED_ELEMENTS && Object.keys(v.fields || {}).length === 0;
+    return count > MAX_LAID_OUT_FIELDLESS && Object.keys(v.fields || {}).length === 0;
 }
 // The non-zeros of a sparse array, as MATLAB's find() lists them: column by column, and
 // within a column by row. Subelement layout, from the MAT-file format spec (Level 5,
@@ -768,7 +773,9 @@ export function parseMatrix(view, baseOffset, length) {
                 // dictionary as the text of its placeholder, or as []. A sparse array keeps
                 // them too: they are what it is written back as while nothing edits it, and
                 // what an MCOS property holding one is handed over as (McosParser). So does a
-                // struct array whose elements nothing here holds, for the same handover.
+                // struct array whose elements nothing reads one by one (isUnheldStructArray), for
+                // the same handover and because a copy of it is those bytes
+                // (MatlabVariableNode._matStream).
                 if (child.undecoded || child.isSparse || isUnheldStructArray(child)) {
                     const rawLen = Math.min(cellSub.totalSize, view.byteLength - offset);
                     child._rawBytes = new Uint8Array(view.buffer, view.byteOffset + offset, Math.max(0, rawLen));

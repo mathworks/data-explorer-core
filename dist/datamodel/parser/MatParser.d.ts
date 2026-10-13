@@ -27,13 +27,13 @@ export interface ParsedMat {
     warnings: ParseWarning[];
 }
 /**
- * Whether `v` is a struct array whose elements this reader does not hold one by one: one it
+ * Whether `v` is a struct array whose elements nothing reads one by one: one this reader
  * recorded without decoding (`undecoded`), or one with no fields declaring more than
- * MAX_UNBACKED_ELEMENTS elements, which the guard in parseMatrix leaves be because such an
- * element takes no bytes. Either is all declared size, so a reader that lays a struct out an
- * element at a time would lay out what no byte holds: McosParser's, for an object's
- * property, built one bag per element of a repmat(struct(), 1e4, 1e4), and the open ran the
- * heap out.
+ * MAX_LAID_OUT_FIELDLESS elements, which the node layer shows as its summary alone and the
+ * guard in parseMatrix leaves be, such an element taking no bytes. Either is all declared size,
+ * so a reader that lays a struct out an element at a time lays out what no byte holds:
+ * McosParser's, for an object's property, built one bag per element and StructNode a row per
+ * bag, and a Parameter whose Value was repmat(struct(), 1, 1e6) ran a 512 MB heap out.
  * Such a struct keeps the bytes it was read from wherever it is read (a cell element too,
  * below), and is handed over as those.
  */
