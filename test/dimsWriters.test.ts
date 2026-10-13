@@ -751,7 +751,7 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       const session = createSession();
       const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
       const dEmpty = root.getSection('design').children.find((e: any) => e.name === 'dEmpty');
-      expect(dEmpty.serialize().value._elements, dimension).toEqual([{ _type: 'double', _value: 'Matrix(0,1152921504606846976)' }]);
+      expect(dEmpty.serialize().value._elements, dimension).toEqual([{ _type: 'double', _value: 'Matrix(0,1152921504606846976)', _binary_empty: true }]);
       const [thrown] = thrownBy(() => session.serializeSource(root.name));
       expect(thrown?.message ?? null, dimension).toBeNull();
       const saved = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);

@@ -37,7 +37,7 @@
 // The tests hold all of it to byte equality against MATLAB's own eighteen cdata
 // streams, so a wrong guess here fails loudly rather than shipping a file MATLAB
 // reads as empty.
-import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, formatMatrixSerial, formatNumLiteral, isEnumBag, isExactToken, needsExactInt, PROPERTY_SOURCE_KEY, parseComplexNum, integerConversion, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
+import { BINARY_EMPTY_KEY, complexClassTag, ENUM_KEY, ENUMERATION_KEY, emptyHeaderDims, formatMatrixSerial, formatNumLiteral, isEnumBag, isExactToken, needsExactInt, PROPERTY_SOURCE_KEY, parseComplexNum, integerConversion, transposeFromColumnMajorND, transposeToColumnMajorND, } from './XmlUtils.js';
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
@@ -1172,10 +1172,17 @@ function textForm(x, at, place) {
         const read = encodedBytes(o);
         return read.bytes ? { _type: 'cdata', _value: uuencode(read.bytes) } : o;
     }
-    // A binary dictionary's dense empty as its reader holds it (`_emptyDims`), which a value
-    // replays where no MAT stream can say its N-D dims (MatlabVariableNode.serializeValue): a
-    // text dictionary has no spelling for an N-D value but the stream, so it is refused here,
-    // finally, said where it stands in the value.
+    // A binary dictionary's classed or shaped empty, as its reader holds one, saying so
+    // (XmlUtils.BINARY_EMPTY_KEY): what a text dictionary was given for it (heldTextSpelling). The
+    // same spelling without the key is a text dictionary's own, and goes as it is.
+    if (o[BINARY_EMPTY_KEY] !== undefined) {
+        return heldTextSpelling(o, place, at);
+    }
+    // A binary dictionary's dense empty in the form its reader gives one emptyOf cannot hold
+    // (`_emptyDims`, BinarySlddParser.parseEntryValue), which a value replays where no MAT stream
+    // can say its N-D dims (MatlabVariableNode.serializeValue): a text dictionary has no spelling
+    // for an N-D value but the stream, so it is refused here, finally, said where it stands in
+    // the value.
     if (Array.isArray(o._emptyDims) && typeof o._type === 'string') {
         const empty = { name: '', className: o._type, dimensions: o._emptyDims, isComplex: false, isLogical: o._type === 'logical', value: [], fields: null };
         try {
@@ -1213,7 +1220,7 @@ function textForm(x, at, place) {
     // (heldTextSpelling). One this cannot spell so is the object bag less the two keys, which is
     // what every one went into a text dictionary as before #87 read IsEnum.
     if (isEnumBag(o)) {
-        const held = heldTextSpelling(o, place);
+        const held = heldTextSpelling(o, place, at);
         if (held !== undefined) {
             return held;
         }
@@ -1276,12 +1283,74 @@ function bagClass(o) {
  *     before it read IsEnum there; in a cell, the bag, as the cell reader has held it since it
  *     read IsEnum. MATLAB's own text dictionary writes `{"_type": "dSomeColors", "_value":
  *     "[]"}` for one, whatever its size.
+ *   - a shaped empty char, which the binary reader holds as the shaped char's mxchar literal
+ *     with no character (BinarySlddParser.charValue): '', at every place, as it was read;
+ *   - any other classed or shaped empty, which the binary reader holds as its class under a
+ *     bare `Matrix(…)` header (BinarySlddParser.emptyOf), as each place's old form gave it: at
+ *     a property or a field, `[]` for a numeric class and '' for any other; as an entry's
+ *     value, what MatlabVariableNode.serializeValue made of the entry's `{_type, _emptyDims}`
+ *     (entryEmptyText); in a cell, the header as read, which the cell reader always gave, but
+ *     for a logical 0x0, which it held as `{_type: 'logical', _value: '[]'}`. MATLAB's own text
+ *     dictionary writes `{"_type": "int16", "_value": "[]"}` for an int16 0x0 property and `[]`
+ *     for an empty Simulink.BusElement array; how it reads a shaped one back is the open
+ *     question.
+ *
+ * Each is one the binary reader says it read: an enumeration value by its keys (XmlUtils.ENUM_KEY),
+ * an empty by its own (XmlUtils.BINARY_EMPTY_KEY), which is gone from what this returns, the
+ * header kept as read included. The same spelling without that key is a text dictionary's own,
+ * written by MATLAB or by this package, and is never asked here: it is written as it is held,
+ * pasted, copied out of the text dictionary and back, or re-read from it.
  */
-function heldTextSpelling(o, place) {
-    if (isEnumBag(o) && Array.isArray(o._elements) && o._elements.length === 0) {
+function heldTextSpelling(o, place, at) {
+    if (isEnumBag(o)) {
+        if (!Array.isArray(o._elements) || o._elements.length > 0) {
+            return undefined;
+        }
         return place === 'value' ? [] : place === 'named' ? '' : undefined;
     }
-    return undefined;
+    const header = { ...o };
+    delete header[BINARY_EMPTY_KEY];
+    if (o._type === 'mxchar') {
+        return '';
+    }
+    const dims = bareEmptyDims(o);
+    if (!dims) {
+        return header;
+    }
+    switch (place) {
+        case 'named':
+            return NUMERIC_CLASS.test(o._type) ? [] : '';
+        case 'value':
+            return entryEmptyText(o._type, dims, at);
+        case 'cell':
+            return o._type === 'logical' && dims.length === 2 && dims[0] === 0 && dims[1] === 0 ? { _type: 'logical', _value: '[]' } : header;
+        default:
+            return header;
+    }
+}
+/**
+ * What a text dictionary was given for an entry's classed or shaped empty while the binary
+ * reader held one as `{_type, _emptyDims}` (MatlabVariableNode.serializeValue): an N-D one as
+ * its MAT stream, as MATLAB writes every N-D value there, and refused, said where it stands, when
+ * its dims are past what a stream can say; `[]` for one of rank 2, and for an N-D one of a class
+ * no MAT stream holds.
+ */
+function entryEmptyText(cls, dims, at) {
+    if (dims.length <= 2) {
+        return [];
+    }
+    try {
+        return { _type: 'cdata', _value: encodeCdata({ name: '', className: cls, dimensions: dims, isComplex: false, isLogical: cls === 'logical', value: [], fields: null }) };
+    }
+    catch (e) {
+        if (e instanceof MatBudgetError) {
+            throw new MatBudgetError(e.message, at + e.at, e.what, undefined, e.reason);
+        }
+        if (e instanceof MatWriteError) {
+            return [];
+        }
+        throw e;
+    }
 }
 /**
  * An enumeration value as MATLAB writes one in a text dictionary, or null for one it cannot be
@@ -1369,6 +1438,15 @@ function effectiveDims(dims) {
         d.pop();
     }
     return d;
+}
+const NUMERIC_CLASS = /^(?:double|single|u?int(?:8|16|32|64))$/;
+/**
+ * The extents of a classed empty as the binary reader holds one, its class under a bare
+ * `Matrix(…)` header with a 0 among them (BinarySlddParser.emptyOf, XmlUtils.emptyHeaderDims), or
+ * null.
+ */
+function bareEmptyDims(o) {
+    return typeof o._type === 'string' ? emptyHeaderDims(o._value) : null;
 }
 /** textDictionaryForm over a record of named values — an object's properties, a struct's fields — each at `.name`. */
 function namedForm(named, at) {

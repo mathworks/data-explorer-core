@@ -48,7 +48,7 @@ import { reasonOf } from './ParseWarning.js';
 import { SC_PART_XML, catalogFromDefinitions, scanScXml } from './ScCatalog.js';
 import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddParts.js';
 import { encodedStream, encodedValueOf, isEncodedValue } from './EncodedValue.js';
-import { charFromDecimal, charNeedsShape, complexClassTag, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, ENUM_KEY, ENUMERATION_KEY, PROPERTY_SOURCE_KEY, SAVEOBJ_KEY, } from './XmlUtils.js';
+import { charFromDecimal, charNeedsShape, complexClassTag, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, BINARY_EMPTY_KEY, ENUM_KEY, ENUMERATION_KEY, PROPERTY_SOURCE_KEY, SAVEOBJ_KEY, } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
 import { headerDigits } from './Size.js';
 /**
@@ -543,6 +543,50 @@ const CONFIG_COMPONENTS = new Set([
     'Sldv.ConfigComp',
     'hdlcoderui.hdlcc',
 ]);
+/**
+ * A classed or shaped empty, as every place a value is read holds one, an entry's Value, an
+ * object's property or a struct's field, and a cell's element: its class under the bare header
+ * of its extents, `{_type: 'int16', _value: 'Matrix(0,0)'}`, each extent as the count it is
+ * (Size.headerDigits: past 2^53 - 1 String spells some with digits that say another count), or
+ * `[]` for the one empty that already is, a double 0x0, as both dictionaries hold it at a
+ * property.
+ *
+ * MATLAB writes an empty as its class and a Dimension with a 0 in it and nothing else: `<P
+ * Name="Elements_internal" Class="Simulink.BusElement" Dimension="0*0"/>`, `<P Name="intarray"
+ * Class="int16" Dimension="0*0"/>`. The three places held it three ways: a cell's element under
+ * the header, a double 0x0 too and a logical 0x0 as `{_type: 'logical', _value: '[]'}`; an
+ * entry's Value as `{_type, _emptyDims}`, which a copy then wrote as `[]` and a paste into a
+ * binary dictionary as a double 0x0; a property or a struct field as a classless `[]` for a
+ * numeric class and `''`, a char, for every other. They hold one form now, which every XML
+ * writer spells back as read (DataNode._matrixLiteralXml, MatlabVariableNode._serializeArrayXml)
+ * and every node reads as an empty of its class and size (MatlabVariableNode.parseTypedArray). A
+ * char is the one class with a form of its own at every size, and so has one empty at all three
+ * places (charValue).
+ *
+ * Null for a class whose name this package's own values give another meaning under `_type`
+ * (RESERVED_TYPE: `{_type: 'sparse'}` is a sparse literal, `{_type: 'cdata'}` complex text or a
+ * MAT stream), which no MATLAB class is called and whose empty this form would misstate; the
+ * place then holds it as it did before (parseEntryValue, parseTypedValue, parseCellElement).
+ *
+ * What a text dictionary is given for one is held where it was until MATLAB reads one back
+ * (MatWriter.heldTextSpelling): that spelling, not this form, is the open question. A text
+ * dictionary can hold this form itself, and what it holds is written as it holds it, so the form
+ * says it was read here (XmlUtils.BINARY_EMPTY_KEY). The `[]` says nothing, being the same value
+ * spelled the same in both dictionaries.
+ */
+function emptyOf(cls, dimParts) {
+    if (RESERVED_TYPE.has(cls)) {
+        return null;
+    }
+    if (cls === 'double' && dimParts.length === 2 && dimParts[0] === 0 && dimParts[1] === 0) {
+        return [];
+    }
+    return { _type: cls, _value: 'Matrix(' + dimParts.map(headerDigits).join(',') + ')', [BINARY_EMPTY_KEY]: true };
+}
+/** The `_type`s this package's values give a meaning of their own, which no class's empty can wear (emptyOf). */
+const RESERVED_TYPE = new Set(['mxchar', 'cdata', 'sparse', 'complex']);
+/** Whether every extent is a count a `Matrix(…)` header states as digits (emptyOf): not 2.5, nor one String spells with an exponent. */
+const headerCounts = (dimParts) => dimParts.every((d) => /^\d+$/.test(headerDigits(d)));
 function parseEntryValue(prop) {
     const encoded = encodedOf(prop);
     if (encoded) {
@@ -600,8 +644,12 @@ function parseEntryValue(prop) {
     if (dimension) {
         const dimParts = parseDims(dimension);
         const total = dimParts.reduce((a, b) => a * b, 1);
+        // An empty, as every place holds one (emptyOf). One that form cannot hold, of a reserved
+        // class name or with an extent that is no count, keeps the form an entry's had,
+        // `{_type, _emptyDims}`, which MatlabVariableNode.serializeValue writes from its dims.
         if (total === 0) {
-            return { _type: type, _emptyDims: dimParts };
+            const empty = headerCounts(dimParts) ? emptyOf(type, dimParts) : null;
+            return empty ?? { _type: type, _emptyDims: dimParts };
         }
         // Logical vector, matrix or N-D — shaped, and transposed out of column-major
         // order, exactly as the numeric branch below is (defect 44).
@@ -657,10 +705,9 @@ function parseCellElement(el) {
             const dimParts = parseDims(dimension);
             const total = dimParts.reduce((a, b) => a * b, 1);
             if (total === 0) {
-                // Every extent, so an empty N-D cell element agrees with what
-                // parseMatrixValue reads back, each as the count it is (Size.headerDigits): past
-                // 2^53 - 1 String spells some with digits that say another count.
-                return { _type: elClass, _value: 'Matrix(' + dimParts.map(headerDigits).join(',') + ')' };
+                // Every extent, so an empty N-D cell element agrees with what parseMatrixValue reads
+                // back (emptyOf).
+                return emptyOf(elClass, dimParts);
             }
             const parts = numericBody(text, elClass);
             const rowMajor = transposeColumnMajor(parts, dimParts);
@@ -675,15 +722,12 @@ function parseCellElement(el) {
         if (dimension) {
             const dimParts = parseDims(dimension);
             const total = dimParts.reduce((a, b) => a * b, 1);
-            // Any other empty under the bare header of its extents, as the numeric arm above holds
-            // one, which both cell writers spell back as read. `[]` says 0x0 and nothing else, so a
-            // 1x0 or a 0x3 held that way was saved as `Dimension="0*0"` from a property's cell, and
-            // as `Dimension="1*1">0`, a false, from an entry's.
-            if (total === 0 && dimParts.length === 2 && dimParts[0] === 0 && dimParts[1] === 0) {
-                return { _type: 'logical', _value: '[]' };
-            }
+            // An empty as every place holds one (emptyOf), which both cell writers spell back as
+            // read; a 0x0 too, which was `{_type: 'logical', _value: '[]'}` here alone. `[]` says 0x0
+            // and nothing else, so a 1x0 or a 0x3 held that way was saved as `Dimension="0*0"` from a
+            // property's cell, and as `Dimension="1*1">0`, a false, from an entry's.
             if (total === 0) {
-                return { _type: 'logical', _value: 'Matrix(' + dimParts.map(headerDigits).join(',') + ')' };
+                return emptyOf('logical', dimParts);
             }
             return logicalValue(text, dimParts);
         }
@@ -741,14 +785,15 @@ function parseCellElement(el) {
     }
     // An EMPTY array of any other class: its class and a Dimension with a 0 in it, and nothing
     // else, which is how MATLAB writes `Simulink.BusElement.empty` at a property (`<P
-    // Name="Elements_internal" Class="Simulink.BusElement" Dimension="0*0"/>`). It is held as the
-    // numeric arm above holds an empty, the class under the bare header of its extents, and
-    // written back from it as read (DataNode._matrixLiteralXml). It used to fall to the text
-    // below: '', a 0x0 char, which every save wrote as `<Element Class="char"></Element>`.
+    // Name="Elements_internal" Class="Simulink.BusElement" Dimension="0*0"/>`). It is held as
+    // every empty is (emptyOf), and written back from it as read (DataNode._matrixLiteralXml). It
+    // used to fall to the text below: '', a 0x0 char, which every save wrote as `<Element
+    // Class="char"></Element>`.
     if (elClass && dimension && text === '') {
         const dimParts = parseDims(dimension);
-        if (dimParts.reduce((a, b) => a * b, 1) === 0) {
-            return { _type: elClass, _value: 'Matrix(' + dimParts.map(headerDigits).join(',') + ')' };
+        const empty = dimParts.reduce((a, b) => a * b, 1) === 0 ? emptyOf(elClass, dimParts) : null;
+        if (empty) {
+            return empty;
         }
     }
     return text || '';
@@ -907,13 +952,20 @@ function charValue(text, dimension, format) {
         return text || '';
     }
     const dimParts = parseDims(dimension);
-    if (dimParts.reduce((a, b) => a * b, 1) === 0) {
+    // An empty char keeps the extents its Dimension states, in the shaped char's own form below
+    // with no character in it, `Matrix(0,2)\n[]`: MATLAB writes `Class="char" Dimension="0*2"/>`
+    // for a 0x2, and this returned `''` for every empty, the 0x0 MATLAB writes with no Dimension at
+    // all (char_binary.sldd's charEmpty), so the 0x2, 2x0 and 0x0x2 were each read and saved as
+    // that 0x0. A 0x0 that states one is still `''`, which is what it is, and so is a 1x0, a row.
+    if (dimParts.length === 2 && dimParts[0] === 0 && dimParts[1] === 0) {
         return '';
     }
     if (!charNeedsShape(dimParts)) {
         return text || '';
     }
-    return { _type: 'mxchar', _value: formatMxCharSerial(text, dimParts) };
+    // An empty one says it was read here, as every classed or shaped empty does (emptyOf).
+    const literal = { _type: 'mxchar', _value: formatMxCharSerial(text, dimParts) };
+    return dimParts.includes(0) ? { ...literal, [BINARY_EMPTY_KEY]: true } : literal;
 }
 // The serial string every downstream reader consumes. The body itself is
 // XmlUtils.formatMatrixSerial, shared with the node's write-back path: the two used
@@ -1106,11 +1158,19 @@ function parseTypedValue(text, className, dimension, format) {
     if (dimension) {
         const dimParts = parseDims(dimension);
         const total = dimParts.reduce((a, b) => a * b, 1);
+        // An empty, as every place holds one (emptyOf): a double 0x0, the commonest property
+        // there is (an unset Min or Max), `[]` as it always was. A numeric empty of any other class
+        // or size used to be that `[]`, its class and extents gone, and any other class `''`, a
+        // char: 22,225 empty Elements_internal arrays of Simulink.BusElement and
+        // Simulink.ConnectionElement in the local corpus were saved by an untouched save as
+        // `Class="char"`. A char goes to charValue, as at the two other places; one emptyOf cannot
+        // hold, of a reserved class name or with an extent that is no count, is held as before.
         if (total === 0) {
-            if (isNumericClass(className)) {
-                return [];
+            if (className === 'char') {
+                return charValue(text, dimension, format);
             }
-            return '';
+            const empty = headerCounts(dimParts) ? emptyOf(className, dimParts) : null;
+            return empty ?? (isNumericClass(className) ? [] : '');
         }
         if (className === 'logical') {
             return logicalValue(text, dimParts);

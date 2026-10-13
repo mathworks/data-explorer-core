@@ -98,6 +98,43 @@ export function propertySourcesOf(element) {
     const r = element[PROPERTY_SOURCE_KEY];
     return r !== null && typeof r === 'object' && !Array.isArray(r) ? r : null;
 }
+/**
+ * Where a classed or shaped empty says it was read out of a binary dictionary.
+ *
+ * The binary reader holds one as its class under the bare header of its extents, `{_type:
+ * 'int8', _value: 'Matrix(0,3)'}` (BinarySlddParser.emptyOf), and a shaped empty char as the
+ * shaped char's literal with no character in it, `{_type: 'mxchar', _value: 'Matrix(0,2)\n[]'}`
+ * (BinarySlddParser.charValue). A text dictionary can hold the same spelling, and reads it as
+ * the same value. What a text dictionary is given for a binary dictionary's empty is held to
+ * what it was given before, until MATLAB reads one back (MatWriter.heldTextSpelling); an empty
+ * the text dictionary holds itself is its own, and is written as it holds it, however often it
+ * is copied, pasted or re-read. The spelling cannot tell the two apart, and a copy keeps no
+ * identity, so the binary reader says which it is, under this key, as it says a value is an
+ * enumeration value (ENUM_KEY). The key is this reader's, not the text format's: a text
+ * dictionary is written without it (MatWriter.textDictionaryForm), and every other reader and
+ * writer here passes it by.
+ */
+export const BINARY_EMPTY_KEY = '_binary_empty';
+/**
+ * The extents of `text` when it is the bare `Matrix(…)` header of an empty, a 0 among them and
+ * no body (`Matrix(0,3)`), the form the binary reader holds a classed or shaped empty in
+ * (BinarySlddParser.emptyOf); null for any other text. Trailing singletons past the second are
+ * dropped, as MATLAB's size() drops them.
+ */
+export function emptyHeaderDims(text) {
+    const m = typeof text === 'string' ? /^Matrix\((\d+(?:,\d+)*)\)$/.exec(text) : null;
+    if (!m) {
+        return null;
+    }
+    const dims = m[1].split(',').map(Number);
+    if (!dims.includes(0)) {
+        return null;
+    }
+    while (dims.length > 2 && dims[dims.length - 1] === 1) {
+        dims.pop();
+    }
+    return dims;
+}
 /** Whether `value` is an enumeration value as a binary dictionary's reader holds one (see ENUM_KEY). */
 export function isEnumBag(value) {
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {

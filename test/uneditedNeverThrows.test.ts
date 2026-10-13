@@ -9,11 +9,12 @@
 // StructNode serializeValue hand back `_rawInput`, the value as read, which every edit but a
 // rename drops (DataNode._markModified; setProperty keeps it across a rename), and a value
 // read from hex hands back its EncodedValue (DataNode._adoptEncoded). A binary reader's
-// dense empty (`_emptyDims`) is written from its dims instead, an N-D one as its stream, and
-// replayed where no stream can say them — an extent past an int32, or one that is no count —
-// since an empty needs none; a text dictionary has no spelling for such a one, so its paste
-// there is refused, as a complex value's is, and as dims holding NaN, an infinity or a
-// bigint are, in any value but the text dictionary's own.
+// empty is its class under the header of its extents (BinarySlddParser.emptyOf), handed back
+// as read like any value, or for an extent that is no count `_emptyDims`, written from its dims;
+// a text dictionary is given an N-D one as its stream, and has no spelling for one whose dims no
+// stream can say — an extent past an int32, or one that is no count — so its paste there is
+// refused, as a complex value's is, and as dims holding NaN, an infinity or a bigint are, in
+// any value but the text dictionary's own.
 //
 // serializeXml() never throws for an entry read from a binary dictionary: hex is written as
 // read (_adoptEncoded), and a sparse array there is never anything but hex or a member of a
@@ -38,6 +39,7 @@ import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { isMatCdata, uudecode, uuencode } from '../src/datamodel/parser/CdataCodec.js';
+import { textDictionaryForm } from '../src/datamodel/parser/MatWriter.js';
 import { CLASS, MI, arrayFlags, cellVar, dims, element, matFile, matrix, sparseVar, varName } from './tools/matBytes.js';
 import { BINARY, TEXT, copyOf, pasteSaveReopen, sparseFixture, thrownBy } from './tools/pasteVenues.js';
 
@@ -232,7 +234,8 @@ describe('an entry nobody has edited: what each writer does', () => {
       ['ndLogical', '<P Name="Value" Class="logical" Dimension="0*2147483648*2"/>', 'a 0x2147483648x2 logical' + PAST_INT32],
       ['ndHalf', '<P Name="Value" Class="double" Dimension="0*2.5*2"/>', 'a double declaring dimensions [0,2.5,2], a size that is not a count, so what it would add beyond its data cannot be held to the 16 MiB one value may add. Nothing was written.'],
     ];
-    // Within what a stream can say, an N-D empty is still copied as its stream.
+    // Within what a stream can say, an N-D empty is copied as read, as every empty is, and a
+    // text dictionary is given its stream, as it was.
     const SAYABLE = '<P Name="Value" Class="int8" Dimension="0*3*2"/>';
     const bytes = binaryWith([...values.map(([name, value]) => [name, value] as [string, string]), ['ndSayable', SAYABLE], ['flatPast', '<P Name="Value" Class="double" Dimension="0*2147483648"/>']]);
     expect(throwersIn(BINARY, bytes)).toEqual([]);
@@ -245,9 +248,16 @@ describe('an entry nobody has edited: what each writer does', () => {
     }
     const sayable = copy('ndSayable') as any;
     const text = pasteSaveReopen(TEXT, sayable);
-    expect([sayable._type, pasteSaveReopen(BINARY, sayable).written, text.entry.dims, text.entry._scalarType]).toEqual(['cdata', SAYABLE, [0, 3, 2], 'int8']);
-    // A 0x2147483648 is not N-D, and is copied as it was, as `[]` (on the agenda).
-    expect(copy('flatPast')).toEqual([]);
+    expect([sayable, pasteSaveReopen(BINARY, sayable).written, text.entry.dims, text.entry._scalarType]).toEqual([{ _type: 'int8', _value: 'Matrix(0,3,2)', _binary_empty: true }, SAYABLE, [0, 3, 2], 'int8']);
+    expect(isMatCdata(textDictionaryForm(sayable) as any)).toBe(true);
+    // A 0x2147483648 is copied as read too, its class and size with it, and a text dictionary
+    // is given `[]` for it, as it was.
+    const flatPast = copy('flatPast');
+    expect([flatPast, textDictionaryForm(flatPast), pasteSaveReopen(BINARY, flatPast).written]).toEqual([
+      { _type: 'double', _value: 'Matrix(0,2147483648)', _binary_empty: true },
+      [],
+      '<P Name="Value" Class="double" Dimension="0*2147483648"/>',
+    ]);
   });
 
   it('values past the budget as a text dictionary holds them, or a host hands them over: serialize() never throws; serializeXml(), their paste into a binary dictionary, is refused', { timeout: HEAVY_TIMEOUT }, () => {

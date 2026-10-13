@@ -70,6 +70,7 @@ import {
   charNeedsShape,
   charTextFromCodes,
   decimalCharXml,
+  emptyHeaderDims,
   escapeXml,
   formatDoubleXml,
   formatNumericXml,
@@ -630,7 +631,8 @@ export default class MatlabVariableNode extends DataNode {
       // single-quoted spelling showed MATLAB's 2x2 ['ab'; 'cd'] as 'acbd' — the
       // column-major storage read out as if it were text, so both the shape and the
       // reading order were wrong on screen (defect 25).
-      const text = dims[0] > 1 ? formatCharMatrix(s, dims) : formatMatlabChar(s);
+      // An empty one, of any rank-2 size, as an empty char shows: a 2x0 has no row to print.
+      const text = dims[0] > 1 && s !== '' ? formatCharMatrix(s, dims) : formatMatlabChar(s);
       return overCharBudget(text) ? summaryForm(dims, 'char') : text;
     }
     // A string scalar stays 1x1 however long its text is — a MATLAB string holds
@@ -1812,11 +1814,14 @@ export default class MatlabVariableNode extends DataNode {
     // 'Modified' status is not asked — a renamed entry has it, and its value is still the
     // one it was read as.
     //
-    // A binary dictionary's dense empty (BinarySlddParser's `_emptyDims`) is written from its
-    // dims below instead, an N-D one as its stream. No stream can say an extent past an int32,
-    // or one that is no count, and an empty needs none, its class and dims being all of it: so
-    // an N-D one with such dims is the form it was read as, not a refusal that left an entry
-    // nobody had edited impossible to copy or delete.
+    // A binary dictionary's empty is replayed as read too, its class under the header of its
+    // extents (BinarySlddParser.emptyOf), and a text dictionary is given what it was given for
+    // one (MatWriter.heldTextSpelling). One that form cannot hold, of a class name this
+    // package's values give a meaning of their own or with an extent that is no count, is
+    // `_emptyDims`, written from its dims below instead, an N-D one as its stream. No stream
+    // can say an extent past an int32, or one that is no count, and an empty needs none, its
+    // class and dims being all of it: so an N-D one with such dims is the form it was read as,
+    // not a refusal that left an entry nobody had edited impossible to copy or delete.
     const emptyDims = (this._rawInput as Record<string, unknown> | undefined)?._emptyDims as number[] | undefined;
     if (this._rawInput !== undefined && (!emptyDims || (effectiveDims(emptyDims).length > 2 && !isStreamSize(emptyDims)))) {
       // Complex TEXT included, which is not a text dictionary's form, and the empty: on the
@@ -2411,9 +2416,13 @@ export default class MatlabVariableNode extends DataNode {
     }
     if (type === 'char') {
       if (val === '' || val === null || val === undefined) {
-        // MATLAB writes the empty char with neither a body nor a Dimension, whatever
-        // its 0x0/1x0 extents say — char_binary.sldd's charEmpty.
-        return p + '<' + tagName + attrStr + ' Class="char"/>';
+        // MATLAB writes a 0x0 or 1x0 empty char with neither a body nor a Dimension —
+        // char_binary.sldd's charEmpty — and any other with its Dimension:
+        // `Class="char" Dimension="0*2"/>`, `"2*0"`, `"0*0*2"` (dSLDD_JSONApi.sldd's
+        // matEmptyString entries). Those went out as the 0x0.
+        const empty = this._textDims('');
+        const dimAttr = charNeedsShape(empty) && !(empty.length === 2 && empty[0] === 0 && empty[1] === 0) ? ' Dimension="' + empty.join('*') + '"' : '';
+        return p + '<' + tagName + attrStr + ' Class="char"' + dimAttr + '/>';
       }
       // The text is already MATLAB's column-major storage order, which is the order
       // this body wants: its own 2x2 ['ab'; 'cd'] is `Dimension="2*2">acbd`. Only the
@@ -2462,7 +2471,7 @@ export default class MatlabVariableNode extends DataNode {
       tagName +
       attrStr +
       ' Class="' +
-      type +
+      escapeXml(type) +
       '">' +
       formatNumericXml(val, type) +
       '</' +
@@ -2489,7 +2498,7 @@ export default class MatlabVariableNode extends DataNode {
 
     if (rows === 0 || cols === 0 || (!this._sparse && this._elements.length === 0 && this.children.length === 0)) {
       return (
-        p + '<' + tagName + attrStr + ' Class="' + (type || 'double') + '" Dimension="' + dimAttr + '"/>'
+        p + '<' + tagName + attrStr + ' Class="' + escapeXml(type || 'double') + '" Dimension="' + dimAttr + '"/>'
       );
     }
 
@@ -2540,7 +2549,7 @@ export default class MatlabVariableNode extends DataNode {
       tagName +
       attrStr +
       ' Class="' +
-      classAttr +
+      escapeXml(classAttr) +
       '" Dimension="' +
       dimAttr +
       '">' +
@@ -3204,8 +3213,11 @@ export default class MatlabVariableNode extends DataNode {
       }
       // Before the typed-scalar arm, whose parseFloat read the handle's text as the
       // number 0: a text dictionary's `{"_type": "function_handle", "_value": "sin"}`
-      // showed `0`, editable.
-      if (rv._type === 'function_handle') {
+      // showed `0`, editable. Not an empty array of handles, which the binary reader holds as
+      // every empty, under the bare header of its size (BinarySlddParser.emptyOf), and which
+      // read as a handle showed `@Matrix(0,0)` at 1x1 and was saved as `>NaN<`; it is an empty
+      // of its class, as below.
+      if (rv._type === 'function_handle' && !emptyHeaderDims(rv._value)) {
         return MatlabVariableNode.parseFunctionHandle(rv, name, parent);
       }
       // Also before the shape dispatch, and for the same reason. `{_type: 'struct',
@@ -3743,6 +3755,20 @@ export default class MatlabVariableNode extends DataNode {
     node._kind = 'array';
     node._scalarType = rawVal._type as string;
     const inner = (rawVal._value as string).replace(/^\[/, '').replace(/\]$/, '');
+    // `[]` holds no element. Split, its empty text was one element of '', which every class
+    // below read as 0: MATLAB's own `{"_type": "int16", "_value": "[]"}`, a 0x0 int16 in a text
+    // dictionary, showed `[0]` at 1x1, and a binary dictionary's 0x0 logical in a cell, which
+    // its reader holds the same way, `[false]`. A copy into a binary dictionary wrote that 0.
+    // It is the 0x0 of its class, as parseTypedArray reads the `Matrix(0,0)` beside it.
+    if (inner.trim() === '') {
+      node._elements = [];
+      node._dims = [0, 0];
+      if (rawVal._type === 'sparse') {
+        node._scalarType = 'double';
+        node._sparse = emptySparse(false);
+      }
+      return node;
+    }
     const parts = inner.split(',').map(function (s) {
       return s.trim().replace(/[FU]$/, '');
     });

@@ -25,6 +25,16 @@ export declare class BaseBusNode extends DataNode {
     get valueEditable(): boolean;
     getProperties(): PropClass[];
     _getSerializedProperties(): Record<string, unknown>;
+    /**
+     * The properties as a binary dictionary writes them: a bus with no elements has an
+     * Elements_internal that is an empty array of its element class, as MATLAB writes one, `<P
+     * Name="Elements_internal" Class="Simulink.BusElement" Dimension="0*0"/>` (every one of the
+     * 22,225 empty buses and connection buses in the local corpus), wherever its bag says
+     * otherwise: `[]`, which a bus emptied here, added here or pasted from a text dictionary
+     * carries, wrote `Class="double" Dimension="0*0"`, and `''` `Class="char"`. One read with its
+     * class keeps it.
+     */
+    _xmlProperties(): Record<string, unknown>;
     serializeValue(): unknown;
     canRemoveChild(): boolean;
     removeChildNode(child: BaseNode): void;

@@ -263,8 +263,12 @@ export default class SectionNode extends ContainerNode {
   // text dictionary spells otherwise: an enumeration value, an empty that keeps its class and
   // size. Held in it, the pasted entry showed `GearMode.Reverse` or `<0x2 dSomeColors>`, and the
   // save wrote what a text dictionary holds for it, which reopened as `<1x1 GearMode>` or `[ ]`.
-  // A value the save will refuse is held as it came, so that the refusal is the save's, naming
-  // the entry (DataNode.serialize). A file's own entries are read as they are (_readEntry).
+  // What this changes is what a save would change of the text dictionary's own entry: the binary
+  // reader's forms, which say they are its own (XmlUtils.ENUM_KEY, XmlUtils.BINARY_EMPTY_KEY), an
+  // encoded stream, complex text. So a value copied out of a text dictionary, or re-read from its
+  // text, is held as the text dictionary holds its own. A value the save will refuse is held as
+  // it came, so that the refusal is the save's, naming the entry (DataNode.serialize). A file's
+  // own entries are read as they are (_readEntry).
   parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode {
     if ((this.parent as { sourceFormat?: unknown } | null)?.sourceFormat === 'json' && rawEntry.value !== undefined) {
       let value: unknown = rawEntry.value;

@@ -7,6 +7,16 @@ import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
+import { emptyHeaderDims } from '../../parser/XmlUtils.js';
+// An empty as the binary reader holds one: a class under the bare `Matrix(…)` header of a size
+// with a 0 in it (BinarySlddParser.emptyOf).
+function isTypedEmpty(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) {
+        return false;
+    }
+    const o = v;
+    return typeof o._type === 'string' && emptyHeaderDims(o._value) !== null;
+}
 // Clone a Prop* atom with an expanded `sourceKeys`, preserving its static methods
 // (readValue/format) via the prototype chain — an object spread would drop them.
 // Bus/connection elements read some props through `*_internal` aliased raw keys
@@ -66,14 +76,43 @@ export class BaseBusNode extends DataNode {
                 : this.constructor.ELEMENT_CLASS_NAME;
             props.Elements_internal = { _array_class: arrayClass, _dimensions: [elementsInternal.length, 1], _elements: elementsInternal, _mw_element_type: 'MATLABArray' };
         }
+        else if (isTypedEmpty(rawEI)) {
+            // A bus read with no elements: its Elements_internal as the binary reader holds an
+            // empty, the element class under the header of its size (BinarySlddParser.emptyOf),
+            // kept as read. A binary dictionary writes it back as MATLAB wrote it, `<P
+            // Name="Elements_internal" Class="Simulink.BusElement" Dimension="0*0"/>`, and a text
+            // dictionary is given what it was given before (MatWriter.heldTextSpelling). It
+            // used to be read as '', a char, which every save wrote as `Class="char"`, and once
+            // read with its class this arm's `[]` below would have made it a double.
+            props.Elements_internal = rawEI;
+        }
         else if (rawEI) {
-            // When all children are removed, emit an empty array. This matches what
-            // MATLAB produces (Elements_internal = []) and ensures the XML serializer
-            // omits the property entirely (no phantom self-closing <Element/> tag).
+            // When all children are removed, emit an empty array: `[]` is what MATLAB's text
+            // dictionary holds for an empty bus. The XML writes the element class instead
+            // (_xmlProperties).
             props.Elements_internal = [];
         }
         if ('Description' in this.serial._properties || this.Description) {
             props.Description = this.Description;
+        }
+        return props;
+    }
+    /**
+     * The properties as a binary dictionary writes them: a bus with no elements has an
+     * Elements_internal that is an empty array of its element class, as MATLAB writes one, `<P
+     * Name="Elements_internal" Class="Simulink.BusElement" Dimension="0*0"/>` (every one of the
+     * 22,225 empty buses and connection buses in the local corpus), wherever its bag says
+     * otherwise: `[]`, which a bus emptied here, added here or pasted from a text dictionary
+     * carries, wrote `Class="double" Dimension="0*0"`, and `''` `Class="char"`. One read with its
+     * class keeps it.
+     */
+    _xmlProperties() {
+        const props = super._xmlProperties();
+        if (this.children.length === 0 && 'Elements_internal' in props && !isTypedEmpty(props.Elements_internal)) {
+            const rawEI = this.serial._properties.Elements_internal;
+            const bag = rawEI && typeof rawEI === 'object' && !Array.isArray(rawEI) ? rawEI : {};
+            const elementClass = bag._array_class || bag._object_class || this.constructor.ELEMENT_CLASS_NAME;
+            props.Elements_internal = { _array_class: elementClass, _dimensions: [0, 0], _elements: [], _mw_element_type: 'MATLABArray' };
         }
         return props;
     }
