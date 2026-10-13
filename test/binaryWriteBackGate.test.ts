@@ -132,9 +132,9 @@ describe('defect 27: a 64-bit class survives one level down', () => {
     // The rebuilt chunk has to say the same thing — the class attribute alone is not
     // enough, since a body permuted or rounded under a right class reads back wrong.
     const xml = rebuildXml('fixtures/typed_binary.sldd');
-    const body = xml.match(/<P[^>]*Name="d"[^>]*>([^<]*)<\/P>/);
+    const body = pBodyWith(xml, 'Name="d"');
     expect(body).not.toBeNull();
-    expect(body![1].trim()).toBe('7 8');
+    expect(body!.trim()).toBe('7 8');
   });
 });
 
@@ -156,10 +156,10 @@ describe('defect 28: a saveobj envelope survives the round trip', () => {
     // that back as a real <P>. An empty char standing in for a value MATLAB keeps
     // INSIDE the envelope.
     const xml = rebuildXml('parity/artifacts/binary/cases.sldd');
-    const variant = xml.match(/<Element Class="Simulink\.VariantVariable">[\s\S]*?<\/Element>/);
+    const variant = firstElement(xml, '<Element Class="Simulink.VariantVariable">');
     expect(variant).not.toBeNull();
-    expect(variant![0]).toContain('Source="saveobj"');
-    expect(tagsNaming(variant![0], 'Specification')).toEqual([]);
+    expect(variant!).toContain('Source="saveobj"');
+    expect(tagsNaming(variant!, 'Specification')).toEqual([]);
   });
 
   it('the reserved bag key is not a property, so it gets no tree row', () => {
@@ -286,16 +286,16 @@ describe('defects 29 and 30: a 64-bit integer keeps every digit', () => {
     // abandons the rest of a body at the first out-of-range token, so the `-1` was
     // collateral damage from its neighbour's overflow.
     const xml = rebuildXml('parity/artifacts/binary/cases.sldd');
-    const body = xml.match(/<P[^>]*Class="int64"[^>]*Dimension="1\*3"[^>]*>([^<]*)<\/P>/);
+    const body = pBodyWith(xml, 'Class="int64"', 'Dimension="1*3"');
     expect(body).not.toBeNull();
-    expect(body![1].trim()).toBe('9223372036854775807 -9223372036854775808 -1');
+    expect(body!.trim()).toBe('9223372036854775807 -9223372036854775808 -1');
   });
 
   it('a uint64 vector keeps its neighbour too', () => {
     const xml = rebuildXml('parity/artifacts/binary/cases.sldd');
-    const body = xml.match(/<P[^>]*Class="uint64"[^>]*Dimension="1\*3"[^>]*>([^<]*)<\/P>/);
+    const body = pBodyWith(xml, 'Class="uint64"', 'Dimension="1*3"');
     expect(body).not.toBeNull();
-    expect(body![1].trim()).toBe('18446744073709551615 1 0');
+    expect(body!.trim()).toBe('18446744073709551615 1 0');
   });
 
   it('the text .sldd literal keeps its digits and its U suffix', () => {
@@ -705,3 +705,25 @@ describe('defects 53-55: an array inside a cell keeps its shape, its parts and i
     expect(findByName(reopened, 'cObjArr').children[0].children).toHaveLength(2);
   });
 });
+
+/**
+ * The text of the first `<P …>text</P>` whose open tag holds every one of `attrs`, or null.
+ * Found by scanning the tags, not by a pattern that could backtrack over a long open tag.
+ */
+function pBodyWith(xml: string, ...attrs: string[]): string | null {
+  for (let at = xml.indexOf('<P'); at !== -1; at = xml.indexOf('<P', at + 2)) {
+    const end = xml.indexOf('>', at);
+    if (end === -1) return null;
+    if (!attrs.every((a) => xml.slice(at, end).includes(a))) continue;
+    const close = xml.indexOf('<', end + 1);
+    if (close !== -1 && xml.startsWith('</P>', close)) return xml.slice(end + 1, close);
+  }
+  return null;
+}
+
+/** From the first `open` to the first `</Element>` after it, or null. */
+function firstElement(xml: string, open: string): string | null {
+  const start = xml.indexOf(open);
+  const stop = start === -1 ? -1 : xml.indexOf('</Element>', start);
+  return stop === -1 ? null : xml.slice(start, stop + '</Element>'.length);
+}
