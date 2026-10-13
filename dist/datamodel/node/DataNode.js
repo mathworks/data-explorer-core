@@ -8,7 +8,7 @@ import { dimsText, isExactDigits, isSpellableExtent, isTextExtent } from '../par
 import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
 import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
-import { charTextFromCodes, decimalCharXml, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, } from '../parser/XmlUtils.js';
+import { charTextFromCodes, decimalCharXml, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -1270,9 +1270,14 @@ export default class DataNode extends BaseNode {
      * An object bag (`{_array_class, _dimensions, _elements: [{_properties}]}`) under `tag`: a
      * property's `<P Name="…">`, or the classless `<Element>` a cell element holding an object
      * is — cellarr_binary.sldd's cObj is `<Element>` around one `<Element
-     * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two.
+     * Class="Simulink.Parameter">`, its cObjArr `<Element Dimension="1*2">` around two. An
+     * enumeration value read out of a cell is one of these bags too, and has a spelling of its
+     * own (_enumXml).
      */
     static _objectXml(tag, attrs, name, value, indent, ownerNode, at) {
+        if (isEnumBag(value)) {
+            return DataNode._enumXml(tag, attrs, name, value, indent, at);
+        }
         const p = xmlPad(indent);
         const ip = xmlPad(indent + 1);
         const className = value._array_class;
@@ -1314,6 +1319,43 @@ export default class DataNode extends BaseNode {
         });
         xml += p + close;
         return xml;
+    }
+    /**
+     * An enumeration value read out of a cell (XmlUtils.ENUM_KEY) under `tag`, as MATLAB wrote
+     * it: the `IsEnum` it carried, then a Dimension unless it is a scalar, around one `<Element
+     * Class="…" EnumerationName="…" EnumerationType="…">` per enumeral holding its value text —
+     * or, empty, self-closed with its class and Dimension, there being no enumeral to name the
+     * class. A cell element's is `<Element IsEnum="1">`; the same value at a property would be
+     * `<P Name="…" IsEnum="1">`, which is how MATLAB writes one there.
+     *
+     * Reached from `_objectXml`, whose object spelling used to take the enumeral for an object
+     * with no properties and write `<Element Class="GearMode"/>`, its name and value gone.
+     */
+    static _enumXml(tag, attrs, name, value, indent, at) {
+        const p = xmlPad(indent);
+        const ip = xmlPad(indent + 1);
+        const className = escapeXml(value._array_class);
+        DataNode._sizeOrRefuse(value._dimensions, value._array_class, name, at);
+        const dims = value._dimensions || [1, 1];
+        const elements = value._elements || [];
+        const open = p + '<' + tag + attrs + ' IsEnum="' + escapeXml(String(value[ENUM_KEY])) + '"';
+        if (elements.length === 0) {
+            return open + ' Class="' + className + '" Dimension="' + dims.join('*') + '"/>';
+        }
+        const scalar = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1;
+        let xml = open + (scalar ? '' : ' Dimension="' + dims.join('*') + '"') + '>\n';
+        for (const element of elements) {
+            const e = enumeralOf(element);
+            xml += ip + '<Element Class="' + className + '"';
+            if (e?.name !== undefined) {
+                xml += ' EnumerationName="' + escapeXml(e.name) + '"';
+            }
+            if (e?.type !== undefined) {
+                xml += ' EnumerationType="' + escapeXml(e.type) + '"';
+            }
+            xml += '>' + escapeXml(e ? e.value : '') + '</Element>\n';
+        }
+        return xml + p + '</' + tag + '>';
     }
     /**
      * Refuses to write a raw property value whose dims no Dimension can spell (parser/Size): a
@@ -1540,7 +1582,8 @@ export default class DataNode extends BaseNode {
             if (matrix !== null) {
                 return matrix;
             }
-            // parseCellElement's empty logical, whose extents it does not keep: `[]` is 0x0.
+            // parseCellElement's 0x0 logical. Every other empty logical it reads carries its
+            // extents in a `Matrix(…)` header, which the arm above writes.
             if (raw === '[]') {
                 return p + '<Element Class="' + type + '" Dimension="0*0"/>';
             }
