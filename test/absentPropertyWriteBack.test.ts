@@ -111,7 +111,7 @@
 // archPresentation.test.ts the ValueType default, minMaxConstraint.test.ts what Min/Max
 // accept. This file is about which keys reach the file, and about the two paths agreeing.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
@@ -669,7 +669,20 @@ describe('a BusElement bound the user cleared', () => {
 // its property bag from its rows, has no row for one there, and carries it across from the
 // bag it read in a text dictionary. In a binary one the rebuilt bag carries only the saveobj
 // envelope, the one such key XML can spell, so both keys go the same way there as well.
+//
+// The clock is frozen for these cases. Each compares the save of two files after a rename of
+// every entry, and a rename stamps the entry's LastMod with the time to the second
+// (DataNode._stampLastModified), so two saves that straddled a second boundary differed in
+// their stamps and failed the comparison, as they did in a full run of the suite under load.
 describe('a property bag key named __proto__', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-12T12:00:00.000Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const VALUE = {
     _saveobj: { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ Description: 'from-proto' }], _fields: ['Description'], _mw_element_type: 'MATLABArray' },
   };
