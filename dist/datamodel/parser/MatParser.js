@@ -85,11 +85,19 @@ function readNumericArray(view, sub, count) {
     // catches — a single bad byte range would take down the whole open. Clamp to
     // what the payload and the buffer really hold and return a short array; the
     // node layer already renders fewer elements than the dimensions claim.
+    //
+    // A payload of a type with no width holds no element this can read, so none is read.
+    // Its `default` arm used to push a 0 for each DECLARED element, the one count here no
+    // byte bounded: a 64-byte variable read as a million zeros, and a 4 KB file of 60 ran a
+    // 512 MB heap out. The full-array arm of parseMatrix records such a payload as not
+    // decoded (unreadablePart). A sparse array's pr of such a type holds no non-zero, as
+    // before: readSparse's `keep` reads a value that is not there as 0, and drops a 0.
     const width = ELEMENT_WIDTH[sub.type];
-    if (width) {
-        const available = Math.min(sub.bytes, Math.max(0, view.byteLength - off));
-        count = Math.min(count, Math.floor(available / width));
+    if (!width) {
+        return values;
     }
+    const available = Math.min(sub.bytes, Math.max(0, view.byteLength - off));
+    count = Math.min(count, Math.floor(available / width));
     for (let i = 0; i < count; i++) {
         switch (sub.type) {
             case MI_DOUBLE:
@@ -122,10 +130,26 @@ function readNumericArray(view, sub, count) {
             case MI_UINT64:
                 values.push(exactInt(view.getBigUint64(off + i * 8, true)));
                 break;
-            default: values.push(0);
         }
     }
     return values;
+}
+// Why the numeric part whose tag is at `at` holds none of the `count` elements its array
+// declares, or null when it holds what its bytes do. Either its tag is cut short by the end of
+// the bytes, which readSubelement reports as a tag of type 0, or its type has no width: in both
+// readNumericArray reads nothing, so there is no value to give, and the variable is recorded as
+// the reader's other refusals are rather than read as the zeros it was. An array declaring no
+// element holds all of it whatever the type, which is [].
+function unreadablePart(view, at, sub, count, part) {
+    if (!(count > 0) || ELEMENT_WIDTH[sub.type]) {
+        return null;
+    }
+    if (at + 8 > view.byteLength) {
+        const there = Math.max(0, view.byteLength - at);
+        return 'the bytes end ' + there + (there === 1 ? ' byte' : ' bytes') + ' into its ' + part + "'s 8-byte tag";
+    }
+    return 'its ' + part + ' is of MAT data type ' + sub.type + ', which has no element width, so none of its '
+        + count + ' elements can be read';
 }
 function readString(view, sub) {
     const bytes = new Uint8Array(view.buffer, view.byteOffset + sub.dataOffset, sub.bytes);
@@ -488,7 +512,8 @@ export function parseMatrix(view, baseOffset, length) {
     // The element ends where its length says or where the bytes do, whichever comes first.
     // `length` can be the file's own claim, unchecked: a top-level record's, or the one a
     // compressed record's payload gives its matrix. Every read clamps to the bytes there
-    // are (readSubelement), but the walk over a struct's or a cell's elements and the
+    // are (readSubelement, and readNumericArray, which reads none of a payload of a type
+    // with no width), but the walk over a struct's or a cell's elements and the
     // declared-size guard below went by the end the claim gave: past the last byte each
     // step read an empty tag and stepped on, up to the half-billion steps a claim of 4 GB
     // allows, and the guard took the claim for bytes left, so a struct array declaring
@@ -609,11 +634,22 @@ export function parseMatrix(view, baseOffset, length) {
     }
     else if (arrayClass >= 6 && arrayClass <= 15) {
         if (offset < end) {
+            const realAt = offset;
             const realSub = readSubelement(view, offset);
             offset += realSub.totalSize;
+            const imagAt = offset;
+            const imagSub = isComplex && offset < end ? readSubelement(view, offset) : null;
+            // A part that holds none of the elements declared, its tag cut short or of a type
+            // with no width, leaves no value to read (unreadablePart).
+            const unread = unreadablePart(view, realAt, realSub, totalElements, 'real part')
+                ?? (imagSub && unreadablePart(view, imagAt, imagSub, totalElements, 'imaginary part'));
+            if (unread) {
+                result.value = undecodedValue(dimensions, className);
+                result.undecoded = unread;
+                return result;
+            }
             const realValues = readNumericArray(view, realSub, totalElements);
-            if (isComplex && offset < end) {
-                const imagSub = readSubelement(view, offset);
+            if (imagSub) {
                 offset += imagSub.totalSize;
                 const imagValues = readNumericArray(view, imagSub, totalElements);
                 const colMajor = realValues.map((r, i) => ({ re: r, im: imagValues[i] }));
