@@ -1435,12 +1435,17 @@ describe('parseMat — malformed byte counts', () => {
       expect(s.undecoded, what).toMatch(refused(500_000_000));
       expect(parsed.warnings, what).toContainEqual({ code: 'part-unreadable', message: `"s" was not decoded: ${s.undecoded}.`, part: 's' });
     }
-    // As a record, the record's own warning stands beside it: the file holds less than the
-    // record says.
-    expect(parseMat(matFile([claimed(big)])).warnings.map((w) => [w.code, w.part, w.message.slice(0, 40)])).toEqual([
-      ['part-unreadable', 's', 'A record at byte 128 declares 4294967280'],
-      ['part-unreadable', 's', expect.stringMatching(/^"s" was not decoded: declares 500000000/)],
-    ]);
+    // The record's own warning stands beside it, the file or the payload holding less than
+    // the record says.
+    for (const [record, says] of [
+      [claimed(big), 'A record at byte 128 declares 4294967280 bytes'],
+      [zipped(claimed(big)), 'A compressed record at byte 128 holds a variable that declares 4294967280 bytes'],
+    ] as const) {
+      expect(parseMat(matFile([record])).warnings.map((w) => [w.code, w.part, w.message.slice(0, says.length)])).toEqual([
+        ['part-unreadable', 's', says],
+        ['part-unreadable', 's', expect.stringMatching(/^"s" was not decoded: declares 500000000/)],
+      ]);
+    }
     // A cell, the same way: past the last byte each step was an element that is not a
     // matrix, held as a null slot, and the 2,000,000-element cell holding one element was
     // read as 2,000,000 slots.

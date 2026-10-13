@@ -496,7 +496,7 @@ export function parseMatrix(view, baseOffset, length) {
     // per declared element until the heap ran out. A struct field or a cell element was
     // always bounded so, its length being readSubelement's, which clamps it; a top-level
     // record cut short by the end of the file now reads as one of those does. parseMat
-    // says the record was read short.
+    // says the record, or the payload, was read short.
     const held = Math.max(0, Math.min(length, view.byteLength - baseOffset));
     const end = baseOffset + held;
     // An miMATRIX of no bytes, its tag alone, is an empty array: MATLAB writes some empty
@@ -909,6 +909,24 @@ export function parseMat(arrayBuffer) {
                     variables.push({ name: '', className: '', dimensions: [], isComplex: false, isLogical: false, value: null, fields: null, _rawBytes: new Uint8Array(pako.buffer, pako.byteOffset, pako.byteLength), _anonymous: true });
                 }
                 shortened = nameFor(variables[variables.length - 1]);
+                // The record's warning below, one level in. The matrix's own tag in the
+                // payload may claim more bytes than the payload holds, as a record may claim
+                // more than the file holds, and parseMatrix reads what is there either way;
+                // but the record around it is whole, so the record's warning cannot say so.
+                // A 1x3 struct whose third element lay past the payload's end read two of
+                // them, and nothing said so.
+                const held = deView.byteLength - 8;
+                if (innerBytes > held) {
+                    const short = {
+                        code: 'part-unreadable',
+                        message: `A compressed record at byte ${offset} holds a variable that declares ${innerBytes} bytes, `
+                            + `and its payload holds only ${held}, so it was read short.`,
+                    };
+                    if (shortened) {
+                        short.part = shortened;
+                    }
+                    warnings.push(short);
+                }
             }
             else {
                 warnings.push({
