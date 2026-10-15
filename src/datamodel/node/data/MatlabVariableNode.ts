@@ -38,6 +38,7 @@ import {
   classPhrase,
   encodeMatStream,
   MatBudgetError,
+  MatWriteError,
   matStreamOfElement,
   oneWrite,
   sparseWriteRefusal,
@@ -1863,8 +1864,15 @@ export default class MatlabVariableNode extends DataNode {
     //
     // And a struct array with no element rows (_unexpandedStruct), which a struct value could
     // spell only as one element per declared element, 1e8 of them for 208 bytes of file.
-    if (this._sparse || effectiveDims(this._dims).length > 2 || this._isComplexValue() || this._unexpandedStruct()) {
-      const cdata = this._serializeCdata();
+    //
+    // In a text dictionary, a rank >= 3 value MatWriter cannot write as its stream — a cell or
+    // a struct array holding a MATLAB string, an MCOS object it has no writer for — is refused
+    // (_matStream), naming the entry and the reason, rather than written in the rank-2 form
+    // below, which is not a form MATLAB writes there for it. Elsewhere it falls through as
+    // before: a binary dictionary's XML spells it element by element.
+    const nd = effectiveDims(this._dims).length > 2;
+    if (this._sparse || nd || this._isComplexValue() || this._unexpandedStruct()) {
+      const cdata = this._serializeCdata(nd && this._ownerFormat() === 'json');
       if (cdata) {
         return cdata;
       }
@@ -1941,9 +1949,10 @@ export default class MatlabVariableNode extends DataNode {
   // MAT code for. Those have no stream spelling in this format at ALL, so the choice
   // is between the rank-2 form the branches below produce, which at least leaves a
   // readable file, and failing the whole save. It falls through. A refusal for the
-  // unbacked-bytes budget does not: it is thrown (_matStream), and the save fails.
-  _serializeCdata(): unknown | null {
-    const bytes = this._matStream();
+  // unbacked-bytes budget does not: it is thrown (_matStream), and the save fails. Nor,
+  // when `refuse` is set, does any other refusal of MatWriter's (serializeValue).
+  _serializeCdata(refuse = false): unknown | null {
+    const bytes = this._matStream(refuse);
     return bytes ? { _type: 'cdata', _value: uuencode(bytes) } : null;
   }
 
@@ -1967,9 +1976,11 @@ export default class MatlabVariableNode extends DataNode {
    *
    * Except past the unbacked-bytes budget: that refusal is final, and it is thrown, restated
    * with the entry and the path (_budgetFailure), so the copy or the save asking fails and
-   * nothing else is written in the value's place.
+   * nothing else is written in the value's place. And, when `refuse` is set — a value a text
+   * dictionary can hold only as its stream (serializeValue) — any other refusal of
+   * MatWriter's, restated the same way (_streamRefusal).
    */
-  _matStream(): Uint8Array | null {
+  _matStream(refuse = false): Uint8Array | null {
     const raw = this._rawInput as Record<string, unknown> | undefined;
     if (raw && isMatCdata(raw)) {
       const bytes = matStreamPrefix(uudecode(raw._value as string));
@@ -2001,8 +2012,28 @@ export default class MatlabVariableNode extends DataNode {
       if (e instanceof MatBudgetError) {
         throw this._budgetFailure(e);
       }
+      if (refuse && e instanceof MatWriteError) {
+        throw this._streamRefusal(e);
+      }
       return null;
     }
+  }
+
+  /**
+   * MatWriter's refusal `e` of this value's stream, restated for a user as a budget refusal is
+   * (_budgetFailure): the entry, the path and what stands there, and MatWriter's reason.
+   */
+  _streamRefusal(e: MatWriteError): MatWriteError {
+    let root: BaseNode = this;
+    while (root.parent) {
+      root = root.parent;
+    }
+    const entry = root._writtenAt ? root._writtenAt.entry : this.owningEntry?.name ?? this.matlabPath;
+    const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + matlabClassOf(this._var);
+    return new MatWriteError(
+      'Cannot write "' + entry + '": ' + this.matlabPath + ' is ' + what +
+        ', which a text dictionary holds only as its MAT stream, and that stream cannot be written: ' + e.message + '. Nothing was written.',
+    );
   }
 
   /**

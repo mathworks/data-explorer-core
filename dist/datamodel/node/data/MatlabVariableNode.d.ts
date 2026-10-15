@@ -7,6 +7,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import { type MatVariable } from '../../parser/MatParser.js';
 import { type EncodedValue } from '../../parser/EncodedValue.js';
+import { MatWriteError } from '../../parser/MatWriter.js';
 import { type SparseData } from '../../parser/SparseData.js';
 export type { MatVariable };
 export default class MatlabVariableNode extends DataNode {
@@ -206,7 +207,7 @@ export default class MatlabVariableNode extends DataNode {
      * value, and the rebuilt variable is where this class is needed, not where it is read.
      */
     _complexClass(): string;
-    _serializeCdata(): unknown | null;
+    _serializeCdata(refuse?: boolean): unknown | null;
     /**
      * The MAT stream this value is — `getByteStreamFromArray(value)` — or null when this
      * package cannot make it. In order:
@@ -227,9 +228,16 @@ export default class MatlabVariableNode extends DataNode {
      *
      * Except past the unbacked-bytes budget: that refusal is final, and it is thrown, restated
      * with the entry and the path (_budgetFailure), so the copy or the save asking fails and
-     * nothing else is written in the value's place.
+     * nothing else is written in the value's place. And, when `refuse` is set — a value a text
+     * dictionary can hold only as its stream (serializeValue) — any other refusal of
+     * MatWriter's, restated the same way (_streamRefusal).
      */
-    _matStream(): Uint8Array | null;
+    _matStream(refuse?: boolean): Uint8Array | null;
+    /**
+     * MatWriter's refusal `e` of this value's stream, restated for a user as a budget refusal is
+     * (_budgetFailure): the entry, the path and what stands there, and MatWriter's reason.
+     */
+    _streamRefusal(e: MatWriteError): MatWriteError;
     /**
      * Is this a struct array past MAX_EXPANDED_ELEMENTS whose elements hold no field — one with
      * no fields, which _createFromMatStruct builds no element rows for? Its value is its size
