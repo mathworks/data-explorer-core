@@ -1567,7 +1567,7 @@ describe('parseMat — malformed byte counts', () => {
       return mat.children.map((c: any) => [c.name, c.displayValue, c.children.length]);
     };
     expect(opened(claimed(big))).toEqual([['s', '<1x500000000 struct, not decoded>', 0]]);
-    expect(opened(claimed(cellVar('c', [], [1, 1_000_000])))).toEqual([['c', '{ }', 0]]);
+    expect(opened(claimed(cellVar('c', [], [1, 1_000_000])))).toEqual([['c', '{}', 0]]);
   });
 
   it('REGRESSION: a numeric payload of an element type with no width is recorded, not read as one 0 per declared element', () => {

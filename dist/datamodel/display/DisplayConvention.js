@@ -52,14 +52,15 @@ export const SUMMARY_MAX_ELEMENTS = 10;
 // A partial expansion would therefore be read through its children and would save
 // the first N elements as the whole value. See test/largeArrayNotExpanded.test.ts.
 export const MAX_EXPANDED_ELEMENTS = 10000;
-// A space inside the brackets. This deviates from mat2str (`[]`) deliberately,
-// and matches what the object-property path has always emitted. There is no
-// MATLAB spelling to match either way: checked against R2027a, mat2str([]) is
-// '[]' and formattedDisplayText([]) / formattedDisplayText({}) are both the
-// empty string. The one-space form makes an empty value visible in a table cell
-// rather than reading as a rendering failure.
+// Every numeric empty, of any class, shape and complexity: MATLAB's Workspace browser's own
+// text, space inside (its ValueCol, getWorkspaceDisplay's Value; the 2026-10-15 display ruling
+// makes the browser the authority). mat2str([]) says '[]' and formattedDisplayText([]) says
+// nothing, which is why this once read as this package's own spelling; neither is what the
+// browser draws. Measured: test/fixtures/display/browser_short.truth.json.
 export const EMPTY_NUMERIC = '[ ]';
-export const EMPTY_CELL = '{ }';
+// A 0x0 cell, as MATLAB's Workspace browser shows it (the 2026-10-15 display ruling): no space.
+// A cell of any other empty shape shows its size-and-class summary (MatlabVariableNode._formatCell).
+export const EMPTY_CELL = '{}';
 // A `missing` element of a string array. This IS MATLAB's spelling — `disp(["" missing])`
 // prints `<missing>` — and it is unquoted there, where every real element is quoted, so
 // the display already distinguishes a `missing` from the four-character string
@@ -103,6 +104,22 @@ export function overCharBudget(text) {
 // text.
 export function summaryForm(dims, className) {
     return '<' + effectiveDims(dims).join('x') + ' ' + className + '>';
+}
+// The Class column's text, as MATLAB's Workspace browser writes it (its ClassCol, which is
+// getClassString(value, false, true, true)), and not class() alone: the class, then in
+// parentheses what the browser calls the value's attributes, `double (complex)`,
+// `int16 (complex)`, `double (sparse)`, `double (sparse complex)`, `logical (sparse)`. An
+// enumeration whose values are logical shows its underlying type first,
+// `logical (matlab.lang.OnOffSwitchState)`. That is the one such class this package can know
+// without the class's definition, which no data file holds: it is MATLAB's own, and its values
+// are logical (the 2026-10-15 display study's H9). An int-backed enumeration is its class alone,
+// `DispColor`. Measured in R2027a: test/fixtures/display/browser_short.truth.json.
+export function classColumnText(className, attributes = {}) {
+    if (className === 'matlab.lang.OnOffSwitchState') {
+        return 'logical (matlab.lang.OnOffSwitchState)';
+    }
+    const attrs = [attributes.sparse ? 'sparse' : '', attributes.complex ? 'complex' : ''].filter((a) => a !== '');
+    return attrs.length > 0 ? className + ' (' + attrs.join(' ') + ')' : className;
 }
 // A sparse array's summary, `<10x10 sparse double>`: the storage, then MATLAB's class()
 // of the value, which is its elements' (double, logical, single — complex is still

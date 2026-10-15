@@ -1474,6 +1474,14 @@ function editProperty(
   // captured value is in the shape setProperty round-trips; fall back to the passed
   // `oldValue` if this node does not project the property.
   const priorValue = readPropertyValue(node, propertyName, oldValue);
+  // The text the property shows, committed unchanged, is no edit: nothing is set, nothing is
+  // published and no undo step is recorded, so the value keeps what it was read as
+  // (`_rawInput`, and so its bytes). One text stands for many values: `[ ]` is every numeric
+  // empty, whatever its size and class, as MATLAB's Workspace browser shows them, and set
+  // back from that text each became a 0x0 double (the 2026-10-15 ruling, C-040 option B).
+  if (typeof newValue === 'string' && newValue === priorValue) {
+    return true;
+  }
   // Unless the node can put the value back itself, which the undo then has it do: the text
   // it shows is not always its value (an empty's `[ ]` is a 0x0 double, whatever it was).
   const restore = propertyRestorer(node, propertyName);

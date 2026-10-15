@@ -1402,6 +1402,13 @@ function parseStringValue(el: XmlNode, _outerDimension: string | null): unknown 
   const cellDim = cellProp['@_Dimension'];
   const cellElements = cellProp.Element;
   if (!cellElements || cellElements.length === 0) {
+    // An empty string array: MATLAB writes strings(0,3) as the saveobj cell's shape and no
+    // element, `<P Source="saveobj" PropertyType="any" Class="cell" Dimension="0*3"/>`. Read as
+    // the scalar "" it showed `""`, where MATLAB's Workspace browser shows `0×3 string`.
+    const dimParts = cellDim ? parseDims(cellDim) : null;
+    if (dimParts && dimParts.includes(0)) {
+      return { _array_type: 'String', _dimensions: dimParts, _elements: [], _mw_element_type: 'MATLABArray' };
+    }
     return [''];
   }
 

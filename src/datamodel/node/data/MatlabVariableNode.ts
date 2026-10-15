@@ -65,6 +65,7 @@ import {
   elementCount,
   needsSummary,
   overCharBudget,
+  classColumnText,
   sparseSummaryForm,
   summaryForm,
 } from '../../display/DisplayConvention.js';
@@ -94,6 +95,7 @@ import {
   transposeToColumnMajorND,
   transposeFromColumnMajorND,
   pad as xmlPad,
+  BINARY_EMPTY_KEY,
 } from '../../parser/XmlUtils.js';
 import {
   TYPED_NUMERIC_CLASS,
@@ -496,7 +498,14 @@ export default class MatlabVariableNode extends DataNode {
     }
     switch (this._kind) {
       case 'scalar':
-        return this._scalarType === 'complex' ? 'double' : this._scalarType;
+        // A complex scalar's type is 'complex', which is no class: its class is MATLAB's
+        // class() of it (C-060, 2026-10-15), int16 for int16(1+2i), as an array's is. An
+        // element of a complex array is the array's class, as x(1) is in MATLAB. It was
+        // 'double' for every one.
+        if (this._scalarType === 'complex') {
+          return this._isConstrainedChild() ? (this.parent as MatlabVariableNode)._complexClass() : this._complexClass();
+        }
+        return this._scalarType;
       case 'array':
         return this._scalarType === 'complex' ? 'double' : this._scalarType;
       case 'cell':
@@ -504,6 +513,19 @@ export default class MatlabVariableNode extends DataNode {
       case 'string':
         return 'string';
     }
+  }
+
+  // The Class column says complex and sparse as MATLAB's Workspace browser does,
+  // `int16 (complex)`, `double (sparse)` (DisplayConvention.classColumnText): className is
+  // MATLAB's class(), which says neither. Complex is what the writers take it for
+  // (_isComplexValue), and for an empty, which has no element to say so, what it was read as
+  // (_elementType): a .mat's complex(zeros(1,0)), or a binary dictionary's IsComplex="1".
+  _classColumn(): string {
+    if (this._isOpaque) {
+      return super._classColumn();
+    }
+    const complexEmpty = this._kind === 'array' && this._elementType === 'complex' && this._liveElements().length === 0;
+    return classColumnText(this.className, { complex: this._isComplexValue() || complexEmpty, sparse: !!this._sparse });
   }
 
   // A primitive variable's data type ('double', 'string', 'cell', …) is a real
@@ -744,7 +766,7 @@ export default class MatlabVariableNode extends DataNode {
     }
     const elems = this._liveElements();
     if (elems.length === 0) {
-      return EMPTY_NUMERIC;
+      return this._formatEmptyArray();
     }
     // Rank >= 3 (mat2str answers "Input matrix must be 2-D." — a bracketed string
     // would be valid 2-D syntax describing only page 1), or more elements than a
@@ -765,9 +787,38 @@ export default class MatlabVariableNode extends DataNode {
     return overCharBudget(text) ? summaryForm(this._dims, this.className) : text;
   }
 
+  // An empty array as MATLAB's Workspace browser shows it (the 2026-10-15 display ruling):
+  // `[ ]` for every numeric empty, of any class, shape or complexity, and for an int-backed
+  // enumeration's, which MATLAB counts as numeric (DispColor.empty shows `[ ]` there). An
+  // empty that is not numeric shows the size-and-class summary MATLAB shows, in this
+  // package's spelling of one, with the short class name MATLAB uses in it: a logical
+  // (`1×0 logical`, `<1x0 logical>`), an OnOffSwitchState, whose values are logical
+  // (`<0x0 OnOffSwitchState>`), and an object array. Which empty of a class this package has
+  // no definition for is an object array, and which an enumeration's, only a binary
+  // dictionary says: it reads an enumeration by its IsEnum, as an enumeration value
+  // (ObjectNode), so an empty it hands over under its own mark (BINARY_EMPTY_KEY) of a class
+  // that is not numeric is an object array (`<Element Class="WidgetPart" Dimension="0*0"/>`).
+  // A text dictionary's `{"_type": "dSomeColors", "_value": "[]"}` says neither, and MATLAB
+  // writes its enumerations' empties that way, so it stays `[ ]`. As does a function handle's
+  // empty, which MATLAB shows as `[]` (not ruled: the display study's H8).
+  _formatEmptyArray(): string {
+    const cls = this._scalarType;
+    const numeric = cls === 'double' || TYPED_NUMERIC_CLASS.test(cls) || cls === 'function_handle';
+    const fromBinary = !!(this._rawInput as Record<string, unknown> | undefined)?.[BINARY_EMPTY_KEY];
+    if (cls === 'logical' || cls === 'matlab.lang.OnOffSwitchState' || (fromBinary && !numeric)) {
+      return summaryForm(this._dims, cls.slice(cls.lastIndexOf('.') + 1));
+    }
+    return EMPTY_NUMERIC;
+  }
+
   _formatCell(): string {
     if (this.children.length === 0) {
-      return EMPTY_CELL;
+      // MATLAB's browser shows a 0x0 cell as `{}`, and an empty cell of any other shape as its
+      // size-and-class summary, `{0×3 cell}`, here `<0x3 cell>`. A cell that holds no element
+      // and says it has some is what its reader could read of it, which is nothing.
+      const d = effectiveDims(this._dims);
+      const zeroByZero = d.length === 2 && d[0] === 0 && d[1] === 0;
+      return elementCount(d) === 0 && !zeroByZero ? summaryForm(d, 'cell') : EMPTY_CELL;
     }
     // Rank >= 3 (the rows x cols walk below showed four of a 2x2x2's eight cells
     // with nothing to say the other four existed), or past the element budget.
@@ -858,11 +909,11 @@ export default class MatlabVariableNode extends DataNode {
     if (needsSummary(d)) {
       return summaryForm(d, 'string');
     }
-    // strings(0,0) — the empty-value spelling, as _formatArray and _formatCell do for
-    // their own kinds. Without this the loops below produce a bare '[]', which is not the
-    // convention's spelling and is one character from a scalar that happens to be empty.
+    // strings(0,0): the size-and-class summary MATLAB's Workspace browser shows for every
+    // empty string array, `0×0 string` (the 2026-10-15 display ruling), here `<0x0 string>`.
+    // A scalar "" is one element, above. Without this the loops below produce a bare '[]'.
     if (this._elements.length === 0) {
-      return EMPTY_NUMERIC;
+      return summaryForm(d, 'string');
     }
     const rows = d[0];
     const cols = d[1];
@@ -3320,7 +3371,9 @@ export default class MatlabVariableNode extends DataNode {
 
     if (totalElements === 0) {
       node._kind = 'array';
-      node._scalarType = variable.className;
+      // A logical's MAT class is uint8, with the logical flag beside it, as every arm here
+      // reads it: an empty one was a uint8 (Class column `uint8`, where MATLAB says logical).
+      node._scalarType = variable.isLogical ? 'logical' : variable.className;
       node._dims = dims.slice();
       node._elements = [];
       return node;
@@ -3870,6 +3923,9 @@ export default class MatlabVariableNode extends DataNode {
 
   static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): DataNode {
     const valStr = rawVal._value as string;
+    if (MatlabVariableNode._isComplexEmpty(rawVal)) {
+      return MatlabVariableNode._parseComplexEmpty(rawVal, name, parent);
+    }
     if (/^[\d.eE+\-i\s]+$/.test(valStr) || MatlabVariableNode._isComplexText(rawVal)) {
       return MatlabVariableNode._parseCdataText(rawVal, name, parent);
     }
@@ -3962,6 +4018,40 @@ export default class MatlabVariableNode extends DataNode {
       node._rawInput = rawVal;
       node._keepStreamElement(bytes);
     }
+    return node;
+  }
+
+  /**
+   * A binary dictionary's complex empty: MATLAB writes `complex(zeros(1,0))` as
+   * `<P Name="Value" Class="double" IsComplex="1" Dimension="1*0"/>`, and an int16 or single
+   * one with its own Class, and BinarySlddParser.complexCdata hands it over as a cdata
+   * envelope with no text and a shape that holds no element. The test above admits no text,
+   * and _isComplexText none with no element in it, so it went to parseCdata's char arm and
+   * showed `''`, class char (C-040). It is the empty of its class, shown `[ ]` as MATLAB's
+   * Workspace browser shows every numeric empty.
+   */
+  static _isComplexEmpty(rawVal: Record<string, unknown>): boolean {
+    const dims = rawVal._dimensions;
+    return (
+      typeof rawVal._value === 'string' &&
+      rawVal._value.trim() === '' &&
+      Array.isArray(dims) &&
+      dims.length >= 2 &&
+      elementCount(dims as number[]) === 0
+    );
+  }
+
+  // The complex empty _isComplexEmpty admits: an array of no element, of the envelope's
+  // class, whose elements are complex (_elementType). Untouched, it is written back from the
+  // envelope it was read from (`_rawInput`), as the complex arrays _parseCdataText reads are.
+  static _parseComplexEmpty(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode {
+    const node = new MatlabVariableNode(name, parent, rawVal);
+    node._rawInput = rawVal;
+    node._kind = 'array';
+    node._scalarType = complexClassTag(rawVal._class) ?? 'double';
+    node._dims = effectiveDims(rawVal._dimensions as number[]);
+    node._elements = [];
+    node._buildArrayChildren('complex');
     return node;
   }
 

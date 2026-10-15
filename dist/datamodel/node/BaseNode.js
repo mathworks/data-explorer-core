@@ -3,6 +3,7 @@ import { buildPILayout } from './schemaBridge.js';
 import { typeLinkCell } from './typeLinkCell.js';
 import { buildOtherRows } from './piOther.js';
 import { subscriptLabel, subscriptsLabel } from '../display/Subscript.js';
+import { classColumnText } from '../display/DisplayConvention.js';
 // Columns the webview renders through a dedicated, format-specific branch (they
 // consume a plain string cell and manage their own editability). Generic
 // editable columns (the schema Code Generation columns) are NOT in this set, so
@@ -43,6 +44,12 @@ export default class BaseNode {
     // column.
     get className() {
         return '';
+    }
+    // The Class column's text, in the table and the Property Inspector alike: the class, and what
+    // MATLAB's Workspace browser adds to it (DisplayConvention.classColumnText). A node whose
+    // value can be complex or sparse says which it is (MatlabVariableNode).
+    _classColumn() {
+        return classColumnText(this.className);
     }
     // The user-facing Kind (e.g. 'Bus', 'MATLAB Variable'), shown in the Kind
     // column. Base nodes with no friendlier name fall back to the class identity.
@@ -494,7 +501,7 @@ export default class BaseNode {
             row.DataType = this.dataType;
         }
         if (!('Class' in row)) {
-            row.Class = this.className;
+            row.Class = this._classColumn();
         }
         if (!('Kind' in row)) {
             row.Kind = this.kind;

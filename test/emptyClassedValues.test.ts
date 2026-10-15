@@ -59,17 +59,21 @@ function lineOf(xml: string, open: string): string {
   return line!.trim();
 }
 
-/** Each shape: its class and Dimension as MATLAB writes it, the node it opens as, and the form every place holds it in. */
+/**
+ * Each shape: its class and Dimension as MATLAB writes it, the node it opens as, and the form every place holds it in.
+ * A logical's and an object array's empty show the size-and-class summary MATLAB's Workspace browser shows for them
+ * (`1×0 logical`, `0×0 WidgetPart`), with the short class name, and a numeric one `[ ]` (the 2026-10-15 display ruling).
+ */
 type Shape = { name: string; cls: string; dim: string; dims: number[]; display: string; form: unknown };
 const SHAPES: Shape[] = [
   { name: 'I16', cls: 'int16', dim: '0*0', dims: [0, 0], display: '[ ]', form: { _type: 'int16', _value: 'Matrix(0,0)' } },
   { name: 'I8', cls: 'int8', dim: '0*3', dims: [0, 3], display: '[ ]', form: { _type: 'int8', _value: 'Matrix(0,3)' } },
-  { name: 'Lg', cls: 'logical', dim: '1*0', dims: [1, 0], display: '[ ]', form: { _type: 'logical', _value: 'Matrix(1,0)' } },
+  { name: 'Lg', cls: 'logical', dim: '1*0', dims: [1, 0], display: '<1x0 logical>', form: { _type: 'logical', _value: 'Matrix(1,0)' } },
   { name: 'D2', cls: 'double', dim: '0*2', dims: [0, 2], display: '[ ]', form: { _type: 'double', _value: 'Matrix(0,2)' } },
   { name: 'D0', cls: 'double', dim: '0*0', dims: [0, 0], display: '[ ]', form: [] },
-  { name: 'Lg0', cls: 'logical', dim: '0*0', dims: [0, 0], display: '[ ]', form: { _type: 'logical', _value: 'Matrix(0,0)' } },
-  { name: 'Parts0', cls: 'WidgetPart', dim: '0*0', dims: [0, 0], display: '[ ]', form: { _type: 'WidgetPart', _value: 'Matrix(0,0)' } },
-  { name: 'Params0', cls: 'Simulink.Parameter', dim: '1*0', dims: [1, 0], display: '[ ]', form: { _type: 'Simulink.Parameter', _value: 'Matrix(1,0)' } },
+  { name: 'Lg0', cls: 'logical', dim: '0*0', dims: [0, 0], display: '<0x0 logical>', form: { _type: 'logical', _value: 'Matrix(0,0)' } },
+  { name: 'Parts0', cls: 'WidgetPart', dim: '0*0', dims: [0, 0], display: '<0x0 WidgetPart>', form: { _type: 'WidgetPart', _value: 'Matrix(0,0)' } },
+  { name: 'Params0', cls: 'Simulink.Parameter', dim: '1*0', dims: [1, 0], display: '<1x0 Parameter>', form: { _type: 'Simulink.Parameter', _value: 'Matrix(1,0)' } },
   { name: 'Ch', cls: 'char', dim: '0*2', dims: [0, 2], display: "''", form: { _type: 'mxchar', _value: 'Matrix(0,2)\n[]' } },
   { name: 'Ch20', cls: 'char', dim: '2*0', dims: [2, 0], display: "''", form: { _type: 'mxchar', _value: 'Matrix(2,0)\n[[]; []]' } },
   { name: 'Ch3', cls: 'char', dim: '0*0*2', dims: [0, 0, 2], display: '<0x0x2 char>', form: { _type: 'mxchar', _value: 'Matrix(0,0,2)\n[]' } },
@@ -305,7 +309,7 @@ describe('a typed `[]` is the 0x0 of its class', () => {
     const xml = hostXml().replace('<P Name="Value" Class="cell" Dimension="2*2">', '<P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>\n        <P Name="Was" Class="cell" Dimension="2*2">');
     const { session, root } = open(xml);
     const member = entryNode(root, 'partCell').children[0];
-    expect(shown(member)).toEqual(['logical', '[ ]', [0, 0]]);
+    expect(shown(member)).toEqual(['logical', '<0x0 logical>', [0, 0]]);
     const saved = entryOf(chunkOf(session.serializeSource(root.name)!.bytes!), 'partCell');
     expect(saved).toContain('        <P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
     // The save keeps the unedited entry's bytes; the writer writes the same from the model.
@@ -438,7 +442,8 @@ describe('an empty of a class that XML must escape, or a function handle', () =>
   // And `{_type: 'function_handle'}` is a handle's text, so a handle array's empty under the bare
   // header showed `@Matrix(0,0)` at 1x1 and was saved as `>NaN<`; it is an empty of its class.
   const ODD = [
-    { name: 'Amp', cls: 'My&amp;Class', shown: ['My&Class', '[ ]', [0, 0]], editable: true },
+    // An empty of an object class shows its summary, and so takes no editor (the 2026-10-15 display ruling).
+    { name: 'Amp', cls: 'My&amp;Class', shown: ['My&Class', '<0x0 My&Class>', [0, 0]], editable: false },
     { name: 'Fh', cls: 'function_handle', shown: ['function_handle', '[ ]', [0, 0]], editable: false },
   ];
   const xml = (): string => {

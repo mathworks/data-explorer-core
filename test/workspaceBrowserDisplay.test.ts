@@ -1,0 +1,249 @@
+// Copyright 2026 The MathWorks, Inc.
+//
+// The Value and Class columns against MATLAB's Workspace browser, the authority the
+// 2026-10-15 display ruling names ("follow matlab style for Value display and Class
+// display"). The expected texts are MATLAB's own, read from what the browser's column code
+// (ClassCol, ValueCol, ObjectValueSummary) answered for the same values in R2027a
+// (test/fixtures/display/browser_short.truth.json), wherever this package's spelling of a
+// text is MATLAB's. The values are read from the files MATLAB wrote them into
+// (dispcat.mat, dispcat_text.sldd, dispcat_bin.sldd), by test/parity/matlab/probe_display.m.
+import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { unzipSync } from 'fflate';
+import { createSession } from '../src/index.js';
+import { ingest } from '../src/core/ingest.js';
+import { regenerateEntryXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import PropClass from '../src/datamodel/prop/PropClass.js';
+import '../src/datamodel/node/data/NodeClassMap.js';
+
+const here = (name: string): string => fileURLToPath(new URL(`./fixtures/display/${name}`, import.meta.url));
+const bytes = (name: string): Uint8Array => new Uint8Array(readFileSync(here(name)));
+const buffer = (u8: Uint8Array): ArrayBuffer => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+const chunkOf = (zip: Uint8Array): string => new TextDecoder().decode(unzipSync(zip)['data/chunk0.xml']);
+
+interface BrowserRow { Name: string; Size: string; Class: string; Value: string; IsSummary: boolean }
+interface MetaEntry { name: string; class: string; size: number[]; isreal: boolean; issparse: boolean; paramValue: unknown }
+
+const BROWSER = new Map((JSON.parse(readFileSync(here('browser_short.truth.json'), 'utf8')) as BrowserRow[]).map((r) => [r.Name, r]));
+const META = new Map((JSON.parse(readFileSync(here('meta.truth.json'), 'utf8')).entries as MetaEntry[]).map((e) => [e.name, e]));
+
+/** MATLAB's row for `name`: what the Workspace browser shows. */
+function browser(name: string): BrowserRow {
+  const row = BROWSER.get(name);
+  expect(row, `${name} is in the truth`).toBeDefined();
+  return row!;
+}
+
+/** What MATLAB's class(), size() and isreal() say `name` is. */
+function meta(name: string): MetaEntry {
+  const m = META.get(name);
+  expect(m, `${name} is in the truth`).toBeDefined();
+  return m!;
+}
+
+function open(file: string): { session: any; root: any } {
+  const session = createSession();
+  const root: any = ingest(session, buffer(bytes(file)), { filename: file });
+  return { session, root };
+}
+
+/** Every entry (or .mat variable) of a file. */
+function entriesOf(root: any): any[] {
+  const out: any[] = [];
+  const walk = (n: any): void => {
+    if (n.isEntry) {
+      out.push(n);
+    } else {
+      (n.children || []).forEach(walk);
+    }
+  };
+  walk(root);
+  return out;
+}
+
+/** The entry (or .mat variable) called `name`, wherever its section put it. */
+function entry(root: any, name: string): any {
+  const found: any[] = [];
+  const walk = (n: any): void => {
+    if (n !== root && n.name === name && (n.isEntry || n.parent === root)) {
+      found.push(n);
+    }
+    if (!n.isEntry) {
+      (n.children || []).forEach(walk);
+    }
+  };
+  walk(root);
+  expect(found.length, `${name} in ${root.name}`).toBe(1);
+  return found[0];
+}
+
+// C-040. MATLAB writes a complex empty into a binary dictionary as a property with no text,
+// `<P Name="Value" Class="int16" IsComplex="1" Dimension="1*0"/>`, and it was read as the
+// char '' (MatlabVariableNode.parseCdata's char arm), class char. The browser shows `[ ]`,
+// as it shows every numeric empty.
+describe("a binary dictionary's complex empty is the empty it is", () => {
+  const COMPLEX_EMPTY = ['dx_complex_0x0', 'dx_complex_1x0', 'dx_complex_int16_1x0', 'e_single_complex_1x0'];
+
+  for (const name of COMPLEX_EMPTY) {
+    it(name, () => {
+      const { root } = open('dispcat_bin.sldd');
+      const m = meta(name);
+      expect([m.isreal, m.size.includes(0)], 'MATLAB holds a complex empty').toEqual([false, true]);
+      const node = entry(root, name);
+      expect(node.toRow().Value).toBe(browser(name).Value);
+      expect([node.className, node.dims, node.children.length]).toEqual([m.class, m.size, 0]);
+    });
+  }
+
+  it("dx_param_complex_1x0: a Parameter's complex empty Value shows the same", () => {
+    // The Parameter's own row is its Value (H1 of the display study, not ruled), and its
+    // Value is MATLAB's complex(zeros(1,0)), shown as dx_complex_1x0 is.
+    const { root } = open('dispcat_bin.sldd');
+    expect(meta('dx_param_complex_1x0').paramValue).toMatchObject({ class: 'double', size: [1, 0], isreal: false });
+    const param = entry(root, 'dx_param_complex_1x0');
+    expect(param.toRow().Value).toBe(browser('dx_complex_1x0').Value);
+  });
+
+  it('written back as MATLAB wrote it, untouched and rebuilt from the model', () => {
+    const { session, root } = open('dispcat_bin.sldd');
+    const matlab = chunkOf(bytes('dispcat_bin.sldd'));
+    expect(chunkOf(session.serializeSource(root.name).bytes)).toBe(matlab);
+    for (const name of COMPLEX_EMPTY) {
+      const tag = new RegExp(`<P Name="Name" Class="char">${name}</P>[\\s\\S]*?(<P Name="Value"[^>]*/>)`).exec(matlab)![1];
+      expect(tag, name).toContain('IsComplex="1"');
+      expect(regenerateEntryXml(entry(root, name)), name).toContain(tag);
+    }
+  });
+});
+
+// C-060, under the same ruling: the Class column, and the Property Inspector's Class, read as
+// the browser's ClassCol does. class() itself for most values, and what the browser adds to
+// it: `int16 (complex)`, `double (sparse)`, `logical (sparse)`,
+// `logical (matlab.lang.OnOffSwitchState)`. A complex scalar of a non-double class, and each
+// element of a complex array, is its own class (it was 'double'), and a .mat's empty logical is
+// a logical (it was 'uint8', its MAT storage class).
+describe("the Class column reads as MATLAB's Workspace browser does", () => {
+  const FILES = ['dispcat.mat', 'dispcat_text.sldd', 'dispcat_bin.sldd'];
+  // Values a file does not hold as MATLAB does, so their Class there is the file's: a text
+  // dictionary writes a sparse scalar and a sparse empty as a bare number or [], and a complex
+  // empty as [] (no MAT stream, so no complexity), and both flavours write a 1x1 sparse as the
+  // plain scalar. Pinned as the file's below.
+  const NOT_HELD: Record<string, string[]> = {
+    'dispcat.mat': [],
+    'dispcat_text.sldd': ['dx_complex_0x0', 'dx_complex_1x0', 'dx_complex_int16_1x0', 'e_single_complex_1x0',
+      'dx_sparse_0x0', 'dx_sparse_2x0', 'e_sparse_logical_0x0', 'sp_scalar', 'sp_logical_scalar'],
+    'dispcat_bin.sldd': ['sp_scalar', 'sp_logical_scalar'],
+  };
+
+  for (const file of FILES) {
+    it(`${file}: every value MATLAB's file holds as MATLAB does`, () => {
+      const { root } = open(file);
+      const held = entriesOf(root).filter((n) => BROWSER.has(n.name) && !NOT_HELD[file].includes(n.name));
+      expect(held.length, file).toBeGreaterThan(30);
+      const ours = held.map((n) => [n.name, n.toRow().Class, n.getPropInfo(PropClass).displayValue]);
+      expect(ours).toEqual(held.map((n) => [n.name, browser(n.name).Class, browser(n.name).Class]));
+    });
+  }
+
+  it("class() of a complex scalar, and of an element of a complex array, is MATLAB's", () => {
+    for (const file of FILES) {
+      const { root } = open(file);
+      for (const name of ['z_scalar', 'z_single', 'z_int16', 'z_uint8', 'dx_complex_int16']) {
+        expect([file, name, entry(root, name).className]).toEqual([file, name, meta(name).class]);
+      }
+      for (const name of ['z_int16_vec', 'z_int8_vec']) {
+        const elements = entry(root, name).children;
+        expect(elements.length, name).toBe(2);
+        expect(elements.map((e: any) => [e.className, e.toRow().Class]), `${file} ${name}`).toEqual(
+          elements.map(() => [meta(name).class, browser(name).Class]),
+        );
+      }
+    }
+  });
+
+  it("and where a file does not hold the attribute, the Class is the file's", () => {
+    // MATLAB's own spelling of each, which says nothing of sparse or complex.
+    const text = JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8'));
+    const entries = text.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const valueOf = (name: string): unknown => entries.find((e: any) => e.name === name).value;
+    expect(NOT_HELD['dispcat_text.sldd'].map((name) => [name, valueOf(name)])).toEqual([
+      ['dx_complex_0x0', []],
+      ['dx_complex_1x0', []],
+      ['dx_complex_int16_1x0', { _type: 'int16', _value: '[]' }],
+      ['e_single_complex_1x0', { _type: 'single', _value: '[]' }],
+      ['dx_sparse_0x0', []],
+      ['dx_sparse_2x0', []],
+      ['e_sparse_logical_0x0', { _type: 'logical', _value: '[]' }],
+      ['sp_scalar', 5],
+      ['sp_logical_scalar', true],
+    ]);
+    const binary = chunkOf(bytes('dispcat_bin.sldd'));
+    const tagOf = (name: string): string =>
+      new RegExp(`<P Name="Name" Class="char">${name}</P>[\\s\\S]*?(<P Name="Value"[^\\n]*)`).exec(binary)![1];
+    expect(NOT_HELD['dispcat_bin.sldd'].map(tagOf)).toEqual([
+      '<P Name="Value" Class="double">5.0</P>',
+      '<P Name="Value" Class="logical">1</P>',
+    ]);
+  });
+});
+
+// Under the same ruling: every empty shows as the browser shows it. Every numeric empty, of
+// any class, shape and complexity, is `[ ]`, and so is an int-backed enumeration's; a char
+// empty is `''` and a `""` scalar `""`; a 0x0 cell is `{}`. A cell of any other empty shape, an
+// empty string array, an empty logical and an empty OnOffSwitchState show the browser's
+// size-and-class summary, in this package's angle form (`{0×3 cell}` is `<0x3 cell>`,
+// `0×0 string` is `<0x0 string>`; MATLAB's own spelling of a summary is not ruled).
+describe("an empty shows as MATLAB's Workspace browser shows it", () => {
+  /** MATLAB's Value text in this package's spelling: a summary in angle brackets, with an x. */
+  const ours = (row: BrowserRow): string =>
+    row.IsSummary ? '<' + row.Value.replace(/^\{(.*)\}$/, '$1').replace(/×/g, 'x') + '>' : row.Value;
+  const isEmpty = (name: string): boolean => META.get(name)!.size.includes(0) || name === 'dx_string_empty_1x1';
+
+  // Not compared, each for a reason of its own:
+  //  - a text dictionary writes every shaped empty as [] and MATLAB reads it back 0x0, so the
+  //    1x0 and 0x3 ones and the sparse logical are 0x0 and dense in that file (pinned below);
+  //  - a sparse double's empty, `[ ]` in the browser, is `<0x0 sparse double>` here: the sparse
+  //    summary at every size is pinned by tests this change does not overturn;
+  //  - a binary dictionary's OnOffSwitchState is an MCOS stream whose size is not decoded
+  //    (`<1x1 …>`), and its int-backed enumerations' empties are enumeration values
+  //    (ObjectNode), shown `<0x0 DispColor>` where the browser shows `[ ]`.
+  const NOT_COMPARED: Record<string, string[]> = {
+    'dispcat.mat': ['dx_sparse_0x0', 'dx_sparse_2x0'],
+    'dispcat_text.sldd': ['dx_enum_1x0', 'dx_logical_1x0', 'dx_struct_1x0', 'e_logical_0x3', 'e_sparse_logical_0x0'],
+    'dispcat_bin.sldd': ['dx_sparse_0x0', 'dx_sparse_2x0', 'dx_enum_0x0', 'dx_enum_1x0', 'en_sl_empty', 'en_i32_empty'],
+  };
+
+  for (const file of ['dispcat.mat', 'dispcat_text.sldd', 'dispcat_bin.sldd']) {
+    it(file, () => {
+      const { root } = open(file);
+      const names = [...BROWSER.keys()].filter((n) => isEmpty(n) && !NOT_COMPARED[file].includes(n));
+      const inFile = new Set(entriesOf(root).map((n) => n.name));
+      const held = names.filter((n) => inFile.has(n));
+      expect(held.length, file).toBeGreaterThan(18);
+      expect(held.map((n) => [n, entry(root, n).toRow().Value])).toEqual(held.map((n) => [n, ours(browser(n))]));
+    });
+  }
+
+  it("and a text dictionary's shaped empty is the 0x0 the file holds", () => {
+    const text = JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8'));
+    const entries = text.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const valueOf = (name: string): unknown => entries.find((e: any) => e.name === name).value;
+    expect(['dx_logical_1x0', 'e_logical_0x3', 'e_sparse_logical_0x0'].map(valueOf)).toEqual(
+      Array(3).fill({ _type: 'logical', _value: '[]' }),
+    );
+    const { root } = open('dispcat_text.sldd');
+    expect(['dx_logical_1x0', 'e_logical_0x3', 'e_sparse_logical_0x0', 'dx_enum_1x0', 'dx_struct_1x0'].map((n) => entry(root, n).toRow().Value)).toEqual([
+      '<0x0 logical>', '<0x0 logical>', '<0x0 logical>', '<0x0 OnOffSwitchState>', '<0x0 struct>',
+    ]);
+  });
+
+  it("a binary dictionary's empty string array is the array, written back as MATLAB wrote it", () => {
+    const { session, root } = open('dispcat_bin.sldd');
+    for (const name of ['dx_string_0x0', 'dx_string_1x0', 'str_0x3']) {
+      const node = entry(root, name);
+      expect([name, node.className, node.dims, node.children.length]).toEqual([name, 'string', meta(name).size, 0]);
+    }
+    expect(chunkOf(session.serializeSource(root.name).bytes)).toBe(chunkOf(bytes('dispcat_bin.sldd')));
+  });
+});
