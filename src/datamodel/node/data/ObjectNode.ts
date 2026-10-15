@@ -332,10 +332,16 @@ export default class ObjectNode extends DataNode {
     // <Element>. After the properties, where SimulinkObjectNode._propsOf puts it for a typed
     // class. Here and not in _storedProperties, because the JSON keeps it where it was read:
     // serializeValue writes the element's other keys back as they are.
+    //
+    // A nested object's spelling, `{_object_class, _properties}` or `{_object_class,
+    // _custom_save}`, is its own element, so its envelope is the one beside its bag: an entry's
+    // own struct field or cell element in that spelling is written through
+    // _serializeSimulinkObjectXml, and one of a class that saves through saveobj went out with
+    // no state.
     _getSerializedProperties(): Record<string, unknown> {
         const props = this._rebuiltProperties(true);
         const rawVal = (this.serial._rawVal as Record<string, unknown>) || {};
-        const elements = rawVal._object_class ? undefined : rawVal._elements;
+        const elements = rawVal._object_class ? [rawVal] : rawVal._elements;
         const envelope = Array.isArray(elements) && elements.length === 1 ? customSaveOf(elements[0]) : undefined;
         if (envelope !== undefined) {
             setOwn(props, SAVEOBJ_KEY, envelope);
