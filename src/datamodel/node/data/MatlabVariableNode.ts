@@ -16,6 +16,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
+import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { subscriptLabel } from '../../display/Subscript.js';
@@ -217,6 +218,39 @@ function holdsMcosObject(variable: MatVariable): boolean {
  */
 function matlabClassOf(variable: MatVariable): string {
   return variable.isLogical ? 'logical' : variable.className;
+}
+
+/** What MATLAB compares across the elements of a Parameter's array of structures. */
+interface ValueShape {
+  cls: string;
+  complex: boolean;
+  dims: number[];
+}
+
+/**
+ * The shape of the value a node holds. The class of a complex value is its own
+ * (_complexClass), not the 'double' its className reports for a complex scalar; any node but a
+ * MATLAB value (a struct) is its class and its size.
+ */
+function shapeOf(node: BaseNode): ValueShape {
+  if (node instanceof MatlabVariableNode) {
+    const complex = node._isComplexValue();
+    return { cls: complex ? node._complexClass() : node.className, complex, dims: node.dims };
+  }
+  return { cls: node.className, complex: false, dims: (node as { dims?: number[] }).dims ?? [1, 1] };
+}
+
+/** Do two values agree as MATLAB requires across an array of structures (_differsFromTwinsAfter)? */
+function sameShape(a: ValueShape, b: ValueShape): boolean {
+  if (a.cls !== b.cls || a.complex !== b.complex) {
+    return false;
+  }
+  if (a.cls === 'char') {
+    return true;
+  }
+  const da = effectiveDims(a.dims);
+  const db = effectiveDims(b.dims);
+  return da.length === db.length && da.every((d, i) => d === db[i]);
 }
 
 export default class MatlabVariableNode extends DataNode {
@@ -993,6 +1027,12 @@ export default class MatlabVariableNode extends DataNode {
           validValue: this.displayValue,
         };
       }
+      // What holds this value may refuse it: a Simulink.Parameter refuses what MATLAB refuses as
+      // its Value, and holds a field of its struct Value to the same rules (_valueHolderRefusal).
+      const holderRefusal = this._valueHolderRefusal(parsed, stringValue);
+      if (holderRefusal) {
+        return holderRefusal;
+      }
       this._applyParsed(parsed);
       this._markModified();
       // _applyParsed rebuilds this node's children from the text, so restating a
@@ -1103,6 +1143,85 @@ export default class MatlabVariableNode extends DataNode {
       invalidValue: stringValue,
       validValue: this.displayValue,
     };
+  }
+
+  /**
+   * The refusal of a Value edit by the value this one is part of (DataNode._refuseValueBelow), or
+   * null. Asked of the nearest node above this one that is not a struct, so that a field of a
+   * struct, at any depth and in any element of a struct array, is answered by what holds the
+   * outermost struct: for a Parameter's struct Value, the Parameter. The Value row of a
+   * Parameter asks it too, being its Value: typed there, a cell the Parameter's own Value cell
+   * refused was taken.
+   */
+  _valueHolderRefusal(parsed: ParsedValue, stringValue: string): SetPropertyResult | null {
+    let holder = this.parent;
+    while (holder && holder.className === 'struct') {
+      holder = holder.parent;
+    }
+    return holder instanceof DataNode ? holder._refuseValueBelow(this, parsed, stringValue) : null;
+  }
+
+  /**
+   * Would the edit leave this field unlike its twin in another element of a struct array, at or
+   * below `root`? The twin is the node at the same path under the other element, and "unlike" is
+   * MATLAB's rule for a Simulink.Parameter's array of structures (probe_parameter_value.m): a
+   * field has to agree across the elements in class, in complexity and in size, except that a
+   * char field may differ in length (`struct('a', {'x', 'yz'})` is accepted). A struct array
+   * nested in a field is held to it too, at every level the path crosses.
+   *
+   * The class after the edit is the one _applyParsed gives (classAfterEdit), so a number typed
+   * into an int8 field is an int8, as the field then is.
+   */
+  _differsFromTwinsAfter(parsed: ParsedValue, root: BaseNode): boolean {
+    const after = this._shapeAfter(parsed);
+    // The names from just under `below` down to this node.
+    const path: string[] = [];
+    let below: BaseNode = this;
+    for (let n = this.parent; n; below = n, n = n.parent) {
+      // An element of a struct array carries its subscript (BaseNode.isElementName); a field
+      // never does. The tree's own answer, not a count of the dimensions, which a pasted value
+      // can declare as bigints no count takes.
+      if (n.className === 'struct' && below._subscript) {
+        for (const element of n.children) {
+          if (element === below) {
+            continue;
+          }
+          let twin: BaseNode | undefined = element;
+          for (const name of path) {
+            twin = twin?.children.find((c) => c.name === name);
+          }
+          if (twin && !sameShape(after, shapeOf(twin))) {
+            return true;
+          }
+        }
+      }
+      if (n === root) {
+        break;
+      }
+      path.unshift(below.name);
+    }
+    return false;
+  }
+
+  /** Class, complexity and size of this value once `parsed` is applied, as _applyParsed applies it. */
+  _shapeAfter(parsed: ParsedValue): ValueShape {
+    const value = parsed.value;
+    const listDims = Array.isArray(value) && value.length !== 1 ? parsed.dims! : [1, 1];
+    switch (parsed.type) {
+      case 'double':
+        return { cls: classAfterEdit(this._scalarType, 'double'), complex: false, dims: listDims };
+      case 'logical':
+        return { cls: 'logical', complex: false, dims: listDims };
+      case 'complex':
+        return { cls: 'double', complex: true, dims: [1, 1] };
+      case 'string':
+        return { cls: 'string', complex: false, dims: [1, 1] };
+      case 'string-array':
+      case 'cell':
+        return { cls: parsed.type === 'cell' ? 'cell' : 'string', complex: false, dims: parsed.dims! };
+      default:
+        return { cls: parsed.type, complex: false, dims: parsed.dims ?? [1, 1] };
+    }
   }
 
   _isConstrainedChild(): boolean {

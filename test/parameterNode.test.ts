@@ -6,10 +6,14 @@
 // child node for the non-scalar value. These are on the save path: a wrong
 // serializeValue result is silent data corruption in the user's .sldd.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import { isMatCdata } from '../src/datamodel/parser/CdataCodec.js';
 import * as NodeClassMap from '../src/datamodel/node/data/NodeClassMap.js';
+import MatlabValueParser from '../src/datamodel/parser/MatlabValueParser.js';
+import type { SetPropertyResult } from '../src/datamodel/node/DataNode.js';
 
 // The raw shape the sldd parsers hand ParameterNode.parse: a 1x1
 // Simulink.Parameter whose _properties carry the on-disk values.
@@ -446,28 +450,34 @@ describe('ParameterNode.setProperty — string scalar value', () => {
 });
 
 describe('ParameterNode.setProperty — string-array value', () => {
-  it('accepts a string-array literal and serializes the String wrapper', () => {
-    // String arrays are used in Simulink for multi-valued string parameters
-    // (e.g. variant condition labels). The child carries the _array_type String
-    // wrapper that both the JSON and binary serializers rely on.
-    //
-    // `_mw_element_type` is part of that wrapper, and it appears here because the
-    // typed value now reaches the writer instead of replaying the raw object
-    // setProperty synthesised. It is MATLAB's own key, not ours: cases.sldd's
-    // strArray and strMat, both written by MATLAB, carry
-    // `"_mw_element_type": "MATLABArray"` on exactly this wrapper. The old
-    // expectation pinned its ABSENCE.
+  it('refuses a string-array literal, as MATLAB does, and keeps one a file holds', () => {
+    // MATLAB refuses a string ARRAY as a Parameter's Value: `p.Value = ["a" "b"]` raises
+    // Simulink:Data:Param_Invalid_Value, the cell's error, because the text it accepts is a
+    // string SCALAR (top_string_row in fixtures/parameter_value_truth.json). This test pinned
+    // the opposite, on the belief that string arrays serve multi-valued string parameters,
+    // until the maintainer's 2026-10-15 ruling on C-042 flipped it to MATLAB's answer.
     const p = ParameterNode.createDefault('p', null);
-    expect(p.setProperty('Value', '["hello" "world"]')).toBe(true);
-    expect(p.displayValue).toBe('["hello" "world"]');
+    expect(p.setProperty('Value', '["hello" "world"]')).toEqual({
+      error: true,
+      reason:
+        'Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.',
+      invalidValue: '["hello" "world"]',
+      validValue: p.displayValue,
+    });
+    expect(serializedValue(p)).toBeUndefined();
 
-    const serialized = (p as any).serializeValue() as any;
-    expect(serialized._elements[0]._properties.Value).toEqual({
+    // Only the edit is refused. A file's String wrapper still reads, shows and saves as it
+    // was, `_mw_element_type` included, which is MATLAB's own key on this wrapper (cases.sldd's
+    // strArray and strMat).
+    const held = {
       _array_type: 'String',
       _dimensions: [1, 2],
       _elements: ['hello', 'world'],
       _mw_element_type: 'MATLABArray',
-    });
+    };
+    const read = parseParamValue(held);
+    expect(read.displayValue).toBe('["hello" "world"]');
+    expect(serializedValue(read)).toEqual(held);
   });
 });
 
@@ -485,5 +495,181 @@ describe('ParameterNode._normalizeMinMax', () => {
 
   it('passes through undefined unchanged', () => {
     expect(ParameterNode._normalizeMinMax(undefined)).toBeUndefined();
+  });
+});
+
+// The 2026-10-15 ruling on C-160 and C-042: "mirror the matlab edit-time checking, and yes,
+// the Simulink.Parameter Value has more constraints than normal struct variable." So an edit
+// that would give a Parameter a Value MATLAB refuses to assign is refused, with MATLAB's
+// message, and a struct inside the Value is held to the Parameter's rules. What MATLAB refuses
+// is not written down here: every expectation below is read from
+// fixtures/parameter_value_truth.json, which test/parity/matlab/probe_parameter_value.m wrote by
+// assigning each value to a Simulink.Parameter in MATLAB. Each row names the case it mirrors.
+describe('ParameterNode — a Value edit gets the answer MATLAB gives on assignment', () => {
+  interface ProbeCase { id: string; expr: string; accepted: boolean; identifier: string; message: string }
+  const PROBE = JSON.parse(
+    readFileSync(fileURLToPath(new URL('./fixtures/parameter_value_truth.json', import.meta.url)), 'utf8'),
+  ) as { release: string; cases: ProbeCase[] };
+
+  function matlab(id: string): { accepted: boolean; message: string } {
+    const c = PROBE.cases.find((x) => x.id === id);
+    if (!c) {
+      throw new Error('no probe case ' + id);
+    }
+    return { accepted: c.accepted, message: c.message };
+  }
+
+  function outcome(r: true | SetPropertyResult): { accepted: boolean; message: string } {
+    return r === true ? { accepted: true, message: '' } : { accepted: false, message: r.reason };
+  }
+
+  const struct = (fields: Record<string, unknown>, dims: number[] = [1, 1]) => ({
+    _array_type: 'Struct',
+    _dimensions: dims,
+    _elements: [fields],
+    _fields: Object.keys(fields),
+  });
+  const structArray = (elements: Record<string, unknown>[], dims: number[] = [1, elements.length]) => ({
+    _array_type: 'Struct',
+    _dimensions: dims,
+    _elements: elements,
+    _fields: Object.keys(elements[0]),
+  });
+
+  // The node at `path` under the Parameter's Value row: a field by name, an element by index.
+  function at(p: ParameterNode, path: Array<string | number>): any {
+    let n: any = p.children[0];
+    for (const step of path) {
+      n = typeof step === 'number' ? n.children[step] : n.children.find((c: any) => c.name === step);
+    }
+    return n;
+  }
+
+  it('reads the truth MATLAB wrote', () => {
+    expect(PROBE.release).toBe('2027a');
+    expect(PROBE.cases.length).toBe(78);
+  });
+
+  // Every top-level case whose expression the Value editor can parse. The list is spelled out
+  // so that a probe edit dropping one is a red here, not a row that silently stops being run.
+  const TOP = [
+    'top_empty_double', 'top_empty_char', 'top_empty_string', 'top_empty_cell', 'top_char',
+    'top_char_matrix', 'top_string_scalar', 'top_string_bracketed', 'top_string_array',
+    'top_string_row', 'top_cell', 'top_logical', 'top_logical_array', 'top_complex', 'top_nan',
+    'top_matrix',
+  ];
+
+  it('covers every top-level case the editor can type', () => {
+    const typeable = PROBE.cases.filter((c) => c.id.startsWith('top_') && MatlabValueParser.parse(c.expr)).map((c) => c.id);
+    expect(typeable).toEqual(TOP);
+  });
+
+  for (const id of TOP) {
+    const expr = PROBE.cases.find((c) => c.id === id)!.expr;
+
+    it(`${id}: ${expr} typed into the Parameter's own Value`, () => {
+      const p = ParameterNode.createDefault('p', null);
+      expect(outcome(p.setProperty('Value', expr))).toEqual(matlab(id));
+    });
+
+    // The Value ROW is a node of its own, with a setter of its own, and it is the Parameter's
+    // Value just the same: typed there, a cell was taken where the Parameter's own cell refused it.
+    it(`${id}: ${expr} typed into the Parameter's Value row`, () => {
+      const p = parseParamValue([1, 2, 3]);
+      const before = JSON.stringify(serializedValue(p));
+      const result = at(p, []).setProperty('Value', expr);
+      expect(outcome(result)).toEqual(matlab(id));
+      if (result !== true) {
+        expect(JSON.stringify(serializedValue(p))).toBe(before);
+      }
+    });
+  }
+
+  // [case, the Value before the edit, the node edited, what is typed]. The Value before is one
+  // MATLAB accepts, and the edit makes it the case's expression.
+  const FIELD: Array<[string, unknown, Array<string | number>, string]> = [
+    ['field_empty_double', struct({ a: 1 }), ['a'], '[]'],
+    ['field_empty_char', struct({ a: 1 }), ['a'], "''"],
+    ['field_empty_string', struct({ a: 1 }), ['a'], '""'],
+    ['field_char', struct({ a: 1 }), ['a'], "'abc'"],
+    ['field_char_matrix', struct({ a: 1 }), ['a'], "['ab'; 'cd']"],
+    ['field_string_scalar', struct({ a: 1 }), ['a'], '"abc"'],
+    ['field_string_array', struct({ a: 1 }), ['a'], '["a" "b"]'],
+    ['field_string_column', struct({ a: 1 }), ['a'], '["ab"; "cd"]'],
+    ['field_cell', struct({ a: 1 }), ['a'], '{1, 2}'],
+    ['field_empty_cell', struct({ a: 1 }), ['a'], '{}'],
+    ['field_logical', struct({ a: 1 }), ['a'], 'true'],
+    ['field_logical_array', struct({ a: 1 }), ['a'], '[true false]'],
+    ['field_complex', struct({ a: 1 }), ['a'], '1+2i'],
+    ['field_nan', struct({ a: 1 }), ['a'], 'NaN'],
+    ['field_matrix', struct({ a: 1 }), ['a'], '[1 2; 3 4]'],
+    ['field_nested_ok', struct({ a: struct({ b: 2 }) }), ['a', 'b'], '1'],
+    ['field_nested_empty', struct({ a: struct({ b: 1 }) }), ['a', 'b'], '[]'],
+    ['field_nested_char', struct({ a: struct({ b: 1 }) }), ['a', 'b'], "'x'"],
+    ['field_nested_string', struct({ a: struct({ b: 1 }) }), ['a', 'b'], '"x"'],
+    ['field_nested_cell', struct({ a: struct({ b: 1 }) }), ['a', 'b'], '{1}'],
+    ['two_fields_one_empty', struct({ a: 1, b: 1 }), ['b'], '[]'],
+    // A struct ARRAY Value, MATLAB's other message: its elements also have to agree with one
+    // another, field by field, in class, complexity and size.
+    ['struct_array_1x2', structArray([{ a: 1 }, { a: 1 }]), [1, 'a'], '2'],
+    ['struct_array_one_empty', structArray([{ a: 1 }, { a: 1 }]), [1, 'a'], '[]'],
+    ['struct_array_one_char', structArray([{ a: 1 }, { a: 1 }]), [1, 'a'], "'x'"],
+    ['sa_dims_differ', structArray([{ a: 1 }, { a: 1 }]), [1, 'a'], '[1 2]'],
+    ['sa_complex_differ', structArray([{ a: 1 }, { a: 1 }]), [1, 'a'], '1+2i'],
+    ['sa_logical_vs_double', structArray([{ a: 1 }, { a: 1 }]), [0, 'a'], 'true'],
+    ['sa_cell_element', structArray([{ a: 1 }, { a: 1 }]), [1, 'a'], '{2}'],
+    ['sa_logical_same', structArray([{ a: true }, { a: true }]), [1, 'a'], 'false'],
+    ['sa_matrix_same', structArray([{ a: [1, 2] }, { a: [1, 2] }]), [1, 'a'], '[3 4]'],
+    ['sa_char_same', structArray([{ a: 'x' }, { a: 'x' }]), [1, 'a'], "'y'"],
+    ['sa_char_len_differ', structArray([{ a: 'x' }, { a: 'x' }]), [1, 'a'], "'yz'"],
+    ['sa_string_same', structArray([{ a: ['x'] }, { a: ['x'] }]), [1, 'a'], '"y"'],
+    ['sa_string_len_differ', structArray([{ a: ['x'] }, { a: ['x'] }]), [1, 'a'], '"yz"'],
+    ['sa_char_vs_string', structArray([{ a: 'x' }, { a: 'x' }]), [1, 'a'], '"x"'],
+    ['sa_two_fields_char', structArray([{ a: 1, b: 'x' }, { a: 2, b: 'x' }]), [1, 'b'], "'y'"],
+    ['sa_nested_same', structArray([{ a: struct({ b: 1 }) }, { a: struct({ b: 1 }) }]), [1, 'a', 'b'], '2'],
+    ['sa_nested_dims_differ', structArray([{ a: struct({ b: 1 }) }, { a: struct({ b: 1 }) }]), [1, 'a', 'b'], '[1 2]'],
+    ['sa_nested_empty', structArray([{ a: struct({ b: 1 }) }, { a: struct({ b: 1 }) }]), [1, 'a', 'b'], '[]'],
+    ['sa_column_2x1', structArray([{ a: 1 }, { a: 1 }], [2, 1]), [1, 'a'], '2'],
+    ['sa_column_one_empty', structArray([{ a: 1 }, { a: 1 }], [2, 1]), [1, 'a'], '[]'],
+    // A struct array INSIDE a scalar struct: the inner elements have to agree too, and the
+    // message is the scalar struct's.
+    ['field_sa_ok', struct({ a: structArray([{ b: 1 }, { b: 1 }]) }), ['a', 1, 'b'], '2'],
+    ['field_sa_one_empty', struct({ a: structArray([{ b: 1 }, { b: 1 }]) }), ['a', 1, 'b'], '[]'],
+    ['field_sa_dims_differ', struct({ a: structArray([{ b: 1 }, { b: 1 }]) }), ['a', 1, 'b'], '[1 2]'],
+    ['field_sa_one_char', struct({ a: structArray([{ b: 1 }, { b: 1 }]) }), ['a', 1, 'b'], "'x'"],
+  ];
+
+  for (const [id, value, path, text] of FIELD) {
+    it(`${id}: ${text} typed into ${path.join('.')} of a struct Value`, () => {
+      const p = parseParamValue(value);
+      const before = JSON.stringify(serializedValue(p));
+      const node = at(p, path);
+      expect(node.constructor.name).toBe('MatlabVariableNode');
+      const result = node.setProperty('Value', text);
+      expect(outcome(result)).toEqual(matlab(id));
+      if (result === true) {
+        expect(JSON.stringify(serializedValue(p))).not.toBe(before);
+      } else {
+        expect(JSON.stringify(serializedValue(p))).toBe(before);
+        expect(result.invalidValue).toBe(text);
+        expect(result.validValue).toBe(node.displayValue);
+      }
+    });
+  }
+
+  // The other half of the ruling: the rules are the Parameter's, not a struct's. A plain struct
+  // variable takes every one of the values a Parameter's struct Value refuses.
+  it('leaves a plain struct variable taking what a Parameter refuses', () => {
+    for (const [id, value, path, text] of FIELD) {
+      if (matlab(id).accepted) {
+        continue;
+      }
+      const s = NodeRegistry.parseValue(value, 's', null) as any;
+      let n: any = s;
+      for (const step of path) {
+        n = typeof step === 'number' ? n.children[step] : n.children.find((c: any) => c.name === step);
+      }
+      expect(n.setProperty('Value', text), id).toBe(true);
+    }
   });
 });

@@ -914,6 +914,20 @@ export default class DataNode extends BaseNode {
             validValue: this._resolveProperty(propName) === 'name' ? this.name : this.displayValue,
         };
     }
+    /**
+     * The refusal of a Value edit of `node`, which this node's own value holds, or null to let it
+     * through. `parsed` is what was typed, as MatlabValueParser read it, and nothing has changed yet.
+     *
+     * The same parent-side shape as childStructureChanged, and for the same class: every node lets
+     * the edit through, and Simulink.Parameter is the exception (ParameterNode). MATLAB checks a
+     * Parameter's Value when it is assigned, and a struct inside the Value is held to the
+     * Parameter's rules, which are stricter than a plain struct variable's (the C-160 and C-042
+     * ruling). MatlabVariableNode.setProperty asks the nearest node above it that is not a struct,
+     * which is the Parameter when the value edited is its Value or a field of its struct Value.
+     */
+    _refuseValueBelow(_node, _parsed, _stringValue) {
+        return null;
+    }
     serializeXml(tagName, attrs, indent) {
         if (!writeUnderWay()) {
             return oneWrite(() => this.serializeXml(tagName, attrs, indent));

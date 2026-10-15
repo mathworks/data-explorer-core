@@ -5,11 +5,18 @@ import type BaseNode from '../BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
+import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { type MatVariable } from '../../parser/MatParser.js';
 import { type EncodedValue } from '../../parser/EncodedValue.js';
 import { MatWriteError } from '../../parser/MatWriter.js';
 import { type SparseData } from '../../parser/SparseData.js';
 export type { MatVariable };
+/** What MATLAB compares across the elements of a Parameter's array of structures. */
+interface ValueShape {
+    cls: string;
+    complex: boolean;
+    dims: number[];
+}
 export default class MatlabVariableNode extends DataNode {
     _kind: MatlabVariableKind;
     _scalarValue: unknown;
@@ -174,6 +181,29 @@ export default class MatlabVariableNode extends DataNode {
     _streamHolder(): MatlabVariableNode | null;
     /** The refusal of a Value edit at or under a value read from a MAT stream, or null (_streamHolder). */
     _refuseStreamEdit(stringValue: string): SetPropertyResult | null;
+    /**
+     * The refusal of a Value edit by the value this one is part of (DataNode._refuseValueBelow), or
+     * null. Asked of the nearest node above this one that is not a struct, so that a field of a
+     * struct, at any depth and in any element of a struct array, is answered by what holds the
+     * outermost struct: for a Parameter's struct Value, the Parameter. The Value row of a
+     * Parameter asks it too, being its Value: typed there, a cell the Parameter's own Value cell
+     * refused was taken.
+     */
+    _valueHolderRefusal(parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
+    /**
+     * Would the edit leave this field unlike its twin in another element of a struct array, at or
+     * below `root`? The twin is the node at the same path under the other element, and "unlike" is
+     * MATLAB's rule for a Simulink.Parameter's array of structures (probe_parameter_value.m): a
+     * field has to agree across the elements in class, in complexity and in size, except that a
+     * char field may differ in length (`struct('a', {'x', 'yz'})` is accepted). A struct array
+     * nested in a field is held to it too, at every level the path crosses.
+     *
+     * The class after the edit is the one _applyParsed gives (classAfterEdit), so a number typed
+     * into an int8 field is an int8, as the field then is.
+     */
+    _differsFromTwinsAfter(parsed: ParsedValue, root: BaseNode): boolean;
+    /** Class, complexity and size of this value once `parsed` is applied, as _applyParsed applies it. */
+    _shapeAfter(parsed: ParsedValue): ValueShape;
     _isConstrainedChild(): boolean;
     _setConstrainedValue(stringValue: string): true | SetPropertyResult;
     _markModified(): void;
