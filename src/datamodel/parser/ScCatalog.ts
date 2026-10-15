@@ -464,10 +464,12 @@ function definitionOf(
 /**
  * Scan the JSON text of an uncompressed-text dictionary's interface dictionary.
  *
- * The text and not the parsed object, because that is what the host holds: a textual
- * `.sldd` is an open TEXT DOCUMENT, edited by splicing spans, and a rename has to
- * become a span replacement in it. Re-serializing the part instead would rewrite 20 MB
- * of a customer's file — and reformat every line of it — to change one name.
+ * The text and not the parsed object, because a rename has to become a span
+ * replacement in it: the save writes the part back as read and changes only the
+ * renamed names in it (`scJsonTextWithRenames`), and a host that edits a textual
+ * `.sldd` as an open TEXT DOCUMENT splices the same spans (`scRenameEdits`).
+ * Re-serializing the part instead would reformat every line of 20 MB of a customer's
+ * catalog to change one name.
  *
  * The walk is deliberately shallow: it finds the two container keys, then reads only
  * what a definition is (its type, its name, and the value-type descriptor nested
@@ -752,8 +754,8 @@ export function applyScEdits(text: string, edits: ScTextEdit[]): string {
  * The other half of `scRenameEdits`, and the one that is about the TREE rather than the
  * file: the catalog is keyed by name, and every narrow repaint rebuilds an entry through
  * `parseEntry(record, catalog)`, so a catalog left keyed by the old name re-derives a
- * Kind the renamed entry no longer has. The host writes the part; this keeps the tree it
- * is holding saying the same thing.
+ * Kind the renamed entry no longer has. The save writes the part, from the renames this
+ * records (`catalogRenames`); this keeps the tree saying the same thing in the meantime.
  *
  * Returns whether anything moved, so a caller can tell "the catalog classified this
  * entry" from "there was nothing to follow" — which is also the gate on carrying the
@@ -839,4 +841,28 @@ export function scXmlWithRenames(xml: string, renames: ReadonlyMap<string, strin
         def.nameSites.forEach((site) => edits.push({ start: site.start, end: site.end, text: now }));
     });
     return edits.length === 0 ? xml : applyScEdits(xml, edits);
+}
+
+/**
+ * An uncompressed-text dictionary's whole JSON text, with every renamed definition's name
+ * written where the definition spells it in the interface dictionary part, and every other
+ * character as it was: the text twin of `scXmlWithRenames`, and the same sites.
+ *
+ * The save writes a text dictionary's parts back as read, so this is what carries a rename
+ * into its catalog. All renames are applied in one pass over the text as written, so a swap
+ * of two names lands as a swap.
+ */
+export function scJsonTextWithRenames(text: string, renames: ReadonlyMap<string, string>): string {
+    if (renames.size === 0) {
+        return text;
+    }
+    const edits: ScTextEdit[] = [];
+    scanScJsonText(text).forEach((def) => {
+        const now = renames.get(def.name);
+        if (now === undefined || now === def.name) {
+            return;
+        }
+        def.nameSites.forEach((site) => edits.push({ start: site.start, end: site.end, text: now }));
+    });
+    return edits.length === 0 ? text : applyScEdits(text, edits);
 }
