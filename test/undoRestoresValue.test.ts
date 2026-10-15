@@ -175,3 +175,89 @@ describe('undoing a Value edit of an N-D empty restores it, in a text dictionary
     expect(shown(entry)).toEqual(before.shown);
   });
 });
+
+// The 2026-10-15 ruling (C-040 option B, the agenda's "Committing an empty's shown [ ]
+// unchanged makes it a double 0x0", F1-13): one text stands for many values — `[ ]` for every
+// numeric empty, whatever its size and class, as MATLAB's Workspace browser shows them — so
+// committing a cell's displayed text unchanged is no edit. The value, its `_rawInput` and its
+// bytes are kept, and no undo step is recorded. It was an edit: `[ ]` read back as a 0x0 double.
+describe("committing a Value's shown text unchanged is no edit", () => {
+  // A cell holding a 0x3 double, in MATLAB's spelling of an entry's 1x3 cell (`cell_mixed` in
+  // test/fixtures/display/dispcat_bin.sldd's source) and of a 0x3 double in one
+  // (cellPropertyWriteBack.test.ts).
+  const CELL =
+    '<P Name="Value" Class="cell" Dimension="1*2">\n' +
+    '            <Element Class="double">1.0</Element>\n' +
+    '            <Element Class="double" Dimension="0*3"/>\n' +
+    '        </P>';
+
+  /** withEmpties(), and one entry more: a cell whose literal shows `{1, [ ]}`. */
+  function withCell(): ArrayBuffer {
+    const zip = unzipSync(new Uint8Array(withEmpties()));
+    const xml = strFromU8(zip['data/chunk0.xml']);
+    const at = xml.indexOf('    <Object Class="DD.Dictionary">');
+    const entry = [
+      '    <Object Class="DD.ENTRY">',
+      '        <P Name="Name" Class="char">cellOfEmpty</P>',
+      '        <P Name="UUID" Class="char">00000000-0000-4000-8000-000000000100</P>',
+      '        <P Name="Namespace" Class="char">dacaf35e-55a5-454d-a7c1-93db038a210e</P>',
+      '        <P Name="LastMod" Class="char">20260903T181348.010950</P>',
+      '        <P Name="LastModBy" Class="char"></P>',
+      '        <P Name="IsDerived" Class="char">0</P>',
+      `        ${CELL}`,
+      '    </Object>',
+    ].join('\n');
+    zip['data/chunk0.xml'] = strToU8(xml.slice(0, at) + entry + '\n' + xml.slice(at));
+    return buffer(zipSync(zip));
+  }
+
+  const NAMES = [...EDITABLE.map(([name]) => name), 'cellOfEmpty'];
+
+  for (const name of NAMES) {
+    it(name, () => {
+      const fresh = createSession();
+      const untouched = fresh.serializeSource(ingest(fresh, withCell(), { filename: 'empties_binary.sldd' }).name).bytes;
+      const session = createSession();
+      const root = ingest(session, withCell(), { filename: 'empties_binary.sldd' });
+      const entry = root.getSection('design').children.find((e: any) => e.name === name);
+      const before = { raw: entry._rawInput, tag: valueTag(entry), shown: shown(entry) };
+      expect(entry.valueEditable, `${name} takes an editor`).toBe(true);
+      if (name === 'cellOfEmpty') {
+        expect(entry.displayValue).toBe('{1, [ ]}');
+      }
+      session.setActive(root, entry);
+      expect(session.editProperty(entry.id, 'Value', entry.displayValue)).toBe(true);
+      expect(entry._rawInput, `${name} keeps what it was read as`).toBe(before.raw);
+      expect({ tag: valueTag(entry), shown: shown(entry) }).toEqual({ tag: before.tag, shown: before.shown });
+      expect(session.canUndo(), 'no undo step').toBe(false);
+      expect(session.serializeSource(root.name).bytes).toEqual(untouched);
+    });
+  }
+
+  it("and a binary dictionary's complex empty (C-040) keeps its class, its shape and its IsComplex", () => {
+    const file = new Uint8Array(readFileSync(fileURLToPath(new URL('./fixtures/display/dispcat_bin.sldd', import.meta.url))));
+    for (const name of ['dx_complex_1x0', 'dx_complex_int16_1x0']) {
+      const session = createSession();
+      const root = ingest(session, buffer(file), { filename: 'dispcat_bin.sldd' });
+      const entry = root.getSection('design').children.find((e: any) => e.name === name);
+      const before = { raw: entry._rawInput, tag: valueTag(entry), shown: shown(entry) };
+      expect(before.tag, name).toContain('IsComplex="1" Dimension="1*0"');
+      session.setActive(root, entry);
+      expect(session.editProperty(entry.id, 'Value', '[ ]'), name).toBe(true);
+      expect(entry._rawInput, name).toBe(before.raw);
+      expect({ tag: valueTag(entry), shown: shown(entry) }, name).toEqual({ tag: before.tag, shown: before.shown });
+      expect(session.canUndo(), name).toBe(false);
+      expect(session.serializeSource(root.name).bytes, name).toEqual(file);
+    }
+  });
+
+  it('while a text that differs from it is an edit, as before', () => {
+    const session = createSession();
+    const root = ingest(session, withCell(), { filename: 'empties_binary.sldd' });
+    const entry = root.getSection('design').children.find((e: any) => e.name === 'emptyRow');
+    session.setActive(root, entry);
+    expect(session.editProperty(entry.id, 'Value', '[]')).toBe(true);
+    expect(session.canUndo()).toBe(true);
+    expect(valueTag(entry)).toBe('<P Name="Value" Class="double" Dimension="0*0"/>');
+  });
+});
