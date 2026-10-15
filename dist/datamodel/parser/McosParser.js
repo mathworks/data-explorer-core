@@ -369,9 +369,10 @@ function resolveValue(cell, ctx, path, depth) {
             // booleans is a row, so a 2x2 logical Value came back a 1x4 — MATLAB's
             // sparse([2;1], [1;2], [true;true], 2, 2) in a Simulink.Parameter showed
             // `[false true true false]`, where the text dictionary's twin of it showed
-            // `[false true; true false]`. A vector is still the bare list it always was.
+            // `[false true; true false]`. A rank-2 COLUMN states its shape for the same reason
+            // (an Nx1 came back 1xN); a row is still the bare list it always was.
             const dims = cell.dimensions && cell.dimensions.length >= 2 ? cell.dimensions : [1, val.length];
-            if (dims.length > 2 || (dims[0] > 1 && dims[1] > 1)) {
+            if (dims.length > 2 || (dims[0] > 1 && dims[1] > 1) || (dims.length === 2 && dims[0] > 1 && dims[1] === 1)) {
                 return { _type: 'logical', _value: formatMatrixSerial(val.map((x) => (x ? '1' : '0')), dims, 'logical') };
             }
             return val.map((x) => !!x);
@@ -389,7 +390,9 @@ function resolveValue(cell, ctx, path, depth) {
         if (val.length === 0)
             return [];
         const dims = cell.dimensions || [1, val.length];
-        if (dims.length >= 2 && dims[0] > 1 && dims[1] > 1) {
+        // A rank-2 column goes out typed as well: a bare list is a row, so a Value of
+        // [10; 20; 30] showed, and copied out, as [10 20 30]. A row stays bare.
+        if (dims.length >= 2 && dims[0] > 1 && (dims[1] > 1 || (dims.length === 2 && dims[1] === 1))) {
             return buildMatrixValue(dims, val);
         }
         return val;
