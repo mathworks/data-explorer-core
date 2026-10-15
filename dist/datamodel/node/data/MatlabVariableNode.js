@@ -1230,9 +1230,9 @@ export default class MatlabVariableNode extends DataNode {
     // its ONLY copy. Its elements arrive as an argument and are never kept in
     // `_elements` — a cell element is a whole node, not a scalar — so there is nothing
     // to fall back to. `_serializeCellXml` says what the cap would cost here: with no
-    // children it writes `Dimension="0*0"`, i.e. it would save the value away. A huge
-    // cell is also far rarer than a huge numeric matrix, which is the shape that
-    // actually arrives. Pinned by test/largeArrayNotExpanded.test.ts.
+    // children and no zero extent it writes `Dimension="0*0"`, i.e. it would save the
+    // value away. A huge cell is also far rarer than a huge numeric matrix, which is the
+    // shape that actually arrives. Pinned by test/largeArrayNotExpanded.test.ts.
     _buildCellChildren(elements) {
         for (let i = 0; i < elements.length; i++) {
             const child = NodeRegistry.parseValue(elements[i], String(i + 1), this);
@@ -2350,8 +2350,14 @@ export default class MatlabVariableNode extends DataNode {
         if (attrs && attrs.Name) {
             attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
         }
+        // A cell of no element keeps its extents when they are an empty's: a 0x3 is
+        // `Dimension="0*3"/>`, as the property writer (DataNode._cellXml) and MATLAB write a
+        // shaped empty cell, and as the binary reader reads one; `0*0` saved it as another
+        // value. serializeXml has refused dims no Dimension can spell before this. Dims that
+        // are not an empty's (a bag with none, a damaged 1x3 holding nothing) stay `0*0`.
         if (this.children.length === 0) {
-            return p + '<' + tagName + attrStr + ' Class="cell" Dimension="0*0"/>';
+            const empty = dims.length >= 2 && dims.some((d) => d === 0);
+            return p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + (empty ? dims.join('*') : '0*0') + '"/>';
         }
         // dims.join, so a 2x3x2 cell keeps its third extent here as it does in
         // _serializeCellPropertyXml and in what MATLAB itself writes.
