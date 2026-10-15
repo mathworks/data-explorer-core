@@ -1,0 +1,506 @@
+[
+  {
+    "Name": "str_0x3",
+    "Path": "FieldColumns",
+    "Size": "0×3",
+    "Class": "string",
+    "Value": "0×3 string",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "z_scalar",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "double (complex)",
+    "Value": "1.0000 + 2.0000i",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "z_vector",
+    "Path": "FieldColumns",
+    "Size": "1×2",
+    "Class": "double (complex)",
+    "Value": "[1 + 2i,3 - 4i]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "z_single",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "single (complex)",
+    "Value": "1.0000 + 2.0000i",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "z_int16",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "int16 (complex)",
+    "Value": "1 +   2i",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "z_int16_vec",
+    "Path": "FieldColumns",
+    "Size": "1×2",
+    "Class": "int16 (complex)",
+    "Value": "[1 +   2i,3 -   4i]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "z_int8_vec",
+    "Path": "FieldColumns",
+    "Size": "1×2",
+    "Class": "int8 (complex)",
+    "Value": "[1 +   2i,-3 -   4i]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "z_uint8",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "uint8 (complex)",
+    "Value": "3 +   4i",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_double_0x0",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "double",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_double_1x0",
+    "Path": "FieldColumns",
+    "Size": "1×0",
+    "Class": "double",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_double_0x1",
+    "Path": "FieldColumns",
+    "Size": "0×1",
+    "Class": "double",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_double_0x3",
+    "Path": "FieldColumns",
+    "Size": "0×3",
+    "Class": "double",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_double_0x0x2",
+    "Path": "FieldColumns",
+    "Size": "0×0×2",
+    "Class": "double",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_single_0x0",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "single",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_int8_0x3",
+    "Path": "FieldColumns",
+    "Size": "0×3",
+    "Class": "int8",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_logical_1x0",
+    "Path": "FieldColumns",
+    "Size": "1×0",
+    "Class": "logical",
+    "Value": "1×0 logical",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_complex_0x0",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "double (complex)",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_complex_1x0",
+    "Path": "FieldColumns",
+    "Size": "1×0",
+    "Class": "double (complex)",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_complex_int16_1x0",
+    "Path": "FieldColumns",
+    "Size": "1×0",
+    "Class": "int16 (complex)",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_complex_scalar",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "double (complex)",
+    "Value": "1.0000 + 2.0000i",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_complex_vector",
+    "Path": "FieldColumns",
+    "Size": "1×2",
+    "Class": "double (complex)",
+    "Value": "[1 + 2i,3 - 4i]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_complex_int16",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "int16 (complex)",
+    "Value": "1 +   2i",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_char_0x0",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "char",
+    "Value": "''",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_char_1x0",
+    "Path": "FieldColumns",
+    "Size": "1×0",
+    "Class": "char",
+    "Value": "''",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_char_0x2",
+    "Path": "FieldColumns",
+    "Size": "0×2",
+    "Class": "char",
+    "Value": "''",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_string_empty_1x1",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "string",
+    "Value": "\"\"",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_string_0x0",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "string",
+    "Value": "0×0 string",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_string_1x0",
+    "Path": "FieldColumns",
+    "Size": "1×0",
+    "Class": "string",
+    "Value": "1×0 string",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_cell_0x0",
+    "Path": "ObjectValueSummary",
+    "Size": "0×0",
+    "Class": "cell",
+    "Value": "{}",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_cell_1x0",
+    "Path": "ObjectValueSummary",
+    "Size": "1×0",
+    "Class": "cell",
+    "Value": "{1×0 cell}",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_cell_0x3",
+    "Path": "ObjectValueSummary",
+    "Size": "0×3",
+    "Class": "cell",
+    "Value": "{0×3 cell}",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_struct_0x0",
+    "Path": "ObjectValueSummary",
+    "Size": "0×0",
+    "Class": "struct",
+    "Value": "0×0 struct",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_struct_0x0_fields",
+    "Path": "ObjectValueSummary",
+    "Size": "0×0",
+    "Class": "struct",
+    "Value": "0×0 struct",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_struct_1x0",
+    "Path": "ObjectValueSummary",
+    "Size": "1×0",
+    "Class": "struct",
+    "Value": "1×0 struct",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_sparse_0x0",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "double (sparse)",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_sparse_2x0",
+    "Path": "FieldColumns",
+    "Size": "2×0",
+    "Class": "double (sparse)",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "dx_enum_0x0",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "logical (matlab.lang.OnOffSwitchState)",
+    "Value": "0×0 OnOffSwitchState",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_enum_1x0",
+    "Path": "FieldColumns",
+    "Size": "1×0",
+    "Class": "logical (matlab.lang.OnOffSwitchState)",
+    "Value": "1×0 OnOffSwitchState",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_param_empty",
+    "Path": "ObjectValueSummary",
+    "Size": "1×1",
+    "Class": "Simulink.Parameter",
+    "Value": "1×1 Parameter",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "dx_param_complex_1x0",
+    "Path": "ObjectValueSummary",
+    "Size": "1×1",
+    "Class": "Simulink.Parameter",
+    "Value": "1×1 Parameter",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "e_logical_0x3",
+    "Path": "FieldColumns",
+    "Size": "0×3",
+    "Class": "logical",
+    "Value": "0×3 logical",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "e_logical_0x0",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "logical",
+    "Value": "0×0 logical",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "e_uint64_0x0",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "uint64",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "e_single_complex_1x0",
+    "Path": "FieldColumns",
+    "Size": "1×0",
+    "Class": "single (complex)",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "e_sparse_logical_0x0",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "logical (sparse)",
+    "Value": "0×0 sparse logical",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "en_on",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "logical (matlab.lang.OnOffSwitchState)",
+    "Value": "on",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "en_off",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "logical (matlab.lang.OnOffSwitchState)",
+    "Value": "off",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "en_onoff_vec",
+    "Path": "FieldColumns",
+    "Size": "1×3",
+    "Class": "logical (matlab.lang.OnOffSwitchState)",
+    "Value": "[on    off    on]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "en_sl_empty",
+    "Path": "ObjectValueSummary",
+    "Size": "0×0",
+    "Class": "DispColor",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "en_i32_empty",
+    "Path": "ObjectValueSummary",
+    "Size": "1×0",
+    "Class": "DispLevel",
+    "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "sp_scalar",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "double (sparse)",
+    "Value": "5",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "sp_vec",
+    "Path": "FieldColumns",
+    "Size": "1×3",
+    "Class": "double (sparse)",
+    "Value": "1×3 sparse double",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "sp_complex",
+    "Path": "FieldColumns",
+    "Size": "1×2",
+    "Class": "double (sparse complex)",
+    "Value": "1×2 sparse complex double",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "sp_complex_scalar",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "double (sparse complex)",
+    "Value": "1.0000 + 2.0000i",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "sp_logical",
+    "Path": "FieldColumns",
+    "Size": "1×3",
+    "Class": "logical (sparse)",
+    "Value": "1×3 sparse logical",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "sp_logical_scalar",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "logical (sparse)",
+    "Value": "(1,1)      1",
+    "IsSummary": false,
+    "Error": ""
+  }
+]
