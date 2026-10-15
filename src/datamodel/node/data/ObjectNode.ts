@@ -156,14 +156,30 @@ export default class ObjectNode extends DataNode {
     // And a value set on one is refused rather than taken: DataNode's generic tail would keep the
     // text on a field nothing writes, and report the edit done. An entry holding an empty
     // enumeration array took an editor this way, as a numeric empty, before its IsEnum was read.
+    //
+    // So is a value set on any other object, for the same reason. Its Value cell shows its
+    // summary, `<1x1 Widget>`, and serializeValue writes it from its raw value and its property
+    // rows, never from that field: taken, the edit marked the entry, pushed an undo step, answered
+    // `true` and was gone from the save. Its value is edited through its property rows. One still
+    // in the encoded stream it was read from keeps that refusal's own reason.
     setProperty(propName: string, stringValue: string): true | SetPropertyResult {
-        if (isEnumBag(this.serial._rawVal) && this._resolveProperty(propName) === 'Value') {
-            return {
-                error: true,
-                reason: `'${this.displayName}' is an enumeration value, which this editor shows but cannot change.`,
-                invalidValue: stringValue,
-                validValue: this.displayValue,
-            };
+        if (this._resolveProperty(propName) === 'Value') {
+            if (isEnumBag(this.serial._rawVal)) {
+                return {
+                    error: true,
+                    reason: `'${this.displayName}' is an enumeration value, which this editor shows but cannot change.`,
+                    invalidValue: stringValue,
+                    validValue: this.displayValue,
+                };
+            }
+            return (
+                this._refuseEncodedEdit(propName, stringValue) ?? {
+                    error: true,
+                    reason: `'${this.displayName}' is an object of class ${this.arrayClass}, whose value this editor shows but cannot change.`,
+                    invalidValue: stringValue,
+                    validValue: this.displayValue,
+                }
+            );
         }
         return super.setProperty(propName, stringValue);
     }
