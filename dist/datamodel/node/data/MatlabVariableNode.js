@@ -21,7 +21,7 @@ import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matS
 import { dimsText, isSize, isStreamSize } from '../../parser/Size.js';
 import { classPhrase, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
-import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
+import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { charNeedsShape, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
@@ -297,7 +297,14 @@ export default class MatlabVariableNode extends DataNode {
         }
         switch (this._kind) {
             case 'scalar':
-                return this._scalarType === 'complex' ? 'double' : this._scalarType;
+                // A complex scalar's type is 'complex', which is no class: its class is MATLAB's
+                // class() of it (C-060, 2026-10-15), int16 for int16(1+2i), as an array's is. An
+                // element of a complex array is the array's class, as x(1) is in MATLAB. It was
+                // 'double' for every one.
+                if (this._scalarType === 'complex') {
+                    return this._isConstrainedChild() ? this.parent._complexClass() : this._complexClass();
+                }
+                return this._scalarType;
             case 'array':
                 return this._scalarType === 'complex' ? 'double' : this._scalarType;
             case 'cell':
@@ -305,6 +312,18 @@ export default class MatlabVariableNode extends DataNode {
             case 'string':
                 return 'string';
         }
+    }
+    // The Class column says complex and sparse as MATLAB's Workspace browser does,
+    // `int16 (complex)`, `double (sparse)` (DisplayConvention.classColumnText): className is
+    // MATLAB's class(), which says neither. Complex is what the writers take it for
+    // (_isComplexValue), and for an empty, which has no element to say so, what it was read as
+    // (_elementType): a .mat's complex(zeros(1,0)), or a binary dictionary's IsComplex="1".
+    _classColumn() {
+        if (this._isOpaque) {
+            return super._classColumn();
+        }
+        const complexEmpty = this._kind === 'array' && this._elementType === 'complex' && this._liveElements().length === 0;
+        return classColumnText(this.className, { complex: this._isComplexValue() || complexEmpty, sparse: !!this._sparse });
     }
     // A primitive variable's data type ('double', 'string', 'cell', …) is a real
     // data type and belongs in the DataType column. An opaque MCOS variable's
@@ -3011,7 +3030,9 @@ export default class MatlabVariableNode extends DataNode {
         }
         if (totalElements === 0) {
             node._kind = 'array';
-            node._scalarType = variable.className;
+            // A logical's MAT class is uint8, with the logical flag beside it, as every arm here
+            // reads it: an empty one was a uint8 (Class column `uint8`, where MATLAB says logical).
+            node._scalarType = variable.isLogical ? 'logical' : variable.className;
             node._dims = dims.slice();
             node._elements = [];
             return node;

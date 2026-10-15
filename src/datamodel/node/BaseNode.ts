@@ -6,6 +6,7 @@ import { buildOtherRows } from './piOther.js';
 import { subscriptLabel, subscriptsLabel } from '../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../display/Subscript.js';
 import type RowCellPool from './RowCellPool.js';
+import { classColumnText } from '../display/DisplayConvention.js';
 
 export interface PropClass {
   key: string;
@@ -212,6 +213,13 @@ export default class BaseNode {
   // column.
   get className(): string {
     return '';
+  }
+
+  // The Class column's text, in the table and the Property Inspector alike: the class, and what
+  // MATLAB's Workspace browser adds to it (DisplayConvention.classColumnText). A node whose
+  // value can be complex or sparse says which it is (MatlabVariableNode).
+  _classColumn(): string {
+    return classColumnText(this.className);
   }
 
   // The user-facing Kind (e.g. 'Bus', 'MATLAB Variable'), shown in the Kind
@@ -701,7 +709,7 @@ export default class BaseNode {
       row.DataType = this.dataType;
     }
     if (!('Class' in row)) {
-      row.Class = this.className;
+      row.Class = this._classColumn();
     }
     if (!('Kind' in row)) {
       row.Kind = this.kind;

@@ -63,6 +63,7 @@ export default class MatlabVariableNode extends DataNode {
     get arrayType(): string;
     get icon(): string;
     get className(): string;
+    _classColumn(): string;
     get dataType(): string;
     get kind(): string;
     get fixesChildNames(): boolean;

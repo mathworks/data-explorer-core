@@ -104,6 +104,22 @@ export function overCharBudget(text) {
 export function summaryForm(dims, className) {
     return '<' + effectiveDims(dims).join('x') + ' ' + className + '>';
 }
+// The Class column's text, as MATLAB's Workspace browser writes it (its ClassCol, which is
+// getClassString(value, false, true, true)), and not class() alone: the class, then in
+// parentheses what the browser calls the value's attributes, `double (complex)`,
+// `int16 (complex)`, `double (sparse)`, `double (sparse complex)`, `logical (sparse)`. An
+// enumeration whose values are logical shows its underlying type first,
+// `logical (matlab.lang.OnOffSwitchState)`. That is the one such class this package can know
+// without the class's definition, which no data file holds: it is MATLAB's own, and its values
+// are logical (the 2026-10-15 display study's H9). An int-backed enumeration is its class alone,
+// `DispColor`. Measured in R2027a: test/fixtures/display/browser_short.truth.json.
+export function classColumnText(className, attributes = {}) {
+    if (className === 'matlab.lang.OnOffSwitchState') {
+        return 'logical (matlab.lang.OnOffSwitchState)';
+    }
+    const attrs = [attributes.sparse ? 'sparse' : '', attributes.complex ? 'complex' : ''].filter((a) => a !== '');
+    return attrs.length > 0 ? className + ' (' + attrs.join(' ') + ')' : className;
+}
 // A sparse array's summary, `<10x10 sparse double>`: the storage, then MATLAB's class()
 // of the value, which is its elements' (double, logical, single — complex is still
 // double, and like every other summary this one does not say complex). It is the only

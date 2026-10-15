@@ -216,8 +216,9 @@ describe('complexPropertyValue: the binary dictionary\'s complex form', () => {
       const v = complexPropertyValue(complexVar(cls, [1, 2], [c(1, 2), c(3, -4)]));
       const node: any = NodeRegistry.parseValue(v, 'Value', null);
       expect([node.className, node.dataType, node.displayValue], cls).toEqual([cls, cls, '[1+2i 3-4i]']);
-      // The elements stay complex scalars, which show double in every venue.
-      expect(node.children.map((k: any) => k.className), cls).toEqual(['double', 'double']);
+      // The elements are complex scalars of the array's class, as x(1) is in MATLAB: the C-060
+      // ruling (2026-10-15) flipped this from 'double', which every element showed.
+      expect(node.children.map((k: any) => k.className), cls).toEqual([cls, cls]);
     }
     const big: any = NodeRegistry.parseValue(
       complexPropertyValue(complexVar('int16', [1, 60], Array.from({ length: 60 }, (_, k) => c(k + 1, 1)))),
@@ -225,9 +226,10 @@ describe('complexPropertyValue: the binary dictionary\'s complex form', () => {
       null,
     );
     expect(big.displayValue).toBe('<1x60 int16>');
-    // A scalar's class is shown nowhere, here or in any other venue.
+    // A scalar is its class too, as MATLAB's class() says (the C-060 ruling, 2026-10-15,
+    // flipped this from 'double', which a complex scalar of every class showed).
     const one: any = NodeRegistry.parseValue(complexPropertyValue(complexVar('int8', [1, 1], [c(3, -4)])), 'V', null);
-    expect([one.className, one.displayValue]).toEqual(['double', '3-4i']);
+    expect([one.className, one.displayValue]).toEqual(['int8', '3-4i']);
   });
 
   it('leaves alone what it is not: real, empty, and a complex flag with no pairs under it', () => {

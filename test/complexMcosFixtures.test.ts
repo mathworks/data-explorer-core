@@ -197,15 +197,15 @@ function expectValueNode(node: any, v: ValueTruth, path: string): string {
     return whole;
   }
   // The array's own class, which MATLAB's class() gives — `<1x3 int16>`, not double. An
-  // element is a complex scalar, which shows double in every venue, as a complex scalar
-  // of any class does.
+  // element is a complex scalar of the array's class, as x(1) is in MATLAB: the C-060 ruling
+  // (2026-10-15) flipped this from 'double', which every element showed whatever its class.
   expect(node.className, path).toBe(v.class);
   expect(node.children, path).toHaveLength(v.numel);
   for (const child of node.children) {
     const label = child.toRow().Name.label;
     const k = columnMajorIndex(label, v.size);
     expect(child.displayValue, `${path} ${label}`).toBe(elements[k]);
-    expect(child.className, `${path} ${label}`).toBe('double');
+    expect(child.className, `${path} ${label}`).toBe(v.class);
   }
   // The Variable Editor grid shows the same elements under the same labels.
   for (const { label, value } of node.displayElements()) {

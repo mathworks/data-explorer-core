@@ -143,6 +143,7 @@ export default class BaseNode {
     get id(): string;
     get icon(): string;
     get className(): string;
+    _classColumn(): string;
     get kind(): string;
     get dataType(): string;
     get displayValue(): string;

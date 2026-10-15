@@ -14,6 +14,7 @@ import { unzipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { regenerateEntryXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
+import PropClass from '../src/datamodel/prop/PropClass.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const here = (name: string): string => fileURLToPath(new URL(`./fixtures/display/${name}`, import.meta.url));
@@ -99,5 +100,88 @@ describe("a binary dictionary's complex empty is the empty it is", () => {
       expect(tag, name).toContain('IsComplex="1"');
       expect(regenerateEntryXml(entry(root, name)), name).toContain(tag);
     }
+  });
+});
+
+// C-060, under the same ruling: the Class column, and the Property Inspector's Class, read as
+// the browser's ClassCol does. class() itself for most values, and what the browser adds to
+// it: `int16 (complex)`, `double (sparse)`, `logical (sparse)`,
+// `logical (matlab.lang.OnOffSwitchState)`. A complex scalar of a non-double class, and each
+// element of a complex array, is its own class (it was 'double'), and a .mat's empty logical is
+// a logical (it was 'uint8', its MAT storage class).
+describe("the Class column reads as MATLAB's Workspace browser does", () => {
+  const FILES = ['dispcat.mat', 'dispcat_text.sldd', 'dispcat_bin.sldd'];
+  // Values a file does not hold as MATLAB does, so their Class there is the file's: a text
+  // dictionary writes a sparse scalar and a sparse empty as a bare number or [], and a complex
+  // empty as [] (no MAT stream, so no complexity), and both flavours write a 1x1 sparse as the
+  // plain scalar. Pinned as the file's below.
+  const NOT_HELD: Record<string, string[]> = {
+    'dispcat.mat': [],
+    'dispcat_text.sldd': ['dx_complex_0x0', 'dx_complex_1x0', 'dx_complex_int16_1x0', 'e_single_complex_1x0',
+      'dx_sparse_0x0', 'dx_sparse_2x0', 'e_sparse_logical_0x0', 'sp_scalar', 'sp_logical_scalar'],
+    'dispcat_bin.sldd': ['sp_scalar', 'sp_logical_scalar'],
+  };
+  const entriesOf = (root: any): any[] => {
+    const out: any[] = [];
+    const walk = (n: any): void => {
+      if (n.isEntry) {
+        out.push(n);
+      } else {
+        (n.children || []).forEach(walk);
+      }
+    };
+    walk(root);
+    return out;
+  };
+
+  for (const file of FILES) {
+    it(`${file}: every value MATLAB's file holds as MATLAB does`, () => {
+      const { root } = open(file);
+      const held = entriesOf(root).filter((n) => BROWSER.has(n.name) && !NOT_HELD[file].includes(n.name));
+      expect(held.length, file).toBeGreaterThan(30);
+      const ours = held.map((n) => [n.name, n.toRow().Class, n.getPropInfo(PropClass).displayValue]);
+      expect(ours).toEqual(held.map((n) => [n.name, browser(n.name).Class, browser(n.name).Class]));
+    });
+  }
+
+  it("class() of a complex scalar, and of an element of a complex array, is MATLAB's", () => {
+    for (const file of FILES) {
+      const { root } = open(file);
+      for (const name of ['z_scalar', 'z_single', 'z_int16', 'z_uint8', 'dx_complex_int16']) {
+        expect([file, name, entry(root, name).className]).toEqual([file, name, meta(name).class]);
+      }
+      for (const name of ['z_int16_vec', 'z_int8_vec']) {
+        const elements = entry(root, name).children;
+        expect(elements.length, name).toBe(2);
+        expect(elements.map((e: any) => [e.className, e.toRow().Class]), `${file} ${name}`).toEqual(
+          elements.map(() => [meta(name).class, browser(name).Class]),
+        );
+      }
+    }
+  });
+
+  it("and where a file does not hold the attribute, the Class is the file's", () => {
+    // MATLAB's own spelling of each, which says nothing of sparse or complex.
+    const text = JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8'));
+    const entries = text.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const valueOf = (name: string): unknown => entries.find((e: any) => e.name === name).value;
+    expect(NOT_HELD['dispcat_text.sldd'].map((name) => [name, valueOf(name)])).toEqual([
+      ['dx_complex_0x0', []],
+      ['dx_complex_1x0', []],
+      ['dx_complex_int16_1x0', { _type: 'int16', _value: '[]' }],
+      ['e_single_complex_1x0', { _type: 'single', _value: '[]' }],
+      ['dx_sparse_0x0', []],
+      ['dx_sparse_2x0', []],
+      ['e_sparse_logical_0x0', { _type: 'logical', _value: '[]' }],
+      ['sp_scalar', 5],
+      ['sp_logical_scalar', true],
+    ]);
+    const binary = chunkOf(bytes('dispcat_bin.sldd'));
+    const tagOf = (name: string): string =>
+      new RegExp(`<P Name="Name" Class="char">${name}</P>[\\s\\S]*?(<P Name="Value"[^\\n]*)`).exec(binary)![1];
+    expect(NOT_HELD['dispcat_bin.sldd'].map(tagOf)).toEqual([
+      '<P Name="Value" Class="double">5.0</P>',
+      '<P Name="Value" Class="logical">1</P>',
+    ]);
   });
 });
