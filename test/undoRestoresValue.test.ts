@@ -215,10 +215,12 @@ describe("committing a Value's shown text unchanged is no edit", () => {
 
   for (const name of NAMES) {
     it(name, () => {
+      // One dictionary for both sessions: withCell() zips with the time it runs.
+      const file = new Uint8Array(withCell());
       const fresh = createSession();
-      const untouched = fresh.serializeSource(ingest(fresh, withCell(), { filename: 'empties_binary.sldd' }).name).bytes;
+      const untouched = fresh.serializeSource(ingest(fresh, buffer(file), { filename: 'empties_binary.sldd' }).name).bytes;
       const session = createSession();
-      const root = ingest(session, withCell(), { filename: 'empties_binary.sldd' });
+      const root = ingest(session, buffer(file), { filename: 'empties_binary.sldd' });
       const entry = root.getSection('design').children.find((e: any) => e.name === name);
       const before = { raw: entry._rawInput, tag: valueTag(entry), shown: shown(entry) };
       expect(entry.valueEditable, `${name} takes an editor`).toBe(true);
