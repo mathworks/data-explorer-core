@@ -1,6 +1,7 @@
 import { BaseBusNode, BaseBusElementNode, PropKind } from './BaseBusNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
+import type { SetPropertyResult } from '../DataNode.js';
 export declare class FunctionElementNode extends BaseBusElementNode {
     Prototype: string;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>);
@@ -13,6 +14,8 @@ export declare class FunctionElementNode extends BaseBusElementNode {
         group: string;
         items: (typeof PropKind)[];
     }[];
+    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _applyElementOverrides(props: Record<string, unknown>): void;
 }
 export declare class ServiceBusNode extends BaseBusNode {
     get icon(): string;

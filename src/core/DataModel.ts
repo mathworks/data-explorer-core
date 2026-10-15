@@ -12,6 +12,7 @@ import { parseMat } from '../datamodel/parser/MatParser.js';
 import type { ParsedMat } from '../datamodel/parser/MatParser.js';
 import { parseProject } from '../datamodel/parser/ProjectParser.js';
 import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js';
+import { catalogRenames, scJsonTextWithRenames } from '../datamodel/parser/ScCatalog.js';
 // The name reductions and the expression reading, from the leaf modules that hold the
 // single copy of each. This file used to spell all three itself; the usage index needs
 // the same three, and a rule stated twice is a rule that drifts (see fileKinds).
@@ -1981,10 +1982,16 @@ function serializeSource(srcId: string): SerializedSource | null {
   // repo opens `{\n\t"__MW_TEXT_COREPROPERTIES__"`), so a saved file keeps looking
   // like the one that was opened. Not byte-exact: MATLAB collapses some small objects
   // onto one line and JSON.stringify does not, so the round trip is a semantic one.
+  //
+  // Every part the file had is written back as read (SlddNode's `_textParts`), the System
+  // Composer catalog among them. That catalog names each architectural entry it models, so
+  // an entry renamed since the read is renamed in it here, in the text, as the binary save
+  // does in its member, or it reopens as its raw class (a struct type as a data interface).
+  const text = JSON.stringify(source.serializeJson(), null, '\t');
   return {
     kind: 'text',
     sourceFormat: source.sourceFormat,
-    text: JSON.stringify(source.serializeJson(), null, '\t'),
+    text: scJsonTextWithRenames(text, catalogRenames(source.systemComposer)),
   };
 }
 

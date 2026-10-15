@@ -25,6 +25,47 @@ const SECTION_DEFS = [
     { key: 'other', label: 'Other Data', icon: 'databaseFolder' }
 ];
 
+// A textual dictionary as read, around the one part a save rebuilds: the text twin of
+// `_zipMetadata`. MATLAB writes every part of a textual `.sldd` as a key of the parts bag —
+// the data part, and beside it the System Composer interface dictionary and the
+// ArchitecturePart — and a save that wrote back only the data part left a file whose struct
+// types reopened as data interfaces, here and in MATLAB, which does not regenerate the part.
+//
+// Each level is a shallow copy of the object read, with the slot the save rebuilds set to
+// null: the save spreads it, so every key keeps its place and its value as read, and what
+// is kept does not hold on to the entries the file listed, which the nodes now stand for.
+interface TextParts {
+    top: Record<string, unknown>;
+    parts: Record<string, unknown> | null;
+    dataPart: Record<string, unknown> | null;
+    content: Record<string, unknown> | null;
+}
+
+// The object at `key`, if it is one, so a part of the wrong shape is written back as read
+// rather than spread into.
+function objectAt(bag: Record<string, unknown> | null, key: string): Record<string, unknown> | null {
+    const value = bag ? bag[key] : undefined;
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : null;
+}
+
+// The textual dictionary around its data part, as `TextParts` says. `slddChunkContent`'s
+// path, one level at a time, so the slots kept are the ones the entries were read from.
+function readTextParts(json: Record<string, unknown>): TextParts {
+    const parts = objectAt(json, TEXT_PARTS);
+    const dataPart = objectAt(parts, DATA_PART_KEY);
+    const content = objectAt(dataPart, TEXT_CONTENT);
+    const without = (bag: Record<string, unknown> | null, key: string): Record<string, unknown> | null =>
+        bag && { ...bag, [key]: null };
+    return {
+        top: without(json, TEXT_PARTS) as Record<string, unknown>,
+        parts: parts && dataPart ? without(parts, DATA_PART_KEY) : parts,
+        dataPart: dataPart && content ? without(dataPart, TEXT_CONTENT) : dataPart,
+        content: content && { ...content, entries: null },
+    };
+}
+
 // The catalog vocabulary — the part path, the type map, the classification rule —
 // lives in the parser module both dictionary formats read it through (ScCatalog), so
 // a textual and a compressed-binary dictionary cannot classify the same entry
@@ -38,6 +79,7 @@ export default class SlddNode extends ContainerNode {
     sourceFormat: string;
     rawXml: string | null;
     _zipMetadata: Record<string, unknown> | null;
+    _textParts: TextParts | null;
     _dataSourceAttrs: Record<string, string> | null;
     systemComposer: SystemComposerCatalog | null;
 
@@ -50,6 +92,7 @@ export default class SlddNode extends ContainerNode {
         this.sourceFormat = 'json';
         this.rawXml = null;
         this._zipMetadata = null;
+        this._textParts = null;
         this._dataSourceAttrs = null;
         this.systemComposer = null;
 
@@ -135,6 +178,8 @@ export default class SlddNode extends ContainerNode {
             if (frame && frame.xml === node.rawXml) {
                 attachChunkFrame(node, frame);
             }
+        } else {
+            node._textParts = readTextParts(json);
         }
 
         // `TEXT_PARTS`, not the literal: `serializeJson` below WRITES this bag through the
@@ -326,11 +371,19 @@ export default class SlddNode extends ContainerNode {
             });
         });
 
+        // A textual dictionary is written back as it was read, every part in its place,
+        // with only the data part rebuilt (`TextParts`). One that was not read as text —
+        // a binary package, or a dictionary made here — has nothing else to keep.
+        const kept = this._textParts;
         return {
+            ...kept?.top,
             __MW_TEXT_COREPROPERTIES__: this.coreProperties,
             [TEXT_PARTS]: {
+                ...kept?.parts,
                 [DATA_PART_KEY]: {
+                    ...kept?.dataPart,
                     [TEXT_CONTENT]: {
+                        ...kept?.content,
                         entries,
                         'Dictionary References': this.dictionaryReferences,
                         AllowAccessBWS: this.allowAccessBWS

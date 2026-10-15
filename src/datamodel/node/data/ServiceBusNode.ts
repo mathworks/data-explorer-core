@@ -3,6 +3,7 @@
 import { BaseBusNode, BaseBusElementNode, PropName, PropKind, PropClassAtom } from './BaseBusNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
+import type { SetPropertyResult } from '../DataNode.js';
 
 const CLASS_NAME = 'Simulink.ServiceBus';
 
@@ -33,6 +34,56 @@ export class FunctionElementNode extends BaseBusElementNode {
     // absent (a FunctionElement owns neither — see note above); the Value column
     // shows the Prototype via displayValue.
     getPILayout() { return [{ group: 'General', items: [PropName, PropKind, PropClassAtom] }]; }
+
+    // In MATLAB the Name is the function the Prototype declares: setting the Name renames
+    // that function in the Prototype (see Simulink.FunctionElement.md). So a rename here
+    // renames it too, in this same call, which is what makes it one edit: the session's
+    // undo replays setProperty('Name', old), which renames it back, and a host that
+    // rewrites the owning entry writes both fields. A Prototype in which the function
+    // cannot be found unambiguously refuses the rename and changes neither field, so a
+    // Name the Prototype contradicts is never written.
+    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+        if (this._resolveProperty(propName) !== 'name' || stringValue === this.name) {
+            return super.setProperty(propName, stringValue);
+        }
+        const prototype = renamedPrototype(this.Prototype, this.name, stringValue);
+        if (prototype === null) {
+            return {
+                error: true,
+                reason: `'${this.name}' cannot be renamed: its Prototype '${String(this.Prototype)}' does not declare the function '${this.name}' in the form [outputs =] ${this.name}(inputs), so the Prototype cannot be renamed with it, and MATLAB requires the two to match.`,
+                invalidValue: stringValue,
+                validValue: this.name,
+            };
+        }
+        // The usual name checks (identifier, sibling uniqueness) still decide; the
+        // Prototype moves only when the Name did.
+        const result = super.setProperty(propName, stringValue);
+        if (result === true) { this.Prototype = prototype; }
+        return result;
+    }
+
+    // The Prototype is written back only once it is no longer the one read, so a
+    // FunctionElement that was not renamed saves its Prototype exactly as it came in.
+    _applyElementOverrides(props: Record<string, unknown>): void {
+        super._applyElementOverrides(props);
+        if (this.Prototype !== ((props.Prototype as string) || '')) { props.Prototype = this.Prototype; }
+    }
+}
+
+// `[outputs =] name(inputs)`, the form a Prototype takes, split around the function name:
+// what precedes it, the name itself, and the input list. Neither side may hold a second
+// call, a second `=`, or anything after the closing parenthesis, so a match finds exactly
+// one function name.
+const PROTOTYPE_RE = /^(\s*(?:(?:\[[^[\]()=]*\]|[A-Za-z]\w*)\s*=\s*)?)([A-Za-z]\w*)(\s*\([^()=]*\)\s*)$/;
+
+// `prototype` with its function name `from` replaced by `to` (that token only, so an output
+// or input spelled like the function keeps its spelling), or null when the Prototype does
+// not have that form or declares a function other than `from`.
+function renamedPrototype(prototype: unknown, from: string, to: string): string | null {
+    if (typeof prototype !== 'string') { return null; }
+    const m = PROTOTYPE_RE.exec(prototype);
+    if (!m || m[2] !== from) { return null; }
+    return m[1] + to + m[3];
 }
 
 export class ServiceBusNode extends BaseBusNode {

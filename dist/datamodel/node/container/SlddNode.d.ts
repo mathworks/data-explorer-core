@@ -4,6 +4,12 @@ import type DataNode from '../DataNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
+interface TextParts {
+    top: Record<string, unknown>;
+    parts: Record<string, unknown> | null;
+    dataPart: Record<string, unknown> | null;
+    content: Record<string, unknown> | null;
+}
 export default class SlddNode extends ContainerNode {
     coreProperties: Record<string, unknown> | null;
     dictionaryReferences: unknown[];
@@ -12,6 +18,7 @@ export default class SlddNode extends ContainerNode {
     sourceFormat: string;
     rawXml: string | null;
     _zipMetadata: Record<string, unknown> | null;
+    _textParts: TextParts | null;
     _dataSourceAttrs: Record<string, string> | null;
     systemComposer: SystemComposerCatalog | null;
     constructor(name: string);
@@ -41,4 +48,5 @@ export default class SlddNode extends ContainerNode {
     serialize(): unknown;
     serializeJson(): Record<string, unknown>;
 }
+export {};
 //# sourceMappingURL=SlddNode.d.ts.map
