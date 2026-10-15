@@ -918,7 +918,13 @@ export default class DataNode extends BaseNode {
         if (!writeUnderWay()) {
             return oneWrite(() => this.serializeXml(tagName, attrs, indent));
         }
-        if (this.serial && this.serial._rawVal && this.serial._rawVal._array_class) {
+        // An object in either of its spellings: the value object, and the `{_object_class,
+        // _properties}` a text dictionary gives an object nested in another value, which an entry's
+        // own struct field or cell element is written from (ObjectNode, for a scalar). That one fell
+        // to the bare tag below, a struct field's `<P/>` with no Name: field, class and properties
+        // all gone.
+        const raw = this.serial && this.serial._rawVal;
+        if (raw && (raw._array_class || raw._object_class)) {
             return this._serializeSimulinkObjectXml(tagName, attrs, indent);
         }
         return xmlPad(indent) + '<' + tagName + '/>';
@@ -928,8 +934,10 @@ export default class DataNode extends BaseNode {
         const ip = xmlPad(indent + 1);
         const rawVal = this.serial._rawVal;
         // The class of the one object written, its element's: an array of one element of another
-        // class was written as an object of the array's.
-        const className = objectValueClassOf(rawVal);
+        // class was written as an object of the array's. A nested object's spelling is its own
+        // element, and names its own class.
+        const nested = !rawVal._array_class;
+        const className = nested ? rawVal._object_class : objectValueClassOf(rawVal);
         const props = this._xmlProperties();
         let attrStr = '';
         if (attrs && attrs.Name) {
@@ -937,7 +945,7 @@ export default class DataNode extends BaseNode {
         }
         let xml = p + '<' + tagName + attrStr + '>\n';
         xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
-        const sources = propertySourcesOf((rawVal._elements || [])[0]);
+        const sources = propertySourcesOf(nested ? rawVal : (rawVal._elements || [])[0]);
         for (const [propName, propVal] of Object.entries(props)) {
             xml += DataNode._elementPropertyXml(propName, propVal, indent + 2, this, this._propertyAt(propName), sources) + '\n';
         }
