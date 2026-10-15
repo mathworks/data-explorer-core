@@ -1086,10 +1086,18 @@ export default class DataNode extends BaseNode {
                 return DataNode._serializeObjectPropertyXml(name, obj, indent, ownerNode, at);
             }
             if (obj._object_class) {
+                // A text dictionary's scalar object of a class that saves through saveobj holds its
+                // envelope beside the bag (customSaveOf), and the wrapped element dropped it: written
+                // as an element with no properties, the object's whole state gone. Carried only when
+                // present, so a value holding none writes as it did.
+                const element = { _properties: obj._properties || {} };
+                const envelope = customSaveOf(obj);
+                if (envelope !== undefined)
+                    element[CUSTOM_SAVE_KEY] = envelope;
                 const wrapped = {
                     _array_class: obj._object_class,
                     _dimensions: [1, 1],
-                    _elements: [{ _properties: obj._properties || {} }],
+                    _elements: [element],
                 };
                 return DataNode._serializeObjectPropertyXml(name, wrapped, indent, ownerNode, at);
             }
@@ -1691,10 +1699,15 @@ export default class DataNode extends BaseNode {
                 return DataNode._objectXml('Element', '', '', obj, indent, null, at);
             }
             if (obj._object_class) {
+                // Its saveobj envelope carried as serializePropertyXml carries it, and for the same reason.
+                const element = { _properties: obj._properties || {} };
+                const envelope = customSaveOf(obj);
+                if (envelope !== undefined)
+                    element[CUSTOM_SAVE_KEY] = envelope;
                 const wrapped = {
                     _array_class: obj._object_class,
                     _dimensions: [1, 1],
-                    _elements: [{ _properties: obj._properties || {} }],
+                    _elements: [element],
                 };
                 return DataNode._objectXml('Element', '', '', wrapped, indent, null, at);
             }
