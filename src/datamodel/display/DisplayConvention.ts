@@ -56,12 +56,11 @@ export const SUMMARY_MAX_ELEMENTS = 10;
 // the first N elements as the whole value. See test/largeArrayNotExpanded.test.ts.
 export const MAX_EXPANDED_ELEMENTS = 10000;
 
-// A space inside the brackets. This deviates from mat2str (`[]`) deliberately,
-// and matches what the object-property path has always emitted. There is no
-// MATLAB spelling to match either way: checked against R2027a, mat2str([]) is
-// '[]' and formattedDisplayText([]) / formattedDisplayText({}) are both the
-// empty string. The one-space form makes an empty value visible in a table cell
-// rather than reading as a rendering failure.
+// Every numeric empty, of any class, shape and complexity: MATLAB's Workspace browser's own
+// text, space inside (its ValueCol, getWorkspaceDisplay's Value; the 2026-10-15 display ruling
+// makes the browser the authority). mat2str([]) says '[]' and formattedDisplayText([]) says
+// nothing, which is why this once read as this package's own spelling; neither is what the
+// browser draws. Measured: test/fixtures/display/browser_short.truth.json.
 export const EMPTY_NUMERIC = '[ ]';
 // A 0x0 cell, as MATLAB's Workspace browser shows it (the 2026-10-15 display ruling): no space.
 // A cell of any other empty shape shows its size-and-class summary (MatlabVariableNode._formatCell).

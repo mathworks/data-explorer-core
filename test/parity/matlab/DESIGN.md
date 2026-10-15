@@ -41,10 +41,14 @@ can.
 
 | case | display | note |
 |---|---|---|
-| empty numeric | `[ ]` | space inside — deviates from `mat2str` (`[]`) |
-| empty cell | `{ }` | consistent with `[ ]` |
+| empty numeric, any class, shape and complexity | `[ ]` | MATLAB's Workspace browser's own text, space inside (`mat2str` says `[]`). An int-backed enumeration's empty too: MATLAB counts it numeric. Not yet a sparse double's, which is `<0x0 sparse double>` here and `[ ]` in the browser |
+| empty cell | `{}` at 0x0, `<0x3 cell>` at any other empty shape | the browser's `{}` and `{0×3 cell}` |
 | empty char | `''` | already the complete literal; char does not expand |
 | empty scalar string | `""` | same |
+| empty string array | `<0x0 string>` | the browser's `0×0 string` |
+| empty logical | `<1x0 logical>` | the browser's `1×0 logical`: a logical is not numeric |
+| empty OnOffSwitchState | `<0x0 OnOffSwitchState>` | the browser's, with its short class name; its values are logical |
+| empty object array | `<0x0 WidgetPart>` | the browser's `0×0 WidgetPart`, short class name |
 | 0x0 struct | `<0x0 struct>` | struct is always the angle form |
 | numeric scalar | full JS round-trip precision, i.e. `String(n)` | **more** digits than MATLAB: `3.141592653589793`, not `mat2str`'s `3.14159265358979` |
 | `int64` / `uint64` | exact decimal, never double-rounded | `18446744073709551615` |
@@ -61,12 +65,33 @@ can.
 `<mxn class>`. Today three different bracket styles are in use, so only some
 summaries render italic — see defect 3.
 
-**`[ ]` is ours, not MATLAB's.** Checked against R2027a while implementing
-Phase 7: MATLAB offers no spelling to match for an empty. `mat2str([])` is
-`[]`, and `formattedDisplayText([])` / `formattedDisplayText({})` are both the
-empty string. `[ ]` is this project's choice — it is what the object-property
-path has always emitted, and the one-space form makes an empty value visible in
-a table cell instead of reading as a rendering failure.
+**`[ ]` is MATLAB's.** The authority for the Value and Class columns is MATLAB's
+Workspace browser (the maintainer's ruling of 2026-10-15: "follow matlab style for
+Value display and Class display"), and the browser shows exactly `[ ]` for every
+numeric empty. An earlier note here called `[ ]` this project's own spelling: it
+was checked against `mat2str([])` (`[]`) and `formattedDisplayText` (empty), which
+are not what the browser draws. What the browser draws is
+`matlab.internal.datatoolsservices.getWorkspaceDisplay`'s Value, and its own
+column code: `ValueCol`, `ObjectValueSummary`, and `ClassCol` for the Class
+column. `test/parity/matlab/probe_display.m` measured them for 283 values in R2027a,
+and the rows the tests read are `test/fixtures/display/browser_short.truth.json`
+(`test/workspaceBrowserDisplay.test.ts` reads its expected texts from there).
+
+**The Class column is the browser's `ClassCol`**, `getClassString(value, false,
+true, true)`: `class()`, then the value's attributes in parentheses —
+`double (complex)`, `int16 (complex)`, `double (sparse)`, `double (sparse complex)`,
+`logical (sparse)` — and `logical (matlab.lang.OnOffSwitchState)` for that
+logical-backed enumeration. A complex scalar is its own class (`int16`, not
+`double`), and so is each element of a complex array. getWorkspaceDisplay's own
+Class (`complex double`) is a different spelling; the browser's is the one shown.
+
+**Only the rows above that cite the browser follow it so far.** Whether the rest
+follow MATLAB is pending the maintainer's rulings on numeric precision (P1),
+the summary's spelling (Q1: MATLAB writes `0×3 string`, `{0×3 cell}`, with no
+angle brackets), and H1-H6 (the Parameter row, the edit seed, 1x1 cells, char
+control characters, length bounds), in the 2026-10-15 display study
+(data-explorer-vscode `docs/deep-work/2026-10-15-decided-items/display-study/`,
+`proposed-open-questions.md` and `not-followable-*.md`).
 
 ### A property sheet is not a table cell
 
@@ -351,6 +376,8 @@ Each gets a failing test first, then the fix.
    `EMPTY_NUMERIC`/`EMPTY_CELL` constants. Note MATLAB offers nothing to match
    here — `formattedDisplayText([])` is the empty string and `mat2str([])` is
    `[]` — so `[ ]` is this project's own spelling, per the normative table above.
+   (Corrected 2026-10-15: MATLAB's Workspace browser shows exactly `[ ]`, and `{}`
+   for a 0x0 cell; see the table.)
    One empty is deliberately left behind: an empty **string array** still prints
    `[]`, because `_formatString`'s row loop falls through to `'[' + '' + ']'`
    (`MatlabVariableNode.ts:608`) and no artifact reaches it.
@@ -1381,7 +1408,8 @@ the plausible mojibake a guessed layout would produce (`"café"` → `` "`afé" 
       brackets withhold the editor, which is right: no text a user can type is a `missing`.
     - **`strings(0,0)` displays as `[ ]`**, the convention's empty-value spelling, matching
       the empty numeric rather than emitting the bare `[]` the literal loop would produce.
-      MATLAB prints nothing at all for it, so there is no spelling to match.
+      MATLAB prints nothing at all for it, so there is no spelling to match. (Superseded
+      2026-10-15: MATLAB's Workspace browser shows `0×0 string`, and this is `<0x0 string>`.)
     - **A `string` gets the string icon in every format.** The icon is keyed on the MCOS
       class name, and `string` — the one opaque class that is a data type — had no entry,
       so the same array showed `wsString` out of a dictionary and the generic `wsDefault`
