@@ -29,32 +29,53 @@ the Prototype via `displayValue`. The Property Inspector exposes only Name.
 
 ### Name — coupled to Prototype
 
-In MATLAB, setting `elem.Name` validates the new name against the Prototype:
+In MATLAB the Name and the Prototype's function name are one value. Setting
+either one sets the other (measured on R2027a, 2026-10-15, on a fresh
+`Simulink.FunctionElement`):
 
-- `elem.Name = 'valid'` (where Prototype is `'y = f1(u,v)'`) →
-  **"The character vector "" specified for prototype specification is invalid."**
-  The name must appear as the function name in the Prototype.
+- After `elem.Prototype = 'y = other(u)'`, `elem.Name` is `'other'`.
+- `elem.Name = 'step'` renames the function in the Prototype, and only that
+  token: `y = f(u)` → `y = step(u)`, `[a,b] = f(u,v)` → `[a,b] = step(u,v)`,
+  `f = f(f)` → `f = step(f)`, `f()` → `step()`.
+- With an empty Prototype (the default, Name `f1`), `elem.Name = 'step'` is
+  refused: **"The character vector "" specified for prototype specification
+  is invalid."** (`Simulink:FcnCall:FcnCallPrototypeInvalid`).
 
 - `elem.Name = ''` → **"Name '' must start with an alphabetic or '' character,
   followed by alphanumeric or '' characters. Name must not start with
   'sl_padding'."**
 
-This Prototype-coupling rejection is significant: MATLAB rejects ANY valid
-identifier that doesn't match the Prototype's function name. In our UI, since
-Prototype is NOT directly editable (it's shown via displayValue only), renaming
-a FunctionElement in isolation would produce data MATLAB rejects on re-open.
+The Prototype is not directly editable in our UI (it is shown via
+displayValue only), so a rename that moved only the Name saved a Name the
+Prototype contradicts.
 
-**Current behavior in our code:** `DataNode.setProperty` validates the new Name
-as a MATLAB identifier (rejects empty, non-identifier chars, keywords) and checks
-sibling uniqueness, but does NOT enforce the Prototype-coupling. A user could
-rename `f1` to `myFunc` while the Prototype still says `y = f1(u,v)`.
+**Current behavior in our code:** a rename renames both.
+`FunctionElementNode.setProperty` rewrites the function-name token of the
+Prototype in the same call: `y = f1(u,v)` renamed to `myFunc` becomes
+`y = myFunc(u,v)`. Only that token changes, so an output or input spelled like
+the function keeps its spelling (`f = f(f)` renamed to `g` becomes `f = g(f)`),
+and so does the whitespace. The usual name checks still apply (the new Name
+must be a MATLAB identifier and unique among its siblings), and the Prototype
+moves only when the Name did. This is the rewrite MATLAB's own Name setter makes,
+on every Prototype form measured above.
 
-**Risk assessment:** This is a known gap but the practical risk is low because:
-1. ServiceBus entries are rare in real-world data dictionaries
-2. The fixture has no ServiceBus entry, so this path is rarely exercised
-3. Adding Prototype-coupled validation would require parsing the Prototype string
+Because it is one `setProperty`, it is one edit. The session's undo replays
+`setProperty('Name', old)`, which renames the Prototype back, and a host that
+rewrites the owning entry (`serializeEntryToXml`, or the JSON entry writer)
+writes both fields. `_applyElementOverrides` writes the Prototype back only once
+it differs from the one read, so an element that was not renamed saves its
+Prototype as it came in.
 
-This gap is documented for future hardening if ServiceBus editing becomes common.
+The rename is refused, with a message naming the Prototype and with neither
+field changed, when the Prototype does not have the form
+`[outputs =] Name(inputs)` with the current Name as its function. That covers an
+empty Prototype, a qualified name (`y = a.f(u)`), a Prototype that already names
+another function, a second call, and trailing text. MATLAB refuses the empty
+case too. The Prototype is checked before the name checks, so a rename it blocks
+gets this message whatever the new name is. Every FunctionElement
+Prototype in the fixtures and the corpus has the form `y = NAME(args)`, with the
+Name as its function.
+Test: `test/functionElementRename.test.ts`.
 
 ### Prototype — auto-appends parentheses
 
@@ -83,8 +104,10 @@ objects. Not directly editable through property editors. Managed internally by
   uniqueness.
   Test: `test/parity/fidelity/element.fidelity.test.ts`.
 
-- **NOT mirrored:** Prototype-coupling (the Name must appear in the Prototype).
-  This is a documented gap — see "Name — coupled to Prototype" above.
+- Prototype-coupling: a rename rewrites the Prototype's function name with it,
+  or is refused when that name cannot be found unambiguously. See
+  "Name — coupled to Prototype" above.
+  Test: `test/functionElementRename.test.ts`.
 
 ## Round-trip coverage
 
@@ -95,15 +118,20 @@ objects. Not directly editable through property editors. Managed internally by
 
 - MATLAB re-open gate: skipped for FunctionElement (no fixture entry, and the
   Prototype-coupling makes live MATLAB validation of an isolated rename
-  non-trivial). Documented as deferred.
+  non-trivial). Documented as deferred. Checked once by hand instead
+  (2026-10-15, R2027a): a binary dictionary with one ServiceInterface (`f`,
+  `y = f(u)`), renamed to `step` by this code and saved, opens through
+  `Simulink.dictionary.archdata.open` with Name `step` and FunctionPrototype
+  `y = step(u)`.
 
 ## Open questions / deferred
 
-- **Prototype-coupled Name validation**: MATLAB rejects a Name that doesn't match
-  the Prototype's function name. Our UI allows renaming in isolation. If
-  ServiceBus editing becomes common, add a validator that parses the Prototype
-  and rejects names that would break the coupling (or rename the function in the
-  Prototype simultaneously).
+- **System Composer catalog copy**: an architectural dictionary also lists each
+  function element in its interface catalog
+  (`simulink/systemcomposer/interfaceDictionary`, as `p_Name` and
+  `p_FunctionPrototype`). A rename does not carry into that copy. No element
+  rename does yet, bus element or function element; only entry renames reach
+  the catalog.
 
 - **Prototype editing**: not surfaced in the UI. If added, it must enforce the
   format `[outputs =] name(inputs)` and keep the Name in sync.

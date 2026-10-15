@@ -459,9 +459,9 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
 
     it('accepts a valid identifier Name (in-process only)', () => {
       const { elem } = freshServiceBus();
-      // NOTE: In MATLAB, this would fail if the name doesn't match the Prototype.
-      // Our code does NOT enforce Prototype-coupling (documented gap). The
-      // in-process rename succeeds; MATLAB gate is skipped for FunctionElement.
+      // NOTE: In MATLAB, setting the Name renames the Prototype's function, and so
+      // does this rename (test/functionElementRename.test.ts). MATLAB gate is
+      // skipped for FunctionElement.
       expect(elem.setProperty('Name', 'compute')).toBe(true);
       expect(elem.name).toBe('compute');
     });
