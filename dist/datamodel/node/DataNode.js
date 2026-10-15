@@ -327,7 +327,43 @@ export default class DataNode extends BaseNode {
         }
         return prop.nodeProperty || prop.key;
     }
+    /**
+     * Is `stringValue` the text `propName` shows, on a property this node takes an edit of? Then
+     * setting it is no edit, and every setProperty asks this first, the overrides included: it
+     * answers `true` and changes nothing, records nothing. The value keeps what it was read as
+     * (`_rawInput`, an encoded stream) and so its bytes, the entry is neither Modified nor
+     * stamped, and the file is not dirty (the maintainer's ruling A3, 2026-10-15 evening).
+     *
+     * One text stands for many values. Every numeric empty shows `[ ]`, whatever its size and
+     * class, as MATLAB's Workspace browser shows them, and a value set from that text is a 0x0
+     * double; so the shown text, set back, could change the value it shows. DataModel.editProperty
+     * has made the same commit no edit since #107, for the session, which also records no undo
+     * step for it; this holds it for a caller that sets a node's property directly.
+     *
+     * Only an editable property (getPropInfo, the one answer the table and the Property Inspector
+     * both read): one this node takes no edit of is still refused, for its shown text as for any
+     * other, by whichever gate refuses it (an encoded stream, a MAT stream in a text dictionary, a
+     * summary). That refusal changes nothing either.
+     */
+    _isUnchangedCommit(propName, stringValue) {
+        const prop = this._propFor(propName);
+        if (!prop) {
+            return false;
+        }
+        try {
+            const info = this.getPropInfo(prop);
+            return info.editable && info.displayValue === stringValue;
+        }
+        catch {
+            // A property projection that throws leaves the edit to go ahead as it did (DataModel's
+            // readPropertyValue, for the same reason).
+            return false;
+        }
+    }
     setProperty(propName, stringValue) {
+        if (this._isUnchangedCommit(propName, stringValue)) {
+            return true;
+        }
         const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
         if (encodedRefusal) {
             return encodedRefusal;

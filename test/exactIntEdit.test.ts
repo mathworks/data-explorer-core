@@ -177,9 +177,11 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
       // the suffix makes MATLAB read the body back as double.
       const uri = `test://d42-bytes-${format}.sldd`;
       const model = loadModel(format, 'cases.sldd', uri);
-      expect(entryByName(model, uri, 'maxU64').setProperty('Value', MAX_U64)).toBe(true);
-      expect(entryByName(model, uri, 'i64Unsafe').setProperty('Value', UNSAFE_I64)).toBe(true);
-      expect(entryByName(model, uri, 'u64Vec').setProperty('Value', `[${MAX_U64} 2 3]`)).toBe(true);
+      // Each in a text other than the one it shows, which a binary dictionary's entry holds
+      // already: that text set back is no edit (the 2026-10-15 evening ruling A3).
+      expect(entryByName(model, uri, 'maxU64').setProperty('Value', `${MAX_U64} `)).toBe(true);
+      expect(entryByName(model, uri, 'i64Unsafe').setProperty('Value', `${UNSAFE_I64} `)).toBe(true);
+      expect(entryByName(model, uri, 'u64Vec').setProperty('Value', `[${MAX_U64} 2 3] `)).toBe(true);
       const text = new TextDecoder().decode(serializeModel(model, 'json'));
       expect(text).toContain(`"_value": "${MAX_U64}U"`);
       expect(text).toContain(`"_value": "${UNSAFE_I64}"`);

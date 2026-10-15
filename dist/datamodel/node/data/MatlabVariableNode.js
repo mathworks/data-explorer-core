@@ -817,6 +817,10 @@ export default class MatlabVariableNode extends DataNode {
     // are recording. The add/remove methods come in canX/xChildNode/execX triples:
     // the gate, the mutation, and the undo/redo wrapper the command stack calls.
     setProperty(propName, stringValue) {
+        // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
+        if (this._isUnchangedCommit(propName, stringValue)) {
+            return true;
+        }
         // A value still in the encoded stream it was read from is read-only (DataNode._refuseEncodedEdit).
         const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
         if (encodedRefusal) {

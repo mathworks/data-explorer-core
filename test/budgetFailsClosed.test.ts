@@ -54,7 +54,13 @@ const CASES: { file: string; value: unknown; edit: (node: any) => void; at: stri
   {
     file: TEXT,
     value: { ...literals(16385, [1, 1, 16386]), _elements: [[1, 2, 3], ...literals(16385)._elements] },
-    edit: (node) => expect(node.children[0].children[0].setProperty('Value', '5')).toBe(true),
+    // An edit, whatever the element holds by then: `value` is one object for every case, and
+    // the pasted node writes an edit of its [1 2 3] into it, so from the second case on `5` is
+    // the text the element shows, which set back is no edit (the 2026-10-15 evening ruling A3).
+    edit: (node) => {
+      const el = node.children[0].children[0];
+      expect(el.setProperty('Value', String(Number(el.displayValue) + 1))).toBe(true);
+    },
     at: 'pasted{16386}',
   },
 ];
