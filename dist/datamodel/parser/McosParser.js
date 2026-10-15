@@ -167,6 +167,11 @@ function parseMetaTable(cells) {
         const out = [];
         for (let p = from; p < to;) {
             const start = p;
+            // A count with fewer than four bytes left in the segment cannot be read, and
+            // when the segment ends at the cell's end the read throws RangeError and fails
+            // the whole open (readSubelement's comment). Stop, as for an overrunning count.
+            if (p + 4 > to)
+                break;
             const nProps = u32(p);
             p += 4;
             // Defensive: a wildly large count means we lost alignment — stop rather than
