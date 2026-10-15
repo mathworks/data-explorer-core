@@ -270,10 +270,15 @@ describe('an edit to one element of an N-D value survives the round trip', () =>
   const REST = ['2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 
   function edited(name: string, label: string, deep: boolean): any {
-    const n: any = findEntry(loadFile('./artifacts/text/cases.sldd', 'cases.sldd'), name);
-    const cell = n.children.find((c: any) => c.displayName === label);
+    const entry: any = findEntry(loadFile('./artifacts/text/cases.sldd', 'cases.sldd'), name);
+    // In the text dictionary the value is a MAT stream, which is shown and not edited (the
+    // C-012 ruling, 2026-10-15). The writer is graded on the same value in no file.
+    const at = (n: any) => n.children.find((c: any) => c.displayName === label);
+    expect((deep ? at(entry).children[0] : at(entry)).setProperty('Value', '99')).toMatchObject({ error: true });
+    const n: any = NodeRegistry.parseValue(entry.serializeValue(), name, null);
+    const cell = at(n);
     expect(cell, 'no child labelled ' + label).toBeTruthy();
-    (deep ? cell.children[0] : cell).setProperty('Value', '99');
+    expect((deep ? cell.children[0] : cell).setProperty('Value', '99')).toBe(true);
     const out = n.serializeValue() as any;
     expect(out._type).toBe('cdata');
     return NodeRegistry.parseValue(out, name, null);

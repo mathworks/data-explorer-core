@@ -224,6 +224,14 @@ describe('an element of a complex array takes each form, as the complex number i
   for (const { file, format } of VENUES) {
     for (const { path, cls } of ELEMENTS) {
       it(`${file}: ${path.join('.')} (${cls})`, () => {
+        if (format === 'text') {
+          // A text dictionary holds the array as its MAT stream, which is shown and not edited
+          // (the C-012 ruling, 2026-10-15).
+          for (const [typed] of FORMS) {
+            expect(nodeAt(open(file), path).setProperty('Value', typed), typed).toMatchObject({ error: true });
+          }
+          return;
+        }
         for (const [typed, re, im] of FORMS) {
           const want: [number, number] = cls === 'int16' ? [int16(re), int16(im)] : [re, im];
           const session = createSession();
@@ -290,9 +298,17 @@ function saveAndReopen(session: any, root: any, session2: any): any {
 }
 
 describe('a complex value with an Inf or NaN part is set back by the text it shows', () => {
-  for (const { file } of VENUES) {
+  for (const { file, format } of VENUES) {
     for (const { path, what } of HOLDERS) {
       it(`${file}: ${what} (${path.join('.')})`, () => {
+        if (format === 'text') {
+          // A text dictionary holds the value as its MAT stream, which is shown and not edited
+          // (the C-012 ruling, 2026-10-15).
+          for (const [typed] of NON_FINITE_TYPED) {
+            expect(nodeAt(open(file), path).setProperty('Value', typed), typed).toMatchObject({ error: true });
+          }
+          return;
+        }
         for (const [typed, re, im] of NON_FINITE_TYPED) {
           let session = createSession();
           let root = open(file, session);

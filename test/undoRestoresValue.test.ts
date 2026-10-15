@@ -168,14 +168,9 @@ describe('undoing a Value edit of an N-D empty restores it, in a text dictionary
     expect(before.shown[2]).toEqual([0, 0, 2]);
     expect(JSON.parse(before.value)._type).toBe('cdata');
     session.setActive(root, entry);
-    expect(session.editProperty(entry.id, 'Value', '[1 2 3]')).toBe(true);
-    expect(entry.dims).toEqual([1, 3]);
-    session.undo();
-    expect(value()).toBe(before.value);
-    expect(shown(entry)).toEqual(before.shown);
-    session.redo();
-    expect(entry.dims).toEqual([1, 3]);
-    session.undo();
+    // Opened again, it is read from that stream, which is shown and not edited (the C-012
+    // ruling, 2026-10-15; test/cdataDisplayOnly.test.ts): the edit is refused, nothing changes.
+    expect(session.editProperty(entry.id, 'Value', '[1 2 3]')).toMatchObject({ error: true });
     expect(value()).toBe(before.value);
     expect(shown(entry)).toEqual(before.shown);
   });

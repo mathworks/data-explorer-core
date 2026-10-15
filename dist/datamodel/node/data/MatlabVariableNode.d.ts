@@ -29,6 +29,7 @@ export default class MatlabVariableNode extends DataNode {
     _mcosDimensions: number[] | null;
     _preCollapseDims: number[] | null;
     _elementType: string | null;
+    _readFromStream?: true;
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
     get Value(): unknown;
     set Value(v: unknown);
@@ -144,6 +145,33 @@ export default class MatlabVariableNode extends DataNode {
      * (_setConstrainedValue), and whose text is the scalar it holds.
      */
     _restorerFor(propName: string): (() => void) | null;
+    /**
+     * The node at or above this one that parseCdata read out of a MAT stream, when it is in a
+     * text dictionary, or null.
+     *
+     * The maintainer's ruling on C-012 (2026-10-15): editing is for a value parsed from a
+     * dictionary's XML or JSON. A value a text dictionary holds as a MAT stream is shown and not
+     * edited. MATLAB keeps a stream there only for a value its JSON cannot spell: every rank >= 3
+     * value, every complex one and a sparse array. Edited, such a value has to be
+     * written as a new stream, and MatWriter cannot write every value one can hold: an N-D cell
+     * element typed as "str" was refused ("no MAT class for string"), and `["a" "b"]` went out as
+     * the char 'ab'. Unedited, it is written as the stream it was read from.
+     *
+     * So at and under such a node the value takes no editor (valueEditable), the setter refuses
+     * it (_refuseStreamEdit, and ParameterNode for a Parameter's Value), and no row is added or
+     * removed (canAddChild, canRemoveChild). The name of the node holding the stream is outside
+     * it, so the node can still be renamed, and its entry deleted. Every node under it is a
+     * MatlabVariableNode: a stream holding an MCOS object is built otherwise
+     * (_parseCdataObjects) and is read-only by DataNode._adoptEncoded.
+     *
+     * Only in a text dictionary, which is what the ruling is about. The MCOS decoder hands over
+     * a sparse value of a .mat or a model workspace as the same stream (McosParser), and nothing
+     * edits those files; a binary dictionary keeps its own MAT streams as hex, read-only already.
+     * So a stream pasted into a binary dictionary is as editable there as it was.
+     */
+    _streamHolder(): MatlabVariableNode | null;
+    /** The refusal of a Value edit at or under a value read from a MAT stream, or null (_streamHolder). */
+    _refuseStreamEdit(stringValue: string): SetPropertyResult | null;
     _isConstrainedChild(): boolean;
     _setConstrainedValue(stringValue: string): true | SetPropertyResult;
     _markModified(): void;

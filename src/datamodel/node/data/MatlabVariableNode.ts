@@ -276,6 +276,10 @@ export default class MatlabVariableNode extends DataNode {
   // and a complex array is the one shape whose elements it cannot infer (see the
   // `elementType` note on _buildArrayChildren).
   _elementType: string | null;
+  // Set on the node parseCdata builds out of a MAT stream that holds no MCOS object. In a text
+  // dictionary, everything at and under it is shown and not edited (_streamHolder). Absent on
+  // every other node.
+  _readFromStream?: true;
 
   constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>) {
     super(name, parent, serial);
@@ -506,6 +510,10 @@ export default class MatlabVariableNode extends DataNode {
 
   get valueEditable(): boolean {
     if (this._isOpaque) {
+      return false;
+    }
+    // A value read from a MAT stream, or a row under one, is shown and not edited.
+    if (this._streamHolder()) {
       return false;
     }
     // An ELEMENT of an opaque value is as read-only as the value: a decoded `string`
@@ -938,6 +946,11 @@ export default class MatlabVariableNode extends DataNode {
       return encodedRefusal;
     }
     if (propName === 'Value') {
+      // The cell valueEditable withholds for a value read from a MAT stream is refused here too.
+      const streamRefusal = this._refuseStreamEdit(stringValue);
+      if (streamRefusal) {
+        return streamRefusal;
+      }
       if (this._scalarType === 'function_handle') {
         return {
           error: true,
@@ -1031,6 +1044,53 @@ export default class MatlabVariableNode extends DataNode {
       }
       // As setProperty's own Value edit does: the parent's row for this node follows its shape.
       this.parent?.childStructureChanged(this);
+    };
+  }
+
+  /**
+   * The node at or above this one that parseCdata read out of a MAT stream, when it is in a
+   * text dictionary, or null.
+   *
+   * The maintainer's ruling on C-012 (2026-10-15): editing is for a value parsed from a
+   * dictionary's XML or JSON. A value a text dictionary holds as a MAT stream is shown and not
+   * edited. MATLAB keeps a stream there only for a value its JSON cannot spell: every rank >= 3
+   * value, every complex one and a sparse array. Edited, such a value has to be
+   * written as a new stream, and MatWriter cannot write every value one can hold: an N-D cell
+   * element typed as "str" was refused ("no MAT class for string"), and `["a" "b"]` went out as
+   * the char 'ab'. Unedited, it is written as the stream it was read from.
+   *
+   * So at and under such a node the value takes no editor (valueEditable), the setter refuses
+   * it (_refuseStreamEdit, and ParameterNode for a Parameter's Value), and no row is added or
+   * removed (canAddChild, canRemoveChild). The name of the node holding the stream is outside
+   * it, so the node can still be renamed, and its entry deleted. Every node under it is a
+   * MatlabVariableNode: a stream holding an MCOS object is built otherwise
+   * (_parseCdataObjects) and is read-only by DataNode._adoptEncoded.
+   *
+   * Only in a text dictionary, which is what the ruling is about. The MCOS decoder hands over
+   * a sparse value of a .mat or a model workspace as the same stream (McosParser), and nothing
+   * edits those files; a binary dictionary keeps its own MAT streams as hex, read-only already.
+   * So a stream pasted into a binary dictionary is as editable there as it was.
+   */
+  _streamHolder(): MatlabVariableNode | null {
+    for (let n: BaseNode | null = this; n instanceof MatlabVariableNode; n = n.parent) {
+      if (n._readFromStream) {
+        return n._ownerFormat() === 'json' ? n : null;
+      }
+    }
+    return null;
+  }
+
+  /** The refusal of a Value edit at or under a value read from a MAT stream, or null (_streamHolder). */
+  _refuseStreamEdit(stringValue: string): SetPropertyResult | null {
+    const holder = this._streamHolder();
+    if (!holder) {
+      return null;
+    }
+    return {
+      error: true,
+      reason: `'${holder.matlabPath}' is stored as a MAT-file stream, which this editor can show but not edit, so it is read-only.`,
+      invalidValue: stringValue,
+      validValue: this.displayValue,
     };
   }
 
@@ -1445,6 +1505,10 @@ export default class MatlabVariableNode extends DataNode {
     if (this._isOpaque || this._encodedReadOnly) {
       return false;
     }
+    // Nor at or under a value read from a MAT stream, which is shown and not edited (_streamHolder).
+    if (this._streamHolder()) {
+      return false;
+    }
     // A sparse array's rows are its non-zeros, so there is no element row to add that
     // would not be one: nothing in the tree adds a non-zero. (An empty one is no
     // exception — Add turns an empty `[]` into a struct, which a sparse array is not.)
@@ -1567,7 +1631,7 @@ export default class MatlabVariableNode extends DataNode {
 
   canRemoveChild(): boolean {
     // Read-only in both directions, as in canAddChild.
-    if (this._isOpaque || this._encodedReadOnly) {
+    if (this._isOpaque || this._encodedReadOnly || this._streamHolder()) {
       return false;
     }
     // Nor does a sparse array give one up: removing a non-zero from a vector shortens
@@ -3650,6 +3714,8 @@ export default class MatlabVariableNode extends DataNode {
       // variable whose objects were decoded, which _parseCdataObjects above does for one
       // that holds any and undoes when what it builds fails.
       const node = MatlabVariableNode.parseMatVariable(variable, name, parent) as MatlabVariableNode;
+      // Shown and not edited, it and every row under it (_streamHolder).
+      node._readFromStream = true;
       // parseMatVariable's factories set _matVar/_rawBytes but not _rawInput, and
       // an untouched node writes itself back by replaying _rawInput verbatim. Set
       // it so a cdata entry nobody edited still round-trips byte-identical.

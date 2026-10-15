@@ -186,17 +186,18 @@ describe('a damaged column count in a sparse array of its own, edited or copied'
       expect(spTall.children[1].setProperty('Value', '9')).toMatchObject({ error: true });
       // And what would write one says so, as an error to catch.
       expect(() => encodeMatStream(spTall._var)).toThrow(MatWriteError);
-      // Saved after an edit beside it, and after a rename, it is the stream it was read as.
+      // Saved after a rename, it is the stream it was read as. The stream beside it, spRow, is
+      // shown and not edited, as every stream of a text dictionary is (the C-012 ruling, 2026-10-15).
       const spRow = root.getSection('design').children.find((e: any) => e.name === 'spRow');
-      expect(spRow.children[0].setProperty('Value', '5')).toBe(true);
+      expect(spRow.children[0].setProperty('Value', '5')).toMatchObject({ error: true });
       expect(spTall.setProperty('Name', 'spTallRenamed')).toBe(true);
       const [saved, ms] = timed(() => JSON.parse(session.serializeSource(root.name)!.text!));
       expect(ms).toBeLessThan(1000);
       const out = saved.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'spTallRenamed');
       expect(out.value).toEqual(entry.value);
-      // Typed over in whole, it is a value like any other.
-      expect(spTall.setProperty('Value', '[1 2 3]')).toBe(true);
-      expect(spTall.serializeValue()).toEqual([1, 2, 3]);
+      // Nor is it typed over in whole: it is a MAT stream of a text dictionary.
+      expect(spTall.setProperty('Value', '[1 2 3]')).toMatchObject({ error: true });
+      expect(spTall.serializeValue()).toEqual(entry.value);
     });
 
     it(`a .mat variable declaring ${cols} columns: copied into a dictionary as the element it was read from, at once`, () => {

@@ -69,7 +69,19 @@ export default class ParameterNode extends DataNode {
         if (this._valueNode && isEnumBag(this._valueNode.serial._rawVal)) {
             return false;
         }
+        // Nor a Value read from a MAT stream, which is shown and not edited
+        // (MatlabVariableNode._streamHolder). A complex scalar displays whole, so it offered one.
+        if (this._refuseStreamValue('')) {
+            return false;
+        }
         return super.valueEditable;
+    }
+    // The refusal of a Value edit when the Value was read from a MAT stream, or null: what the
+    // value node's own setter answers (MatlabVariableNode._refuseStreamEdit). Every other
+    // property of the Parameter was read from the JSON beside it and stays editable.
+    _refuseStreamValue(stringValue) {
+        const valueNode = this._valueNode;
+        return typeof valueNode?._refuseStreamEdit === 'function' ? valueNode._refuseStreamEdit(stringValue) : null;
     }
     // Model `rawValue` as this Parameter's Value, giving it a tree row only when
     // the resulting node has children — array elements or struct fields, i.e. the
@@ -167,6 +179,10 @@ export default class ParameterNode extends DataNode {
             return encodedRefusal;
         }
         if (propName === 'Value') {
+            const streamRefusal = this._refuseStreamValue(stringValue);
+            if (streamRefusal) {
+                return streamRefusal;
+            }
             // An enumeration value refuses a value set on it, as it does on a row of its own
             // (ObjectNode.setProperty), and as it takes no editor here (valueEditable). Taken, what
             // was typed replaced the enumeral, `2` with a double, and an undo did not put it back.
