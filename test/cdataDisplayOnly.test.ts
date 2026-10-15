@@ -41,7 +41,7 @@ const at = (entry: any, path: string): any =>
   path.split('/').reduce((n: any, name: string) => n.children.find((c: any) => c.name === name), entry);
 
 const STREAM_REASON = /is stored as a MAT-file stream, which this editor can show but not edit, so it is read-only/;
-const refused = (path: string) => ({ error: true, reason: expect.stringMatching(new RegExp(`^'${path.replace(/[.(){}]/g, '\\$&')}' ` + STREAM_REASON.source)) });
+const refused = (path: string) => ({ error: true, reason: expect.stringMatching(new RegExp(`^'${path.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}' ` + STREAM_REASON.source)) });
 
 /** Every row at and under `node` takes no value edit and no structural edit, and its setter refuses. */
 function expectDisplayOnly(node: any, holderPath: string): void {
