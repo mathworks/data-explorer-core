@@ -95,6 +95,7 @@ import {
   transposeToColumnMajorND,
   transposeFromColumnMajorND,
   pad as xmlPad,
+  BINARY_EMPTY_KEY,
 } from '../../parser/XmlUtils.js';
 import {
   TYPED_NUMERIC_CLASS,
@@ -765,7 +766,7 @@ export default class MatlabVariableNode extends DataNode {
     }
     const elems = this._liveElements();
     if (elems.length === 0) {
-      return EMPTY_NUMERIC;
+      return this._formatEmptyArray();
     }
     // Rank >= 3 (mat2str answers "Input matrix must be 2-D." — a bracketed string
     // would be valid 2-D syntax describing only page 1), or more elements than a
@@ -786,9 +787,38 @@ export default class MatlabVariableNode extends DataNode {
     return overCharBudget(text) ? summaryForm(this._dims, this.className) : text;
   }
 
+  // An empty array as MATLAB's Workspace browser shows it (the 2026-10-15 display ruling):
+  // `[ ]` for every numeric empty, of any class, shape or complexity, and for an int-backed
+  // enumeration's, which MATLAB counts as numeric (DispColor.empty shows `[ ]` there). An
+  // empty that is not numeric shows the size-and-class summary MATLAB shows, in this
+  // package's spelling of one, with the short class name MATLAB uses in it: a logical
+  // (`1×0 logical`, `<1x0 logical>`), an OnOffSwitchState, whose values are logical
+  // (`<0x0 OnOffSwitchState>`), and an object array. Which empty of a class this package has
+  // no definition for is an object array, and which an enumeration's, only a binary
+  // dictionary says: it reads an enumeration by its IsEnum, as an enumeration value
+  // (ObjectNode), so an empty it hands over under its own mark (BINARY_EMPTY_KEY) of a class
+  // that is not numeric is an object array (`<Element Class="WidgetPart" Dimension="0*0"/>`).
+  // A text dictionary's `{"_type": "dSomeColors", "_value": "[]"}` says neither, and MATLAB
+  // writes its enumerations' empties that way, so it stays `[ ]`. As does a function handle's
+  // empty, which MATLAB shows as `[]` (not ruled: the display study's H8).
+  _formatEmptyArray(): string {
+    const cls = this._scalarType;
+    const numeric = cls === 'double' || TYPED_NUMERIC_CLASS.test(cls) || cls === 'function_handle';
+    const fromBinary = !!(this._rawInput as Record<string, unknown> | undefined)?.[BINARY_EMPTY_KEY];
+    if (cls === 'logical' || cls === 'matlab.lang.OnOffSwitchState' || (fromBinary && !numeric)) {
+      return summaryForm(this._dims, cls.slice(cls.lastIndexOf('.') + 1));
+    }
+    return EMPTY_NUMERIC;
+  }
+
   _formatCell(): string {
     if (this.children.length === 0) {
-      return EMPTY_CELL;
+      // MATLAB's browser shows a 0x0 cell as `{}`, and an empty cell of any other shape as its
+      // size-and-class summary, `{0×3 cell}`, here `<0x3 cell>`. A cell that holds no element
+      // and says it has some is what its reader could read of it, which is nothing.
+      const d = effectiveDims(this._dims);
+      const zeroByZero = d.length === 2 && d[0] === 0 && d[1] === 0;
+      return elementCount(d) === 0 && !zeroByZero ? summaryForm(d, 'cell') : EMPTY_CELL;
     }
     // Rank >= 3 (the rows x cols walk below showed four of a 2x2x2's eight cells
     // with nothing to say the other four existed), or past the element budget.
@@ -879,11 +909,11 @@ export default class MatlabVariableNode extends DataNode {
     if (needsSummary(d)) {
       return summaryForm(d, 'string');
     }
-    // strings(0,0) — the empty-value spelling, as _formatArray and _formatCell do for
-    // their own kinds. Without this the loops below produce a bare '[]', which is not the
-    // convention's spelling and is one character from a scalar that happens to be empty.
+    // strings(0,0): the size-and-class summary MATLAB's Workspace browser shows for every
+    // empty string array, `0×0 string` (the 2026-10-15 display ruling), here `<0x0 string>`.
+    // A scalar "" is one element, above. Without this the loops below produce a bare '[]'.
     if (this._elements.length === 0) {
-      return EMPTY_NUMERIC;
+      return summaryForm(d, 'string');
     }
     const rows = d[0];
     const cols = d[1];

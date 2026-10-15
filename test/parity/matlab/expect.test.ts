@@ -46,9 +46,9 @@ describe('expectedDisplay', () => {
     }))).toBe('[1 2 3 4 5 6 7 8 9 10]');
   });
 
-  it('is [ ] for an empty numeric and { } for an empty cell', () => {
+  it('is [ ] for an empty numeric and {} for an empty cell', () => {
     expect(expectedDisplay(t({ size: [0, 0], numel: 0, isempty: true }))).toBe('[ ]');
-    expect(expectedDisplay(t({ class: 'cell', size: [0, 0], numel: 0, isempty: true }))).toBe('{ }');
+    expect(expectedDisplay(t({ class: 'cell', size: [0, 0], numel: 0, isempty: true }))).toBe('{}');
   });
 
   it('always summarizes a struct', () => {

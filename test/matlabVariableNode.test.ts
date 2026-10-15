@@ -145,13 +145,13 @@ describe('MatlabVariableNode — displayValue per kind', () => {
     expect(parse({ _type: 'logical', _value: '[1, 0]' }).displayValue).toBe('[true false]');
   });
 
-  it('shows an empty array as [ ] and an empty cell as { }', () => {
-    // '[ ]' and '{ }', with the space, are the display convention's spellings
-    // (DESIGN.md's normative table) and what the object-property path has always
-    // emitted. They deviate from mat2str's '[]' on purpose: the old '[]'/'{}' here
-    // made the same empty value read two ways depending on which parser produced it.
+  it('shows an empty array as [ ] and an empty cell as {}', () => {
+    // '[ ]' and '{}' are the display convention's spellings (DESIGN.md's normative table),
+    // and MATLAB's Workspace browser's for a numeric empty and a 0x0 cell (the 2026-10-15
+    // display ruling). The old '[]' here made the same empty value read two ways depending
+    // on which parser produced it.
     expect(parse({ _type: 'double', _emptyDims: [0, 0] }).displayValue).toBe('[ ]');
-    expect(parse({ _array_type: 'Cell', _dimensions: [0, 0], _elements: [] }).displayValue).toBe('{ }');
+    expect(parse({ _array_type: 'Cell', _dimensions: [0, 0], _elements: [] }).displayValue).toBe('{}');
   });
 
   it('spells an empty numeric as the convention does', () => {
@@ -1309,14 +1309,14 @@ describe('MatlabVariableNode — cell-array children', () => {
     expect([n.children.length, n._dims]).toEqual([1, [1, 1]]);
   });
 
-  it('goes to 0x0 and { } when the last element is removed', () => {
+  it('goes to 0x0 and {} when the last element is removed', () => {
     // Not [1,0]: an emptied cell is 0x0 in MATLAB, and displayValue reads the
     // child count rather than the dims, so the two must not disagree.
-    // '{ }', with the space, is the convention's empty-cell spelling.
+    // '{}' is the convention's empty-cell spelling, and MATLAB's Workspace browser's.
     const n = cellArray([1]);
     n.removeChildNode(n.children[0]);
     expect([n._dims, n.children.length]).toEqual([[0, 0], 0]);
-    expect(n.displayValue).toBe('{ }');
+    expect(n.displayValue).toBe('{}');
   });
 
   it('REGRESSION: a cell holding a quote survives its own displayed form', () => {

@@ -144,9 +144,17 @@ export function expectedDisplay(v: VarTruth): string | null {
     return p === undefined ? null : expectedDisplay(asVar(v.name, p));
   }
   if (v.isempty || v.numel === 0) {
-    // char is already its own complete literal when empty, and does not expand.
+    // As MATLAB's Workspace browser shows an empty (the 2026-10-15 display ruling): char is
+    // already its own complete literal when empty, and does not expand; a 0x0 cell is `{}`; a
+    // cell of any other empty shape, a string array and a logical show their size and class
+    // (`{0×3 cell}`, `0×0 string`, `1×0 logical`, in this convention's angle form); every
+    // numeric empty is `[ ]`.
     if (v.class === 'char') { return "''"; }
-    return v.class === 'cell' ? '{ }' : '[ ]';
+    if (v.class === 'cell') {
+      return dims.length === 2 && dims[0] === 0 && dims[1] === 0 ? '{}' : summary(dims, 'cell');
+    }
+    if (v.class === 'string' || v.class === 'logical') { return summary(dims, v.class); }
+    return '[ ]';
   }
   // mat2str refuses rank >= 3 ("Input matrix must be 2-D"), so there is no MATLAB
   // one-line spelling to match and the summary is the only correct answer.

@@ -74,6 +74,7 @@ export default class MatlabVariableNode extends DataNode {
     _formatScalar(): string;
     _textDims(text: string): number[];
     _formatArray(): string;
+    _formatEmptyArray(): string;
     _formatCell(): string;
     _cellLiteralElement(child: BaseNode): string;
     /**

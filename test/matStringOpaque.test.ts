@@ -280,11 +280,12 @@ describe('MAT string text', () => {
     expect(entryNamed('sEmptyE').elements).toEqual(['']);
     expect(entryNamed('sEmptyE').displayValue).toBe('""');
     expect(entryNamed('sMissing').elements[0]).toBe(null);
-    // A 0x0 has no elements at all, hence no child rows and the empty-value spelling
-    // rather than the bare '[]' the literal loop would otherwise produce.
+    // A 0x0 has no elements at all, hence no child rows and the size-and-class summary
+    // MATLAB's Workspace browser shows for it (`0×0 string`), rather than the bare '[]' the
+    // literal loop would otherwise produce.
     expect(entryNamed('sEmptyA').elements).toEqual([]);
     expect(entryNamed('sEmptyA').children.length).toBe(0);
-    expect(entryNamed('sEmptyA').displayValue).toBe('[ ]');
+    expect(entryNamed('sEmptyA').displayValue).toBe('<0x0 string>');
   });
 
   it('prints a long scalar string in full, under the char budget', () => {

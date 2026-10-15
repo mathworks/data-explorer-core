@@ -22,9 +22,9 @@ describe('DisplayConvention constants', () => {
     expect(SUMMARY_MAX_ELEMENTS).toBe(10);
   });
 
-  it('spells empty with a space inside, both brackets', () => {
+  it('spells empty as MATLAB\'s Workspace browser does: [ ] with a space inside, {} without', () => {
     expect(EMPTY_NUMERIC).toBe('[ ]');
-    expect(EMPTY_CELL).toBe('{ }');
+    expect(EMPTY_CELL).toBe('{}');
   });
 });
 

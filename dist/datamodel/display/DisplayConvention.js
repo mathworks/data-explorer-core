@@ -59,7 +59,9 @@ export const MAX_EXPANDED_ELEMENTS = 10000;
 // empty string. The one-space form makes an empty value visible in a table cell
 // rather than reading as a rendering failure.
 export const EMPTY_NUMERIC = '[ ]';
-export const EMPTY_CELL = '{ }';
+// A 0x0 cell, as MATLAB's Workspace browser shows it (the 2026-10-15 display ruling): no space.
+// A cell of any other empty shape shows its size-and-class summary (MatlabVariableNode._formatCell).
+export const EMPTY_CELL = '{}';
 // A `missing` element of a string array. This IS MATLAB's spelling — `disp(["" missing])`
 // prints `<missing>` — and it is unquoted there, where every real element is quoted, so
 // the display already distinguishes a `missing` from the four-character string

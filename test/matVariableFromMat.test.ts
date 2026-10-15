@@ -182,10 +182,10 @@ describe('MatlabVariableNode from a .mat char, struct or cell', () => {
     expect(kids(node)).toEqual([['1', '1'], ['2', "'x'"]]);
   });
 
-  it('shows a cell whose value is not an array as { }', () => {
+  it('shows a cell whose value is not an array as {}', () => {
     const node = parse({ className: 'cell', dimensions: [0, 0], value: null });
-    // '{ }' is the convention's empty-cell spelling; see DESIGN.md.
-    expect(node.displayValue).toBe('{ }');
+    // '{}' is the convention's empty-cell spelling, and MATLAB's Workspace browser's; see DESIGN.md.
+    expect(node.displayValue).toBe('{}');
     expect(node.children).toHaveLength(0);
   });
 

@@ -119,9 +119,11 @@ describe('an empty array of an object class in a cell', () => {
   for (const venue of VENUES) {
     it(`opens with its class and size, and is saved as MATLAB wrote it, in ${venue === 'property' ? 'an object property' : "an entry's cell"}`, () => {
       const { shown, saved, regenerated } = roundTrip(venue, ELEMENTS);
+      // The size-and-class summary MATLAB's Workspace browser shows for an empty object array,
+      // `0×0 WidgetPart`, with the short class name (the 2026-10-15 display ruling).
       expect(shown).toEqual([
-        ['WidgetPart', '[ ]', [0, 0]],
-        ['Simulink.Parameter', '[ ]', [1, 0]],
+        ['WidgetPart', '<0x0 WidgetPart>', [0, 0]],
+        ['Simulink.Parameter', '<1x0 Parameter>', [1, 0]],
       ]);
       expect(saved).toContain(cellP(venue === 'property' ? 'Cells' : 'Value', ELEMENTS, venue === 'property' ? 16 : 8));
       expect(regenerated, 'written from the model').toContain(cellP(venue === 'property' ? 'Cells' : 'Value', ELEMENTS, venue === 'property' ? 16 : 8));
@@ -147,9 +149,11 @@ describe('an empty logical in a cell', () => {
   for (const venue of VENUES) {
     it(`opens with its size, and is saved as MATLAB wrote it, in ${venue === 'property' ? 'an object property' : "an entry's cell"}`, () => {
       const { shown, saved, regenerated } = roundTrip(venue, ELEMENTS);
+      // The size-and-class summary MATLAB's Workspace browser shows for an empty logical,
+      // `1×0 logical` (the 2026-10-15 display ruling).
       expect(shown).toEqual([
-        ['logical', '[ ]', [1, 0]],
-        ['logical', '[ ]', [0, 3]],
+        ['logical', '<1x0 logical>', [1, 0]],
+        ['logical', '<0x3 logical>', [0, 3]],
       ]);
       expect(saved).toContain(cellP(venue === 'property' ? 'Cells' : 'Value', ELEMENTS, venue === 'property' ? 16 : 8));
       expect(regenerated, 'written from the model').toContain(cellP(venue === 'property' ? 'Cells' : 'Value', ELEMENTS, venue === 'property' ? 16 : 8));
