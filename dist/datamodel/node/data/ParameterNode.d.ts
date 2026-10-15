@@ -2,6 +2,7 @@ import DataNode from '../DataNode.js';
 import type { SetPropertyResult } from '../DataNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
+import type MatlabVariableNode from './MatlabVariableNode.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 export default class ParameterNode extends DataNode {
     Value: unknown;
@@ -18,7 +19,7 @@ export default class ParameterNode extends DataNode {
     get displayValue(): string;
     get valueEditable(): boolean;
     _refuseStreamValue(stringValue: string): SetPropertyResult | null;
-    _refuseValueBelow(node: DataNode, parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
+    _refuseValueBelow(node: MatlabVariableNode, parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
     _adoptValueNode(rawValue: unknown, edited?: boolean): void;
     static _needsValueRow(valueNode: BaseNode): boolean;
     childStructureChanged(child: BaseNode): void;

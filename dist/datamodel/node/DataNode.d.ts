@@ -3,7 +3,6 @@ import type { PropClass } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { MatBudgetError } from '../parser/MatWriter.js';
 import { type EncodedValue } from '../parser/EncodedValue.js';
-import type { ParsedValue } from '../parser/MatlabValueParser.js';
 import { type PropertySource } from '../parser/XmlUtils.js';
 export interface SetPropertyResult {
     error: boolean;
@@ -242,18 +241,6 @@ export default class DataNode extends BaseNode {
      */
     get _encodedReadOnly(): boolean;
     _refuseEncodedEdit(propName: string, stringValue: string): SetPropertyResult | null;
-    /**
-     * The refusal of a Value edit of `node`, which this node's own value holds, or null to let it
-     * through. `parsed` is what was typed, as MatlabValueParser read it, and nothing has changed yet.
-     *
-     * The same parent-side shape as childStructureChanged, and for the same class: every node lets
-     * the edit through, and Simulink.Parameter is the exception (ParameterNode). MATLAB checks a
-     * Parameter's Value when it is assigned, and a struct inside the Value is held to the
-     * Parameter's rules, which are stricter than a plain struct variable's (the C-160 and C-042
-     * ruling). MatlabVariableNode.setProperty asks the nearest node above it that is not a struct,
-     * which is the Parameter when the value edited is its Value or a field of its struct Value.
-     */
-    _refuseValueBelow(_node: DataNode, _parsed: ParsedValue, _stringValue: string): SetPropertyResult | null;
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _serializeSimulinkObjectXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _getSerializedProperties(): Record<string, unknown>;

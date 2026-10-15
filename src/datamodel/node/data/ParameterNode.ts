@@ -154,7 +154,10 @@ export default class ParameterNode extends DataNode {
     //
     // Only the field edited is judged, against the Value as it stands: a value MATLAB wrote
     // already passed this check, and a file's own value is not refused for being read.
-    _refuseValueBelow(node: DataNode, parsed: ParsedValue, stringValue: string): SetPropertyResult | null {
+    //
+    // Simulink.Parameter is the one class that rules on an edit below it, so this is its own
+    // method, which the value node asks for when present, rather than a hook every node carries.
+    _refuseValueBelow(node: MatlabVariableNode, parsed: ParsedValue, stringValue: string): SetPropertyResult | null {
         const valueNode = this._valueNode;
         if (!valueNode) {
             return null;
@@ -172,7 +175,7 @@ export default class ParameterNode extends DataNode {
         if (!under) {
             return null;
         }
-        if (refusedAsField(parsed) || (node as MatlabVariableNode)._differsFromTwinsAfter(parsed, valueNode)) {
+        if (refusedAsField(parsed) || node._differsFromTwinsAfter(parsed, valueNode)) {
             return refusal(under._subscript ? PRM_INVALID_ARRAY_OF_STRUCTS : PRM_INVALID_STRUCT);
         }
         return null;

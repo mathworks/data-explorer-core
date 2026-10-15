@@ -220,6 +220,11 @@ function matlabClassOf(variable: MatVariable): string {
   return variable.isLogical ? 'logical' : variable.className;
 }
 
+/** A node that rules on a Value edit made below it (MatlabVariableNode._valueHolderRefusal). */
+interface ValueHolder {
+  _refuseValueBelow?: (node: MatlabVariableNode, parsed: ParsedValue, stringValue: string) => SetPropertyResult | null;
+}
+
 /** What MATLAB compares across the elements of a Parameter's array of structures. */
 interface ValueShape {
   cls: string;
@@ -1146,19 +1151,24 @@ export default class MatlabVariableNode extends DataNode {
   }
 
   /**
-   * The refusal of a Value edit by the value this one is part of (DataNode._refuseValueBelow), or
-   * null. Asked of the nearest node above this one that is not a struct, so that a field of a
-   * struct, at any depth and in any element of a struct array, is answered by what holds the
-   * outermost struct: for a Parameter's struct Value, the Parameter. The Value row of a
+   * The refusal of a Value edit by the value this one is part of, or null. Asked of the nearest
+   * node above this one that is not a struct, so that a field of a struct, at any depth and in
+   * any element of a struct array, is answered by what holds the outermost struct: for a
+   * Parameter's struct Value, the Parameter (ParameterNode._refuseValueBelow). The Value row of a
    * Parameter asks it too, being its Value: typed there, a cell the Parameter's own Value cell
    * refused was taken.
+   *
+   * Asked only of a node that answers, as ParameterNode asks its value node about a stream
+   * (_refuseStreamValue): a Parameter is the one class with rules here, and naming it would
+   * import it into the class it holds.
    */
   _valueHolderRefusal(parsed: ParsedValue, stringValue: string): SetPropertyResult | null {
     let holder = this.parent;
     while (holder && holder.className === 'struct') {
       holder = holder.parent;
     }
-    return holder instanceof DataNode ? holder._refuseValueBelow(this, parsed, stringValue) : null;
+    const refuse = (holder as ValueHolder | null)?._refuseValueBelow;
+    return typeof refuse === 'function' ? refuse.call(holder, this, parsed, stringValue) : null;
   }
 
   /**
