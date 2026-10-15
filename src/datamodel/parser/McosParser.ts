@@ -669,7 +669,9 @@ function buildProperties(objId: number, ctx: DecodeContext, path: Set<number>, d
     if (flag === 1) {
       resolved = resolveValue(ctx.cells[value + 2] || null, ctx, path, depth);
     } else if (flag === 0) {
-      resolved = ctx.meta.strings[value] ?? '';
+      // An index past the string table names no string: drop the property, as an
+      // out-of-range heap index (flag 1) and an unknown flag do, rather than invent ''.
+      resolved = ctx.meta.strings[value];
     } else if (flag === 2) {
       resolved = value !== 0;
     } else {
