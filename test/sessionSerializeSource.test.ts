@@ -21,6 +21,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createSession, ingest, parseBinarySldd, serializeBinarySldd, SlddNode } from '../src/index.js';
+import { applyScEdits, scRenameEdits, scanScJsonText } from '../src/index.js';
 
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 
@@ -146,4 +147,185 @@ describe('session.serializeSource', () => {
     const s = createSession();
     expect(s.serializeSource('never-opened.sldd')).toBeNull();
   });
+});
+
+// A textual `.sldd` is more than its entries. MATLAB writes each part of the dictionary
+// as one key of `__MW_TEXT_PARTS__`: the data part, and beside it the System Composer
+// interface dictionary (what says a `Simulink.Bus` is a struct type rather than a data
+// interface) and the ArchitecturePart. A save that wrote back only the data part left a
+// file whose struct types reopened as data interfaces, in this package and in MATLAB,
+// which does not regenerate the part. So the save writes every part it read, in the
+// order the file had them, with the rebuilt data part in its own slot.
+describe('a textual .sldd save writes back every part it read', () => {
+  type Json = Record<string, unknown>;
+  const textOf = (name: string): string => readFileSync(fixture(name), 'utf8');
+  const partsOf = (json: Json): Json => json.__MW_TEXT_PARTS__ as Json;
+  const kindsOf = (source: { flatten(): { name: string; isEntry?: boolean; kind?: string }[] }) =>
+    Object.fromEntries(source.flatten().filter((n) => n.isEntry).map((n) => [n.name, n.kind]));
+  const saved = (file: string): { text: string; src: ReturnType<typeof load>['src'] } => {
+    const { s, src } = load(file);
+    const out = s.serializeSource(file)!;
+    expect(out.kind).toBe('text');
+    return { text: out.kind === 'text' ? out.text : '', src };
+  };
+  const reopen = (text: string, file: string) =>
+    ingest(createSession(), new TextEncoder().encode(text).buffer as ArrayBuffer, { filename: file });
+
+  // What a save writes outside the data part is the file's own: the parsed input with
+  // only the data part's value swapped for the one the save rebuilt, laid out as the save
+  // lays out (MATLAB's tab). Asserted on the whole text, so a part out of its place, or a
+  // key the save added or dropped around the data part, is a byte difference.
+  const withDataPartOf = (input: string, text: string): string => {
+    const read = JSON.parse(input) as Json;
+    partsOf(read)['__MW_TEXT_PART__/data/chunk0'] = partsOf(JSON.parse(text))['__MW_TEXT_PART__/data/chunk0'];
+    return JSON.stringify(read, null, '\t');
+  };
+
+  it('saves arch.sldd, untouched, with every part in its place as it was read', () => {
+    // MATLAB-written and tab-indented, the layout the save writes, so every byte outside
+    // the data part is the file's: all three parts, in their order.
+    const input = textOf('arch.sldd');
+    const { text } = saved('arch.sldd');
+    expect(Object.keys(partsOf(JSON.parse(text)))).toEqual([
+      '__MW_TEXT_PART__/data/chunk0',
+      '__MW_TEXT_PART__/simulink/ArchitecturePart',
+      '__MW_TEXT_PART__/simulink/systemcomposer/interfaceDictionary',
+    ]);
+    expect(text).toBe(withDataPartOf(input, text));
+    expect(JSON.stringify(JSON.parse(input), null, '\t')).toBe(input);
+  });
+
+  it('saves arch_binary_as_text.sldd, untouched, with every part in its place as it was read', () => {
+    // Laid out with one SPACE a level rather than MATLAB's tab, so the save cannot be its
+    // bytes; what it keeps is the input's own content around the data part, in order.
+    const input = textOf('arch_binary_as_text.sldd');
+    const { text } = saved('arch_binary_as_text.sldd');
+    expect(Object.keys(partsOf(JSON.parse(text)))).toEqual([
+      '__MW_TEXT_PART__/data/chunk0',
+      '__MW_TEXT_PART__/simulink/systemcomposer/interfaceDictionary',
+    ]);
+    expect(text).toBe(withDataPartOf(input, text));
+  });
+
+  it('reopens a saved struct type as a struct type', () => {
+    for (const file of ['arch.sldd', 'arch_binary_as_text.sldd']) {
+      const { text, src } = saved(file);
+      expect(kindsOf(src).StructType, file).toBe('Struct Type');
+      expect(kindsOf(reopen(text, file)), file).toEqual(kindsOf(src));
+    }
+  });
+
+  it('carries an edit into the data part and leaves the other parts as they were read', () => {
+    const { s, src } = load('arch.sldd');
+    const entry = (src.flatten() as { id: string; name: string; isEntry?: boolean }[])
+      .find((n) => n.isEntry && n.name === 'Constant')!;
+    s.setActive(src as never, entry as never);
+    expect(s.editProperty(entry.id, 'Name', 'ConstantRenamed')).toBe(true);
+
+    const out = s.serializeSource('arch.sldd')!;
+    const written = partsOf(JSON.parse(out.kind === 'text' ? out.text : '{}'));
+    const read = partsOf(JSON.parse(textOf('arch.sldd')));
+    expect(Object.keys(written)).toEqual(Object.keys(read));
+    expect(written['__MW_TEXT_PART__/simulink/ArchitecturePart'])
+      .toEqual(read['__MW_TEXT_PART__/simulink/ArchitecturePart']);
+    expect(written['__MW_TEXT_PART__/simulink/systemcomposer/interfaceDictionary'])
+      .toEqual(read['__MW_TEXT_PART__/simulink/systemcomposer/interfaceDictionary']);
+    expect(entryNames(SlddNode.parse(JSON.parse(out.kind === 'text' ? out.text : '{}'), 'again.sldd')))
+      .toContain('ConstantRenamed');
+  });
+});
+
+// The catalog keys its definitions by entry NAME, so a renamed architectural entry has to
+// be renamed in the catalog part too, or it reopens as its raw class (a struct type as a
+// data interface). The save carries the rename into the part as read, changing only the
+// renamed definitions' own name sites, which is what the binary save does for its member.
+describe('a textual .sldd save carries a rename into the System Composer catalog', () => {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  type Json = Record<string, any>;
+  const SC = '__MW_TEXT_PART__/simulink/systemcomposer/interfaceDictionary';
+  const textOf = (name: string): string => readFileSync(fixture(name), 'utf8');
+  const catalogOf = (text: string): Json => JSON.parse(text).__MW_TEXT_PARTS__[SC];
+  const entriesOf = (root: any): any[] => root.children.flatMap((s: any) => s.children);
+  const named = (root: any, name: string): any => entriesOf(root).find((e: any) => e.name === name);
+  const kindsOf = (root: any): Record<string, string> =>
+    Object.fromEntries(entriesOf(root).map((e: any) => [e.name, e.kind]));
+  const savedText = (s: any, file: string): string => {
+    const out = s.serializeSource(file)!;
+    expect(out.kind).toBe('text');
+    return out.text;
+  };
+  const reopen = (text: string, file: string): any =>
+    ingest(createSession(), new TextEncoder().encode(text).buffer as ArrayBuffer, { filename: file });
+  /** The catalog part as the host's in-place rename writes it: each rename applied in turn. */
+  const patched = (text: string, renames: [string, string][]): Json =>
+    catalogOf(renames.reduce((t, [from, to]) => applyScEdits(t, scRenameEdits(scanScJsonText(t), from, to)), text));
+
+  for (const file of ['arch.sldd', 'arch_binary_as_text.sldd']) {
+    it(`${file}: a struct type renamed reopens as a struct type under its new name`, () => {
+      const { s, src } = load(file);
+      expect(named(src, 'StructType').setProperty('Name', 'StructTypeRenamed')).toBe(true);
+      const text = savedText(s, file);
+      expect(catalogOf(text)).toEqual(patched(textOf(file), [['StructType', 'StructTypeRenamed']]));
+      const again = reopen(text, file);
+      expect(kindsOf(again)).toEqual(kindsOf(src));
+      expect(kindsOf(again).StructTypeRenamed).toBe('Struct Type');
+    });
+  }
+
+  it('a value type renamed moves its definition and its own descriptor, not an element that shares the name', () => {
+    const file = 'arch_binary_as_text.sldd';
+    const { s, src } = load(file);
+    expect(named(src, 'ValueType').setProperty('Name', 'VT2')).toBe(true);
+    const text = savedText(s, file);
+    expect(catalogOf(text)).toEqual(patched(textOf(file), [['ValueType', 'VT2']]));
+    const part = JSON.stringify(catalogOf(text));
+    expect(part.match(/"p_Name":"VT2"/g)).toHaveLength(2);
+    // DataInterface's element is named after the value type it references, and stays so.
+    expect(part.match(/"p_Name":"ValueType"/g)).toHaveLength(1);
+  });
+
+  it('a rename undone, a chain and a swap write what the names are at the save', () => {
+    const file = 'arch_binary_as_text.sldd';
+    const before = textOf(file);
+    const { s, src } = load(file);
+    s.setActiveContext(src as never);
+
+    named(src, 'StructType').setProperty('Name', 'CompA');
+    named(src, 'CompA').setProperty('Name', 'StructType');
+    expect(catalogOf(savedText(s, file))).toEqual(catalogOf(before));
+
+    named(src, 'StructType').setProperty('Name', 'CompA');
+    named(src, 'CompA').setProperty('Name', 'CompB');
+    expect(catalogOf(savedText(s, file))).toEqual(patched(before, [['StructType', 'CompB']]));
+
+    named(src, 'NumericType').setProperty('Name', 'Tmp');
+    named(src, 'CompB').setProperty('Name', 'NumericType');
+    named(src, 'Tmp').setProperty('Name', 'StructType');
+    expect(catalogOf(savedText(s, file))).toEqual(
+      patched(before, [['StructType', 'Tmp'], ['NumericType', 'StructType'], ['Tmp', 'NumericType']]),
+    );
+    expect(kindsOf(reopen(savedText(s, file), file))).toEqual(kindsOf(src));
+  });
+
+  it('a rename the catalog does not know leaves the part as read', () => {
+    const file = 'arch_binary_as_text.sldd';
+    const { s, src } = load(file);
+    expect(named(src, 'DataInterface').children[0].setProperty('Name', 'Elem2')).toBe(true);
+    expect(catalogOf(savedText(s, file))).toEqual(catalogOf(textOf(file)));
+  });
+
+  it('agrees with the compressed-binary save of the same rename', () => {
+    const txt = load('arch_binary_as_text.sldd');
+    const bin = load('arch_binary.sldd');
+    expect(named(txt.src, 'DataInterface').setProperty('Name', 'Bus1')).toBe(true);
+    expect(named(bin.src, 'DataInterface').setProperty('Name', 'Bus1')).toBe(true);
+    const fromText = reopen(savedText(txt.s, 'arch_binary_as_text.sldd'), 'arch_binary_as_text.sldd');
+    const out = bin.s.serializeSource('arch_binary.sldd')!;
+    const zipped = out.kind === 'binary' ? out.bytes : new Uint8Array();
+    const fromBinary: any = ingest(createSession(), zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer, { filename: 'arch_binary.sldd' });
+    expect(fromText.systemComposer).toEqual(fromBinary.systemComposer);
+    expect(kindsOf(fromText)).toEqual(kindsOf(fromBinary));
+    expect(kindsOf(fromText).Bus1).toBe('Data Interface');
+  });
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 });

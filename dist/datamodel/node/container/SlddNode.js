@@ -18,6 +18,28 @@ const SECTION_DEFS = [
     { key: 'config', label: 'Configurations', icon: 'databaseFolderConfiguration' },
     { key: 'other', label: 'Other Data', icon: 'databaseFolder' }
 ];
+// The object at `key`, if it is one, so a part of the wrong shape is written back as read
+// rather than spread into.
+function objectAt(bag, key) {
+    const value = bag ? bag[key] : undefined;
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? value
+        : null;
+}
+// The textual dictionary around its data part, as `TextParts` says. `slddChunkContent`'s
+// path, one level at a time, so the slots kept are the ones the entries were read from.
+function readTextParts(json) {
+    const parts = objectAt(json, TEXT_PARTS);
+    const dataPart = objectAt(parts, DATA_PART_KEY);
+    const content = objectAt(dataPart, TEXT_CONTENT);
+    const without = (bag, key) => bag && { ...bag, [key]: null };
+    return {
+        top: without(json, TEXT_PARTS),
+        parts: parts && dataPart ? without(parts, DATA_PART_KEY) : parts,
+        dataPart: dataPart && content ? without(dataPart, TEXT_CONTENT) : dataPart,
+        content: content && { ...content, entries: null },
+    };
+}
 // The catalog vocabulary — the part path, the type map, the classification rule —
 // lives in the parser module both dictionary formats read it through (ScCatalog), so
 // a textual and a compressed-binary dictionary cannot classify the same entry
@@ -32,6 +54,7 @@ export default class SlddNode extends ContainerNode {
         this.sourceFormat = 'json';
         this.rawXml = null;
         this._zipMetadata = null;
+        this._textParts = null;
         this._dataSourceAttrs = null;
         this.systemComposer = null;
         SECTION_DEFS.forEach((def) => {
@@ -105,6 +128,9 @@ export default class SlddNode extends ContainerNode {
             if (frame && frame.xml === node.rawXml) {
                 attachChunkFrame(node, frame);
             }
+        }
+        else {
+            node._textParts = readTextParts(json);
         }
         // `TEXT_PARTS`, not the literal: `serializeJson` below WRITES this bag through the
         // constant, and a reader in the same file spelling it by hand is the two-copies-of-
@@ -279,11 +305,19 @@ export default class SlddNode extends ContainerNode {
                 entries.push(entryNode.serialize());
             });
         });
+        // A textual dictionary is written back as it was read, every part in its place,
+        // with only the data part rebuilt (`TextParts`). One that was not read as text —
+        // a binary package, or a dictionary made here — has nothing else to keep.
+        const kept = this._textParts;
         return {
+            ...kept?.top,
             __MW_TEXT_COREPROPERTIES__: this.coreProperties,
             [TEXT_PARTS]: {
+                ...kept?.parts,
                 [DATA_PART_KEY]: {
+                    ...kept?.dataPart,
                     [TEXT_CONTENT]: {
+                        ...kept?.content,
                         entries,
                         'Dictionary References': this.dictionaryReferences,
                         AllowAccessBWS: this.allowAccessBWS

@@ -156,13 +156,15 @@ export { scanModelStructure } from './datamodel/parser/ModelStructureScan.js';
 export { DATA_PART, DATA_PART_XML, DATA_PART_KEY, TEXT_PARTS, TEXT_CONTENT } from './datamodel/parser/SlddParts.js';
 // The System Composer catalog: what says a `Simulink.Bus` is a struct type rather than
 // a data interface. It is a SEPARATE part of the dictionary that references its entries
-// BY NAME, so a host that renames a catalogued entry has to carry the rename into that
-// part or the entry silently loses its classification on the next read — and the part is
-// stored two ways (a JSON object in a textual `.sldd`, a zipped MF0 XML member in a
-// compressed-binary one), so the carry needs one rule and two readers. Public because
-// the rename happens in the HOST: it owns the open document's text and the zip members,
-// and this package cannot splice either for it. `classificationOf` is the read side, for
-// a consumer that wants an entry's System Composer type without walking the tree.
+// BY NAME, so a rename of a catalogued entry has to be carried into that part or the
+// entry silently loses its classification on the next read — and the part is stored two
+// ways (a JSON object in a textual `.sldd`, a zipped MF0 XML member in a compressed-binary
+// one), so the carry needs one rule and two readers. `session.serializeSource` carries it
+// in either format, writing every part back as read. These stay public for a host that
+// does not save through it and edits its open document in place instead (vscode's JSON
+// editor splices the open text, so a rename is one undo step): that host carries the
+// rename itself, with the same scan and the same edits. `classificationOf` is the read
+// side, for a consumer that wants an entry's System Composer type without walking the tree.
 export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogFromDefinitions, classificationOf, scRenameEdits, scanScJsonText, scanScXml, } from './datamodel/parser/ScCatalog.js';
 // Usage across a SET OF FILES rather than across a session — which blocks refer to a
 // definition, and where a block parameter's names resolve, over files a caller has read
