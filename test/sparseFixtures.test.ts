@@ -445,6 +445,18 @@ function elementAt(node: any, r: number, c: number): any {
   return row;
 }
 
+// A text dictionary's sparse array is a MAT stream, which is shown and not edited there (the
+// C-012 ruling, 2026-10-15): an edit of it is refused. The writers below are graded on the same
+// stream read in no file, where it edits.
+function textInNoFile(design: any, name: string): any {
+  const entry = design.children.find((e: any) => e.name === name);
+  expect(entry.setProperty('Value', '1'), name).toMatchObject({ error: true });
+  for (const row of entry.children) {
+    expect(row.setProperty('Value', row.displayValue), `${name} ${row.displayName}`).toMatchObject({ error: true });
+  }
+  return MatlabVariableNode.parseCdata(entry.serializeValue() as Record<string, unknown>, name, null);
+}
+
 describe('an edited sparse array is written in a form MATLAB reads back as itself', () => {
   it('in a text dictionary, an element set to the value it holds writes MATLAB\'s own stream back', () => {
     // An edited sparse array is the stream of its non-zeros MATLAB writes for one
@@ -459,11 +471,11 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     // bytes.
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
     for (const [name, r, c] of ELEMENT_EDITS.filter(([n]) => n !== 'spComplex')) {
-      const node = design.children.find((e: any) => e.name === name);
+      const node = textInNoFile(design, name);
       const el = elementAt(node, r, c);
       expect(el.setProperty('Value', el.displayValue), name).toBe(true);
       expect(node._rawInput, `${name} is edited`).toBeUndefined();
-      expect(JSON.parse(JSON.stringify(node.serialize())).value, name).toEqual(textRaw(name));
+      expect(JSON.parse(JSON.stringify(node.serializeValue())), name).toEqual(textRaw(name));
     }
   });
 
@@ -472,10 +484,10 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     // non-zeros. -0 and 0 are one, as MATLAB's isequaln has them (see the test above).
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
     for (const [name, r, c, text, want] of ELEMENT_EDITS) {
-      const node = design.children.find((e: any) => e.name === name);
+      const node = textInNoFile(design, name);
       const before = streamVariable(textRaw(name));
       expect(elementAt(node, r, c).setProperty('Value', text), name).toBe(true);
-      const v = streamVariable(JSON.parse(JSON.stringify(node.serialize())).value);
+      const v = streamVariable(JSON.parse(JSON.stringify(node.serializeValue())));
       expect([v.isSparse, v.className, v.dimensions, v.isComplex], name).toEqual([true, before.className, before.dimensions, before.isComplex]);
       expect(entriesOf(v.sparse), name).toEqual(editedEntries(before.sparse, r, c, want));
     }
@@ -485,10 +497,10 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     // `x = [1 2 3]` is full in MATLAB whatever x was, so the node stops being sparse: the
     // stream it would otherwise write is a different variable.
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
-    const spRow = design.children.find((e: any) => e.name === 'spRow');
+    const spRow = textInNoFile(design, 'spRow');
     expect(spRow.setProperty('Value', '[1 2 3]')).toBe(true);
     expect(spRow.isSparse).toBe(false);
-    expect(JSON.parse(JSON.stringify(spRow.serialize())).value).toEqual([1, 2, 3]);
+    expect(JSON.parse(JSON.stringify(spRow.serializeValue()))).toEqual([1, 2, 3]);
   });
 
   it('in a text dictionary, a renamed entry is written as it was read, whatever it holds', () => {
@@ -567,7 +579,7 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     // it is a char, and is shown as one.
     for (const file of ['../fixtures/sparse/sparse_values.mat', '../fixtures/sparse/sparse_text.sldd']) {
       const root = loadFile(file);
-      const spTall = (file.endsWith('.mat') ? root : root.getSection('design')).children.find((e: any) => e.name === 'spTall');
+      const spTall = file.endsWith('.mat') ? root.children.find((e: any) => e.name === 'spTall') : textInNoFile(root.getSection('design'), 'spTall');
       expect(spTall.displayValue, file).toBe('<10000000x2 sparse double>');
       expect(spTall.setProperty('Value', "'abc'"), file).toBe(true);
       expect([spTall.displayValue, spTall.className, spTall.isSparse, spTall.serializeValue()], file).toEqual(["'abc'", 'char', false, 'abc']);
@@ -598,7 +610,7 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     // segfault (measured, R2027a); the full array XML can spell is a different variable.
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
     for (const [name, r, c, text, want] of ELEMENT_EDITS) {
-      const node = design.children.find((e: any) => e.name === name);
+      const node = textInNoFile(design, name);
       expect(elementAt(node, r, c).setProperty('Value', text), name).toBe(true);
       const xml = node.serializeXml('P', { Name: 'Value' }, 2);
       expect(xml, name).not.toContain('sparse');
@@ -678,8 +690,9 @@ describe('a sparse array\'s rows are its non-zeros, and it has no Variable Edito
       for (const [path, node] of sparseValues(venue, venue.variables())) {
         expect([node.canAddChild(), node.canRemoveChild(), node.valueEditable], path).toEqual([false, false, false]);
         for (const row of node.children) {
-          // Hex-backed values are read-only through and through; the rest edit as before.
-          expect(row.valueEditable, `${path} ${row.displayName}`).toBe(venue.name !== 'binary');
+          // Hex-backed values are read-only through and through, and so are a text dictionary's
+          // MAT streams (the C-012 ruling, 2026-10-15); the rest edit as before.
+          expect(row.valueEditable, `${path} ${row.displayName}`).toBe(venue.name !== 'binary' && venue.name !== 'text');
         }
       }
     });
@@ -738,7 +751,7 @@ describe('a sparse array\'s rows are its non-zeros, and it has no Variable Edito
     // they fall back to when MatWriter refuses one (a class or a rank MATLAB never stores
     // sparse), and they lay its elements out from its non-zeros.
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
-    const spDiag = design.children.find((e: any) => e.name === 'spDiag');
+    const spDiag = textInNoFile(design, 'spDiag');
     expect(elementAt(spDiag, 3, 3).setProperty('Value', '42')).toBe(true);
     const expected = Array.from({ length: 100 }, (_, i) => (i % 11 === 0 ? (i === 22 ? 42 : i / 11 + 1) : 0));
     const literal = spDiag._serializeArray();
@@ -754,7 +767,7 @@ describe('a sparse array\'s rows are its non-zeros, and it has no Variable Edito
     // Column-major, as XML is.
     expect(body).toEqual(Array.from({ length: 100 }, (_, k) => expected[(k % 10) * 10 + Math.floor(k / 10)]));
     // A vector, which the literal spells as a bare list, and one with no rows at all.
-    const spRow = design.children.find((e: any) => e.name === 'spRow');
+    const spRow = textInNoFile(design, 'spRow');
     expect(elementAt(spRow, 1, 4).setProperty('Value', '7')).toBe(true);
     expect(spRow._serializeArray()).toEqual([0, 2, 0, 7, 0]);
     const spAllZero = design.children.find((e: any) => e.name === 'spAllZero');
@@ -763,7 +776,7 @@ describe('a sparse array\'s rows are its non-zeros, and it has no Variable Edito
     expect([zero._dims, zero.isSparse, entriesOf(zero._sparse)]).toEqual([[3, 4], true, []]);
     // And a complex one is still complex when every non-zero is set to a real number: its
     // non-zeros still carry their (zero) imaginary parts.
-    const spComplex = design.children.find((e: any) => e.name === 'spComplex');
+    const spComplex = textInNoFile(design, 'spComplex');
     for (const [r, c] of [[1, 1], [3, 1], [2, 3], [1, 4]]) {
       expect(elementAt(spComplex, r, c).setProperty('Value', '1')).toBe(true);
     }

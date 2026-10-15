@@ -141,7 +141,8 @@ export declare function heldByTextDictionary(value: unknown): void;
 /**
  * A value as an uncompressed-text dictionary must hold it: every complex value in its
  * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there, a
- * binary dictionary's dense empty too, and everything else as it was. A copy wherever
+ * binary dictionary's dense empty too, and a real rank >= 3 `Matrix(…)` literal
+ * (matrixLiteralVariable), and everything else as it was. A copy wherever
  * something changed, so the bag a node replays is never touched; the same object where
  * nothing did.
  *

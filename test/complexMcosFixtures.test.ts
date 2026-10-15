@@ -411,6 +411,17 @@ describe('every nested object presents exactly as its top-level twin', () => {
 // A container is left to the summaries below: how a struct or a cell of objects
 // summarizes itself differs by venue for reasons that are not about complex numbers. A
 // value PINNED in either venue is compared through its pins instead.
+// The one way a text dictionary's value may present otherwise than the .mat's: it is a MAT
+// stream, which is shown and not edited there (the C-012 ruling, 2026-10-15). So for it every
+// valueEditable is false, and what else it presents is compared with that taken out.
+const EDITABLE_KEYS = new Set(['valueEditable', '_valueEditable']);
+const editableIn = (p: unknown): unknown[] => {
+  const seen: unknown[] = [];
+  JSON.stringify(p, (k, v) => (EDITABLE_KEYS.has(k) ? (seen.push(v), undefined) : v));
+  return seen;
+};
+const withoutEditable = (p: unknown): unknown => JSON.parse(JSON.stringify(p, (k, v) => (EDITABLE_KEYS.has(k) ? undefined : v)));
+
 describe('every value presents the same in the .mat as in each other venue that holds it', () => {
   const mat = MAT.variables();
   for (const fx of FIXTURES.slice(1)) {
@@ -436,16 +447,19 @@ describe('every value presents the same in the .mat as in each other venue that 
         }
         const a = nodeAt(mat, path);
         const b = nodeAt(variables, path);
+        const text = fx.file === 'complex.sldd';
+        const shown = (n: any) => (text ? withoutEditable(presentation(n, n.displayName)) : presentation(n, n.displayName));
+        if (text) {
+          expect(editableIn(presentation(b, b.displayName)), `${path}: a MAT stream, display-only`).not.toContain(true);
+        }
         if (pins.some(Boolean)) {
           // A pinned venue is held to its pin, and an unpinned one has been graded against
           // MATLAB above; what is left to say is that the pin is still needed.
           [a, b].forEach((n, i) => pins[i] && expect(n.displayValue, path).toBe(pins[i]![2]));
-          expect(presentation(b, b.displayName), `${path}: pinned, and no longer different`).not.toEqual(
-            presentation(a, a.displayName),
-          );
+          expect(shown(b), `${path}: pinned, and no longer different`).not.toEqual(shown(a));
           return;
         }
-        expect(presentation(b, b.displayName)).toEqual(presentation(a, a.displayName));
+        expect(shown(b)).toEqual(shown(a));
       });
     }
   }

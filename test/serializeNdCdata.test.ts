@@ -39,7 +39,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { loadFile, findEntry } from './parity/loadFile.js';
+import { loadFile, findEntry, bytesOf } from './parity/loadFile.js';
+import { createSession } from '../src/index.js';
+import { ingest } from '../src/core/ingest.js';
+import { formatMatrixSerial } from '../src/datamodel/parser/XmlUtils.js';
+import { MatWriteError } from '../src/datamodel/parser/MatWriter.js';
+import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import DataNode from '../src/datamodel/node/DataNode.js';
 import NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import { isMatCdata } from '../src/datamodel/parser/CdataCodec.js';
@@ -265,10 +270,15 @@ describe('an edit to one element of an N-D value survives the round trip', () =>
   const REST = ['2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 
   function edited(name: string, label: string, deep: boolean): any {
-    const n: any = findEntry(loadFile('./artifacts/text/cases.sldd', 'cases.sldd'), name);
-    const cell = n.children.find((c: any) => c.displayName === label);
+    const entry: any = findEntry(loadFile('./artifacts/text/cases.sldd', 'cases.sldd'), name);
+    // In the text dictionary the value is a MAT stream, which is shown and not edited (the
+    // C-012 ruling, 2026-10-15). The writer is graded on the same value in no file.
+    const at = (n: any) => n.children.find((c: any) => c.displayName === label);
+    expect((deep ? at(entry).children[0] : at(entry)).setProperty('Value', '99')).toMatchObject({ error: true });
+    const n: any = NodeRegistry.parseValue(entry.serializeValue(), name, null);
+    const cell = at(n);
     expect(cell, 'no child labelled ' + label).toBeTruthy();
-    (deep ? cell.children[0] : cell).setProperty('Value', '99');
+    expect((deep ? cell.children[0] : cell).setProperty('Value', '99')).toBe(true);
     const out = n.serializeValue() as any;
     expect(out._type).toBe('cdata');
     return NodeRegistry.parseValue(out, name, null);
@@ -301,5 +311,133 @@ describe('an edit to one element of an N-D value survives the round trip', () =>
     expect(back.displayValue).toBe('<2x3x2 struct>');
     expect(back.children[0].children[0].name).toBe('a');
     expect(back.children.map((c: any) => c.children[0].displayValue)).toEqual(['99', ...REST]);
+  });
+});
+
+describe('a rank >= 3 literal pasted out of a binary dictionary is written as the cdata MATLAB wrote (C-240)', () => {
+  // A binary dictionary's reader holds a real N-D numeric value as the typed literal
+  // `Matrix(2,3,2)\n[[...]]` (BinarySlddParser.formatMatrix), which MATLAB reads out of a
+  // TEXT dictionary as an empty 1x0. Pasted into a text dictionary it went in as that
+  // literal; it goes in as the stream MATLAB writes there, at the leaf, wherever it stands.
+  // Each pair below is MATLAB's own: the same value in a binary dictionary and its text twin.
+  const TWINS: { from: string; into: string; name: string }[] = [
+    { from: '../fixtures/nd_binary.sldd', into: '../fixtures/nd_text.sldd', name: 'A' },
+    { from: './artifacts/binary/cases.sldd', into: './artifacts/text/cases.sldd', name: 'nd2x3x2' },
+    { from: '../fixtures/char_binary.sldd', into: '../fixtures/char_text.sldd', name: 'ndDouble' },
+    { from: '../fixtures/cellarr_binary.sldd', into: '../fixtures/cellarr_text.sldd', name: 'cNd' },
+  ];
+  const fileOf = (rel: string) => rel.split('/').pop() as string;
+  const textEntries = (rel: string) => rawEntries((rel.startsWith('./') ? './parity/' + rel.slice(2) : rel.slice(1)));
+  /** What a host copies of an entry: its serialize() value, through JSON. */
+  const copyOf = (rel: string, name: string) => JSON.parse(JSON.stringify(findEntry(loadFile(rel, fileOf(rel)), name).serialize().value));
+  /** A text dictionary, opened as a host opens one. */
+  const open = (rel: string) => {
+    const session = createSession();
+    const root: any = ingest(session, bytesOf(rel), { filename: fileOf(rel) });
+    return { session, root, design: root.getSection('design') };
+  };
+  const pasteInto = (d: ReturnType<typeof open>, value: unknown, name = 'pasted') =>
+    d.design.parseEntry({ name, metadata: { uuid: '00000000-0000-4000-ec24-000000000001' }, value });
+
+  for (const t of TWINS) {
+    it(`${fileOf(t.from)} ${t.name}: the paste, its copy and the save are MATLAB's own value for it`, () => {
+      const copied = copyOf(t.from, t.name);
+      // The binary side's form, so the case is the one the ruling is about.
+      expect(JSON.stringify(copied)).toMatch(/Matrix\(2,3,2\)\\n\[\[/);
+      const own = textEntries(t.into).find((e) => e.name === t.name)!.value;
+      const d = open(t.into);
+      const node = pasteInto(d, copied);
+      expect(node.serialize().value).toEqual(own);
+      const saved = JSON.parse(d.session.serializeSource(d.root.name)!.text!);
+      const entries = saved.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+      expect(entries.find((e: any) => e.name === 'pasted').value).toEqual(own);
+    });
+  }
+
+  // The classes the binary fixtures do not carry at rank 3, in the binary reader's own
+  // spelling of each (XmlUtils.formatMatrixSerial, which BinarySlddParser.formatMatrix
+  // writes): the F and U suffixes, a logical's 0 and 1.
+  for (const name of ['ndInt32', 'ndSingle', 'ndUint64', 'ndLogical', 'ndDouble']) {
+    it(`${name} in the binary reader's literal: pasted, it is the stream MATLAB wrote for it`, () => {
+      const v = findEntry(loadFile('../fixtures/nd_rich.sldd', 'nd_rich.sldd'), name)._var;
+      const type = v.isLogical ? 'logical' : v.className;
+      const literal = { _type: type, _value: formatMatrixSerial(v.value, v.dimensions, type) };
+      expect(literal._value.startsWith('Matrix(2,')).toBe(true);
+      const own = RICH.find((e) => e.name === name)!.value;
+      expect(pasteInto(open('../fixtures/nd_rich.sldd'), literal).serialize().value).toEqual(own);
+    });
+  }
+
+  it('a text dictionary\'s own rank-3 literal, which only an older version of this package wrote, is saved as its stream', () => {
+    const own = textEntries('../fixtures/nd_text.sldd').find((e) => e.name === 'A')!.value;
+    const literal = copyOf('../fixtures/nd_binary.sldd', 'A');
+    const json = JSON.parse(new TextDecoder().decode(bytesOf('../fixtures/nd_text.sldd')));
+    json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'A').value = literal;
+    const session = createSession();
+    const root: any = ingest(session, new TextEncoder().encode(JSON.stringify(json)).buffer as ArrayBuffer, { filename: 'nd_text.sldd' });
+    const saved = JSON.parse(session.serializeSource(root.name)!.text!);
+    expect(saved.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'A').value).toEqual(own);
+  });
+
+  it('the controls: a rank-2 literal, a literal whose count is not its size, and one with trailing singletons only stay as they are', () => {
+    const d = open('../fixtures/nd_text.sldd');
+    for (const value of [
+      { _type: 'double', _value: 'Matrix(2,3)\n[[1.0, 2.0, 3.0]; [4.0, 5.0, 6.0]]' },
+      { _type: 'double', _value: 'Matrix(2,3,2)\n[[1.0, 2.0, 3.0]; [4.0, 5.0, 6.0]]' },
+      { _type: 'double', _value: 'Matrix(2,3,1)\n[[1.0, 2.0, 3.0]; [4.0, 5.0, 6.0]]' },
+    ]) {
+      expect(pasteInto(d, value).serialize().value).toEqual(value);
+    }
+  });
+});
+
+describe('an N-D value MatWriter cannot write as a stream is refused in a text dictionary, not written in the rank-2 form (C-240)', () => {
+  // A text dictionary has no spelling for a rank >= 3 value but its MAT stream. One MatWriter
+  // cannot encode — a cell or a struct array holding a MATLAB string, which is an MCOS object
+  // it has no writer for — fell back to the Cell or Struct bag with N-D `_dimensions`, a form
+  // MATLAB was never measured reading. The save and the copy are refused instead, naming the
+  // entry and the reason; a binary dictionary, whose XML spells the value element by element,
+  // writes it as before.
+  const fileOf = (rel: string) => rel.split('/').pop() as string;
+  const open = (rel: string) => {
+    const session = createSession();
+    const root: any = ingest(session, bytesOf(rel), { filename: fileOf(rel) });
+    return { session, root, design: root.getSection('design') };
+  };
+  const copyOf = (rel: string, name: string) => JSON.parse(JSON.stringify(findEntry(loadFile(rel, fileOf(rel)), name).serialize().value));
+  const thrown = (f: () => unknown): Error | null => {
+    try {
+      f();
+      return null;
+    } catch (e) {
+      return e as Error;
+    }
+  };
+  /** nd_binary.sldd's 2x2x2 cell C of doubles, pasted into `into` and one element edited to `typed`. */
+  const pastedAndEdited = (into: string, typed: string) => {
+    const d = open(into);
+    const node = d.design.parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ec24-000000000002' }, value: copyOf('../fixtures/nd_binary.sldd', 'C') });
+    const element = node.children.find((c: any) => c.displayName === 'pasted{1,1,1}');
+    expect(element, 'no element pasted{1,1,1}').toBeTruthy();
+    expect(element.setProperty('Value', typed)).toBe(true);
+    return { ...d, node };
+  };
+  const REFUSAL = 'Cannot write "pasted": pasted is a 2x2x2 cell, which a text dictionary holds only as its MAT stream, and that stream cannot be written: no MAT class for "string". Nothing was written.';
+
+  it('an element of a pasted N-D cell edited to a string: its copy and the save are refused, naming the entry and the reason', () => {
+    const d = pastedAndEdited('../fixtures/nd_text.sldd', '"str"');
+    const copy = thrown(() => d.node.serialize());
+    expect([copy?.name, copy?.message]).toEqual(['MatWriteError', REFUSAL]);
+    expect(copy).toBeInstanceOf(MatWriteError);
+    const save = thrown(() => d.session.serializeSource(d.root.name));
+    expect([save?.name, save?.message]).toEqual(['MatWriteError', REFUSAL]);
+  });
+
+  it('the controls: the same element edited to a number is the stream; the string edit in a binary dictionary writes its XML', () => {
+    const number = pastedAndEdited('../fixtures/nd_text.sldd', '99');
+    expect(isMatCdata(number.node.serialize().value)).toBe(true);
+    const binary = pastedAndEdited('../fixtures/nd_binary.sldd', '"str"');
+    expect(thrown(() => serializeEntryToXml(binary.node))).toBeNull();
+    expect(thrown(() => binary.session.serializeSource(binary.root.name))).toBeNull();
   });
 });

@@ -19,7 +19,7 @@ import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
 import { dimsText, isSize, isStreamSize } from '../../parser/Size.js';
-import { classPhrase, encodeMatStream, MatBudgetError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
+import { classPhrase, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { charNeedsShape, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, } from '../../parser/XmlUtils.js';
@@ -115,6 +115,30 @@ function holdsMcosObject(variable) {
 function matlabClassOf(variable) {
     return variable.isLogical ? 'logical' : variable.className;
 }
+/**
+ * The shape of the value a node holds. The class of a complex value is its own
+ * (_complexClass), not the 'double' its className reports for a complex scalar; any node but a
+ * MATLAB value (a struct) is its class and its size.
+ */
+function shapeOf(node) {
+    if (node instanceof MatlabVariableNode) {
+        const complex = node._isComplexValue();
+        return { cls: complex ? node._complexClass() : node.className, complex, dims: node.dims };
+    }
+    return { cls: node.className, complex: false, dims: node.dims ?? [1, 1] };
+}
+/** Do two values agree as MATLAB requires across an array of structures (_differsFromTwinsAfter)? */
+function sameShape(a, b) {
+    if (a.cls !== b.cls || a.complex !== b.complex) {
+        return false;
+    }
+    if (a.cls === 'char') {
+        return true;
+    }
+    const da = effectiveDims(a.dims);
+    const db = effectiveDims(b.dims);
+    return da.length === db.length && da.every((d, i) => d === db[i]);
+}
 export default class MatlabVariableNode extends DataNode {
     constructor(name, parent, serial) {
         super(name, parent, serial);
@@ -135,6 +159,8 @@ export default class MatlabVariableNode extends DataNode {
         this._mcosValue = undefined;
         this._mcosDimensions = null;
         this._preCollapseDims = null;
+        this._preCollapseType = null;
+        this._collapsedClass = null;
         this._elementType = null;
     }
     // ---- Display: what the table columns show ----
@@ -330,6 +356,10 @@ export default class MatlabVariableNode extends DataNode {
     }
     get valueEditable() {
         if (this._isOpaque) {
+            return false;
+        }
+        // A value read from a MAT stream, or a row under one, is shown and not edited.
+        if (this._streamHolder()) {
             return false;
         }
         // An ELEMENT of an opaque value is as read-only as the value: a decoded `string`
@@ -746,6 +776,11 @@ export default class MatlabVariableNode extends DataNode {
             return encodedRefusal;
         }
         if (propName === 'Value') {
+            // The cell valueEditable withholds for a value read from a MAT stream is refused here too.
+            const streamRefusal = this._refuseStreamEdit(stringValue);
+            if (streamRefusal) {
+                return streamRefusal;
+            }
             if (this._scalarType === 'function_handle') {
                 return {
                     error: true,
@@ -776,6 +811,12 @@ export default class MatlabVariableNode extends DataNode {
                     invalidValue: stringValue,
                     validValue: this.displayValue,
                 };
+            }
+            // What holds this value may refuse it: a Simulink.Parameter refuses what MATLAB refuses as
+            // its Value, and holds a field of its struct Value to the same rules (_valueHolderRefusal).
+            const holderRefusal = this._valueHolderRefusal(parsed, stringValue);
+            if (holderRefusal) {
+                return holderRefusal;
             }
             this._applyParsed(parsed);
             this._markModified();
@@ -839,6 +880,132 @@ export default class MatlabVariableNode extends DataNode {
             // As setProperty's own Value edit does: the parent's row for this node follows its shape.
             this.parent?.childStructureChanged(this);
         };
+    }
+    /**
+     * The node at or above this one that parseCdata read out of a MAT stream, when it is in a
+     * text dictionary, or null.
+     *
+     * The maintainer's ruling on C-012 (2026-10-15): editing is for a value parsed from a
+     * dictionary's XML or JSON. A value a text dictionary holds as a MAT stream is shown and not
+     * edited. MATLAB keeps a stream there only for a value its JSON cannot spell: every rank >= 3
+     * value, every complex one and a sparse array. Edited, such a value has to be
+     * written as a new stream, and MatWriter cannot write every value one can hold: an N-D cell
+     * element typed as "str" was refused ("no MAT class for string"), and `["a" "b"]` went out as
+     * the char 'ab'. Unedited, it is written as the stream it was read from.
+     *
+     * So at and under such a node the value takes no editor (valueEditable), the setter refuses
+     * it (_refuseStreamEdit, and ParameterNode for a Parameter's Value), and no row is added or
+     * removed (canAddChild, canRemoveChild). The name of the node holding the stream is outside
+     * it, so the node can still be renamed, and its entry deleted. Every node under it is a
+     * MatlabVariableNode: a stream holding an MCOS object is built otherwise
+     * (_parseCdataObjects) and is read-only by DataNode._adoptEncoded.
+     *
+     * Only in a text dictionary, which is what the ruling is about. The MCOS decoder hands over
+     * a sparse value of a .mat or a model workspace as the same stream (McosParser), and nothing
+     * edits those files; a binary dictionary keeps its own MAT streams as hex, read-only already.
+     * So a stream pasted into a binary dictionary is as editable there as it was.
+     */
+    _streamHolder() {
+        for (let n = this; n instanceof MatlabVariableNode; n = n.parent) {
+            if (n._readFromStream) {
+                return n._ownerFormat() === 'json' ? n : null;
+            }
+        }
+        return null;
+    }
+    /** The refusal of a Value edit at or under a value read from a MAT stream, or null (_streamHolder). */
+    _refuseStreamEdit(stringValue) {
+        const holder = this._streamHolder();
+        if (!holder) {
+            return null;
+        }
+        return {
+            error: true,
+            reason: `'${holder.matlabPath}' is stored as a MAT-file stream, which this editor can show but not edit, so it is read-only.`,
+            invalidValue: stringValue,
+            validValue: this.displayValue,
+        };
+    }
+    /**
+     * The refusal of a Value edit by the value this one is part of, or null. Asked of the nearest
+     * node above this one that is not a struct, so that a field of a struct, at any depth and in
+     * any element of a struct array, is answered by what holds the outermost struct: for a
+     * Parameter's struct Value, the Parameter (ParameterNode._refuseValueBelow). The Value row of a
+     * Parameter asks it too, being its Value: typed there, a cell the Parameter's own Value cell
+     * refused was taken.
+     *
+     * Asked only of a node that answers, as ParameterNode asks its value node about a stream
+     * (_refuseStreamValue): a Parameter is the one class with rules here, and naming it would
+     * import it into the class it holds.
+     */
+    _valueHolderRefusal(parsed, stringValue) {
+        let holder = this.parent;
+        while (holder && holder.className === 'struct') {
+            holder = holder.parent;
+        }
+        const refuse = holder?._refuseValueBelow;
+        return typeof refuse === 'function' ? refuse.call(holder, this, parsed, stringValue) : null;
+    }
+    /**
+     * Would the edit leave this field unlike its twin in another element of a struct array, at or
+     * below `root`? The twin is the node at the same path under the other element, and "unlike" is
+     * MATLAB's rule for a Simulink.Parameter's array of structures (probe_parameter_value.m): a
+     * field has to agree across the elements in class, in complexity and in size, except that a
+     * char field may differ in length (`struct('a', {'x', 'yz'})` is accepted). A struct array
+     * nested in a field is held to it too, at every level the path crosses.
+     *
+     * The class after the edit is the one _applyParsed gives (classAfterEdit), so a number typed
+     * into an int8 field is an int8, as the field then is.
+     */
+    _differsFromTwinsAfter(parsed, root) {
+        const after = this._shapeAfter(parsed);
+        // The names from just under `below` down to this node.
+        const path = [];
+        let below = this;
+        for (let n = this.parent; n; below = n, n = n.parent) {
+            // An element of a struct array carries its subscript (BaseNode.isElementName); a field
+            // never does. The tree's own answer, not a count of the dimensions, which a pasted value
+            // can declare as bigints no count takes.
+            if (n.className === 'struct' && below._subscript) {
+                for (const element of n.children) {
+                    if (element === below) {
+                        continue;
+                    }
+                    let twin = element;
+                    for (const name of path) {
+                        twin = twin?.children.find((c) => c.name === name);
+                    }
+                    if (twin && !sameShape(after, shapeOf(twin))) {
+                        return true;
+                    }
+                }
+            }
+            if (n === root) {
+                break;
+            }
+            path.unshift(below.name);
+        }
+        return false;
+    }
+    /** Class, complexity and size of this value once `parsed` is applied, as _applyParsed applies it. */
+    _shapeAfter(parsed) {
+        const value = parsed.value;
+        const listDims = Array.isArray(value) && value.length !== 1 ? parsed.dims : [1, 1];
+        switch (parsed.type) {
+            case 'double':
+                return { cls: classAfterEdit(this._scalarType, 'double'), complex: false, dims: listDims };
+            case 'logical':
+                return { cls: 'logical', complex: false, dims: listDims };
+            case 'complex':
+                return { cls: 'double', complex: true, dims: [1, 1] };
+            case 'string':
+                return { cls: 'string', complex: false, dims: [1, 1] };
+            case 'string-array':
+            case 'cell':
+                return { cls: parsed.type === 'cell' ? 'cell' : 'string', complex: false, dims: parsed.dims };
+            default:
+                return { cls: parsed.type, complex: false, dims: parsed.dims ?? [1, 1] };
+        }
     }
     _isConstrainedChild() {
         if (!this.parent || !(this.parent instanceof MatlabVariableNode)) {
@@ -1030,6 +1197,8 @@ export default class MatlabVariableNode extends DataNode {
         this.children = [];
         this._matVar = null;
         this._rawInput = undefined;
+        // Nor is it what a removal left of a complex array any more (_complexClass).
+        this._collapsedClass = null;
         // A value typed in whole is the full array MATLAB makes of the same literal; only an
         // element edit leaves the array sparse.
         this._sparse = null;
@@ -1249,6 +1418,10 @@ export default class MatlabVariableNode extends DataNode {
         if (this._isOpaque || this._encodedReadOnly) {
             return false;
         }
+        // Nor at or under a value read from a MAT stream, which is shown and not edited (_streamHolder).
+        if (this._streamHolder()) {
+            return false;
+        }
         // A sparse array's rows are its non-zeros, so there is no element row to add that
         // would not be one: nothing in the tree adds a non-zero. (An empty one is no
         // exception — Add turns an empty `[]` into a struct, which a sparse array is not.)
@@ -1363,7 +1536,7 @@ export default class MatlabVariableNode extends DataNode {
     }
     canRemoveChild() {
         // Read-only in both directions, as in canAddChild.
-        if (this._isOpaque || this._encodedReadOnly) {
+        if (this._isOpaque || this._encodedReadOnly || this._streamHolder()) {
             return false;
         }
         // Nor does a sparse array give one up: removing a non-zero from a vector shortens
@@ -1411,7 +1584,21 @@ export default class MatlabVariableNode extends DataNode {
                 // _scalarType is deliberately NOT touched: an int32 array whose extra
                 // elements were removed is still an int32, and hardcoding 'double' here
                 // silently reclassified it (and the XML writer then wrote Class="double").
+                //
+                // A complex array's survivor is a complex scalar, of the array's class (the F2-5
+                // ruling, 2026-10-15): x(2) = [] of int16([1+2i 3-4i]) is int16(1+2i). It was the
+                // array's type holding the element's text, written `Class="char">1+2i` for a
+                // double and `Class="int16">1` for an int16. A complex scalar's type is 'complex',
+                // so the class goes where _complexClass reads it. A survivor _isComplexValue
+                // reads as real — an element edited to a real number — stays the real scalar of
+                // the array's class it already was here, as an all-real complex array is written.
+                const complexSurvivor = this._isComplexValue();
                 this._preCollapseDims = this._dims.slice();
+                this._preCollapseType = this._elementType === 'complex' ? this._scalarType : null;
+                if (complexSurvivor) {
+                    this._collapsedClass = this._scalarType;
+                    this._scalarType = 'complex';
+                }
                 this._kind = 'scalar';
                 this._scalarValue = this._elements[0];
                 this._dims = [1, 1];
@@ -1463,12 +1650,24 @@ export default class MatlabVariableNode extends DataNode {
             // surviving element lost its child row on the way down, so rebuild it here
             // before `child` is spliced in — otherwise the array comes back one element
             // short and every row after `index` shows the wrong value.
-            const survivor = MatlabVariableNode._createScalar(this._scalarValue, elementClass(this._scalarType), '1', this);
+            //
+            // A complex array comes back as the class it was, its elements complex
+            // (_preCollapseType): the scalar it collapsed to is typed 'complex', or was edited
+            // since. Its survivor's row is complex too, unless it holds the real number an
+            // element edit made it, which is a row of the array's class (_setConstrainedValue).
+            if (this._preCollapseType !== null) {
+                this._scalarType = this._preCollapseType;
+                this._elementType = 'complex';
+                this._preCollapseType = null;
+                this._collapsedClass = null;
+            }
+            const survivorComplex = this._elementType === 'complex' && typeof this._scalarValue === 'string' && this._scalarValue.includes('i');
+            const survivor = MatlabVariableNode._createScalar(this._scalarValue, survivorComplex ? 'complex' : elementClass(this._scalarType), '1', this);
             this._kind = 'array';
             this._elements = [this._scalarValue];
             this._scalarValue = undefined;
-            // _scalarType stays as-is: the collapse preserved the array's MATLAB class on
-            // the way down (see _updateArrayAfterRemove), so re-asserting 'double' here
+            // _scalarType stays as-is otherwise: the collapse preserved the array's MATLAB class
+            // on the way down (see _updateArrayAfterRemove), so re-asserting 'double' here
             // would undo a removal by ALSO changing an int32/logical array to a double one.
             // Restore the row/column orientation the collapse discarded.
             this._dims = this._preCollapseDims ?? [1, 1];
@@ -1656,8 +1855,15 @@ export default class MatlabVariableNode extends DataNode {
         //
         // And a struct array with no element rows (_unexpandedStruct), which a struct value could
         // spell only as one element per declared element, 1e8 of them for 208 bytes of file.
-        if (this._sparse || effectiveDims(this._dims).length > 2 || this._isComplexValue() || this._unexpandedStruct()) {
-            const cdata = this._serializeCdata();
+        //
+        // In a text dictionary, a rank >= 3 value MatWriter cannot write as its stream — a cell or
+        // a struct array holding a MATLAB string, an MCOS object it has no writer for — is refused
+        // (_matStream), naming the entry and the reason, rather than written in the rank-2 form
+        // below, which is not a form MATLAB writes there for it. Elsewhere it falls through as
+        // before: a binary dictionary's XML spells it element by element.
+        const nd = effectiveDims(this._dims).length > 2;
+        if (this._sparse || nd || this._isComplexValue() || this._unexpandedStruct()) {
+            const cdata = this._serializeCdata(nd && this._ownerFormat() === 'json');
             if (cdata) {
                 return cdata;
             }
@@ -1709,10 +1915,13 @@ export default class MatlabVariableNode extends DataNode {
      * …), as every reader sets it. A SCALAR's type is 'complex', which has no class, so the
      * class is read off what the value was read from, while that is still the value: the
      * variable a .mat or a text dictionary's stream gave (`_matVar`), or the envelope a
-     * binary dictionary or the MCOS decoder gave (`_rawInput`). A value edit clears both
-     * (_applyParsed), and an edited complex scalar is a double, as the literal typed for it
-     * is in MATLAB. Not `_var`: a rename marks the snapshot stale without changing the
-     * value, and the rebuilt variable is where this class is needed, not where it is read.
+     * binary dictionary or the MCOS decoder gave (`_rawInput`). Or, first, off the complex
+     * array a removal cut it down from (`_collapsedClass`, the F2-5 ruling): the removal
+     * clears `_rawInput` (_markModified), and an int16 vector with one element left is
+     * still an int16. A value edit clears all three (_applyParsed), and an edited complex
+     * scalar is a double, as the literal typed for it is in MATLAB. Not `_var`: a rename
+     * marks the snapshot stale without changing the value, and the rebuilt variable is
+     * where this class is needed, not where it is read.
      */
     _complexClass() {
         if (this._kind === 'array') {
@@ -1720,7 +1929,7 @@ export default class MatlabVariableNode extends DataNode {
         }
         const fromVar = this._matVar ? this._matVar.className : undefined;
         const fromEnvelope = this._rawInput?._class;
-        return complexClassTag(fromVar) ?? complexClassTag(fromEnvelope) ?? 'double';
+        return (complexClassTag(this._collapsedClass ?? undefined) ?? complexClassTag(fromVar) ?? complexClassTag(fromEnvelope) ?? 'double');
     }
     // A value with no literal spelling — rank >= 3, or complex at any rank — as the
     // `{_type: 'cdata'}` byte stream MATLAB uses for it. `_var` is the same live-tree
@@ -1731,9 +1940,10 @@ export default class MatlabVariableNode extends DataNode {
     // MAT code for. Those have no stream spelling in this format at ALL, so the choice
     // is between the rank-2 form the branches below produce, which at least leaves a
     // readable file, and failing the whole save. It falls through. A refusal for the
-    // unbacked-bytes budget does not: it is thrown (_matStream), and the save fails.
-    _serializeCdata() {
-        const bytes = this._matStream();
+    // unbacked-bytes budget does not: it is thrown (_matStream), and the save fails. Nor,
+    // when `refuse` is set, does any other refusal of MatWriter's (serializeValue).
+    _serializeCdata(refuse = false) {
+        const bytes = this._matStream(refuse);
         return bytes ? { _type: 'cdata', _value: uuencode(bytes) } : null;
     }
     /**
@@ -1756,9 +1966,11 @@ export default class MatlabVariableNode extends DataNode {
      *
      * Except past the unbacked-bytes budget: that refusal is final, and it is thrown, restated
      * with the entry and the path (_budgetFailure), so the copy or the save asking fails and
-     * nothing else is written in the value's place.
+     * nothing else is written in the value's place. And, when `refuse` is set — a value a text
+     * dictionary can hold only as its stream (serializeValue) — any other refusal of
+     * MatWriter's, restated the same way (_streamRefusal).
      */
-    _matStream() {
+    _matStream(refuse = false) {
         const raw = this._rawInput;
         if (raw && isMatCdata(raw)) {
             const bytes = matStreamPrefix(uudecode(raw._value));
@@ -1791,8 +2003,25 @@ export default class MatlabVariableNode extends DataNode {
             if (e instanceof MatBudgetError) {
                 throw this._budgetFailure(e);
             }
+            if (refuse && e instanceof MatWriteError) {
+                throw this._streamRefusal(e);
+            }
             return null;
         }
+    }
+    /**
+     * MatWriter's refusal `e` of this value's stream, restated for a user as a budget refusal is
+     * (_budgetFailure): the entry, the path and what stands there, and MatWriter's reason.
+     */
+    _streamRefusal(e) {
+        let root = this;
+        while (root.parent) {
+            root = root.parent;
+        }
+        const entry = root._writtenAt ? root._writtenAt.entry : this.owningEntry?.name ?? this.matlabPath;
+        const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + matlabClassOf(this._var);
+        return new MatWriteError('Cannot write "' + entry + '": ' + this.matlabPath + ' is ' + what +
+            ', which a text dictionary holds only as its MAT stream, and that stream cannot be written: ' + e.message + '. Nothing was written.');
     }
     /**
      * Is this a struct array past MAX_EXPANDED_ELEMENTS whose elements hold no field — one with
@@ -3318,6 +3547,8 @@ export default class MatlabVariableNode extends DataNode {
             // variable whose objects were decoded, which _parseCdataObjects above does for one
             // that holds any and undoes when what it builds fails.
             const node = MatlabVariableNode.parseMatVariable(variable, name, parent);
+            // Shown and not edited, it and every row under it (_streamHolder).
+            node._readFromStream = true;
             // parseMatVariable's factories set _matVar/_rawBytes but not _rawInput, and
             // an untouched node writes itself back by replaying _rawInput verbatim. Set
             // it so a cdata entry nobody edited still round-trips byte-identical.

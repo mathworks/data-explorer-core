@@ -98,7 +98,9 @@ serializes independently via `serializeElement()`.
 ### Empty-leaf rule
 A struct field cannot be null or empty for a Simulink.Parameter — MATLAB rejects
 `[]` as a field value when the entry is a Parameter-wrapped struct. Our default of
-`0` is safe. (Cross-reference: Simulink.Parameter.md)
+`0` is safe. A field's Value edit under a Parameter is refused with MATLAB's message
+for this and the rest of MATLAB's field rules (ParameterNode._refuseValueBelow); a
+plain struct variable takes them. (Cross-reference: Simulink.Parameter.md)
 
 ### Struct array is read-only structurally
 A struct with `_dimensions != [1,1]` renders as a tree of element children

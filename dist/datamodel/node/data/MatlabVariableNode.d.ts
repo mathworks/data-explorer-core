@@ -5,10 +5,18 @@ import type BaseNode from '../BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
+import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { type MatVariable } from '../../parser/MatParser.js';
 import { type EncodedValue } from '../../parser/EncodedValue.js';
+import { MatWriteError } from '../../parser/MatWriter.js';
 import { type SparseData } from '../../parser/SparseData.js';
 export type { MatVariable };
+/** What MATLAB compares across the elements of a Parameter's array of structures. */
+interface ValueShape {
+    cls: string;
+    complex: boolean;
+    dims: number[];
+}
 export default class MatlabVariableNode extends DataNode {
     _kind: MatlabVariableKind;
     _scalarValue: unknown;
@@ -27,7 +35,10 @@ export default class MatlabVariableNode extends DataNode {
     _mcosValue: unknown;
     _mcosDimensions: number[] | null;
     _preCollapseDims: number[] | null;
+    _preCollapseType: string | null;
+    _collapsedClass: string | null;
     _elementType: string | null;
+    _readFromStream?: true;
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
     get Value(): unknown;
     set Value(v: unknown);
@@ -143,6 +154,60 @@ export default class MatlabVariableNode extends DataNode {
      * (_setConstrainedValue), and whose text is the scalar it holds.
      */
     _restorerFor(propName: string): (() => void) | null;
+    /**
+     * The node at or above this one that parseCdata read out of a MAT stream, when it is in a
+     * text dictionary, or null.
+     *
+     * The maintainer's ruling on C-012 (2026-10-15): editing is for a value parsed from a
+     * dictionary's XML or JSON. A value a text dictionary holds as a MAT stream is shown and not
+     * edited. MATLAB keeps a stream there only for a value its JSON cannot spell: every rank >= 3
+     * value, every complex one and a sparse array. Edited, such a value has to be
+     * written as a new stream, and MatWriter cannot write every value one can hold: an N-D cell
+     * element typed as "str" was refused ("no MAT class for string"), and `["a" "b"]` went out as
+     * the char 'ab'. Unedited, it is written as the stream it was read from.
+     *
+     * So at and under such a node the value takes no editor (valueEditable), the setter refuses
+     * it (_refuseStreamEdit, and ParameterNode for a Parameter's Value), and no row is added or
+     * removed (canAddChild, canRemoveChild). The name of the node holding the stream is outside
+     * it, so the node can still be renamed, and its entry deleted. Every node under it is a
+     * MatlabVariableNode: a stream holding an MCOS object is built otherwise
+     * (_parseCdataObjects) and is read-only by DataNode._adoptEncoded.
+     *
+     * Only in a text dictionary, which is what the ruling is about. The MCOS decoder hands over
+     * a sparse value of a .mat or a model workspace as the same stream (McosParser), and nothing
+     * edits those files; a binary dictionary keeps its own MAT streams as hex, read-only already.
+     * So a stream pasted into a binary dictionary is as editable there as it was.
+     */
+    _streamHolder(): MatlabVariableNode | null;
+    /** The refusal of a Value edit at or under a value read from a MAT stream, or null (_streamHolder). */
+    _refuseStreamEdit(stringValue: string): SetPropertyResult | null;
+    /**
+     * The refusal of a Value edit by the value this one is part of, or null. Asked of the nearest
+     * node above this one that is not a struct, so that a field of a struct, at any depth and in
+     * any element of a struct array, is answered by what holds the outermost struct: for a
+     * Parameter's struct Value, the Parameter (ParameterNode._refuseValueBelow). The Value row of a
+     * Parameter asks it too, being its Value: typed there, a cell the Parameter's own Value cell
+     * refused was taken.
+     *
+     * Asked only of a node that answers, as ParameterNode asks its value node about a stream
+     * (_refuseStreamValue): a Parameter is the one class with rules here, and naming it would
+     * import it into the class it holds.
+     */
+    _valueHolderRefusal(parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
+    /**
+     * Would the edit leave this field unlike its twin in another element of a struct array, at or
+     * below `root`? The twin is the node at the same path under the other element, and "unlike" is
+     * MATLAB's rule for a Simulink.Parameter's array of structures (probe_parameter_value.m): a
+     * field has to agree across the elements in class, in complexity and in size, except that a
+     * char field may differ in length (`struct('a', {'x', 'yz'})` is accepted). A struct array
+     * nested in a field is held to it too, at every level the path crosses.
+     *
+     * The class after the edit is the one _applyParsed gives (classAfterEdit), so a number typed
+     * into an int8 field is an int8, as the field then is.
+     */
+    _differsFromTwinsAfter(parsed: ParsedValue, root: BaseNode): boolean;
+    /** Class, complexity and size of this value once `parsed` is applied, as _applyParsed applies it. */
+    _shapeAfter(parsed: ParsedValue): ValueShape;
     _isConstrainedChild(): boolean;
     _setConstrainedValue(stringValue: string): true | SetPropertyResult;
     _markModified(): void;
@@ -200,13 +265,16 @@ export default class MatlabVariableNode extends DataNode {
      * …), as every reader sets it. A SCALAR's type is 'complex', which has no class, so the
      * class is read off what the value was read from, while that is still the value: the
      * variable a .mat or a text dictionary's stream gave (`_matVar`), or the envelope a
-     * binary dictionary or the MCOS decoder gave (`_rawInput`). A value edit clears both
-     * (_applyParsed), and an edited complex scalar is a double, as the literal typed for it
-     * is in MATLAB. Not `_var`: a rename marks the snapshot stale without changing the
-     * value, and the rebuilt variable is where this class is needed, not where it is read.
+     * binary dictionary or the MCOS decoder gave (`_rawInput`). Or, first, off the complex
+     * array a removal cut it down from (`_collapsedClass`, the F2-5 ruling): the removal
+     * clears `_rawInput` (_markModified), and an int16 vector with one element left is
+     * still an int16. A value edit clears all three (_applyParsed), and an edited complex
+     * scalar is a double, as the literal typed for it is in MATLAB. Not `_var`: a rename
+     * marks the snapshot stale without changing the value, and the rebuilt variable is
+     * where this class is needed, not where it is read.
      */
     _complexClass(): string;
-    _serializeCdata(): unknown | null;
+    _serializeCdata(refuse?: boolean): unknown | null;
     /**
      * The MAT stream this value is — `getByteStreamFromArray(value)` — or null when this
      * package cannot make it. In order:
@@ -227,9 +295,16 @@ export default class MatlabVariableNode extends DataNode {
      *
      * Except past the unbacked-bytes budget: that refusal is final, and it is thrown, restated
      * with the entry and the path (_budgetFailure), so the copy or the save asking fails and
-     * nothing else is written in the value's place.
+     * nothing else is written in the value's place. And, when `refuse` is set — a value a text
+     * dictionary can hold only as its stream (serializeValue) — any other refusal of
+     * MatWriter's, restated the same way (_streamRefusal).
      */
-    _matStream(): Uint8Array | null;
+    _matStream(refuse?: boolean): Uint8Array | null;
+    /**
+     * MatWriter's refusal `e` of this value's stream, restated for a user as a budget refusal is
+     * (_budgetFailure): the entry, the path and what stands there, and MatWriter's reason.
+     */
+    _streamRefusal(e: MatWriteError): MatWriteError;
     /**
      * Is this a struct array past MAX_EXPANDED_ELEMENTS whose elements hold no field — one with
      * no fields, which _createFromMatStruct builds no element rows for? Its value is its size

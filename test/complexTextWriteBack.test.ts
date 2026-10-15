@@ -145,11 +145,15 @@ describe('an edited complex value keeps its class and its NaN parts', () => {
     const mat: any = ingest(session, fixture('complex_objects.mat'), { filename: 'complex_objects.mat' });
     const txt: any = ingest(session, fixture('complex.sldd'), { filename: 'complex.sldd' });
     const design = txt.getSection('design');
-    const payload: any = JSON.parse(JSON.stringify(mat.children.find((e: any) => e.name === name).serialize()));
+    // Edited before the copy: in the text dictionary the copied Value is a MAT stream, which
+    // is shown and not edited there (the C-012 ruling, 2026-10-15).
+    const source = mat.children.find((e: any) => e.name === name);
+    expect(source.children[0].children[k].setProperty('Value', typed)).toBe(true);
+    const payload: any = JSON.parse(JSON.stringify(source.serialize()));
     payload.name = name + '_edited';
     payload.metadata = { ...design.children[0].metadata, uuid: '00000000-0000-4000-8000-0000000000ff' };
     const node = design.parseEntry(payload);
-    expect(node.children[0].children[k].setProperty('Value', typed)).toBe(true);
+    expect(node.children[0].children[k].setProperty('Value', typed)).toMatchObject({ error: true });
     const saved = session.serializeSource(txt.name).text;
     return ingest(createSession(), textBytes(saved), { filename: 'complex.sldd' })
       .getSection('design')

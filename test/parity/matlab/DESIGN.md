@@ -1209,13 +1209,14 @@ the reason for leaving each one is stated.
   because coercing would retype every char Parameter in the corpus. This measurement
   also killed a change: an mxchar arm had been added to `ParameterNode` on the
   assumption a char matrix belonged there, and MATLAB's answer removed it.
-- **`Simulink.Parameter.Value` rejects a string ARRAY; we accept one.**
+- **`Simulink.Parameter.Value` rejects a string ARRAY, and so do we (C-042, 2026-10-15).**
   `p.Value = ["ab"; "cd"]` raises `Simulink:Data:Param_Invalid_Value`, the same error as
-  a cell — the accepted set is a string SCALAR. We write an `_array_type: 'String'`
-  wrapper. Refusing it is a one-line change, left because the corpus has no
-  MATLAB-authored counter-example to pin a reader against, and because defect 25's
-  parser change means a user typing `['ab'; 'cd']` no longer reaches that arm at all;
-  only the genuinely double-quoted spelling does.
+  a cell — the accepted set is a string SCALAR. We accepted it and wrote an
+  `_array_type: 'String'` wrapper until the maintainer ruled to mirror MATLAB's
+  edit-time check; the edit is refused with MATLAB's message now, and a file that holds
+  the wrapper still reads and saves it. The rest of what MATLAB refuses as a Parameter's
+  Value, and in a field of its struct Value, is `probe_parameter_value.m`'s, mirrored the
+  same way (`src/datamodel/node/data/Simulink.Parameter.md`).
 - **`MatlabValueParser` rejects MATLAB's typed constructors.** `int16(500)`,
   `single(1.5)`, `uint8(7)` and `string("a")` all parse to `null`, so a user cannot type
   the class-changing form of a value the reader displays and the writer can spell. The

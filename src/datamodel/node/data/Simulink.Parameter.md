@@ -40,12 +40,25 @@ schema-projected CoderInfo columns (StorageClass, Alias, etc.).
   A cell array is NOT a valid Parameter.Value. This is a hard reject.
 
 - `Value = struct('a',[])` → **"A valid structure must be numeric"**
-  A struct Value where any leaf is empty/null is rejected. (Our UI does not
-  currently surface struct editing via the text editor — the struct value is
-  displayed via a child node tree — so this rejection is not reachable from the
-  string editor today. Documented here as reference knowledge.)
+  A struct Value where any leaf is empty/null is rejected.
 
 - `Value = scalar/array/matrix/complex/logical/string/char/[]` → all OK (stored verbatim with the type preserved).
+
+- The whole set is measured by `test/parity/matlab/probe_parameter_value.m`, whose 78 cases
+  are in `test/fixtures/parameter_value_truth.json`. By the 2026-10-15 ruling on C-160 and
+  C-042 core mirrors it at edit time, with MATLAB's message (`ParameterNode._refuseValueBelow`
+  and the Parameter's own Value setter):
+  - the Value itself, typed into the Parameter or into its Value row: a cell and a string
+    array of more than one element are refused (`Simulink:Data:Param_Invalid_Value`);
+  - a field of a struct Value, at any depth: also `[]` and `''` (`""` and a char are
+    accepted), with `Simulink:Parameters:PrmInvalidStruct`, "A valid structure must be
+    numeric";
+  - a field under a struct ARRAY: also a value unlike the same field in another element in
+    class, complexity or size (a char may differ in length), and every one of these is
+    refused with `Simulink:Parameters:PrmInvalidArrayOfStructs`, "A valid array of
+    structures must be numeric and homogeneous in terms of data type and dimensions".
+  A plain struct variable keeps taking all of them. Only an edit is judged: a file's own
+  value reads and saves as it is.
 
 ### The Value child row (presentation, Parameter-only)
 
@@ -163,12 +176,10 @@ the custom-class scoping guard).
 
 ## Open questions / deferred
 
-- **Struct Value editing**: struct-typed Parameter values are displayed via a child
-  node tree, not via the text Value editor. The empty-leaf rule
-  (`struct('a',[])` → "A valid structure must be numeric") is documented but no
-  defensive code is added because the string-editor code path cannot produce a
-  struct (there is no struct literal parser). If struct editing becomes reachable
-  in the future, add the empty-leaf check.
+- **Struct Value editing**: a struct Value's fields are edited on its child rows, and an
+  edit there is held to MATLAB's rules (see Value, above). Not judged: a STRUCTURAL edit.
+  Removing the last field of a nested struct gives `struct('a', struct())`, which MATLAB
+  refuses (`field_struct_nofields`), and is not refused here.
 
 - **Dimensions property**: complex validation rules exist (positive integer row
   vector, no trailing 1 for >2D, symbolic expressions). Not currently editable in

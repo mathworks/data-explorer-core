@@ -52,6 +52,8 @@ import {
   needsExactInt,
   PROPERTY_SOURCE_KEY,
   parseComplexNum,
+  parseExactNum,
+  parseMatlabNum,
   integerConversion,
   transposeFromColumnMajorND,
   transposeToColumnMajorND,
@@ -1155,6 +1157,50 @@ export function complexTextVariable(raw: unknown): MatVariable | null {
 }
 
 /**
+ * A real rank >= 3 array in the typed literal form a binary dictionary's reader holds it in
+ * — `{_type: 'double', _value: 'Matrix(2,3,2)\n[[1.0, 2.0, 3.0]; …]'}`
+ * (BinarySlddParser.formatMatrix) — as the variable it stands for, or null when it is not
+ * that form: a class other than a numeric one or logical, a rank of 2 once trailing
+ * singletons are dropped, no element, or a body whose tokens are not its element count.
+ * MATLAB reads the literal out of a TEXT dictionary as an empty 1x0 (the file header), so
+ * textDictionaryForm writes this instead, as the stream MATLAB writes there.
+ *
+ * The tokens are read as the node layer's parseMatrixValue reads them — Inf and NaN, the F
+ * and U suffixes left off, an int64 or uint64 kept exact — but here, because this layer does
+ * not reach the node layer. The body is each page's rows in turn, which is the row-major
+ * order within each page a variable holds (complexTextVariable).
+ */
+function matrixLiteralVariable(o: Record<string, unknown>): MatVariable | null {
+  const cls = o._type;
+  if (typeof cls !== 'string' || !(NUMERIC_CLASS.test(cls) || cls === 'logical') || typeof o._value !== 'string' || isEnumBag(o)) {
+    return null;
+  }
+  const literal = /^Matrix\((\d+(?:,\d+)*)\)\n(.*)$/s.exec(o._value);
+  if (!literal) {
+    return null;
+  }
+  const dims = effectiveDims(literal[1].split(',').map((d) => parseInt(d, 10)));
+  const count = elementCountOf(dims);
+  if (dims.length < 3 || count === 0) {
+    return null;
+  }
+  const tokens = literal[2].match(/-?(?:[\d.]+(?:[eE][+-]?\d+)?|Inf|NaN)/g) ?? [];
+  if (tokens.length !== count) {
+    return null;
+  }
+  const exact = needsExactInt(cls);
+  return {
+    name: '',
+    className: cls,
+    dimensions: dims,
+    isComplex: false,
+    isLogical: cls === 'logical',
+    value: tokens.map((t) => (exact ? parseExactNum(t) : parseMatlabNum(t))),
+    fields: null,
+  };
+}
+
+/**
  * A text dictionary's own complex text, by identity: what its reader found there
  * (heldByTextDictionary), which v1.36.0 wrote for a complex value. textDictionaryForm turns it
  * into the stream MATLAB writes there, as it does any complex text, but one with no stream to
@@ -1216,7 +1262,8 @@ export function heldByTextDictionary(value: unknown): void {
 /**
  * A value as an uncompressed-text dictionary must hold it: every complex value in its
  * plain-text form, at any depth, replaced by the MAT stream MATLAB writes for it there, a
- * binary dictionary's dense empty too, and everything else as it was. A copy wherever
+ * binary dictionary's dense empty too, and a real rank >= 3 `Matrix(…)` literal
+ * (matrixLiteralVariable), and everything else as it was. A copy wherever
  * something changed, so the bag a node replays is never touched; the same object where
  * nothing did.
  *
@@ -1294,6 +1341,22 @@ function textForm(x: unknown, at: string, place: Place): unknown {
     const empty = { name: '', className: o._type, dimensions: o._emptyDims, isComplex: false, isLogical: o._type === 'logical', value: [], fields: null };
     try {
       return { _type: 'cdata', _value: encodeCdata(empty) };
+    } catch (e) {
+      if (e instanceof MatBudgetError) {
+        throw new MatBudgetError(e.message, at + e.at, e.what, undefined, e.reason);
+      }
+      return o;
+    }
+  }
+  // A real rank >= 3 literal, which MATLAB reads out of a text dictionary as an empty 1x0: a
+  // binary dictionary's, pasted, or one an older version of this package wrote. Written as
+  // the stream MATLAB writes for it there, at the leaf (defect 22's placement rule,
+  // test/parity/matlab/DESIGN.md), and refused, finally, past what a stream can say, as the
+  // complex text below is.
+  const matrix = matrixLiteralVariable(o);
+  if (matrix) {
+    try {
+      return { _type: 'cdata', _value: encodeCdata(matrix) };
     } catch (e) {
       if (e instanceof MatBudgetError) {
         throw new MatBudgetError(e.message, at + e.at, e.what, undefined, e.reason);

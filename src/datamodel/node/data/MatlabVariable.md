@@ -4,7 +4,7 @@
 
 **Node class:** `MatlabVariableNode` (`src/datamodel/node/data/MatlabVariableNode.ts`)
 **MATLAB class:** (none — a plain MATLAB value: double, array, cell, struct, string, complex, logical, typed-int)
-**Editable in our UI:** yes (Value column editable for all shapes except struct and opaque)
+**Editable in our UI:** yes (Value column editable for all shapes except struct and opaque, and except a value read from a text dictionary's MAT stream)
 **Verified against:** MATLAB R2027a (params.sldd fixture round-trip)
 
 ## Overview
@@ -188,6 +188,18 @@ an untouched cdata entry writes back byte-identically by replaying `_rawInput`.
 
 Pinned in `test/cdataParse.test.ts` (against `truth.json` and the real
 `artifacts/text/cases.sldd`).
+
+A value read from a text dictionary's MAT stream is display-only, at and under it. That is
+the maintainer's ruling on C-012 (2026-10-15): a value parsed from XML or JSON is edited,
+and one read from a MAT stream in a text dictionary is only shown. `parseCdata` marks the
+node it builds (`_readFromStream`), and `_streamHolder` finds that node from any row under
+it. There `valueEditable` is false, `setProperty('Value')` refuses
+(`_refuseStreamEdit`), and `canAddChild` and `canRemoveChild` are false. A
+`Simulink.Parameter` whose Value is such a stream refuses a Value edit the same way. The
+node holding the stream can still be renamed and its entry deleted, because neither writes
+the stream again. A stream in no file, in a binary dictionary it was pasted into, or read
+out of a `.mat` or a model workspace is unaffected. Pinned in
+`test/cdataDisplayOnly.test.ts`.
 
 ### A binary dictionary's hex values are the same stream, read-only
 A compressed-binary dictionary writes a value XML cannot spell — a sparse array or a

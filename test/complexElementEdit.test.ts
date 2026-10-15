@@ -79,8 +79,11 @@ function complexRows(root: any): Record<string, string> {
 describe('the fixtures are what these tests need', () => {
   it('hold editable complex elements, dense and sparse, with an Inf or NaN part among them', () => {
     const all = FILES.flatMap((f) => complexElements(open(f)));
-    expect(all.length).toBeGreaterThan(100);
-    expect(all.some((el) => el.parent._sparse)).toBe(true);
+    expect(all.length).toBeGreaterThan(60);
+    // None of them sparse now: a text dictionary's complex arrays, sparse_text's among them,
+    // are MAT streams, which are shown and not edited (the C-012 ruling, 2026-10-15), and a
+    // binary dictionary's sparse array is hex, read-only already.
+    expect(all.some((el) => el.parent._sparse)).toBe(false);
     expect(all.some((el) => !el.parent._sparse)).toBe(true);
     expect(all.some((el) => /Inf|NaN/.test(el.displayValue))).toBe(true);
     expect(all.some((el) => el.parent._dims.length > 2)).toBe(true);
@@ -95,6 +98,17 @@ describe('a complex value typed into an element of a complex array is taken, and
       const root = open(file, session);
       const before = complexRows(root);
       const firsts = complexElements(root).filter((el: any) => el.parent.children[0] === el);
+      if (root.sourceFormat === 'json') {
+        // A text dictionary holds every complex array as a MAT stream, which is shown and not
+        // edited (the C-012 ruling, 2026-10-15): there is none to type into.
+        const streams = root.flatten().filter((n: any) => n._scalarType === 'complex' && n.parent?._elementType === 'complex');
+        expect(streams.length).toBeGreaterThan(0);
+        for (const el of streams) {
+          expect(el.setProperty('Value', '3-4i'), el.id).toMatchObject({ error: true });
+        }
+        expect(firsts).toEqual([]);
+        return;
+      }
       expect(firsts.length).toBeGreaterThan(0);
       for (const el of firsts) {
         const shown = el.displayValue;
@@ -154,10 +168,12 @@ describe('an edit to an element of a complex array is undone, redone and undone 
 });
 
 describe('a complex value typed into an element of a real array is still refused', () => {
-  for (const [file, name] of [
-    ['sparse/sparse_text.sldd', 'dRow'],
-    ['sparse/sparse_text.sldd', 'spDiag'],
-    ['sparse/sparse_binary.sldd', 'dRow'],
+  const REAL_ONLY = 'Array elements must be scalar numbers';
+  for (const [file, name, reason] of [
+    ['sparse/sparse_text.sldd', 'dRow', REAL_ONLY],
+    // A text dictionary's sparse array is a MAT stream, shown and not edited (the C-012 ruling).
+    ['sparse/sparse_text.sldd', 'spDiag', "'spDiag' is stored as a MAT-file stream, which this editor can show but not edit, so it is read-only."],
+    ['sparse/sparse_binary.sldd', 'dRow', REAL_ONLY],
   ] as const) {
     it(`${file} ${name}`, () => {
       const session = createSession();
@@ -166,12 +182,12 @@ describe('a complex value typed into an element of a real array is still refused
       expect(array._kind, name).toBe('array');
       expect(array._elementType, name).not.toBe('complex');
       const el = array.children[0];
-      expect(el.valueEditable, el.id).toBe(true);
+      expect(el.valueEditable, el.id).toBe(reason === REAL_ONLY);
       const shown = el.displayValue;
       session.setActive(root, el);
       expect(session.editProperty(el.id, 'Value', '3+4i'), el.id).toMatchObject({
         error: true,
-        reason: 'Array elements must be scalar numbers',
+        reason,
       });
       expect(el.displayValue).toBe(shown);
       expect(session.canUndo()).toBe(false);

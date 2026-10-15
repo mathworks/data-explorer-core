@@ -1,0 +1,838 @@
+{
+  "version": "27.1.0.3400455 (R2027a) Prerelease",
+  "release": "2027a",
+  "cases": [
+    {
+      "id": "top_empty_double",
+      "expr": "[]",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "double",
+      "storedSize": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "top_empty_char",
+      "expr": "''",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "string",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "top_empty_string",
+      "expr": "\"\"",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "string",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "top_empty_cell",
+      "expr": "{}",
+      "accepted": false,
+      "identifier": "Simulink:Data:Param_Invalid_Value",
+      "message": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "top_char",
+      "expr": "'abc'",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "string",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "top_char_matrix",
+      "expr": "['ab'; 'cd']",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "string",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "top_string_scalar",
+      "expr": "\"abc\"",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "string",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "top_string_bracketed",
+      "expr": "[\"abc\"]",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "string",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "top_string_array",
+      "expr": "[\"ab\"; \"cd\"]",
+      "accepted": false,
+      "identifier": "Simulink:Data:Param_Invalid_Value",
+      "message": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "top_string_row",
+      "expr": "[\"a\" \"b\"]",
+      "accepted": false,
+      "identifier": "Simulink:Data:Param_Invalid_Value",
+      "message": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "top_cell",
+      "expr": "{1, 2}",
+      "accepted": false,
+      "identifier": "Simulink:Data:Param_Invalid_Value",
+      "message": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "top_logical",
+      "expr": "true",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "logical",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "top_logical_array",
+      "expr": "[true false]",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "logical",
+      "storedSize": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "top_int8",
+      "expr": "int8(5)",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "int8",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "top_complex",
+      "expr": "1+2i",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "double",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "top_nan",
+      "expr": "NaN",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "double",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "top_matrix",
+      "expr": "[1 2; 3 4]",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "double",
+      "storedSize": [
+        2,
+        2
+      ]
+    },
+    {
+      "id": "top_nd",
+      "expr": "ones(2,2,2)",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "double",
+      "storedSize": [
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "id": "top_struct_numeric",
+      "expr": "struct('a', 1)",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_empty_double",
+      "expr": "struct('a', [])",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_zeros_1x0",
+      "expr": "struct('a', zeros(1,0))",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_empty_char",
+      "expr": "struct('a', '')",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_empty_string",
+      "expr": "struct('a', \"\")",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_char",
+      "expr": "struct('a', 'abc')",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_char_matrix",
+      "expr": "struct('a', ['ab'; 'cd'])",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_string_scalar",
+      "expr": "struct('a', \"abc\")",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_string_array",
+      "expr": "struct('a', [\"a\" \"b\"])",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_string_column",
+      "expr": "struct('a', [\"ab\"; \"cd\"])",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_cell",
+      "expr": "struct('a', {{1, 2}})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_empty_cell",
+      "expr": "struct('a', {{}})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_logical",
+      "expr": "struct('a', true)",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_logical_array",
+      "expr": "struct('a', [true false])",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_int8",
+      "expr": "struct('a', int8(5))",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_single",
+      "expr": "struct('a', single(1.5))",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_complex",
+      "expr": "struct('a', 1+2i)",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_nan",
+      "expr": "struct('a', NaN)",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_matrix",
+      "expr": "struct('a', [1 2; 3 4])",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_nd",
+      "expr": "struct('a', ones(2,2,2))",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_sparse",
+      "expr": "struct('a', sparse(1))",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_enum",
+      "expr": "struct('a', matlab.lang.OnOffSwitchState.on)",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_fi",
+      "expr": "struct('a', fi(1.5))",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_nested_ok",
+      "expr": "struct('a', struct('b', 1))",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_nested_empty",
+      "expr": "struct('a', struct('b', []))",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_nested_char",
+      "expr": "struct('a', struct('b', 'x'))",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_nested_string",
+      "expr": "struct('a', struct('b', \"x\"))",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_nested_cell",
+      "expr": "struct('a', struct('b', {{1}}))",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "struct_array_1x2",
+      "expr": "struct('a', {1, 2})",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "struct_array_one_empty",
+      "expr": "struct('a', {1, []})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "struct_array_one_char",
+      "expr": "struct('a', {1, 'x'})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_dims_differ",
+      "expr": "struct('a', {1, [1 2]})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_class_differ",
+      "expr": "struct('a', {1, int8(2)})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_single_vs_double",
+      "expr": "struct('a', {single(1), 1})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_logical_vs_double",
+      "expr": "struct('a', {true, 1})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_complex_differ",
+      "expr": "struct('a', {1, 1+2i})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_logical_same",
+      "expr": "struct('a', {true, false})",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "sa_matrix_same",
+      "expr": "struct('a', {[1 2], [3 4]})",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "sa_char_same",
+      "expr": "struct('a', {'x', 'y'})",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "sa_char_len_differ",
+      "expr": "struct('a', {'x', 'yz'})",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "sa_string_same",
+      "expr": "struct('a', {\"x\", \"y\"})",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "sa_string_len_differ",
+      "expr": "struct('a', {\"x\", \"yz\"})",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "sa_char_vs_string",
+      "expr": "struct('a', {'x', \"x\"})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_cell_element",
+      "expr": "struct('a', {1, {2}})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_both_empty",
+      "expr": "struct('a', {[], []})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_nested_same",
+      "expr": "struct('a', {struct('b', 1), struct('b', 2)})",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "sa_nested_dims_differ",
+      "expr": "struct('a', {struct('b', 1), struct('b', [1 2])})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_nested_empty",
+      "expr": "struct('a', {struct('b', 1), struct('b', [])})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_column_2x1",
+      "expr": "struct('a', {1; 2})",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        2,
+        1
+      ]
+    },
+    {
+      "id": "sa_column_one_empty",
+      "expr": "struct('a', {1; []})",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "sa_two_fields_char",
+      "expr": "struct('a', {1, 2}, 'b', {'x', 'y'})",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        2
+      ]
+    },
+    {
+      "id": "field_sa_ok",
+      "expr": "struct('a', struct('b', {1, 2}))",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "field_sa_one_empty",
+      "expr": "struct('a', struct('b', {1, []}))",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_sa_dims_differ",
+      "expr": "struct('a', struct('b', {1, [1 2]}))",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_sa_one_char",
+      "expr": "struct('a', struct('b', {1, 'x'}))",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_struct_0x0",
+      "expr": "struct('a', struct('b', {}))",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "field_struct_nofields",
+      "expr": "struct('a', struct())",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "struct_empty_0x0",
+      "expr": "struct('a', {})",
+      "accepted": false,
+      "identifier": "Simulink:Data:EmptyCellInStructure",
+      "message": "Invalid structure value specified for data object. Elements cannot contain empty cells.",
+      "storedClass": "",
+      "storedSize": []
+    },
+    {
+      "id": "struct_no_fields",
+      "expr": "struct()",
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ]
+    },
+    {
+      "id": "two_fields_one_empty",
+      "expr": "struct('a', 1, 'b', [])",
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": []
+    }
+  ]
+}

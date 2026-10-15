@@ -14,6 +14,34 @@ import MatlabValueParser, { collapseExact } from '../../parser/MatlabValueParser
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 const CLASS_NAME = 'Simulink.Parameter';
+// What MATLAB refuses as a Simulink.Parameter's Value, and the message it gives, measured by
+// test/parity/matlab/probe_parameter_value.m (truth: test/fixtures/parameter_value_truth.json).
+// The 2026-10-15 ruling on C-160 and C-042 is to mirror MATLAB's check at edit time, and to hold
+// a struct inside the Value to the Parameter's rules rather than a plain struct variable's.
+// Only what MatlabValueParser can produce is ruled on here: an edit is the only way in.
+// Simulink:Data:Param_Invalid_Value, for the Value itself.
+const PARAM_INVALID_VALUE = 'Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.';
+// Simulink:Parameters:PrmInvalidStruct, for a field of a scalar struct Value, at any depth.
+const PRM_INVALID_STRUCT = 'A valid structure must be numeric';
+// Simulink:Parameters:PrmInvalidArrayOfStructs, for a field of a struct ARRAY Value, at any depth.
+const PRM_INVALID_ARRAY_OF_STRUCTS = 'A valid array of structures must be numeric and homogeneous in terms of data type and dimensions';
+// A cell, `{}` included, and a string array of more than one element (top_cell, top_empty_cell,
+// top_string_array, top_string_row). `["abc"]` is a string scalar, which MATLAB accepts, as it
+// does [], '', "", a char of any shape, logicals, numbers and complex numbers.
+function refusedAsValue(parsed) {
+    return parsed.type === 'cell' || (parsed.type === 'string-array' && parsed.value.length > 1);
+}
+// As a field, MATLAB also refuses an empty: [] and '' (field_empty_double, field_empty_char). The
+// empty STRING "" is a string scalar, which it accepts (field_empty_string), as it does a char.
+function refusedAsField(parsed) {
+    if (refusedAsValue(parsed)) {
+        return true;
+    }
+    if (parsed.type === 'char') {
+        return parsed.value === '';
+    }
+    return parsed.type === 'double' && Array.isArray(parsed.value) && parsed.value.length === 0;
+}
 export default class ParameterNode extends DataNode {
     constructor(name, parent, props, serial) {
         super(name, parent, serial);
@@ -69,7 +97,55 @@ export default class ParameterNode extends DataNode {
         if (this._valueNode && isEnumBag(this._valueNode.serial._rawVal)) {
             return false;
         }
+        // Nor a Value read from a MAT stream, which is shown and not edited
+        // (MatlabVariableNode._streamHolder). A complex scalar displays whole, so it offered one.
+        if (this._refuseStreamValue('')) {
+            return false;
+        }
         return super.valueEditable;
+    }
+    // The refusal of a Value edit when the Value was read from a MAT stream, or null: what the
+    // value node's own setter answers (MatlabVariableNode._refuseStreamEdit). Every other
+    // property of the Parameter was read from the JSON beside it and stays editable.
+    _refuseStreamValue(stringValue) {
+        const valueNode = this._valueNode;
+        return typeof valueNode?._refuseStreamEdit === 'function' ? valueNode._refuseStreamEdit(stringValue) : null;
+    }
+    // A Value edit made below this node, on the Value row or on a field of a struct Value at
+    // any depth (MatlabVariableNode._valueHolderRefusal), gets the answer MATLAB gives on
+    // assigning the Value it would make. The Value row is the Value, and takes the rule this
+    // node's own setProperty applies. A field takes the stricter one MATLAB applies to a struct
+    // inside a Parameter (refusedAsField), and in a struct array has to agree with its twins in
+    // the other elements (_differsFromTwinsAfter). The message is the one for the outermost
+    // struct: for a struct array Value it is the array-of-structures one, even for an empty.
+    //
+    // Only the field edited is judged, against the Value as it stands: a value MATLAB wrote
+    // already passed this check, and a file's own value is not refused for being read.
+    //
+    // Simulink.Parameter is the one class that rules on an edit below it, so this is its own
+    // method, which the value node asks for when present, rather than a hook every node carries.
+    _refuseValueBelow(node, parsed, stringValue) {
+        const valueNode = this._valueNode;
+        if (!valueNode) {
+            return null;
+        }
+        const refusal = (reason) => ({ error: true, reason, invalidValue: stringValue, validValue: node.displayValue });
+        if (node === valueNode) {
+            return refusedAsValue(parsed) ? refusal(PARAM_INVALID_VALUE) : null;
+        }
+        // The node's ancestor just under the Value: an element when the Value is a struct array,
+        // which is what an element's subscript says. Absent when the node is not in this Value.
+        let under = node;
+        while (under && under.parent !== valueNode) {
+            under = under.parent;
+        }
+        if (!under) {
+            return null;
+        }
+        if (refusedAsField(parsed) || node._differsFromTwinsAfter(parsed, valueNode)) {
+            return refusal(under._subscript ? PRM_INVALID_ARRAY_OF_STRUCTS : PRM_INVALID_STRUCT);
+        }
+        return null;
     }
     // Model `rawValue` as this Parameter's Value, giving it a tree row only when
     // the resulting node has children — array elements or struct fields, i.e. the
@@ -167,6 +243,10 @@ export default class ParameterNode extends DataNode {
             return encodedRefusal;
         }
         if (propName === 'Value') {
+            const streamRefusal = this._refuseStreamValue(stringValue);
+            if (streamRefusal) {
+                return streamRefusal;
+            }
             // An enumeration value refuses a value set on it, as it does on a row of its own
             // (ObjectNode.setProperty), and as it takes no editor here (valueEditable). Taken, what
             // was typed replaced the enumeral, `2` with a double, and an undo did not put it back.
@@ -185,23 +265,14 @@ export default class ParameterNode extends DataNode {
             // here it would be written to the dictionary as a JSON string and read back
             // as the char '18446744073709551615'.
             const parsed = collapseExact(raw);
-            // MATLAB rejects cell arrays as Parameter.Value (R2027a probe).
-            if (parsed.type === 'cell') {
-                return {
-                    error: true,
-                    reason: 'Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.',
-                    invalidValue: stringValue,
-                    validValue: this.displayValue,
-                };
+            // MATLAB refuses a cell and a string ARRAY as Parameter.Value, both with
+            // Simulink:Data:Param_Invalid_Value: the accepted text is a string SCALAR
+            // (refusedAsValue). The string array was accepted, and written as an
+            // _array_type:'String' wrapper, until the C-042 ruling. Only an edit is
+            // refused: a file that holds the wrapper still reads, displays and saves.
+            if (refusedAsValue(parsed)) {
+                return { error: true, reason: PARAM_INVALID_VALUE, invalidValue: stringValue, validValue: this.displayValue };
             }
-            // MATLAB also rejects a string ARRAY here — `p.Value = ["ab"; "cd"]` raises
-            // Simulink:Data:Param_Invalid_Value, the same error as the cell above,
-            // because the accepted set is a string SCALAR (R2027a probe). We accept it
-            // and write an _array_type:'String' wrapper. Recorded in DESIGN.md rather
-            // than fixed here: refusing it is a one-line change, but the corpus has no
-            // MATLAB-authored counter-example to pin the reader against, and defect 25's
-            // parser change means a user who types ['ab'; 'cd'] no longer reaches this
-            // arm at all — only the genuinely double-quoted spelling does.
             // A logical ARRAY keeps its class AND its shape through the typed envelope —
             // the same one an entry writes for the same value. Without this arm it fell
             // through to the scalar tail below, which stores the parser's bare JS array,

@@ -268,7 +268,9 @@ describe('a sparse array node holds its non-zeros, and offers no grid', () => {
           ['spTall(9999999,2)', '8'],
         ],
       ]);
-      expect(spTall.children.map((c: any) => c.valueEditable), venue).toEqual(venue === 'binary' ? [false, false] : [true, true]);
+      // A binary dictionary's is hex, and a text dictionary's a MAT stream, which is shown and
+      // not edited there (the C-012 ruling, 2026-10-15).
+      expect(spTall.children.map((c: any) => c.valueEditable), venue).toEqual(venue === 'binary' || venue === 'text' ? [false, false] : [true, true]);
     });
 
     it(`${venue}: no sparse array lists its elements for a grid, and every one says it is sparse`, () => {
@@ -325,15 +327,24 @@ describe('a sparse array node holds its non-zeros, and offers no grid', () => {
 });
 
 describe('an edit changes the non-zero it names, and the writers write the non-zeros', () => {
-  it('a non-zero set to 0 keeps its row, showing 0, and is not in what is written', () => {
+  // A text dictionary's sparse array is a MAT stream, which is shown and not edited there (the
+  // C-012 ruling, 2026-10-15). So each case below says so, and edits the same stream read in no
+  // file, where the writers are what is graded.
+  const textInNoFile = (name: string): any => {
     const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
-    const spRow = design.children.find((e: any) => e.name === 'spRow');
+    const entry = design.children.find((e: any) => e.name === name);
+    expect(entry.children[0].setProperty('Value', '1'), name).toMatchObject({ error: true });
+    return MatlabVariableNode.parseCdata(entry.serializeValue() as Record<string, unknown>, name, null);
+  };
+
+  it('a non-zero set to 0 keeps its row, showing 0, and is not in what is written', () => {
+    const spRow = textInNoFile('spRow');
     expect(spRow.children[1].setProperty('Value', '0')).toBe(true);
     expect(rows(spRow)).toEqual([
       ['spRow(1,2)', '2'],
       ['spRow(1,4)', '0'],
     ]);
-    const value = JSON.parse(JSON.stringify(spRow.serialize())).value;
+    const value = JSON.parse(JSON.stringify(spRow.serializeValue()));
     const written = cdataVariable(value);
     expect([written.isSparse, written.dimensions, entries(written.sparse)]).toEqual([true, [1, 5], [[1, 2, 2]]]);
     // In the stream itself, not only as the reader reads it (which drops a stored zero):
@@ -347,7 +358,7 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
     ]);
     // And the row still edits its own element.
     expect(spRow.children[1].setProperty('Value', '6')).toBe(true);
-    expect(entries(cdataVariable(JSON.parse(JSON.stringify(spRow.serialize())).value).sparse)).toEqual([
+    expect(entries(cdataVariable(JSON.parse(JSON.stringify(spRow.serializeValue()))).sparse)).toEqual([
       [1, 2, 2],
       [1, 4, 6],
     ]);
@@ -355,12 +366,11 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
 
   it('a complex array whose every non-zero is set to a real number is still complex', () => {
     // Its complexity used to ride on the text of its zeros, `0+0i`; there are none now.
-    const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
-    const spComplex = design.children.find((e: any) => e.name === 'spComplex');
+    const spComplex = textInNoFile('spComplex');
     for (const row of spComplex.children) {
       expect(row.setProperty('Value', '1')).toBe(true);
     }
-    const written = cdataVariable(JSON.parse(JSON.stringify(spComplex.serialize())).value);
+    const written = cdataVariable(JSON.parse(JSON.stringify(spComplex.serializeValue())));
     expect([spComplex._isComplexValue(), written.isComplex, entries(written.sparse)]).toEqual([
       true,
       true,
@@ -374,14 +384,13 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
   });
 
   it('spTall, edited, is written from its non-zeros; set to what it holds, as MATLAB wrote it', () => {
-    const design = loadFile('../fixtures/sparse/sparse_text.sldd').getSection('design');
-    const spTall = design.children.find((e: any) => e.name === 'spTall');
+    const spTall = textInNoFile('spTall');
     const row = spTall.children[1];
     expect(row.setProperty('Value', row.displayValue)).toBe(true);
     expect(spTall._rawInput).toBeUndefined();
-    expect(JSON.parse(JSON.stringify(spTall.serialize())).value).toEqual(textRaw('spTall'));
+    expect(JSON.parse(JSON.stringify(spTall.serializeValue()))).toEqual(textRaw('spTall'));
     expect(row.setProperty('Value', '9')).toBe(true);
-    expect(entries(cdataVariable(JSON.parse(JSON.stringify(spTall.serialize())).value).sparse)).toEqual([
+    expect(entries(cdataVariable(JSON.parse(JSON.stringify(spTall.serializeValue()))).sparse)).toEqual([
       [1, 1, 7],
       [9999999, 2, 9],
     ]);
