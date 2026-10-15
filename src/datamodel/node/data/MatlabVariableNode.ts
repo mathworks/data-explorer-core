@@ -3870,6 +3870,9 @@ export default class MatlabVariableNode extends DataNode {
 
   static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): DataNode {
     const valStr = rawVal._value as string;
+    if (MatlabVariableNode._isComplexEmpty(rawVal)) {
+      return MatlabVariableNode._parseComplexEmpty(rawVal, name, parent);
+    }
     if (/^[\d.eE+\-i\s]+$/.test(valStr) || MatlabVariableNode._isComplexText(rawVal)) {
       return MatlabVariableNode._parseCdataText(rawVal, name, parent);
     }
@@ -3962,6 +3965,40 @@ export default class MatlabVariableNode extends DataNode {
       node._rawInput = rawVal;
       node._keepStreamElement(bytes);
     }
+    return node;
+  }
+
+  /**
+   * A binary dictionary's complex empty: MATLAB writes `complex(zeros(1,0))` as
+   * `<P Name="Value" Class="double" IsComplex="1" Dimension="1*0"/>`, and an int16 or single
+   * one with its own Class, and BinarySlddParser.complexCdata hands it over as a cdata
+   * envelope with no text and a shape that holds no element. The test above admits no text,
+   * and _isComplexText none with no element in it, so it went to parseCdata's char arm and
+   * showed `''`, class char (C-040). It is the empty of its class, shown `[ ]` as MATLAB's
+   * Workspace browser shows every numeric empty.
+   */
+  static _isComplexEmpty(rawVal: Record<string, unknown>): boolean {
+    const dims = rawVal._dimensions;
+    return (
+      typeof rawVal._value === 'string' &&
+      rawVal._value.trim() === '' &&
+      Array.isArray(dims) &&
+      dims.length >= 2 &&
+      elementCount(dims as number[]) === 0
+    );
+  }
+
+  // The complex empty _isComplexEmpty admits: an array of no element, of the envelope's
+  // class, whose elements are complex (_elementType). Untouched, it is written back from the
+  // envelope it was read from (`_rawInput`), as the complex arrays _parseCdataText reads are.
+  static _parseComplexEmpty(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode {
+    const node = new MatlabVariableNode(name, parent, rawVal);
+    node._rawInput = rawVal;
+    node._kind = 'array';
+    node._scalarType = complexClassTag(rawVal._class) ?? 'double';
+    node._dims = effectiveDims(rawVal._dimensions as number[]);
+    node._elements = [];
+    node._buildArrayChildren('complex');
     return node;
   }
 

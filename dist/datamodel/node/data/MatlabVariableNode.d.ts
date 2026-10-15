@@ -543,6 +543,17 @@ export default class MatlabVariableNode extends DataNode {
      */
     static _parseCdataObjects(rawVal: Record<string, unknown>, bytes: Uint8Array, variable: MatVariable, trailingElements: Uint8Array[], name: string, parent: BaseNode | null): DataNode | null;
     /**
+     * A binary dictionary's complex empty: MATLAB writes `complex(zeros(1,0))` as
+     * `<P Name="Value" Class="double" IsComplex="1" Dimension="1*0"/>`, and an int16 or single
+     * one with its own Class, and BinarySlddParser.complexCdata hands it over as a cdata
+     * envelope with no text and a shape that holds no element. The test above admits no text,
+     * and _isComplexText none with no element in it, so it went to parseCdata's char arm and
+     * showed `''`, class char (C-040). It is the empty of its class, shown `[ ]` as MATLAB's
+     * Workspace browser shows every numeric empty.
+     */
+    static _isComplexEmpty(rawVal: Record<string, unknown>): boolean;
+    static _parseComplexEmpty(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
+    /**
      * Complex text with an Inf or NaN part, which the test above does not admit: every
      * element is one XmlUtils.parseComplexNum reads. A binary dictionary's own text, in the
      * spellings MATLAB writes there — `Inf`, `-Inf` and `NaN` for a part, an imaginary NaN
