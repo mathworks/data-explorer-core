@@ -121,6 +121,7 @@ directory, because `Simulink.data.dictionary.open` rejects a relative one with
 | `probe_non_data_params.m` | which FREE-TEXT block parameters never name data, however much their values look like variables? | `tempdir` (one child model, deleted) | — |
 | `probe_writeback.mjs` + `.m` | **the acceptance gate for the TEXT dictionary**: does MATLAB read back the JSON `_value` our writer emits? | `$PROBE_OUT` | — |
 | `probe_writeback_bin.mjs` + `.m` | **the acceptance gate for the BINARY dictionary**: does MATLAB read back the XML chunk our writer emits? (defects 27-30) | `$PROBE_OUT` | — |
+| `probe_parameter_value.m` | which values does a `Simulink.Parameter` refuse as its `Value`, at the top level and as a field of a struct Value, and with which message? (C-160, C-042: core mirrors the answer at edit time) | `$PARAM_VALUE_OUT` or `tempdir/paramvalue` | `parameter_value_truth.json` (written by `27.1.0.3400455 (R2027a) Prerelease`) |
 
 **`probe_string.m` has been re-run for its two unharvested files**, and every fixture
 this table lists is now in `test/fixtures/`:
