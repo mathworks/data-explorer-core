@@ -28,6 +28,8 @@ export default class MatlabVariableNode extends DataNode {
     _mcosValue: unknown;
     _mcosDimensions: number[] | null;
     _preCollapseDims: number[] | null;
+    _preCollapseType: string | null;
+    _collapsedClass: string | null;
     _elementType: string | null;
     _readFromStream?: true;
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
@@ -229,10 +231,13 @@ export default class MatlabVariableNode extends DataNode {
      * …), as every reader sets it. A SCALAR's type is 'complex', which has no class, so the
      * class is read off what the value was read from, while that is still the value: the
      * variable a .mat or a text dictionary's stream gave (`_matVar`), or the envelope a
-     * binary dictionary or the MCOS decoder gave (`_rawInput`). A value edit clears both
-     * (_applyParsed), and an edited complex scalar is a double, as the literal typed for it
-     * is in MATLAB. Not `_var`: a rename marks the snapshot stale without changing the
-     * value, and the rebuilt variable is where this class is needed, not where it is read.
+     * binary dictionary or the MCOS decoder gave (`_rawInput`). Or, first, off the complex
+     * array a removal cut it down from (`_collapsedClass`, the F2-5 ruling): the removal
+     * clears `_rawInput` (_markModified), and an int16 vector with one element left is
+     * still an int16. A value edit clears all three (_applyParsed), and an edited complex
+     * scalar is a double, as the literal typed for it is in MATLAB. Not `_var`: a rename
+     * marks the snapshot stale without changing the value, and the rebuilt variable is
+     * where this class is needed, not where it is read.
      */
     _complexClass(): string;
     _serializeCdata(refuse?: boolean): unknown | null;

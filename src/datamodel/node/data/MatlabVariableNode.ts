@@ -269,6 +269,15 @@ export default class MatlabVariableNode extends DataNode {
   // The [1,n]/[n,1] orientation an array had before a removal collapsed it to a
   // scalar, so undo can restore the shape and not just the values.
   _preCollapseDims: number[] | null;
+  // The class a COMPLEX array had before a removal collapsed it to a scalar, so undo can
+  // restore it: the scalar's own type is 'complex' (or the class, for a survivor that is
+  // real), and an edit of the scalar between the removal and its undo can change both.
+  _preCollapseType: string | null;
+  // The class of the complex array this complex scalar is what a removal left of
+  // (_updateArrayAfterRemove): an int16 vector cut to one element is an int16 scalar,
+  // where a complex scalar is otherwise the class it was read with (_complexClass). A
+  // value edit clears it (_applyParsed); a rename does not.
+  _collapsedClass: string | null;
   // The class each ELEMENT of this array is, where that is not elementClass of the
   // array's own type. Recorded by _buildArrayChildren from the argument its caller
   // passes, and recorded even when the cap stops it building anything — because
@@ -300,6 +309,8 @@ export default class MatlabVariableNode extends DataNode {
     this._mcosValue = undefined;
     this._mcosDimensions = null;
     this._preCollapseDims = null;
+    this._preCollapseType = null;
+    this._collapsedClass = null;
     this._elementType = null;
   }
 
@@ -1285,6 +1296,8 @@ export default class MatlabVariableNode extends DataNode {
     this.children = [];
     this._matVar = null;
     this._rawInput = undefined;
+    // Nor is it what a removal left of a complex array any more (_complexClass).
+    this._collapsedClass = null;
     // A value typed in whole is the full array MATLAB makes of the same literal; only an
     // element edit leaves the array sparse.
     this._sparse = null;
@@ -1679,7 +1692,21 @@ export default class MatlabVariableNode extends DataNode {
         // _scalarType is deliberately NOT touched: an int32 array whose extra
         // elements were removed is still an int32, and hardcoding 'double' here
         // silently reclassified it (and the XML writer then wrote Class="double").
+        //
+        // A complex array's survivor is a complex scalar, of the array's class (the F2-5
+        // ruling, 2026-10-15): x(2) = [] of int16([1+2i 3-4i]) is int16(1+2i). It was the
+        // array's type holding the element's text, written `Class="char">1+2i` for a
+        // double and `Class="int16">1` for an int16. A complex scalar's type is 'complex',
+        // so the class goes where _complexClass reads it. A survivor _isComplexValue
+        // reads as real — an element edited to a real number — stays the real scalar of
+        // the array's class it already was here, as an all-real complex array is written.
+        const complexSurvivor = this._isComplexValue();
         this._preCollapseDims = this._dims.slice();
+        this._preCollapseType = this._elementType === 'complex' ? this._scalarType : null;
+        if (complexSurvivor) {
+          this._collapsedClass = this._scalarType;
+          this._scalarType = 'complex';
+        }
         this._kind = 'scalar';
         this._scalarValue = this._elements[0];
         this._dims = [1, 1];
@@ -1731,12 +1758,29 @@ export default class MatlabVariableNode extends DataNode {
       // surviving element lost its child row on the way down, so rebuild it here
       // before `child` is spliced in — otherwise the array comes back one element
       // short and every row after `index` shows the wrong value.
-      const survivor = MatlabVariableNode._createScalar(this._scalarValue, elementClass(this._scalarType), '1', this);
+      //
+      // A complex array comes back as the class it was, its elements complex
+      // (_preCollapseType): the scalar it collapsed to is typed 'complex', or was edited
+      // since. Its survivor's row is complex too, unless it holds the real number an
+      // element edit made it, which is a row of the array's class (_setConstrainedValue).
+      if (this._preCollapseType !== null) {
+        this._scalarType = this._preCollapseType;
+        this._elementType = 'complex';
+        this._preCollapseType = null;
+        this._collapsedClass = null;
+      }
+      const survivorComplex = this._elementType === 'complex' && typeof this._scalarValue === 'string' && this._scalarValue.includes('i');
+      const survivor = MatlabVariableNode._createScalar(
+        this._scalarValue,
+        survivorComplex ? 'complex' : elementClass(this._scalarType),
+        '1',
+        this,
+      );
       this._kind = 'array';
       this._elements = [this._scalarValue as number];
       this._scalarValue = undefined;
-      // _scalarType stays as-is: the collapse preserved the array's MATLAB class on
-      // the way down (see _updateArrayAfterRemove), so re-asserting 'double' here
+      // _scalarType stays as-is otherwise: the collapse preserved the array's MATLAB class
+      // on the way down (see _updateArrayAfterRemove), so re-asserting 'double' here
       // would undo a removal by ALSO changing an int32/logical array to a double one.
       // Restore the row/column orientation the collapse discarded.
       this._dims = this._preCollapseDims ?? [1, 1];
@@ -1990,10 +2034,13 @@ export default class MatlabVariableNode extends DataNode {
    * …), as every reader sets it. A SCALAR's type is 'complex', which has no class, so the
    * class is read off what the value was read from, while that is still the value: the
    * variable a .mat or a text dictionary's stream gave (`_matVar`), or the envelope a
-   * binary dictionary or the MCOS decoder gave (`_rawInput`). A value edit clears both
-   * (_applyParsed), and an edited complex scalar is a double, as the literal typed for it
-   * is in MATLAB. Not `_var`: a rename marks the snapshot stale without changing the
-   * value, and the rebuilt variable is where this class is needed, not where it is read.
+   * binary dictionary or the MCOS decoder gave (`_rawInput`). Or, first, off the complex
+   * array a removal cut it down from (`_collapsedClass`, the F2-5 ruling): the removal
+   * clears `_rawInput` (_markModified), and an int16 vector with one element left is
+   * still an int16. A value edit clears all three (_applyParsed), and an edited complex
+   * scalar is a double, as the literal typed for it is in MATLAB. Not `_var`: a rename
+   * marks the snapshot stale without changing the value, and the rebuilt variable is
+   * where this class is needed, not where it is read.
    */
   _complexClass(): string {
     if (this._kind === 'array') {
@@ -2001,7 +2048,9 @@ export default class MatlabVariableNode extends DataNode {
     }
     const fromVar = this._matVar ? this._matVar.className : undefined;
     const fromEnvelope = (this._rawInput as Record<string, unknown> | undefined)?._class;
-    return complexClassTag(fromVar) ?? complexClassTag(fromEnvelope) ?? 'double';
+    return (
+      complexClassTag(this._collapsedClass ?? undefined) ?? complexClassTag(fromVar) ?? complexClassTag(fromEnvelope) ?? 'double'
+    );
   }
 
   // A value with no literal spelling — rank >= 3, or complex at any rank — as the
