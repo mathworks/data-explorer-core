@@ -1,7 +1,7 @@
 import BaseNode from './BaseNode.js';
 import type { PropClass } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
-import { MatBudgetError } from '../parser/MatWriter.js';
+import { MatBudgetError, MatWriteError } from '../parser/MatWriter.js';
 import { type EncodedValue } from '../parser/EncodedValue.js';
 import { type PropertySource } from '../parser/XmlUtils.js';
 export interface SetPropertyResult {
@@ -253,6 +253,13 @@ export default class DataNode extends BaseNode {
      * MatlabVariableNode override for the one case there is.
      */
     _binaryEncoded(): EncodedValue | null;
+    /**
+     * MatWriter's refusal of a MAT stream that a value at or under this node would have to be
+     * written as in the text dictionary it is in, or null. Asked, inside one write, of an entry
+     * handed in to a text dictionary (SectionNode.parseEntry). Only a MatlabVariableNode has such
+     * a value (its override); every other node asks its rows, which is what it is written from.
+     */
+    _unwritableStream(): MatWriteError | null;
     /**
      * Is this node at or under one whose value is still an encoded stream? The structural
      * gates (canAddChild, canRemoveChild) of every class that has them ask this, for the

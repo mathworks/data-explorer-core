@@ -898,6 +898,20 @@ function refuseDimsBelow(v, budget) {
         }
     }
 }
+/**
+ * The refusal this writer makes of a variable of class `className` (encodeElement), or null for a
+ * class it has a MAT class for. Asked, too, of a value whose variable says another class than
+ * it has: a MATLAB string, which the node layer hands over as a char (MatlabVariableNode
+ * _unwritableStream).
+ */
+export function classRefusal(className) {
+    // By own key: a class name can be a file's word (a text dictionary's `_type`, a binary
+    // one's Class), and `toString` or `constructor` would otherwise answer an inherited
+    // function, slip past this refusal and fail later with an unrelated reason.
+    return Object.prototype.hasOwnProperty.call(CLASS_CODE, className)
+        ? null
+        : new MatWriteError('no MAT class for "' + className + '"');
+}
 /** encodeMatVariable within an encode already under way, sharing its budget. */
 function encodeElement(v, budget) {
     if (v.isOpaque) {
@@ -918,13 +932,11 @@ function encodeElement(v, budget) {
     if (v.isSparse) {
         return encodeSparse(v, budget);
     }
-    // By own key: a class name can be a file's word (a text dictionary's `_type`, a binary
-    // one's Class), and `toString` or `constructor` would otherwise answer an inherited
-    // function, slip past this refusal and fail later with an unrelated reason.
-    const cls = Object.prototype.hasOwnProperty.call(CLASS_CODE, v.className) ? CLASS_CODE[v.className] : undefined;
-    if (cls === undefined) {
-        throw new MatWriteError('no MAT class for "' + v.className + '"');
+    const refusal = classRefusal(v.className);
+    if (refusal) {
+        throw refusal;
     }
+    const cls = CLASS_CODE[v.className];
     const d = dimsOf(v);
     const logical = !!v.isLogical || v.className === 'logical';
     let body;

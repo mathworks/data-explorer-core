@@ -234,11 +234,21 @@ export default class SectionNode extends ContainerNode {
     // What this changes is what a save would change of the text dictionary's own entry: the binary
     // reader's forms, which say they are its own (XmlUtils.ENUM_KEY, XmlUtils.BINARY_EMPTY_KEY), an
     // encoded stream, complex text. So a value copied out of a text dictionary, or re-read from its
-    // text, is held as the text dictionary holds its own. A value the save will refuse is held as
-    // it came, so that the refusal is the save's, naming the entry (DataNode.serialize). A file's
-    // own entries are read as they are (_readEntry).
+    // text, is held as the text dictionary holds its own. A value the save will refuse for what
+    // MatWriter's budget measures (a MatBudgetError) is held as it came, so that the refusal is the
+    // save's, naming the entry (DataNode.serialize). A file's own entries are read as they are
+    // (_readEntry).
+    //
+    // But a value the text dictionary could hold only as a MAT stream MatWriter cannot write is
+    // refused here, at the paste, naming the entry and the reason, and is not added (the
+    // maintainer's ruling A1, 2026-10-15 evening). Held as it came, it was written as its bag, with
+    // rank >= 3 dims, which MATLAB writes there for no value: a binary dictionary's N-D cell
+    // holding a string, unedited or edited before the copy. The refusal is worded as the save's
+    // refusal of such a stream (MatlabVariableNode._unwritableStream), and every paste and drop a
+    // host makes builds its entry here.
     parseEntry(rawEntry, systemComposer) {
-        if (this.parent?.sourceFormat === 'json' && rawEntry.value !== undefined) {
+        const text = this.parent?.sourceFormat === 'json';
+        if (text && rawEntry.value !== undefined) {
             let value = rawEntry.value;
             try {
                 value = oneWrite(() => textDictionaryForm(rawEntry.value));
@@ -252,7 +262,15 @@ export default class SectionNode extends ContainerNode {
                 rawEntry = { ...rawEntry, value };
             }
         }
-        return this._readEntry(rawEntry, systemComposer);
+        const node = this._readEntry(rawEntry, systemComposer);
+        if (text) {
+            const refusal = oneWrite(() => node._unwritableStream());
+            if (refusal) {
+                this.removeChild(node);
+                throw refusal;
+            }
+        }
+        return node;
     }
     // parseEntry for an entry of the file being read, as the file holds it (SlddNode.parse).
     _readEntry(rawEntry, systemComposer) {

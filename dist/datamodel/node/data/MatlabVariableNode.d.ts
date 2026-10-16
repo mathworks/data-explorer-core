@@ -308,6 +308,38 @@ export default class MatlabVariableNode extends DataNode {
      */
     _streamRefusal(e: MatWriteError): MatWriteError;
     /**
+     * MatWriter's refusal of the MAT stream this value, or one under it, would be written as in the
+     * text dictionary it is in, or null (DataNode._unwritableStream). Asked of a value handed in to
+     * a text dictionary, whose paste is refused with it (the maintainer's ruling A1, 2026-10-15
+     * evening).
+     *
+     * A text dictionary holds a rank >= 3 value only as its MAT stream. A pasted value is written
+     * as it came until an edit (`_rawInput`), and only an edited one asks MatWriter (serializeValue,
+     * _matStream), so one MatWriter cannot write went in as the bag it came as, with rank >= 3 dims:
+     * a binary dictionary's 2x2x2 cell holding a string, unedited, or edited there before the copy.
+     * This asks MatWriter what the save of it, edited, asks, and words the refusal as that save
+     * does (_streamRefusal).
+     *
+     * A string read from a dictionary's JSON or XML (a bag's `["str"]`) is handed to MatWriter as a
+     * char (_buildVarObject), so the stream it writes for one holds a char, which is not the value;
+     * for that reason the binary writer does not ask it about one (_matWritable). MatWriter has no
+     * MAT class for a string, and the save refuses a string scalar typed into such a cell so. A
+     * string at or under the value is refused the same way (classRefusal).
+     *
+     * Not a refusal for the unbacked-bytes budget: the value is held as it came, and the copy or
+     * the save that writes it as its stream refuses it, as before (SectionNode.parseEntry). And only
+     * of a cell, a struct or a string, which a bag carries in as it came: an N-D numeric or logical
+     * literal is turned into its stream on the way in (MatWriter.textDictionaryForm), and one it
+     * cannot turn, whose element count is not its size, is held as it came, as before.
+     */
+    _unwritableStream(): MatWriteError | null;
+    /**
+     * Is there a MATLAB string at or under this cell or struct? A string array and its elements
+     * alike say 'string' (_matWritable). None was read out of a MAT stream, which holds a string as
+     * an MCOS object (_isOpaque): each is a dictionary's own, read from its JSON or XML.
+     */
+    _holdsString(): boolean;
+    /**
      * Is this a struct array past MAX_EXPANDED_ELEMENTS whose elements hold no field — one with
      * no fields, which _createFromMatStruct builds no element rows for? Its value is its size
      * alone, and no struct value listing its elements one by one can be made of the 1e8 that a

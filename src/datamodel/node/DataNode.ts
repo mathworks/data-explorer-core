@@ -6,7 +6,7 @@ import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
-import { budgetFailure, classPhrase, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
+import { budgetFailure, classPhrase, MatBudgetError, MatWriteError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
 import { dimsText, isExactDigits, isSpellableExtent, isTextExtent } from '../parser/Size.js';
 import { encodedXml, isEncodedValue, type EncodedValue } from '../parser/EncodedValue.js';
 import { setOwn } from '../parser/ownKeys.js';
@@ -1026,6 +1026,23 @@ export default class DataNode extends BaseNode {
    * MatlabVariableNode override for the one case there is.
    */
   _binaryEncoded(): EncodedValue | null {
+    return null;
+  }
+
+  /**
+   * MatWriter's refusal of a MAT stream that a value at or under this node would have to be
+   * written as in the text dictionary it is in, or null. Asked, inside one write, of an entry
+   * handed in to a text dictionary (SectionNode.parseEntry). Only a MatlabVariableNode has such
+   * a value (its override); every other node asks its rows, which is what it is written from.
+   */
+  _unwritableStream(): MatWriteError | null {
+    for (const child of this.children) {
+      const ask = (child as Partial<DataNode>)._unwritableStream;
+      const refusal = typeof ask === 'function' ? ask.call(child) : null;
+      if (refusal) {
+        return refusal;
+      }
+    }
     return null;
   }
 

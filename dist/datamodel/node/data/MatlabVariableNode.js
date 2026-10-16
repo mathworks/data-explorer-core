@@ -19,7 +19,7 @@ import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
 import { dimsText, isSize, isStreamSize } from '../../parser/Size.js';
-import { classPhrase, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
+import { classPhrase, classRefusal, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { charNeedsShape, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, } from '../../parser/XmlUtils.js';
@@ -2073,6 +2073,66 @@ export default class MatlabVariableNode extends DataNode {
         const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + matlabClassOf(this._var);
         return new MatWriteError('Cannot write "' + entry + '": ' + this.matlabPath + ' is ' + what +
             ', which a text dictionary holds only as its MAT stream, and that stream cannot be written: ' + e.message + '. Nothing was written.');
+    }
+    /**
+     * MatWriter's refusal of the MAT stream this value, or one under it, would be written as in the
+     * text dictionary it is in, or null (DataNode._unwritableStream). Asked of a value handed in to
+     * a text dictionary, whose paste is refused with it (the maintainer's ruling A1, 2026-10-15
+     * evening).
+     *
+     * A text dictionary holds a rank >= 3 value only as its MAT stream. A pasted value is written
+     * as it came until an edit (`_rawInput`), and only an edited one asks MatWriter (serializeValue,
+     * _matStream), so one MatWriter cannot write went in as the bag it came as, with rank >= 3 dims:
+     * a binary dictionary's 2x2x2 cell holding a string, unedited, or edited there before the copy.
+     * This asks MatWriter what the save of it, edited, asks, and words the refusal as that save
+     * does (_streamRefusal).
+     *
+     * A string read from a dictionary's JSON or XML (a bag's `["str"]`) is handed to MatWriter as a
+     * char (_buildVarObject), so the stream it writes for one holds a char, which is not the value;
+     * for that reason the binary writer does not ask it about one (_matWritable). MatWriter has no
+     * MAT class for a string, and the save refuses a string scalar typed into such a cell so. A
+     * string at or under the value is refused the same way (classRefusal).
+     *
+     * Not a refusal for the unbacked-bytes budget: the value is held as it came, and the copy or
+     * the save that writes it as its stream refuses it, as before (SectionNode.parseEntry). And only
+     * of a cell, a struct or a string, which a bag carries in as it came: an N-D numeric or logical
+     * literal is turned into its stream on the way in (MatWriter.textDictionaryForm), and one it
+     * cannot turn, whose element count is not its size, is held as it came, as before.
+     */
+    _unwritableStream() {
+        const container = this._kind === 'cell' || this._scalarType === 'struct';
+        if ((container || this._scalarType === 'string') && effectiveDims(this._dims).length > 2 && this._ownerFormat() === 'json') {
+            try {
+                this._matStream(true);
+            }
+            catch (e) {
+                if (e instanceof MatBudgetError) {
+                    return null;
+                }
+                if (e instanceof MatWriteError) {
+                    return e;
+                }
+                throw e;
+            }
+            const refusal = this._holdsString() ? classRefusal('string') : null;
+            return refusal ? this._streamRefusal(refusal) : null;
+        }
+        // The rows of any other value are its elements, which hold none.
+        return container ? super._unwritableStream() : null;
+    }
+    /**
+     * Is there a MATLAB string at or under this cell or struct? A string array and its elements
+     * alike say 'string' (_matWritable). None was read out of a MAT stream, which holds a string as
+     * an MCOS object (_isOpaque): each is a dictionary's own, read from its JSON or XML.
+     */
+    _holdsString() {
+        if (this._scalarType === 'string') {
+            return true;
+        }
+        if (this._kind !== 'cell' && this._scalarType !== 'struct') {
+            return false;
+        }
+        return this.children.some((c) => c instanceof MatlabVariableNode && c._holdsString());
     }
     /**
      * Is this a struct array past MAX_EXPANDED_ELEMENTS whose elements hold no field — one with

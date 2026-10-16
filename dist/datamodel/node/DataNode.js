@@ -927,6 +927,22 @@ export default class DataNode extends BaseNode {
         return null;
     }
     /**
+     * MatWriter's refusal of a MAT stream that a value at or under this node would have to be
+     * written as in the text dictionary it is in, or null. Asked, inside one write, of an entry
+     * handed in to a text dictionary (SectionNode.parseEntry). Only a MatlabVariableNode has such
+     * a value (its override); every other node asks its rows, which is what it is written from.
+     */
+    _unwritableStream() {
+        for (const child of this.children) {
+            const ask = child._unwritableStream;
+            const refusal = typeof ask === 'function' ? ask.call(child) : null;
+            if (refusal) {
+                return refusal;
+            }
+        }
+        return null;
+    }
+    /**
      * Is this node at or under one whose value is still an encoded stream? The structural
      * gates (canAddChild, canRemoveChild) of every class that has them ask this, for the
      * reason _refuseEncodedEdit gives: a child added or removed there could not reach the file.

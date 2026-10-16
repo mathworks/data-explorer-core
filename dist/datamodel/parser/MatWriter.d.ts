@@ -98,6 +98,13 @@ type SparseRefusalInput = Pick<MatVariable, 'undecoded' | 'dimensions' | 'classN
  */
 export declare function encodeMatVariable(v: MatVariable): Uint8Array;
 /**
+ * The refusal this writer makes of a variable of class `className` (encodeElement), or null for a
+ * class it has a MAT class for. Asked, too, of a value whose variable says another class than
+ * it has: a MATLAB string, which the node layer hands over as a char (MatlabVariableNode
+ * _unwritableStream).
+ */
+export declare function classRefusal(className: string): MatWriteError | null;
+/**
  * The `_value` string of a text .sldd `{"_type": "cdata"}` entry: the 8-byte
  * preamble, one miMATRIX element, uuencoded.
  */
