@@ -834,5 +834,474 @@
       "storedClass": "",
       "storedSize": []
     }
+  ],
+  "structural": [
+    {
+      "id": "sx_remove_field",
+      "base": "struct('a', 1, 'b', 2)",
+      "edit": "X = rmfield(X, 'b');",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_remove_last_field",
+      "base": "struct('a', 1)",
+      "edit": "X = rmfield(X, 'a');",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_add_field",
+      "base": "struct('a', 1)",
+      "edit": "X.field = 0;",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_nested_remove_field",
+      "base": "struct('a', struct('b', 1, 'c', 2))",
+      "edit": "X.a = rmfield(X.a, 'c');",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_nested_remove_last_field",
+      "base": "struct('a', struct('b', 1))",
+      "edit": "X.a = rmfield(X.a, 'b');",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidStruct"
+    },
+    {
+      "id": "sx_nested_add_field",
+      "base": "struct('a', struct('b', 1))",
+      "edit": "X.a.field = 0;",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_deep_remove_last_field",
+      "base": "struct('a', struct('b', struct('c', 1)))",
+      "edit": "X.a.b = rmfield(X.a.b, 'c');",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidStruct"
+    },
+    {
+      "id": "sx_array_add_element",
+      "base": "struct('c', [1 2])",
+      "edit": "X.c(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_array_remove_element",
+      "base": "struct('c', [1 2 3])",
+      "edit": "X.c(2) = [];",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_array_remove_to_scalar",
+      "base": "struct('c', [1 2])",
+      "edit": "X.c(2) = [];",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_column_add_element",
+      "base": "struct('c', [1; 2])",
+      "edit": "X.c(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_logical_add_element",
+      "base": "struct('c', [true false])",
+      "edit": "X.c(end+1) = false;",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_int8_add_element",
+      "base": "struct('c', int8([1 2]))",
+      "edit": "X.c(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_complex_add_element",
+      "base": "struct('c', [1+2i 3+4i])",
+      "edit": "X.c(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sx_nested_array_add_element",
+      "base": "struct('a', struct('c', [1 2]))",
+      "edit": "X.a.c(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "struct",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "sa_array_add_element",
+      "base": "struct('v', {[1 2], [3 4]})",
+      "edit": "X(2).v(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidArrayOfStructs"
+    },
+    {
+      "id": "sa_array_remove_element",
+      "base": "struct('v', {[1 2], [3 4]})",
+      "edit": "X(2).v(2) = [];",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidArrayOfStructs"
+    },
+    {
+      "id": "sa_column_add_element",
+      "base": "struct('v', {[1; 2], [3; 4]})",
+      "edit": "X(1).v(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidArrayOfStructs"
+    },
+    {
+      "id": "sa_logical_remove_element",
+      "base": "struct('v', {[true false], [false true]})",
+      "edit": "X(1).v(2) = [];",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidArrayOfStructs"
+    },
+    {
+      "id": "sa_2x1_add_element",
+      "base": "struct('v', {[1 2]; [3 4]})",
+      "edit": "X(2).v(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidArrayOfStructs"
+    },
+    {
+      "id": "sa_two_fields_add_element",
+      "base": "struct('a', {1, 2}, 'v', {[1 2], [3 4]})",
+      "edit": "X(1).v(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidArrayOfStructs"
+    },
+    {
+      "id": "sa_nested_remove_field",
+      "base": "struct('a', {struct('b', 1, 'c', 2), struct('b', 3, 'c', 4)})",
+      "edit": "X(2).a = rmfield(X(2).a, 'c');",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidArrayOfStructs"
+    },
+    {
+      "id": "sa_nested_add_field",
+      "base": "struct('a', {struct('b', 1), struct('b', 2)})",
+      "edit": "X(2).a.field = 0;",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidArrayOfStructs"
+    },
+    {
+      "id": "sa_nested_remove_last_field",
+      "base": "struct('a', {struct('b', 1), struct('b', 2)})",
+      "edit": "X(2).a = rmfield(X(2).a, 'b');",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidArrayOfStructs"
+    },
+    {
+      "id": "sa_nested_array_add_element",
+      "base": "struct('a', {struct('c', [1 2]), struct('c', [3 4])})",
+      "edit": "X(2).a.c(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidArrayOfStructs",
+      "message": "A valid array of structures must be numeric and homogeneous in terms of data type and dimensions",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidArrayOfStructs"
+    },
+    {
+      "id": "fsa_array_add_element",
+      "base": "struct('a', struct('v', {[1 2], [3 4]}))",
+      "edit": "X.a(2).v(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidStruct"
+    },
+    {
+      "id": "fsa_array_remove_element",
+      "base": "struct('a', struct('v', {[1 2], [3 4]}))",
+      "edit": "X.a(2).v(1) = [];",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidStruct"
+    },
+    {
+      "id": "fsa_nested_remove_field",
+      "base": "struct('a', struct('b', {struct('c', 1, 'd', 2), struct('c', 3, 'd', 4)}))",
+      "edit": "X.a(2).b = rmfield(X.a(2).b, 'd');",
+      "baseAccepted": true,
+      "accepted": false,
+      "identifier": "Simulink:Parameters:PrmInvalidStruct",
+      "message": "A valid structure must be numeric",
+      "storedClass": "",
+      "storedSize": [],
+      "inPlaceAccepted": false,
+      "inPlaceIdentifier": "Simulink:Parameters:PrmInvalidStruct"
+    },
+    {
+      "id": "top_array_add_element",
+      "base": "[1 2]",
+      "edit": "X(end+1) = 0;",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "double",
+      "storedSize": [
+        1,
+        3
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "top_array_remove_element",
+      "base": "[1 2 3]",
+      "edit": "X(2) = [];",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "double",
+      "storedSize": [
+        1,
+        2
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "top_array_remove_to_scalar",
+      "base": "[1 2]",
+      "edit": "X(2) = [];",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "double",
+      "storedSize": [
+        1,
+        1
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    },
+    {
+      "id": "top_logical_add_element",
+      "base": "[true false]",
+      "edit": "X(end+1) = false;",
+      "baseAccepted": true,
+      "accepted": true,
+      "identifier": "",
+      "message": "",
+      "storedClass": "logical",
+      "storedSize": [
+        1,
+        3
+      ],
+      "inPlaceAccepted": true,
+      "inPlaceIdentifier": ""
+    }
   ]
 }
