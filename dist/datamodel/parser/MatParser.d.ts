@@ -26,6 +26,7 @@ export interface ParsedMat {
     variables: MatVariable[];
     warnings: ParseWarning[];
 }
+export declare function undecodedValue(dimensions: number[], className: string): string;
 export declare const MAX_NESTING = 128;
 /**
  * Whether `v` is a struct array whose elements nothing reads one by one: one this reader

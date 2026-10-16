@@ -21,7 +21,7 @@ import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../../display/Subscript.js';
-import { decodeMatStream, functionHandleOf, structElementsHeld, type MatVariable } from '../../parser/MatParser.js';
+import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue, type MatVariable } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import {
@@ -3486,16 +3486,37 @@ export default class MatlabVariableNode extends DataNode {
       return node;
     }
 
-    // A complex numeric variable whose bytes end after its array flags and before its real
-    // part, inside its dimensions or its name or just past them, holds no elements:
-    // MatParser's parseMatrix has read the flag that says complex, and its numeric arm had
-    // no bytes to read an {re, im} pair from, so `value` is null. It is built as the real
-    // variable cut at the same point is, by the arms below, since there is nothing complex
-    // to show. Read here, the null was taken for a pair, and its `.re` refused the whole
-    // model whose workspace part was cut there, which the maintainer's ruling of
-    // 2026-10-16 on C-232 rules out. A class MatParser does not model ('unknown': a flags
-    // word overwritten, say) is not such a cut, since no arm read it, and keeps failing
-    // here, which a binary dictionary shows as its value not decoded.
+    // A numeric variable that declares elements and holds none: its bytes end before its real
+    // part's tag, after its name, or inside its array flags, dimensions or name once the flags
+    // byte is read. MatParser's numeric arm had no bytes to read and left `value` null, which
+    // says no payload was there at all. Built by the arms below, that null was taken for the
+    // value: a 1x1 showed `null` and a 2x3 `[null]`, each with an editor for a value nothing
+    // read, and a complex one refused the whole model whose workspace part was cut there,
+    // until #116 built it as the real one. The maintainer's ruling of 2026-10-16 (group E,
+    // theme 1: warn and show what was read) makes it what every value the reader did not
+    // decode is (_createUndecoded): one row, with no editor and no element rows, its class and
+    // size, which are what was read, spelled as MatParser spells its own placeholder. Its
+    // copy is the element it was read from, where it has one (_matStream). A .mat file says
+    // why (MatParser's collectUndecoded); a model workspace does not (the C-232 ruling).
+    //
+    // A class MatParser does not model ('unknown': a flags word overwritten, say) is not this,
+    // since no arm read it. It keeps the null a real one shows, and a complex one fails in the
+    // complex arm below, which a binary dictionary shows as its value not decoded.
+    if (variable.value === null && totalElements > 0 && variable.className !== 'unknown') {
+      const cls = variable.isLogical ? 'logical' : variable.className;
+      const undecoded = MatlabVariableNode._createUndecoded(variable, name, parent);
+      undecoded._scalarType = cls;
+      undecoded._scalarValue = undecodedValue(dims, cls);
+      // The size the placeholder names: a dims part cut short is at least 2-D, as MATLAB's
+      // size() always is.
+      undecoded._dims = dims.length >= 2 ? dims.slice() : [1, dims[0] || 1];
+      return undecoded;
+    }
+
+    // What is left of a complex variable with no value declares no element, or a count that is
+    // no size (a negative dimension): it is built as the real one is, by the arms below, since
+    // there is no {re, im} pair to read. Read here, the null was taken for a pair, and its
+    // `.re` refused the whole file (#116).
     const cutBeforeItsElements = variable.value === null && variable.className !== 'unknown';
     if (variable.isComplex && !cutBeforeItsElements) {
       const arr = Array.isArray(variable.value) ? variable.value : [variable.value];

@@ -196,8 +196,9 @@ function transposeFromColMajor(values, dimensions) {
 // decoded fine and is one click from its elements, which is exactly the wrong thing
 // to say about a value that has none. Spelled here rather than imported because no
 // parser in this package imports the display layer, and one string is not worth
-// being the first.
-function undecodedValue(dimensions, className) {
+// being the first. Exported for the node layer, which spells the same placeholder for a value
+// this reader left null (MatlabVariableNode._createFromMatNumeric).
+export function undecodedValue(dimensions, className) {
     // MATLAB's own size() is always at least 2-D, and so is every dims array a
     // real file carries; a shorter one means the dims subelement was truncated.
     const shape = dimensions.length >= 2 ? dimensions : [1, dimensions[0] || 1];
@@ -1087,6 +1088,9 @@ export function parseMat(arrayBuffer) {
     }
     const variables = [];
     const warnings = [];
+    // The variables a record's own warning names as read short (`short` below): a value the cut
+    // left holding no data is that one loss, said once (collectUndecoded).
+    const readShort = new Set();
     let offset = 128;
     // The name to blame a short record on — empty for the unnamed element every MCOS
     // file carries, which has no name to give.
@@ -1180,6 +1184,7 @@ export function parseMat(arrayBuffer) {
                     };
                     if (shortened) {
                         short.part = shortened;
+                        readShort.add(variables[variables.length - 1]);
                     }
                     warnings.push(short);
                 }
@@ -1220,6 +1225,7 @@ export function parseMat(arrayBuffer) {
             };
             if (shortened) {
                 short.part = shortened;
+                readShort.add(variables[variables.length - 1]);
             }
             warnings.push(short);
         }
@@ -1229,7 +1235,7 @@ export function parseMat(arrayBuffer) {
     // it does not model, becomes one warning here — including the ones nested inside a
     // struct or a cell, which no file-level list could otherwise point at.
     for (const variable of variables) {
-        collectUndecoded(variable, variable.name || '<unnamed>', warnings);
+        collectUndecoded(variable, variable.name || '<unnamed>', warnings, readShort);
     }
     return { header, variables, warnings };
 }
@@ -1247,7 +1253,7 @@ export function parseMat(arrayBuffer) {
  * once, at the point that decided, and the variable keeps it whether or not anyone
  * looks at the file-level list.
  */
-function collectUndecoded(variable, path, warnings) {
+function collectUndecoded(variable, path, warnings, readShort) {
     const unbacked = variable.sparse ? unbackedColumns(variable.sparse, variable.dimensions) : null;
     if (variable.undecoded) {
         warnings.push({
@@ -1278,6 +1284,19 @@ function collectUndecoded(variable, path, warnings) {
             code: 'part-unreadable',
             message: `"${path}" is of a MAT array class this reader does not model, so its value `
                 + 'was not read.',
+            part: path,
+        });
+    }
+    else if (holdsNoData(variable) && !readShort?.has(variable)) {
+        // A numeric value whose bytes end before its real part (parseMatrix's numeric arm, with
+        // no bytes left to read): it declares elements and none are there, which `value: null`
+        // alone says to no host, and the node layer shows it as not decoded
+        // (MatlabVariableNode._createFromMatNumeric). Not when the record holding it is the one
+        // cut short: the record's warning names it, and that is the one loss.
+        warnings.push({
+            code: 'part-unreadable',
+            message: `"${path}" declares ${variable.dimensions.reduce((a, b) => a * b, 1)} element(s) and holds no data, `
+                + 'so its value was not read.',
             part: path,
         });
     }
@@ -1336,6 +1355,14 @@ function collectUndecoded(variable, path, warnings) {
             }
         });
     }
+}
+// The full numeric classes, a logical's uint8 among them: the ones parseMatrix's numeric arm reads.
+const NUMERIC_CLASSES = new Set(Array.from({ length: 10 }, (_, i) => CLASS_NAMES[6 + i]));
+// A full numeric (or logical) value that declares at least one element and holds none: the
+// numeric arm found no bytes after its name, and left `value` null.
+function holdsNoData(variable) {
+    return variable.value === null && !variable.isSparse && !variable.isOpaque && !variable.fields
+        && NUMERIC_CLASSES.has(variable.className) && variable.dimensions.reduce((a, b) => a * b, 1) > 0;
 }
 function decompressZlib(compressed) {
     return inflateZlib(compressed);
