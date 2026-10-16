@@ -30,6 +30,7 @@ schema-projected CoderInfo columns (StorageClass, Alias, etc.).
 | Complexity    | char (enum)         | public    | no (hidden)   | Complexity / Complexity        | —        | 'real' or 'complex' |
 | Dimensions    | double row vector   | public    | no            | Dimensions / Dimensions        | —        | Positive integer row vector |
 | StorageClass  | char (enum)         | public    | yes (schema)  | CoderInfo.StorageClass         | combo    | schemaBridge-validated |
+| Alignment     | int32               | public    | yes (schema), not under StorageClass `Auto` | CoderInfo.Alignment | text | -1 or a power of two from 1 to 2^30; see CodeGeneration.schema-columns.md |
 | CoderInfo     | Simulink.CoderInfo  | protected | nested        | CoderInfo / CoderInfo          | —        | Sub-object, not directly assigned |
 
 ## Non-obvious behavior (the reason this doc exists)

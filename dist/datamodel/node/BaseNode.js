@@ -428,6 +428,9 @@ export default class BaseNode {
         if (key === 'Description') {
             editable = editable && this.descriptionEditable;
         }
+        if (editable && PropClassRef.editableFor) {
+            editable = PropClassRef.editableFor(this);
+        }
         // Every other column of a node whose value is still an encoded stream, schema-projected
         // ones included (Storage Class, Data Type…): they are all inside the stream. The Name
         // was answered above, by nameEditable.

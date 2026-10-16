@@ -158,7 +158,7 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
       expect(headerAfter).toBe(headerBefore);
     });
 
-    it('alignment is guarded by label editor (trySetSchemaProperty returns null)', () => {
+    it("alignment is refused under StorageClass 'Auto', as MATLAB refuses it", () => {
       const { entry } = freshEntry();
 
       const props = entry.serial?._properties;
@@ -169,7 +169,8 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
 
       entry.setProperty('alignment', '8');
 
-      // Serial bag Alignment must not have been mutated by the schema bridge.
+      // The entry's StorageClass is 'Auto', so the schema bridge refuses the edit
+      // and the serial bag's Alignment is not mutated.
       const alignAfter = bag?.Alignment;
       expect(alignAfter).toBe(alignBefore);
     });

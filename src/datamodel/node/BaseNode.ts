@@ -27,6 +27,11 @@ export interface PropClass {
   // data. When omitted, toPIObject falls back to [nodeProperty ?? key].
   sourceKeys?: string[];
   format: (value: unknown) => string;
+  // Whether THIS node takes an edit of a prop whose editor is not 'label', for a prop
+  // whose editability depends on the node's other values rather than on its class alone:
+  // MATLAB refuses a CoderInfo.Alignment under StorageClass 'Auto' (schemaBridge). Omitted,
+  // the editor alone decides. It can only take editability away, never grant it.
+  editableFor?: (node: BaseNode) => boolean;
 }
 
 export interface PropInfo {
@@ -633,6 +638,9 @@ export default class BaseNode {
     // the table did.
     if (key === 'Description') {
       editable = editable && this.descriptionEditable;
+    }
+    if (editable && PropClassRef.editableFor) {
+      editable = PropClassRef.editableFor(this);
     }
     // Every other column of a node whose value is still an encoded stream, schema-projected
     // ones included (Storage Class, Data Type…): they are all inside the stream. The Name

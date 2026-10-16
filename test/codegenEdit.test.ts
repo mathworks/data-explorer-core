@@ -30,12 +30,11 @@ describe('trySetSchemaProperty routing via node.setProperty', () => {
     expect(JSON.stringify(node.serial._properties)).toBe(before);
   });
 
-  it('does not write alignment through the schema (read-only, editor label)', () => {
-    // Alignment is conservatively read-only: its valid values depend on the
-    // object's StorageClass (verified against MATLAB — "Cannot set Alignment when
-    // StorageClass is 'Auto'") and bad input is silently coerced to -1, so we do
-    // not offer it as an editable schema property. trySetSchemaProperty ignores a
-    // label prop, so the write never reaches CoderInfo.Alignment.
+  it("does not write alignment under StorageClass 'Auto' (MATLAB refuses it there)", () => {
+    // A new Parameter's StorageClass is 'Auto', where MATLAB refuses any Alignment
+    // but -1 ("Cannot set Alignment when StorageClass is 'Auto'."), so the write
+    // never reaches CoderInfo.Alignment. The edit itself, under another storage
+    // class, is test/alignmentEdit.test.ts.
     const node = ParameterNode.createDefault('p', null);
     node.setProperty('alignment', '8');
     expect(resolveSourcePath(node.serial._properties, 'CoderInfo.Alignment')).not.toBe(8);
@@ -90,12 +89,13 @@ describe('Code Gen edit round-trip: binary (XML) gravity Parameter', () => {
     expect(resolveSourcePath(node.serial._properties, 'CoderInfo.StorageClass')).toBe('Custom');
   });
 
-  it('leaves the int32 Alignment leaf untouched (read-only)', () => {
+  it("leaves the int32 Alignment leaf untouched under StorageClass 'Auto'", () => {
     const { node } = loadGravity('binary');
     const align = node.serial._properties.CoderInfo._elements[0]._properties.Alignment;
     const before = JSON.stringify(align);
     node.setProperty('alignment', '32');
-    // A label prop is not written back, so the typed-scalar leaf is unchanged.
+    // gravity's StorageClass is 'Auto', where MATLAB refuses the edit, so the
+    // typed-scalar leaf is unchanged.
     expect(JSON.stringify(node.serial._properties.CoderInfo._elements[0]._properties.Alignment)).toBe(before);
   });
 });

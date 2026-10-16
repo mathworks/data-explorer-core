@@ -138,7 +138,8 @@ describe('mpt.Parameter is the Simulink.Parameter treatment under its own name',
     expect(row.dimensions).toBe('[1 1]');
     expect(row.complexity).toBe('real');
     expect(row.storageClass.text).toBe('ExportedGlobal');
-    expect(row.alignment).toBe('-1');
+    // ExportedGlobal, so Alignment is an editable text cell (MATLAB refuses it only under Auto).
+    expect(row.alignment).toEqual({ text: '-1', editable: true, editor: 'text' });
   });
 
   it('opens the Simulink.Parameter Property Inspector layout', () => {

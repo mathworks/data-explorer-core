@@ -16,7 +16,7 @@
       { "$ref": "samplingMode", "default": "auto" },
       "storageClass",
       "identifier",
-      { "$ref": "alignment", "sourcePath": "CoderInfo.Alignment", "projected": true },
+      { "$ref": "alignment", "sourcePath": "CoderInfo.Alignment", "projected": true, "editor": "text" },
       { "$ref": "dataScope", "sourcePath": "CoderInfo.CustomAttributes.DataScope" },
       { "$ref": "headerFile", "sourcePath": "CoderInfo.CustomAttributes.HeaderFile", "projected": true },
       "definitionFile",
