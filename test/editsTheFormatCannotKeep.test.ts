@@ -13,6 +13,10 @@
 //     `{name, metadata, value}` — no property bag, so no Description. A Simulink object
 //     has one and keeps it, which is what makes this a per-node answer and not a
 //     per-column one.
+//   • Description on a Simulink.VariantControl (decision D11, 2026-10-13: an entry-level
+//     Description edit on a class whose file has no Description is refused). MATLAB
+//     writes no Description for a control, and the node wrote back only its Value, so
+//     the edit was taken and lost on save.
 //   • The Name of a Simulink.Parameter's Value row. That row is the class's `Value`
 //     property, exactly as an object's property rows are: serialize writes it under the
 //     key `Value` whatever the node is called, so a rename is discarded in silence.
@@ -24,7 +28,14 @@ import { describe, it, expect } from 'vitest';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import StructNode from '../src/datamodel/node/data/StructNode.js';
+import VariantControlNode from '../src/datamodel/node/data/VariantControlNode.js';
+import PropDescription from '../src/datamodel/prop/PropDescription.js';
 import * as NodeClassMap from '../src/datamodel/node/data/NodeClassMap.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { unzipSync, strFromU8 } from 'fflate';
+import { createSession, ingest } from '../src/index.js';
+import { findEntry } from './parity/loadFile.js';
 
 void NodeClassMap;
 
@@ -87,6 +98,55 @@ describe('a Description the entry has nowhere to put', () => {
     expect(p.toRow()._valueEditable).toBe(false);
     expect(p.toRow()._descriptionEditable).toBe(true);
   });
+
+  // D11. A Simulink.VariantControl has no Description: MATLAB writes none for it (the
+  // binary params.sldd's MyVarCtrl holds Value, ActivationTime and ValueType), its schema
+  // (classes/variantControl.json) has none, and the node's writer writes back its Value
+  // alone. The edit used to be accepted, shown, and gone from the saved file.
+  it('is refused on a Simulink.VariantControl, whose class has no Description', () => {
+    const vc: Any = VariantControlNode.createDefault('vc', null);
+    expect(vc.descriptionEditable).toBe(false);
+    expect(vc.toRow()._descriptionEditable).toBe(false);
+    // The property inspector builds its field from getPropInfo, so it must not offer one either.
+    expect(vc.getPropInfo(PropDescription).editable).toBe(false);
+
+    const result = vc.setProperty('Description', 'selects the plant variant');
+    expect(result).not.toBe(true);
+    expect((result as Any).error).toBe(true);
+    expect((result as Any).reason).toContain('has no Description');
+    expect(vc.Description ?? '').toBe('');
+    expect(vc.toRow().Description).toBe('');
+    expect(JSON.stringify(vc.serializeValue())).not.toContain('selects the plant variant');
+    expect(vc.serializeXml('P', { Name: 'Value' }, 2)).not.toContain('selects the plant variant');
+    // Its Value is still what an edit on it is for.
+    expect(vc.setProperty('Value', '2')).toBe(true);
+    expect(vc.Value).toBe(2);
+  });
+
+  // The same refusal reached the way a host reaches it: through the session, on MATLAB's own
+  // file. Refused, nothing to undo, and the saved file is the file as it was.
+  for (const format of ['text', 'binary'] as const) {
+    it(`is refused through the session on MATLAB's own VariantControl, in a ${format} dictionary`, () => {
+      const url = new URL(`./parity/artifacts/${format}/params.sldd`, import.meta.url);
+      const bytes = new Uint8Array(readFileSync(fileURLToPath(url)));
+      const session = createSession();
+      const root: Any = ingest(session, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, { filename: 'params.sldd' });
+      const vc: Any = findEntry(root, 'MyVarCtrl');
+      expect(vc.className).toBe('Simulink.VariantControl');
+      const saved = (): string => {
+        const out = session.serializeSource(root.name)!;
+        return format === 'text' ? out.text! : strFromU8(unzipSync(out.bytes!)['data/chunk0.xml']);
+      };
+      const before = saved();
+
+      session.setActive(root, vc);
+      const result = session.editProperty(vc.id, 'Description', 'selects the plant variant');
+      expect(result).toMatchObject({ error: true });
+      expect(session.canUndo()).toBe(false);
+      expect(vc.toRow().Description).toBe('');
+      expect(saved()).toBe(before);
+    });
+  }
 });
 
 describe("the Name of a Simulink.Parameter's Value row", () => {
