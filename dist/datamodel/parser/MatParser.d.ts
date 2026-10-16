@@ -50,6 +50,8 @@ export declare function isUnheldStructArray(v: MatVariable): boolean;
  * reader writes for a 1x1 alone and a reader of an array takes for every element's.
  */
 export declare function structElementsHeld(v: MatVariable): number;
+/** The enumeration instance struct of `variable`, an opaque parseOpaque read, or undefined. */
+export declare function enumerationInstanceOf(variable: MatVariable): MatVariable | undefined;
 export declare function parseMatrix(view: DataView, baseOffset: number, length: number): MatVariable;
 export declare function parseMat(arrayBuffer: ArrayBuffer): ParsedMat;
 /** A MAT stream read: the variable and the elements after it, or why there is none. */

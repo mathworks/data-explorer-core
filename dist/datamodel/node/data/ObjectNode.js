@@ -283,7 +283,8 @@ export default class ObjectNode extends DataNode {
             const elements = rawVal._elements || [];
             const enumeral = elements.length === 1 ? enumeralOf(elements[0]) : null;
             if (enumeral?.name && elementCount(this.dims) === 1) {
-                return this.arrayClass + '.' + enumeral.name;
+                // An OnOffSwitchState is `on` or `off`, as a text dictionary's shows (_textEnumText).
+                return this.arrayClass === ON_OFF_SWITCH_STATE ? enumeral.name : this.arrayClass + '.' + enumeral.name;
             }
         }
         return summaryForm(this.dims, this.arrayClass);

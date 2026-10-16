@@ -340,3 +340,74 @@ describe("a text dictionary's enumeration value shows its value and its size", (
     expect(names.map((n) => saved[n])).toEqual(names.map((n) => matlab[n]));
   });
 });
+
+// P3 of the 2026-10-16 list: an enumeration value in a .mat, and an OnOffSwitchState in a
+// binary dictionary, which MATLAB writes there as a MAT stream (`Encoding="hex"`), is an MCOS
+// object whose element holds an instance struct where every other object holds its handle
+// (MatParser.enumerationInstanceOf). Nothing read it, so each showed `<1x1 CLASS>`: on and off
+// alike, a 1x3, a 0x0 and a 1x0 alike, with no rows, and a Parameter holding DispColor.Green
+// showed its Value as that struct, `<1x1 struct>`, with EnumerationInstanceTag 3707764736 and
+// the rest of MATLAB's bookkeeping as editable numbers. Each is now the node a binary
+// dictionary's own enumeration value is (`IsEnum`), with MATLAB's size and enumerals.
+describe('an enumeration value of a .mat, or of a binary dictionary\'s MAT stream, is its size and its enumerals', () => {
+  const ENUMS = ['en_on', 'en_off', 'en_onoff_vec', 'en_sl_red', 'en_sl_vec', 'en_sl_empty', 'en_i32_high', 'en_i32_vec',
+    'en_i32_empty', 'dx_enum_0x0', 'dx_enum_1x0'];
+  /** What a node and every row under it show: label, Value, size, editable. */
+  const shown = (n: any): unknown[] => [[n.displayName, n.toRow().Value, n.dims, n.valueEditable], ...(n.children || []).flatMap(shown)];
+  /** MATLAB's enumerals of `name`, from its mat2str, as this package shows each. */
+  const enumerals = (name: string): string[] => {
+    const text = meta(name).mat2str as unknown as string;
+    if (/\.empty\(/.test(text)) {
+      return [];
+    }
+    return text.replace(/^\[|\]$/g, '').split(' ').map((t) => (t.startsWith('matlab.lang.OnOffSwitchState.') ? t.slice(29) : t));
+  };
+
+  it('dispcat_opaque.mat: each is MATLAB\'s size, and each element its enumeral', () => {
+    const { root } = open('dispcat_opaque.mat');
+    for (const name of ENUMS) {
+      const node = entry(root, name);
+      const m = meta(name);
+      const each = enumerals(name);
+      expect([name, node.className, node.dims], name).toEqual([name, m.class, m.size]);
+      const value = each.length === 1 ? each[0] : `<${m.size.join('x')} ${m.class}>`;
+      const rows = each.length > 1 ? each.map((e, k) => [`${name}(${k + 1})`, e, [1, 1], false]) : [];
+      expect(shown(node), name).toEqual([[name, value, m.size, false], ...rows]);
+    }
+    // MATLAB's own text, where this package's is MATLAB's: a scalar OnOffSwitchState.
+    expect(['en_on', 'en_off'].map((n) => entry(root, n).toRow().Value)).toEqual(['en_on', 'en_off'].map((n) => browser(n).Value));
+  });
+
+  it('and shows as the binary twin does, whether MATLAB wrote it there as IsEnum or as a MAT stream', () => {
+    const mat = open('dispcat_opaque.mat').root;
+    const binary = open('dispcat_bin.sldd').root;
+    const xml = chunkOf(bytes('dispcat_bin.sldd'));
+    const entryXml = (name: string): string => {
+      const at = xml.indexOf(`<P Name="Name" Class="char">${name}</P>`);
+      return xml.slice(at, xml.indexOf('</Object>', at));
+    };
+    const hex = ENUMS.filter((n) => entryXml(n).includes('Encoding="hex"'));
+    expect(hex).toEqual(['en_on', 'en_off', 'en_onoff_vec', 'dx_enum_0x0', 'dx_enum_1x0']);
+    for (const name of ENUMS) {
+      expect(shown(entry(binary, name)), name).toEqual(shown(entry(mat, name)));
+    }
+  });
+
+  it("a .mat Parameter's enumeration Value is the enumeration value, not its instance struct", () => {
+    const { root } = open('dispcat_opaque.mat');
+    expect(meta('p_enum').paramValue).toMatchObject({ class: 'DispColor', size: [1, 1], mat2str: 'DispColor.Green' });
+    const param = entry(root, 'p_enum');
+    expect([param.className, param.toRow().Value, param.valueEditable]).toEqual(['Simulink.Parameter', 'DispColor.Green', false]);
+    const all: any[] = [];
+    const walk = (n: any): void => {
+      all.push(n);
+      (n.children || []).forEach(walk);
+      if (n._valueNode && !n.children.includes(n._valueNode)) {
+        walk(n._valueNode);
+      }
+    };
+    walk(param);
+    expect(all.map((n) => n.name)).not.toContain('EnumerationInstanceTag');
+    expect(param.toRow().Value).toBe(entry(open('dispcat_bin.sldd').root, 'p_enum').toRow().Value);
+  });
+});

@@ -16,12 +16,17 @@
 //   - dispcat.mat: the 128-byte header and the chosen top-level records. Only values with no
 //     MCOS object in them (no string, enumeration or Simulink object), so the file needs no
 //     subsystem, and the header's subsystem offset is zeroed;
+//   - dispcat_opaque.mat: the same header, the chosen records of MCOS objects (enumerations),
+//     and the subsystem they are objects of, whole, with the header's offset moved to it. A
+//     record holding the matlabroot of the MATLAB that wrote it (the subsystem does) has it
+//     replaced by a token of the same length, as test/fixtures/sparse/scrub_matlabroot.m does,
+//     and is compressed again; every other record is as MATLAB wrote it;
 //   - browser_short.truth.json / meta.truth.json: the same names' rows (meta without its
 //     matlabroot, which is a path of the machine).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inflateSync } from 'node:zlib';
+import { deflateSync, inflateSync } from 'node:zlib';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 
 const out = (name) => fileURLToPath(new URL(name, import.meta.url));
@@ -47,6 +52,11 @@ const ENUM_VALUE = ['en_sl_red', 'en_sl_vec', 'en_i32_high', 'en_i32_vec', 'p_en
 
 const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...ENUM_VALUE]);
 const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY]);
+// MCOS objects of the .mat, which need its subsystem: enumeration values, empties among them,
+// and a Parameter holding one.
+const MAT_ENUM = ['en_on', 'en_off', 'en_onoff_vec', 'en_sl_red', 'en_sl_vec', 'en_sl_empty', 'en_i32_high', 'en_i32_vec',
+  'en_i32_empty', 'dx_enum_0x0', 'dx_enum_1x0', 'p_enum'];
+const OPAQUE_MAT = new Set([...MAT_ENUM]);
 
 // --- binary: whole DD.ENTRY blocks, in MATLAB's order, between its header and its DD.Dictionary
 const zip = unzipSync(new Uint8Array(readFileSync(join(root, 'files', 'dispcat_bin.sldd'))));
@@ -72,16 +82,21 @@ writeFileSync(out('dispcat_text.sldd'), JSON.stringify(text, null, '\t'));
 const mat = new Uint8Array(readFileSync(join(root, 'files', 'catalog.mat')));
 const view = new DataView(mat.buffer, mat.byteOffset, mat.byteLength);
 const records = [];
+const opaqueRecords = [];
+let subsystem = null;
 for (let at = 128; at + 8 <= mat.length; ) {
   const type = view.getUint32(at, true);
   const size = view.getUint32(at + 4, true);
   const body = mat.subarray(at + 8, at + 8 + size);
   const raw = type === 15 ? new Uint8Array(inflateSync(body)) : body;
   const rv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-  // miMATRIX tag (8), array flags (16), dimensions (small or not), then the name.
+  // miMATRIX tag (8), array flags (16), dimensions (small or not), then the name; an MCOS
+  // object (class 17) has no dimensions, its name coming straight after the flags.
   let off = 24;
-  const dimsTag = rv.getUint32(off, true);
-  off += dimsTag >>> 16 ? 8 : 8 + Math.ceil(rv.getUint32(off + 4, true) / 8) * 8;
+  if (raw[16] !== 17) {
+    const dimsTag = rv.getUint32(off, true);
+    off += dimsTag >>> 16 ? 8 : 8 + Math.ceil(rv.getUint32(off + 4, true) / 8) * 8;
+  }
   const nameTag = rv.getUint32(off, true);
   const name = nameTag >>> 16
     ? strFromU8(raw.subarray(off + 4, off + 4 + (nameTag >>> 16)))
@@ -89,14 +104,50 @@ for (let at = 128; at + 8 <= mat.length; ) {
   if (MAT.has(name)) {
     records.push(mat.subarray(at, at + 8 + size));
   }
+  if (OPAQUE_MAT.has(name)) {
+    opaqueRecords.push(scrubbed(mat.subarray(at, at + 8 + size), raw));
+  }
+  if (name === '' && at === Number(view.getBigUint64(116, true))) {
+    subsystem = scrubbed(mat.subarray(at, at + 8 + size), raw);
+  }
   at += 8 + size;
 }
 const header = mat.slice(0, 128);
 header.fill(0, 116, 124);
 writeFileSync(out('dispcat.mat'), Buffer.concat([header, ...records]));
 
+// The record `record`, whose miMATRIX is `raw`, with the writing MATLAB's matlabroot replaced.
+function scrubbed(record, raw) {
+  const matlabroot = JSON.parse(readFileSync(join(root, 'truth', 'meta.json'), 'utf8')).matlabroot;
+  const token = ('<matlabroot>' + '_'.repeat(Math.max(0, matlabroot.length - 12))).slice(0, matlabroot.length);
+  const forms = [[Buffer.from(matlabroot, 'utf8'), Buffer.from(token, 'utf8')], [Buffer.from(matlabroot, 'utf16le'), Buffer.from(token, 'utf16le')]];
+  const bytes = Buffer.from(raw);
+  let n = 0;
+  for (const [from, to] of forms) {
+    for (let k = bytes.indexOf(from); k >= 0; k = bytes.indexOf(from, k + from.length)) {
+      to.copy(bytes, k);
+      n++;
+    }
+  }
+  if (n === 0) {
+    return record;
+  }
+  const body = deflateSync(bytes, { level: 9 });
+  const tag = Buffer.alloc(8);
+  tag.writeUInt32LE(15, 0);
+  tag.writeUInt32LE(body.length, 4);
+  return Buffer.concat([tag, body]);
+}
+if (!subsystem) {
+  throw new Error('catalog.mat has no subsystem where its header says');
+}
+const opaqueHeader = mat.slice(0, 128);
+const opaqueBody = Buffer.concat(opaqueRecords);
+new DataView(opaqueHeader.buffer, opaqueHeader.byteOffset, 128).setBigUint64(116, BigInt(128 + opaqueBody.length), true);
+writeFileSync(out('dispcat_opaque.mat'), Buffer.concat([opaqueHeader, opaqueBody, subsystem]));
+
 // --- MATLAB's own display of the same names
-const names = new Set([...SLDD]);
+const names = new Set([...SLDD, ...OPAQUE_MAT]);
 const browser = JSON.parse(readFileSync(join(root, 'truth', 'browser_short.json'), 'utf8'));
 writeFileSync(out('browser_short.truth.json'), JSON.stringify(browser.filter((r) => names.has(r.Name)), null, 2) + '\n');
 const meta = JSON.parse(readFileSync(join(root, 'truth', 'meta.json'), 'utf8'));
@@ -104,4 +155,4 @@ const keep = ['version', 'release', 'date', 'userNumericFormat', 'timesSymbol', 
 const trimmed = Object.fromEntries(keep.map((k) => [k, meta[k]]));
 trimmed.entries = meta.entries.filter((e) => names.has(e.name));
 writeFileSync(out('meta.truth.json'), JSON.stringify(trimmed, null, 2) + '\n');
-console.log(`kept ${kept.length} binary entries, ${part.entries.length} text entries, ${records.length} .mat records`);
+console.log(`kept ${kept.length} binary entries, ${part.entries.length} text entries, ${records.length} .mat records, ${opaqueRecords.length} .mat objects`);

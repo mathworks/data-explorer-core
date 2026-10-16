@@ -529,10 +529,55 @@ function parseOpaque(view: DataView, offset: number, end: number): MatVariable {
     offset += classSub.totalSize;
     const className = readString(view, classSub);
 
-    return {
+    const variable: MatVariable = {
         name, className, dimensions: [1, 1], isComplex: false, isLogical: false, value: null, fields: null, isOpaque: true,
         mcosHandle: readOpaqueHandle(view, offset, end),
     };
+    if (variable.mcosHandle === null) {
+        const instance = readEnumerationInstance(view, offset, end);
+        if (instance) {
+            enumerationInstances.set(variable, instance);
+        }
+    }
+    return variable;
+}
+
+// What an enumeration value's class-17 element holds in place of an object handle, by the
+// variable parseOpaque made of the element. MATLAB writes the fourth part of an enumeration
+// value's element as a 1x1 struct, not the uint32 handle every other object has:
+//
+//   EnumerationInstanceTag  0xDD000000
+//   ClassName               the class's row in the subsystem's class table
+//   ValueNames              the string-table index of each enumeral the value uses, Kx1
+//   Values                  a Kx1 cell, an object handle per enumeral
+//   ValueIndices            the value's own size, each element the 0-based index of its enumeral
+//   BuiltinClassName        the string-table index of the class it derives from, if any
+//
+// measured on the display catalog's catalog.mat (en_on, en_onoff_vec, en_sl_vec, dx_enum_1x0).
+// Held beside the variable, as McosParser reads it (McosParser.enumerationValue), for the reason
+// mcosDecodedTable holds the decode beside it: the variable is the host's.
+const enumerationInstances = new WeakMap<MatVariable, MatVariable>();
+
+/** The enumeration instance struct of `variable`, an opaque parseOpaque read, or undefined. */
+export function enumerationInstanceOf(variable: MatVariable): MatVariable | undefined {
+    return enumerationInstances.get(variable);
+}
+
+// The handle part at `offset`, when it is an enumeration instance struct, or null.
+function readEnumerationInstance(view: DataView, offset: number, end: number): MatVariable | null {
+    if (offset + 8 > end) { return null; }
+    const sub = readSubelement(view, offset);
+    if (sub.type !== MI_MATRIX || sub.dataOffset + sub.bytes > end) { return null; }
+    const flagsSub = readSubelement(view, sub.dataOffset);
+    if (flagsSub.bytes < 2 || CLASS_NAMES[view.getUint8(flagsSub.dataOffset)] !== 'struct') { return null; }
+    let instance: MatVariable;
+    try {
+        instance = parseMatrix(view, sub.dataOffset, sub.bytes);
+    } catch {
+        return null;
+    }
+    const tag = instance.fields?.EnumerationInstanceTag;
+    return tag && !Array.isArray(tag) && tag.className === 'uint32' && tag.value === 0xdd000000 ? instance : null;
 }
 
 // The handle part of a class-17 element, or null when it is not there in the one shape

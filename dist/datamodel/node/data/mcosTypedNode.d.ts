@@ -9,6 +9,7 @@ export interface McosDecoded {
     elements: Record<string, unknown>[];
     dimensions: number[];
     stringElements?: (string | null)[] | null;
+    enumeration?: Record<string, unknown>;
 }
 export declare function decodeMcosObjects(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): Map<string, McosDecoded> | null;
 export declare function attachMcosDecoded(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): void;
