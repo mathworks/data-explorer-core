@@ -3170,7 +3170,18 @@ export default class MatlabVariableNode extends DataNode {
             node._buildArrayChildren(node._sparse.im ? 'complex' : undefined);
             return node;
         }
-        if (variable.isComplex) {
+        // A complex numeric variable whose bytes end after its array flags and before its real
+        // part, inside its dimensions or its name or just past them, holds no elements:
+        // MatParser's parseMatrix has read the flag that says complex, and its numeric arm had
+        // no bytes to read an {re, im} pair from, so `value` is null. It is built as the real
+        // variable cut at the same point is, by the arms below, since there is nothing complex
+        // to show. Read here, the null was taken for a pair, and its `.re` refused the whole
+        // model whose workspace part was cut there, which the maintainer's ruling of
+        // 2026-10-16 on C-232 rules out. A class MatParser does not model ('unknown': a flags
+        // word overwritten, say) is not such a cut, since no arm read it, and keeps failing
+        // here, which a binary dictionary shows as its value not decoded.
+        const cutBeforeItsElements = variable.value === null && variable.className !== 'unknown';
+        if (variable.isComplex && !cutBeforeItsElements) {
             const arr = Array.isArray(variable.value) ? variable.value : [variable.value];
             if (arr.length === 1) {
                 node._kind = 'scalar';

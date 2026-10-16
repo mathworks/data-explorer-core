@@ -35,6 +35,7 @@ import { parseMdl } from '../src/datamodel/parser/MdlParser.js';
 import { parseModel } from '../src/datamodel/parser/ModelParser.js';
 import { scanModelStructure } from '../src/datamodel/parser/ModelStructureScan.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
+import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { parseBinarySldd, parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 // Through the public entry point, which is what registers the node classes
 // SlddNode.parse builds a tree out of. A deep import of SlddNode alone leaves
@@ -644,6 +645,84 @@ describe('a .slx zip holding no Simulink parts opens with every section present 
   });
 });
 
+describe('only a whole end record counting no entries is read as an empty .slx zip', () => {
+  // A zip with no entries is its 22-byte end-of-central-directory record, then the
+  // archive comment if it has one. The record's signature alone is not one: both zip
+  // readers find a signature at offset 0 and read whatever follows as its counts and
+  // offsets, so bytes that merely began PK\x05\x06 opened as an empty model. They were
+  // refused before, as not a model, and are again.
+  const allEmpty = MODEL_SECTIONS.map((s): [string, number] => [s, 0]);
+  const notAModel = /Not a Simulink model/;
+
+  /** An empty zip with an archive comment, which fflate's writer has no option for. */
+  function emptyZipWithComment(comment: string): ArrayBuffer {
+    const record = new Uint8Array(zipOf({}));
+    const text = strToU8(comment);
+    const out = new Uint8Array(record.length + text.length);
+    out.set(record);
+    out.set(text, record.length);
+    new DataView(out.buffer).setUint16(20, text.length, true); // the comment's length
+    return out.buffer;
+  }
+
+  /** Seeded, so a failure names the same bytes every run. */
+  function garbageAfterSignature(length: number, seed: number): Uint8Array {
+    const out = new Uint8Array(length);
+    let state = seed;
+    for (let i = 0; i < length; i++) {
+      state = (Math.imul(state, 1103515245) + 12345) >>> 0;
+      out[i] = state >>> 24;
+    }
+    out.set([0x50, 0x4b, 0x05, 0x06]);
+    return out;
+  }
+
+  const genuine: [string, () => ArrayBuffer][] = [
+    ['the 22-byte record alone', () => zipOf({})],
+    ['the record and an archive comment', () => emptyZipWithComment('an archive comment')],
+  ];
+  for (const [what, build] of genuine) {
+    it(`an empty zip, ${what}: opens with every section empty and no warning`, () => {
+      const zip = build();
+      expect(zip.byteLength).toBe(what.includes('comment') ? 22 + 'an archive comment'.length : 22);
+      expect(openedModel(zip, 'x.slx')).toEqual({ format: 'slx', sections: allEmpty, warnings: [] });
+      expect(parseModel(zip, 'x.slx').warnings).toEqual([]);
+      expect(scanModelStructure(zip, 'x.slx')).toEqual({
+        dataDictionary: null,
+        modelReferences: [],
+        externalDataSources: [],
+      });
+    });
+  }
+
+  const record = (counts: [number, number]): Uint8Array => {
+    const out = new Uint8Array(zipOf({}));
+    new DataView(out.buffer).setUint16(8, counts[0], true);
+    new DataView(out.buffer).setUint16(10, counts[1], true);
+    return out;
+  };
+  const notEmpty: [string, Uint8Array][] = [
+    ...[22, 23, 100, 4096, 30 * 1024].map((n, i): [string, Uint8Array] => [
+      `${n} bytes of garbage after the signature`,
+      garbageAfterSignature(n, 7 + i),
+    ]),
+    ['an end record counting one entry, without the entry', record([1, 1])],
+    ['an end record counting one entry in all and none on this disk', record([0, 1])],
+    ['an end record counting none in all and one on this disk', record([1, 0])],
+    ['an empty zip cut to 21 bytes', new Uint8Array(zipOf({})).slice(0, 21)],
+  ];
+  for (const [what, bytes] of notEmpty) {
+    it(`${what}: refused as not a model`, () => {
+      const counts = bytes.length >= 12 ? [bytes[8] | (bytes[9] << 8), bytes[10] | (bytes[11] << 8)] : [];
+      expect(bytes.length < 22 || counts.some((c) => c !== 0)).toBe(true); // the case is what it says
+      const buffer = bytes.slice().buffer;
+      expect(() => parseModel(buffer, 'x.slx')).toThrow(notAModel);
+      expect(() => openedModel(buffer, 'x.slx')).toThrow(notAModel);
+      expect(() => scanModelStructure(buffer, 'x.slx')).toThrow(notAModel);
+    });
+  }
+});
+
 /** The modern `.mdl` with one part taken out, its header and its body. */
 function mdlWithoutPart(part: string): ArrayBuffer {
   const text = latin1Text(MDL_MODERN);
@@ -776,6 +855,91 @@ describe('a model whose model-workspace part is missing or unreadable opens with
       expectWorkspaceEmptied(opened, mdlClassic(), []);
     });
   });
+});
+
+describe('a .slx whose workspace part is cut short inside a complex variable opens as one cut inside a real variable does', () => {
+  // A cut that lands after a complex variable's array flags and before its real part
+  // leaves the variable complex with no value, and that used to refuse the whole model
+  // with "Cannot read properties of null (reading 're')". The ruling of 2026-10-16 on
+  // C-232: an unreadable workspace part shows what could be read, with no refusal and
+  // no warning. What a variable cut at that point shows is already decided, by the real
+  // variable cut at the same point: the same bytes with the complex flag cleared. So
+  // each cut is measured against that sibling, not against a value chosen here.
+  const PART = 'simulink/modelWorkspace.mxarray';
+  const COMPLEX_WS = join(FIXTURES, 'mcos', 'complex_ws.slx');
+  const SPARSE_WS = join(FIXTURES, 'sparse', 'sparse_ws.slx');
+
+  interface Row {
+    name: string;
+    className: string;
+    displayValue: string;
+    valueEditable: boolean;
+    children: Row[];
+  }
+  function rowOf(node: Row): Row {
+    const { name, className, displayValue, valueEditable } = node;
+    return { name, className, displayValue, valueEditable, children: node.children.map(rowOf) };
+  }
+  function opened(file: string, part: Uint8Array) {
+    const source = createSession().addModelSource(basename(file), slxWith(file, { [PART]: part })) as unknown as {
+      children: { name: string; children: Row[] }[];
+      warnings?: ParseWarning[];
+    };
+    return {
+      sections: source.children.map((s): [string, number] => [s.name, s.children.length]),
+      workspace: source.children.find((s) => s.name === 'workspace')!.children.map(rowOf),
+      warnings: source.warnings ?? [],
+    };
+  }
+
+  // [fixture, variable, what it is]
+  const variables: [string, string, string][] = [
+    [COMPLEX_WS, 'z', 'a complex scalar, 3+4i'],
+    [SLX_MODERN, 'cplxScalar', 'a complex scalar'],
+    [SLX_MODERN, 'cplxVec', 'a complex 1x2 row'],
+    [SPARSE_WS, 'dComplex', 'a complex 3x4 matrix'],
+  ];
+
+  for (const [file, name, what] of variables) {
+    it(`${basename(file)}: ${what} (${name}), cut at every length between its flags and its real part`, () => {
+      const part = unzipSync(new Uint8Array(bytesAt(file)))[PART];
+      // The lengths at which the stream ends with this variable read as complex and
+      // holding no value: past the byte of its array flags that says complex, short of
+      // its real part's tag.
+      const window: number[] = [];
+      for (let length = 0; length < part.length; length++) {
+        const variable = parseMxArray(part.slice(0, length).buffer).find((v) => v.name === name);
+        if (variable && variable.isComplex && variable.value === null) {
+          window.push(length);
+        } else if (window.length > 0) {
+          break;
+        }
+      }
+      // The rest of the flags (6 bytes), the dimensions (8 + 8), the empty name (8), and
+      // the cut at the real part's tag itself.
+      expect(window.length).toBe(31);
+      expect(window[window.length - 1] - window[0]).toBe(30);
+      const flagsAt = window[0] - 1;
+      expect(part[flagsAt] & 0x08).toBe(0x08); // mxCOMPLEX, in the byte the window begins after
+      const real = part.slice();
+      real[flagsAt] &= ~0x08;
+
+      const intact = opened(file, part);
+      for (const length of window) {
+        const cut = opened(file, part.slice(0, length));
+        expect(cut).toEqual(opened(file, real.slice(0, length)));
+        expect(cut.warnings).toEqual([]);
+        // What was read before the cut is listed, this variable included; what the cut
+        // took is not; and nothing outside the workspace changes.
+        const names = cut.workspace.map((v) => v.name);
+        expect(names).toContain(name);
+        expect(intact.workspace.map((v) => v.name)).toEqual(expect.arrayContaining(names));
+        expect(cut.sections.filter(([s]) => s !== 'workspace')).toEqual(
+          intact.sections.filter(([s]) => s !== 'workspace'),
+        );
+      }
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------

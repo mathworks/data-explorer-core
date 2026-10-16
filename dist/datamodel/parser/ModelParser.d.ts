@@ -12,6 +12,13 @@ import type { ParsedSlx } from './SlxParser.js';
  * parts already did (the maintainer's ruling of 2026-10-16 on C-223). Tested on the
  * local header alone, it failed this sniff, reached the classic `.mdl` reader as text,
  * and was refused there as "Not a Simulink model".
+ *
+ * Only a whole record that counts no entries is one, though. The signature alone is not:
+ * both zip readers (Inflate's walk and fflate's) search back from the end for it, find it
+ * at offset 0 in such bytes, and read whatever follows as its counts and offsets, so any
+ * bytes that began `PK\x05\x06` opened as an empty model, where they had been refused as
+ * not a model. Its comment length (offset 20) is not checked, since neither reader
+ * checks it.
  */
 export declare function isZipPackage(bytes: Uint8Array): boolean;
 /**
