@@ -22,7 +22,7 @@ import { dimsText, isSize, isStreamSize } from '../../parser/Size.js';
 import { classPhrase, classRefusal, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
-import { charNeedsShape, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, isEnumBag, } from '../../parser/XmlUtils.js';
+import { charNeedsShape, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
 // The pure rules about a MATLAB VALUE — what class an edit leaves behind, when a
@@ -661,7 +661,9 @@ export default class MatlabVariableNode extends DataNode {
     // whose `{2}` replaced the Parameter with the double 2 (P5 of the 2026-10-16 list; MATLAB's
     // browser shows `[1×1 Simulink.Parameter]`). The summary is what makes the literal no editor's
     // seed (_literalRoundTrips). An enumeration value keeps its enumeral, `GearMode.Reverse`, which
-    // is the value; ObjectNode.displayValue spells one, and its summary for any other object.
+    // is the value, whichever reader's form it came in (isEnumBag, the binary reader's; a text
+    // dictionary's, textEnumValueOf); ObjectNode.displayValue spells one, `on` or `DispColor(1)`
+    // in a text dictionary as in the element's own row, and its summary for any other object.
     //
     // An MCOS object read out of a .mat file or a model workspace (`_matVar` set) is spelled the
     // same way, decoded or not: `{<1x1 Simulink.Parameter>, 9}`, not `{42, 9}`, and an opaque one,
@@ -679,7 +681,8 @@ export default class MatlabVariableNode extends DataNode {
             return asMeasured ? child._guardText() : child.displayValue;
         }
         const object = child;
-        if (isEnumBag(object.serial?._rawVal)) {
+        const raw = object.serial?._rawVal;
+        if (isEnumBag(raw) || textEnumValueOf(raw) !== undefined) {
             return child.displayValue;
         }
         // A typed object (ParameterNode and the rest) is one object and states no dims of its own;

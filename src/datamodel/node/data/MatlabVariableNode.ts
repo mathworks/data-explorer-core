@@ -98,6 +98,7 @@ import {
   pad as xmlPad,
   BINARY_EMPTY_KEY,
   isEnumBag,
+  textEnumValueOf,
 } from '../../parser/XmlUtils.js';
 import {
   TYPED_NUMERIC_CLASS,
@@ -871,7 +872,9 @@ export default class MatlabVariableNode extends DataNode {
   // whose `{2}` replaced the Parameter with the double 2 (P5 of the 2026-10-16 list; MATLAB's
   // browser shows `[1×1 Simulink.Parameter]`). The summary is what makes the literal no editor's
   // seed (_literalRoundTrips). An enumeration value keeps its enumeral, `GearMode.Reverse`, which
-  // is the value; ObjectNode.displayValue spells one, and its summary for any other object.
+  // is the value, whichever reader's form it came in (isEnumBag, the binary reader's; a text
+  // dictionary's, textEnumValueOf); ObjectNode.displayValue spells one, `on` or `DispColor(1)`
+  // in a text dictionary as in the element's own row, and its summary for any other object.
   //
   // An MCOS object read out of a .mat file or a model workspace (`_matVar` set) is spelled the
   // same way, decoded or not: `{<1x1 Simulink.Parameter>, 9}`, not `{42, 9}`, and an opaque one,
@@ -889,7 +892,8 @@ export default class MatlabVariableNode extends DataNode {
       return asMeasured ? child._guardText() : child.displayValue;
     }
     const object = child as DataNode;
-    if (isEnumBag(object.serial?._rawVal)) {
+    const raw = object.serial?._rawVal;
+    if (isEnumBag(raw) || textEnumValueOf(raw) !== undefined) {
       return child.displayValue;
     }
     // A typed object (ParameterNode and the rest) is one object and states no dims of its own;
