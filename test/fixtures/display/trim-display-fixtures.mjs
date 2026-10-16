@@ -9,7 +9,7 @@
 // MATLAB's own Value/Class/Size for each into truth/browser_short.json and truth/meta.json.
 // Whole, the three files do not belong in this repo: they hold function handles, whose MAT
 // bytes carry the matlabroot MATLAB was run from (fixtureHygiene.test.ts), and every walk of
-// test/fixtures would read 283 values for the 56 these tests ask about. So this keeps, byte
+// test/fixtures would read 283 values for the 80 these tests ask about. So this keeps, byte
 // for byte as MATLAB wrote it:
 //   - dispcat_bin.sldd: the chosen `DD.ENTRY` blocks of data/chunk0.xml, and every other part;
 //   - dispcat_text.sldd: the chosen entries of the data/chunk0 part, with the one entry
@@ -17,6 +17,12 @@
 //   - dispcat.mat: the 128-byte header and the chosen top-level records. Only values with no
 //     MCOS object in them (no string, enumeration or Simulink object), so the file needs no
 //     subsystem, and the header's subsystem offset is zeroed;
+//   - dispcat_opaque.mat: the same header, the chosen records of MCOS objects and of function
+//     handles, and the subsystem they are objects of, whole, with the header's offset moved to
+//     it. A record holding the matlabroot of the MATLAB that wrote it (the subsystem does, and
+//     every function handle's own struct does) has it
+//     replaced by a token of the same length, as test/fixtures/sparse/scrub_matlabroot.m does,
+//     and is compressed again; every other record is as MATLAB wrote it;
 //   - browser_short.truth.json / meta.truth.json: the same names' rows (meta without its
 //     matlabroot, which is a path of the machine);
 //   - text_readback.truth.json: for the few values whose tests ask, what MATLAB read back
@@ -24,7 +30,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inflateSync } from 'node:zlib';
+import { deflateSync, inflateSync } from 'node:zlib';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 
 const out = (name) => fileURLToPath(new URL(name, import.meta.url));
@@ -54,11 +60,23 @@ const CELL = ['cell_1', 'cell_of_param'];
 const CONTROL = ['c_newline', 'c_tab', 'c_nul', 'str_newline'];
 // A complex row past the element budget, which shows its summary.
 const COMPLEX_SUMMARY = ['z_1x11'];
+// Enumeration values of a user class, scalar and row, and a Parameter holding one, with the
+// catalog's EnumTypeDefinition beside them.
+const ENUM_VALUE = ['en_sl_red', 'en_sl_vec', 'en_i32_high', 'en_i32_vec', 'p_enum', 'enumdef'];
+// Objects whose size is their data's: a fixed-point row, a categorical row, a 2x2 table.
+const SIZED = ['fi_vec', 'cat_ab', 'tbl_2x2'];
 
 const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...VECTOR, ...CELL,
-  ...CONTROL, ...COMPLEX_SUMMARY]);
+  ...CONTROL, ...COMPLEX_SUMMARY, ...ENUM_VALUE, ...SIZED]);
 const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY, ...VECTOR, 'cell_1', 'c_newline', 'c_tab', 'c_nul',
   ...COMPLEX_SUMMARY]);
+// MCOS objects of the .mat, which need its subsystem: enumeration values, empties among them,
+// a Parameter holding one, and the SIZED objects.
+const MAT_ENUM = ['en_on', 'en_off', 'en_onoff_vec', 'en_sl_red', 'en_sl_vec', 'en_sl_empty', 'en_i32_high', 'en_i32_vec',
+  'en_i32_empty', 'dx_enum_0x0', 'dx_enum_1x0', 'p_enum'];
+// Function handles: a named one, an anonymous one (whose workspace is an MCOS object), an empty.
+const HANDLE = ['fh_sin', 'fh_anon', 'e_func_handle_none'];
+const OPAQUE_MAT = new Set([...MAT_ENUM, ...SIZED, ...HANDLE]);
 // A value the text dictionary could not hold: MATLAB saved the 2x2x2 string with a warning, as
 // `"value": null`, and opens that file again without one. Kept in dispcat_text.sldd only (the
 // binary file holds the string itself), and out of the browser and meta truth, which are of the
@@ -92,16 +110,21 @@ writeFileSync(out('dispcat_text.sldd'), JSON.stringify(text, null, '\t'));
 const mat = new Uint8Array(readFileSync(join(root, 'files', 'catalog.mat')));
 const view = new DataView(mat.buffer, mat.byteOffset, mat.byteLength);
 const records = [];
+const opaqueRecords = [];
+let subsystem = null;
 for (let at = 128; at + 8 <= mat.length; ) {
   const type = view.getUint32(at, true);
   const size = view.getUint32(at + 4, true);
   const body = mat.subarray(at + 8, at + 8 + size);
   const raw = type === 15 ? new Uint8Array(inflateSync(body)) : body;
   const rv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-  // miMATRIX tag (8), array flags (16), dimensions (small or not), then the name.
+  // miMATRIX tag (8), array flags (16), dimensions (small or not), then the name; an MCOS
+  // object (class 17) has no dimensions, its name coming straight after the flags.
   let off = 24;
-  const dimsTag = rv.getUint32(off, true);
-  off += dimsTag >>> 16 ? 8 : 8 + Math.ceil(rv.getUint32(off + 4, true) / 8) * 8;
+  if (raw[16] !== 17) {
+    const dimsTag = rv.getUint32(off, true);
+    off += dimsTag >>> 16 ? 8 : 8 + Math.ceil(rv.getUint32(off + 4, true) / 8) * 8;
+  }
   const nameTag = rv.getUint32(off, true);
   const name = nameTag >>> 16
     ? strFromU8(raw.subarray(off + 4, off + 4 + (nameTag >>> 16)))
@@ -109,14 +132,50 @@ for (let at = 128; at + 8 <= mat.length; ) {
   if (MAT.has(name)) {
     records.push(mat.subarray(at, at + 8 + size));
   }
+  if (OPAQUE_MAT.has(name)) {
+    opaqueRecords.push(scrubbed(mat.subarray(at, at + 8 + size), raw));
+  }
+  if (name === '' && at === Number(view.getBigUint64(116, true))) {
+    subsystem = scrubbed(mat.subarray(at, at + 8 + size), raw);
+  }
   at += 8 + size;
 }
 const header = mat.slice(0, 128);
 header.fill(0, 116, 124);
 writeFileSync(out('dispcat.mat'), Buffer.concat([header, ...records]));
 
+// The record `record`, whose miMATRIX is `raw`, with the writing MATLAB's matlabroot replaced.
+function scrubbed(record, raw) {
+  const matlabroot = JSON.parse(readFileSync(join(root, 'truth', 'meta.json'), 'utf8')).matlabroot;
+  const token = ('<matlabroot>' + '_'.repeat(Math.max(0, matlabroot.length - 12))).slice(0, matlabroot.length);
+  const forms = [[Buffer.from(matlabroot, 'utf8'), Buffer.from(token, 'utf8')], [Buffer.from(matlabroot, 'utf16le'), Buffer.from(token, 'utf16le')]];
+  const bytes = Buffer.from(raw);
+  let n = 0;
+  for (const [from, to] of forms) {
+    for (let k = bytes.indexOf(from); k >= 0; k = bytes.indexOf(from, k + from.length)) {
+      to.copy(bytes, k);
+      n++;
+    }
+  }
+  if (n === 0) {
+    return record;
+  }
+  const body = deflateSync(bytes, { level: 9 });
+  const tag = Buffer.alloc(8);
+  tag.writeUInt32LE(15, 0);
+  tag.writeUInt32LE(body.length, 4);
+  return Buffer.concat([tag, body]);
+}
+if (!subsystem) {
+  throw new Error('catalog.mat has no subsystem where its header says');
+}
+const opaqueHeader = mat.slice(0, 128);
+const opaqueBody = Buffer.concat(opaqueRecords);
+new DataView(opaqueHeader.buffer, opaqueHeader.byteOffset, 128).setBigUint64(116, BigInt(128 + opaqueBody.length), true);
+writeFileSync(out('dispcat_opaque.mat'), Buffer.concat([opaqueHeader, opaqueBody, subsystem]));
+
 // --- MATLAB's own display of the same names
-const names = new Set([...SLDD]);
+const names = new Set([...SLDD, ...OPAQUE_MAT]);
 const browser = JSON.parse(readFileSync(join(root, 'truth', 'browser_short.json'), 'utf8'));
 writeFileSync(out('browser_short.truth.json'), JSON.stringify(browser.filter((r) => names.has(r.Name)), null, 2) + '\n');
 const meta = JSON.parse(readFileSync(join(root, 'truth', 'meta.json'), 'utf8'));
@@ -127,4 +186,4 @@ writeFileSync(out('meta.truth.json'), JSON.stringify(trimmed, null, 2) + '\n');
 const files = JSON.parse(readFileSync(join(root, 'truth', 'files.json'), 'utf8'));
 const readback = files.sldd_text.roundtrip.filter((r) => TEXT_READBACK.includes(r.name));
 writeFileSync(out('text_readback.truth.json'), JSON.stringify(readback, null, 2) + '\n');
-console.log(`kept ${kept.length} binary entries, ${part.entries.length} text entries, ${records.length} .mat records`);
+console.log(`kept ${kept.length} binary entries, ${part.entries.length} text entries, ${records.length} .mat records, ${opaqueRecords.length} .mat objects`);

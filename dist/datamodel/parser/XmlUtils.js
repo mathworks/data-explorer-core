@@ -143,6 +143,28 @@ export function isEnumBag(value) {
     const o = value;
     return typeof o[ENUM_KEY] === 'string' && typeof o._array_class === 'string' && o._array_class !== '';
 }
+/**
+ * The `_enum_value` of `value` when `value` is an enumeration value as a text dictionary spells
+ * one, or undefined. MATLAB writes the whole value as one element holding the numbers its
+ * enumerals stand for, in a bag that is 1x1 whatever the value's size (MatWriter.enumTextForm),
+ * and at an object's property the element alone, `{_enum_value, _id, _object_class}`. The binary
+ * reader's own form (isEnumBag) is not this one.
+ */
+export function textEnumValueOf(value) {
+    const bag = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+    const own = (o) => (Object.prototype.hasOwnProperty.call(o, '_enum_value') ? o._enum_value : undefined);
+    if (!bag(value) || isEnumBag(value)) {
+        return undefined;
+    }
+    if (typeof value._object_class === 'string') {
+        return own(value);
+    }
+    const elements = value._elements;
+    if (typeof value._array_class !== 'string' || !Array.isArray(elements) || elements.length !== 1 || !bag(elements[0])) {
+        return undefined;
+    }
+    return own(elements[0]);
+}
 /** The enumeral `element`, one of an enumeration value's `_elements`, holds, or null. */
 export function enumeralOf(element) {
     if (element === null || typeof element !== 'object') {

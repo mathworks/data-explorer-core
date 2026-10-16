@@ -451,3 +451,226 @@ describe("a complex array's summary says complex, as MATLAB's does", () => {
     });
   }
 });
+
+// P2 of the 2026-10-16 list: a text dictionary spells an enumeration value as the numbers its
+// enumerals stand for, under `_enum_value`, in a bag that is 1x1 whatever the value's size
+// (MatWriter.enumTextForm), and that was all that was read of it. `on` and `off` both showed
+// `<1x1 matlab.lang.OnOffSwitchState>`, as did a 1x3 of them, with no rows; a DispColor.Red
+// and a [Red Blue] both `<1x1 DispColor>`. The file names no enumeral (the display study's H9),
+// so a value shows its enumeral's name where it is known and otherwise the expression that makes
+// it from its numbers; MATLAB's binary twin of the same file names each enumeral and its number,
+// which is what the numbers are checked against here.
+describe("a text dictionary's enumeration value shows its value and its size", () => {
+  /** Each enumeral of the binary twin's entry `name`: its name and its number, in MATLAB's order. */
+  const binaryEnumerals = (name: string): [string, string][] => {
+    const xml = chunkOf(bytes('dispcat_bin.sldd'));
+    const at = xml.indexOf(`<P Name="Name" Class="char">${name}</P>`);
+    const block = xml.slice(at, xml.indexOf('</Object>', at));
+    return [...block.matchAll(/EnumerationName="([^"]+)" EnumerationType="int32">([^<]+)</g)].map((m) => [m[1], m[2]]);
+  };
+  /** What a node and every row under it show: label, Value, size, editable. */
+  const shown = (n: any): unknown[] => [[n.displayName, n.toRow().Value, n.dims, n.valueEditable], ...(n.children || []).flatMap(shown)];
+
+  it("an OnOffSwitchState is on or off, as MATLAB shows it, and a row of them is its size with a row for each", () => {
+    const { root } = open('dispcat_text.sldd');
+    for (const name of ['en_on', 'en_off']) {
+      expect(shown(entry(root, name)), name).toEqual([[name, browser(name).Value, meta(name).size, false]]);
+    }
+    const vec = entry(root, 'en_onoff_vec');
+    // MATLAB's `[on    off    on]`, one row per element.
+    const each = browser('en_onoff_vec').Value.replace(/^\[|\]$/g, '').split(/\s+/);
+    expect(each).toEqual(['on', 'off', 'on']);
+    expect(shown(vec)).toEqual([
+      ['en_onoff_vec', '<1x3 matlab.lang.OnOffSwitchState>', meta('en_onoff_vec').size, false],
+      ...each.map((v, k) => [`en_onoff_vec(${k + 1})`, v, [1, 1], false]),
+    ]);
+  });
+
+  it('a value of a class the dictionary does not define is its numbers, the ones the binary twin names', () => {
+    const { root } = open('dispcat_text.sldd');
+    for (const [name, cls] of [['en_sl_red', 'DispColor'], ['en_i32_high', 'DispLevel']]) {
+      const [[, number]] = binaryEnumerals(name);
+      expect(shown(entry(root, name)), name).toEqual([[name, `${cls}(${number})`, meta(name).size, false]]);
+    }
+    for (const [name, cls] of [['en_sl_vec', 'DispColor'], ['en_i32_vec', 'DispLevel']]) {
+      const numbers = binaryEnumerals(name).map(([, n]) => n);
+      expect(numbers.length, name).toBe(2);
+      expect(shown(entry(root, name)), name).toEqual([
+        [name, `${cls}([${numbers.join(' ')}])`, meta(name).size, false],
+        ...numbers.map((n, k) => [`${name}(${k + 1})`, `${cls}(${n})`, [1, 1], false]),
+      ]);
+    }
+  });
+
+  it("a Parameter's enumeration Value shows the same, takes no editor, and refuses an edit", () => {
+    const { root } = open('dispcat_text.sldd');
+    expect(meta('p_enum').paramValue).toMatchObject({ class: 'DispColor', size: [1, 1], mat2str: 'DispColor.Green' });
+    expect(binaryEnumerals('p_enum')).toEqual([['Green', '2']]);
+    const param = entry(root, 'p_enum');
+    expect([param.toRow().Value, param.valueEditable]).toEqual(['DispColor(2)', false]);
+    const refused = param.setProperty('Value', '3');
+    expect(refused).toMatchObject({ error: true });
+    expect(param.toRow().Value).toBe('DispColor(2)');
+  });
+
+  it("one of a class an EnumTypeDefinition in the same dictionary defines shows its enumeral's name, as the binary twin does", () => {
+    // The catalog's EnumTypeDefinition `enumdef`, as MATLAB wrote it, renamed to the class and
+    // given its enumerals, which are the catalog's Simulink.defineIntEnumType('DispColor',
+    // {'Red', 'Green', 'Blue'}, [1 2 3]).
+    const text = JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8'));
+    const entries: any[] = text.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const def = entries.find((e) => e.name === 'enumdef');
+    def.name = 'DispColor';
+    def.value._elements[0]._properties.Enumerals._dimensions = [1, 3];
+    def.value._elements[0]._properties.Enumerals._elements = [['Red', '1'], ['Green', '2'], ['Blue', '3']].map(([Name, Value]) => ({ Description: '', Name, Value }));
+    const root: any = ingest(createSession(), buffer(new TextEncoder().encode(JSON.stringify(text))), { filename: 'dispcat_text.sldd' });
+    const binary = open('dispcat_bin.sldd').root;
+    for (const name of ['en_sl_red', 'en_sl_vec']) {
+      expect(shown(entry(root, name)), name).toEqual(shown(entry(binary, name)));
+    }
+    expect(shown(entry(root, 'en_sl_vec')).map((r: any) => r[1])).toEqual(['<1x2 DispColor>', 'DispColor.Red', 'DispColor.Blue']);
+    expect(entry(root, 'p_enum').toRow().Value).toBe('DispColor.Green');
+    // A class it does not define is still its numbers.
+    expect(entry(root, 'en_i32_high').toRow().Value).toBe('DispLevel(2)');
+  });
+
+  it('and each is written back as MATLAB wrote it', () => {
+    const { session, root } = open('dispcat_text.sldd');
+    const valuesOf = (json: any): Record<string, unknown> =>
+      Object.fromEntries(json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.map((e: any) => [e.name, e.value]));
+    const names = ['en_on', 'en_off', 'en_onoff_vec', 'en_sl_red', 'en_sl_vec', 'en_i32_high', 'en_i32_vec', 'p_enum'];
+    const matlab = valuesOf(JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8')));
+    const saved = valuesOf(JSON.parse(session.serializeSource(root.name).text));
+    expect(names.map((n) => saved[n])).toEqual(names.map((n) => matlab[n]));
+  });
+});
+
+// P3 of the 2026-10-16 list: an enumeration value in a .mat, and an OnOffSwitchState in a
+// binary dictionary, which MATLAB writes there as a MAT stream (`Encoding="hex"`), is an MCOS
+// object whose element holds an instance struct where every other object holds its handle
+// (MatParser.enumerationInstanceOf). Nothing read it, so each showed `<1x1 CLASS>`: on and off
+// alike, a 1x3, a 0x0 and a 1x0 alike, with no rows, and a Parameter holding DispColor.Green
+// showed its Value as that struct, `<1x1 struct>`, with EnumerationInstanceTag 3707764736 and
+// the rest of MATLAB's bookkeeping as editable numbers. Each is now the node a binary
+// dictionary's own enumeration value is (`IsEnum`), with MATLAB's size and enumerals.
+describe('an enumeration value of a .mat, or of a binary dictionary\'s MAT stream, is its size and its enumerals', () => {
+  const ENUMS = ['en_on', 'en_off', 'en_onoff_vec', 'en_sl_red', 'en_sl_vec', 'en_sl_empty', 'en_i32_high', 'en_i32_vec',
+    'en_i32_empty', 'dx_enum_0x0', 'dx_enum_1x0'];
+  /** What a node and every row under it show: label, Value, size, editable. */
+  const shown = (n: any): unknown[] => [[n.displayName, n.toRow().Value, n.dims, n.valueEditable], ...(n.children || []).flatMap(shown)];
+  /** MATLAB's enumerals of `name`, from its mat2str, as this package shows each. */
+  const enumerals = (name: string): string[] => {
+    const text = meta(name).mat2str as unknown as string;
+    if (/\.empty\(/.test(text)) {
+      return [];
+    }
+    return text.replace(/^\[|\]$/g, '').split(' ').map((t) => (t.startsWith('matlab.lang.OnOffSwitchState.') ? t.slice(29) : t));
+  };
+
+  it('dispcat_opaque.mat: each is MATLAB\'s size, and each element its enumeral', () => {
+    const { root } = open('dispcat_opaque.mat');
+    for (const name of ENUMS) {
+      const node = entry(root, name);
+      const m = meta(name);
+      const each = enumerals(name);
+      expect([name, node.className, node.dims], name).toEqual([name, m.class, m.size]);
+      const value = each.length === 1 ? each[0] : `<${m.size.join('x')} ${m.class}>`;
+      const rows = each.length > 1 ? each.map((e, k) => [`${name}(${k + 1})`, e, [1, 1], false]) : [];
+      expect(shown(node), name).toEqual([[name, value, m.size, false], ...rows]);
+    }
+    // MATLAB's own text, where this package's is MATLAB's: a scalar OnOffSwitchState.
+    expect(['en_on', 'en_off'].map((n) => entry(root, n).toRow().Value)).toEqual(['en_on', 'en_off'].map((n) => browser(n).Value));
+  });
+
+  it('and shows as the binary twin does, whether MATLAB wrote it there as IsEnum or as a MAT stream', () => {
+    const mat = open('dispcat_opaque.mat').root;
+    const binary = open('dispcat_bin.sldd').root;
+    const xml = chunkOf(bytes('dispcat_bin.sldd'));
+    const entryXml = (name: string): string => {
+      const at = xml.indexOf(`<P Name="Name" Class="char">${name}</P>`);
+      return xml.slice(at, xml.indexOf('</Object>', at));
+    };
+    const hex = ENUMS.filter((n) => entryXml(n).includes('Encoding="hex"'));
+    expect(hex).toEqual(['en_on', 'en_off', 'en_onoff_vec', 'dx_enum_0x0', 'dx_enum_1x0']);
+    for (const name of ENUMS) {
+      expect(shown(entry(binary, name)), name).toEqual(shown(entry(mat, name)));
+    }
+  });
+
+  it("a .mat Parameter's enumeration Value is the enumeration value, not its instance struct", () => {
+    const { root } = open('dispcat_opaque.mat');
+    expect(meta('p_enum').paramValue).toMatchObject({ class: 'DispColor', size: [1, 1], mat2str: 'DispColor.Green' });
+    const param = entry(root, 'p_enum');
+    expect([param.className, param.toRow().Value, param.valueEditable]).toEqual(['Simulink.Parameter', 'DispColor.Green', false]);
+    const all: any[] = [];
+    const walk = (n: any): void => {
+      all.push(n);
+      (n.children || []).forEach(walk);
+      if (n._valueNode && !n.children.includes(n._valueNode)) {
+        walk(n._valueNode);
+      }
+    };
+    walk(param);
+    expect(all.map((n) => n.name)).not.toContain('EnumerationInstanceTag');
+    expect(param.toRow().Value).toBe(entry(open('dispcat_bin.sldd').root, 'p_enum').toRow().Value);
+  });
+});
+
+// P4 of the 2026-10-16 list: a fixed-point value, a categorical and a table are each one MCOS
+// object however many elements they hold, so every file holds each as a 1x1 bag, and each
+// showed `<1x1 embedded.fi>`, `<1x1 categorical>`, `<1x1 table>`. MATLAB's size() of each is
+// its data's: the stored integers' (`intarray`), the codes' (`codes`), and `nrows` by `nvars`.
+describe('a fi, a categorical and a table are the size of their data', () => {
+  const SIZED = ['fi_vec', 'cat_ab', 'tbl_2x2'];
+
+  for (const file of ['dispcat_opaque.mat', 'dispcat_text.sldd', 'dispcat_bin.sldd']) {
+    it(file, () => {
+      const { root } = open(file);
+      for (const name of SIZED) {
+        const node = entry(root, name);
+        const m = meta(name);
+        expect([name, node.className, node.dims, node.toRow().Value], file).toEqual([name, m.class, m.size, `<${m.size.join('x')} ${m.class}>`]);
+      }
+      // MATLAB's Size column, and its summary where it shows one (`1×2 categorical`, `2×2 table`).
+      for (const name of SIZED) {
+        expect(entry(root, name).dims.join('×'), name).toBe(browser(name).Size);
+        if (browser(name).IsSummary) {
+          expect(entry(root, name).toRow().Value, name).toBe('<' + browser(name).Value.replace(/×/g, 'x') + '>');
+        }
+      }
+    });
+  }
+});
+
+// P6 of the 2026-10-16 list: a .mat holds a function handle as MAT class 16, whose body is a
+// struct whose `function_handle` field holds the handle's text, and MatParser modelled no class
+// 16, so fh_sin and fh_anon showed `null`, editable, of class `unknown`, and the empty one
+// `[ ]` of class `unknown`. Each is now the node a text dictionary's function handle is.
+describe("a .mat's function handle shows its text and its class", () => {
+  it('a named and an anonymous one, as MATLAB shows them, with no editor', () => {
+    const { root } = open('dispcat_opaque.mat');
+    for (const name of ['fh_sin', 'fh_anon']) {
+      const node = entry(root, name);
+      expect([name, node.toRow().Value, node.toRow().Class, node.dims, node.valueEditable]).toEqual([
+        name, browser(name).Value, browser(name).Class, meta(name).size, false,
+      ]);
+      expect(node.setProperty('Value', '@cos')).toMatchObject({ error: true });
+      expect(node.toRow().Value).toBe(browser(name).Value);
+    }
+  });
+
+  it('an empty one is an empty function_handle', () => {
+    const { root } = open('dispcat_opaque.mat');
+    const node = entry(root, 'e_func_handle_none');
+    // MATLAB's `[]`; this package spells every empty of a class with no summary `[ ]`, as a
+    // text dictionary's empty function handle reads (MatlabVariableNode.parse).
+    expect([browser('e_func_handle_none').Class, meta('e_func_handle_none').size]).toEqual(['function_handle', [0, 0]]);
+    expect([node.toRow().Value, node.toRow().Class, node.dims, node.valueEditable]).toEqual(['[ ]', 'function_handle', [0, 0], false]);
+  });
+
+  it('and none of the three is reported as a value this reader did not read', async () => {
+    const { parseMat } = await import('../src/datamodel/parser/MatParser.js');
+    const parsed = parseMat(buffer(bytes('dispcat_opaque.mat')));
+    expect(parsed.warnings.filter((w: any) => ['fh_sin', 'fh_anon', 'e_func_handle_none'].includes(w.part))).toEqual([]);
+  });
+});

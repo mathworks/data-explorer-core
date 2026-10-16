@@ -3,6 +3,7 @@ import ContainerNode from '../ContainerNode.js';
 import MatlabVariableNode from '../data/MatlabVariableNode.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
+import { functionHandleOf } from '../../parser/MatParser.js';
 import PropName from '../../prop/PropName.js';
 export default class MatNode extends ContainerNode {
     constructor(name) {
@@ -128,6 +129,16 @@ export default class MatNode extends ContainerNode {
                     node.addChild(mcosNode);
                     continue;
                 }
+            }
+            // A function handle, as MatParser read it (functionHandleOf), is the node a text
+            // dictionary's is, `{_type: 'function_handle', _value: 'sin'}`: `@sin`, class
+            // function_handle, no editor. It showed `null`, editable, class `unknown`, as the
+            // numeric scalar its unmodelled class made it; an empty one `[ ]` of class `unknown`.
+            const handle = functionHandleOf(variable);
+            if (handle) {
+                const value = handle.text === null ? 'Matrix(' + variable.dimensions.join(',') + ')' : handle.text;
+                node.addChild(MatlabVariableNode.parse({ _type: 'function_handle', _value: value }, variable.name, node));
+                continue;
             }
             const child = MatlabVariableNode.parseMatVariable(variable, variable.name, node);
             node.addChild(child);

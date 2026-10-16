@@ -1267,6 +1267,29 @@
       "paramValue": []
     },
     {
+      "name": "e_func_handle_none",
+      "group": "empty",
+      "class": "function_handle",
+      "size": [
+        0,
+        0
+      ],
+      "numel": 0,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "function_handle",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "",
+      "paramValue": []
+    },
+    {
       "name": "cell_1",
       "group": "cell",
       "class": "cell",
@@ -1382,6 +1405,52 @@
       "paramValue": []
     },
     {
+      "name": "en_sl_red",
+      "group": "enum",
+      "class": "DispColor",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": true,
+      "isenum": true,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "int32",
+      "mat2str": "DispColor.Red",
+      "mat2str17": "DispColor.Red",
+      "hex": [],
+      "disp": "    Red\n",
+      "paramValue": []
+    },
+    {
+      "name": "en_sl_vec",
+      "group": "enum",
+      "class": "DispColor",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": true,
+      "isenum": true,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "int32",
+      "mat2str": "[DispColor.Red DispColor.Blue]",
+      "mat2str17": "[DispColor.Red DispColor.Blue]",
+      "hex": [],
+      "disp": "    Red     Blue\n",
+      "paramValue": []
+    },
+    {
       "name": "en_sl_empty",
       "group": "enum",
       "class": "DispColor",
@@ -1405,6 +1474,52 @@
       "paramValue": []
     },
     {
+      "name": "en_i32_high",
+      "group": "enum",
+      "class": "DispLevel",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": true,
+      "isenum": true,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "int32",
+      "mat2str": "DispLevel.High",
+      "mat2str17": "DispLevel.High",
+      "hex": [],
+      "disp": "    High\n",
+      "paramValue": []
+    },
+    {
+      "name": "en_i32_vec",
+      "group": "enum",
+      "class": "DispLevel",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": true,
+      "isenum": true,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "int32",
+      "mat2str": "[DispLevel.Low DispLevel.High]",
+      "mat2str17": "[DispLevel.Low DispLevel.High]",
+      "hex": [],
+      "disp": "    Low     High\n",
+      "paramValue": []
+    },
+    {
       "name": "en_i32_empty",
       "group": "enum",
       "class": "DispLevel",
@@ -1425,6 +1540,60 @@
       "mat2str17": "DispLevel.empty(1,0)",
       "hex": [],
       "disp": "",
+      "paramValue": []
+    },
+    {
+      "name": "p_enum",
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": true,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "Simulink.Parameter",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "  Parameter with properties:\n\n          Value: Green\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'Enum: DispColor'\n            Min: []\n            Max: []\n           Unit: ''\n",
+      "paramValue": {
+        "class": "DispColor",
+        "size": [
+          1,
+          1
+        ],
+        "isreal": true,
+        "mat2str": "DispColor.Green"
+      }
+    },
+    {
+      "name": "enumdef",
+      "group": "object",
+      "class": "Simulink.data.dictionary.EnumTypeDefinition",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": true,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "Simulink.data.dictionary.EnumTypeDefinition",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "   Simulink.data.dictionary.EnumTypeDefinition\n      enum1\n      Second",
       "paramValue": []
     },
     {
@@ -1563,6 +1732,121 @@
       "mat2str17": "sparse(1, 1, true, 1, 1)",
       "hex": [],
       "disp": "   (1,1)      1\n",
+      "paramValue": []
+    },
+    {
+      "name": "fh_sin",
+      "group": "func",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "function_handle",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "    @sin\n",
+      "paramValue": []
+    },
+    {
+      "name": "fh_anon",
+      "group": "func",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "function_handle",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "    @(x)x.^2+1\n",
+      "paramValue": []
+    },
+    {
+      "name": "fi_vec",
+      "group": "other",
+      "class": "embedded.fi",
+      "size": [
+        1,
+        3
+      ],
+      "numel": 3,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": true,
+      "isenum": false,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "embedded.fi",
+      "mat2str": "[1 2 3]",
+      "mat2str17": "[1 2 3]",
+      "hex": [],
+      "disp": "     1     2     3\n\n          DataTypeMode: Fixed-point: binary point scaling\n            Signedness: Signed\n            WordLength: 16\n        FractionLength: 8",
+      "paramValue": []
+    },
+    {
+      "name": "cat_ab",
+      "group": "other",
+      "class": "categorical",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": true,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "categorical",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "     a      b \n",
+      "paramValue": []
+    },
+    {
+      "name": "tbl_2x2",
+      "group": "other",
+      "class": "table",
+      "size": [
+        2,
+        2
+      ],
+      "numel": 4,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": true,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "table",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "    <strong>Var1</strong>    <strong>Var2</strong> \n    <strong>____</strong>    <strong>_____</strong>\n\n     1      {'a'}\n     2      {'b'}\n",
       "paramValue": []
     }
   ]

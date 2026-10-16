@@ -486,6 +486,15 @@
     "Error": ""
   },
   {
+    "Name": "e_func_handle_none",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "function_handle",
+    "Value": "[]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
     "Name": "cell_1",
     "Path": "ObjectValueSummary",
     "Size": "1×1",
@@ -531,11 +540,47 @@
     "Error": ""
   },
   {
+    "Name": "en_sl_red",
+    "Path": "ObjectValueSummary",
+    "Size": "1×1",
+    "Class": "DispColor",
+    "Value": "Red",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "en_sl_vec",
+    "Path": "ObjectValueSummary",
+    "Size": "1×2",
+    "Class": "DispColor",
+    "Value": "[Red    Blue]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
     "Name": "en_sl_empty",
     "Path": "ObjectValueSummary",
     "Size": "0×0",
     "Class": "DispColor",
     "Value": "[ ]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "en_i32_high",
+    "Path": "ObjectValueSummary",
+    "Size": "1×1",
+    "Class": "DispLevel",
+    "Value": "High",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "en_i32_vec",
+    "Path": "ObjectValueSummary",
+    "Size": "1×2",
+    "Class": "DispLevel",
+    "Value": "[Low    High]",
     "IsSummary": false,
     "Error": ""
   },
@@ -546,6 +591,24 @@
     "Class": "DispLevel",
     "Value": "[ ]",
     "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "p_enum",
+    "Path": "ObjectValueSummary",
+    "Size": "1×1",
+    "Class": "Simulink.Parameter",
+    "Value": "1×1 Parameter",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "enumdef",
+    "Path": "ObjectValueSummary",
+    "Size": "1×1",
+    "Class": "Simulink.data.dictionary.EnumTypeDefinition",
+    "Value": "1×1 EnumTypeDefinition",
+    "IsSummary": true,
     "Error": ""
   },
   {
@@ -600,6 +663,51 @@
     "Class": "logical (sparse)",
     "Value": "(1,1)      1",
     "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "fh_sin",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "function_handle",
+    "Value": "@sin",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "fh_anon",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "function_handle",
+    "Value": "@(x)x.^2+1",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "fi_vec",
+    "Path": "ObjectValueSummary",
+    "Size": "1×3",
+    "Class": "embedded.fi",
+    "Value": "[1,2,3]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "cat_ab",
+    "Path": "ObjectValueSummary",
+    "Size": "1×2",
+    "Class": "categorical",
+    "Value": "1×2 categorical",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "tbl_2x2",
+    "Path": "ObjectValueSummary",
+    "Size": "2×2",
+    "Class": "table",
+    "Value": "2×2 table",
+    "IsSummary": true,
     "Error": ""
   }
 ]
