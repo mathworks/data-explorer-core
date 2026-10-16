@@ -52,9 +52,11 @@ same object gets at top level, apart from its name. Three pieces carry it:
   back would be a cycle. Without a decode, the arm builds the opaque summary node
   it always did.
 
-What a container shows for itself does not change: a cell's one-line literal and
-its Variable Editor grid (`displayElements`) both print every object element as
-`<1x1 Class>`, as before nested objects resolved, whatever the element's shape.
+What a container shows for itself: a cell's one-line literal and its Variable Editor
+grid (`displayElements`) both print every object element as its `<mxn Class>` summary,
+at the element's own shape (`<1x3 string>`, `<1x2 Simulink.Parameter>`). Until P5 of the
+2026-10-16 list it was `<1x1 Class>` whatever the shape, as before nested objects
+resolved.
 
 ## Complex values
 

@@ -662,8 +662,9 @@ describe('a nested object of a class with no typed node presents as its top-leve
         expect(node.constructor).toBe(topNode.constructor);
         expect(presentation(node, node.displayName)).toEqual(presentation(topNode, topNode.displayName));
       }
-      // The cell's own literal is the unchanged one.
-      expect(root.children.find((c) => c.name === 'box')!.displayValue).toBe(`{<1x1 ${top.className}>}`);
+      // The cell's own literal spells the object at its own size (P5 of the 2026-10-16 list:
+      // it was `<1x1 Class>` for the 20x1 array too).
+      expect(root.children.find((c) => c.name === 'box')!.displayValue).toBe(`{<${topNode.dims.join('x')} ${top.className}>}`);
     });
   }
 
@@ -738,12 +739,12 @@ describe('a nested object is the node it is at top level', () => {
     expect(mixCell.children[2].displayValue).toBe('9');
   });
 
-  it('spells an object of any shape as <1x1 Class> in a cell literal, as it did before', () => {
+  it('spells an object of any shape at that shape in a cell literal', () => {
     // The literal kept the token an undecoded opaque always printed, and that token
     // never carried a shape: a 2x2 string, a 1x2 Parameter array and a scalar alike were
-    // `<1x1 Class>`. Decoding them must not change that, here or in a cell inside the
-    // cell. Their own rows DO show the shape. The cell is assembled in memory out of
-    // nested_objects.mat's own objects, which share the file's one heap.
+    // `<1x1 Class>`. Each is its own size now (P5 of the 2026-10-16 list), here and in a
+    // cell inside the cell, as their own rows show it. The cell is assembled in memory out
+    // of nested_objects.mat's own objects, which share the file's one heap.
     const parsed = parseMat(bytes(join(TEST_DIR, 'fixtures/mcos/nested_objects.mat')));
     const f = parsed.variables.find((v) => v.name === 's')!.fields!;
     const cell = cellOf;
@@ -753,9 +754,9 @@ describe('a nested object is the node it is at top level', () => {
     parsed.variables.unshift(cell('assembled', [strs, objArr, p, cell('', [strs, objArr])]));
     const node = MatNode.fromParsed(parsed, 'nested_objects.mat').children.find((c) => c.name === 'assembled')!;
     expect(node.displayValue).toBe(
-      '{<1x1 string>, <1x1 Simulink.Parameter>, <1x1 Simulink.Parameter>, {<1x1 string>, <1x1 Simulink.Parameter>}}',
+      '{<2x2 string>, <1x2 Simulink.Parameter>, <1x1 Simulink.Parameter>, {<2x2 string>, <1x2 Simulink.Parameter>}}',
     );
-    expect(node.children[3].displayValue).toBe('{<1x1 string>, <1x1 Simulink.Parameter>}');
+    expect(node.children[3].displayValue).toBe('{<2x2 string>, <1x2 Simulink.Parameter>}');
     expect(node.children[0].displayValue).toBe('["a" "b"; "c" "d"]');
     expect(node.children[1].displayValue).toBe('<1x2 Simulink.Parameter>');
     expect(node.children[2].displayValue).toBe('7');

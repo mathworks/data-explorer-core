@@ -9,10 +9,11 @@
 // MATLAB's own Value/Class/Size for each into truth/browser_short.json and truth/meta.json.
 // Whole, the three files do not belong in this repo: they hold function handles, whose MAT
 // bytes carry the matlabroot MATLAB was run from (fixtureHygiene.test.ts), and every walk of
-// test/fixtures would read 283 values for the 68 these tests ask about. So this keeps, byte
+// test/fixtures would read 283 values for the 80 these tests ask about. So this keeps, byte
 // for byte as MATLAB wrote it:
 //   - dispcat_bin.sldd: the chosen `DD.ENTRY` blocks of data/chunk0.xml, and every other part;
-//   - dispcat_text.sldd: the chosen entries of the data/chunk0 part;
+//   - dispcat_text.sldd: the chosen entries of the data/chunk0 part, with the one entry
+//     MATLAB wrote as `"value": null` (see TEXT_NULL);
 //   - dispcat.mat: the 128-byte header and the chosen top-level records. Only values with no
 //     MCOS object in them (no string, enumeration or Simulink object), so the file needs no
 //     subsystem, and the header's subsystem offset is zeroed;
@@ -23,7 +24,9 @@
 //     replaced by a token of the same length, as test/fixtures/sparse/scrub_matlabroot.m does,
 //     and is compressed again; every other record is as MATLAB wrote it;
 //   - browser_short.truth.json / meta.truth.json: the same names' rows (meta without its
-//     matlabroot, which is a path of the machine).
+//     matlabroot, which is a path of the machine);
+//   - text_readback.truth.json: for the few values whose tests ask, what MATLAB read back
+//     out of dispcat_text.sldd when it reopened it (truth/files.json's round trip).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,14 +50,26 @@ const EMPTY = ['dx_double_0x0', 'dx_double_1x0', 'dx_double_0x1', 'dx_double_0x3
   'dx_int8_0x3', 'e_uint64_0x0', 'dx_logical_1x0', 'e_logical_0x0', 'e_logical_0x3', 'dx_char_0x0', 'dx_char_1x0',
   'dx_char_0x2', 'dx_cell_0x0', 'dx_cell_1x0', 'dx_cell_0x3', 'dx_struct_0x0', 'dx_struct_0x0_fields', 'dx_struct_1x0'];
 const PARAM = ['dx_param_empty', 'dx_param_complex_1x0'];
+// Rows of ten and more, which a text dictionary writes under a `Vector(N)` header.
+const VECTOR = ['i8_1x10', 'i8_1x11', 'l_1x10', 'l_1x11'];
+// A cell holding a Simulink.Parameter, and one holding the double its Value is. The first
+// holds an MCOS object, so it stays out of the .mat (see above).
+const CELL = ['cell_1', 'cell_of_param'];
+// Text holding a newline, a tab and a NUL. The string is an MCOS object, so the .mat keeps
+// the three chars only.
+const CONTROL = ['c_newline', 'c_tab', 'c_nul', 'str_newline'];
+// A complex row past the element budget, which shows its summary.
+const COMPLEX_SUMMARY = ['z_1x11'];
 // Enumeration values of a user class, scalar and row, and a Parameter holding one, with the
 // catalog's EnumTypeDefinition beside them.
 const ENUM_VALUE = ['en_sl_red', 'en_sl_vec', 'en_i32_high', 'en_i32_vec', 'p_enum', 'enumdef'];
 // Objects whose size is their data's: a fixed-point row, a categorical row, a 2x2 table.
 const SIZED = ['fi_vec', 'cat_ab', 'tbl_2x2'];
 
-const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...ENUM_VALUE, ...SIZED]);
-const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY]);
+const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...VECTOR, ...CELL,
+  ...CONTROL, ...COMPLEX_SUMMARY, ...ENUM_VALUE, ...SIZED]);
+const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY, ...VECTOR, 'cell_1', 'c_newline', 'c_tab', 'c_nul',
+  ...COMPLEX_SUMMARY]);
 // MCOS objects of the .mat, which need its subsystem: enumeration values, empties among them,
 // a Parameter holding one, and the SIZED objects.
 const MAT_ENUM = ['en_on', 'en_off', 'en_onoff_vec', 'en_sl_red', 'en_sl_vec', 'en_sl_empty', 'en_i32_high', 'en_i32_vec',
@@ -62,6 +77,14 @@ const MAT_ENUM = ['en_on', 'en_off', 'en_onoff_vec', 'en_sl_red', 'en_sl_vec', '
 // Function handles: a named one, an anonymous one (whose workspace is an MCOS object), an empty.
 const HANDLE = ['fh_sin', 'fh_anon', 'e_func_handle_none'];
 const OPAQUE_MAT = new Set([...MAT_ENUM, ...SIZED, ...HANDLE]);
+// A value the text dictionary could not hold: MATLAB saved the 2x2x2 string with a warning, as
+// `"value": null`, and opens that file again without one. Kept in dispcat_text.sldd only (the
+// binary file holds the string itself), and out of the browser and meta truth, which are of the
+// value MATLAB had and not of what the file holds; its truth is the read-back below.
+const TEXT_NULL = ['str_2x2x2'];
+// The text dictionary's values whose tests read MATLAB's own read-back of that file
+// (truth/files.json: closed, reopened, getValue), kept as text_readback.truth.json.
+const TEXT_READBACK = [...VECTOR, ...TEXT_NULL];
 
 // --- binary: whole DD.ENTRY blocks, in MATLAB's order, between its header and its DD.Dictionary
 const zip = unzipSync(new Uint8Array(readFileSync(join(root, 'files', 'dispcat_bin.sldd'))));
@@ -80,7 +103,7 @@ writeFileSync(out('dispcat_bin.sldd'), zipSync(zip, { level: 6, mtime: new Date(
 // --- text: the chosen entries of the one data part
 const text = JSON.parse(readFileSync(join(root, 'files', 'dispcat_text.sldd'), 'utf8'));
 const part = text.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content;
-part.entries = part.entries.filter((e) => SLDD.has(e.name));
+part.entries = part.entries.filter((e) => SLDD.has(e.name) || TEXT_NULL.includes(e.name));
 writeFileSync(out('dispcat_text.sldd'), JSON.stringify(text, null, '\t'));
 
 // --- .mat: the header, then each chosen record as it stands
@@ -160,4 +183,7 @@ const keep = ['version', 'release', 'date', 'userNumericFormat', 'timesSymbol', 
 const trimmed = Object.fromEntries(keep.map((k) => [k, meta[k]]));
 trimmed.entries = meta.entries.filter((e) => names.has(e.name));
 writeFileSync(out('meta.truth.json'), JSON.stringify(trimmed, null, 2) + '\n');
+const files = JSON.parse(readFileSync(join(root, 'truth', 'files.json'), 'utf8'));
+const readback = files.sldd_text.roundtrip.filter((r) => TEXT_READBACK.includes(r.name));
+writeFileSync(out('text_readback.truth.json'), JSON.stringify(readback, null, 2) + '\n');
 console.log(`kept ${kept.length} binary entries, ${part.entries.length} text entries, ${records.length} .mat records, ${opaqueRecords.length} .mat objects`);

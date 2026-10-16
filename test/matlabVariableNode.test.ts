@@ -21,6 +21,8 @@
 import { describe, it, expect } from 'vitest';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { NOT_AVAILABLE } from '../src/datamodel/parser/McosParser.js';
+import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../src/datamodel/parser/MatlabValueParser.js';
+import { formatCharMatrix } from '../src/datamodel/node/data/matlabValueRules.js';
 import * as NodeClassMap from '../src/datamodel/node/data/NodeClassMap.js';
 import { CLASS, MI, arrayFlags, dims, matrix, numericData, varName } from './tools/matBytes.js';
 
@@ -1769,5 +1771,68 @@ describe('MatlabVariableNode._var — the .mat variable projection', () => {
     expect((cell._var.value as Any[]).map((v) => v.value)).toEqual([1, 2]);
     const str = parse({ _array_type: 'String', _dimensions: [1, 2], _elements: ['ab', 'cd'] });
     expect([str._var.className, str._var.value, str._var.dimensions]).toEqual(['char', 'abcd', [1, 4]]);
+  });
+});
+
+// The runaway guard (SUMMARY_MAX_CHARS, 1000) is a kept convention, and P7 of the 2026-10-16
+// list changed how a control character is spelled, not which values the guard summarises. A tab
+// is now `' char(9) '`, ten characters where the literal had one, so measured on that spelling a
+// 952-character description holding tabs became `<1x952 char>`, with no editor. The guard
+// measures the literal as it was before P7: each control character counts as the one character
+// it is, and the quotes count as they always did.
+describe('MatlabVariableNode — the length guard measures the value, not its control-character spelling', () => {
+  // 900 characters, 20 of them tabs: 45 characters a piece, each ending in a tab.
+  const tabby = Array.from({ length: 20 }, () => 'word'.repeat(11) + '\t').join('');
+  // 450 characters, 10 of them tabs.
+  const half = tabby.slice(0, 450);
+
+  it('is measuring something P7 spells past the budget', () => {
+    expect([tabby.length, tabby.split('\t').length - 1, half.length]).toEqual([900, 20, 450]);
+    expect(formatMatlabChar(tabby).length).toBeGreaterThan(1000);
+    expect(formatMatlabString(tabby).length).toBeGreaterThan(1000);
+    expect(formatMatlabString(half).length * 2 + 3).toBeGreaterThan(1000);
+  });
+
+  it('shows a 900-character char holding 20 tabs in full, editable, and reading back as itself', () => {
+    const n = parse(tabby);
+    expect(n.displayValue).toBe(formatMatlabChar(tabby));
+    expect(n.valueEditable).toBe(true);
+    expect(MatlabValueParser.parse(n.displayValue)).toMatchObject({ type: 'char', value: tabby });
+    // The same 900 characters as a 2x450 char matrix: its rows hold the 20 tabs between them.
+    const m = parse(tabby);
+    m._dims = [2, 450];
+    expect(formatCharMatrix(tabby, [2, 450]).length).toBeGreaterThan(1000);
+    expect(m.displayValue).toBe(formatCharMatrix(tabby, [2, 450]));
+  });
+
+  it('shows a string scalar, a string array and its element rows, and a cell holding that text in full', () => {
+    const str = parse({ _array_type: 'String', _dimensions: [1, 1], _elements: [tabby] });
+    expect(str.displayValue).toBe(formatMatlabString(tabby));
+    const arr = parse({ _array_type: 'String', _dimensions: [1, 2], _elements: [half, half] });
+    expect(arr.displayValue).toBe('[' + formatMatlabString(half) + ' ' + formatMatlabString(half) + ']');
+    expect(arr.children.map((c: Any) => c.displayValue)).toEqual([formatMatlabString(half), formatMatlabString(half)]);
+    const cell = parse({ _array_type: 'Cell', _dimensions: [1, 1], _elements: [tabby] });
+    expect(cell.displayValue).toBe('{' + formatMatlabChar(tabby) + '}');
+  });
+
+  it('still summarises a value past 1000 characters, with tabs or without', () => {
+    expect(parse('x'.repeat(1001)).displayValue).toBe('<1x1001 char>');
+    const long = parse(tabby + 'x'.repeat(101));
+    expect([long.displayValue, long.valueEditable]).toEqual(['<1x1001 char>', false]);
+    expect(parse({ _array_type: 'String', _dimensions: [1, 1], _elements: [tabby + 'x'.repeat(101)] }).displayValue).toBe(
+      '<1x1 string>',
+    );
+  });
+
+  it('summarises a cell of two such texts, which is past the budget, and shows each element in full', () => {
+    const cell = parse({ _array_type: 'Cell', _dimensions: [1, 2], _elements: [tabby, tabby] });
+    expect(cell.displayValue).toBe('<1x2 cell>');
+    expect(cell.children.map((c: Any) => c.displayValue)).toEqual([formatMatlabChar(tabby), formatMatlabChar(tabby)]);
+  });
+
+  it('keeps the boundary of a text with no control character where it was: 998 characters inline, 999 summarised', () => {
+    // 998 + 2 quotes = 1000; 999 + 2 = 1001. The quotes count, as they did before P7.
+    expect(parse('y'.repeat(998)).displayValue).toBe("'" + 'y'.repeat(998) + "'");
+    expect(parse('y'.repeat(999)).displayValue).toBe('<1x999 char>');
   });
 });

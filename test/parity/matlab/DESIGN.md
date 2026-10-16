@@ -44,6 +44,7 @@ can.
 | empty numeric, any class, shape and complexity | `[ ]` | MATLAB's Workspace browser's own text, space inside (`mat2str` says `[]`). An int-backed enumeration's empty too: MATLAB counts it numeric. Not a sparse double's: see the next row |
 | empty sparse double | `<0x0 sparse double>`, `<2x0 sparse double>` | **a deliberate deviation from MATLAB**, whose browser shows `[ ]` (measured at 0x0 and 2x0). See "The sparse empty keeps its summary" below |
 | empty cell | `{}` at 0x0, `<0x3 cell>` at any other empty shape | the browser's `{}` and `{0×3 cell}` |
+| a text dictionary's `"value": null` | `[ ]`, a 1x0 double, with no parse warning | what MATLAB reads the entry back as; MATLAB writes `null` for a value it could not save in a text dictionary (a 2x2x2 string), and opens the file again without complaint. It read as `0` (P8 of the 2026-10-16 list) |
 | empty char | `''` | already the complete literal; char does not expand |
 | empty scalar string | `""` | same |
 | empty string array | `<0x0 string>` | the browser's `0×0 string` |
@@ -56,11 +57,14 @@ can.
 | array / matrix | `[1 2; 3 4]` | `mat2str` plus a space after `;` — deliberate, reads better |
 | logical | `true` / `false` | scalar and per element |
 | char | `'it''s'` | embedded quote doubled |
+| char holding a control character | `['a' newline 'b']`, `['a' char(9) 'b']` | **not MATLAB's browser**, which draws them raw or drops them (`'ab'`, `'a b'`); a one-line cell cannot show a newline, a tab or a NUL, so 'a<LF>b' read as 'a b'. The concatenation MATLAB evaluates to the value, read back by the parser (P7 of the 2026-10-16 list) |
 | string | `"world"`, `["a" "bb"]` | |
+| string holding a control character | `"a" + newline + "b"` | the same, as a sum; one that starts with a control character starts with `""` |
 | complex | `3+4i` | |
 | cell | `{1, 'two', [3 4]}` | |
 | struct | `<1x1 struct>` | always the angle form, regardless of size |
 | over threshold, opaque, unrecoverable | `<mxn class>` | angle brackets **always** |
+| complex, as a summary | `<1x11 complex double>`, `<1x2 sparse complex double>` | the browser's `1×11 complex double` and `1×2 sparse complex double`, word order included; without it nothing on the row said complex (P10 of the 2026-10-16 list) |
 
 **Angle brackets are the italic signal.** Any summary form must use
 `<mxn class>`. Today three different bracket styles are in use, so only some
@@ -161,6 +165,13 @@ length: a 1x4 cell of 300-character strings is 8 elements under budget and a
 1200-character table cell. Since the char budget is defined as a runaway guard
 rather than a display budget, it applies to every literal — primary rule
 unchanged, pathological case bounded.
+
+The length is the literal's as it was before a control character was spelled
+(P7 of the 2026-10-16 list): each control character counts as the one character
+it is, and the quotes count as they always did (`controlsAsOneChar`). The
+`' char(9) '` spelling changed how a text reads, not which texts summarize: a
+952-character description holding tabs is a full, editable literal, and 998
+characters of plain text are still the last that show inline.
 
 Rationale: element count makes shapes look consistent — every 1x10 double
 renders like every other 1x10 double, rather than depending on how many digits
@@ -2419,13 +2430,14 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   `nestedMcosFixtures.test.ts` against MATLAB R2027a's own answers for
   `test/fixtures/mcos/nested_objects.mat` and `nested_ws.slx`, whose every nested object
   has a top-level twin. The two `matStringOpaque.test.ts` tests that pinned the summary
-  were flipped deliberately. Still open, on purpose: the CONTAINER's own presentation —
-  its one-line literal and its Variable Editor grid (`displayElements`) alike — which
-  prints every object element exactly as it did before — `<1x1 Class>`, whatever the
-  element's shape, so a 1x3 string, a 1x2 Parameter array and a 0x0 string are all
-  `<1x1 …>` there (`{<1x1 Simulink.Parameter>, <1x1 string>, 9}`) — until MATLAB's own
-  display of a container of objects, recorded beside each pin in
-  `nestedMcosFixtures.test.ts`, decides what it should say.
+  were flipped deliberately. The CONTAINER's own presentation — its one-line literal and
+  its Variable Editor grid (`displayElements`) alike — prints every object element as its
+  `<mxn Class>` summary at the element's own shape (`{<1x3 string>, <1x2
+  Simulink.Parameter>, <0x0 string>, <1x1 Simulink.Parameter>}`), beside MATLAB's own
+  display of each, recorded at each pin in `nestedMcosFixtures.test.ts`. It was `<1x1 Class>`
+  whatever the shape until P5 of the maintainer's 2026-10-16 list, which ruled that wrong size
+  misleading; a dictionary's cell, which spelled a Parameter element by its Value, follows
+  the same rule since then.
 
   **This is a `.mat`-only mechanism.** An `.sldd` carries no MCOS blob, so a `<1x1 string>`
   inside a DICTIONARY cell was never this limitation — it was defect 52, and citing this

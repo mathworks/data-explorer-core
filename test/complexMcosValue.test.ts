@@ -225,7 +225,8 @@ describe('complexPropertyValue: the binary dictionary\'s complex form', () => {
       'Value',
       null,
     );
-    expect(big.displayValue).toBe('<1x60 int16>');
+    // Named complex, as MATLAB's browser names it (P10 of the 2026-10-16 list).
+    expect(big.displayValue).toBe('<1x60 complex int16>');
     // A scalar is its class too, as MATLAB's class() says (the C-060 ruling, 2026-10-15,
     // flipped this from 'double', which a complex scalar of every class showed).
     const one: any = NodeRegistry.parseValue(complexPropertyValue(complexVar('int8', [1, 1], [c(3, -4)])), 'V', null);

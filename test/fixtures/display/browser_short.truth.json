@@ -1,5 +1,41 @@
 [
   {
+    "Name": "c_newline",
+    "Path": "FieldColumns",
+    "Size": "1×3",
+    "Class": "char",
+    "Value": "'ab'",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "c_tab",
+    "Path": "FieldColumns",
+    "Size": "1×3",
+    "Class": "char",
+    "Value": "'a\\tb'",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "c_nul",
+    "Path": "FieldColumns",
+    "Size": "1×3",
+    "Class": "char",
+    "Value": "'a b'",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "str_newline",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "string",
+    "Value": "\"a\nb\"",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
     "Name": "str_0x3",
     "Path": "FieldColumns",
     "Size": "0×3",
@@ -24,6 +60,15 @@
     "Class": "double (complex)",
     "Value": "[1 + 2i,3 - 4i]",
     "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "z_1x11",
+    "Path": "FieldColumns",
+    "Size": "1×11",
+    "Class": "double (complex)",
+    "Value": "1×11 complex double",
+    "IsSummary": true,
     "Error": ""
   },
   {
@@ -69,6 +114,42 @@
     "Class": "uint8 (complex)",
     "Value": "3 +   4i",
     "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "i8_1x10",
+    "Path": "FieldColumns",
+    "Size": "1×10",
+    "Class": "int8",
+    "Value": "[1,2,3,4,5,6,7,8,9,10]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "i8_1x11",
+    "Path": "FieldColumns",
+    "Size": "1×11",
+    "Class": "int8",
+    "Value": "1×11 int8",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "l_1x10",
+    "Path": "FieldColumns",
+    "Size": "1×10",
+    "Class": "logical",
+    "Value": "1×10 logical",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "l_1x11",
+    "Path": "FieldColumns",
+    "Size": "1×11",
+    "Class": "logical",
+    "Value": "1×11 logical",
+    "IsSummary": true,
     "Error": ""
   },
   {
@@ -410,6 +491,24 @@
     "Size": "0×0",
     "Class": "function_handle",
     "Value": "[]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "cell_1",
+    "Path": "ObjectValueSummary",
+    "Size": "1×1",
+    "Class": "cell",
+    "Value": "1",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "cell_of_param",
+    "Path": "ObjectValueSummary",
+    "Size": "1×1",
+    "Class": "cell",
+    "Value": "[1×1 Simulink.Parameter]",
     "IsSummary": false,
     "Error": ""
   },

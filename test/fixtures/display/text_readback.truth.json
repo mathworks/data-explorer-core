@@ -1,0 +1,83 @@
+[
+  {
+    "name": "i8_1x10",
+    "equal": true,
+    "classBefore": "int8",
+    "classAfter": "int8",
+    "sizeBefore": [
+      1,
+      10
+    ],
+    "sizeAfter": [
+      1,
+      10
+    ],
+    "isrealBefore": true,
+    "isrealAfter": true
+  },
+  {
+    "name": "i8_1x11",
+    "equal": true,
+    "classBefore": "int8",
+    "classAfter": "int8",
+    "sizeBefore": [
+      1,
+      11
+    ],
+    "sizeAfter": [
+      1,
+      11
+    ],
+    "isrealBefore": true,
+    "isrealAfter": true
+  },
+  {
+    "name": "l_1x10",
+    "equal": true,
+    "classBefore": "logical",
+    "classAfter": "logical",
+    "sizeBefore": [
+      1,
+      10
+    ],
+    "sizeAfter": [
+      1,
+      10
+    ],
+    "isrealBefore": true,
+    "isrealAfter": true
+  },
+  {
+    "name": "l_1x11",
+    "equal": true,
+    "classBefore": "logical",
+    "classAfter": "logical",
+    "sizeBefore": [
+      1,
+      11
+    ],
+    "sizeAfter": [
+      1,
+      11
+    ],
+    "isrealBefore": true,
+    "isrealAfter": true
+  },
+  {
+    "name": "str_2x2x2",
+    "equal": false,
+    "classBefore": "string",
+    "classAfter": "double",
+    "sizeBefore": [
+      2,
+      2,
+      2
+    ],
+    "sizeAfter": [
+      1,
+      0
+    ],
+    "isrealBefore": false,
+    "isrealAfter": true
+  }
+]

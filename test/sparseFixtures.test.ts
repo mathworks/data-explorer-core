@@ -139,8 +139,11 @@ function elementText(t: ValueTruth, re: number, im: number): string {
  * one a scalar inline, a small matrix as its literal, else a summary.
  */
 function displayOf(t: ValueTruth): string {
-  if (t.issparse) return `<${t.size.join('x')} sparse ${t.class}>`;
-  if (t.numel > 10 || t.size.length > 2) return `<${t.size.join('x')} ${t.class}>`;
+  // A complex array's summary names it complex, in MATLAB's browser's word order, `1×2 sparse
+  // complex double` (P10 of the 2026-10-16 list; it said `<3x4 double>` and `<3x4 sparse double>`).
+  const cls = t.isreal ? t.class : 'complex ' + t.class;
+  if (t.issparse) return `<${t.size.join('x')} sparse ${cls}>`;
+  if (t.numel > 10 || t.size.length > 2) return `<${t.size.join('x')} ${cls}>`;
   if (t.numel === 0) return '[ ]';
   const re = t.real!.map(numberOf);
   const im = t.imag!.map(numberOf);

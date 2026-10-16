@@ -7,6 +7,115 @@
 			"__MW_TEXT_content": {
 				"entries": [
 					{
+						"name": "c_newline",
+						"metadata": {
+							"uuid": "d500b03f-02e3-4ae7-a440-fa884ee18bfb",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.645059",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": "a\nb"
+					},
+					{
+						"name": "c_nul",
+						"metadata": {
+							"uuid": "e33410d6-354f-48ea-9b2a-83ef3f0ad57c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.645548",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": "a\u0000b"
+					},
+					{
+						"name": "c_tab",
+						"metadata": {
+							"uuid": "a7bec5e2-77e2-4af3-baa2-79a642d893f8",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.645265",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": "a\tb"
+					},
+					{
+						"name": "cell_1",
+						"metadata": {
+							"uuid": "90a76f16-cb40-429f-92ed-0d07fd71a8dc",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.678978",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								1
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cell_of_param",
+						"metadata": {
+							"uuid": "a3846ccc-64a5-4425-932d-a9e9248eda2d",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.680753",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_array_class": "Simulink.Parameter",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "1",
+											"_properties": {
+												"CoderInfo": {
+													"_id": "2",
+													"_object_class": "Simulink.CoderInfo",
+													"_properties": {
+														"CSCPackageName": "Simulink",
+														"CustomAttributes": {
+															"_id": "3",
+															"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+															"_properties": {}
+														},
+														"CustomStorageClass": "Default",
+														"ParameterOrSignal": "Parameter",
+														"StorageClass": "Auto"
+													}
+												},
+												"Complexity": "real",
+												"Dimensions": [
+													1,
+													1
+												],
+												"Value": 1
+											}
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
 						"name": "dx_cell_0x0",
 						"metadata": {
 							"uuid": "7968596f-3ffb-4ebd-a7bc-a6b274e6b374",
@@ -913,6 +1022,62 @@
 						}
 					},
 					{
+						"name": "i8_1x10",
+						"metadata": {
+							"uuid": "61a22176-7650-43f8-b954-1461ad821e43",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.662541",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int8",
+							"_value": "Vector(10)\n[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]"
+						}
+					},
+					{
+						"name": "i8_1x11",
+						"metadata": {
+							"uuid": "f1abb0e6-ce8f-45da-8c7a-d661d1722384",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.662707",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "int8",
+							"_value": "Vector(11)\n[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]"
+						}
+					},
+					{
+						"name": "l_1x10",
+						"metadata": {
+							"uuid": "a41e816e-5339-443b-bc31-6a52c62aa0aa",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.665838",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "logical",
+							"_value": "Vector(10)\n[1, 0, 1, 0, 1, 0, 1, 0, 1, 0]"
+						}
+					},
+					{
+						"name": "l_1x11",
+						"metadata": {
+							"uuid": "a2860e5d-2fac-45ec-ba72-ae630816561c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.665997",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "logical",
+							"_value": "Vector(11)\n[1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]"
+						}
+					},
+					{
 						"name": "p_enum",
 						"metadata": {
 							"uuid": "368b8b8a-f3e4-41b7-b018-53b0aa043e3a",
@@ -1061,6 +1226,44 @@
 							],
 							"_elements": [],
 							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "str_2x2x2",
+						"metadata": {
+							"uuid": "a27e6d6b-9f7a-405c-83bf-93f6a84d64af",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.668934",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": null
+					},
+					{
+						"name": "str_newline",
+						"metadata": {
+							"uuid": "3c00509d-b018-4b1f-9458-e6ad3ecd57ce",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.647492",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": [
+							"a\nb"
+						]
+					},
+					{
+						"name": "z_1x11",
+						"metadata": {
+							"uuid": "f8e3acfe-dbc3-4441-ae2c-d2dff634acac",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.656479",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    Z     8    (    !@@        %    \"     $    +     0         )    6            / _         $         (0        !!         %$         80        !Q         ($         B0        \"1         )D )    6            / _        \\#\\       #P/P       / _        \\#\\       #P/P       / _        \\#\\       #P/P       / _        \\#\\\u0000\u0000"
 						}
 					},
 					{

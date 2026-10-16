@@ -566,7 +566,7 @@ describe('defects 53-55: an array inside a cell keeps its shape, its parts and i
   const DEFECTS: Array<[string, string]> = [
     ['cCplxArr', '{[1+2i 3-4i]}'], // 53, read `{[1 3]}`
     ['cCplxCol', '{[1+2i; 3-4i]}'], //   ... a column, to show the shape is not the trigger
-    ['cCplxNd', '{<2x2x2 double>}'], //   ... and rank 3
+    ['cCplxNd', '{<2x2x2 complex double>}'], //   ... and rank 3, named complex (P10, 2026-10-16)
     ['cStructArr', '{<1x2 struct>}'], // 54, read `{<1x1 struct>}`
     ['cStructArr2D', '{<2x2 struct>}'], //   ... 2-D, so the dims are read and not counted
     ['cObjArr', '{<1x2 Simulink.Parameter>}'], // 55, read `{1}` — the first object alone
@@ -577,7 +577,9 @@ describe('defects 53-55: an array inside a cell keeps its shape, its parts and i
   const CONTROLS: Array<[string, string]> = [
     ['cCplx', '{1+2i}'], // 53's control: no Dimension, so it reached the IsComplex check
     ['cStruct', '{<1x1 struct>}'], // 54's: the hardcoded 1x1 happened to be the truth
-    ['cObj', '{5}'], // 55's: one child, so taking the first was taking all of them
+    // 55's: one child, so taking the first was taking all of them. A Parameter, spelled as
+    // the object it is, not as its Value 5 (P5 of the 2026-10-16 list).
+    ['cObj', '{<1x1 Simulink.Parameter>}'],
     ['cNd', '{<2x3x2 double>}'], // a REAL N-D array still takes the shaped arm
     ['cStr', '{"a"}'], // and defect 52's case still gets lifted out of the tail
   ];

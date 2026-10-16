@@ -16,6 +16,7 @@ import { ingest } from '../src/core/ingest.js';
 import { regenerateEntryXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import PropClass from '../src/datamodel/prop/PropClass.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
+import MatlabValueParser from '../src/datamodel/parser/MatlabValueParser.js';
 
 const here = (name: string): string => fileURLToPath(new URL(`./fixtures/display/${name}`, import.meta.url));
 const bytes = (name: string): Uint8Array => new Uint8Array(readFileSync(here(name)));
@@ -246,6 +247,209 @@ describe("an empty shows as MATLAB's Workspace browser shows it", () => {
     }
     expect(chunkOf(session.serializeSource(root.name).bytes)).toBe(chunkOf(bytes('dispcat_bin.sldd')));
   });
+});
+
+// P1 of the 2026-10-16 list ("a text `Vector(N)` row reads as one `0`/`false`. MATLAB reads it
+// as 1×N"). A text dictionary writes a row of ten or more elements under a `Vector(N)` header,
+// `{"_type": "int8", "_value": "Vector(10)\n[1, 2, …, 10]"}`, and it was read as one scalar of
+// its class: the header is no number, so i8_1x10 showed `0` and l_1x10 `false`, at 1x1, with no
+// element rows, and was editable as that scalar. MATLAB reads the file back as the 1xN row it
+// saved (text_readback.truth.json), and the .mat and the binary dictionary read the same value
+// as that row.
+describe("a text dictionary's Vector(N) row is the 1xN row MATLAB reads back", () => {
+  const VECTOR = ['i8_1x10', 'i8_1x11', 'l_1x10', 'l_1x11'];
+  interface Readback { name: string; equal: boolean; classAfter: string; sizeAfter: number[] }
+  const READBACK = new Map((JSON.parse(readFileSync(here('text_readback.truth.json'), 'utf8')) as Readback[]).map((r) => [r.name, r]));
+  const textEntries = (): any[] =>
+    JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8')).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+
+  it('the file holds each under a Vector(N) header', () => {
+    const held = VECTOR.map((name) => textEntries().find((e: any) => e.name === name).value._value.split('\n')[0]);
+    expect(held).toEqual(VECTOR.map((name) => `Vector(${meta(name).size[1]})`));
+  });
+
+  for (const name of VECTOR) {
+    it(`${name}: its class, size and elements, as MATLAB reads the file back and as the other files hold it`, () => {
+      const rb = READBACK.get(name)!;
+      expect([rb.equal, rb.classAfter, rb.sizeAfter], 'MATLAB reads back the value it saved').toEqual([true, meta(name).class, meta(name).size]);
+      const text = entry(open('dispcat_text.sldd').root, name);
+      expect([text.className, text.dims, text.children.length]).toEqual([rb.classAfter, rb.sizeAfter, rb.sizeAfter[1]]);
+      for (const file of ['dispcat.mat', 'dispcat_bin.sldd']) {
+        const other = entry(open(file).root, name);
+        expect([file, text.toRow().Value, text.valueEditable]).toEqual([file, other.toRow().Value, other.valueEditable]);
+        expect(text.children.map((c: any) => c.displayValue), file).toEqual(other.children.map((c: any) => c.displayValue));
+      }
+    });
+  }
+
+  it('written back as the file holds it, untouched, and as a row once an element is edited', () => {
+    const { session, root } = open('dispcat_text.sldd');
+    const saved = (s: any): any[] =>
+      JSON.parse(s.serializeSource(root.name).text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const valueOf = (entries: any[], name: string): unknown => entries.find((e: any) => e.name === name).value;
+    for (const name of VECTOR) {
+      expect(valueOf(saved(session), name), name).toEqual(valueOf(textEntries(), name));
+    }
+    const node = entry(root, 'i8_1x10');
+    session.setActive(root, node.children[2]);
+    expect(session.editProperty(node.children[2].id, 'Value', '30')).toBe(true);
+    const reopened = createSession();
+    const again = ingest(reopened, buffer(new TextEncoder().encode(session.serializeSource(root.name).text)), { filename: 'dispcat_text.sldd' });
+    const back = entry(again, 'i8_1x10');
+    expect([back.className, back.dims, back.toRow().Value]).toEqual(['int8', [1, 10], '[1 2 30 4 5 6 7 8 9 10]']);
+  });
+});
+
+// P5 of the 2026-10-16 list ("a dictionary cell holding an object shows the object's Value
+// (`{1}`), and editing it silently replaces the object"). A cell's literal spelled each element
+// by its own displayValue, and a Simulink.Parameter's is its Value (the kept H1 ruling: its row
+// shows its value), so {Simulink.Parameter(1)} showed `{1}`, as {1} does, and took an editor
+// seeded with that text: `{2}` committed became a cell holding the double 2, the Parameter gone.
+// MATLAB's browser shows `[1×1 Simulink.Parameter]` for it; here the element is spelled as every
+// object is, by its size-and-class summary, and a cell showing a summary is not edited whole.
+describe('a dictionary cell holding an object spells the object, not its Value', () => {
+  /** MATLAB's text for the one element of a 1x1 cell, in this package's summary spelling. */
+  const element = (row: BrowserRow): string => row.Value.replace(/^\[(.*)\]$/, '<$1>').replace(/×/g, 'x');
+
+  for (const file of ['dispcat_text.sldd', 'dispcat_bin.sldd']) {
+    it(`${file}: cell_of_param shows its Parameter, and cell_1 its double`, () => {
+      const { root } = open(file);
+      const param = entry(root, 'cell_of_param');
+      expect(param.children.map((c: any) => c.className)).toEqual(['Simulink.Parameter']);
+      expect(element(browser('cell_of_param'))).toBe('<1x1 Simulink.Parameter>');
+      expect([param.toRow().Value, param.valueEditable]).toEqual(['{' + element(browser('cell_of_param')) + '}', false]);
+      expect(param.displayElements()).toEqual([{ label: param.children[0].displayName, value: '<1x1 Simulink.Parameter>' }]);
+      // The cell of the double the Parameter's Value is shows that double, editable, as before.
+      const one = entry(root, 'cell_1');
+      expect([one.toRow().Value, one.valueEditable]).toEqual(['{' + browser('cell_1').Value + '}', true]);
+    });
+
+    it(`${file}: an edit of the whole cell is refused and the Parameter stays`, () => {
+      const { session, root } = open(file);
+      const before = session.serializeSource(root.name).bytes;
+      const param = entry(root, 'cell_of_param');
+      session.setActive(root, param);
+      expect(session.editProperty(param.id, 'Value', '{2}')).toMatchObject({ error: true });
+      expect(param.setProperty('Value', '{2}')).toMatchObject({ error: true });
+      expect(param.children.map((c: any) => [c.className, c.toRow().Value])).toEqual([['Simulink.Parameter', '1']]);
+      expect(session.canUndo()).toBe(false);
+      expect(session.serializeSource(root.name).bytes).toEqual(before);
+    });
+  }
+});
+
+// P7 of the 2026-10-16 list ("control characters reach the cell raw (`'a<LF>b'` reads as
+// `'a b'`)"). The Value of a char or string holding a newline, a tab or a NUL put the raw
+// character between the quotes, and the host draws a one-line cell (white-space: nowrap), so
+// 'a<LF>b' and 'a<TAB>b' looked like 'a b' and 'a<NUL>b' like 'ab'. MATLAB's browser is lossy
+// too ('ab', 'a\tb', 'a b'). Each is spelled as the concatenation MATLAB evaluates to it, and
+// that text, which seeds the editor, reads back as the value.
+describe('a char or string holding a control character shows it as MATLAB spells one', () => {
+  const SHOWN: Record<string, string> = {
+    c_newline: "['a' newline 'b']",
+    c_tab: "['a' char(9) 'b']",
+    c_nul: "['a' char(0) 'b']",
+    str_newline: '"a" + newline + "b"',
+  };
+  // What MATLAB holds: class() and size(), and the text, from mat2str (a char) or disp (a string).
+  const held = (name: string): string =>
+    meta(name).class === 'char' ? (MatlabValueParser.parse((meta(name) as any).mat2str)!.value as string) : (meta(name) as any).disp;
+
+  for (const file of ['dispcat.mat', 'dispcat_text.sldd', 'dispcat_bin.sldd']) {
+    const names = Object.keys(SHOWN).filter((n) => file !== 'dispcat.mat' || meta(n).class === 'char');
+    it(`${file}: ${names.join(', ')}`, () => {
+      const { root } = open(file);
+      expect(names.map(held)).toEqual(names.map((n) => (n === 'c_tab' ? 'a\tb' : n === 'c_nul' ? 'a\u0000b' : 'a\nb')));
+      for (const name of names) {
+        const node = entry(root, name);
+        const shown = node.toRow().Value;
+        expect([name, node.className, node.dims, shown]).toEqual([name, meta(name).class, meta(name).size, SHOWN[name]]);
+        expect(/[\u0000-\u001f\u007f-\u009f]/.test(shown), name).toBe(false);
+        expect(MatlabValueParser.parse(shown), name).toEqual({ type: meta(name).class, value: held(name) });
+      }
+    });
+  }
+
+  it('the text it shows commits as no edit, and an edit of it is the value edited', () => {
+    for (const file of ['dispcat_text.sldd', 'dispcat_bin.sldd']) {
+      const { session, root } = open(file);
+      for (const name of Object.keys(SHOWN)) {
+        const node = entry(root, name);
+        session.setActive(root, node);
+        expect(session.editProperty(node.id, 'Value', SHOWN[name]), `${file} ${name}`).toBe(true);
+        expect(session.canUndo(), `${file} ${name}`).toBe(false);
+      }
+      const c = entry(root, 'c_newline');
+      session.setActive(root, c);
+      expect(session.editProperty(c.id, 'Value', "['a' newline 'c' char(9)]")).toBe(true);
+      const s = entry(root, 'str_newline');
+      session.setActive(root, s);
+      expect(session.editProperty(s.id, 'Value', '"x" + newline + "y"')).toBe(true);
+      const saved = session.serializeSource(root.name);
+      const again = ingest(createSession(), buffer(saved.bytes ?? new TextEncoder().encode(saved.text)), { filename: file });
+      expect([entry(again, 'c_newline').toRow().Value, entry(again, 'str_newline').toRow().Value], file).toEqual([
+        "['a' newline 'c' char(9)]",
+        '"x" + newline + "y"',
+      ]);
+    }
+  });
+});
+
+// P8 of the 2026-10-16 list ("a text `null` value reads as `0`"). MATLAB could not save
+// str_2x2x2, a 2x2x2 string, into a text dictionary ("Cannot save the value of parameter
+// "MxData" because it uses an unsupported data format") and wrote `"value": null`, which it
+// reads back as a 1x0 double (text_readback.truth.json). MatlabVariableNode.parseScalar read the
+// null as the double 0, a value the file does not hold, shown `0` and editable. The entry is in
+// dispcat_text.sldd as MATLAB wrote it. MATLAB opens that file again without complaint, so the
+// reader raises no warning for it (test/parseWarnings.test.ts's corpus sweep reads this file too).
+describe("a text dictionary's null value is the empty MATLAB reads back", () => {
+  interface Readback { name: string; equal: boolean; classAfter: string; sizeAfter: number[] }
+  const rb = (JSON.parse(readFileSync(here('text_readback.truth.json'), 'utf8')) as Readback[]).find((r) => r.name === 'str_2x2x2')!;
+  const written = (JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8'))
+    .__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries as any[])
+    .filter((e) => e.name === 'str_2x2x2');
+
+  it('str_2x2x2 reads as a 1x0 double, shown as every numeric empty is, and raises no warning', () => {
+    expect(written.map((e: any) => [e.name, e.value])).toEqual([['str_2x2x2', null]]);
+    expect([rb.equal, rb.classAfter, rb.sizeAfter]).toEqual([false, 'double', [1, 0]]);
+    const { root } = open('dispcat_text.sldd');
+    const node = entry(root, 'str_2x2x2');
+    expect([node.className, node.dims, node.children.length, node.toRow().Value]).toEqual([rb.classAfter, rb.sizeAfter, 0, '[ ]']);
+    expect(node.toRow().Value).toBe(browser('dx_double_1x0').Value);
+    expect(root.warnings).toBeUndefined();
+  });
+
+  it('written back as the null the file holds, untouched', () => {
+    const { session, root } = open('dispcat_text.sldd');
+    const saved = JSON.parse(session.serializeSource(root.name).text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    expect(saved.find((e: any) => e.name === 'str_2x2x2').value).toBeNull();
+  });
+});
+
+// P10 of the 2026-10-16 list ("a complex array's summary omits "complex" (`<1x11 double>`),
+// though "sparse" is named"). The host hides the Class column by default and Data Type says
+// `double`, so nothing on z_1x11's row said it was complex. MATLAB's browser shows
+// `1×11 complex double`, and `1×2 sparse complex double` for a sparse one: the summary names
+// complexity, in that word order, in this package's angle form.
+describe("a complex array's summary says complex, as MATLAB's does", () => {
+  const ours = (row: BrowserRow): string => '<' + row.Value.replace(/×/g, 'x') + '>';
+
+  for (const file of ['dispcat.mat', 'dispcat_text.sldd', 'dispcat_bin.sldd']) {
+    it(`${file}: z_1x11 and sp_complex`, () => {
+      const { root } = open(file);
+      for (const name of ['z_1x11', 'sp_complex']) {
+        expect([browser(name).IsSummary, meta(name).isreal], name).toEqual([true, false]);
+        expect([name, entry(root, name).toRow().Value]).toEqual([name, ours(browser(name))]);
+      }
+      expect(ours(browser('z_1x11'))).toBe('<1x11 complex double>');
+      expect(ours(browser('sp_complex'))).toBe('<1x2 sparse complex double>');
+      // A complex scalar sparse array is its summary too, as every sparse array is here (the
+      // kept convention; MATLAB shows the number), and says complex the same way.
+      expect(entry(root, 'sp_complex_scalar').toRow().Value).toBe('<1x1 sparse complex double>');
+      // A real one's summary is unchanged.
+      expect(entry(root, 'sp_vec').toRow().Value).toBe(ours(browser('sp_vec')));
+    });
+  }
 });
 
 // P2 of the 2026-10-16 list: a text dictionary spells an enumeration value as the numbers its

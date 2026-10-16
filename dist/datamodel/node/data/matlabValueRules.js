@@ -38,7 +38,7 @@
 // visibility, deliberately stopped at the package boundary: none of these names appears
 // in `src/index.ts` or `src/node/index.ts`, so they stay internal to this package and a
 // consumer cannot start depending on one.
-import { formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
+import { formatMatlabCharRow, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { EMPTY_NUMERIC, MISSING_STRING } from '../../display/DisplayConvention.js';
 import { formatMatlabNum, parseMatlabNum, parseExactNum, needsExactInt } from '../../parser/XmlUtils.js';
 // An empty 0x0 double, MATLAB's own `[]`. Stands in for a cell slot the parser
@@ -147,7 +147,7 @@ export function formatMatrix(rows, cols, elements) {
 //
 // The stored text is column-major (see XmlUtils' char section), so row r is every
 // rows-th character starting at r — MATLAB's own 2x2 'acbd' is rows 'ab' and 'cd'.
-// Each row is quoted through formatMatlabChar, so an apostrophe inside one doubles
+// Each row is quoted through formatMatlabCharRow, so an apostrophe inside one doubles
 // exactly as it does in the scalar spelling.
 //
 // Rank 2 only: the caller summarizes anything higher, for the same reason formatMatrix
@@ -161,7 +161,9 @@ export function formatCharMatrix(text, dims) {
         for (let c = 0; c < cols; c++) {
             row += text.charAt(c * rows + r);
         }
-        rowStrs.push(formatMatlabChar(row));
+        // A row holding a control character is its pieces, `'a' newline 'b'`, inside the
+        // matrix's one pair of brackets (formatMatlabCharRow).
+        rowStrs.push(formatMatlabCharRow(row));
     }
     return '[' + rowStrs.join('; ') + ']';
 }
@@ -172,7 +174,12 @@ export function parseMatrixValue(raw) {
     // 2x3x2 as Dimension="2*3*2", and BinarySlddParser now carries every extent
     // through. Only the two-group form was matched, so an N-D entry fell through
     // to the [0,0] empty node with all twelve of its elements gone.
-    const dimsMatch = header.match(/^Matrix\((\d+(?:,\d+)*)\)$/);
+    //
+    // And a text dictionary's ROW of ten or more elements of a typed class is `Vector(N)` over
+    // one bracketed list: MATLAB wrote int8(1:10) as `{"_type": "int8", "_value": "Vector(10)\n[1,
+    // 2, …, 10]"}` and reads that file back as the 1x10 it saved (test/fixtures/display,
+    // i8_1x10). Its one extent is the row's length, as a one-group Matrix header's is below.
+    const dimsMatch = header.match(/^Matrix\((\d+(?:,\d+)*)\)$/) || header.match(/^Vector\((\d+)\)$/);
     if (!dimsMatch) {
         return null;
     }

@@ -11,6 +11,7 @@ import MatlabValueParser, {
   formatMatlabString,
   unquoteMatlabText,
 } from '../src/datamodel/parser/MatlabValueParser.js';
+import { formatCharMatrix, formatStringElement } from '../src/datamodel/node/data/matlabValueRules.js';
 
 const parse = (s: string) => MatlabValueParser.parse(s);
 
@@ -525,5 +526,78 @@ describe('parsedIsScalarNumeric', () => {
   it('rejects an unparseable expression', () => {
     expect(parsedIsScalarNumeric(null)).toBe(false);
     expect(parsedIsScalarNumeric(parse('Infinity'))).toBe(false);
+  });
+});
+
+// P7 of the maintainer's 2026-10-16 list ("control characters reach the cell raw (`'a<LF>b'`
+// reads as `'a b'`)"). A quoted literal holding a newline, a tab or a NUL is not text a
+// one-line cell can show: the host draws the LF and the TAB as one space and the NUL as
+// nothing, so 'a<LF>b' looked like 'a b'. Each control character is spelled as the MATLAB
+// expression that makes it, in a concatenation MATLAB evaluates to the value, and the parser
+// reads that spelling back, so the text the editor is seeded with is still the value.
+describe('MatlabValueParser — control characters in char and string', () => {
+  const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+  const CHARS: [string, string][] = [
+    ['a\nb', "['a' newline 'b']"],
+    ['a\tb', "['a' char(9) 'b']"],
+    ['a\u0000b', "['a' char(0) 'b']"],
+    ['\n', '[newline]'],
+    ["it's\r\n", "['it''s' char(13) newline]"],
+    ['x\u007f\u0085', "['x' char(127) char(133)]"],
+  ];
+  const STRINGS: [string, string][] = [
+    ['a\nb', '"a" + newline + "b"'],
+    ['\nb', '"" + newline + "b"'],
+    ['say "hi"\t', '"say ""hi""" + char(9)'],
+  ];
+
+  it('spells each as a concatenation with no control character in it', () => {
+    expect(CHARS.map(([v]) => formatMatlabChar(v))).toEqual(CHARS.map(([, shown]) => shown));
+    expect(STRINGS.map(([v]) => formatMatlabString(v))).toEqual(STRINGS.map(([, shown]) => shown));
+    for (const [, shown] of [...CHARS, ...STRINGS]) {
+      expect(CONTROL.test(shown), shown).toBe(false);
+    }
+    // Text with none is spelled as before.
+    expect([formatMatlabChar("it's"), formatMatlabString('a"b')]).toEqual(["'it''s'", '"a""b"']);
+  });
+
+  it('reads each spelling back as the value', () => {
+    expect(CHARS.map(([, shown]) => parse(shown))).toEqual(CHARS.map(([v]) => ({ type: 'char', value: v })));
+    expect(STRINGS.map(([, shown]) => parse(shown))).toEqual(STRINGS.map(([v]) => ({ type: 'string', value: v })));
+    // MATLAB's own mat2str spelling of a newline and a NUL (test/fixtures/display/meta.truth.json).
+    expect(parse("['a' char(10) 'b']")).toEqual({ type: 'char', value: 'a\nb' });
+    expect(parse("['a', char(0), 'b']")).toEqual({ type: 'char', value: 'a\u0000b' });
+  });
+
+  it('reads them inside a cell, a char matrix and a string array', () => {
+    expect(parse(`{['a' newline 'b'], "x" + char(9) + "y", 3}`)).toEqual({ type: 'cell', value: ['a\nb', ['x\ty'], 3], dims: [1, 3] });
+    // MATLAB's column-major storage of ['a' newline 'b'; 'cde'].
+    expect(parse("['a' newline 'b'; 'cde']")).toEqual({ type: 'char', value: 'ac\ndbe', dims: [2, 3] });
+    expect(parse('["a" + newline + "b" "c"]')).toEqual({ type: 'string-array', value: ['a\nb', 'c'], dims: [1, 2] });
+    // MATLAB reads a char beside a string in brackets as an element of its own.
+    expect(parse('["a" newline]')).toEqual({ type: 'string-array', value: ['a', '\n'], dims: [1, 2] });
+  });
+
+  it('spells a char matrix row and a string array element the same way', () => {
+    expect(formatCharMatrix('ac\ndbe', [2, 3])).toBe("['a' newline 'b'; 'cde']");
+    expect(parse(formatCharMatrix('ac\ndbe', [2, 3]))).toEqual({ type: 'char', value: 'ac\ndbe', dims: [2, 3] });
+    expect(formatStringElement('a\nb')).toBe('"a" + newline + "b"');
+  });
+
+  it('refuses what MATLAB reads as something else', () => {
+    // In brackets `"a" +newline` is two elements, the second the number +10.
+    expect(parse('["a" +newline]')).toBeNull();
+    // Concatenation without brackets, a dangling +, char codes past char's range, and a sum
+    // of chars, which MATLAB makes a number.
+    for (const text of ["'a' newline", '"a" + newline +', '"a" + 1', '[char(70000)]', "'a' + newline"]) {
+      expect(parse(text), text).toBeNull();
+    }
+  });
+
+  it('is undone by unquoteMatlabText, which leaves other bracketed text alone', () => {
+    expect(unquoteMatlabText(formatMatlabChar('a\nb'))).toBe('a\nb');
+    expect(unquoteMatlabText(formatMatlabString('a\tb'))).toBe('a\tb');
+    expect(unquoteMatlabText('[1 2]')).toBe('[1 2]');
+    expect(unquoteMatlabText("['ab']")).toBe("['ab']");
   });
 });

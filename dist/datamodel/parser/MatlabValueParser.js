@@ -137,11 +137,72 @@ function unquote(str, q) {
 // and not with the other display helpers. Concatenating the raw text instead
 // produced 'it's', which is not a literal at all: the table showed it, the
 // in-place editor was seeded with it, and committing it unchanged split the value.
+//
+// A control character (Unicode's Cc: U+0000-U+001F and U+007F-U+009F) is not written between
+// the quotes: a one-line cell draws a newline or a tab as one space and a NUL as nothing, so
+// 'a<LF>b' read as 'a b' (P7 of the maintainer's 2026-10-16 list). It is spelled as the MATLAB
+// expression that makes it, `newline` for a newline and `char(N)` for any other, in the
+// concatenation MATLAB evaluates to the value: ['a' newline 'b'] for a char, and
+// "a" + newline + "b" for a string. parse() reads both back (scanControl, scanStringSum).
+const CONTROL_CHAR = /[\u0000-\u001f\u007f-\u009f]/;
+const CONTROL_CHARS = new RegExp(CONTROL_CHAR.source, 'g');
+/** The MATLAB expression for one control character. */
+function controlExpr(ch) {
+    return ch === '\n' ? 'newline' : 'char(' + ch.charCodeAt(0) + ')';
+}
+/** `value` as quoted runs (`q`, doubled inside) and the expressions of its control characters. */
+function literalPieces(value, q) {
+    const pieces = [];
+    let run = '';
+    const flush = () => {
+        if (run !== '') {
+            pieces.push(q + run.split(q).join(q + q) + q);
+            run = '';
+        }
+    };
+    for (const ch of value) {
+        if (CONTROL_CHAR.test(ch)) {
+            flush();
+            pieces.push(controlExpr(ch));
+        }
+        else {
+            run += ch;
+        }
+    }
+    flush();
+    return pieces;
+}
+/**
+ * One ROW of a char literal, without the brackets a row holding a control character needs
+ * around it: `'ab'`, or `'a' newline 'b'`. A char matrix's rows are these, joined inside its
+ * one pair of brackets (matlabValueRules.formatCharMatrix): ['a' newline 'b'; 'cde'].
+ */
+export function formatMatlabCharRow(value) {
+    return CONTROL_CHAR.test(value) ? literalPieces(value, "'").join(' ') : "'" + value.replace(/'/g, "''") + "'";
+}
 export function formatMatlabChar(value) {
-    return "'" + value.replace(/'/g, "''") + "'";
+    return CONTROL_CHAR.test(value) ? '[' + formatMatlabCharRow(value) + ']' : formatMatlabCharRow(value);
 }
 export function formatMatlabString(value) {
-    return '"' + value.replace(/"/g, '""') + '"';
+    if (!CONTROL_CHAR.test(value)) {
+        return '"' + value.replace(/"/g, '""') + '"';
+    }
+    // A sum is a string only when one of its terms is: `newline + "b"` is, but a lone
+    // `newline` is a char, so a value that starts with one starts with "".
+    const pieces = literalPieces(value, '"');
+    if (pieces[0].charAt(0) !== '"') {
+        pieces.unshift('""');
+    }
+    return pieces.join(' + ');
+}
+// The runaway length guard (DisplayConvention.SUMMARY_MAX_CHARS) measures a text's literal as it
+// was before a control character was spelled as the expression that makes it. That spelling
+// changed how the text reads, not which texts the guard summarises: a tab is `' char(9) '`, ten
+// characters where the literal had one, so measured on the spelling a 952-character description
+// holding tabs became `<1x952 char>`. Formatted from this, a literal is as long as it was then:
+// each control character counts as the one character it is.
+export function controlsAsOneChar(value) {
+    return value.replace(CONTROL_CHARS, ' ');
 }
 // For a property whose DISPLAY is the quoted literal but whose stored value is the
 // raw text (a Variant condition/specification, a bank Value): strip one layer of
@@ -156,15 +217,74 @@ export function unquoteMatlabText(text) {
         return asChar;
     }
     const asString = unquote(text, '"');
-    return asString !== null ? asString : text;
+    if (asString !== null) {
+        return asString;
+    }
+    // formatMatlabChar's and formatMatlabString's spelling of a text holding a control
+    // character, and only that: other bracketed text passes through as it always did.
+    const spelled = text.charAt(0) === '[' ? parseArray(text) : text.charAt(0) === '"' ? parseString(text) : null;
+    if (spelled && (spelled.type === 'char' || spelled.type === 'string') && !spelled.dims && CONTROL_CHAR.test(spelled.value)) {
+        return spelled.value;
+    }
+    return text;
 }
 function parseChar(str) {
     const value = unquote(str, "'");
     return value === null ? null : { type: 'char', value };
 }
 function parseString(str) {
-    const value = unquote(str, '"');
-    return value === null ? null : { type: 'string', value };
+    const sum = scanStringSum(str, 0, false);
+    return sum && sum.next === str.length ? { type: 'string', value: sum.text } : null;
+}
+// A control character's expression at `start`, formatMatlabChar's and MATLAB's own: `newline`,
+// or `char(N)` for a code char takes (mat2str spells a newline `char(10)`). Returns the
+// character and the index just past the expression, or null.
+function scanControl(str, start) {
+    if (str.startsWith('newline', start) && !/[A-Za-z0-9_]/.test(str.charAt(start + 7))) {
+        return { text: '\n', next: start + 7 };
+    }
+    const m = /^char\((\d{1,5})\)/.exec(str.slice(start, start + 12));
+    if (m && Number(m[1]) <= 0xffff) {
+        return { text: String.fromCharCode(Number(m[1])), next: start + m[0].length };
+    }
+    return null;
+}
+// A string at `start`, which holds a double quote: the quoted literal, and each `+` term
+// after it, another double-quoted literal or a control character's expression — the sum
+// formatMatlabString spells a string holding a control character as, "a" + newline + "b".
+// In brackets, where a space separates elements, a `+` with a space before it and none after
+// is a unary plus starting the next element (`["a" +newline]` is "a" and the number 10), so
+// it ends the sum there. Returns the text and the index past the sum, or null for a sum
+// whose term is neither.
+function scanStringSum(str, start, inBrackets) {
+    const first = str.charAt(start) === '"' ? scanQuoted(str, start) : null;
+    if (!first) {
+        return null;
+    }
+    let text = first.text;
+    let next = first.next;
+    for (;;) {
+        let i = next;
+        while (str.charAt(i) === ' ') {
+            i++;
+        }
+        if (str.charAt(i) !== '+') {
+            return { text, next };
+        }
+        let j = i + 1;
+        while (str.charAt(j) === ' ') {
+            j++;
+        }
+        if (inBrackets && i > next && j === i + 1) {
+            return { text, next };
+        }
+        const term = str.charAt(j) === '"' ? scanQuoted(str, j) : scanControl(str, j);
+        if (!term) {
+            return null;
+        }
+        text += term.text;
+        next = term.next;
+    }
 }
 // One part of a complex literal, unsigned: a decimal, as parseMatlabNumber reads one (and
 // `\d+(?:\.\d*)?` for the same reason), or Inf or NaN.
@@ -393,7 +513,8 @@ function tokenizeStrings(rowStr) {
         }
         const ch = rowStr.charAt(i);
         if (ch === '"' || ch === "'") {
-            const scanned = scanQuoted(rowStr, i);
+            // A string's piece is the whole of its sum ("a" + newline + "b", one element).
+            const scanned = ch === '"' ? scanStringSum(rowStr, i, true) : scanQuoted(rowStr, i);
             if (!scanned) {
                 return null;
             }
@@ -404,7 +525,15 @@ function tokenizeStrings(rowStr) {
             i = scanned.next;
         }
         else {
-            return null;
+            // A control character's expression is a piece of its own, which a char row
+            // concatenates (['a' newline 'b'] is 'a<LF>b') and a string array takes as an
+            // element, as MATLAB does.
+            const control = scanControl(rowStr, i);
+            if (!control) {
+                return null;
+            }
+            elements.push(control.text);
+            i = control.next;
         }
     }
     return elements.length > 0 ? { texts: elements, anyDouble } : null;
@@ -547,7 +676,8 @@ function tokenizeCellElements(rowStr) {
         const ch = rowStr.charAt(i);
         let span;
         if (ch === "'" || ch === '"') {
-            const scanned = scanQuoted(rowStr, i);
+            // A string's span is the whole of its sum, "a" + newline + "b" (scanStringSum).
+            const scanned = ch === '"' ? scanStringSum(rowStr, i, true) : scanQuoted(rowStr, i);
             if (!scanned) {
                 return null;
             }
@@ -750,6 +880,7 @@ export default {
     parseCell,
     parsedIsScalarNumeric,
     formatMatlabChar,
+    formatMatlabCharRow,
     formatMatlabString,
     unquoteMatlabText,
 };
