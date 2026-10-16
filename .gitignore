@@ -11,7 +11,8 @@ coverage/
 # as a git dependency, and enterprise npm setups often set `ignore-scripts=true`,
 # which skips the `prepare` build on install. Shipping a prebuilt dist/ makes the
 # git dependency resolve unconditionally. Rebuild with `npm run build` before
-# committing source changes (CI `verify` enforces it).
+# committing source changes. CI's "dist/ is the build of src/" step enforces it: it
+# rebuilds dist/ from clean after verify and fails if the result differs.
 
 # Internal working notes — never publish to the public tree.
 docs/

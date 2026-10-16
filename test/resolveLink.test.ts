@@ -118,6 +118,16 @@ function openDictionaryAs(s: any, srcId = 'mdlparams.sldd') {
   return ingest(s, artifact('text/params.sldd'), { filename: srcId }) as any;
 }
 
+// A model's reference or data-source entry, found by the NAME its row shows and then
+// looked up by its own id. Those ids carry the block path or the recorded path after the
+// name (ModelReferenceNode.id, DataSourceNode.id), so a typed id would restate that
+// spelling here; the lookup still goes through the session index.
+function modelEntry(s: any, srcId: string, section: string, name: string): any {
+  const child = s.getDataSource(srcId).getSection(section).children.find((c: any) => c.name === name);
+  expect(child).toBeTruthy();
+  return s.findNodeById(child.id);
+}
+
 // The linkTarget a node put in its own row — never a hand-written string. If
 // ModelBlockNode or DataSourceNode ever changes shape, these read the new shape and
 // the resolver is tested against what is actually produced.
@@ -156,7 +166,7 @@ describe('resolveLink() — the three target shapes a node actually produces', (
     const { s } = modelSession();
     openDictionaryAs(s);
 
-    const target = linkTargetOf(s.findNodeById('mdlcases.mdl/dataSources/mdlparams.sldd'), 'Value');
+    const target = linkTargetOf(modelEntry(s, 'mdlcases.mdl', 'dataSources', 'mdlparams.sldd'), 'Value');
     expect(target).toBe('mdlparams.sldd');
 
     const r = s.resolveLink(target);
@@ -172,7 +182,7 @@ describe('resolveLink() — the three target shapes a node actually produces', (
 
   it('follows a model-reference target across the .slx/.mdl extension guess', () => {
     const { s } = modelSession();
-    const target = linkTargetOf(s.findNodeById('mdlcases.mdl/references/mdl_child.mdl'), 'Value');
+    const target = linkTargetOf(modelEntry(s, 'mdlcases.mdl', 'references', 'mdl_child.mdl'), 'Value');
     // The reference is recorded with the PARENT's extension — addReferenceEntry guesses,
     // because a `.mdl` names its child without one — so the same child is `mdl_child.mdl`
     // here and `mdl_child.slx` from a `.slx` parent.

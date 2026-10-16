@@ -33,3 +33,20 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run verify
+      # dist/ is committed and is what a consumer runs (see .gitignore), so it must be
+      # the build of src/. verify's own build overwrites dist/ here and compares it
+      # with nothing, so this step does the comparison. Keep it after verify: a source
+      # that does not compile, or a failing test, is then reported by verify under its
+      # own name, and a red here means only "dist/ was not rebuilt and committed". It
+      # deletes dist/ first because tsc never deletes an output: built over the
+      # committed copy, a file whose source is gone would stay and pass. The status
+      # line prints every file that differs; it prints nothing when dist/ matches.
+      # To fix a red: rm -rf dist && npm run build, then commit dist/.
+      # test/ciDistGate.test.ts runs this script and keeps it in step with release.yml.
+      - name: dist/ is the build of src/
+        run: |
+          rm -rf dist
+          npm run build
+          git status --porcelain --untracked-files=all -- dist
+          git diff --exit-code --stat -- dist
+          test -z "$(git status --porcelain --untracked-files=all -- dist)"

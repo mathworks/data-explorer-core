@@ -10,6 +10,21 @@ export default class DataSourceNode extends BaseNode {
         this.fullPath = fullPath;
         this.resolved = false;
     }
+    /**
+     * `…/dataSources/signals.mat@a/signals.mat`: the name, then the path the model recorded.
+     *
+     * The name is the path's basename (ModelSectionNode.addDataSourceEntry), so a model
+     * whose sources are `a/signals.mat` and `b/signals.mat` has two rows named
+     * `signals.mat`, and the inherited id gave both `…/dataSources/signals.mat`: two rows
+     * the host could not tell apart, and only one of them in the session index. Keying on
+     * the recorded path is the rule ModelReferenceNode.id applies to its block path, after
+     * ModelBlockNode.id's precedent. The name, the Name column and the link target
+     * (`this.name`) are unchanged.
+     */
+    get id() {
+        const key = this.name + '@' + this.fullPath;
+        return this.parent ? this.parent.id + '/' + key : key;
+    }
     get isEntry() {
         return true;
     }

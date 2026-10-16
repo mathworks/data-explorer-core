@@ -9,6 +9,7 @@ export default class VariantControlNode extends SimulinkObjectNode {
     get className(): string;
     get displayValue(): string;
     getProperties(): PropClass[];
+    get descriptionEditable(): boolean;
     /**
      * Validate and apply a Value edit. MATLAB requires the Value to be an
      * integer-valued real scalar, a logical (true/false), or empty (''/'[]').

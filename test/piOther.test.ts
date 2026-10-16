@@ -231,3 +231,95 @@ describe('buildOtherRows — a cdata value is read, not printed', () => {
     expect(shows({ _type: 'cdata', _value: '1+2i 3+4i', _dimensions: [1, 3] })).toBe('1+2i 3+4i');
   });
 });
+
+// A binary dictionary spells a nested object as an object array of one element,
+// `{_array_class, _dimensions: [1, 1], _elements: [{_properties}]}`, where a `.mat` and a
+// text dictionary spell it `{_object_class, _properties}`. The group flattened only the
+// second, so a binary LookupTable's Table showed as one empty row. MATLAB's own display
+// holds the same object in each venue (`Table: [1×1 Simulink.lookuptable.Table]`), so the
+// group flattens it in each, and an array of them is MATLAB's `[1×2 Class]` in this
+// package's spelling, `<1x2 Class>` (DisplayConvention.summaryForm).
+describe('buildOtherRows — an object array of one element is the object', () => {
+  const binary = (cls: string, elements: Record<string, unknown>[], dims?: number[]) => ({
+    _array_class: cls,
+    ...(dims ? { _dimensions: dims } : {}),
+    _mw_element_type: 'MATLABArray',
+    _elements: elements,
+  });
+  const table = () => binary('Simulink.lookuptable.Table', [{ _properties: { Value: [1, 2, 3], FieldName: 'Table' } }], [1, 1]);
+  const breakpoint = (n: number) => ({ _properties: { Value: [n, n + 1], FieldName: 'BP' + n } });
+
+  it("flattens a binary dictionary's 1x1 object one level, as the same object out of a .mat", () => {
+    expect(buildOtherRows({ Table: table() }, new Set())).toEqual([
+      { name: 'Table.Value', value: '[1, 2, 3]' },
+      { name: 'Table.FieldName', value: 'Table' },
+    ]);
+    const mat = buildOtherRows({ Table: { _object_class: 'Simulink.lookuptable.Table', _properties: { Value: [1, 2, 3], FieldName: 'Table' } } }, new Set());
+    expect(buildOtherRows({ Table: table() }, new Set())).toEqual(mat);
+    // No extents is one element's: an object array the reader did not shape.
+    expect(buildOtherRows({ Table: binary('T', [{ _properties: { A: 1 } }]) }, new Set())).toEqual([{ name: 'Table.A', value: '1' }]);
+  });
+
+  it('shows an object array of more than one element as its summary, in one row', () => {
+    expect(buildOtherRows({ Breakpoints: binary('Simulink.lookuptable.Breakpoint', [breakpoint(1), breakpoint(2)], [1, 2]) }, new Set())).toEqual([
+      { name: 'Breakpoints', value: '<1x2 Simulink.lookuptable.Breakpoint>' },
+    ]);
+    // A `.mat` object array property (McosParser), which carries its `_array_type`.
+    const mat = { ...binary('Simulink.BusElement', [breakpoint(1), breakpoint(2), breakpoint(3)], [3, 1]), _array_type: 'MATLABArray' };
+    expect(buildOtherRows({ Elements: mat }, new Set())).toEqual([{ name: 'Elements', value: '<3x1 Simulink.BusElement>' }]);
+    // Unshaped, its elements are a row; an empty one is its extents; one element in a shape
+    // that is not 1x1 is not that element.
+    expect(buildOtherRows({ B: binary('C', [breakpoint(1), breakpoint(2)]) }, new Set())).toEqual([{ name: 'B', value: '<1x2 C>' }]);
+    expect(buildOtherRows({ B: binary('C', [], [0, 0]) }, new Set())).toEqual([{ name: 'B', value: '<0x0 C>' }]);
+    expect(buildOtherRows({ B: binary('C', [breakpoint(1)], [1, 1, 2]) }, new Set())).toEqual([{ name: 'B', value: '<1x1x2 C>' }]);
+  });
+
+  it("names a one-element object by its element's own class, as the node layer does", () => {
+    // The text format spells an mpt.Signal as `{_array_class: 'Simulink.Signal', _elements:
+    // [{_object_class: 'mpt.Signal', …}]}` (DataNode.elementClassOf).
+    expect(buildOtherRows({ S: binary('Simulink.Signal', [{ _object_class: 'mpt.Signal', _properties: {} }], [1, 1]) }, new Set())).toEqual([
+      { name: 'S', value: '[mpt.Signal]' },
+    ]);
+    expect(buildOtherRows({ S: binary('Simulink.Signal', [{ _object_class: '', _properties: {} }], [1, 1]) }, new Set())).toEqual([
+      { name: 'S', value: '[Simulink.Signal]' },
+    ]);
+    // The sub-rows are that element's, and one level further down it is its class.
+    const signal = binary('Simulink.Signal', [{
+      _object_class: 'mpt.Signal',
+      _properties: { Owner: 'me', CoderInfo: binary('Simulink.CoderInfo', [{ _object_class: 'mpt.CoderInfo', _properties: { A: 1 } }], [1, 1]) },
+    }], [1, 1]);
+    expect(buildOtherRows({ S: signal }, new Set())).toEqual([
+      { name: 'S.Owner', value: 'me' },
+      { name: 'S.CoderInfo', value: '[mpt.CoderInfo]' },
+    ]);
+  });
+
+  it('shows an object array one level further down by its class or its summary', () => {
+    const holder = (Sub: unknown) => ({ Outer: { _object_class: 'X', _properties: { Sub } } });
+    expect(buildOtherRows(holder(table()), new Set())).toEqual([{ name: 'Outer.Sub', value: '[Simulink.lookuptable.Table]' }]);
+    expect(buildOtherRows(holder(binary('Simulink.lookuptable.Breakpoint', [breakpoint(1), breakpoint(2), breakpoint(3)], [1, 3])), new Set())).toEqual([
+      { name: 'Outer.Sub', value: '<1x3 Simulink.lookuptable.Breakpoint>' },
+    ]);
+    // And under a binary dictionary's own spelling of the outer object.
+    expect(buildOtherRows({ Outer: binary('X', [{ _properties: { Sub: table() } }], [1, 1]) }, new Set())).toEqual([
+      { name: 'Outer.Sub', value: '[Simulink.lookuptable.Table]' },
+    ]);
+  });
+
+  // Controls: each envelope here would be claimed but for the one property that names it
+  // something else, and each shows as it did.
+  it('leaves a struct, cell or string array and an enumeration as they were', () => {
+    const one = [{ _properties: { A: 1 } }];
+    for (const kind of ['Struct', 'Cell', 'String']) {
+      expect(buildOtherRows({ V: { ...binary('C', one, [1, 1]), _array_type: kind } }, new Set()), kind).toEqual([{ name: 'V', value: '' }]);
+      expect(buildOtherRows({ V: { ...binary('C', [...one, ...one], [1, 2]), _array_type: kind } }, new Set()), kind).toEqual([{ name: 'V', value: '' }]);
+    }
+    // An enumeration value, as either reader holds one.
+    const enumeral = { _properties: {}, _enumeration: { name: 'Red', type: 'Color', value: 'Red' } };
+    expect(buildOtherRows({ V: { ...binary('Color', [enumeral], [1, 1]), _is_enum: '1' } }, new Set())).toEqual([{ name: 'V', value: '' }]);
+    expect(buildOtherRows({ V: { ...binary('Color', [enumeral, enumeral], [1, 2]), _is_enum: '1' } }, new Set())).toEqual([{ name: 'V', value: '' }]);
+    // An element that is not an object, and an array with no class.
+    expect(buildOtherRows({ V: binary('C', [{ A: 1 }], [1, 1]) }, new Set())).toEqual([{ name: 'V', value: '' }]);
+    expect(buildOtherRows({ V: binary('', one, [1, 1]) }, new Set())).toEqual([{ name: 'V', value: '' }]);
+  });
+});

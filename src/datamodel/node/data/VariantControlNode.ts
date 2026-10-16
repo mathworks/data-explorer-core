@@ -20,6 +20,14 @@ export default class VariantControlNode extends SimulinkObjectNode {
     get className(): string { return CLASS_NAME; }
     get displayValue(): string { return PropValue.format(this.Value); }
     getProperties(): PropClass[] { return [PropName, PropValue, PropDataType]; }
+    // No Description to edit (decision D11: an entry-level Description edit on a class whose
+    // file has no Description is refused). MATLAB writes no Description for a control (the
+    // binary params.sldd's MyVarCtrl holds Value, ActivationTime and ValueType), the schema
+    // (classes/variantControl.json) has none, and _serializedOverrides below writes the Value
+    // alone, so an accepted edit was lost on save.
+    // False here makes the row and the property inspector offer no editor, and DataNode's
+    // setProperty refuses the edit.
+    get descriptionEditable(): boolean { return false; }
     // PI layout: inherited BaseNode.getPILayout → buildPILayout drives the schema
     // "General" identity group (classes/variantControl.json).
 

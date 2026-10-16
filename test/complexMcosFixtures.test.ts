@@ -473,7 +473,9 @@ describe('every value presents the same in the .mat as in each other venue that 
 // and LookupTableNode shows none of its Table in the tree in any venue — its own cell is
 // empty and it has no rows. The Property Inspector does: its "Other" group flattens the
 // Table one level, and Table.Value is the complex value. Both are pinned, the tree so it is
-// seen to stay empty and the same in every venue, and the Inspector for what it shows.
+// seen to stay empty and the same in every venue, and the Inspector for what it shows. The
+// binary dictionary spells the Table `{_array_class, _elements: [{_properties}]}`, an object
+// array of one element, and its group lists the same rows as the other venues'.
 describe('a LookupTable with a complex Table presents as it does everywhere', () => {
   for (const fx of FIXTURES) {
     const variables = fx.variables();
@@ -493,13 +495,6 @@ describe('a LookupTable with a complex Table presents as it does everywhere', ()
         const v = t.Table!.Value as ValueTruth;
         expect(v.size[0], 'a row, which the Other group writes `[a, b, c]`').toBe(1);
         const want = '[' + elementsOf(v, `${path}.Table.Value`).join(', ') + ']';
-        if (fx.file === 'complex_binary.sldd') {
-          // The binary reader spells a nested object `{_array_class, _elements}`, which
-          // the Other group does not flatten, so it shows the Table as an empty row —
-          // in this venue, for every nested object, and not about complex numbers.
-          expect(other['Other.Table']).toBe('');
-          return;
-        }
         expect(other['Other.Table.Value']).toBe(want);
         expect(other['Other.Breakpoints.Value']).toBe('[1, 2, 3]');
       });

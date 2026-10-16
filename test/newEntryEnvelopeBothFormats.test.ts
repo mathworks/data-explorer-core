@@ -43,6 +43,14 @@ import VariantBankNode from '../src/datamodel/node/data/VariantBankNode.js';
 import VariantBankCoderInfoNode from '../src/datamodel/node/data/VariantBankCoderInfoNode.js';
 import VariantConfigurationDataNode from '../src/datamodel/node/data/VariantConfigurationDataNode.js';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
+import { unzipSync } from 'fflate';
+import {
+  loadModel,
+  entryByName,
+  serializeModel,
+  reparseModel,
+  type SlddFormat,
+} from './parity/fidelity/roundTripHarness.js';
 
 /**
  * The four custom-saving classes, the field names their envelope declares, and the fields whose
@@ -301,5 +309,105 @@ describe('defect 58: an empty struct or cell survives the binary round trip', ()
       // reproduce them from what it read as well.
       expect(stable(regenerateEntryXml(reopen(first))), spec.className + ', written from the model').toBe(stable(first));
     }
+  });
+});
+
+describe('C-199: a value saved beside a NEW entry\'s envelope can be cleared, in both formats', () => {
+  // binaryWriteBackGate pins this on MATLAB's own aVariant, whose envelope only the binary
+  // file carries. An entry this package creates carries one in BOTH formats (createDefault's),
+  // so the text channel lost the clear too. VariantBank's `Value` is the other shape: a field
+  // the envelope does not declare, so the sibling is its only copy and the envelope is left
+  // alone either way.
+  const FIXTURE = 'cases.sldd';
+  const CLEARABLE = [
+    { className: 'Simulink.VariantVariable', prop: 'Specification', declared: true },
+    { className: 'Simulink.VariantBank', prop: 'Value', declared: false },
+  ] as const;
+
+  /** A new `className` entry in cases.sldd with `prop` set to 'x', saved and reopened. */
+  function savedNew(format: SlddFormat, className: string, prop: string, uri: string): any {
+    const model = loadModel(format, FIXTURE, uri);
+    const added: any = model.addEntry(className, 'vNew', 'design');
+    expect(added).toBeTruthy();
+    expect(added.setProperty(prop, 'x')).toBe(true);
+    const back = reparseModel(serializeModel(model, format), format, FIXTURE, uri);
+    expect(entryByName(back, uri, 'vNew')[prop]).toBe('x');
+    return back;
+  }
+
+  /** The `<Object Class="DD.ENTRY">` holding `name`, out of a whole binary chunk. */
+  function entryXmlOf(bytes: Uint8Array, name: string): string {
+    const xml = new TextDecoder().decode(unzipSync(bytes)['data/chunk0.xml']);
+    const named = xml.indexOf('<P Name="Name" Class="char">' + name + '</P>');
+    expect(named).toBeGreaterThan(-1);
+    const at = xml.lastIndexOf('<Object Class="DD.ENTRY">', named);
+    return xml.slice(at, xml.indexOf('</Object>', named) + '</Object>'.length);
+  }
+
+  /** The `value._elements[0]` of the text entry named `name`. */
+  function textElementOf(bytes: Uint8Array, name: string): any {
+    let found: any = null;
+    const walk = (n: any): void => {
+      if (found || !n || typeof n !== 'object') {
+        return;
+      }
+      if (n.name === name && n.value) {
+        found = n.value._elements[0];
+        return;
+      }
+      for (const v of Object.values(n)) {
+        walk(v);
+      }
+    };
+    walk(JSON.parse(new TextDecoder().decode(bytes)));
+    expect(found).not.toBeNull();
+    return found;
+  }
+
+  for (const c of CLEARABLE) {
+    for (const format of ['binary', 'json'] as const) {
+      it(c.className + '.' + c.prop + ', ' + format + ': cleared after a save, it is written and reopens cleared', () => {
+        const uri = 'mem://c199-new-' + c.prop + '-' + format;
+        const model = savedNew(format, c.className, c.prop, uri);
+        expect(entryByName(model, uri, 'vNew').setProperty(c.prop, '')).toBe(true);
+        const bytes = serializeModel(model, format);
+
+        // The written form is the envelope alone, which is createDefault's own (defect 57),
+        // with a declared field holding MATLAB's cleared 0x0 double. Before the fix the
+        // sibling still said 'x', and so did the envelope where it declares the field.
+        if (format === 'binary') {
+          const xml = entryXmlOf(bytes, 'vNew');
+          expect(objectPropNames(xml)).toEqual(['<unnamed>']);
+          expect(xml).not.toContain('>x</P>');
+          if (c.declared) {
+            expect(xml).toContain('<P Name="' + c.prop + '" Class="double" Dimension="0*0"/>');
+          }
+        } else {
+          const elem = textElementOf(bytes, 'vNew');
+          expect(Object.keys(elem)).toEqual([CUSTOM_SAVE_KEY]);
+          const env = elem[CUSTOM_SAVE_KEY]._elements[0];
+          if (c.declared) {
+            expect(env[c.prop]).toEqual([]);
+          } else {
+            expect(Object.prototype.hasOwnProperty.call(env, c.prop)).toBe(false);
+          }
+        }
+
+        const back = entryByName(reparseModel(bytes, format, FIXTURE, uri), uri, 'vNew');
+        expect(back[c.prop]).toBe('');
+      });
+    }
+  }
+
+  it('an undeclared field: the sibling goes, and the envelope is the same object', () => {
+    // On _mergeProps directly, because only identity can say the envelope was not rebuilt.
+    const uri = 'mem://c199-new-undeclared';
+    const v: any = entryByName(savedNew('binary', 'Simulink.VariantBank', 'Value', uri), uri, 'vNew');
+    const bag = v.serial._properties as Record<string, unknown>;
+    expect(bag.Value).toBe('x');
+    const merged = v._mergeProps({ Value: '' });
+    expect(Object.prototype.hasOwnProperty.call(merged, 'Value')).toBe(false);
+    expect(merged[SAVEOBJ_KEY]).toBe(bag[SAVEOBJ_KEY]);
+    expect(bag.Value).toBe('x');
   });
 });
