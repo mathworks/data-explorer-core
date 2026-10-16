@@ -919,8 +919,9 @@ export default class DataNode extends BaseNode {
    * to its envelope for exactly that reason: an empty string MATLAB had never written,
    * standing in for an empty 0x0 double it could not see.
    *
-   * So under an envelope an EMPTY override is dropped: it is a default rather than an
-   * edit, and the envelope is already the authority on that property.
+   * So under an envelope an EMPTY override is dropped when the stored bag holds no sibling
+   * for that key: it is a default rather than an edit, and the envelope is already the
+   * authority on that property.
    *
    * A non-empty override goes to BOTH places, and the reason it is both is defect 46.
    * The sibling used to be the only place it went, on the reasoning that silently
@@ -937,6 +938,18 @@ export default class DataNode extends BaseNode {
    * package's own reader can see — decoding the envelope back into node properties is
    * the other half of defect 40 and is not done here. Writing both keeps every consumer
    * correct and is strictly additive over the old behaviour.
+   *
+   * That sibling is also what tells a clear from a default (C-199). MATLAB never writes a
+   * property beside its envelope, so a sibling that IS there was written by this package,
+   * and the node read its value from it. An empty override is then the user clearing that
+   * value, and dropping it kept the old value in both copies: MATLAB (R2027a) reopened the
+   * cleared variable with it, and so did this reader. So a clear is written the way MATLAB
+   * writes a cleared property. The sibling is deleted, because MATLAB writes none and this
+   * reader then substitutes the same empty default the node now holds. The envelope's field
+   * becomes `[]`, the 0x0 double MATLAB itself writes for a default VariantVariable's
+   * Specification and for one set to '' (measured 2026-10-16), whichever empty the override
+   * was. A field the envelope does not declare leaves the envelope untouched, as an edit does.
+   * Own keys only, so a stored bag can never claim a sibling through its prototype.
    */
   _mergeProps(propOverrides: Record<string, unknown>): Record<string, unknown> {
     const stored = { ...(this.serial._properties as Record<string, unknown>) };
@@ -946,6 +959,10 @@ export default class DataNode extends BaseNode {
     let envelope = stored[SAVEOBJ_KEY];
     for (const [key, val] of Object.entries(propOverrides)) {
       if (val === '' || val === null || val === undefined) {
+        if (Object.prototype.hasOwnProperty.call(stored, key)) {
+          delete stored[key];
+          envelope = writeIntoSaveobj(envelope, key, []);
+        }
         continue;
       }
       stored[key] = val;

@@ -1760,9 +1760,16 @@ worth recording so they are not rediscovered as defects:
     the sibling unnecessary, and would also fix the VariantVariable choices that display
     in no format — is the remaining half of defect 40 and is not done here.
 
-    An EMPTY override is still dropped, unchanged: read through a sibling that is not
-    there, `Specification` is `''` — a default, not a value — and writing it back would
-    replace MATLAB's own empty 0x0 double with an empty char.
+    An EMPTY override is still dropped when the stored bag has no sibling for it: read
+    through a sibling that is not there, `Specification` is `''` — a default, not a value
+    — and writing it back would replace MATLAB's own empty 0x0 double with an empty char.
+    When a sibling IS there (C-199), this package wrote it, since MATLAB never writes one
+    beside an envelope, and the empty override is a real clear. Dropped, it kept the old
+    value in both copies, and MATLAB reopened the cleared variable with that value. Now
+    the sibling is deleted and the envelope's field is written as `[]`, MATLAB's own 0x0
+    double. That is the spelling MATLAB writes for a cleared `Specification`, and MATLAB
+    reads it back as an empty char (both measured on R2027a, 2026-10-16). After the clear,
+    `aVariant` is MATLAB's own bytes again.
 
 **Why 44, 45 and 46 are numbered separately from 43 and 28.** They are different code
 paths that each would have shipped a file MATLAB reads differently. 44 and 45 became

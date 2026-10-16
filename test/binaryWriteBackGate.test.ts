@@ -45,6 +45,13 @@ import { buildDataChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import { SAVEOBJ_KEY } from '../src/datamodel/parser/XmlUtils.js';
 import { loadFile, findEntry } from './parity/loadFile.js';
+import {
+  loadModel,
+  entryByName,
+  serializeModel,
+  reparseModel,
+  type SlddFormat,
+} from './parity/fidelity/roundTripHarness.js';
 
 // Every node in the subtree, not just the root. _markModified walks UP (a child edit
 // marks its ancestors stale), so marking the root alone leaves every descendant
@@ -241,6 +248,118 @@ describe('defect 46: an edit under a saveobj envelope goes where MATLAB reads it
 
     // An undeclared one does not: the same object back, so nothing was rebuilt or reached.
     expect(v._mergeProps({ NotAField: 'x' })[SAVEOBJ_KEY]).toBe(stored);
+  });
+});
+
+describe('C-199: a value saved beside an envelope can be cleared, as MATLAB clears it', () => {
+  // Defect 46 writes a non-empty edit into the envelope AND as a sibling, and the sibling is
+  // the copy this reader sees. An EMPTY override was still dropped, on the reasoning that
+  // under an envelope it is the default a node substitutes for a property it cannot see.
+  // After a save and a reopen that no longer holds: the sibling is there, so the node read a
+  // real value, and an empty override is the user clearing it. Dropped, both copies kept the
+  // old value, and MATLAB (R2027a, measured 2026-10-16) reopened the cleared variable with it
+  // just as this reader did.
+  //
+  // The reference is MATLAB's own cleared variable: no sibling, and a 0x0 double inside the
+  // envelope. MATLAB writes that for a default VariantVariable, for one whose Specification
+  // was set to '' and for one cleared after being 'B' (measured the same day), and it is what
+  // cases.sldd's aVariant holds as MATLAB wrote it.
+  const URI = 'mem://c199-gate';
+  const FIXTURE = 'cases.sldd';
+  const CLEARED = '<P Name="Specification" Class="double" Dimension="0*0"/>';
+
+  function variantBlock(xml: string): string {
+    const at = xml.indexOf('<Element Class="Simulink.VariantVariable">');
+    expect(at).toBeGreaterThan(-1);
+    return xml.slice(at, xml.indexOf('</Object>', at));
+  }
+
+  function chunkOf(bytes: Uint8Array): string {
+    return new TextDecoder().decode(unzipSync(bytes)['data/chunk0.xml']);
+  }
+
+  /** Every Specification `<P>`, body and close included, which `tagsNaming` leaves off. */
+  function specTags(block: string): string[] {
+    return block.match(/<P Name="Specification"[^>]*?(?:\/>|>[^<]*<\/P>)/g) ?? [];
+  }
+
+  /** cases.sldd in `format`, with aVariant's Specification set to `first`, saved and reopened. */
+  function savedAs(format: SlddFormat, first: string): any {
+    const model = loadModel(format, FIXTURE, URI);
+    expect(entryByName(model, URI, 'aVariant').setProperty('Specification', first)).toBe(true);
+    return reparseModel(serializeModel(model, format), format, FIXTURE, URI);
+  }
+
+  /** The same, then set to `second` and saved again: the bytes of the second save. */
+  function resavedAs(format: SlddFormat, first: string, second: string): Uint8Array {
+    const model = savedAs(format, first);
+    expect(entryByName(model, URI, 'aVariant').Specification).toBe(first);
+    expect(entryByName(model, URI, 'aVariant').setProperty('Specification', second)).toBe(true);
+    return serializeModel(model, format);
+  }
+
+  function reopened(bytes: Uint8Array, format: SlddFormat): any {
+    return entryByName(reparseModel(bytes, format, FIXTURE, URI), URI, 'aVariant');
+  }
+
+  it('the cleared variable is written byte for byte as MATLAB wrote it', () => {
+    const block = variantBlock(chunkOf(resavedAs('binary', 'B', '')));
+    // One tag, inside the envelope, MATLAB's spelling. Before the fix this was two tags that
+    // both still said B.
+    expect(specTags(block)).toEqual([CLEARED]);
+    // And everything around it: MATLAB's own bytes for aVariant, read out of the artifact
+    // rather than transcribed.
+    const p = fileURLToPath(new URL('./parity/artifacts/binary/' + FIXTURE, import.meta.url));
+    const matlabs = new TextDecoder().decode(unzipSync(new Uint8Array(readFileSync(p)))['data/chunk0.xml']);
+    expect(block).toBe(variantBlock(matlabs));
+  });
+
+  it('and it reopens cleared', () => {
+    expect(reopened(resavedAs('binary', 'B', ''), 'binary').Specification).toBe('');
+  });
+
+  it('_mergeProps drops the sibling and writes the 0x0 double into a copy of the envelope', () => {
+    const v: any = entryByName(savedAs('binary', 'B'), URI, 'aVariant');
+    const bag = v.serial._properties as Record<string, any>;
+    const stored = bag[SAVEOBJ_KEY];
+    // What the first save wrote: both places, which is why the node read 'B'.
+    expect(bag.Specification).toBe('B');
+    expect(stored._elements[0].Specification).toBe('B');
+
+    for (const empty of ['', null, undefined]) {
+      const merged = v._mergeProps({ Specification: empty });
+      expect(Object.prototype.hasOwnProperty.call(merged, 'Specification'), String(empty)).toBe(false);
+      expect(merged[SAVEOBJ_KEY]._elements[0].Specification, String(empty)).toEqual([]);
+      // A copy: this runs during serialization, and the bag is parse state.
+      expect(merged[SAVEOBJ_KEY]).not.toBe(stored);
+    }
+    expect(bag.Specification).toBe('B');
+    expect(stored._elements[0].Specification).toBe('B');
+  });
+
+  it('CONTROL: with no sibling an empty override is still a default, and writes nothing', () => {
+    // MATLAB's own aVariant, never saved by this package: the node's '' is the default it
+    // substituted for a property it cannot see, which is the :220 case above at the merge.
+    const v: any = findByName(loadBinaryModel('parity/artifacts/binary/' + FIXTURE), 'aVariant');
+    const stored = (v.serial._properties as Record<string, unknown>)[SAVEOBJ_KEY];
+    for (const empty of ['', null, undefined]) {
+      const merged = v._mergeProps({ Specification: empty });
+      expect(Object.prototype.hasOwnProperty.call(merged, 'Specification'), String(empty)).toBe(false);
+      expect(merged[SAVEOBJ_KEY], String(empty)).toBe(stored);
+    }
+  });
+
+  it('CONTROL: a non-empty edit over a saved one still goes to both places', () => {
+    const block = variantBlock(chunkOf(resavedAs('binary', 'B', 'C')));
+    expect(specTags(block)).toEqual([
+      '<P Name="Specification" Class="char">C</P>',
+      '<P Name="Specification" Class="char">C</P>',
+    ]);
+    expect(reopened(resavedAs('binary', 'B', 'C'), 'binary').Specification).toBe('C');
+  });
+
+  it('CONTROL: the text artifact has no envelope here, and already reopened a clear as cleared', () => {
+    expect(reopened(resavedAs('json', 'B', ''), 'json').Specification).toBe('');
   });
 });
 
