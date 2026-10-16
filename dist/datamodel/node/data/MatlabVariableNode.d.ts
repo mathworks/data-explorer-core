@@ -101,11 +101,10 @@ export default class MatlabVariableNode extends DataNode {
      * so the two paths cannot drift apart. test/displayElements.test.ts pins that
      * agreement rather than either path alone.
      *
-     * One exception, and it is the cell literal's: an MCOS object in a cell parsed out of
-     * MAT bytes is spelled as _cellLiteralElement spells it, `<1x1 Class>`, because the
-     * grid is part of the cell's own presentation and that did not change when nested
-     * objects started to decode. The element's ROW shows the object; the grid and the
-     * one-line literal show what they always did, and agree with each other.
+     * One exception, and it is the cell literal's: a cell's element is spelled as
+     * _cellLiteralElement spells it, an object by its `<mxn Class>` summary, because the grid
+     * is part of the cell's own presentation. The element's ROW shows the object; the grid and
+     * the one-line literal agree with each other.
      *
      * null for a kind that has no elements (a scalar, a struct, an object): an empty
      * list is a different and also true answer, meaning an array with nothing in it.

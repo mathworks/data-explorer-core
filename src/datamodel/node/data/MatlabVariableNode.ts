@@ -97,6 +97,7 @@ import {
   transposeFromColumnMajorND,
   pad as xmlPad,
   BINARY_EMPTY_KEY,
+  isEnumBag,
 } from '../../parser/XmlUtils.js';
 import {
   TYPED_NUMERIC_CLASS,
@@ -816,31 +817,36 @@ export default class MatlabVariableNode extends DataNode {
     return overCharBudget(text) ? summaryForm(this._dims, 'cell') : text;
   }
 
-  // One element as this cell's one-line literal spells it: its own displayValue, except
-  // for an MCOS object read out of a .mat file or a model workspace, which keeps EXACTLY
-  // the token it printed here before the container decoded nested objects — `<1x1
-  // Class>`, whatever the object's shape: `{<1x1 Simulink.Parameter>, 9}`, not `{42, 9}`,
-  // and `<1x1 string>` for a 1x3 string or a 0x0 one. The element's own row shows the
-  // object, shape and all; what MATLAB prints for a container of objects is a separate
-  // question, and this literal is deliberately left as it was until that one is answered.
-  // `[1, 1]` is therefore not a guess at a shape: it is the old token, which never had
-  // one, because an undecoded opaque was never told its dimensions.
+  // One element as this cell's one-line literal spells it: its own displayValue, except for an
+  // object, which is spelled as itself, by its size-and-class summary, `<1x1 Simulink.Parameter>`.
+  // A typed object's own displayValue is not about the object: a Parameter's is its Value (its
+  // row shows its value), and a Signal's is blank. Spelled so in a dictionary's cell,
+  // {Simulink.Parameter(1)} showed `{1}`, the text {1} shows, and took an editor seeded with it,
+  // whose `{2}` replaced the Parameter with the double 2 (P5 of the 2026-10-16 list; MATLAB's
+  // browser shows `[1×1 Simulink.Parameter]`). The summary is what makes the literal no editor's
+  // seed (_literalRoundTrips). An enumeration value keeps its enumeral, `GearMode.Reverse`, which
+  // is the value; ObjectNode.displayValue spells one, and its summary for any other object.
   //
-  // Only a cell parsed out of MAT bytes (`_matVar` set) is affected, and in one of those
-  // every element node is parseMatVariable's: a node of any class but this one is a
-  // decoded object, and an opaque one of this class is an object decoded or not. A cell
-  // from a dictionary builds its elements through the registry and is left alone. A cell
-  // nested in this one prints its own literal by the same rule.
+  // An MCOS object read out of a .mat file or a model workspace (`_matVar` set) is spelled the
+  // same way, decoded or not: `{<1x1 Simulink.Parameter>, 9}`, not `{42, 9}`, and an opaque one,
+  // a `string` above all, as `<1x3 string>` at the shape the decoder recovered (dims). That token
+  // was `<1x1 Class>` whatever the shape, from when an undecoded opaque was never told its
+  // dimensions, so a 1x3 string and a 0x0 one both read as a 1x1. The element's own row shows
+  // the object, shape and all. A nested cell prints its own literal by the same rule.
   _cellLiteralElement(child: BaseNode): string {
-    if (this._matVar) {
-      if (!(child instanceof MatlabVariableNode)) {
-        return summaryForm([1, 1], child.className);
+    if (child instanceof MatlabVariableNode) {
+      if (this._matVar && child._isOpaque) {
+        return summaryForm(child.dims, child._opaqueClassName || 'double');
       }
-      if (child._isOpaque) {
-        return summaryForm([1, 1], child._opaqueClassName || 'double');
-      }
+      return child.displayValue;
     }
-    return child.displayValue;
+    const object = child as DataNode;
+    if (isEnumBag(object.serial?._rawVal)) {
+      return child.displayValue;
+    }
+    // A typed object (ParameterNode and the rest) is one object and states no dims of its own;
+    // an object array (ObjectNode) and a struct (StructNode) state theirs.
+    return summaryForm((object as { dims?: number[] }).dims || [1, 1], child.className);
   }
 
   /**
@@ -917,11 +923,10 @@ export default class MatlabVariableNode extends DataNode {
    * so the two paths cannot drift apart. test/displayElements.test.ts pins that
    * agreement rather than either path alone.
    *
-   * One exception, and it is the cell literal's: an MCOS object in a cell parsed out of
-   * MAT bytes is spelled as _cellLiteralElement spells it, `<1x1 Class>`, because the
-   * grid is part of the cell's own presentation and that did not change when nested
-   * objects started to decode. The element's ROW shows the object; the grid and the
-   * one-line literal show what they always did, and agree with each other.
+   * One exception, and it is the cell literal's: a cell's element is spelled as
+   * _cellLiteralElement spells it, an object by its `<mxn Class>` summary, because the grid
+   * is part of the cell's own presentation. The element's ROW shows the object; the grid and
+   * the one-line literal agree with each other.
    *
    * null for a kind that has no elements (a scalar, a struct, an object): an empty
    * list is a different and also true answer, meaning an array with nothing in it.

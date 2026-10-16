@@ -2419,13 +2419,14 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   `nestedMcosFixtures.test.ts` against MATLAB R2027a's own answers for
   `test/fixtures/mcos/nested_objects.mat` and `nested_ws.slx`, whose every nested object
   has a top-level twin. The two `matStringOpaque.test.ts` tests that pinned the summary
-  were flipped deliberately. Still open, on purpose: the CONTAINER's own presentation —
-  its one-line literal and its Variable Editor grid (`displayElements`) alike — which
-  prints every object element exactly as it did before — `<1x1 Class>`, whatever the
-  element's shape, so a 1x3 string, a 1x2 Parameter array and a 0x0 string are all
-  `<1x1 …>` there (`{<1x1 Simulink.Parameter>, <1x1 string>, 9}`) — until MATLAB's own
-  display of a container of objects, recorded beside each pin in
-  `nestedMcosFixtures.test.ts`, decides what it should say.
+  were flipped deliberately. The CONTAINER's own presentation — its one-line literal and
+  its Variable Editor grid (`displayElements`) alike — prints every object element as its
+  `<mxn Class>` summary at the element's own shape (`{<1x3 string>, <1x2
+  Simulink.Parameter>, <0x0 string>, <1x1 Simulink.Parameter>}`), beside MATLAB's own
+  display of each, recorded at each pin in `nestedMcosFixtures.test.ts`. It was `<1x1 Class>`
+  whatever the shape until P5 of the maintainer's 2026-10-16 list, which ruled that wrong size
+  misleading; a dictionary's cell, which spelled a Parameter element by its Value, follows
+  the same rule since then.
 
   **This is a `.mat`-only mechanism.** An `.sldd` carries no MCOS blob, so a `<1x1 string>`
   inside a DICTIONARY cell was never this limitation — it was defect 52, and citing this

@@ -290,21 +290,21 @@ const SUMMARIES: [file: string, path: string, ours: string, matlabDisp: string][
   ['nested_objects.mat', 'sa(1)', '<1x1 struct>', 'p: [1×1 Simulink.Parameter]'],
   ['nested_objects.mat', 'sa(2)', '<1x1 struct>', 'p: [1×1 Simulink.Parameter]'],
   // The non-scalar elements: a 1x3 string, a 1x2 Parameter array and a 0x0 string are
-  // `<1x1 Class>` here, because that is what the literal printed before nested objects
-  // were decoded — an undecoded opaque was never told its shape, so the token had none.
-  // Each `ours` below is the parent commit's own output on this file, not a prediction.
-  // MATLAB's disp of cArr wraps at its 80-column batch display, and is recorded as it is.
+  // spelled at their own size. They were `<1x1 Class>`, the token the literal printed before
+  // nested objects were decoded, when an undecoded opaque was never told its shape (P5 of
+  // the 2026-10-16 list). MATLAB's disp of cArr wraps at its 80-column batch display, and is
+  // recorded as it is.
   [
     'nested_objects.mat',
     'cArr',
-    '{<1x1 string>, <1x1 Simulink.Parameter>, <1x1 string>, <1x1 Simulink.Parameter>}',
+    '{<1x3 string>, <1x2 Simulink.Parameter>, <0x0 string>, <1x1 Simulink.Parameter>}',
     'Columns 1 through 3\n\n    {["a"    "b"    "c"]}    {1×2 Simulink.Parameter}    {0×0 string}\n\n  Column 4\n\n    {1×1 Simulink.Parameter}',
   ],
-  ['nested_objects.mat', 'cNest', '{{<1x1 string>}, {<1x1 Simulink.Parameter>}}', '{1×1 cell}    {1×1 cell}'],
-  ['nested_objects.mat', 'cNest{1}', '{<1x1 string>}', '{["p"    "q"]}'],
+  ['nested_objects.mat', 'cNest', '{{<1x2 string>}, {<1x1 Simulink.Parameter>}}', '{1×1 cell}    {1×1 cell}'],
+  ['nested_objects.mat', 'cNest{1}', '{<1x2 string>}', '{["p"    "q"]}'],
   ['nested_objects.mat', 'cNest{2}', '{<1x1 Simulink.Parameter>}', '{1×1 Simulink.Parameter}'],
   ['nested_objects.mat', 's2', '<1x1 struct>', 'cs: {["x"    "y"]}'],
-  ['nested_objects.mat', 's2.cs', '{<1x1 string>}', '{["x"    "y"]}'],
+  ['nested_objects.mat', 's2.cs', '{<1x2 string>}', '{["x"    "y"]}'],
   ['nested_ws.slx', 'cfg', '<1x1 struct>', 'k: [1×1 Simulink.Parameter]\n    label: "ws text"'],
 ];
 
@@ -328,17 +328,17 @@ describe('container summaries are today\'s, with MATLAB\'s disp beside them', ()
 });
 
 // The Variable Editor grid of each cell (displayElements), which is the same
-// presentation as the literal and was held to the same rule: an MCOS element is
-// `<1x1 Class>` there too, exactly as the parent commit 16d8edc showed it, whatever the
-// object's shape. Each row below is 16d8edc's own output on this file.
+// presentation as the literal and is held to the same rule: an MCOS element is its
+// `<mxn Class>` summary there too, at the object's own shape (it was `<1x1 Class>` whatever
+// the shape until P5 of the 2026-10-16 list; the other rows are 16d8edc's own output).
 const GRIDS: [path: string, grid: [label: string, value: string][]][] = [
   ['c', [['c{1}', '<1x1 Simulink.Parameter>'], ['c{2}', '<1x1 string>'], ['c{3}', '42'], ['c{4}', '{<1x1 Simulink.Parameter>}']]],
   ['c{4}', [['c{4}{1}', '<1x1 Simulink.Parameter>']]],
-  ['cArr', [['cArr{1}', '<1x1 string>'], ['cArr{2}', '<1x1 Simulink.Parameter>'], ['cArr{3}', '<1x1 string>'], ['cArr{4}', '<1x1 Simulink.Parameter>']]],
-  ['cNest', [['cNest{1}', '{<1x1 string>}'], ['cNest{2}', '{<1x1 Simulink.Parameter>}']]],
-  ['cNest{1}', [['cNest{1}{1}', '<1x1 string>']]],
+  ['cArr', [['cArr{1}', '<1x3 string>'], ['cArr{2}', '<1x2 Simulink.Parameter>'], ['cArr{3}', '<0x0 string>'], ['cArr{4}', '<1x1 Simulink.Parameter>']]],
+  ['cNest', [['cNest{1}', '{<1x2 string>}'], ['cNest{2}', '{<1x1 Simulink.Parameter>}']]],
+  ['cNest{1}', [['cNest{1}{1}', '<1x2 string>']]],
   ['cNest{2}', [['cNest{2}{1}', '<1x1 Simulink.Parameter>']]],
-  ['s2.cs', [['cs{1}', '<1x1 string>']]],
+  ['s2.cs', [['cs{1}', '<1x2 string>']]],
 ];
 
 describe('each cell\'s Variable Editor grid is today\'s, and agrees with its literal', () => {
@@ -370,6 +370,39 @@ describe('no path in a truth file goes unchecked', () => {
         expect(t.mat2str, path).toBeDefined();
         expect(nodeAt(variables, path).displayValue, path).toBe(t.mat2str);
       }
+    });
+  }
+});
+
+// P5 of the 2026-10-16 list, its .mat half: "the `.mat` cell object element always shows
+// `<1x1 …>` whatever its size". A cell read out of MAT bytes spelled an object element as
+// `<1x1 Class>` because an undecoded opaque was never told its shape; it is told now, so cArr's
+// 1x3 string, 1x2 Parameter array and 0x0 string each read as a 1x1. Each object element of
+// every cell the truth records is spelled at the size MATLAB's size() gives it, in the literal
+// and in the grid alike.
+describe("a .mat cell spells an object element at the element's own size", () => {
+  const fx = FIXTURES[0];
+  const cells = Object.entries(fx.truth.paths).filter(([, t]) => t.class === 'cell');
+
+  it('the truth holds objects of other sizes than 1x1 in its cells', () => {
+    const sizes = cells.flatMap(([path, t]) =>
+      Array.from({ length: t.numel }, (_, i) => fx.truth.paths[`${path}{${i + 1}}`]).filter((e) => e.isobject).map((e) => e.size.join('x')),
+    );
+    expect(new Set(sizes)).toEqual(new Set(['1x1', '1x2', '1x3', '0x0']));
+  });
+
+  for (const [path, t] of cells) {
+    it(`nested_objects.mat: ${path}`, () => {
+      const node = nodeAt(fx.variables(), path);
+      const tokens = node.displayElements().map((e: { value: string }) => e.value);
+      expect(tokens.length).toBe(t.numel);
+      for (let i = 0; i < t.numel; i++) {
+        const el = fx.truth.paths[`${path}{${i + 1}}`];
+        if (el.isobject) {
+          expect([path, i + 1, tokens[i]]).toEqual([path, i + 1, `<${el.size.join('x')} ${el.class}>`]);
+        }
+      }
+      expect(node.displayValue).toBe('{' + tokens.join(', ') + '}');
     });
   }
 });

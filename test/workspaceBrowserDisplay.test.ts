@@ -298,3 +298,41 @@ describe("a text dictionary's Vector(N) row is the 1xN row MATLAB reads back", (
     expect([back.className, back.dims, back.toRow().Value]).toEqual(['int8', [1, 10], '[1 2 30 4 5 6 7 8 9 10]']);
   });
 });
+
+// P5 of the 2026-10-16 list ("a dictionary cell holding an object shows the object's Value
+// (`{1}`), and editing it silently replaces the object"). A cell's literal spelled each element
+// by its own displayValue, and a Simulink.Parameter's is its Value (the kept H1 ruling: its row
+// shows its value), so {Simulink.Parameter(1)} showed `{1}`, as {1} does, and took an editor
+// seeded with that text: `{2}` committed became a cell holding the double 2, the Parameter gone.
+// MATLAB's browser shows `[1×1 Simulink.Parameter]` for it; here the element is spelled as every
+// object is, by its size-and-class summary, and a cell showing a summary is not edited whole.
+describe('a dictionary cell holding an object spells the object, not its Value', () => {
+  /** MATLAB's text for the one element of a 1x1 cell, in this package's summary spelling. */
+  const element = (row: BrowserRow): string => row.Value.replace(/^\[(.*)\]$/, '<$1>').replace(/×/g, 'x');
+
+  for (const file of ['dispcat_text.sldd', 'dispcat_bin.sldd']) {
+    it(`${file}: cell_of_param shows its Parameter, and cell_1 its double`, () => {
+      const { root } = open(file);
+      const param = entry(root, 'cell_of_param');
+      expect(param.children.map((c: any) => c.className)).toEqual(['Simulink.Parameter']);
+      expect(element(browser('cell_of_param'))).toBe('<1x1 Simulink.Parameter>');
+      expect([param.toRow().Value, param.valueEditable]).toEqual(['{' + element(browser('cell_of_param')) + '}', false]);
+      expect(param.displayElements()).toEqual([{ label: param.children[0].displayName, value: '<1x1 Simulink.Parameter>' }]);
+      // The cell of the double the Parameter's Value is shows that double, editable, as before.
+      const one = entry(root, 'cell_1');
+      expect([one.toRow().Value, one.valueEditable]).toEqual(['{' + browser('cell_1').Value + '}', true]);
+    });
+
+    it(`${file}: an edit of the whole cell is refused and the Parameter stays`, () => {
+      const { session, root } = open(file);
+      const before = session.serializeSource(root.name).bytes;
+      const param = entry(root, 'cell_of_param');
+      session.setActive(root, param);
+      expect(session.editProperty(param.id, 'Value', '{2}')).toMatchObject({ error: true });
+      expect(param.setProperty('Value', '{2}')).toMatchObject({ error: true });
+      expect(param.children.map((c: any) => [c.className, c.toRow().Value])).toEqual([['Simulink.Parameter', '1']]);
+      expect(session.canUndo()).toBe(false);
+      expect(session.serializeSource(root.name).bytes).toEqual(before);
+    });
+  }
+});

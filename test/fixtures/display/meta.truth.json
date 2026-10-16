@@ -1152,6 +1152,52 @@
       "paramValue": []
     },
     {
+      "name": "cell_1",
+      "group": "cell",
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "cell",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "    {[1]}\n",
+      "paramValue": []
+    },
+    {
+      "name": "cell_of_param",
+      "group": "cell",
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "cell",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "    {1×1 Simulink.Parameter}\n",
+      "paramValue": []
+    },
+    {
       "name": "en_on",
       "group": "enum",
       "class": "matlab.lang.OnOffSwitchState",

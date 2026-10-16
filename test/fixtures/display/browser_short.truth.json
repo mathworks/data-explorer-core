@@ -441,6 +441,24 @@
     "Error": ""
   },
   {
+    "Name": "cell_1",
+    "Path": "ObjectValueSummary",
+    "Size": "1×1",
+    "Class": "cell",
+    "Value": "1",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "cell_of_param",
+    "Path": "ObjectValueSummary",
+    "Size": "1×1",
+    "Class": "cell",
+    "Value": "[1×1 Simulink.Parameter]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
     "Name": "en_on",
     "Path": "FieldColumns",
     "Size": "1×1",

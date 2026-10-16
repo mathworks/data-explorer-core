@@ -577,7 +577,9 @@ describe('defects 53-55: an array inside a cell keeps its shape, its parts and i
   const CONTROLS: Array<[string, string]> = [
     ['cCplx', '{1+2i}'], // 53's control: no Dimension, so it reached the IsComplex check
     ['cStruct', '{<1x1 struct>}'], // 54's: the hardcoded 1x1 happened to be the truth
-    ['cObj', '{5}'], // 55's: one child, so taking the first was taking all of them
+    // 55's: one child, so taking the first was taking all of them. A Parameter, spelled as
+    // the object it is, not as its Value 5 (P5 of the 2026-10-16 list).
+    ['cObj', '{<1x1 Simulink.Parameter>}'],
     ['cNd', '{<2x3x2 double>}'], // a REAL N-D array still takes the shaped arm
     ['cStr', '{"a"}'], // and defect 52's case still gets lifted out of the tail
   ];

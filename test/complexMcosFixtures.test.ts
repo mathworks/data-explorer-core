@@ -505,17 +505,18 @@ describe('a LookupTable with a complex Table presents as it does everywhere', ()
   }
 });
 
-// A container's own summary, by venue, as it is today. Not changed by this work: the
-// .mat and workspace venues print an object element of a cell as `<1x1 Class>`
-// (nestedMcosFixtures pins the rule), and a dictionary prints its elements' values.
+// A container's own summary, by venue, as it is today. Every venue prints an object element
+// of a cell as its `<mxn Class>` summary (nestedMcosFixtures pins the rule). A dictionary
+// printed its elements' values, `{9+10i, …}` for a cell of two Parameters, until P5 of the
+// 2026-10-16 list.
 const SUMMARIES: [file: string, path: string, shows: string][] = [
   ['complex_objects.mat', 's', '<1x1 struct>'],
   ['complex_objects.mat', 'c', '{<1x1 Simulink.Parameter>, <1x1 Simulink.Parameter>}'],
   ['complex_ws.slx', 'cfg', '<1x1 struct>'],
   ['complex.sldd', 's', '<1x1 struct>'],
-  ['complex.sldd', 'c', '{9+10i, [0.5+1.5i; 2.5-3.5i]}'],
+  ['complex.sldd', 'c', '{<1x1 Simulink.Parameter>, <1x1 Simulink.Parameter>}'],
   ['complex_binary.sldd', 's', '<1x1 struct>'],
-  ['complex_binary.sldd', 'c', '{9+10i, [0.5+1.5i; 2.5-3.5i]}'],
+  ['complex_binary.sldd', 'c', '{<1x1 Simulink.Parameter>, <1x1 Simulink.Parameter>}'],
 ];
 
 describe('container summaries are today\'s', () => {

@@ -7,6 +7,82 @@
 			"__MW_TEXT_content": {
 				"entries": [
 					{
+						"name": "cell_1",
+						"metadata": {
+							"uuid": "90a76f16-cb40-429f-92ed-0d07fd71a8dc",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.678978",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								1
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cell_of_param",
+						"metadata": {
+							"uuid": "a3846ccc-64a5-4425-932d-a9e9248eda2d",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.680753",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_array_class": "Simulink.Parameter",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_id": "1",
+											"_properties": {
+												"CoderInfo": {
+													"_id": "2",
+													"_object_class": "Simulink.CoderInfo",
+													"_properties": {
+														"CSCPackageName": "Simulink",
+														"CustomAttributes": {
+															"_id": "3",
+															"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+															"_properties": {}
+														},
+														"CustomStorageClass": "Default",
+														"ParameterOrSignal": "Parameter",
+														"StorageClass": "Auto"
+													}
+												},
+												"Complexity": "real",
+												"Dimensions": [
+													1,
+													1
+												],
+												"Value": 1
+											}
+										}
+									]
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
 						"name": "dx_cell_0x0",
 						"metadata": {
 							"uuid": "7968596f-3ffb-4ebd-a7bc-a6b274e6b374",
