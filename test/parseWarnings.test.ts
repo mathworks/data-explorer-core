@@ -644,6 +644,139 @@ describe('a .slx zip holding no Simulink parts opens with every section present 
   });
 });
 
+/** The modern `.mdl` with one part taken out, its header and its body. */
+function mdlWithoutPart(part: string): ArrayBuffer {
+  const text = latin1Text(MDL_MODERN);
+  // A binary part's header line goes on to name its encoding (` BASE64`), so the
+  // header is matched up to the part name and the separator after it.
+  const header = new RegExp(`\\n__MWOPC_PART_BEGIN__ /${part.replace(/[.]/g, '\\.')}[ \\n]`).exec(text);
+  expect(header).not.toBeNull(); // the fixture really holds this part
+  const at = header!.index;
+  const nextPart = text.indexOf('\n__MWOPC_PART_BEGIN__', at + 1);
+  const packageEnd = text.indexOf('\n__MWOPC_PACKAGE_END__', at + 1);
+  const stop = nextPart < 0 ? packageEnd : packageEnd < 0 ? nextPart : Math.min(nextPart, packageEnd);
+  expect(stop).toBeGreaterThan(at);
+  return latin1Bytes(text.slice(0, at) + text.slice(stop));
+}
+
+/** The first line of the classic fixture's workspace record, quotes included: what a cut after it leaves. */
+function firstRecordLine(text: string): string {
+  const line = /\n\s*Data\s+("[^\n]*")\n/.exec(text.slice(text.indexOf('\nMatData {')));
+  expect(line).not.toBeNull();
+  return line![1];
+}
+
+describe('a model whose model-workspace part is missing or unreadable opens with that section empty', () => {
+  // Measured against the same file intact, so the one difference asserted is the
+  // workspace: every other section keeps its entries, and the format is unchanged.
+  function expectWorkspaceEmptied(
+    opened: OpenedModel,
+    intact: OpenedModel,
+    warnings: ReturnType<typeof codesAndParts>,
+  ): void {
+    const held = intact.sections.find(([s]) => s === 'workspace');
+    expect(held && held[1]).toBeGreaterThan(0); // the intact file has a workspace to lose
+    expect({ ...opened, warnings: codesAndParts(opened.warnings) }).toEqual({
+      format: intact.format,
+      sections: intact.sections.map(([s, n]): [string, number] => [s, s === 'workspace' ? 0 : n]),
+      warnings,
+    });
+  }
+
+  const slxModern = () => openedModel(bytesAt(SLX_MODERN), 'cases.slx');
+  const slxLegacy = () => openedModel(bytesAt(SLX_R2013B), 'slxcases_R2013b.slx');
+  const mdlModern = () => openedModel(bytesAt(MDL_MODERN), 'mdlcases.mdl');
+  const mdlClassic = () => openedModel(bytesAt(MDL_CLASSIC), 'mdlcases_R2017b.mdl');
+
+  describe('missing: the section is empty and nothing warns', () => {
+    it('a .slx with no simulink/modelWorkspace.mxarray part', () => {
+      const opened = openedModel(slxWith(SLX_MODERN, { 'simulink/modelWorkspace.mxarray': null }), 'cases.slx');
+      expectWorkspaceEmptied(opened, slxModern(), []);
+    });
+
+    it('a .slx from before R2019b with no simulink/modelworkspace.mat part', () => {
+      const opened = openedModel(
+        slxWith(SLX_R2013B, { 'simulink/modelworkspace.mat': null }),
+        'slxcases_R2013b.slx',
+      );
+      expectWorkspaceEmptied(opened, slxLegacy(), []);
+    });
+
+    it('a modern .mdl with no simulink/modelWorkspace.mxarray part', () => {
+      const opened = openedModel(mdlWithoutPart('simulink/modelWorkspace.mxarray'), 'mdlcases.mdl');
+      expectWorkspaceEmptied(opened, mdlModern(), []);
+    });
+
+    it('a classic .mdl whose model names no workspace record', () => {
+      const opened = openedModel(
+        classicMdl((t) => t.replace(/\n[ \t]*WSMdlFileData[^\n]*/, '')),
+        'mdlcases_R2017b.mdl',
+      );
+      expectWorkspaceEmptied(opened, mdlClassic(), []);
+    });
+  });
+
+  describe('unreadable: the section is empty, and the model is not refused', () => {
+    // The warnings these name are the ones the cases above, in "the warnings channel",
+    // already pin for the same parts. The ruling adds none, so none is added here.
+    it('a .slx whose mxarray part is not an mxarray', () => {
+      const opened = openedModel(
+        slxWith(SLX_MODERN, { 'simulink/modelWorkspace.mxarray': 'not an mxarray' }),
+        'cases.slx',
+      );
+      expectWorkspaceEmptied(opened, slxModern(), [['part-unreadable', 'simulink/modelWorkspace.mxarray']]);
+    });
+
+    it('a .slx whose mxarray part is a struct array declaring two elements and holding neither', () => {
+      // A field of a struct ARRAY is the list of its elements read, and here that list
+      // is empty. It used to refuse the whole model, from parseMxArray naming a
+      // variable that was not there.
+      const fieldName = new Uint8Array(32);
+      fieldName.set(strToU8('k'));
+      const stream = new Uint8Array(
+        mxArrayFile(
+          matrixBody([
+            arrayFlags(CLASS.STRUCT),
+            dims([1, 2]),
+            varName(''),
+            element(MI.INT32, u32le(32)),
+            element(MI.INT8, fieldName),
+          ]),
+        ),
+      );
+      const opened = openedModel(slxWith(SLX_MODERN, { 'simulink/modelWorkspace.mxarray': stream }), 'cases.slx');
+      expectWorkspaceEmptied(opened, slxModern(), []);
+    });
+
+    it('a .slx from before R2019b whose workspace MAT part is not a MAT-file', () => {
+      const opened = openedModel(
+        slxWith(SLX_R2013B, { 'simulink/modelworkspace.mat': 'far too short to be a MAT-file' }),
+        'slxcases_R2013b.slx',
+      );
+      expectWorkspaceEmptied(opened, slxLegacy(), [['part-unreadable', 'simulink/modelworkspace.mat']]);
+    });
+
+    it('a classic .mdl whose workspace record does not decode', () => {
+      const opened = openedModel(
+        classicMdl((t) => withDataValue(t, '"not really encoded"')),
+        'mdlcases_R2017b.mdl',
+      );
+      expectWorkspaceEmptied(opened, mdlClassic(), [['part-unreadable', 'DataTag0']]);
+    });
+
+    it('a classic .mdl whose workspace record is cut short after its first line', () => {
+      // The fixture's own record, ending inside its struct's field-name table: the
+      // `Name` of the Name/Value pairs survives and `Value` does not. That used to
+      // refuse the whole model, from the same parseMxArray as the struct array above.
+      const opened = openedModel(
+        classicMdl((t) => withDataValue(t, firstRecordLine(t))),
+        'mdlcases_R2017b.mdl',
+      );
+      expectWorkspaceEmptied(opened, mdlClassic(), []);
+    });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // .mat — the Level-5 MAT-file
 // ---------------------------------------------------------------------------
