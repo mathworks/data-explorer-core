@@ -220,6 +220,45 @@ describe('addEntry', () => {
     expect(loose.children).toEqual([]);
   });
 
+  // A name addEntry is given must be one MATLAB can load, by the rule a rename already
+  // applies: a valid identifier, not a keyword, at most 63 characters (namelengthmax).
+  // Without the check an entry could be created under a name it could never be renamed
+  // to, and saved into a dictionary MATLAB refuses to load. The refusal is the one
+  // addEntry already makes for a class the section does not take: null, nothing added.
+  it.each([
+    ['whitespace only', ' '],
+    ['a leading digit', '2nd'],
+    ['a keyword', 'end'],
+    ['a slash', 'a/b'],
+    ['a dot', 'a.b'],
+    ['a hyphen', 'my-x'],
+    ['64 characters', 'x'.repeat(64)],
+  ])('refuses a name MATLAB cannot load: %s', (_why, name) => {
+    const root = sldd();
+    const design = sectionOf(root, 'design');
+    expect(design.addEntry('Simulink.Parameter', name)).toBeNull();
+    expect(design.children).toEqual([]);
+    // Nothing was added, so there is nothing to save.
+    expect(root.dirty).toBe(false);
+  });
+
+  // The 63-character limit applies to the name the entry would get, which is the name
+  // asked for plus _uniqueName's counter when it collides. A collision can therefore
+  // turn a valid name into one MATLAB cannot load, and that add is refused too.
+  it('applies the 63-character limit after the collision counter is added', () => {
+    const design = sectionOf(sldd(), 'design');
+    const at63 = 'a'.repeat(63);
+    expect(design.addEntry('Simulink.Parameter', at63)!.name).toBe(at63);
+    // The second add would be named at63 + '1', which is 64 characters.
+    expect(design.addEntry('Simulink.Parameter', at63)).toBeNull();
+    expect(design.children.map((c) => c.name)).toEqual([at63]);
+
+    // Control: a 62-character name that collides becomes 63 characters, which is allowed.
+    const at62 = 'b'.repeat(62);
+    expect(design.addEntry('Simulink.Parameter', at62)!.name).toBe(at62);
+    expect(design.addEntry('Simulink.Parameter', at62)!.name).toBe(at62 + '1');
+  });
+
   // addEntry names a new entry `entryName || NodeClass.defaultName`, and the
   // defaultName is what the user sees in the tree — it is NOT the className's last
   // segment (an EnumTypeDefinition entry is named 'EnumType', a ServiceBus one

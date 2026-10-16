@@ -9,6 +9,7 @@ import type DataNode from '../DataNode.js';
 // reach the class map without a cycle. NodeClassMap installs itself into it.
 import * as NodeRegistry from '../NodeRegistry.js';
 import { matlabTimestampNow } from '../../parser/XmlUtils.js';
+import { validateMatlabName } from '../../matlabName.js';
 import { MatBudgetError, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 import {
@@ -178,6 +179,14 @@ export default class SectionNode extends ContainerNode {
     _renameInCatalog(dictionary?.systemComposer, oldName, newName);
   }
 
+  // A new entry of `className`, named `entryName` (or the class's default name),
+  // with a counter appended when that name is taken in this section's namespace.
+  // Returns null, and adds nothing, when the class is unknown or not allowed here,
+  // or when the name is not one MATLAB can load (validateMatlabName, the rule a
+  // rename applies). The name is checked as asked for and again with the counter:
+  // the first stops an invalid name becoming a valid one by suffixing ('end' when an
+  // 'end' is already present must not become 'end1'), and the second stops a valid
+  // 63-character name growing past namelengthmax.
   addEntry(className: string, entryName?: string): DataNode | null {
     const NodeClass = NodeRegistry.getClass(className);
     if (!NodeClass || !NodeClass.createDefault) {
@@ -189,7 +198,13 @@ export default class SectionNode extends ContainerNode {
     }
 
     const baseName = entryName || NodeClass.defaultName;
+    if (validateMatlabName(baseName) !== null) {
+      return null;
+    }
     const uniqueName = this._uniqueName(baseName);
+    if (validateMatlabName(uniqueName) !== null) {
+      return null;
+    }
     const node = NodeClass.createDefault(uniqueName, this) as DataNode;
 
     node.metadata = {
