@@ -228,6 +228,10 @@ name = variable.name) {
     if (variable.className === STRING_CLASS_NAME && decoded) {
         return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent, name);
     }
+    // An enumeration value is the node a binary dictionary's is: its bag is that reader's.
+    if (decoded?.enumeration) {
+        return NodeRegistry.parseValue(decoded.enumeration, name, parent);
+    }
     const typed = buildTypedNodeFromMcos(variable.className, name, parent, decoded?.properties, decoded?.elements, decoded?.dimensions, warnings);
     if (typed) {
         return typed;

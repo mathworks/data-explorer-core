@@ -1,12 +1,22 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { isUnheldStructArray, parseMatrix, structElementsHeld, MatVariable } from './MatParser.js';
+import {
+  enumerationInstanceOf,
+  functionHandleText as handleText,
+  isUnheldStructArray,
+  parseMatrix,
+  structElementsHeld,
+  MatVariable,
+} from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
 import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
 import { setOwn } from './ownKeys.js';
 import {
   complexClassTag,
+  ENUM_KEY,
+  ENUMERATION_KEY,
+  type Enumeral,
   formatComplexNum,
   formatMatlabNum,
   formatMatrixSerial,
@@ -82,6 +92,9 @@ export interface McosObjectData {
   // whose text the words did not account for — a summary is still correct then, a
   // character we invented would not be. Absent for every other class.
   stringElements?: (string | null)[] | null;
+  // Set only for an enumeration value: the bag a binary dictionary's reader holds the same
+  // value in (enumerationValue), which the node layer builds its node from.
+  enumeration?: Record<string, unknown>;
 }
 
 interface SubElement {
@@ -471,7 +484,8 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
     return stream ? { _type: 'cdata', _value: uuencode(stream) } : undefined;
   }
   if (cls === 'struct') {
-    return buildStructValue(cell, ctx, path, depth);
+    // An enumeration value held by an object's property is its instance struct itself.
+    return enumerationValue(cell, ctx, null) ?? buildStructValue(cell, ctx, path, depth);
   }
   if (cls === 'cell') {
     const elems = Array.isArray(val) ? (val as (MatVariable | null)[]) : [];
@@ -550,6 +564,87 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
   return undefined;
 }
 
+// The tag MATLAB writes at the head of an enumeration instance struct (MatParser.enumerationInstanceOf).
+const ENUMERATION_INSTANCE_TAG = 0xdd000000;
+
+/**
+ * An enumeration value MATLAB stored as an instance struct, as the bag a binary dictionary's
+ * reader holds one in (XmlUtils.ENUM_KEY), so that it is the node a binary dictionary's is, or
+ * null when the struct does not read as one with confidence.
+ *
+ * The struct (MatParser.enumerationInstanceOf) names the class by its row in the class table,
+ * each enumeral the value uses by its string-table index (ValueNames) and by an object of the
+ * class (Values) whose one property, `int32.Data` or `logical.Data`, is the number it stands
+ * for and its class, and the value's own size by ValueIndices, each element the 0-based index
+ * of its enumeral, in MATLAB's order. Measured on the display catalog's catalog.mat: en_onoff_vec
+ * is ValueNames [on off], Values [true false] and ValueIndices 1x3 [0 1 0]; dx_enum_1x0 a 1x0
+ * ValueIndices and no enumeral. `className`, when given, is the class the element declares,
+ * which the class row must name.
+ */
+function enumerationValue(instance: MatVariable, ctx: DecodeContext, className: string | null): Record<string, unknown> | null {
+  const fields = instance.fields;
+  const field = (name: string): MatVariable | null => {
+    const f = fields ? fields[name] : undefined;
+    return f && !Array.isArray(f) ? f : null;
+  };
+  const list = (v: MatVariable | null): unknown[] | null => (!v ? null : Array.isArray(v.value) ? (v.value as unknown[]) : v.value === null || v.value === undefined ? [] : [v.value]);
+  const tag = field('EnumerationInstanceTag');
+  const classId = field('ClassName')?.value;
+  if (!tag || tag.value !== ENUMERATION_INSTANCE_TAG || typeof classId !== 'number') {
+    return null;
+  }
+  const cls = ctx.meta.classes[classId]?.fullName;
+  if (!cls || (className !== null && cls !== className)) {
+    return null;
+  }
+  const nameIds = list(field('ValueNames'));
+  const valuesCell = field('Values');
+  const objects = valuesCell && valuesCell.className === 'cell' ? list(valuesCell) : null;
+  const indicesVar = field('ValueIndices');
+  const indices = list(indicesVar);
+  if (!nameIds || !objects || !indicesVar || !indices || objects.length !== nameIds.length) {
+    return null;
+  }
+  const names = nameIds.map((id) => (typeof id === 'number' ? ctx.meta.strings[id] : undefined));
+  if (!names.every((n): n is string => typeof n === 'string' && n !== '')) {
+    return null;
+  }
+  // The number each enumeral stands for, and its class, off its object's one `<class>.Data`.
+  const enumerals = objects.map((o, k): Enumeral => {
+    const cell = o as MatVariable | null;
+    const handle = cell && isObjectHandle(cell) ? objectHandleFromValue(cell.value as number[]) : null;
+    const props = handle && handle.ids.length === 1 ? buildProperties(handle.ids[0], ctx, new Set<number>(), 0) : {};
+    for (const [key, v] of Object.entries(props)) {
+      const m = /^(\w+)\.Data$/.exec(key);
+      if (m && (typeof v === 'number' || typeof v === 'boolean' || isExactToken(v))) {
+        return { name: names[k], type: m[1], value: typeof v === 'boolean' ? (v ? '1' : '0') : typeof v === 'number' ? formatMatlabNum(v) : v };
+      }
+    }
+    return { name: names[k], value: '' };
+  });
+  const dims = indicesVar.dimensions.slice();
+  const count = dims.reduce((a, b) => a * b, 1);
+  // MatParser hands a matrix back row by row within each page; an enumeration value's elements
+  // go in MATLAB's column-major order, as the binary reader's do.
+  const order = transposeToColumnMajorND(indices, dims);
+  if (order.length !== count || !order.every((i) => typeof i === 'number' && Number.isInteger(i) && i >= 0 && i < enumerals.length)) {
+    return null;
+  }
+  return {
+    _array_class: cls,
+    _dimensions: dims,
+    _mw_element_type: 'MATLABArray',
+    _elements: (order as number[]).map((i) => ({ _properties: {}, [ENUMERATION_KEY]: { ...enumerals[i] } })),
+    [ENUM_KEY]: '1',
+  };
+}
+
+/** The enumeration value `variable`, an opaque element, holds, as enumerationValue reads it, or null. */
+function enumerationOfVariable(variable: McosVariableRef, ctx: DecodeContext): Record<string, unknown> | null {
+  const instance = enumerationInstanceOf(variable as MatVariable);
+  return instance ? enumerationValue(instance, ctx, variable.className) : null;
+}
+
 // The marker word MATLAB writes ahead of a function handle stored as an MCOS property.
 const FUNCTION_HANDLE_MARKER = 0xdd000000;
 
@@ -574,7 +669,8 @@ const FUNCTION_HANDLE_MARKER = 0xdd000000;
  * 'anonymous' beside it — where func2str, MATLAB's display and the text dictionary's twin
  * all say `@(y)y*2` (R2027a, an AliasType subclass holding one, in a binary dictionary, a
  * text one and a .mat). Shown as it stood, it read `@sf%0@(y)y*2`. The prefix goes, and
- * the `@` that opens the anonymous function's own text stays; nothing else is rewritten.
+ * the `@` that opens the anonymous function's own text stays; nothing else is rewritten
+ * (MatParser.functionHandleText, which a .mat's own function handle is read with too).
  */
 function functionHandleText(elements: unknown[]): string | null {
   if (elements.length !== 2 || elements[0] !== FUNCTION_HANDLE_MARKER) {
@@ -584,14 +680,8 @@ function functionHandleText(elements: unknown[]): string | null {
   const fields = outer && outer._array_type === 'Struct' ? (outer._elements as Record<string, unknown>[] | undefined)?.[0] : null;
   const fh = fields?.function_handle as Record<string, unknown> | undefined;
   const inner = fh && fh._array_type === 'Struct' ? (fh._elements as Record<string, unknown>[] | undefined)?.[0] : null;
-  if (!inner || typeof inner.function !== 'string') {
-    return null;
-  }
-  return inner.type === 'anonymous' ? inner.function.replace(ANONYMOUS_SCOPE_PREFIX, '@') : inner.function;
+  return inner ? handleText(inner.function, inner.type) : null;
 }
-
-// The scope prefix of an anonymous handle's stored text, `sf%0@` in `sf%0@(y)y*2`.
-const ANONYMOUS_SCOPE_PREFIX = /^sf%\d+@/;
 
 // A parsed struct mxArray -> the SLDD Struct value shape (one bag of fields per
 // element), so StructNode.parse builds the same nested field rows the JSON path does.
@@ -954,6 +1044,14 @@ export function decodeMcosVariables<V extends McosVariableRef>(
     // read (`undefined`), and only for that one: a `null` is MatParser having read the
     // element and REFUSED its handle, and the scan — which reads words, not elements —
     // would find the same magic word and accept what the parser just turned down.
+    // An enumeration value has no handle: its element holds an instance struct instead.
+    const enumeration = v.mcosHandle === null ? enumerationOfVariable(v, ctx) : null;
+    if (enumeration) {
+      const { packageName, shortClassName } = splitClassName(v.className);
+      const dimensions = (enumeration._dimensions as number[]).slice();
+      result.set(v, { name: v.name, className: v.className, packageName, shortClassName, properties: {}, elements: [], dimensions, value: undefined, enumeration });
+      continue;
+    }
     const handle = v.mcosHandle !== undefined ? v.mcosHandle : objectHandleFromRaw(v._rawBytes);
     if (!handle || handle.ids.length === 0) continue;
 

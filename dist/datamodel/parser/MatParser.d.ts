@@ -50,6 +50,24 @@ export declare function isUnheldStructArray(v: MatVariable): boolean;
  * reader writes for a 1x1 alone and a reader of an array takes for every element's.
  */
 export declare function structElementsHeld(v: MatVariable): number;
+/** The enumeration instance struct of `variable`, an opaque parseOpaque read, or undefined. */
+export declare function enumerationInstanceOf(variable: MatVariable): MatVariable | undefined;
+/**
+ * The text of a function handle as MATLAB stores one, `function` of a struct's `function_handle`
+ * field with its `type` beside it, or null: as McosParser reads one an object's property holds,
+ * and as a .mat holds one in the struct after a class-16 element's name (measured on the display
+ * catalog's catalog.mat: fh_sin's `function` 'sin', type 'simple'; fh_anon's 'sf%272@(x)x.^2+1',
+ * type 'anonymous', beside the saving MATLAB's matlabroot).
+ *
+ * An ANONYMOUS handle's `function` is prefixed with the `sf%<n>@` of the scope it was made in,
+ * where func2str, MATLAB's display and a text dictionary all say `@(x)x.^2+1`: the prefix goes,
+ * and the `@` that opens the anonymous function's own text stays; nothing else is rewritten.
+ */
+export declare function functionHandleText(fn: unknown, type: unknown): string | null;
+/** The function handle `variable` is, as parseMatrix read it, or undefined. */
+export declare function functionHandleOf(variable: MatVariable): {
+    text: string | null;
+} | undefined;
 export declare function parseMatrix(view: DataView, baseOffset: number, length: number): MatVariable;
 export declare function parseMat(arrayBuffer: ArrayBuffer): ParsedMat;
 /** A MAT stream read: the variable and the elements after it, or why there is none. */

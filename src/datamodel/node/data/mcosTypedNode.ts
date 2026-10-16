@@ -166,6 +166,8 @@ export interface McosDecoded {
   // A `string`'s text, column-major, `null` per element for a MATLAB `missing` and null
   // for the whole array when the payload declared a shape without recoverable text.
   stringElements?: (string | null)[] | null;
+  // An enumeration value's bag, in the binary dictionary reader's form (McosParser.enumerationValue).
+  enumeration?: Record<string, unknown>;
 }
 
 // Decode the MCOS blob that carries every opaque object's real property values.
@@ -265,6 +267,10 @@ export function modelOpaqueMcosVariable(
 ): DataNode | null {
   if (variable.className === STRING_CLASS_NAME && decoded) {
     return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent, name);
+  }
+  // An enumeration value is the node a binary dictionary's is: its bag is that reader's.
+  if (decoded?.enumeration) {
+    return NodeRegistry.parseValue(decoded.enumeration, name, parent);
   }
   const typed = buildTypedNodeFromMcos(
     variable.className,

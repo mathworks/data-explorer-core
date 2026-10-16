@@ -9,6 +9,7 @@ export interface McosObjectData {
     dimensions: number[];
     value: unknown;
     stringElements?: (string | null)[] | null;
+    enumeration?: Record<string, unknown>;
 }
 export declare const NOT_AVAILABLE = "<not available>";
 export declare const STRING_CLASS_NAME = "string";

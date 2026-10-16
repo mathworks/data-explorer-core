@@ -529,10 +529,102 @@ function parseOpaque(view: DataView, offset: number, end: number): MatVariable {
     offset += classSub.totalSize;
     const className = readString(view, classSub);
 
-    return {
+    const variable: MatVariable = {
         name, className, dimensions: [1, 1], isComplex: false, isLogical: false, value: null, fields: null, isOpaque: true,
         mcosHandle: readOpaqueHandle(view, offset, end),
     };
+    if (variable.mcosHandle === null) {
+        const instance = readEnumerationInstance(view, offset, end);
+        if (instance) {
+            enumerationInstances.set(variable, instance);
+        }
+    }
+    return variable;
+}
+
+// What an enumeration value's class-17 element holds in place of an object handle, by the
+// variable parseOpaque made of the element. MATLAB writes the fourth part of an enumeration
+// value's element as a 1x1 struct, not the uint32 handle every other object has:
+//
+//   EnumerationInstanceTag  0xDD000000
+//   ClassName               the class's row in the subsystem's class table
+//   ValueNames              the string-table index of each enumeral the value uses, Kx1
+//   Values                  a Kx1 cell, an object handle per enumeral
+//   ValueIndices            the value's own size, each element the 0-based index of its enumeral
+//   BuiltinClassName        the string-table index of the class it derives from, if any
+//
+// measured on the display catalog's catalog.mat (en_on, en_onoff_vec, en_sl_vec, dx_enum_1x0).
+// Held beside the variable, as McosParser reads it (McosParser.enumerationValue), for the reason
+// mcosDecodedTable holds the decode beside it: the variable is the host's.
+const enumerationInstances = new WeakMap<MatVariable, MatVariable>();
+
+/** The enumeration instance struct of `variable`, an opaque parseOpaque read, or undefined. */
+export function enumerationInstanceOf(variable: MatVariable): MatVariable | undefined {
+    return enumerationInstances.get(variable);
+}
+
+// The handle part at `offset`, when it is an enumeration instance struct, or null.
+function readEnumerationInstance(view: DataView, offset: number, end: number): MatVariable | null {
+    if (offset + 8 > end) { return null; }
+    const sub = readSubelement(view, offset);
+    if (sub.type !== MI_MATRIX || sub.dataOffset + sub.bytes > end) { return null; }
+    const flagsSub = readSubelement(view, sub.dataOffset);
+    if (flagsSub.bytes < 2 || CLASS_NAMES[view.getUint8(flagsSub.dataOffset)] !== 'struct') { return null; }
+    let instance: MatVariable;
+    try {
+        instance = parseMatrix(view, sub.dataOffset, sub.bytes);
+    } catch {
+        return null;
+    }
+    const tag = instance.fields?.EnumerationInstanceTag;
+    return tag && !Array.isArray(tag) && tag.className === 'uint32' && tag.value === 0xdd000000 ? instance : null;
+}
+
+/**
+ * The text of a function handle as MATLAB stores one, `function` of a struct's `function_handle`
+ * field with its `type` beside it, or null: as McosParser reads one an object's property holds,
+ * and as a .mat holds one in the struct after a class-16 element's name (measured on the display
+ * catalog's catalog.mat: fh_sin's `function` 'sin', type 'simple'; fh_anon's 'sf%272@(x)x.^2+1',
+ * type 'anonymous', beside the saving MATLAB's matlabroot).
+ *
+ * An ANONYMOUS handle's `function` is prefixed with the `sf%<n>@` of the scope it was made in,
+ * where func2str, MATLAB's display and a text dictionary all say `@(x)x.^2+1`: the prefix goes,
+ * and the `@` that opens the anonymous function's own text stays; nothing else is rewritten.
+ */
+export function functionHandleText(fn: unknown, type: unknown): string | null {
+    if (typeof fn !== 'string') {
+        return null;
+    }
+    return type === 'anonymous' ? fn.replace(/^sf%\d+@/, '@') : fn;
+}
+
+// What parseMatrix read of a function handle, by the variable it made of the class-16 element:
+// its text, or null for an empty one. Held beside the variable, as an enumeration's instance
+// struct is (enumerationInstanceOf). A class-16 element whose text is not where MATLAB writes
+// it has none, and is the class this reader does not model, as it always was.
+const functionHandles = new WeakMap<MatVariable, { text: string | null }>();
+
+/** The function handle `variable` is, as parseMatrix read it, or undefined. */
+export function functionHandleOf(variable: MatVariable): { text: string | null } | undefined {
+    return functionHandles.get(variable);
+}
+
+// The text of the function handle whose class-16 element's struct is at `offset`, or null.
+function functionHandleElementText(view: DataView, offset: number, end: number): string | null {
+    const sub = readSubelement(view, offset);
+    if (sub.type !== MI_MATRIX) { return null; }
+    let outer: MatVariable;
+    try {
+        outer = parseMatrix(view, sub.dataOffset, Math.min(sub.bytes, end - sub.dataOffset));
+    } catch {
+        return null;
+    }
+    const field = (v: MatVariable | null | undefined, name: string): MatVariable | null => {
+        const f = v?.fields?.[name];
+        return f && !Array.isArray(f) ? f : null;
+    };
+    const fh = field(outer, 'function_handle');
+    return functionHandleText(field(fh, 'function')?.value, field(fh, 'type')?.value);
 }
 
 // The handle part of a class-17 element, or null when it is not there in the one shape
@@ -837,6 +929,16 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
         result.undecoded =
             'MAT array class 3, the pre-MCOS object: recorded but not decoded, because no'
             + ' MATLAB-authored fixture in this corpus pins its layout';
+    } else if (arrayClass === 16) {
+        // A function handle (mxFUNCTION_CLASS). Its class stays the 'unknown' of a class this
+        // reader does not model, which is what sends a stream holding one to a binary
+        // dictionary as the hex MATLAB writes it there (MatlabVariableNode.needsHexInBinary);
+        // its text, `sin` or `@(x)x.^2+1`, is kept beside it (functionHandleOf), for the node
+        // a .mat's own handle is built as (MatNode.fromParsed). An empty one has no body.
+        const text = totalElements > 0 && offset + 8 <= end ? functionHandleElementText(view, offset, end) : null;
+        if (totalElements === 0 || text !== null) {
+            functionHandles.set(result, { text });
+        }
     } else if (arrayClass === 4) {
         if (offset < end) {
             const charSub = readSubelement(view, offset);
@@ -1174,7 +1276,7 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
     // it does not model, becomes one warning here — including the ones nested inside a
     // struct or a cell, which no file-level list could otherwise point at.
     for (const variable of variables) {
-        collectUndecoded(variable, variable.name || '<unnamed>', warnings);
+        collectUndecoded(variable, variable.name || '<unnamed>', warnings, true);
     }
 
     return { header, variables, warnings };
@@ -1194,7 +1296,7 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
  * once, at the point that decided, and the variable keeps it whether or not anyone
  * looks at the file-level list.
  */
-function collectUndecoded(variable: MatVariable, path: string, warnings: ParseWarning[]): void {
+function collectUndecoded(variable: MatVariable, path: string, warnings: ParseWarning[], top = false): void {
     const unbacked = variable.sparse ? unbackedColumns(variable.sparse, variable.dimensions) : null;
     if (variable.undecoded) {
         warnings.push({
@@ -1206,9 +1308,11 @@ function collectUndecoded(variable: MatVariable, path: string, warnings: ParseWa
         // A sparse array whose dims word is damaged: read as far as its column index goes,
         // which is all of its bytes, and said so — it shows a size no byte of it backs.
         warnings.push({ code: 'part-unreadable', message: `"${path}" ${unbacked}.`, part: path });
-    } else if (variable.className === 'unknown') {
+    } else if (variable.className === 'unknown' && !(top && functionHandles.has(variable))) {
         // A class code CLASS_NAMES has no name for: a function handle (16), or a class
-        // a later release added. The value is in the file and comes back null, which is
+        // a later release added. A function handle at the top of the file whose text read
+        // is shown (MatNode.fromParsed); one in a struct field or a cell element is not, as
+        // nothing below the top builds one. The value is in the file and comes back null, which is
         // indistinguishable from an empty variable — the confusion this channel exists
         // to remove. Note this is a limit of the READER, not of the file, and the
         // policy that keeps file limits quiet does not cover it: the bytes claim a

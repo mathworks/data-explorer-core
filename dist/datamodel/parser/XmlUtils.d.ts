@@ -120,6 +120,14 @@ export interface Enumeral {
 }
 /** Whether `value` is an enumeration value as a binary dictionary's reader holds one (see ENUM_KEY). */
 export declare function isEnumBag(value: unknown): boolean;
+/**
+ * The `_enum_value` of `value` when `value` is an enumeration value as a text dictionary spells
+ * one, or undefined. MATLAB writes the whole value as one element holding the numbers its
+ * enumerals stand for, in a bag that is 1x1 whatever the value's size (MatWriter.enumTextForm),
+ * and at an object's property the element alone, `{_enum_value, _id, _object_class}`. The binary
+ * reader's own form (isEnumBag) is not this one.
+ */
+export declare function textEnumValueOf(value: unknown): unknown;
 /** The enumeral `element`, one of an enumeration value's `_elements`, holds, or null. */
 export declare function enumeralOf(element: unknown): Enumeral | null;
 export declare function formatMatlabNum(num: unknown): string;

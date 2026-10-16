@@ -11,8 +11,21 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { OBJECT_ICON } from '../icons.js';
-import { ENUM_KEY, enumeralOf, escapeXml, isEnumBag, pad as xmlPad, propertySourcesOf, SAVEOBJ_KEY } from '../../parser/XmlUtils.js';
-import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
+import {
+    ENUM_KEY,
+    enumeralOf,
+    escapeXml,
+    formatMatlabNum,
+    isEnumBag,
+    pad as xmlPad,
+    propertySourcesOf,
+    SAVEOBJ_KEY,
+    textEnumValueOf,
+    transposeToColumnMajorND,
+} from '../../parser/XmlUtils.js';
+import { effectiveDims, elementCount, MAX_EXPANDED_ELEMENTS, needsSummary, overCharBudget, summaryForm } from '../../display/DisplayConvention.js';
+import { decodeMatStream } from '../../parser/MatParser.js';
+import { uudecode } from '../../parser/CdataCodec.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 import { setOwn } from '../../parser/ownKeys.js';
 
@@ -67,6 +80,118 @@ function elementWritten(written: Record<string, unknown>, read: unknown, own: st
     return out;
 }
 
+const ON_OFF_SWITCH_STATE = 'matlab.lang.OnOffSwitchState';
+const ENUM_TYPE_DEFINITION = 'Simulink.data.dictionary.EnumTypeDefinition';
+
+/**
+ * An enumeration value as a text dictionary holds one: its size, and the number each element's
+ * enumeral stands for, in MATLAB's column-major order, as its text (`'1'`, `'-1'`, `'true'`),
+ * with the class those numbers are of.
+ */
+interface TextEnum {
+    type: string;
+    dims: number[];
+    values: string[];
+}
+
+// One number of an enumeration value's text: an integer, a real, Inf/NaN, or a logical's word.
+const ENUM_TOKEN = /true|false|[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|Inf|NaN/g;
+
+/**
+ * The value `value`, a text dictionary's `_enum_value`, holds, or null for a spelling this does
+ * not read. Each spelling MATLAB writes (MatWriter.enumTextForm, read off custom_object_text.sldd,
+ * dNJSON_SLDDApi.sldd and the display catalog's dispcat_text.sldd): a bare `true`/`false` for an
+ * OnOffSwitchState scalar, `{_type: 'int32', _value: '1'}` for a scalar, `'[1, 3]'` for a row,
+ * `'Matrix(7,1)\n[…]'` for any other two-dimensional size, row by row, and a MAT stream
+ * (`_type: 'cdata'`) past two dimensions.
+ */
+function parseTextEnum(value: unknown): TextEnum | null {
+    if (typeof value === 'boolean') {
+        return { type: 'logical', dims: [1, 1], values: [String(value)] };
+    }
+    if (typeof value === 'number') {
+        return { type: 'double', dims: [1, 1], values: [formatMatlabNum(value)] };
+    }
+    if (!isFieldBag(value) || typeof value._type !== 'string' || typeof value._value !== 'string') {
+        return null;
+    }
+    const type = value._type;
+    const text = value._value;
+    if (type === 'cdata') {
+        let stream: ReturnType<typeof decodeMatStream>;
+        try {
+            stream = decodeMatStream(uudecode(text));
+        } catch {
+            return null;
+        }
+        if (!stream.ok || stream.variable.isComplex || stream.variable.isSparse) {
+            return null;
+        }
+        const v = stream.variable;
+        // MatParser hands an array back row by row within each page, and a single element bare.
+        const values = (Array.isArray(v.value) ? v.value : [v.value]).map((x) => (typeof x === 'number' ? formatMatlabNum(x) : String(x)));
+        if (values.length !== v.dimensions.reduce((a, b) => a * b, 1)) {
+            return null;
+        }
+        return { type: v.isLogical ? 'logical' : v.className, dims: v.dimensions.slice(), values: transposeToColumnMajorND(values, v.dimensions) };
+    }
+    const header = /^Matrix\((\d+(?:,\d+)*)\)\n/.exec(text);
+    const body = header ? text.slice(header[0].length) : text.trim();
+    const tokens = body.match(ENUM_TOKEN) || [];
+    let dims: number[];
+    if (header) {
+        dims = header[1].split(',').map(Number);
+    } else if (body.charAt(0) === '[') {
+        dims = tokens.length === 0 ? [0, 0] : [1, tokens.length];
+    } else {
+        dims = [1, 1];
+    }
+    if (tokens.length !== dims.reduce((a, b) => a * b, 1)) {
+        return null;
+    }
+    // A Matrix() body is row by row within each page, as the writer spells it.
+    return { type, dims, values: header ? transposeToColumnMajorND(tokens, dims) : tokens };
+}
+
+/** The number `token` is, as MATLAB writes it in a literal: `1`, `-1`, `2.5`, `true`. */
+function enumNumberText(token: string): string {
+    return token.charAt(0) === '+' ? token.slice(1) : token;
+}
+
+/**
+ * The names of the enumerals of class `className`, by the number each stands for, when an
+ * EnumTypeDefinition in the dictionary `node` is in names that class, or null. A text dictionary
+ * names an enumeration value's class and numbers only, never its enumerals (the display study's
+ * H9), so this is the one place in the file a name can come from.
+ */
+function enumeralNamesFor(node: BaseNode, className: string): Map<string, string> | null {
+    let root: BaseNode = node;
+    while (root.parent) {
+        root = root.parent;
+    }
+    const stack: BaseNode[] = [root];
+    while (stack.length > 0) {
+        const n = stack.pop()!;
+        if ((n as { isEntry?: boolean }).isEntry) {
+            if (n.name === className && n.className === ENUM_TYPE_DEFINITION) {
+                const names = new Map<string, string>();
+                for (const enumeral of n.children) {
+                    const number = Number((enumeral as unknown as { Value?: unknown }).Value);
+                    if (Number.isFinite(number) && !names.has(String(number))) {
+                        names.set(String(number), enumeral.name);
+                    }
+                }
+                return names;
+            }
+            continue;
+        }
+        for (const child of n.children) {
+            stack.push(child);
+        }
+    }
+    return null;
+}
+
 export default class ObjectNode extends DataNode {
     arrayClass: string;
     // True when this node's children are ARRAY ELEMENTS (each an ObjectNode named
@@ -118,10 +243,117 @@ export default class ObjectNode extends DataNode {
     // — had to parse the display string to learn the shape, and could not check the
     // shape independently of the string it was already asserting.
     get dims(): number[] {
+        // A text dictionary's enumeration value is the size of the numbers it holds: its bag is
+        // 1x1 whatever that is.
+        const textEnum = this._textEnum();
+        if (textEnum) {
+            return effectiveDims(textEnum.dims);
+        }
+        const ofData = this._dataDims();
+        if (ofData) {
+            return ofData;
+        }
         const raw = (this.serial._rawVal as Record<string, unknown>) || {};
         // A nested object ({ _object_class, _properties }) carries no _dimensions at
         // all — it is always a scalar, which effectiveDims spells [1, 1].
         return effectiveDims(raw._dimensions as number[] | undefined);
+    }
+
+    /**
+     * The size of an object whose size() is its data's, MATLAB's own classes that every file
+     * holds as one object, a 1x1 bag, whatever their size: an `embedded.fi` is the size of its
+     * stored integers, `intarray`; a `categorical` of its `codes`; a `table` is `nrows` by
+     * `nvars`. Read off the property rows. Null for any other object,
+     * an array of objects, and one whose rows do not say (measured in R2027a, the display
+     * catalog's fi_vec 1x3, cat_ab 1x2 and tbl_2x2 2x2, in each of the three formats).
+     */
+    _dataDims(): number[] | null {
+        if (this._isElementArray || elementCount(effectiveDims(((this.serial._rawVal as Record<string, unknown>) || {})._dimensions as number[] | undefined)) !== 1) {
+            return null;
+        }
+        const row = (name: string): DataNode | undefined => this.children.find((c) => c.name === name) as DataNode | undefined;
+        const sizeOf = (name: string): number[] | null => {
+            const dims = (row(name) as { dims?: unknown } | undefined)?.dims;
+            return Array.isArray(dims) && dims.length >= 2 ? effectiveDims(dims as number[]) : null;
+        };
+        const countOf = (name: string): number | null => {
+            const text = row(name)?.displayValue;
+            return typeof text === 'string' && /^\d+$/.test(text) ? Number(text) : null;
+        };
+        switch (this.arrayClass) {
+            case 'embedded.fi':
+                return sizeOf('intarray');
+            case 'categorical':
+                return sizeOf('codes');
+            case 'table': {
+                const rows = countOf('nrows');
+                const vars = countOf('nvars');
+                return rows !== null && vars !== null ? [rows, vars] : null;
+            }
+            default:
+                return null;
+        }
+    }
+
+    // The enumeration value this node is, when it is one as a text dictionary spells it
+    // (textEnumValueOf), read once: nothing edits one.
+    _textEnumRead?: TextEnum | null;
+    _textEnum(): TextEnum | null {
+        if (this._textEnumRead === undefined) {
+            const value = textEnumValueOf(this.serial._rawVal);
+            this._textEnumRead = value === undefined ? null : parseTextEnum(value);
+        }
+        return this._textEnumRead;
+    }
+
+    /**
+     * What a text dictionary's enumeration value shows. Its file names the class and the numbers
+     * the enumerals stand for, never an enumeral, so it shows the enumeral's name where that is
+     * known, and otherwise the numbers, as the MATLAB expression that makes the value from them:
+     *
+     *   - an OnOffSwitchState is `on` or `off`, MATLAB's own class whose enumerals are its
+     *     logical values (DisplayConvention.classColumnText);
+     *   - one of a class an EnumTypeDefinition in the same dictionary defines is `Class.Name`, as
+     *     a binary dictionary's, which names its enumerals, shows one (displayValue);
+     *   - any other is `DispColor(1)`, or for an array `DispColor([1 3])`.
+     *
+     * An array whose names are known shows its summary, as a binary dictionary's does, and each
+     * element its own name on its row (parse). Null for a value of more than one element whose
+     * numbers have no one-line spelling, which shows its summary as any object does.
+     */
+    _textEnumText(textEnum: TextEnum): string | null {
+        const names = this.arrayClass === ON_OFF_SWITCH_STATE ? null : enumeralNamesFor(this, this.arrayClass);
+        const one = elementCount(textEnum.dims) === 1;
+        if (this.arrayClass === ON_OFF_SWITCH_STATE || names) {
+            if (!one) {
+                return null;
+            }
+            const v = textEnum.values[0];
+            if (this.arrayClass === ON_OFF_SWITCH_STATE) {
+                return v === 'true' || Number(v) === 1 ? 'on' : 'off';
+            }
+            const name = names!.get(String(Number(v)));
+            if (name !== undefined) {
+                return this.arrayClass + '.' + name;
+            }
+        }
+        if (one) {
+            return this.arrayClass + '(' + enumNumberText(textEnum.values[0]) + ')';
+        }
+        if (elementCount(textEnum.dims) === 0 || needsSummary(textEnum.dims)) {
+            return null;
+        }
+        const [rows, cols] = effectiveDims(textEnum.dims);
+        const lines: string[] = [];
+        for (let r = 0; r < rows; r++) {
+            const row: string[] = [];
+            for (let c = 0; c < cols; c++) {
+                row.push(enumNumberText(textEnum.values[c * rows + r]));
+            }
+            lines.push(row.join(' '));
+        }
+        const text = this.arrayClass + '([' + lines.join('; ') + '])';
+        return overCharBudget(text) ? null : text;
     }
 
     // An enumeration value (XmlUtils.ENUM_KEY), at an entry, a property or in a cell, shows its
@@ -130,11 +362,16 @@ export default class ObjectNode extends DataNode {
     // enumeral.
     get displayValue(): string {
         const rawVal = this.serial._rawVal as Record<string, unknown> | undefined;
+        const textEnum = this._textEnum();
+        if (textEnum) {
+            return this._textEnumText(textEnum) ?? summaryForm(this.dims, this.arrayClass);
+        }
         if (rawVal && isEnumBag(rawVal)) {
             const elements = (rawVal._elements as unknown[]) || [];
             const enumeral = elements.length === 1 ? enumeralOf(elements[0]) : null;
             if (enumeral?.name && elementCount(this.dims) === 1) {
-                return this.arrayClass + '.' + enumeral.name;
+                // An OnOffSwitchState is `on` or `off`, as a text dictionary's shows (_textEnumText).
+                return this.arrayClass === ON_OFF_SWITCH_STATE ? enumeral.name : this.arrayClass + '.' + enumeral.name;
             }
         }
         return summaryForm(this.dims, this.arrayClass);
@@ -143,7 +380,7 @@ export default class ObjectNode extends DataNode {
     // Nothing here edits an enumeration value, and its enumeral is not text that reads back as
     // one: `GearMode.Reverse` typed into a MATLAB value is a char.
     get valueEditable(): boolean {
-        return !isEnumBag(this.serial._rawVal) && super.valueEditable;
+        return !isEnumBag(this.serial._rawVal) && !this._textEnum() && super.valueEditable;
     }
 
     // Nor a Description: an enumeration value has none in the file to hold one (`<P Name="Value"
@@ -164,7 +401,7 @@ export default class ObjectNode extends DataNode {
     // in the encoded stream it was read from keeps that refusal's own reason.
     setProperty(propName: string, stringValue: string): true | SetPropertyResult {
         if (this._resolveProperty(propName) === 'Value') {
-            if (isEnumBag(this.serial._rawVal)) {
+            if (isEnumBag(this.serial._rawVal) || this._textEnum()) {
                 return {
                     error: true,
                     reason: `'${this.displayName}' is an enumeration value, which this editor shows but cannot change.`,
@@ -210,7 +447,7 @@ export default class ObjectNode extends DataNode {
         // An enumeration value as it was read, an array of them included: nothing edits one,
         // and the rebuild below keeps only each element's `_properties`, where an enumeral has
         // none.
-        if (this.children.length === 0 || isEnumBag(rawVal)) {
+        if (this.children.length === 0 || isEnumBag(rawVal) || this._textEnum()) {
             return rawVal;
         }
         // Object ARRAY: each child is a scalar element node (an ObjectNode for a
@@ -369,7 +606,9 @@ export default class ObjectNode extends DataNode {
     _rebuiltProperties(forXml: boolean): Record<string, unknown> {
         const stored = this._storedProperties();
         const rows = new Map<string, DataNode>();
-        for (const child of this.children) {
+        // A text dictionary's enumeration array's rows are its elements (parse), which are no
+        // properties of it.
+        for (const child of this._textEnum() ? [] : this.children) {
             if (!rows.has(child.name)) { rows.set(child.name, child as DataNode); }
         }
         const props: Record<string, unknown> = {};
@@ -430,6 +669,7 @@ export default class ObjectNode extends DataNode {
         //     named `name(i)`, each of which then expands into its own property rows.
         if (rawVal._object_class) {
             ObjectNode._addPropertyChildren(node, rawVal._properties as Record<string, unknown>);
+            ObjectNode._addTextEnumElements(node);
             return node;
         }
         // MATLAB writes every element as an object, but a text dictionary is JSON anyone can
@@ -482,8 +722,36 @@ export default class ObjectNode extends DataNode {
             // A scalar whose element is null has no rows, so it writes back the value it read
             // (serializeValue).
             ObjectNode._addPropertyChildren(node, elements[0]?._properties as Record<string, unknown> | undefined);
+            ObjectNode._addTextEnumElements(node);
         }
         return node;
+    }
+
+    // A text dictionary's enumeration array, one row per element, as a binary dictionary's has
+    // (above): each the scalar enumeration value of its number, in the text form, which shows
+    // its own name or number (displayValue). Past MAX_EXPANDED_ELEMENTS, none, as for a numeric
+    // array. The rows are the value's to show and not to write: the value is written as it was
+    // read (serializeValue), and they are no properties of it (_rebuiltProperties).
+    static _addTextEnumElements(node: ObjectNode): void {
+        const textEnum = node._textEnum();
+        const count = textEnum ? textEnum.values.length : 0;
+        if (!textEnum || count <= 1 || count > MAX_EXPANDED_ELEMENTS) {
+            return;
+        }
+        const rawVal = node.serial._rawVal as Record<string, unknown>;
+        const dims = effectiveDims(textEnum.dims);
+        textEnum.values.forEach((v, ei) => {
+            const value = textEnum.type === 'logical' ? v === 'true' || Number(v) === 1 : { _type: textEnum.type, _value: enumNumberText(v) };
+            const elemRaw: Record<string, unknown> = {
+                _array_class: node.arrayClass,
+                _dimensions: [1, 1],
+                _elements: [{ _enum_value: value }],
+                _mw_element_type: (rawVal._mw_element_type as string) || 'MATLABArray',
+            };
+            const elemNode = ObjectNode.parse(elemRaw, String(ei), node);
+            elemNode._subscript = { index: ei, dims, order: 'column-major', bracket: '()' };
+            node.addChild(elemNode);
+        });
     }
 
     // Build a child node per serialized property. Every value — scalar, struct,
