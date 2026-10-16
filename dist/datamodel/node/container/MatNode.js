@@ -3,6 +3,7 @@ import ContainerNode from '../ContainerNode.js';
 import MatlabVariableNode from '../data/MatlabVariableNode.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from '../data/mcosTypedNode.js';
 import { mcosDecodedFor } from '../data/mcosDecodedTable.js';
+import { reasonOf } from '../../parser/ParseWarning.js';
 import { functionHandleOf } from '../../parser/MatParser.js';
 import PropName from '../../prop/PropName.js';
 export default class MatNode extends ContainerNode {
@@ -141,10 +142,45 @@ export default class MatNode extends ContainerNode {
                 node.addChild(MatlabVariableNode.parse({ _type: 'function_handle', _value: value }, variable.name, node));
                 continue;
             }
-            const child = MatlabVariableNode.parseMatVariable(variable, variable.name, node);
-            node.addChild(child);
+            node.addChild(variableNodeOf(variable, node, parsed.warnings));
         }
         return node;
     }
+}
+// One variable the node builders cannot make a node of refused the whole file: a complex one
+// whose flags word was overwritten with a class the reader does not model (255, say) has no
+// value, and the complex arm read `.re` of its null, at the top of the file or inside a cell
+// or a struct. The maintainer's ruling of 2026-10-16 (group E, theme 1: warn and show what
+// was read, never refuse the file) catches it one variable at a time and shows it as what was
+// read of it, its name, class and size, not decoded (MatlabVariableNode.createNotDecoded), as
+// ModelSectionNode.addWorkspaceEntry does for a model workspace.
+//
+// The file says why once. MatParser already names a value of a class it does not model,
+// wherever it stands (collectUndecoded: `z`, `c{1}`, `s.a`), and that warning is the one
+// loss, so a variable it names, or names a piece of, gets no second one. A variable nothing
+// names (a host's parse, say, from a reader that did not report it) gets one here.
+function variableNodeOf(variable, parent, warnings) {
+    try {
+        return MatlabVariableNode.parseMatVariable(variable, variable.name, parent);
+    }
+    catch (e) {
+        const name = variable.name;
+        if (warnings && !warnings.some((w) => namesPieceOf(w.part, name))) {
+            warnings.push({
+                code: 'part-unreadable',
+                message: `"${name}" could not be read (${reasonOf(e)}), so it is shown as not decoded.`,
+                part: name,
+            });
+        }
+        return MatlabVariableNode.createNotDecoded(variable, name, parent);
+    }
+}
+// Whether a warning's part is the variable `name` or a piece of it, as MatParser names a piece:
+// `name.field`, `name(2).field`, `name{3}`.
+function namesPieceOf(part, name) {
+    if (part === undefined || !part.startsWith(name)) {
+        return false;
+    }
+    return part.length === name.length || '.({'.includes(part[name.length]);
 }
 //# sourceMappingURL=MatNode.js.map

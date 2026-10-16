@@ -443,6 +443,7 @@ export default class MatlabVariableNode extends DataNode {
     static _createOpaque(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createFromMatHandle(variable: MatVariable, text: string | null, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createUndecoded(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
+    static createNotDecoded(variable: MatVariable, name: string, parent: BaseNode | null, cls?: string): MatlabVariableNode;
     static createFromMcosDecoded(variable: MatVariable, decoded: {
         value: unknown;
         properties: Record<string, unknown>;
@@ -571,6 +572,17 @@ export default class MatlabVariableNode extends DataNode {
      */
     static createUnnamedObject(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): DataNode;
+    /**
+     * A text dictionary's MAT stream that does not decode (`reason`), shown as the char of its
+     * six-bit text and written back as it was read, by replaying `_rawInput`.
+     *
+     * It is still a MAT stream, so it is display-only, as every value read from one is
+     * (_readFromStream, the C-012 ruling): an edit would have saved what was typed in place of
+     * the stream. And it says so, for the dictionary's warnings, as a binary dictionary's hex of
+     * the same bytes does (EncodedValue.recordDecodeFailure, which SlddNode.parse collects for
+     * the entry). It used to be shown with no warning, and it took edits.
+     */
+    static _createUndecodableCdata(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null, reason: string): MatlabVariableNode;
     /**
      * A text dictionary's MAT stream holding an MCOS object anywhere in it, decoded with the
      * stream's own subsystem, as a binary dictionary's hex of the same bytes is (parseEncoded)

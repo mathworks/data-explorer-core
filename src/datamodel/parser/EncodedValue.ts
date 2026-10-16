@@ -174,16 +174,30 @@ export function encodedBytes(v: EncodedValue): EncodedBytes {
  * records the reason here and SlddNode.parse, which builds the entry and holds the sink,
  * takes them after each entry, and before it, so that nothing recorded outside a
  * dictionary's own read (a paste) is reported against one of its entries.
+ *
+ * A text dictionary's MAT stream (cdata) that does not decode is recorded here too
+ * (MatlabVariableNode.parseCdata). It is shown as its encoded text rather than as not
+ * decoded, so each failure says how its value is shown, for the message.
  */
-const decodeFailures: string[] = [];
+export interface DecodeFailure {
+  /** Why it did not decode, a clause after "because". */
+  reason: string;
+  /** How the value is shown instead, after "it is shown as". */
+  shownAs: string;
+}
 
-/** Record why an encoded value did not decode (see `decodeFailures`). */
-export function recordDecodeFailure(reason: string): void {
-  decodeFailures.push(reason);
+const decodeFailures: DecodeFailure[] = [];
+
+/**
+ * Record why an encoded value did not decode (see `decodeFailures`), and how it is shown
+ * instead: `not decoded`, the placeholder a hex value gets, unless the caller says otherwise.
+ */
+export function recordDecodeFailure(reason: string, shownAs = 'not decoded'): void {
+  decodeFailures.push({ reason, shownAs });
 }
 
 /** The decode failures recorded since the last call, which clears them. */
-export function takeDecodeFailures(): string[] {
+export function takeDecodeFailures(): DecodeFailure[] {
   return decodeFailures.splice(0);
 }
 

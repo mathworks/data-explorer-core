@@ -14,7 +14,7 @@ import MatlabValueParser, { controlsAsOneChar, formatMatlabChar, formatMatlabStr
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { subscriptLabel } from '../../display/Subscript.js';
-import { decodeMatStream, functionHandleOf, structElementsHeld } from '../../parser/MatParser.js';
+import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, recordPartialDecode, } from '../../parser/EncodedValue.js';
@@ -3109,6 +3109,23 @@ export default class MatlabVariableNode extends DataNode {
         node._dims = variable.dimensions.slice();
         return node;
     }
+    // A variable shown as what was read of it and nothing more: its class and its size, as one
+    // not-decoded row (_createUndecoded), `<2x3 double, not decoded>`, spelled as MatParser
+    // spells its own placeholder (undecodedValue). It is built for a numeric value that holds no
+    // data (_createFromMatNumeric), and for a variable the builders could not make a node of at
+    // all, which the container catches one variable at a time so that the rest of the file opens
+    // (ModelSectionNode.addWorkspaceEntry, MatNode.fromParsed). `cls` is the class the row
+    // names; a logical's is `logical`, where the file's class is uint8.
+    static createNotDecoded(variable, name, parent, cls = variable.className) {
+        const dims = variable.dimensions;
+        const node = MatlabVariableNode._createUndecoded(variable, name, parent);
+        node._scalarType = cls;
+        node._scalarValue = undecodedValue(dims, cls);
+        // The size the placeholder names: a dims part cut short is at least 2-D, as MATLAB's
+        // size() always is.
+        node._dims = dims.length >= 2 ? dims.slice() : [1, dims[0] || 1];
+        return node;
+    }
     static createFromMcosDecoded(variable, decoded, parent, 
     // The variable's own name, unless it is nested: then the field name or cell index.
     name = variable.name) {
@@ -3170,16 +3187,31 @@ export default class MatlabVariableNode extends DataNode {
             node._buildArrayChildren(node._sparse.im ? 'complex' : undefined);
             return node;
         }
-        // A complex numeric variable whose bytes end after its array flags and before its real
-        // part, inside its dimensions or its name or just past them, holds no elements:
-        // MatParser's parseMatrix has read the flag that says complex, and its numeric arm had
-        // no bytes to read an {re, im} pair from, so `value` is null. It is built as the real
-        // variable cut at the same point is, by the arms below, since there is nothing complex
-        // to show. Read here, the null was taken for a pair, and its `.re` refused the whole
-        // model whose workspace part was cut there, which the maintainer's ruling of
-        // 2026-10-16 on C-232 rules out. A class MatParser does not model ('unknown': a flags
-        // word overwritten, say) is not such a cut, since no arm read it, and keeps failing
-        // here, which a binary dictionary shows as its value not decoded.
+        // A numeric variable that declares elements and holds none: its bytes end before its real
+        // part's tag, after its name, or inside its array flags, dimensions or name once the flags
+        // byte is read. MatParser's numeric arm had no bytes to read and left `value` null, which
+        // says no payload was there at all. Built by the arms below, that null was taken for the
+        // value: a 1x1 showed `null` and a 2x3 `[null]`, each with an editor for a value nothing
+        // read, and a complex one refused the whole model whose workspace part was cut there,
+        // until #116 built it as the real one. The maintainer's ruling of 2026-10-16 (group E,
+        // theme 1: warn and show what was read) makes it what every value the reader did not
+        // decode is (_createUndecoded): one row, with no editor and no element rows, its class and
+        // size, which are what was read, spelled as MatParser spells its own placeholder. Its
+        // copy is the element it was read from, where it has one (_matStream). A .mat file says
+        // why (MatParser's collectUndecoded); a model workspace does not (the C-232 ruling).
+        //
+        // A class MatParser does not model ('unknown': a flags word overwritten, say) is not this,
+        // since no arm read it. It keeps the null a real one shows, and a complex one fails in the
+        // complex arm below. What holds it catches that and shows it not decoded: a binary
+        // dictionary the whole value (parseEncoded), and a model workspace or a .mat the whole
+        // variable (ModelSectionNode.addWorkspaceEntry, MatNode.fromParsed).
+        if (variable.value === null && totalElements > 0 && variable.className !== 'unknown') {
+            return MatlabVariableNode.createNotDecoded(variable, name, parent, variable.isLogical ? 'logical' : variable.className);
+        }
+        // What is left of a complex variable with no value declares no element, or a count that is
+        // no size (a negative dimension): it is built as the real one is, by the arms below, since
+        // there is no {re, im} pair to read. Read here, the null was taken for a pair, and its
+        // `.re` refused the whole file (#116).
         const cutBeforeItsElements = variable.value === null && variable.className !== 'unknown';
         if (variable.isComplex && !cutBeforeItsElements) {
             const arr = Array.isArray(variable.value) ? variable.value : [variable.value];
@@ -3750,11 +3782,12 @@ export default class MatlabVariableNode extends DataNode {
         }
         try {
             // The six-bit text is a MAT stream (MatParser.decodeMatStream reads it, as it reads
-            // every venue's); one that is not shows as the char it is, below.
+            // every venue's); one that does not decode shows as the char it is
+            // (_createUndecodableCdata).
             const bytes = uudecode(valStr);
             const stream = decodeMatStream(bytes);
             if (!stream.ok) {
-                throw new Error('cdata is not a MAT stream: ' + stream.reason);
+                return MatlabVariableNode._createUndecodableCdata(rawVal, name, parent, stream.reason);
             }
             const variable = stream.variable;
             if (holdsMcosObject(variable)) {
@@ -3776,15 +3809,33 @@ export default class MatlabVariableNode extends DataNode {
             node._keepStreamElement(bytes);
             return node;
         }
-        catch (_e) {
-            const node = new MatlabVariableNode(name, parent, rawVal);
-            node._rawInput = rawVal;
-            node._kind = 'scalar';
-            node._dims = [1, 1];
-            node._scalarType = 'char';
-            node._scalarValue = valStr;
-            return node;
+        catch (e) {
+            // Framed right, and the bytes say something the readers or the node builders cannot
+            // make sense of: what parseEncoded's catch says of the same bytes as hex.
+            const reason = 'its MAT stream did not decode (' + (e instanceof Error ? e.message : String(e)) + ')';
+            return MatlabVariableNode._createUndecodableCdata(rawVal, name, parent, reason);
         }
+    }
+    /**
+     * A text dictionary's MAT stream that does not decode (`reason`), shown as the char of its
+     * six-bit text and written back as it was read, by replaying `_rawInput`.
+     *
+     * It is still a MAT stream, so it is display-only, as every value read from one is
+     * (_readFromStream, the C-012 ruling): an edit would have saved what was typed in place of
+     * the stream. And it says so, for the dictionary's warnings, as a binary dictionary's hex of
+     * the same bytes does (EncodedValue.recordDecodeFailure, which SlddNode.parse collects for
+     * the entry). It used to be shown with no warning, and it took edits.
+     */
+    static _createUndecodableCdata(rawVal, name, parent, reason) {
+        recordDecodeFailure(reason, 'its encoded text');
+        const node = new MatlabVariableNode(name, parent, rawVal);
+        node._rawInput = rawVal;
+        node._kind = 'scalar';
+        node._dims = [1, 1];
+        node._scalarType = 'char';
+        node._scalarValue = rawVal._value;
+        node._readFromStream = true;
+        return node;
     }
     /**
      * A text dictionary's MAT stream holding an MCOS object anywhere in it, decoded with the

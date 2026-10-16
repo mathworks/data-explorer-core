@@ -119,6 +119,37 @@ export function emptyCatalogBag(): Record<string, string> {
 // So an empty catalog is a dictionary with nothing to classify, not a damaged one, and
 // a banner over it claims a loss the user cannot act on and that MATLAB does not report.
 
+/**
+ * The names of the definitions a catalog lists with no type, interfaces first, each once.
+ *
+ * Unlike an empty catalog, this IS damage: the file lists the definition, and the record
+ * that says what models it lost its type. Such a definition classifies nothing, so its
+ * entry's Kind is its Simulink class's, and for a `Simulink.Bus` that is a wrong answer
+ * that looks exactly like a right one (a struct type reads as a Data Interface). Both
+ * readers record it as the empty string rather than dropping it (the text reader: no
+ * `type`, or one that is not a string; the binary reader: no `type` attribute), and this
+ * is what lets the dictionary reader warn about each from ONE place, so that the two
+ * formats say the same thing about the same damage.
+ *
+ * Only the empty type. A type that is there but outside `SC_TYPE_TO_CLASSIFICATION` may
+ * be a newer release's, which is not damage this reader can see. Own keys only, as for
+ * `classificationOf`: a host's bag may have a prototype.
+ */
+export function untypedDefinitions(catalog: SystemComposerCatalog | null | undefined): string[] {
+    const names = new Set<string>();
+    if (catalog) {
+        [catalog.interfaces, catalog.modeledDataTypes].forEach((bag) => {
+            Object.keys(bag).forEach((name) => {
+                const type: unknown = bag[name];
+                if (typeof type !== 'string' || type === '') {
+                    names.add(name);
+                }
+            });
+        });
+    }
+    return [...names];
+}
+
 // The two container keys a definition can be listed under. Scoping by KEY, not by
 // type, is what keeps the catalog to actual definitions: a nested
 // `p_OwnedDataInterface` is a ValueTypeInterface too, and the TypeCatalog's

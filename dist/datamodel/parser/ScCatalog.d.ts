@@ -12,6 +12,23 @@ export declare function classificationOf(catalog: SystemComposerCatalog | null |
  * `Object.prototype`'s setter, which drops a string without a word.
  */
 export declare function emptyCatalogBag(): Record<string, string>;
+/**
+ * The names of the definitions a catalog lists with no type, interfaces first, each once.
+ *
+ * Unlike an empty catalog, this IS damage: the file lists the definition, and the record
+ * that says what models it lost its type. Such a definition classifies nothing, so its
+ * entry's Kind is its Simulink class's, and for a `Simulink.Bus` that is a wrong answer
+ * that looks exactly like a right one (a struct type reads as a Data Interface). Both
+ * readers record it as the empty string rather than dropping it (the text reader: no
+ * `type`, or one that is not a string; the binary reader: no `type` attribute), and this
+ * is what lets the dictionary reader warn about each from ONE place, so that the two
+ * formats say the same thing about the same damage.
+ *
+ * Only the empty type. A type that is there but outside `SC_TYPE_TO_CLASSIFICATION` may
+ * be a newer release's, which is not damage this reader can see. Own keys only, as for
+ * `classificationOf`: a host's bag may have a prototype.
+ */
+export declare function untypedDefinitions(catalog: SystemComposerCatalog | null | undefined): string[];
 /** Where a name is written in the source text, as a half-open span. */
 export interface ScNameSite {
     start: number;

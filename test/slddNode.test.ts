@@ -25,9 +25,9 @@
 // The catalog case is the one with teeth. The catalog is what tells a StructType from a
 // DataInterface — both are a `Simulink.Bus` on disk — so a record that is present but
 // unusable does not produce a visible error, it produces a WRONG Kind that looks exactly
-// like a right one. That degradation is pinned here deliberately, so that a change to
-// how partial records are handled shows up as a failing test naming the entry it
-// mislabels rather than as a quietly reclassified dictionary.
+// like a right one. So the degradation is pinned here, and so is the `part-unreadable`
+// warning that names the definition whose type was lost: the Kind is shown as read, and
+// the warning is what tells it from a right one.
 //
 // Related: parseWarnings.test.ts owns the diagnostics a short dictionary raises
 // (`source-empty`, `part-unreadable`); scCatalog.test.ts owns the equality of the two
@@ -248,13 +248,14 @@ describe('a System Composer catalog whose records arrived incomplete', () => {
     expect(kindsOf(node)).toEqual(PRISTINE_KINDS);
   });
 
-  it("degrades a definition whose record lost its type to the entry's raw Simulink class", () => {
-    // The nastiest partial in the reader, pinned rather than fixed. `StructType` is a
-    // `Simulink.Bus` and reads as a struct type ONLY because the catalog says
-    // StructDataType; with the type gone it reads as a Data Interface — the same thing
-    // the Bus beside it reads, which is a wrong answer that looks exactly like a right
-    // one. It is recorded as the empty string, not dropped, so the catalog still shows
-    // the file listed the definition.
+  it("degrades a definition whose record lost its type to the entry's raw Simulink class, and warns", () => {
+    // The nastiest partial in the reader. `StructType` is a `Simulink.Bus` and reads as a
+    // struct type ONLY because the catalog says StructDataType; with the type gone it
+    // reads as a Data Interface — the same thing the Bus beside it reads, which is a
+    // wrong answer that looks exactly like a right one. What was read is still shown: the
+    // Kind is the class's, and the definition is recorded as the empty string, not
+    // dropped, so the catalog still shows the file listed it. What tells it from a right
+    // answer is one `part-unreadable` warning per definition, naming it.
     const { node, warnings } = archWithCatalog((records) => {
       const modeled = modeledOf(records).p_ModeledDataTypes as Rec[];
       delete modeled.find((d) => (d.content as Rec)?.p_Name === 'StructType')!.type;
@@ -272,6 +273,45 @@ describe('a System Composer catalog whose records arrived incomplete', () => {
       EnumType: 'Enumerated Type',
       AliasType: 'Alias Type',
     });
+    expect(warnings.map((w) => w.code)).toEqual(['part-unreadable', 'part-unreadable']);
+    expect(warnings.map((w) => w.part).sort()).toEqual(['DataInterface', 'StructType']);
+    for (const w of warnings) {
+      expect(w.message).toContain(`"${w.part}"`);
+      expect(w.message).toContain('no type');
+    }
+  });
+
+  it('warns about a type that is not a string as about a missing one, and records it as empty', () => {
+    // A record is JSON, so its `type` can be any JSON value. A number classifies nothing,
+    // exactly as a missing type does, so it is recorded and warned about the same way
+    // rather than kept in a catalog whose values are strings.
+    const { node, warnings } = archWithCatalog((records) => {
+      const modeled = modeledOf(records).p_ModeledDataTypes as Rec[];
+      modeled.find((d) => (d.content as Rec)?.p_Name === 'StructType')!.type = 42;
+    });
+
+    expect(node.systemComposer!.modeledDataTypes.StructType).toBe('');
+    expect(kindsOf(node)).toEqual({ ...PRISTINE_KINDS, StructType: 'Data Interface' });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ code: 'part-unreadable', part: 'StructType' });
+  });
+
+  it('says nothing about a type it does not recognise, which may be a newer release\'s', () => {
+    // The boundary of the warning: a type string that is THERE but outside the type map
+    // is not damage the reader can see, so it is recorded as read and stays quiet.
+    const { node, warnings } = archWithCatalog((records) => {
+      const modeled = modeledOf(records).p_ModeledDataTypes as Rec[];
+      modeled.find((d) => (d.content as Rec)?.p_Name === 'StructType')!.type = 'systemcomposer.property.FutureType';
+    });
+
+    expect(node.systemComposer!.modeledDataTypes.StructType).toBe('systemcomposer.property.FutureType');
+    expect(kindsOf(node).StructType).toBe('Data Interface');
+    expect(warnings).toEqual([]);
+  });
+
+  it('says nothing about a pristine catalog', () => {
+    const warnings: ParseWarning[] = [];
+    SlddNode.parse(jsonFixture('arch.sldd'), 'arch.sldd', warnings);
     expect(warnings).toEqual([]);
   });
 });
