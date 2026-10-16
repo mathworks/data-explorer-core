@@ -385,7 +385,10 @@ export default class StructNode extends DataNode {
                     _fields: fields,
                     _mw_element_type: rawVal._mw_element_type
                 };
-                const elemNode = new StructNode(String(ei), node, elemSerial);
+                // Named by its 1-based slot, as every element of every flavour is
+                // (BaseNode._slotAmongSiblings), so its id is the one a text dictionary's
+                // cdata and a .mat file give the same element.
+                const elemNode = new StructNode(String(ei + 1), node, elemSerial);
                 elemNode._isElementNode = true;
                 // Same answer as the array root's, so the two cannot come to disagree about
                 // it. An element serializes through serializeElement and so never emits

@@ -476,7 +476,7 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     // shows its Value's summary and has no Value row, its Value having no row to show, and a
     // copy of it carries the Value as its stream.
     const arr = paramOpened(BIG);
-    expect(shown(arr.children[2])).toEqual(['2', '<10000x10000 struct>', 0]);
+    expect(shown(arr.children[2])).toEqual(['3', '<10000x10000 struct>', 0]);
     const copiedValue = (copyOf(arr) as any)._elements[2]._properties.Value;
     expect([copiedValue._type, decodedOf(copiedValue)]).toEqual(['cdata', ['struct', BIG, {}]]);
 
@@ -484,7 +484,7 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     // declared-size guard records as not decoded. Laid out a bag at a time it ran the heap out
     // the same way, past the guard.
     const guarded = paramOpened([1, 2_000_000], 5);
-    expect(shown(guarded.children[2])).toEqual(['2', '<1x2000000 struct, not decoded>', 0]);
+    expect(shown(guarded.children[2])).toEqual(['3', '<1x2000000 struct, not decoded>', 0]);
   });
 
   it('in a binary dictionary\'s hex object, opens as its summary and is written back as read', () => {
@@ -513,7 +513,7 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     // row per element.
     const atCap = paramOpened([1, MAX]);
     expect([shown(atCap.children[2]), shown(atCap.children[2].children[0])]).toEqual([
-      ['2', `<1x${MAX} struct>`, 1],
+      ['3', `<1x${MAX} struct>`, 1],
       ['Value', `<1x${MAX} struct>`, MAX],
     ]);
     expect(atCap.children[2].children[0]).toBeInstanceOf(StructNode);
@@ -522,11 +522,11 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     const value = paramValue([1, MAX + 1]);
     expect([value._type, value._type === 'cdata' && decodedOf(value)]).toEqual(['cdata', ['struct', [1, MAX + 1], {}]]);
     const past = paramOpened([1, MAX + 1]);
-    expect(shown(past.children[2])).toEqual(['2', `<1x${MAX + 1} struct>`, 0]);
+    expect(shown(past.children[2])).toEqual(['3', `<1x${MAX + 1} struct>`, 0]);
     const copiedValue = (copyOf(past) as any)._elements[2]._properties.Value;
     expect([copiedValue._type, decodedOf(copiedValue)]).toEqual(['cdata', ['struct', [1, MAX + 1], {}]]);
     // The size that ran the heap out, asked last.
-    expect(shown(paramOpened([1, 1_000_000]).children[2])).toEqual(['2', '<1x1000000 struct>', 0]);
+    expect(shown(paramOpened([1, 1_000_000]).children[2])).toEqual(['3', '<1x1000000 struct>', 0]);
   });
 
   it('in a binary dictionary\'s hex object, is handed over as its stream wherever the .mat route has no rows for it', () => {

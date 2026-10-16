@@ -300,10 +300,12 @@ export default class BaseNode {
     // has to be, and it decides which by CHECKING.
     //
     // An element's `name` already is its 1-based slot: every builder stamps String(i+1),
-    // and _buildArrayChildren is now the only one that does. So the slot can be read
-    // instead of searched. But `name` is data — nothing reindexes it when children are
-    // reordered — so a derived index is a guess until the slot it names is confirmed to
-    // hold THIS node. Confirmed, it is the answer; unconfirmed, the scan still is.
+    // MatlabVariableNode's, StructNode's and ObjectNode's alike, and a sparse array names
+    // its rows by their ordinals among its nonzeros (test/elementNameBase.test.ts holds
+    // all of them to it). So the slot can be read instead of searched. But `name` is
+    // data — nothing reindexes it when children are reordered — so a derived index is a
+    // guess until the slot it names is confirmed to hold THIS node. Confirmed, it is the
+    // answer; unconfirmed, the scan still is.
     //
     // This replaced a bare `children.indexOf(this)`, which is O(n) per element and so
     // O(n^2) per array. Measured on the 1000x1000 double that prompted this: 1.5 us at
