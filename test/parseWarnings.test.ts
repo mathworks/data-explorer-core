@@ -648,10 +648,11 @@ describe('a .slx zip holding no Simulink parts opens with every section present 
 function mdlWithoutPart(part: string): ArrayBuffer {
   const text = latin1Text(MDL_MODERN);
   // A binary part's header line goes on to name its encoding (` BASE64`), so the
-  // header is matched up to the part name and the separator after it.
-  const header = new RegExp(`\\n__MWOPC_PART_BEGIN__ /${part.replace(/[.]/g, '\\.')}[ \\n]`).exec(text);
-  expect(header).not.toBeNull(); // the fixture really holds this part
-  const at = header!.index;
+  // header is the part name followed by either separator.
+  const at = [' ', '\n']
+    .map((separator) => text.indexOf(`\n__MWOPC_PART_BEGIN__ /${part}${separator}`))
+    .reduce((found, i) => (found < 0 ? i : found));
+  expect(at).toBeGreaterThan(0); // the fixture really holds this part
   const nextPart = text.indexOf('\n__MWOPC_PART_BEGIN__', at + 1);
   const packageEnd = text.indexOf('\n__MWOPC_PACKAGE_END__', at + 1);
   const stop = nextPart < 0 ? packageEnd : packageEnd < 0 ? nextPart : Math.min(nextPart, packageEnd);
