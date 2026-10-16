@@ -673,7 +673,7 @@ export function scXmlWithRenames(xml, renames, functionRenames = new Map()) {
         });
     }
     if (functionRenames.size > 0) {
-        edits.push(...functionRenameEdits(xml, scanScXmlFunctions(xml), functionRenames));
+        edits.push(...scFunctionRenameEdits(xml, scanScXmlFunctions(xml), functionRenames));
     }
     return edits.length === 0 ? xml : applyScEdits(xml, edits);
 }
@@ -702,7 +702,7 @@ export function scJsonTextWithRenames(text, renames, functionRenames = new Map()
         });
     }
     if (functionRenames.size > 0) {
-        edits.push(...functionRenameEdits(text, scanScJsonFunctions(text), functionRenames));
+        edits.push(...scFunctionRenameEdits(text, scanScJsonFunctions(text), functionRenames));
     }
     return edits.length === 0 ? text : applyScEdits(text, edits);
 }
@@ -795,10 +795,18 @@ export function renamedPrototype(prototype, from, to) {
     }
     return m[1] + to + m[3];
 }
-// The edits that carry the function renames into a catalog part: each renamed function's
-// `p_Name`, and its `p_FunctionPrototype` where that declares the function by the name in the
-// file. A Prototype in another form keeps its text; the name still moves.
-function functionRenameEdits(text, fns, renames) {
+/**
+ * The edits that carry the function renames into a catalog part: each renamed function's
+ * `p_Name`, and its `p_FunctionPrototype` where that declares the function by the name in the
+ * file. A Prototype in another form keeps its text; the name still moves.
+ *
+ * `text` is the text `fns` was scanned from (`scanScJsonFunctions` for a textual dictionary's
+ * whole JSON, `scanScXmlFunctions` for a binary one's catalog member), and `renames` is keyed
+ * by the names that text spells: interface name -> (function name -> new name). The edits are
+ * spans of that text, for `applyScEdits`. What both save writers apply; public, like
+ * `scRenameEdits`, for a host that edits its open document in place.
+ */
+export function scFunctionRenameEdits(text, fns, renames) {
     const edits = [];
     fns.forEach((fn) => {
         const now = renames.get(fn.interfaceName)?.get(fn.name);
@@ -815,10 +823,13 @@ function functionRenameEdits(text, fns, renames) {
     });
     return edits;
 }
-// The functions of every service interface definition in a compressed-binary dictionary's
-// catalog member: the same tag walk as `scanScXml`, reading a definition's direct-child
-// `p_FunctionElements` and, in each, its own direct-child `p_Name` and `p_FunctionPrototype`.
-function scanScXmlFunctions(xml) {
+/**
+ * The functions of every service interface definition in a compressed-binary dictionary's
+ * catalog member: the same tag walk as `scanScXml`, reading a definition's direct-child
+ * `p_FunctionElements` and, in each, its own direct-child `p_Name` and `p_FunctionPrototype`.
+ * Empty for a member with no service interface.
+ */
+export function scanScXmlFunctions(xml) {
     const fns = [];
     const stack = [];
     const tags = new XmlTagScanner(xml);
@@ -860,10 +871,14 @@ function scanScXmlFunctions(xml) {
     }
     return fns;
 }
-// The same, in an uncompressed-text dictionary's whole JSON text: each interface definition's
-// `content.p_FunctionElements`, and in each function its `content.p_Name` and
-// `content.p_FunctionPrototype`.
-function scanScJsonFunctions(text) {
+/**
+ * The functions of every service interface definition in an uncompressed-text dictionary's
+ * whole JSON text, the text twin of `scanScXmlFunctions`: each interface definition's
+ * `content.p_FunctionElements`, and in each function its `content.p_Name` and
+ * `content.p_FunctionPrototype`. Empty for a dictionary with no service interface in its
+ * interface dictionary part, or with no such part.
+ */
+export function scanScJsonFunctions(text) {
     const region = scPartRegion(text);
     if (!region) {
         return [];

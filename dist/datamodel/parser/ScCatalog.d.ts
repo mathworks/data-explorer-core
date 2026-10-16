@@ -165,6 +165,20 @@ export declare function scXmlWithRenames(xml: string, renames: ReadonlyMap<strin
  * of two names lands as a swap.
  */
 export declare function scJsonTextWithRenames(text: string, renames: ReadonlyMap<string, string>, functionRenames?: CatalogFunctionRenames): string;
+/** One function of a service interface definition, as the source text spells it. */
+export interface ScFunction {
+    /** The interface's name in the source text. */
+    interfaceName: string;
+    /** The function's name in the source text: the text at `nameSite`. */
+    name: string;
+    /** Where the function's own `p_Name` value is written. */
+    nameSite: ScNameSite;
+    /**
+     * Where the function's own `p_FunctionPrototype` value is written. Null when the function
+     * has no Prototype text to rename.
+     */
+    prototypeSite: ScNameSite | null;
+}
 /**
  * Every function of the catalog renamed since it was read: interface name in the file ->
  * (function name in the file -> function name now). The interface is keyed by its name in
@@ -191,4 +205,31 @@ export declare function catalogFunctionRenames(catalog: SystemComposerCatalog | 
  * setter follows (Simulink.FunctionElement.md), shared by the node and the catalog's copy.
  */
 export declare function renamedPrototype(prototype: unknown, from: string, to: string): string | null;
+/**
+ * The edits that carry the function renames into a catalog part: each renamed function's
+ * `p_Name`, and its `p_FunctionPrototype` where that declares the function by the name in the
+ * file. A Prototype in another form keeps its text; the name still moves.
+ *
+ * `text` is the text `fns` was scanned from (`scanScJsonFunctions` for a textual dictionary's
+ * whole JSON, `scanScXmlFunctions` for a binary one's catalog member), and `renames` is keyed
+ * by the names that text spells: interface name -> (function name -> new name). The edits are
+ * spans of that text, for `applyScEdits`. What both save writers apply; public, like
+ * `scRenameEdits`, for a host that edits its open document in place.
+ */
+export declare function scFunctionRenameEdits(text: string, fns: ScFunction[], renames: CatalogFunctionRenames): ScTextEdit[];
+/**
+ * The functions of every service interface definition in a compressed-binary dictionary's
+ * catalog member: the same tag walk as `scanScXml`, reading a definition's direct-child
+ * `p_FunctionElements` and, in each, its own direct-child `p_Name` and `p_FunctionPrototype`.
+ * Empty for a member with no service interface.
+ */
+export declare function scanScXmlFunctions(xml: string): ScFunction[];
+/**
+ * The functions of every service interface definition in an uncompressed-text dictionary's
+ * whole JSON text, the text twin of `scanScXmlFunctions`: each interface definition's
+ * `content.p_FunctionElements`, and in each function its `content.p_Name` and
+ * `content.p_FunctionPrototype`. Empty for a dictionary with no service interface in its
+ * interface dictionary part, or with no such part.
+ */
+export declare function scanScJsonFunctions(text: string): ScFunction[];
 //# sourceMappingURL=ScCatalog.d.ts.map

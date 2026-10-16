@@ -35,11 +35,18 @@ import {
   applyScEdits,
   catalogFromDefinitions,
   classificationOf,
+  scFunctionRenameEdits,
   scRenameEdits,
+  scanScJsonFunctions,
   scanScJsonText,
   scanScXml,
+  scanScXmlFunctions,
   SC_PART_XML,
 } from '../src/index.js';
+import type { CatalogFunctionRenames, ScFunction } from '../src/index.js';
+// The session's save writers, which the barrel's function-rename scan and edits are tied to.
+// Not on the barrel: a host that saves through the session never calls them.
+import { scJsonTextWithRenames, scXmlWithRenames } from '../src/datamodel/parser/ScCatalog.js';
 
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 const textAt = (name: string) => readFileSync(fixture(name), 'utf8');
@@ -341,6 +348,185 @@ describe('carrying a rename into the catalog', () => {
     expect(binarySldd.systemComposer).toEqual(jsonSldd.systemComposer);
     expect(kindsOf(binarySldd)).toEqual(kindsOf(jsonSldd));
     expect(kindsOf(binarySldd).Bus1).toBe('Data Interface');
+  });
+});
+
+// A FunctionElement rename has a catalog copy to carry too: a ServiceInterface definition
+// keeps its own `p_FunctionElements`, each spelling the function's `p_Name` and
+// `p_FunctionPrototype` (#109). The session's save carries it from the rename record it
+// keeps. A host that edits its open document in place instead (vscode's two editors) never
+// reads that record: it carries each rename itself, at the time of the edit, so it needs the
+// scan and the edits the save writers apply. These pin that API through the barrel, in both
+// formats, and tie it to what the save writes.
+describe('a host carries a function rename with the barrel', () => {
+  /** `text` with each [from, to] replaced, each `from` asserted to occur exactly once. */
+  const replacedOnce = (text: string, pairs: [string, string][]): string =>
+    pairs.reduce((t, [from, to]) => {
+      expect(t.split(from), from).toHaveLength(2);
+      return t.replace(from, to);
+    }, text);
+  const renamesOf = (interfaceName: string, pairs: [string, string][]): CatalogFunctionRenames =>
+    new Map([[interfaceName, new Map(pairs)]]);
+  /** Each function as [interface, name, the text at its name site, the text at its Prototype site]. */
+  const spelled = (text: string, fns: ScFunction[]): (string | null)[][] =>
+    fns.map((fn) => [
+      fn.interfaceName,
+      fn.name,
+      text.slice(fn.nameSite.start, fn.nameSite.end),
+      fn.prototypeSite && text.slice(fn.prototypeSite.start, fn.prototypeSite.end),
+    ]);
+
+  // The catalog member of a compressed-binary dictionary with a service interface, copied from
+  // functionElementRename.test.ts: the shape of the corpus's one binary dictionary that has one
+  // (example/dd1.sldd, R2027a). A ServiceInterface with f and g, where g has an argument named
+  // g, beside a data interface named f.
+  const FN_XML = (name: string, prototype: string, args: string[]) =>
+    `\n        <p_FunctionElements type="systemcomposer.architecture.model.swarch.FunctionElement" uuid="fe-${name}">${args.map((a) =>
+      `\n          <p_FunctionArguments type="systemcomposer.architecture.model.swarch.FunctionArgument" uuid="fa-${name}-${a}">\n            <p_Name>${a}</p_Name>\n          </p_FunctionArguments>`).join('')}
+          <p_FunctionPrototype>${prototype}</p_FunctionPrototype>
+          <p_Index>1</p_Index>
+          <p_Name>${name}</p_Name>
+        </p_FunctionElements>`;
+  const SC_XML = `<?xml version="1.0"?>
+<MF0 packageUris="http://schema.mathworks.com/mf0/systemcomposer_architecture_model/3.21">
+  <systemcomposer.architecture.model.SystemComposerModel type="systemcomposer.architecture.model.SystemComposerModel" uuid="m">
+    <p_Name>svc</p_Name>
+    <p_PortInterfaceCatalog type="systemcomposer.architecture.model.interface.InterfaceCatalog" uuid="c">
+      <p_Interfaces type="systemcomposer.architecture.model.interface.CompositeDataInterface" uuid="d">
+        <p_Name>f</p_Name>
+      </p_Interfaces>
+      <p_Interfaces type="systemcomposer.architecture.model.swarch.ServiceInterface" uuid="s">${FN_XML('f', 'y = f(u)', ['u', 'y'])}${FN_XML('g', '[a,b] = g(g)', ['g', 'a', 'b'])}
+        <p_Name>ServiceInterface</p_Name>
+      </p_Interfaces>
+    </p_PortInterfaceCatalog>
+  </systemcomposer.architecture.model.SystemComposerModel>
+</MF0>
+`;
+  // arch.sldd's catalog sites for its ServiceInterface's function f, and SC_XML's for f.
+  const TEXT_F_PROTOTYPE = '"p_FunctionPrototype": "y = f(u,v)",';
+  const TEXT_F_NAME = '"p_Name": "f",';
+  const XML_F_PROTOTYPE = '<p_FunctionPrototype>y = f(u)</p_FunctionPrototype>';
+  const XML_F_NAME = '<p_Name>f</p_Name>\n        </p_FunctionElements>';
+
+  it('text: lists the functions the catalog has, and renames one at its two catalog sites', () => {
+    const text = textAt('arch.sldd');
+    const fns = scanScJsonFunctions(text);
+    // f2 was added to the entry without System Composer, so the catalog does not list it.
+    expect(spelled(text, fns)).toEqual([
+      ['ServiceInterface', 'f', 'f', 'y = f(u,v)'],
+      ['ServiceInterface', 'f1', 'f1', 'y = f1(u,v,w,y)'],
+    ]);
+
+    const renames = renamesOf('ServiceInterface', [['f', 'compute']]);
+    const edits = scFunctionRenameEdits(text, fns, renames);
+    expect(edits.map((e) => e.text)).toEqual(['compute', 'y = compute(u,v)']);
+    const carried = applyScEdits(text, edits);
+    expect(carried).toBe(replacedOnce(text, [
+      [TEXT_F_PROTOTYPE, '"p_FunctionPrototype": "y = compute(u,v)",'],
+      [TEXT_F_NAME, '"p_Name": "compute",'],
+    ]));
+    // The data part's FunctionElement is the host's own entry splice, not one of these edits.
+    expect(carried).toContain('"Name": "f",');
+    expect(carried).toContain('"Prototype": "y = f(u,v)"');
+    // What the session's save writes for the same rename.
+    expect(carried).toBe(scJsonTextWithRenames(text, new Map(), renames));
+  });
+
+  it('binary: lists the functions the catalog member has, and renames each at its two sites', () => {
+    const fns = scanScXmlFunctions(SC_XML);
+    // The data interface named f has no functions, and g's argument g is one level deeper
+    // than a function's own p_Name.
+    expect(spelled(SC_XML, fns)).toEqual([
+      ['ServiceInterface', 'f', 'f', 'y = f(u)'],
+      ['ServiceInterface', 'g', 'g', '[a,b] = g(g)'],
+    ]);
+
+    const renames = renamesOf('ServiceInterface', [['f', 'step'], ['g', 'h']]);
+    const carried = applyScEdits(SC_XML, scFunctionRenameEdits(SC_XML, fns, renames));
+    expect(carried).toBe(replacedOnce(SC_XML, [
+      [XML_F_PROTOTYPE, '<p_FunctionPrototype>y = step(u)</p_FunctionPrototype>'],
+      [XML_F_NAME, '<p_Name>step</p_Name>\n        </p_FunctionElements>'],
+      ['<p_FunctionPrototype>[a,b] = g(g)</p_FunctionPrototype>', '<p_FunctionPrototype>[a,b] = h(g)</p_FunctionPrototype>'],
+      ['<p_Name>g</p_Name>\n        </p_FunctionElements>', '<p_Name>h</p_Name>\n        </p_FunctionElements>'],
+    ]));
+    expect(carried).toBe(scXmlWithRenames(SC_XML, new Map(), renames));
+  });
+
+  it('finds no functions in a catalog with no service interface, or in a dictionary with no catalog', () => {
+    const xml = new TextDecoder().decode(
+      unzipSync(new Uint8Array(readFileSync(fixture('arch_binary.sldd'))))[SC_PART_XML],
+    );
+    // A catalog, with definitions, none of them a service interface.
+    expect(scanScXml(xml).length).toBeGreaterThan(0);
+    expect(scanScXmlFunctions(xml)).toEqual([]);
+    expect(scanScJsonFunctions(textAt('arch_binary_as_text.sldd'))).toEqual([]);
+    expect(scanScJsonFunctions(textAt('numeric_json.sldd'))).toEqual([]);
+    expect(scanScXmlFunctions('')).toEqual([]);
+  });
+
+  it('edits nothing for a rename the catalog does not list', () => {
+    const text = textAt('arch.sldd');
+    const fns = scanScJsonFunctions(text);
+    const xmlFns = scanScXmlFunctions(SC_XML);
+    // An interface the catalog does not list, and a function it does not list.
+    expect(scFunctionRenameEdits(text, fns, renamesOf('NoSuchInterface', [['f', 'compute']]))).toEqual([]);
+    expect(scFunctionRenameEdits(text, fns, renamesOf('ServiceInterface', [['f2', 'svc']]))).toEqual([]);
+    // A rename to the name it has, and no rename at all.
+    expect(scFunctionRenameEdits(text, fns, renamesOf('ServiceInterface', [['f', 'f']]))).toEqual([]);
+    expect(scFunctionRenameEdits(text, fns, new Map())).toEqual([]);
+    // A data interface spelled like the function, and a function argument.
+    expect(scFunctionRenameEdits(SC_XML, xmlFns, renamesOf('f', [['f', 'step']]))).toEqual([]);
+    expect(scFunctionRenameEdits(SC_XML, xmlFns, renamesOf('ServiceInterface', [['u', 'x']]))).toEqual([]);
+  });
+
+  // The catalog's Prototype is its own copy, so it can be in a form the rename cannot follow.
+  // Then the function's p_Name still moves and the Prototype keeps its text, as the save does.
+  it('moves the name and keeps the text of a catalog Prototype that cannot follow, in both formats', () => {
+    const renames = renamesOf('ServiceInterface', [['f', 'compute']]);
+    const forms: [string, string, string][] = [
+      ['names another function', 'y = other(u,v)', 'y = other(u)'],
+      ['has trailing text', 'y = f(u,v) % c', 'y = f(u) % c'],
+      ['is empty', '', ''],
+    ];
+    for (const [what, textPrototype, xmlPrototype] of forms) {
+      const text = replacedOnce(textAt('arch.sldd'), [[TEXT_F_PROTOTYPE, `"p_FunctionPrototype": "${textPrototype}",`]]);
+      const textEdits = scFunctionRenameEdits(text, scanScJsonFunctions(text), renames);
+      expect(textEdits.map((e) => e.text), what).toEqual(['compute']);
+      const carriedText = applyScEdits(text, textEdits);
+      expect(carriedText, what).toBe(replacedOnce(text, [[TEXT_F_NAME, '"p_Name": "compute",']]));
+      expect(carriedText, what).toBe(scJsonTextWithRenames(text, new Map(), renames));
+
+      const xml = replacedOnce(SC_XML, [[XML_F_PROTOTYPE, `<p_FunctionPrototype>${xmlPrototype}</p_FunctionPrototype>`]]);
+      const xmlEdits = scFunctionRenameEdits(xml, scanScXmlFunctions(xml), renames);
+      expect(xmlEdits.map((e) => e.text), what).toEqual(['compute']);
+      const carriedXml = applyScEdits(xml, xmlEdits);
+      expect(carriedXml, what).toBe(replacedOnce(xml, [[XML_F_NAME, '<p_Name>compute</p_Name>\n        </p_FunctionElements>']]));
+      expect(carriedXml, what).toBe(scXmlWithRenames(xml, new Map(), renames));
+    }
+  });
+
+  // A host carries each rename into the text as it stands when the rename is made, keyed by
+  // the names that text spells; the save applies the whole record to the text as read, in
+  // one pass. For a chain, a rename back, a swap and an interface rename, the two agree.
+  it('carried one rename at a time, as a host edits, ends where the save does', () => {
+    const text = textAt('arch.sldd');
+    const step = (t: string, interfaceName: string, from: string, to: string): string =>
+      applyScEdits(t, scFunctionRenameEdits(t, scanScJsonFunctions(t), renamesOf(interfaceName, [[from, to]])));
+    const saved = (renames: Map<string, string>, functionRenames: CatalogFunctionRenames): string =>
+      scJsonTextWithRenames(text, renames, functionRenames);
+
+    // A chain saves its last name, and a rename back saves the file as read.
+    expect(step(step(text, 'ServiceInterface', 'f', 'g'), 'ServiceInterface', 'g', 'compute'))
+      .toBe(saved(new Map(), renamesOf('ServiceInterface', [['f', 'compute']])));
+    expect(step(step(text, 'ServiceInterface', 'f', 'g'), 'ServiceInterface', 'g', 'f')).toBe(text);
+    // A swap goes through a temporary name, since a sibling's name is refused.
+    const swapped = step(step(step(text, 'ServiceInterface', 'f', 'tmp'), 'ServiceInterface', 'f1', 'f'), 'ServiceInterface', 'tmp', 'f1');
+    expect(swapped).toBe(saved(new Map(), renamesOf('ServiceInterface', [['f', 'f1'], ['f1', 'f']])));
+    // An interface the host has already renamed in the text is keyed by its new name.
+    const svc = applyScEdits(text, scRenameEdits(scanScJsonText(text), 'ServiceInterface', 'Svc'));
+    expect(step(svc, 'Svc', 'f', 'compute'))
+      .toBe(saved(new Map([['ServiceInterface', 'Svc']]), renamesOf('ServiceInterface', [['f', 'compute']])));
+    expect(step(svc, 'ServiceInterface', 'f', 'compute')).toBe(svc);
   });
 });
 
