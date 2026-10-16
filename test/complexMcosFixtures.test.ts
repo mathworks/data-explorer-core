@@ -148,7 +148,9 @@ function elementsOf(v: ValueTruth, path: string): string[] {
 /** The whole value's own cell: a scalar inline, a matrix in brackets, N-D summarized. */
 function wholeText(v: ValueTruth, elements: string[]): string {
   if (v.numel === 1) return elements[0];
-  if (v.size.length > 2) return `<${v.size.join('x')} ${v.class}>`;
+  // A complex array's summary names it complex, as MATLAB's browser's does (P10 of the
+  // 2026-10-16 list; it said `<2x2x2 double>`).
+  if (v.size.length > 2) return `<${v.size.join('x')} ${v.isreal ? '' : 'complex '}${v.class}>`;
   const [rows, cols] = v.size;
   const lines: string[] = [];
   for (let r = 0; r < rows; r++) {

@@ -1101,7 +1101,8 @@ describe('parseMat — sparse arrays, on MATLAB-authored bytes', () => {
     //     print as literals under the ten-element display budget.
     expect(mat.children.map((c: any) => [c.name, c.className, c.dataType, c.displayValue])).toEqual([
       ['spAlloc', 'double', 'double', '<3x4 sparse double>'],
-      ['spComplex', 'double', 'double', '<2x2 sparse double>'],
+      // Named complex, in MATLAB's browser's word order (P10 of the 2026-10-16 list).
+      ['spComplex', 'double', 'double', '<2x2 sparse complex double>'],
       ['spEmpty', 'double', 'double', '<0x0 sparse double>'],
       ['spLogical', 'logical', 'logical', '<2x2 sparse logical>'],
       ['spNoneZero', 'double', 'double', '<3x4 sparse double>'],

@@ -181,7 +181,8 @@ describe('an N-D value never displays as a 2-D literal', () => {
   });
 
   it('summarizes a 2x3x2 complex double', () => {
-    expect(findEntry(loadFile('../fixtures/nd_complex.sldd'), 'Z').displayValue).toBe('<2x3x2 double>');
+    // Named complex, as MATLAB's browser names it (P10 of the 2026-10-16 list).
+    expect(findEntry(loadFile('../fixtures/nd_complex.sldd'), 'Z').displayValue).toBe('<2x3x2 complex double>');
   });
 });
 

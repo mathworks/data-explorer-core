@@ -347,8 +347,10 @@ re-encodes it.
 
 ### A sparse array shows its summary, and its non-zeros as its rows
 - **Summary, always:** `<10x10 sparse double>`, `<3x3 sparse logical>` — the storage,
-  then the class, and no "complex", as no summary says it
-  (`DisplayConvention.sparseSummaryForm`). At every size, a 1x1 and an empty one
+  then the class, and a complex one's "complex" between them, `<1x2 sparse complex double>`,
+  in MATLAB's browser's word order, as a dense complex array's summary is
+  `<1x11 complex double>` (`DisplayConvention.sparseSummaryForm`; P10 of the 2026-10-16
+  list, where neither said complex). At every size, a 1x1 and an empty one
   included, and inside a cell's literal (`{<1x3 sparse double>, [9 10]}`), and at any
   declared size, `<10000000x2 sparse double>`. It is never a dense literal, which is a
   deliberate departure from MATLAB's struct and cell displays, which print a small one

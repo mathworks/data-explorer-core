@@ -135,7 +135,8 @@ export function classColumnText(className: string, attributes: { complex?: boole
 
 // A sparse array's summary, `<10x10 sparse double>`: the storage, then MATLAB's class()
 // of the value, which is its elements' (double, logical, single — complex is still
-// double, and like every other summary this one does not say complex). It is the only
+// double, and the caller names it, `<1x2 sparse complex double>`, in MATLAB's browser's word
+// order, as a dense complex array's summary is `<1x11 complex double>`). It is the only
 // thing a sparse array's own cell ever shows, at any size, a 1x1 and an empty one
 // included, and inside a cell's literal: MATLAB's struct and cell displays print a small
 // one inline, and this package deliberately does not. The value is one click away, as

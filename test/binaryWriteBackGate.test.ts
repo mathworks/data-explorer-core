@@ -566,7 +566,7 @@ describe('defects 53-55: an array inside a cell keeps its shape, its parts and i
   const DEFECTS: Array<[string, string]> = [
     ['cCplxArr', '{[1+2i 3-4i]}'], // 53, read `{[1 3]}`
     ['cCplxCol', '{[1+2i; 3-4i]}'], //   ... a column, to show the shape is not the trigger
-    ['cCplxNd', '{<2x2x2 double>}'], //   ... and rank 3
+    ['cCplxNd', '{<2x2x2 complex double>}'], //   ... and rank 3, named complex (P10, 2026-10-16)
     ['cStructArr', '{<1x2 struct>}'], // 54, read `{<1x1 struct>}`
     ['cStructArr2D', '{<2x2 struct>}'], //   ... 2-D, so the dims are read and not counted
     ['cObjArr', '{<1x2 Simulink.Parameter>}'], // 55, read `{1}` — the first object alone

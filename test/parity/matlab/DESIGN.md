@@ -64,6 +64,7 @@ can.
 | cell | `{1, 'two', [3 4]}` | |
 | struct | `<1x1 struct>` | always the angle form, regardless of size |
 | over threshold, opaque, unrecoverable | `<mxn class>` | angle brackets **always** |
+| complex, as a summary | `<1x11 complex double>`, `<1x2 sparse complex double>` | the browser's `1×11 complex double` and `1×2 sparse complex double`, word order included; without it nothing on the row said complex (P10 of the 2026-10-16 list) |
 
 **Angle brackets are the italic signal.** Any summary form must use
 `<mxn class>`. Today three different bracket styles are in use, so only some

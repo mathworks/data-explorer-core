@@ -45,7 +45,8 @@ describe('a 1x1 sparse array', () => {
 
   it('complex, is one complex row', () => {
     const node = open([sparseVar({ name: 'c', dimensions: [1, 1], ir: [0], jc: [0, 1], real: [1], imag: [2] })]).children[0];
-    expect([node.displayValue, rows(node)]).toEqual(['<1x1 sparse double>', [['c(1,1)', '1+2i']]]);
+    // Its summary names it complex (P10 of the 2026-10-16 list).
+    expect([node.displayValue, rows(node)]).toEqual(['<1x1 sparse complex double>', [['c(1,1)', '1+2i']]]);
   });
 });
 

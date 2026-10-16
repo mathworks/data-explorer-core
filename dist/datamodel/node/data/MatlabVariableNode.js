@@ -524,10 +524,15 @@ export default class MatlabVariableNode extends DataNode {
         return elementCount(this._dims) === text.length ? this._dims : [1, text.length];
     }
     _formatArray() {
+        // The class a summary names says the array is complex, as MATLAB's browser's does,
+        // `1×11 complex double` and `1×2 sparse complex double`: `<1x11 double>` read as a real
+        // array, though the summary of a sparse one said sparse (P10 of the 2026-10-16 list).
+        // The same test the Class column's `double (complex)` takes.
+        const cls = this._isComplexValue() ? 'complex ' + this.className : this.className;
         // A sparse array is its summary at every size, empty included, and never a dense
         // literal (DisplayConvention.sparseSummaryForm says why); its non-zeros are its rows.
         if (this._sparse) {
-            return sparseSummaryForm(this._dims, this.className);
+            return sparseSummaryForm(this._dims, cls);
         }
         const elems = this._liveElements();
         if (elems.length === 0) {
@@ -538,7 +543,7 @@ export default class MatlabVariableNode extends DataNode {
         // one-line literal should carry. The elements are expandable child rows, so
         // the count rule applies and the user loses nothing: they are one click away.
         if (needsSummary(this._dims)) {
-            return summaryForm(this._dims, this.className);
+            return summaryForm(this._dims, cls);
         }
         const formatted = this._scalarType === 'logical'
             ? elems.map(function (v) {
@@ -548,7 +553,7 @@ export default class MatlabVariableNode extends DataNode {
         const text = formatMatrix(this._dims[0], this._dims[1], formatted);
         // The count rule alone is not a bound on LENGTH: ten 200-character elements
         // are still a 2000-character cell. The char budget is the runaway guard.
-        return overCharBudget(text) ? summaryForm(this._dims, this.className) : text;
+        return overCharBudget(text) ? summaryForm(this._dims, cls) : text;
     }
     // An empty array as MATLAB's Workspace browser shows it (the 2026-10-15 display ruling):
     // `[ ]` for every numeric empty, of any class, shape or complexity, and for an int-backed

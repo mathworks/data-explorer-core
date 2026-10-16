@@ -63,6 +63,15 @@
     "Error": ""
   },
   {
+    "Name": "z_1x11",
+    "Path": "FieldColumns",
+    "Size": "1×11",
+    "Class": "double (complex)",
+    "Value": "1×11 complex double",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
     "Name": "z_single",
     "Path": "FieldColumns",
     "Size": "1×1",

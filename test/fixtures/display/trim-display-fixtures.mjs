@@ -52,10 +52,13 @@ const CELL = ['cell_1', 'cell_of_param'];
 // Text holding a newline, a tab and a NUL. The string is an MCOS object, so the .mat keeps
 // the three chars only.
 const CONTROL = ['c_newline', 'c_tab', 'c_nul', 'str_newline'];
+// A complex row past the element budget, which shows its summary.
+const COMPLEX_SUMMARY = ['z_1x11'];
 
 const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...VECTOR, ...CELL,
-  ...CONTROL]);
-const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY, ...VECTOR, 'cell_1', 'c_newline', 'c_tab', 'c_nul']);
+  ...CONTROL, ...COMPLEX_SUMMARY]);
+const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY, ...VECTOR, 'cell_1', 'c_newline', 'c_tab', 'c_nul',
+  ...COMPLEX_SUMMARY]);
 // A value the text dictionary could not hold: MATLAB saved the 2x2x2 string with a warning, as
 // `"value": null`. Its entry is kept as MATLAB wrote it, but beside dispcat_text.sldd, in
 // dispcat_text.null.json, and not in it: the reader warns that the entry holds no value, and

@@ -433,3 +433,29 @@ describe("a text dictionary's null value is the empty MATLAB reads back, and say
     expect(saved.find((e: any) => e.name === 'str_2x2x2').value).toBeNull();
   });
 });
+
+// P10 of the 2026-10-16 list ("a complex array's summary omits "complex" (`<1x11 double>`),
+// though "sparse" is named"). The host hides the Class column by default and Data Type says
+// `double`, so nothing on z_1x11's row said it was complex. MATLAB's browser shows
+// `1×11 complex double`, and `1×2 sparse complex double` for a sparse one: the summary names
+// complexity, in that word order, in this package's angle form.
+describe("a complex array's summary says complex, as MATLAB's does", () => {
+  const ours = (row: BrowserRow): string => '<' + row.Value.replace(/×/g, 'x') + '>';
+
+  for (const file of ['dispcat.mat', 'dispcat_text.sldd', 'dispcat_bin.sldd']) {
+    it(`${file}: z_1x11 and sp_complex`, () => {
+      const { root } = open(file);
+      for (const name of ['z_1x11', 'sp_complex']) {
+        expect([browser(name).IsSummary, meta(name).isreal], name).toEqual([true, false]);
+        expect([name, entry(root, name).toRow().Value]).toEqual([name, ours(browser(name))]);
+      }
+      expect(ours(browser('z_1x11'))).toBe('<1x11 complex double>');
+      expect(ours(browser('sp_complex'))).toBe('<1x2 sparse complex double>');
+      // A complex scalar sparse array is its summary too, as every sparse array is here (the
+      // kept convention; MATLAB shows the number), and says complex the same way.
+      expect(entry(root, 'sp_complex_scalar').toRow().Value).toBe('<1x1 sparse complex double>');
+      // A real one's summary is unchanged.
+      expect(entry(root, 'sp_vec').toRow().Value).toBe(ours(browser('sp_vec')));
+    });
+  }
+});
