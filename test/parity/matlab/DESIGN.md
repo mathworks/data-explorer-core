@@ -56,7 +56,9 @@ can.
 | array / matrix | `[1 2; 3 4]` | `mat2str` plus a space after `;` — deliberate, reads better |
 | logical | `true` / `false` | scalar and per element |
 | char | `'it''s'` | embedded quote doubled |
+| char holding a control character | `['a' newline 'b']`, `['a' char(9) 'b']` | **not MATLAB's browser**, which draws them raw or drops them (`'ab'`, `'a b'`); a one-line cell cannot show a newline, a tab or a NUL, so 'a<LF>b' read as 'a b'. The concatenation MATLAB evaluates to the value, read back by the parser (P7 of the 2026-10-16 list) |
 | string | `"world"`, `["a" "bb"]` | |
+| string holding a control character | `"a" + newline + "b"` | the same, as a sum; one that starts with a control character starts with `""` |
 | complex | `3+4i` | |
 | cell | `{1, 'two', [3 4]}` | |
 | struct | `<1x1 struct>` | always the angle form, regardless of size |

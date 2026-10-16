@@ -301,7 +301,9 @@ describe('a carriage return MATLAB wrote as &#xD; is a carriage return', () => {
     );
     const cr = entryOf(o.root, 'varStrCR');
     expect(cr._scalarValue).toBe('\r');
-    expect(cr.displayValue).toBe("'\r'");
+    // Shown as the expression that makes it, not as a raw CR between quotes, which a
+    // one-line cell does not draw (P7 of the 2026-10-16 list).
+    expect(cr.displayValue).toBe('[char(13)]');
     const crlf = entryOf(o.root, 'varStrCRLF');
     expect(crlf._scalarValue).toBe('A\nB\rC\n\rD\r\nE\r\rF');
     for (const [how, saved] of writtenBoth(o)) {
@@ -319,7 +321,7 @@ describe('a carriage return MATLAB wrote as &#xD; is a carriage return', () => {
     const widget = entryOf(o.root, 'widget');
     const cr = widget.children.find((c: any) => c.name === 'Cr');
     expect(cr._scalarValue).toBe('a\rb');
-    expect(cr.displayValue).toBe("'a\rb'");
+    expect(cr.displayValue).toBe("['a' char(13) 'b']");
     // Another property edited, so the entry is written from the model whatever a save does
     // with an untouched one.
     expect(widget.children.find((c: any) => c.name === 'Scalar').setProperty('Value', '2.5')).toBe(true);

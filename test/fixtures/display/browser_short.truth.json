@@ -1,5 +1,41 @@
 [
   {
+    "Name": "c_newline",
+    "Path": "FieldColumns",
+    "Size": "1×3",
+    "Class": "char",
+    "Value": "'ab'",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "c_tab",
+    "Path": "FieldColumns",
+    "Size": "1×3",
+    "Class": "char",
+    "Value": "'a\\tb'",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "c_nul",
+    "Path": "FieldColumns",
+    "Size": "1×3",
+    "Class": "char",
+    "Value": "'a b'",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "str_newline",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "string",
+    "Value": "\"a\nb\"",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
     "Name": "str_0x3",
     "Path": "FieldColumns",
     "Size": "0×3",

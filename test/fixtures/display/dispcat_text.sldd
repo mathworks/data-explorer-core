@@ -7,6 +7,39 @@
 			"__MW_TEXT_content": {
 				"entries": [
 					{
+						"name": "c_newline",
+						"metadata": {
+							"uuid": "d500b03f-02e3-4ae7-a440-fa884ee18bfb",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.645059",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": "a\nb"
+					},
+					{
+						"name": "c_nul",
+						"metadata": {
+							"uuid": "e33410d6-354f-48ea-9b2a-83ef3f0ad57c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.645548",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": "a\u0000b"
+					},
+					{
+						"name": "c_tab",
+						"metadata": {
+							"uuid": "a7bec5e2-77e2-4af3-baa2-79a642d893f8",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.645265",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": "a\tb"
+					},
+					{
 						"name": "cell_1",
 						"metadata": {
 							"uuid": "90a76f16-cb40-429f-92ed-0d07fd71a8dc",
@@ -906,6 +939,19 @@
 							"_elements": [],
 							"_mw_element_type": "MATLABArray"
 						}
+					},
+					{
+						"name": "str_newline",
+						"metadata": {
+							"uuid": "3c00509d-b018-4b1f-9458-e6ad3ecd57ce",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.647492",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": [
+							"a\nb"
+						]
 					},
 					{
 						"name": "z_int16",

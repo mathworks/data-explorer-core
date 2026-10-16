@@ -48,9 +48,13 @@ const VECTOR = ['i8_1x10', 'i8_1x11', 'l_1x10', 'l_1x11'];
 // A cell holding a Simulink.Parameter, and one holding the double its Value is. The first
 // holds an MCOS object, so it stays out of the .mat (see above).
 const CELL = ['cell_1', 'cell_of_param'];
+// Text holding a newline, a tab and a NUL. The string is an MCOS object, so the .mat keeps
+// the three chars only.
+const CONTROL = ['c_newline', 'c_tab', 'c_nul', 'str_newline'];
 
-const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...VECTOR, ...CELL]);
-const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY, ...VECTOR, 'cell_1']);
+const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...VECTOR, ...CELL,
+  ...CONTROL]);
+const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY, ...VECTOR, 'cell_1', 'c_newline', 'c_tab', 'c_nul']);
 // The text dictionary's values whose tests read MATLAB's own read-back of that file
 // (truth/files.json: closed, reopened, getValue), kept as text_readback.truth.json.
 const TEXT_READBACK = [...VECTOR];

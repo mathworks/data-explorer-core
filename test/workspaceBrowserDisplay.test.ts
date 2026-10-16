@@ -16,6 +16,7 @@ import { ingest } from '../src/core/ingest.js';
 import { regenerateEntryXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import PropClass from '../src/datamodel/prop/PropClass.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
+import MatlabValueParser from '../src/datamodel/parser/MatlabValueParser.js';
 
 const here = (name: string): string => fileURLToPath(new URL(`./fixtures/display/${name}`, import.meta.url));
 const bytes = (name: string): Uint8Array => new Uint8Array(readFileSync(here(name)));
@@ -335,4 +336,61 @@ describe('a dictionary cell holding an object spells the object, not its Value',
       expect(session.serializeSource(root.name).bytes).toEqual(before);
     });
   }
+});
+
+// P7 of the 2026-10-16 list ("control characters reach the cell raw (`'a<LF>b'` reads as
+// `'a b'`)"). The Value of a char or string holding a newline, a tab or a NUL put the raw
+// character between the quotes, and the host draws a one-line cell (white-space: nowrap), so
+// 'a<LF>b' and 'a<TAB>b' looked like 'a b' and 'a<NUL>b' like 'ab'. MATLAB's browser is lossy
+// too ('ab', 'a\tb', 'a b'). Each is spelled as the concatenation MATLAB evaluates to it, and
+// that text, which seeds the editor, reads back as the value.
+describe('a char or string holding a control character shows it as MATLAB spells one', () => {
+  const SHOWN: Record<string, string> = {
+    c_newline: "['a' newline 'b']",
+    c_tab: "['a' char(9) 'b']",
+    c_nul: "['a' char(0) 'b']",
+    str_newline: '"a" + newline + "b"',
+  };
+  // What MATLAB holds: class() and size(), and the text, from mat2str (a char) or disp (a string).
+  const held = (name: string): string =>
+    meta(name).class === 'char' ? (MatlabValueParser.parse((meta(name) as any).mat2str)!.value as string) : (meta(name) as any).disp;
+
+  for (const file of ['dispcat.mat', 'dispcat_text.sldd', 'dispcat_bin.sldd']) {
+    const names = Object.keys(SHOWN).filter((n) => file !== 'dispcat.mat' || meta(n).class === 'char');
+    it(`${file}: ${names.join(', ')}`, () => {
+      const { root } = open(file);
+      expect(names.map(held)).toEqual(names.map((n) => (n === 'c_tab' ? 'a\tb' : n === 'c_nul' ? 'a\u0000b' : 'a\nb')));
+      for (const name of names) {
+        const node = entry(root, name);
+        const shown = node.toRow().Value;
+        expect([name, node.className, node.dims, shown]).toEqual([name, meta(name).class, meta(name).size, SHOWN[name]]);
+        expect(/[\u0000-\u001f\u007f-\u009f]/.test(shown), name).toBe(false);
+        expect(MatlabValueParser.parse(shown), name).toEqual({ type: meta(name).class, value: held(name) });
+      }
+    });
+  }
+
+  it('the text it shows commits as no edit, and an edit of it is the value edited', () => {
+    for (const file of ['dispcat_text.sldd', 'dispcat_bin.sldd']) {
+      const { session, root } = open(file);
+      for (const name of Object.keys(SHOWN)) {
+        const node = entry(root, name);
+        session.setActive(root, node);
+        expect(session.editProperty(node.id, 'Value', SHOWN[name]), `${file} ${name}`).toBe(true);
+        expect(session.canUndo(), `${file} ${name}`).toBe(false);
+      }
+      const c = entry(root, 'c_newline');
+      session.setActive(root, c);
+      expect(session.editProperty(c.id, 'Value', "['a' newline 'c' char(9)]")).toBe(true);
+      const s = entry(root, 'str_newline');
+      session.setActive(root, s);
+      expect(session.editProperty(s.id, 'Value', '"x" + newline + "y"')).toBe(true);
+      const saved = session.serializeSource(root.name);
+      const again = ingest(createSession(), buffer(saved.bytes ?? new TextEncoder().encode(saved.text)), { filename: file });
+      expect([entry(again, 'c_newline').toRow().Value, entry(again, 'str_newline').toRow().Value], file).toEqual([
+        "['a' newline 'c' char(9)]",
+        '"x" + newline + "y"',
+      ]);
+    }
+  });
 });
