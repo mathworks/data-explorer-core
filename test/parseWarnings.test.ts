@@ -645,6 +645,84 @@ describe('a .slx zip holding no Simulink parts opens with every section present 
   });
 });
 
+describe('only a whole end record counting no entries is read as an empty .slx zip', () => {
+  // A zip with no entries is its 22-byte end-of-central-directory record, then the
+  // archive comment if it has one. The record's signature alone is not one: both zip
+  // readers find a signature at offset 0 and read whatever follows as its counts and
+  // offsets, so bytes that merely began PK\x05\x06 opened as an empty model. They were
+  // refused before, as not a model, and are again.
+  const allEmpty = MODEL_SECTIONS.map((s): [string, number] => [s, 0]);
+  const notAModel = /Not a Simulink model/;
+
+  /** An empty zip with an archive comment, which fflate's writer has no option for. */
+  function emptyZipWithComment(comment: string): ArrayBuffer {
+    const record = new Uint8Array(zipOf({}));
+    const text = strToU8(comment);
+    const out = new Uint8Array(record.length + text.length);
+    out.set(record);
+    out.set(text, record.length);
+    new DataView(out.buffer).setUint16(20, text.length, true); // the comment's length
+    return out.buffer;
+  }
+
+  /** Seeded, so a failure names the same bytes every run. */
+  function garbageAfterSignature(length: number, seed: number): Uint8Array {
+    const out = new Uint8Array(length);
+    let state = seed;
+    for (let i = 0; i < length; i++) {
+      state = (Math.imul(state, 1103515245) + 12345) >>> 0;
+      out[i] = state >>> 24;
+    }
+    out.set([0x50, 0x4b, 0x05, 0x06]);
+    return out;
+  }
+
+  const genuine: [string, () => ArrayBuffer][] = [
+    ['the 22-byte record alone', () => zipOf({})],
+    ['the record and an archive comment', () => emptyZipWithComment('an archive comment')],
+  ];
+  for (const [what, build] of genuine) {
+    it(`an empty zip, ${what}: opens with every section empty and no warning`, () => {
+      const zip = build();
+      expect(zip.byteLength).toBe(what.includes('comment') ? 22 + 'an archive comment'.length : 22);
+      expect(openedModel(zip, 'x.slx')).toEqual({ format: 'slx', sections: allEmpty, warnings: [] });
+      expect(parseModel(zip, 'x.slx').warnings).toEqual([]);
+      expect(scanModelStructure(zip, 'x.slx')).toEqual({
+        dataDictionary: null,
+        modelReferences: [],
+        externalDataSources: [],
+      });
+    });
+  }
+
+  const record = (counts: [number, number]): Uint8Array => {
+    const out = new Uint8Array(zipOf({}));
+    new DataView(out.buffer).setUint16(8, counts[0], true);
+    new DataView(out.buffer).setUint16(10, counts[1], true);
+    return out;
+  };
+  const notEmpty: [string, Uint8Array][] = [
+    ...[22, 23, 100, 4096, 30 * 1024].map((n, i): [string, Uint8Array] => [
+      `${n} bytes of garbage after the signature`,
+      garbageAfterSignature(n, 7 + i),
+    ]),
+    ['an end record counting one entry, without the entry', record([1, 1])],
+    ['an end record counting one entry in all and none on this disk', record([0, 1])],
+    ['an end record counting none in all and one on this disk', record([1, 0])],
+    ['an empty zip cut to 21 bytes', new Uint8Array(zipOf({})).slice(0, 21)],
+  ];
+  for (const [what, bytes] of notEmpty) {
+    it(`${what}: refused as not a model`, () => {
+      const counts = bytes.length >= 12 ? [bytes[8] | (bytes[9] << 8), bytes[10] | (bytes[11] << 8)] : [];
+      expect(bytes.length < 22 || counts.some((c) => c !== 0)).toBe(true); // the case is what it says
+      const buffer = bytes.slice().buffer;
+      expect(() => parseModel(buffer, 'x.slx')).toThrow(notAModel);
+      expect(() => openedModel(buffer, 'x.slx')).toThrow(notAModel);
+      expect(() => scanModelStructure(buffer, 'x.slx')).toThrow(notAModel);
+    });
+  }
+});
+
 /** The modern `.mdl` with one part taken out, its header and its body. */
 function mdlWithoutPart(part: string): ArrayBuffer {
   const text = latin1Text(MDL_MODERN);
