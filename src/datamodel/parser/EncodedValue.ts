@@ -188,6 +188,27 @@ export function takeDecodeFailures(): string[] {
 }
 
 /**
+ * What the MCOS decoder could not read of an object in an encoded value that otherwise
+ * decoded, one message each (mcosTypedNode.attachMcosDecoded), for that dictionary's
+ * warnings — collected as `decodeFailures` are, and by the same reader, SlddNode.parse,
+ * before and after each entry.
+ *
+ * A list of its own because the value is not "not decoded": it is shown, from what was
+ * read, and decodeFailures' message says the opposite.
+ */
+const partialDecodes: string[] = [];
+
+/** Record one message about an encoded value decoded in part (see `partialDecodes`). */
+export function recordPartialDecode(message: string): void {
+  partialDecodes.push(message);
+}
+
+/** The partial decodes recorded since the last call, which clears them. */
+export function takePartialDecodes(): string[] {
+  return partialDecodes.splice(0);
+}
+
+/**
  * The bytes of an encoded value when they are a MAT stream this package can read, every
  * element of it whole — or the reason they are not (MatParser.matStreamFailure, which
  * says why a value has to be whole and a container need not be). This is the hex

@@ -582,7 +582,13 @@ function buildProperties(objId, ctx, path, depth) {
             }
         }
     }
-    // 2) Per-instance overrides, addressed by the object's block index (word4).
+    // 2) Per-instance overrides, addressed by the object's block index (word4). A block the
+    //    reader stopped before is no overrides at all — the class defaults above are what is
+    //    left, which is the honest answer, and it is recorded so that it is not a silent one.
+    //    Block 0 is the empty block by convention, needed by nobody, so it never counts.
+    if (obj.blockIdx !== 0 && !ctx.meta.blocks[obj.blockIdx]) {
+        ctx.unreadBlocks.add(objId);
+    }
     const block = ctx.meta.blocks[obj.blockIdx] || [];
     for (const [nameIdx, flag, value] of block) {
         const name = ctx.meta.strings[nameIdx];
@@ -687,7 +693,12 @@ function stringPayloadWords(objId, ctx) {
     if (!obj || obj.type1Idx === 0)
         return null;
     const block = ctx.meta.type1Blocks[obj.type1Idx];
-    if (!block || block.length !== 1)
+    if (!block) {
+        // A block readBlocks stopped before: the text is in the file and was not read.
+        ctx.unreadText.add(objId);
+        return null;
+    }
+    if (block.length !== 1)
         return null;
     const [nameIdx, flag, value] = block[0];
     // flag 1 is "value is a heap index", as in the type-2 segment.
@@ -836,7 +847,13 @@ function splitClassName(fullClassName) {
 // (the MAT format names only top-level variables), and the same file can hold any
 // number of them. A variable that is absent from the result could not be resolved with
 // confidence — the rules below are the same for a nested object as for a named one.
-export function decodeMcosVariables(anonRawBytes, variables) {
+//
+// `issues`, when given, is told about each variable the bytes say is there and that was not
+// read, or not all of it (McosDecodeIssue): one entry per such variable, keyed as the result
+// is. The decode itself is the same with or without it. Silent, as before, about a blob that
+// does not parse at all, and about a handle that is the null object alone (ids [0]), which is
+// how MATLAB writes a handle that saved no state.
+export function decodeMcosVariables(anonRawBytes, variables, issues) {
     const result = new Map();
     if (!anonRawBytes || anonRawBytes.length === 0 || variables.length === 0)
         return result;
@@ -852,7 +869,7 @@ export function decodeMcosVariables(anonRawBytes, variables) {
     const defaults = lastCell && lastCell.className === 'cell' && Array.isArray(lastCell.value)
         ? lastCell.value
         : [];
-    const ctx = { cells, meta, defaults };
+    const ctx = { cells, meta, defaults, unreadBlocks: new Set(), unreadText: new Set() };
     for (const v of variables) {
         // The parsed handle first: MatParser keeps one for every class-17 element at any
         // depth, and it is the only one a cell element has, since a cell element keeps no
@@ -876,15 +893,39 @@ export function decodeMcosVariables(anonRawBytes, variables) {
         // whole variable rather than surface a partial/guessed array.
         // Integers only: MatParser refuses a fractional id, but a handle can also come from a
         // host's own parse, and an id of 1.5 is in range and names no row.
-        const idsInRange = handle.ids.every((id) => Number.isInteger(id) && id > 0 && id < meta.objects.length);
-        if (!idsInRange)
+        //
+        // Reported, but not for the null object: id 0 fails the check and is how MATLAB writes
+        // a handle that saved no state, so a handle whose only failing ids are 0 is refused in
+        // silence, as it always was. One that also names a row past the table is damage.
+        const outOfRange = handle.ids.filter((id) => !(Number.isInteger(id) && id > 0 && id < meta.objects.length));
+        if (outOfRange.length > 0) {
+            const named = outOfRange.find((id) => id !== 0);
+            if (named !== undefined) {
+                issues?.set(v, {
+                    refused: true,
+                    reason: `its handle names object ${named}, and the object table has ${meta.objects.length} rows`,
+                });
+            }
             continue;
-        const classesMatch = handle.ids.every((id) => {
+        }
+        const mismatched = handle.ids.find((id) => {
             const cls = meta.classes[meta.objects[id].classId];
-            return cls && cls.fullName === v.className;
+            return !cls || cls.fullName !== v.className;
         });
-        if (!classesMatch)
+        if (mismatched !== undefined) {
+            const { classId } = meta.objects[mismatched];
+            const found = meta.classes[classId];
+            issues?.set(v, {
+                refused: true,
+                reason: found
+                    ? `its objects are of class ${found.fullName}, not ${v.className}`
+                    : `its object ${mismatched} names class ${classId}, and the class table has ${meta.classes.length} rows`,
+            });
             continue;
+        }
+        // Per variable, so what an earlier one lost is not counted again here.
+        ctx.unreadBlocks = new Set();
+        ctx.unreadText = new Set();
         const elements = handle.ids.map((id) => buildProperties(id, ctx, new Set(), 0));
         // EVERY extent the handle declares. Keeping only the first two turned MATLAB's
         // 2x3x2 obj2x3x2 into a 2x3 — a shape it never had, over twelve elements whose
@@ -911,6 +952,17 @@ export function decodeMcosVariables(anonRawBytes, variables) {
             value: (elements[0] ?? {}).Value,
             ...(v.className === STRING_CLASS_NAME ? { stringElements: payload?.elements ?? null } : {}),
         });
+        // After the payload read above, which is the last read of this variable's blocks.
+        const lost = [];
+        if (ctx.unreadBlocks.size > 0) {
+            lost.push(`${ctx.unreadBlocks.size} of its objects' property blocks could not be read, so those objects show only their class defaults`);
+        }
+        if (ctx.unreadText.size > 0) {
+            lost.push(`${ctx.unreadText.size} of its strings' text could not be read, so those strings are shown without it`);
+        }
+        if (lost.length > 0) {
+            issues?.set(v, { refused: false, reason: lost.join('; ') });
+        }
     }
     return result;
 }

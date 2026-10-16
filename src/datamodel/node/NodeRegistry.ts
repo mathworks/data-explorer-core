@@ -4,6 +4,7 @@ import type BaseNode from './BaseNode.js';
 import type DataNode from './DataNode.js';
 import type { MatVariable } from '../parser/MatParser.js';
 import type { McosDecoded } from './data/mcosTypedNode.js';
+import type { ParseWarning } from '../parser/ParseWarning.js';
 
 export interface NodeClassMapAPI {
     parseValue(rawVal: unknown, name: string, parent: BaseNode | null): DataNode;
@@ -24,8 +25,15 @@ export interface NodeClassMapAPI {
     // Decode every MCOS object in a parsed MAT stream against the stream's own subsystem
     // (mcosTypedNode.attachMcosDecoded), for a value MatlabVariableNode decodes itself — a
     // binary dictionary's encoded value — rather than a container. Through the registry
-    // for the cycle modelMcosVariable records.
-    attachMcosDecoded(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): void;
+    // for the cycle modelMcosVariable records. `warnings` and `rootPath` are the attach's
+    // own: what the decoder could not read, and the name the stream's unnamed value is
+    // reported under.
+    attachMcosDecoded(
+        blobBytes: Uint8Array | null | undefined,
+        variables: MatVariable[],
+        warnings?: ParseWarning[],
+        rootPath?: string,
+    ): void;
 }
 
 // Anything that can turn a parsed value into a node. This is all the structural
@@ -82,8 +90,13 @@ export function modelMcosVariable(
     return classMap!.modelMcosVariable(variable, decoded, name, parent);
 }
 
-export function attachMcosDecoded(blobBytes: Uint8Array | null | undefined, variables: MatVariable[]): void {
-    classMap!.attachMcosDecoded(blobBytes, variables);
+export function attachMcosDecoded(
+    blobBytes: Uint8Array | null | undefined,
+    variables: MatVariable[],
+    warnings?: ParseWarning[],
+    rootPath?: string,
+): void {
+    classMap!.attachMcosDecoded(blobBytes, variables, warnings, rootPath);
 }
 
 export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded };
