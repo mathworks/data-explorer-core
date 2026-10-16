@@ -52,6 +52,18 @@ jobs:
       - name: Verify
         run: npm run verify
 
+      # A consumer pins the tag and runs its committed dist/, so the tag's dist/ must
+      # be the build of its src/. The same check as ci.yml's step of the same name (see
+      # the comment there). It runs before the Release is created, so a tag whose dist/
+      # is stale never becomes a Release.
+      - name: dist/ is the build of src/
+        run: |
+          rm -rf dist
+          npm run build
+          git status --porcelain --untracked-files=all -- dist
+          git diff --exit-code --stat -- dist
+          test -z "$(git status --porcelain --untracked-files=all -- dist)"
+
       - name: Create GitHub Release
         # A third-party action that holds the write token, pinned to the commit
         # its v3.0.3 tag points at, so a moved tag cannot change what runs here.
