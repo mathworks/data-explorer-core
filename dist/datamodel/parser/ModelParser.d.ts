@@ -6,6 +6,12 @@ import type { ParsedSlx } from './SlxParser.js';
  * Two copies of the magic bytes is two places for the answer to drift, and a scanner
  * that disagreed with `parseModel` about the format would route a file to a reader it
  * is not for.
+ *
+ * A zip with no entries is a package too. It holds no Simulink part, so it opens as a
+ * model whose sections are all empty, as a zip holding only files that are not model
+ * parts already did (the maintainer's ruling of 2026-10-16 on C-223). Tested on the
+ * local header alone, it failed this sniff, reached the classic `.mdl` reader as text,
+ * and was refused there as "Not a Simulink model".
  */
 export declare function isZipPackage(bytes: Uint8Array): boolean;
 /**

@@ -32,6 +32,8 @@ import { fileURLToPath } from 'node:url';
 import { unzipSync, zipSync, strToU8, zlibSync } from 'fflate';
 import { parseSlx } from '../src/datamodel/parser/SlxParser.js';
 import { parseMdl } from '../src/datamodel/parser/MdlParser.js';
+import { parseModel } from '../src/datamodel/parser/ModelParser.js';
+import { scanModelStructure } from '../src/datamodel/parser/ModelStructureScan.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { parseBinarySldd, parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 // Through the public entry point, which is what registers the node classes
@@ -566,6 +568,79 @@ describe('parseMdl — the warnings channel', () => {
     expect(parsed.release).toBe('');
     expect(parsed.uuid).toBe('');
     expect(parsed.dataDictionary).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A model whose part is missing: that part's section, present and empty
+// ---------------------------------------------------------------------------
+
+// The maintainer's ruling of 2026-10-16 on C-223 and C-232: "show empty section if the
+// part is missing". A model opens with the same five sections whatever its package
+// holds. A section whose part is absent is there and empty, the file is not refused, and
+// the absence adds no warning: these cases sit with the silent ones above.
+const MODEL_SECTIONS = ['blocks', 'workspace', 'config', 'references', 'dataSources'];
+
+interface OpenedModel {
+  format: string;
+  sections: [string, number][];
+  warnings: ParseWarning[];
+}
+
+/** A model opened the way a host opens one: its format, each section with its entry count, its warnings. */
+function openedModel(buffer: ArrayBuffer, name: string): OpenedModel {
+  const source = createSession().addModelSource(name, buffer) as unknown as {
+    sourceFormat: string;
+    children: { name: string; children: unknown[] }[];
+    warnings?: ParseWarning[];
+  };
+  return {
+    format: source.sourceFormat,
+    sections: source.children.map((s): [string, number] => [s.name, s.children.length]),
+    warnings: source.warnings ?? [],
+  };
+}
+
+function zipOf(entries: Record<string, Uint8Array>): ArrayBuffer {
+  const zipped = zipSync(entries);
+  return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
+}
+
+describe('a .slx zip holding no Simulink parts opens with every section present and empty', () => {
+  const allEmpty = MODEL_SECTIONS.map((s): [string, number] => [s, 0]);
+  const packages: [string, Record<string, Uint8Array>][] = [
+    // Only its end-of-central-directory record, since there is no entry to begin with.
+    ['a zip with no entries at all', {}],
+    ['a zip holding one file that is not a model part', { 'notes.txt': strToU8('hello') }],
+    ['a zip holding only an empty folder', { 'simulink/': new Uint8Array(0) }],
+    [
+      'an OPC package holding only its own index',
+      { '[Content_Types].xml': strToU8('<Types/>'), '_rels/.rels': strToU8('<Relationships/>') },
+    ],
+    [
+      'a binary dictionary renamed to .slx',
+      { 'metadata/coreProperties.xml': strToU8('<x/>'), 'data/chunk0.xml': strToU8('<DataSource/>') },
+    ],
+  ];
+
+  for (const [what, entries] of packages) {
+    it(`${what}: no refusal and no warning`, () => {
+      const zip = zipOf(entries);
+      expect(openedModel(zip, 'x.slx')).toEqual({ format: 'slx', sections: allEmpty, warnings: [] });
+      expect(parseModel(zip, 'x.slx').warnings).toEqual([]);
+      // The structure scan dispatches on the same sniff, so it opens whatever parseModel opens.
+      expect(scanModelStructure(zip, 'x.slx')).toEqual({
+        dataDictionary: null,
+        modelReferences: [],
+        externalDataSources: [],
+      });
+    });
+  }
+
+  it('reads a zip with no entries as a package whichever extension it carries', () => {
+    // The bytes decide, as for every other model: an empty zip named `.mdl` is the
+    // package form of `.mdl`, not classic text, and opens the same way.
+    expect(openedModel(zipOf({}), 'x.mdl')).toEqual({ format: 'mdl-package', sections: allEmpty, warnings: [] });
   });
 });
 
