@@ -386,7 +386,9 @@ describe('an edit changes the non-zero it names, and the writers write the non-z
   it('spTall, edited, is written from its non-zeros; set to what it holds, as MATLAB wrote it', () => {
     const spTall = textInNoFile('spTall');
     const row = spTall.children[1];
-    expect(row.setProperty('Value', row.displayValue)).toBe(true);
+    // What it holds, in a text other than the one it shows: that text set back is no edit (the
+    // 2026-10-15 evening ruling A3).
+    expect(row.setProperty('Value', `${row.displayValue} `)).toBe(true);
     expect(spTall._rawInput).toBeUndefined();
     expect(JSON.parse(JSON.stringify(spTall.serializeValue()))).toEqual(textRaw('spTall'));
     expect(row.setProperty('Value', '9')).toBe(true);

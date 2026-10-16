@@ -12,6 +12,10 @@ export default class ParameterNode extends DataNode {
     Max: number | undefined;
     Unit: string;
     Description: string;
+    _preCollapseShape: {
+        of: BaseNode;
+        props: Record<string, unknown>;
+    } | null;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>);
     get icon(): string;
     get className(): string;
@@ -20,9 +24,12 @@ export default class ParameterNode extends DataNode {
     get valueEditable(): boolean;
     _refuseStreamValue(stringValue: string): SetPropertyResult | null;
     _refuseValueBelow(node: MatlabVariableNode, parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
+    _refuseStructureBelow(container: DataNode, op: 'add' | 'remove'): string | null;
     _adoptValueNode(rawValue: unknown, edited?: boolean): void;
     static _needsValueRow(valueNode: BaseNode): boolean;
     childStructureChanged(child: BaseNode): void;
+    _collapseShape(valueNode: BaseNode): void;
+    _restoreShape(valueNode: BaseNode): void;
     get isObjectPropertyBag(): boolean;
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;

@@ -6,11 +6,12 @@ import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
-import { budgetFailure, classPhrase, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
+import { budgetFailure, classPhrase, MatBudgetError, MatWriteError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
 import { dimsText, isExactDigits, isSpellableExtent, isTextExtent } from '../parser/Size.js';
 import { encodedXml, isEncodedValue, type EncodedValue } from '../parser/EncodedValue.js';
 import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
+import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
 import {
   charTextFromCodes,
   decimalCharXml,
@@ -173,6 +174,41 @@ export interface SetPropertyResult {
   reason: string;
   invalidValue: string;
   validValue: string;
+}
+
+/** What MATLAB compares across the elements of a Parameter's array of structures (DataNode._differsFromTwins). */
+export interface ValueShape {
+  cls: string;
+  complex: boolean;
+  dims: number[];
+  /** A scalar struct's field names, in order: what adding or removing a field changes. */
+  fields?: string[];
+}
+
+/** Do two values agree as MATLAB requires across an array of structures (DataNode._differsFromTwins)? */
+export function sameShape(a: ValueShape, b: ValueShape): boolean {
+  if (a.cls !== b.cls || a.complex !== b.complex) {
+    return false;
+  }
+  if (a.fields && b.fields && (a.fields.length !== b.fields.length || a.fields.some((f, i) => f !== b.fields![i]))) {
+    return false;
+  }
+  if (a.cls === 'char') {
+    return true;
+  }
+  const da = effectiveDims(a.dims);
+  const db = effectiveDims(b.dims);
+  return da.length === db.length && da.every((d, i) => d === db[i]);
+}
+
+/** The name Add gives a struct's new field: `field`, or the first `fieldN` none of `names` is. */
+export function newFieldName(names: string[]): string {
+  const existing = new Set(names);
+  let name = 'field';
+  for (let i = 1; existing.has(name); i++) {
+    name = 'field' + i;
+  }
+  return name;
 }
 
 /**
@@ -411,7 +447,43 @@ export default class DataNode extends BaseNode {
     return (prop as unknown as { nodeProperty?: string }).nodeProperty || prop.key;
   }
 
+  /**
+   * Is `stringValue` the text `propName` shows, on a property this node takes an edit of? Then
+   * setting it is no edit, and every setProperty asks this first, the overrides included: it
+   * answers `true` and changes nothing, records nothing. The value keeps what it was read as
+   * (`_rawInput`, an encoded stream) and so its bytes, the entry is neither Modified nor
+   * stamped, and the file is not dirty (the maintainer's ruling A3, 2026-10-15 evening).
+   *
+   * One text stands for many values. Every numeric empty shows `[ ]`, whatever its size and
+   * class, as MATLAB's Workspace browser shows them, and a value set from that text is a 0x0
+   * double; so the shown text, set back, could change the value it shows. DataModel.editProperty
+   * has made the same commit no edit since #107, for the session, which also records no undo
+   * step for it; this holds it for a caller that sets a node's property directly.
+   *
+   * Only an editable property (getPropInfo, the one answer the table and the Property Inspector
+   * both read): one this node takes no edit of is still refused, for its shown text as for any
+   * other, by whichever gate refuses it (an encoded stream, a MAT stream in a text dictionary, a
+   * summary). That refusal changes nothing either.
+   */
+  _isUnchangedCommit(propName: string, stringValue: string): boolean {
+    const prop = this._propFor(propName);
+    if (!prop) {
+      return false;
+    }
+    try {
+      const info = this.getPropInfo(prop);
+      return info.editable && info.displayValue === stringValue;
+    } catch {
+      // A property projection that throws leaves the edit to go ahead as it did (DataModel's
+      // readPropertyValue, for the same reason).
+      return false;
+    }
+  }
+
   setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+    if (this._isUnchangedCommit(propName, stringValue)) {
+      return true;
+    }
     const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
     if (encodedRefusal) {
       return encodedRefusal;
@@ -990,6 +1062,103 @@ export default class DataNode extends BaseNode {
    * MatlabVariableNode override for the one case there is.
    */
   _binaryEncoded(): EncodedValue | null {
+    return null;
+  }
+
+  /**
+   * MatWriter's refusal of a MAT stream that a value at or under this node would have to be
+   * written as in the text dictionary it is in, or null. Asked, inside one write, of an entry
+   * handed in to a text dictionary (SectionNode.parseEntry). Only a MatlabVariableNode has such
+   * a value (its override); every other node asks its rows, which is what it is written from.
+   */
+  _unwritableStream(): MatWriteError | null {
+    for (const child of this.children) {
+      const ask = (child as Partial<DataNode>)._unwritableStream;
+      const refusal = typeof ask === 'function' ? ask.call(child) : null;
+      if (refusal) {
+        return refusal;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The shape of the value this node holds, as _differsFromTwins compares it: its class and its
+   * size, and a scalar struct's fields. A MatlabVariableNode's says whether it is complex.
+   */
+  _valueShape(): ValueShape {
+    const dims = (this as unknown as { dims?: number[] }).dims ?? [1, 1];
+    const shape: ValueShape = { cls: this.className, complex: false, dims };
+    if (this.className === 'struct' && elementCount(dims) === 1) {
+      shape.fields = this.children.map((c) => c.name);
+    }
+    return shape;
+  }
+
+  /**
+   * Would this node, holding a value of shape `after`, be unlike its twin in another element of a
+   * struct array, at or below `root`? The twin is the node at the same path under the other
+   * element, and "unlike" is MATLAB's rule for a Simulink.Parameter's array of structures
+   * (probe_parameter_value.m): a field has to agree across the elements in class, in complexity
+   * and in size, except that a char field may differ in length (`struct('a', {'x', 'yz'})` is
+   * accepted), and a struct in one in its fields. A struct array nested in a field is held to it
+   * too, at every level the path crosses. Asked for a value edit (MatlabVariableNode
+   * _differsFromTwinsAfter) and for a structural one (ParameterNode._refuseStructureBelow).
+   */
+  _differsFromTwins(after: ValueShape, root: BaseNode): boolean {
+    // The names from just under `below` down to this node.
+    const path: string[] = [];
+    let below: BaseNode = this;
+    for (let n = this.parent; n; below = n, n = n.parent) {
+      // An element of a struct array carries its subscript (BaseNode.isElementName); a field
+      // never does. The tree's own answer, not a count of the dimensions, which a pasted value
+      // can declare as bigints no count takes.
+      if (n.className === 'struct' && below._subscript) {
+        for (const element of n.children) {
+          if (element === below) {
+            continue;
+          }
+          let twin: BaseNode | undefined = element;
+          for (const name of path) {
+            twin = twin?.children.find((c) => c.name === name);
+          }
+          if (twin && !sameShape(after, (twin as DataNode)._valueShape())) {
+            return true;
+          }
+        }
+      }
+      if (n === root) {
+        break;
+      }
+      path.unshift(below.name);
+    }
+    return false;
+  }
+
+  /**
+   * MATLAB's refusal of adding a child to this node (`op` 'add') or removing one ('remove'), in
+   * its words, or null. Asked by the gates (canAddChild, canRemoveChild) of a struct and of an
+   * array, of what holds the value they are in: the nearest node above that is not a struct, as
+   * a value edit asks it (MatlabVariableNode._valueHolderRefusal). For a Parameter's Value, that
+   * is the Parameter (ParameterNode._refuseStructureBelow, the maintainer's ruling A2, 2026-10-15
+   * evening).
+   */
+  _structuralRefusal(op: 'add' | 'remove'): string | null {
+    let holder = this.parent;
+    while (holder && holder.className === 'struct') {
+      holder = holder.parent;
+    }
+    const refuse = (holder as { _refuseStructureBelow?: (node: DataNode, op: 'add' | 'remove') => string | null } | null)
+      ?._refuseStructureBelow;
+    return typeof refuse === 'function' ? refuse.call(holder, this, op) : null;
+  }
+
+  /**
+   * The shape this node's value would have once Add gives it a child (`op` 'add') or a child is
+   * removed ('remove'), or null where there is none to judge. A removal is judged as of the
+   * last child: in a value MATLAB accepts, the removal of any one of them gets the same answer.
+   */
+  _shapeAfterChildEdit(_op: 'add' | 'remove'): ValueShape | null {
     return null;
   }
 

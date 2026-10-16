@@ -673,3 +673,119 @@ describe('ParameterNode — a Value edit gets the answer MATLAB gives on assignm
     }
   });
 });
+
+// The 2026-10-15 evening ruling A2: "structural edits follow the same policy as value edits.
+// Removing or adding a field or an element inside a Simulink.Parameter's Value is refused where
+// MATLAB refuses the resulting Value. The cases are added to the MATLAB probe and mirrored
+// exactly." Each case below is a `structural` row of fixtures/parameter_value_truth.json, which
+// probe_parameter_value.m wrote by making the edit in MATLAB and assigning the Value it left.
+describe('ParameterNode — a structural edit in the Value gets the answer MATLAB gives on assignment', () => {
+  interface StructuralCase { id: string; edit: string; baseAccepted: boolean; accepted: boolean; message: string }
+  const STRUCTURAL = (
+    JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/parameter_value_truth.json', import.meta.url)), 'utf8')) as {
+      structural: StructuralCase[];
+    }
+  ).structural;
+  const matlab = (id: string): { accepted: boolean; message: string } => {
+    const c = STRUCTURAL.find((x) => x.id === id);
+    if (!c) {
+      throw new Error('no structural probe case ' + id);
+    }
+    expect(c.baseAccepted, `${id}: MATLAB takes the Value it starts from`).toBe(true);
+    return { accepted: c.accepted, message: c.message };
+  };
+
+  const struct = (fields: Record<string, unknown>) => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [fields], _fields: Object.keys(fields) });
+  const structArray = (elements: Record<string, unknown>[], dims: number[] = [1, elements.length]) => ({
+    _array_type: 'Struct',
+    _dimensions: dims,
+    _elements: elements,
+    _fields: Object.keys(elements[0]),
+  });
+  const col = (a: number, b: number) => ({ _type: 'double', _value: `Matrix(2,1)\n[${a}, ${b}]` });
+  const lgl = (a: number, b: number) => ({ _type: 'logical', _value: `[${a}, ${b}]` });
+
+  // [case, the Value before the edit, the node edited (under the Value row), the edit: 'add', or
+  // the name or index of the child removed]. Each is the probe row's edit, as the tree makes it:
+  // Add gives a struct a field `field` holding 0 and an array a 0 of its class.
+  const CASES: Array<[string, unknown, Array<string | number>, 'add' | string | number]> = [
+    ['sx_remove_field', struct({ a: 1, b: 2 }), [], 'b'],
+    ['sx_remove_last_field', struct({ a: 1 }), [], 'a'],
+    ['sx_add_field', struct({ a: 1 }), [], 'add'],
+    ['sx_nested_remove_field', struct({ a: struct({ b: 1, c: 2 }) }), ['a'], 'c'],
+    ['sx_nested_remove_last_field', struct({ a: struct({ b: 1 }) }), ['a'], 'b'],
+    ['sx_nested_add_field', struct({ a: struct({ b: 1 }) }), ['a'], 'add'],
+    ['sx_deep_remove_last_field', struct({ a: struct({ b: struct({ c: 1 }) }) }), ['a', 'b'], 'c'],
+    ['sx_array_add_element', struct({ c: [1, 2] }), ['c'], 'add'],
+    ['sx_array_remove_element', struct({ c: [1, 2, 3] }), ['c'], 1],
+    ['sx_array_remove_to_scalar', struct({ c: [1, 2] }), ['c'], 1],
+    ['sx_column_add_element', struct({ c: col(1, 2) }), ['c'], 'add'],
+    ['sx_logical_add_element', struct({ c: lgl(1, 0) }), ['c'], 'add'],
+    ['sx_int8_add_element', struct({ c: { _type: 'int8', _value: '[1, 2]' } }), ['c'], 'add'],
+    ['sx_complex_add_element', struct({ c: { _type: 'cdata', _value: '1+2i 3+4i', _dimensions: [1, 2] } }), ['c'], 'add'],
+    ['sx_nested_array_add_element', struct({ a: struct({ c: [1, 2] }) }), ['a', 'c'], 'add'],
+    ['sa_array_add_element', structArray([{ v: [1, 2] }, { v: [3, 4] }]), [1, 'v'], 'add'],
+    ['sa_array_remove_element', structArray([{ v: [1, 2] }, { v: [3, 4] }]), [1, 'v'], 1],
+    ['sa_column_add_element', structArray([{ v: col(1, 2) }, { v: col(3, 4) }]), [0, 'v'], 'add'],
+    ['sa_logical_remove_element', structArray([{ v: lgl(1, 0) }, { v: lgl(0, 1) }]), [0, 'v'], 1],
+    ['sa_2x1_add_element', structArray([{ v: [1, 2] }, { v: [3, 4] }], [2, 1]), [1, 'v'], 'add'],
+    ['sa_two_fields_add_element', structArray([{ a: 1, v: [1, 2] }, { a: 2, v: [3, 4] }]), [0, 'v'], 'add'],
+    ['sa_nested_remove_field', structArray([{ a: struct({ b: 1, c: 2 }) }, { a: struct({ b: 3, c: 4 }) }]), [1, 'a'], 'c'],
+    ['sa_nested_add_field', structArray([{ a: struct({ b: 1 }) }, { a: struct({ b: 2 }) }]), [1, 'a'], 'add'],
+    ['sa_nested_remove_last_field', structArray([{ a: struct({ b: 1 }) }, { a: struct({ b: 2 }) }]), [1, 'a'], 'b'],
+    ['sa_nested_array_add_element', structArray([{ a: struct({ c: [1, 2] }) }, { a: struct({ c: [3, 4] }) }]), [1, 'a', 'c'], 'add'],
+    ['fsa_array_add_element', struct({ a: structArray([{ v: [1, 2] }, { v: [3, 4] }]) }), ['a', 1, 'v'], 'add'],
+    ['fsa_array_remove_element', struct({ a: structArray([{ v: [1, 2] }, { v: [3, 4] }]) }), ['a', 1, 'v'], 0],
+    ['fsa_nested_remove_field', struct({ a: structArray([{ b: struct({ c: 1, d: 2 }) }, { b: struct({ c: 3, d: 4 }) }]) }), ['a', 1, 'b'], 'd'],
+    ['top_array_add_element', [1, 2], [], 'add'],
+    ['top_array_remove_element', [1, 2, 3], [], 1],
+    ['top_array_remove_to_scalar', [1, 2], [], 1],
+    ['top_logical_add_element', lgl(1, 0), [], 'add'],
+  ];
+
+  function at(root: any, path: Array<string | number>): any {
+    let n: any = root;
+    for (const step of path) {
+      n = typeof step === 'number' ? n.children[step] : n.children.find((c: any) => c.name === step);
+    }
+    return n;
+  }
+  const childOf = (node: any, edit: string | number) => (typeof edit === 'number' ? node.children[edit] : node.children.find((c: any) => c.name === edit));
+
+  it('covers every structural case the probe measured', () => {
+    expect(CASES.map(([id]) => id)).toEqual(STRUCTURAL.map((c) => c.id));
+  });
+
+  for (const [id, value, path, edit] of CASES) {
+    it(`${id}: ${edit === 'add' ? 'Add' : `removing ${edit}`} at ${path.join('.') || 'the Value'}`, () => {
+      const want = matlab(id);
+      const p = parseParamValue(value);
+      const before = JSON.stringify(serializedValue(p));
+      const node = at(p.children[0], path);
+      expect(node, `${id}: the node edited`).toBeDefined();
+      const op = edit === 'add' ? 'add' : 'remove';
+      const gate = op === 'add' ? node.canAddChild() : node.canRemoveChild();
+      expect({ gate, refusal: node._structuralRefusal(op) }).toEqual({ gate: want.accepted, refusal: want.accepted ? null : want.message });
+      const result = op === 'add' ? node.execAddChild() : node.execRemoveChild(childOf(node, edit));
+      if (want.accepted) {
+        expect(result, id).not.toBeNull();
+        expect(JSON.stringify(serializedValue(p))).not.toBe(before);
+      } else {
+        expect(result, id).toBeNull();
+        expect(JSON.stringify(serializedValue(p))).toBe(before);
+      }
+    });
+  }
+
+  // The rules are the Parameter's: a plain struct variable takes every edit refused here.
+  it('leaves a plain struct variable taking every structural edit a Parameter refuses', () => {
+    for (const [id, value, path, edit] of CASES) {
+      if (matlab(id).accepted || !path.length) {
+        continue;
+      }
+      const s = NodeRegistry.parseValue(value, 's', null) as any;
+      const node = at(s, path);
+      expect([id, edit === 'add' ? node.canAddChild() : node.canRemoveChild()]).toEqual([id, true]);
+    }
+  });
+});

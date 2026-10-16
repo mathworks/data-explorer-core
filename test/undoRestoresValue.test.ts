@@ -263,3 +263,94 @@ describe("committing a Value's shown text unchanged is no edit", () => {
     expect(valueTag(entry)).toBe('<P Name="Value" Class="double" Dimension="0*0"/>');
   });
 });
+
+describe('and at the node: setProperty with the text a property shows changes nothing and records nothing', () => {
+  // The 2026-10-15 evening ruling A3: "the unchanged-commit no-op holds at the node level too
+  // (setProperty with the node's own displayed text changes nothing), for callers other than
+  // vscode". Each class with a setProperty of its own, and each property it takes an edit of.
+  const CASES: [string, string, string[]][] = [
+    ['typeLink.sldd', 'Kp', ['Name', 'Value', 'Min', 'Max', 'Description', 'storageClass']],
+    ['typeLink.sldd', 'TightSig', ['Name', 'Min', 'Max', 'Description', 'storageClass']],
+    ['typeLink.sldd', 'vtSpeed', ['Name', 'complexity', 'dimensionsMode', 'Min', 'Max', 'Description']],
+    ['typeLink.sldd', 'artFsAimCmd/speed', ['Name', 'complexity', 'dimensionsMode', 'Min', 'Max', 'Description']],
+    ['sparse/hexobj_text.sldd', 'objs/vc', ['Name', 'Value']],
+    ['sparse/hexobj_text.sldd', 'objs/prm', ['Value']],
+    ['typed_text.sldd', 'i32Vec', ['Name', 'Value']],
+    ['typed_text.sldd', 'i32Vec/i32Vec(2)', ['Value']],
+    ['typed_text.sldd', 'sTyped/b', ['Name', 'Value']],
+    ['typed_text.sldd', 'cTyped/cTyped{1}/cTyped{1}{4}', ['Value']],
+  ];
+
+  function open(file: string) {
+    const session = createSession();
+    const root: any = ingest(session, buffer(fixture(file)), { filename: file.split('/').pop()! });
+    const save = (): string => session.serializeSource(root.name)!.text!;
+    const at = (path: string): any =>
+      path.split('/').reduce((n: any, seg) => n.children.find((c: any) => c.displayName === seg), root.getSection('design'));
+    return { root, save, at };
+  }
+
+  const shownText = (node: any, prop: string): { text: string; editable: boolean } => {
+    const info = node.getPropInfo(node.getProperties().find((p: any) => p.key === prop));
+    return { text: info.displayValue, editable: info.editable };
+  };
+
+  for (const [file, path, props] of CASES) {
+    for (const prop of props) {
+      it(`${file} ${path}: ${prop}`, () => {
+        const untouched = open(file).save();
+        const { root, save, at } = open(file);
+        const node = at(path);
+        const entry = node.owningEntry;
+        const { text, editable } = shownText(node, prop);
+        expect(editable, 'it takes an edit').toBe(true);
+        const before = { status: entry.status, dirty: root.dirty, raw: entry._rawInput, shown: shown(node) };
+        expect(node.setProperty(prop, text)).toBe(true);
+        expect({ status: entry.status, dirty: root.dirty, raw: entry._rawInput, shown: shown(node) }).toEqual(before);
+        expect(entry._rawInput, 'what it was read as').toBe(before.raw);
+        expect(save()).toBe(untouched);
+      });
+    }
+  }
+
+  it('a text other than the one shown is an edit, as before', () => {
+    const { root, save, at } = open('typeLink.sldd');
+    const untouched = save();
+    const node = at('Kp');
+    expect(node.setProperty('Value', '2')).toBe(true);
+    expect([node.status, root.dirty, node.displayValue]).toEqual(['Modified', true, '2']);
+    expect(save()).not.toBe(untouched);
+  });
+
+  it('a property it takes no edit of is refused for the text it shows, as for any other', () => {
+    // A cell holding a sparse array, in a text dictionary: a MAT stream, shown and not edited
+    // there (the C-012 ruling), and so not to be answered `true` for its own text either.
+    const { root, at } = open('sparse/hexobj_text.sldd');
+    for (const path of ['cTall', 'cTall/cTall{1}']) {
+      const node = at(path);
+      const { text, editable } = shownText(node, 'Value');
+      expect(editable, path).toBe(false);
+      expect(node.setProperty('Value', text), path).toMatchObject({ error: true });
+    }
+    expect(root.dirty).toBe(false);
+  });
+
+  it("a binary dictionary's empties, and a cell of one, keep what they were read as", () => {
+    // As the session's describe above, at the node: every empty shows `[ ]`, and set back from
+    // that text it was a 0x0 double.
+    const file = new Uint8Array(withEmpties());
+    const fresh = createSession();
+    const untouched = fresh.serializeSource(ingest(fresh, buffer(file), { filename: 'empties_binary.sldd' }).name).bytes;
+    const session = createSession();
+    const root: any = ingest(session, buffer(file), { filename: 'empties_binary.sldd' });
+    for (const [name] of EDITABLE) {
+      const entry = root.getSection('design').children.find((e: any) => e.name === name);
+      const before = { raw: entry._rawInput, tag: valueTag(entry), shown: shown(entry), status: entry.status };
+      expect(entry.setProperty('Value', entry.displayValue), name).toBe(true);
+      expect(entry._rawInput, name).toBe(before.raw);
+      expect({ raw: entry._rawInput, tag: valueTag(entry), shown: shown(entry), status: entry.status }, name).toEqual(before);
+    }
+    expect(root.dirty).toBe(false);
+    expect(session.serializeSource(root.name).bytes).toEqual(untouched);
+  });
+});

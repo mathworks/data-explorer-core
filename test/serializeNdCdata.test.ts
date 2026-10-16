@@ -441,3 +441,92 @@ describe('an N-D value MatWriter cannot write as a stream is refused in a text d
     expect(thrown(() => binary.session.serializeSource(binary.root.name))).toBeNull();
   });
 });
+
+describe('a value a text dictionary could hold only as a MAT stream MatWriter cannot write is refused at the paste (ruling A1)', () => {
+  // The maintainer's ruling A1 (2026-10-15 evening): "Pasting into a text dictionary a value that
+  // would have to be written as a MAT stream, and that MatWriter refuses (e.g. a binary N-D cell
+  // holding a string, unedited or edited before the copy), is refused at the paste with a message
+  // naming the entry and the reason." The paste is the host's: the section builds the entry
+  // (parseEntry, which vscode's prepareEntryForPaste calls for a paste and a drop alike), then
+  // the entry is written into the text (serialize). Both routes reached the text as the N-D
+  // Cell bag, which no writer asked MatWriter about.
+  const fileOf = (rel: string) => rel.split('/').pop() as string;
+  const openBytes = (bytes: ArrayBuffer, name: string) => {
+    const session = createSession();
+    const root: any = ingest(session, bytes, { filename: name });
+    return { session, root, design: root.getSection('design') };
+  };
+  const open = (rel: string) => openBytes(bytesOf(rel), fileOf(rel));
+  const thrown = (f: () => unknown): Error | null => {
+    try {
+      f();
+      return null;
+    } catch (e) {
+      return e as Error;
+    }
+  };
+  const C = () => open('../fixtures/nd_binary.sldd');
+  const cOf = (d: ReturnType<typeof open>) => d.design.children.find((e: any) => e.name === 'C');
+  const copyOf = (node: any) => JSON.parse(JSON.stringify(node.serialize().value));
+  /** nd_binary.sldd's 2x2x2 cell C with its first element edited to `typed` there. */
+  const editedInBinary = (typed: string) => {
+    const d = C();
+    const element = cOf(d).children.find((c: any) => c.displayName === 'C{1,1,1}');
+    expect(element.setProperty('Value', typed)).toBe(true);
+    return d;
+  };
+  const REFUSAL = (at: string) =>
+    `Cannot write "pasted": ${at} is a 2x2x2 cell, which a text dictionary holds only as its MAT stream, and that stream cannot be written: no MAT class for "string". Nothing was written.`;
+
+  /** `value` pasted into nd_text.sldd: what the paste threw, and whether it left a trace. */
+  function pasteIntoText(value: unknown): { error: Error | null; held: boolean; dirty: boolean; unchanged: boolean } {
+    const untouched = open('../fixtures/nd_text.sldd');
+    const d = open('../fixtures/nd_text.sldd');
+    const before = d.design.children.length;
+    const error = thrown(() => {
+      const node = d.design.parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ea01-000000000001' }, value });
+      node.serialize();
+    });
+    return {
+      error,
+      held: d.design.children.length !== before || d.design.children.some((e: any) => e.name === 'pasted'),
+      dirty: d.root.dirty,
+      unchanged: d.session.serializeSource(d.root.name).text === untouched.session.serializeSource(untouched.root.name).text,
+    };
+  }
+
+  it('a cell edited to hold a string in a binary dictionary, then copied: refused, naming the entry and the reason', () => {
+    const r = pasteIntoText(copyOf(cOf(editedInBinary('"str"'))));
+    expect([r.error?.name, r.error?.message]).toEqual(['MatWriteError', REFUSAL('pasted')]);
+    expect(r.error).toBeInstanceOf(MatWriteError);
+    expect({ held: r.held, dirty: r.dirty, unchanged: r.unchanged }).toEqual({ held: false, dirty: false, unchanged: true });
+  });
+
+  it('the same cell unedited, as a binary dictionary holding it reads it: refused the same', () => {
+    const edited = editedInBinary('"str"');
+    const saved = edited.session.serializeSource(edited.root.name).bytes;
+    const reopened = openBytes(saved.buffer.slice(saved.byteOffset, saved.byteOffset + saved.byteLength) as ArrayBuffer, 'nd_binary.sldd');
+    const c = cOf(reopened);
+    expect([c.status, c._rawInput !== undefined], 'read, not edited').toEqual(['', true]);
+    const r = pasteIntoText(copyOf(c));
+    expect([r.error?.name, r.error?.message]).toEqual(['MatWriteError', REFUSAL('pasted')]);
+    expect({ held: r.held, dirty: r.dirty, unchanged: r.unchanged }).toEqual({ held: false, dirty: false, unchanged: true });
+  });
+
+  it('the cell inside another: refused the same, naming where it stands', () => {
+    const nested = pasteIntoText({ _array_type: 'Cell', _dimensions: [1, 2], _elements: [1, copyOf(cOf(editedInBinary('"str"')))], _mw_element_type: 'MATLABArray' });
+    expect([nested.error?.name, nested.error?.message]).toEqual(['MatWriteError', REFUSAL('pasted{2}')]);
+    expect(nested.held).toBe(false);
+  });
+
+  it('the controls: the cell as it is, and edited to a number, paste; the string one pastes into a binary dictionary', () => {
+    for (const d of [C(), editedInBinary('99')]) {
+      const r = pasteIntoText(copyOf(cOf(d)));
+      expect([r.error, r.held]).toEqual([null, true]);
+    }
+    const binary = open('../fixtures/nd_binary.sldd');
+    const node = binary.design.parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ea01-000000000002' }, value: copyOf(cOf(editedInBinary('"str"'))) });
+    expect(thrown(() => serializeEntryToXml(node))).toBeNull();
+    expect(binary.design.children).toContain(node);
+  });
+});

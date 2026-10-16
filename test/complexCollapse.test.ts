@@ -260,3 +260,61 @@ describe('a value typed over a collapsed complex scalar follows the rule for an 
     expect(BINARY.save(session, root, []).written('zInt16Row')).toBe(writtenAsRead);
   });
 });
+
+describe("a Parameter's Dimensions and Complexity follow a removal that collapses its Value (ruling A7)", () => {
+  // The maintainer's ruling A7 (2026-10-15 evening): "a Parameter's Dimensions and Complexity
+  // rows are refreshed after an element removal collapses its Value. A plain bug." MATLAB keeps
+  // them as the Value's (measured, R2027a, 2026-10-15): p = Simulink.Parameter([1+2i 3+4i 5+6i]);
+  // p.Value(2:3) = [] leaves Dimensions [1 1] and Complexity 'complex', for the int16 row and the
+  // column too, and of [7 3+4i 5+6i], whose survivor is real, Complexity 'real'. They stayed [1 3]
+  // and 'complex', in the rows and in the save.
+  const cellOf = (cell: unknown): string =>
+    cell !== null && typeof cell === 'object' ? String((cell as { text: unknown }).text) : String(cell ?? '');
+  /** The Parameter's Dimensions and Complexity: its rows, and what its save writes. */
+  const shapeOf = (entry: any) => {
+    const row = entry.toRow();
+    const props = entry.serializeValue()._elements[0]._properties;
+    return { rows: [cellOf(row.dimensions), cellOf(row.complexity)], saved: [props.Dimensions, props.Complexity] };
+  };
+  const SCALAR = (complexity: string) => ({ rows: ['[1 1]', complexity], saved: [[1, 1], complexity] });
+  const strFromChunk = (bytes: Uint8Array): string => new TextDecoder().decode(unzipSync(bytes)['data/chunk0.xml']);
+
+  for (const vec of VECTORS) {
+    it(`${vec.name}: [1 1] and complex once cut to one element; undone, as read; redone, [1 1] again`, () => {
+      const { session, root, design } = openBinary();
+      const entry = design.children.find((e: any) => e.name === vec.name);
+      const asRead = shapeOf(entry);
+      expect(asRead.saved).toEqual([vec.dims, 'complex']);
+      const v = entry._valueNode;
+      const cut3 = v.execRemoveChild(v.children[2]);
+      const cut2 = v.execRemoveChild(v.children[1]);
+      expect(shapeOf(entry)).toEqual(SCALAR('complex'));
+      const chunk = strFromChunk(session.serializeSource(root.name).bytes);
+      const at = chunk.indexOf(`<P Name="Name" Class="char">${vec.name}</P>`);
+      const own = chunk.slice(at, chunk.indexOf('</Object>', at));
+      expect(own).toContain('<P Name="Dimensions" Class="double" Dimension="1*2">1.0 1.0</P>');
+      expect(own).toContain('<P Name="Complexity" Class="char">complex</P>');
+      cut2.undo();
+      cut3.undo();
+      expect(shapeOf(entry)).toEqual(asRead);
+      cut3.redo();
+      cut2.redo();
+      expect(shapeOf(entry)).toEqual(SCALAR('complex'));
+    });
+  }
+
+  it('a survivor an element edit made real: Complexity real, and undone, complex as read', () => {
+    const { design } = openBinary();
+    const entry = design.children.find((e: any) => e.name === 'pRow');
+    const asRead = shapeOf(entry);
+    const v = entry._valueNode;
+    expect(v.children[0].setProperty('Value', '7')).toBe(true);
+    const cut3 = v.execRemoveChild(v.children[2]);
+    const cut2 = v.execRemoveChild(v.children[1]);
+    expect(entry.displayValue).toBe('7');
+    expect(shapeOf(entry)).toEqual(SCALAR('real'));
+    cut2.undo();
+    cut3.undo();
+    expect(shapeOf(entry)).toEqual(asRead);
+  });
+});

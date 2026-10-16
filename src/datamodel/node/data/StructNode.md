@@ -45,6 +45,11 @@ A **struct array** (e.g. `structArray` with dimensions `[1, 2]`) returns
 behavior: adding a field to a struct array requires setting the value for that
 field across ALL elements simultaneously, which our UI does not support.
 
+And, inside a Simulink.Parameter's Value, only where MATLAB accepts the Value the edit
+would leave (`DataNode._structuralRefusal`, the ruling A2; see `Simulink.Parameter.md`):
+a struct nested in the Value keeps its last field, and a struct inside an element of a
+struct array takes no field and gives up none.
+
 ### addChildNode()
 
 Creates a new field named `'field'` (or `'field1'`, `'field2'`, ... for

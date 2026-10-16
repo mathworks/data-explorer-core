@@ -473,7 +473,9 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     for (const [name, r, c] of ELEMENT_EDITS.filter(([n]) => n !== 'spComplex')) {
       const node = textInNoFile(design, name);
       const el = elementAt(node, r, c);
-      expect(el.setProperty('Value', el.displayValue), name).toBe(true);
+      // The value it holds, in a text other than the one it shows: that text set back is no
+      // edit (the 2026-10-15 evening ruling A3).
+      expect(el.setProperty('Value', `${el.displayValue} `), name).toBe(true);
       expect(node._rawInput, `${name} is edited`).toBeUndefined();
       expect(JSON.parse(JSON.stringify(node.serializeValue())), name).toEqual(textRaw(name));
     }

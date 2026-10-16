@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import DataNode from '../DataNode.js';
+import DataNode, { newFieldName } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import * as NodeRegistry from '../NodeRegistry.js';
@@ -19,7 +19,7 @@ import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
 import { dimsText, isSize, isStreamSize } from '../../parser/Size.js';
-import { classPhrase, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
+import { classPhrase, classRefusal, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { charNeedsShape, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, } from '../../parser/XmlUtils.js';
@@ -114,30 +114,6 @@ function holdsMcosObject(variable) {
  */
 function matlabClassOf(variable) {
     return variable.isLogical ? 'logical' : variable.className;
-}
-/**
- * The shape of the value a node holds. The class of a complex value is its own
- * (_complexClass), not the 'double' its className reports for a complex scalar; any node but a
- * MATLAB value (a struct) is its class and its size.
- */
-function shapeOf(node) {
-    if (node instanceof MatlabVariableNode) {
-        const complex = node._isComplexValue();
-        return { cls: complex ? node._complexClass() : node.className, complex, dims: node.dims };
-    }
-    return { cls: node.className, complex: false, dims: node.dims ?? [1, 1] };
-}
-/** Do two values agree as MATLAB requires across an array of structures (_differsFromTwinsAfter)? */
-function sameShape(a, b) {
-    if (a.cls !== b.cls || a.complex !== b.complex) {
-        return false;
-    }
-    if (a.cls === 'char') {
-        return true;
-    }
-    const da = effectiveDims(a.dims);
-    const db = effectiveDims(b.dims);
-    return da.length === db.length && da.every((d, i) => d === db[i]);
 }
 export default class MatlabVariableNode extends DataNode {
     constructor(name, parent, serial) {
@@ -817,6 +793,10 @@ export default class MatlabVariableNode extends DataNode {
     // are recording. The add/remove methods come in canX/xChildNode/execX triples:
     // the gate, the mutation, and the undo/redo wrapper the command stack calls.
     setProperty(propName, stringValue) {
+        // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
+        if (this._isUnchangedCommit(propName, stringValue)) {
+            return true;
+        }
         // A value still in the encoded stream it was read from is read-only (DataNode._refuseEncodedEdit).
         const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
         if (encodedRefusal) {
@@ -1005,34 +985,41 @@ export default class MatlabVariableNode extends DataNode {
      * into an int8 field is an int8, as the field then is.
      */
     _differsFromTwinsAfter(parsed, root) {
-        const after = this._shapeAfter(parsed);
-        // The names from just under `below` down to this node.
-        const path = [];
-        let below = this;
-        for (let n = this.parent; n; below = n, n = n.parent) {
-            // An element of a struct array carries its subscript (BaseNode.isElementName); a field
-            // never does. The tree's own answer, not a count of the dimensions, which a pasted value
-            // can declare as bigints no count takes.
-            if (n.className === 'struct' && below._subscript) {
-                for (const element of n.children) {
-                    if (element === below) {
-                        continue;
-                    }
-                    let twin = element;
-                    for (const name of path) {
-                        twin = twin?.children.find((c) => c.name === name);
-                    }
-                    if (twin && !sameShape(after, shapeOf(twin))) {
-                        return true;
-                    }
-                }
-            }
-            if (n === root) {
-                break;
-            }
-            path.unshift(below.name);
+        return this._differsFromTwins(this._shapeAfter(parsed), root);
+    }
+    /**
+     * The class of a complex value is its own (_complexClass), not the 'double' its className
+     * reports for a complex scalar (DataNode._valueShape).
+     */
+    _valueShape() {
+        const shape = super._valueShape();
+        if (this._isComplexValue()) {
+            shape.cls = this._complexClass();
+            shape.complex = true;
         }
-        return false;
+        return shape;
+    }
+    /**
+     * The shape Add or a removal would leave (DataNode._shapeAfterChildEdit): a struct one field
+     * more (_addStructField); an untyped `[]` a struct of one field (_convertToStructAndAddField);
+     * an array or a string array one element more or fewer, shaped as _updateDimsForCount shapes
+     * it, or as the collapse to one element does. Not a cell's: a Parameter refuses a cell Value
+     * whole, and does not judge what is in one, a value edit there included.
+     */
+    _shapeAfterChildEdit(op) {
+        if (this._kind === 'scalar' && this._scalarType === 'struct') {
+            const fields = this.children.map((c) => c.name);
+            return op === 'add' ? { cls: 'struct', complex: false, dims: [1, 1], fields: [...fields, newFieldName(fields)] } : null;
+        }
+        if (this._kind === 'array' && op === 'add' && this._elements.length === 0) {
+            return { cls: 'struct', complex: false, dims: [1, 1], fields: ['field'] };
+        }
+        if (this._kind === 'array' || this._kind === 'string') {
+            const count = this._elements.length + (op === 'add' ? 1 : -1);
+            const dims = count === 1 ? [1, 1] : count === 0 ? [1, 0] : this._dims[1] === 1 ? [count, 1] : [1, count];
+            return { ...this._valueShape(), dims };
+        }
+        return null;
     }
     /** Class, complexity and size of this value once `parsed` is applied, as _applyParsed applies it. */
     _shapeAfter(parsed) {
@@ -1482,8 +1469,10 @@ export default class MatlabVariableNode extends DataNode {
         if (this._unexpandedStruct()) {
             return false;
         }
+        // Nor where what holds the value refuses the one Add would leave: in a Simulink.Parameter's
+        // Value, MATLAB's rules for it (DataNode._structuralRefusal, the ruling A2).
         if (this._kind === 'scalar' && this._scalarType === 'struct') {
-            return true;
+            return !this._structuralRefusal('add');
         }
         if (this._kind === 'scalar') {
             return false;
@@ -1500,7 +1489,7 @@ export default class MatlabVariableNode extends DataNode {
         if (this._kind === 'string' && this._dims[0] === 1 && this._dims[1] === 1) {
             return false;
         }
-        return true;
+        return !this._structuralRefusal('add');
     }
     addChildNode() {
         if (this._kind === 'array' && this._elements.length === 0) {
@@ -1540,14 +1529,7 @@ export default class MatlabVariableNode extends DataNode {
         return child;
     }
     _addStructField() {
-        const baseName = 'field';
-        const existing = new Set(this.children.map((c) => c.name));
-        let uniqueName = baseName;
-        let i = 1;
-        while (existing.has(uniqueName)) {
-            uniqueName = baseName + i;
-            i++;
-        }
+        const uniqueName = newFieldName(this.children.map((c) => c.name));
         const child = MatlabVariableNode._createScalar(0, 'double', uniqueName, this);
         this.addChild(child);
         this._markModified();
@@ -1600,7 +1582,8 @@ export default class MatlabVariableNode extends DataNode {
         if ((this._kind === 'array' || this._kind === 'cell' || this._kind === 'string') && this._dims[0] > 1 && this._dims[1] > 1) {
             return false;
         }
-        return this.children.length > 0;
+        // Nor where what holds the value refuses the one the removal would leave (canAddChild).
+        return this.children.length > 0 && !this._structuralRefusal('remove');
     }
     removeChildNode(child) {
         const idx = this.children.indexOf(child);
@@ -2069,6 +2052,66 @@ export default class MatlabVariableNode extends DataNode {
         const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + matlabClassOf(this._var);
         return new MatWriteError('Cannot write "' + entry + '": ' + this.matlabPath + ' is ' + what +
             ', which a text dictionary holds only as its MAT stream, and that stream cannot be written: ' + e.message + '. Nothing was written.');
+    }
+    /**
+     * MatWriter's refusal of the MAT stream this value, or one under it, would be written as in the
+     * text dictionary it is in, or null (DataNode._unwritableStream). Asked of a value handed in to
+     * a text dictionary, whose paste is refused with it (the maintainer's ruling A1, 2026-10-15
+     * evening).
+     *
+     * A text dictionary holds a rank >= 3 value only as its MAT stream. A pasted value is written
+     * as it came until an edit (`_rawInput`), and only an edited one asks MatWriter (serializeValue,
+     * _matStream), so one MatWriter cannot write went in as the bag it came as, with rank >= 3 dims:
+     * a binary dictionary's 2x2x2 cell holding a string, unedited, or edited there before the copy.
+     * This asks MatWriter what the save of it, edited, asks, and words the refusal as that save
+     * does (_streamRefusal).
+     *
+     * A string read from a dictionary's JSON or XML (a bag's `["str"]`) is handed to MatWriter as a
+     * char (_buildVarObject), so the stream it writes for one holds a char, which is not the value;
+     * for that reason the binary writer does not ask it about one (_matWritable). MatWriter has no
+     * MAT class for a string, and the save refuses a string scalar typed into such a cell so. A
+     * string at or under the value is refused the same way (classRefusal).
+     *
+     * Not a refusal for the unbacked-bytes budget: the value is held as it came, and the copy or
+     * the save that writes it as its stream refuses it, as before (SectionNode.parseEntry). And only
+     * of a cell, a struct or a string, which a bag carries in as it came: an N-D numeric or logical
+     * literal is turned into its stream on the way in (MatWriter.textDictionaryForm), and one it
+     * cannot turn, whose element count is not its size, is held as it came, as before.
+     */
+    _unwritableStream() {
+        const container = this._kind === 'cell' || this._scalarType === 'struct';
+        if ((container || this._scalarType === 'string') && effectiveDims(this._dims).length > 2 && this._ownerFormat() === 'json') {
+            try {
+                this._matStream(true);
+            }
+            catch (e) {
+                if (e instanceof MatBudgetError) {
+                    return null;
+                }
+                if (e instanceof MatWriteError) {
+                    return e;
+                }
+                throw e;
+            }
+            const refusal = this._holdsString() ? classRefusal('string') : null;
+            return refusal ? this._streamRefusal(refusal) : null;
+        }
+        // The rows of any other value are its elements, which hold none.
+        return container ? super._unwritableStream() : null;
+    }
+    /**
+     * Is there a MATLAB string at or under this cell or struct? A string array and its elements
+     * alike say 'string' (_matWritable). None was read out of a MAT stream, which holds a string as
+     * an MCOS object (_isOpaque): each is a dictionary's own, read from its JSON or XML.
+     */
+    _holdsString() {
+        if (this._scalarType === 'string') {
+            return true;
+        }
+        if (this._kind !== 'cell' && this._scalarType !== 'struct') {
+            return false;
+        }
+        return this.children.some((c) => c instanceof MatlabVariableNode && c._holdsString());
     }
     /**
      * Is this a struct array past MAX_EXPANDED_ELEMENTS whose elements hold no field — one with
