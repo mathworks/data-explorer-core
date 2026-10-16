@@ -169,6 +169,162 @@ describe('a type-1 block the reader stopped before: a string\'s text', () => {
   });
 });
 
+// ---- C-228: what is counted, and wherever the reader stopped --------------------------
+//
+// The count is of OBJECTS that address a block the reader did not read, and not of times
+// the reader stopped. So it covers each way a segment can come up short (a count over the
+// cap, a count that overruns its segment, a count with fewer than four bytes left to read
+// it, and a header that ends the segment early, where there is no count to stop on at all),
+// and it is silent when no object needed the lost bytes. A nested object counts toward the
+// variable that reaches it, and an object reached twice counts once.
+
+describe('C-228: an object whose property block was not read, counted for its variable', () => {
+  // busArray.mat: buses = [Bus 1, Bus 3, Bus 6]. Each object has its own type-2 block, at
+  // the index of its id, and Bus 6's Elements are BusElements 7, 8 and 9 (p, q and r): the
+  // last three blocks of the segment. No object in the file uses a type-1 block.
+  const BUSES = 'mcos/busArray.mat';
+  const partial = (n: number): McosDecodeIssue => ({
+    refused: false,
+    reason: `${n} of its objects' property blocks could not be read, so those objects show only their class defaults`,
+  });
+
+  /** The type-2 blocks' table-relative starts, asserted to be the ten this file has. */
+  function busBlocks(raw: Uint8Array, meta: number): number[] {
+    const w = header(raw, meta);
+    const starts = blockStarts(raw, meta, w[5], w[6]);
+    expect(starts, 'busArray.mat has ten type-2 blocks').toHaveLength(10);
+    return starts;
+  }
+
+  /**
+   * busArray.mat's subsystem with the table-relative words `patch` names set, decoded by
+   * the decoder itself with an issues map, optionally with a different handle for buses.
+   */
+  function decodeBuses(
+    patch: (w: number[], len: number, starts: number[]) => [number, number][],
+    ids?: number[],
+  ) {
+    const parsed = parseMat(bytes(BUSES));
+    const raw = anonymousOf(parsed.variables)._rawBytes!;
+    const meta = metaAt(raw);
+    const len = new DataView(raw.buffer, raw.byteOffset, raw.byteLength).getUint32(meta - 4, true);
+    let patched = raw;
+    for (const [at, word] of patch(header(raw, meta), len, busBlocks(raw, meta))) {
+      patched = withWord(patched, meta + at, word);
+    }
+    const buses = parsed.variables.find((v) => v.name === 'buses')!;
+    expect(buses.mcosHandle?.ids).toEqual([1, 3, 6]);
+    if (ids) buses.mcosHandle = { dims: [1, ids.length], ids };
+    const issues = new Map<MatVariable, McosDecodeIssue>();
+    const decoded = decodeMcosVariables(patched, [buses], issues);
+    return { issue: issues.get(buses), decoded: decoded.get(buses) as any };
+  }
+
+  /** The Name of each BusElement under each of buses' three Bus objects. */
+  const elementNames = (decoded: any): unknown[][] =>
+    decoded.elements.map((bus: any) => {
+      const els = bus.Elements_internal?._elements ?? (bus.Elements_internal ? [bus.Elements_internal] : []);
+      return els.map((e: any) => e._properties.Name);
+    });
+
+  it('control: the pristine file records nothing, and names every element', () => {
+    const { issue, decoded } = decodeBuses(() => []);
+    expect(issue).toBeUndefined();
+    expect(elementNames(decoded)).toEqual([['a'], ['x', 'y'], ['p', 'q', 'r']]);
+  });
+
+  it('a type-2 segment that ends 1-3 bytes into a count, and the control 4 bytes short', () => {
+    // mcosBlockSegmentEnd.test.ts's patches. Ending 1-3 bytes into a count stops the reader
+    // before it reads one; ending 4 bytes short lets it read one count (0, block 0) and end.
+    // Either way the Bus objects' blocks 1, 3 and 6 are past the segment, which is all
+    // that is counted: 3, the decode that test pins unchanged.
+    for (const short of [4, 1, 2, 3]) {
+      const { issue, decoded } = decodeBuses((_w, len) => [[4 * 5, len - short], [4 * 6, len]]);
+      expect(issue, `w[5] = len - ${short}`).toEqual(partial(3));
+      expect(Object.keys(decoded.properties), `w[5] = len - ${short}`).toEqual(['Alignment']);
+      expect(decoded.elements).toHaveLength(3);
+    }
+  });
+
+  it('the type-1 variant of those patches is no partial decode: it empties the object table', () => {
+    // For the type-1 segment [w[3], w[4]) to end at the table's end, w[4] and w[5] must
+    // sit there too, and the object table is [w[4], w[5]). With no rows, the gate refuses
+    // buses (C-260's record); there is no object left to count.
+    for (const short of [1, 2, 3]) {
+      const { issue, decoded } = decodeBuses((_w, len) => [
+        [4 * 3, len - short], [4 * 4, len], [4 * 5, len], [4 * 6, len],
+      ]);
+      expect(issue, `w[3] = len - ${short}`).toEqual({
+        refused: true,
+        reason: 'its handle names object 1, and the object table has 0 rows',
+      });
+      expect(decoded).toBeUndefined();
+    }
+  });
+
+  it('a header that ends the type-2 segment before its last block: no count to stop on, and still said', () => {
+    // w[6] = the start of block 9: the reader reads blocks 0-8 and ends, without breaking.
+    // BusElement 9, buses(3)'s third element, is reached through Bus 6's Elements and
+    // shows only its class defaults, so it has no Name. Every other element keeps its
+    // Name, so the Bus objects' own blocks were read.
+    const { parsed, warnings } = openMat(BUSES, (p) => {
+      const anon = anonymousOf(p.variables);
+      const raw = anon._rawBytes!;
+      const meta = metaAt(raw);
+      anon._rawBytes = withWord(raw, meta + 4 * 6, busBlocks(raw, meta)[9]);
+    });
+    expect(warnings.map((w) => [w.code, w.part])).toEqual([['part-unreadable', 'buses']]);
+    expect(warnings[0].message).toBe(
+      'the MATLAB object "buses" was decoded in part: 1 of its objects\' property blocks could not be read, '
+        + 'so those objects show only their class defaults.',
+    );
+    const decoded = mcosDecodedFor(parsed.variables.find((v) => v.name === 'buses')!)!;
+    expect(elementNames(decoded)).toEqual([['a'], ['x', 'y'], ['p', 'q', undefined]]);
+  });
+
+  it('a count that overruns its segment in a nested object\'s block counts the nested objects', () => {
+    // Block 7's count = 999: blocks 7, 8 and 9 are lost, which are buses(3)'s three
+    // BusElements. The three Bus objects' own blocks were read; what is counted is the
+    // three objects reached through them.
+    const { issue, decoded } = decodeBuses((_w, _len, starts) => [[starts[7], 999]]);
+    expect(issue).toEqual(partial(3));
+    expect(elementNames(decoded)).toEqual([['a'], ['x', 'y'], [undefined, undefined, undefined]]);
+  });
+
+  it('an object reached twice is counted once', () => {
+    // A handle that names one object twice reaches it, and everything under it, twice.
+    const top = decodeBuses((w) => [[w[5], 99999]], [1, 1]);
+    expect(top.issue).toEqual(partial(1));
+    expect(top.decoded.elements).toHaveLength(2);
+    const nested = decodeBuses((_w, _len, starts) => [[4 * 6, starts[9]]], [6, 6]);
+    expect(nested.issue).toEqual(partial(1));
+  });
+
+  it('each segment counts the objects that use it: a string\'s text, a Parameter\'s block', () => {
+    // strings_nested.mat: mixCell{1} and mixStruct.p are Simulink.Parameter objects (type-2
+    // blocks 1-3 and 4-6, with the CoderInfo objects under them); mixCell{2} and mixStruct.s
+    // are strings (type-1 blocks 1 and 2, type-2 block 0). Losing one segment is said only
+    // for the objects that address it: the type-1 blocks, for the strings alone; blocks 4-6,
+    // for mixStruct.p alone, whose own block is the one counted (its CoderInfo is reached
+    // through that block, so it is never reached at all).
+    const type1Lost = openMat(
+      'strings_nested.mat',
+      patchTable((w, raw, meta) => blockStarts(raw, meta, w[3], w[4])[1], 99999),
+    );
+    expect(type1Lost.warnings.map((w) => w.part).sort()).toEqual(['mixCell{2}', 'mixStruct.s']);
+    for (const w of type1Lost.warnings) expect(w.message).toContain(': 1 of its strings\' text could not be read');
+
+    const type2Lost = openMat(
+      'strings_nested.mat',
+      patchTable((w, raw, meta) => blockStarts(raw, meta, w[5], w[6])[4], 999),
+    );
+    expect(type2Lost.warnings.map((w) => [w.part, w.message])).toEqual([[
+      'mixStruct.p',
+      `the MATLAB object "mixStruct.p" was decoded in part: ${partial(1).reason}.`,
+    ]]);
+  });
+});
+
 describe('a variable the confidence gate refused', () => {
   const setHandle = (name: string, ids: number[]) => (parsed: ReturnType<typeof parseMat>): void => {
     parsed.variables.find((v) => v.name === name)!.mcosHandle = { dims: [1, ids.length], ids };
