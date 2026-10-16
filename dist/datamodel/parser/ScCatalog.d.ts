@@ -180,9 +180,11 @@ export interface ScFunction {
     prototypeSite: ScNameSite | null;
 }
 /**
- * Every function of the catalog renamed since it was read: interface name in the file ->
- * (function name in the file -> function name now). The interface is keyed by its name in
- * the FILE, so a function rename and a rename of its interface, in either order, both land.
+ * Function renames to carry into a catalog: interface name -> (function name -> new function
+ * name), both keyed by the names the catalog text being edited spells. The session's own record
+ * keeps them keyed by the names in the FILE as read, so a function rename and a rename of its
+ * interface, in either order, both land at save; a host that carries one rename into its open
+ * text keys by the names that text spells now.
  */
 export type CatalogFunctionRenames = ReadonlyMap<string, ReadonlyMap<string, string>>;
 /**
@@ -213,8 +215,9 @@ export declare function renamedPrototype(prototype: unknown, from: string, to: s
  * `text` is the text `fns` was scanned from (`scanScJsonFunctions` for a textual dictionary's
  * whole JSON, `scanScXmlFunctions` for a binary one's catalog member), and `renames` is keyed
  * by the names that text spells: interface name -> (function name -> new name). The edits are
- * spans of that text, for `applyScEdits`. What both save writers apply; public, like
- * `scRenameEdits`, for a host that edits its open document in place.
+ * spans of that text, for `applyScEdits`, in scan order rather than ascending position
+ * (`applyScEdits` sorts them). What both save writers apply; public, like `scRenameEdits`, for
+ * a host that edits its open document in place.
  */
 export declare function scFunctionRenameEdits(text: string, fns: ScFunction[], renames: CatalogFunctionRenames): ScTextEdit[];
 /**

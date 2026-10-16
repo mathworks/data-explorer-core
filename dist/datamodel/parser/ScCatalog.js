@@ -803,8 +803,9 @@ export function renamedPrototype(prototype, from, to) {
  * `text` is the text `fns` was scanned from (`scanScJsonFunctions` for a textual dictionary's
  * whole JSON, `scanScXmlFunctions` for a binary one's catalog member), and `renames` is keyed
  * by the names that text spells: interface name -> (function name -> new name). The edits are
- * spans of that text, for `applyScEdits`. What both save writers apply; public, like
- * `scRenameEdits`, for a host that edits its open document in place.
+ * spans of that text, for `applyScEdits`, in scan order rather than ascending position
+ * (`applyScEdits` sorts them). What both save writers apply; public, like `scRenameEdits`, for
+ * a host that edits its open document in place.
  */
 export function scFunctionRenameEdits(text, fns, renames) {
     const edits = [];
