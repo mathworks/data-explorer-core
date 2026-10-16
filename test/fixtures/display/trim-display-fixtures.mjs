@@ -9,16 +9,17 @@
 // MATLAB's own Value/Class/Size for each into truth/browser_short.json and truth/meta.json.
 // Whole, the three files do not belong in this repo: they hold function handles, whose MAT
 // bytes carry the matlabroot MATLAB was run from (fixtureHygiene.test.ts), and every walk of
-// test/fixtures would read 283 values for the 65 these tests ask about. So this keeps, byte
+// test/fixtures would read 283 values for the 68 these tests ask about. So this keeps, byte
 // for byte as MATLAB wrote it:
 //   - dispcat_bin.sldd: the chosen `DD.ENTRY` blocks of data/chunk0.xml, and every other part;
 //   - dispcat_text.sldd: the chosen entries of the data/chunk0 part;
 //   - dispcat.mat: the 128-byte header and the chosen top-level records. Only values with no
 //     MCOS object in them (no string, enumeration or Simulink object), so the file needs no
 //     subsystem, and the header's subsystem offset is zeroed;
-//   - dispcat_opaque.mat: the same header, the chosen records of MCOS objects (enumerations),
-//     and the subsystem they are objects of, whole, with the header's offset moved to it. A
-//     record holding the matlabroot of the MATLAB that wrote it (the subsystem does) has it
+//   - dispcat_opaque.mat: the same header, the chosen records of MCOS objects and of function
+//     handles, and the subsystem they are objects of, whole, with the header's offset moved to
+//     it. A record holding the matlabroot of the MATLAB that wrote it (the subsystem does, and
+//     every function handle's own struct does) has it
 //     replaced by a token of the same length, as test/fixtures/sparse/scrub_matlabroot.m does,
 //     and is compressed again; every other record is as MATLAB wrote it;
 //   - browser_short.truth.json / meta.truth.json: the same names' rows (meta without its
@@ -58,7 +59,9 @@ const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY]);
 // a Parameter holding one, and the SIZED objects.
 const MAT_ENUM = ['en_on', 'en_off', 'en_onoff_vec', 'en_sl_red', 'en_sl_vec', 'en_sl_empty', 'en_i32_high', 'en_i32_vec',
   'en_i32_empty', 'dx_enum_0x0', 'dx_enum_1x0', 'p_enum'];
-const OPAQUE_MAT = new Set([...MAT_ENUM, ...SIZED]);
+// Function handles: a named one, an anonymous one (whose workspace is an MCOS object), an empty.
+const HANDLE = ['fh_sin', 'fh_anon', 'e_func_handle_none'];
+const OPAQUE_MAT = new Set([...MAT_ENUM, ...SIZED, ...HANDLE]);
 
 // --- binary: whole DD.ENTRY blocks, in MATLAB's order, between its header and its DD.Dictionary
 const zip = unzipSync(new Uint8Array(readFileSync(join(root, 'files', 'dispcat_bin.sldd'))));

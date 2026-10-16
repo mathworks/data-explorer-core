@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import { enumerationInstanceOf, isUnheldStructArray, parseMatrix, structElementsHeld } from './MatParser.js';
+import { enumerationInstanceOf, functionHandleText as handleText, isUnheldStructArray, parseMatrix, structElementsHeld, } from './MatParser.js';
 import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './McosHandle.js';
 import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
@@ -501,7 +501,8 @@ const FUNCTION_HANDLE_MARKER = 0xdd000000;
  * 'anonymous' beside it — where func2str, MATLAB's display and the text dictionary's twin
  * all say `@(y)y*2` (R2027a, an AliasType subclass holding one, in a binary dictionary, a
  * text one and a .mat). Shown as it stood, it read `@sf%0@(y)y*2`. The prefix goes, and
- * the `@` that opens the anonymous function's own text stays; nothing else is rewritten.
+ * the `@` that opens the anonymous function's own text stays; nothing else is rewritten
+ * (MatParser.functionHandleText, which a .mat's own function handle is read with too).
  */
 function functionHandleText(elements) {
     if (elements.length !== 2 || elements[0] !== FUNCTION_HANDLE_MARKER) {
@@ -511,13 +512,8 @@ function functionHandleText(elements) {
     const fields = outer && outer._array_type === 'Struct' ? outer._elements?.[0] : null;
     const fh = fields?.function_handle;
     const inner = fh && fh._array_type === 'Struct' ? fh._elements?.[0] : null;
-    if (!inner || typeof inner.function !== 'string') {
-        return null;
-    }
-    return inner.type === 'anonymous' ? inner.function.replace(ANONYMOUS_SCOPE_PREFIX, '@') : inner.function;
+    return inner ? handleText(inner.function, inner.type) : null;
 }
-// The scope prefix of an anonymous handle's stored text, `sf%0@` in `sf%0@(y)y*2`.
-const ANONYMOUS_SCOPE_PREFIX = /^sf%\d+@/;
 // A parsed struct mxArray -> the SLDD Struct value shape (one bag of fields per
 // element), so StructNode.parse builds the same nested field rows the JSON path does.
 //

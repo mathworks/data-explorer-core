@@ -405,6 +405,15 @@
     "Error": ""
   },
   {
+    "Name": "e_func_handle_none",
+    "Path": "FieldColumns",
+    "Size": "0×0",
+    "Class": "function_handle",
+    "Value": "[]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
     "Name": "en_on",
     "Path": "FieldColumns",
     "Size": "1×1",
@@ -554,6 +563,24 @@
     "Size": "1×1",
     "Class": "logical (sparse)",
     "Value": "(1,1)      1",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "fh_sin",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "function_handle",
+    "Value": "@sin",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "fh_anon",
+    "Path": "FieldColumns",
+    "Size": "1×1",
+    "Class": "function_handle",
+    "Value": "@(x)x.^2+1",
     "IsSummary": false,
     "Error": ""
   },

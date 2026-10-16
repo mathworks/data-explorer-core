@@ -1060,6 +1060,29 @@
       "paramValue": []
     },
     {
+      "name": "e_func_handle_none",
+      "group": "empty",
+      "class": "function_handle",
+      "size": [
+        0,
+        0
+      ],
+      "numel": 0,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "function_handle",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "",
+      "paramValue": []
+    },
+    {
       "name": "en_on",
       "group": "enum",
       "class": "matlab.lang.OnOffSwitchState",
@@ -1456,6 +1479,52 @@
       "mat2str17": "sparse(1, 1, true, 1, 1)",
       "hex": [],
       "disp": "   (1,1)      1\n",
+      "paramValue": []
+    },
+    {
+      "name": "fh_sin",
+      "group": "func",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "function_handle",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "    @sin\n",
+      "paramValue": []
+    },
+    {
+      "name": "fh_anon",
+      "group": "func",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "function_handle",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "    @(x)x.^2+1\n",
       "paramValue": []
     },
     {

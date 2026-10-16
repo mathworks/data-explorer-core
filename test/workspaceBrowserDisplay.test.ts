@@ -437,3 +437,36 @@ describe('a fi, a categorical and a table are the size of their data', () => {
     });
   }
 });
+
+// P6 of the 2026-10-16 list: a .mat holds a function handle as MAT class 16, whose body is a
+// struct whose `function_handle` field holds the handle's text, and MatParser modelled no class
+// 16, so fh_sin and fh_anon showed `null`, editable, of class `unknown`, and the empty one
+// `[ ]` of class `unknown`. Each is now the node a text dictionary's function handle is.
+describe("a .mat's function handle shows its text and its class", () => {
+  it('a named and an anonymous one, as MATLAB shows them, with no editor', () => {
+    const { root } = open('dispcat_opaque.mat');
+    for (const name of ['fh_sin', 'fh_anon']) {
+      const node = entry(root, name);
+      expect([name, node.toRow().Value, node.toRow().Class, node.dims, node.valueEditable]).toEqual([
+        name, browser(name).Value, browser(name).Class, meta(name).size, false,
+      ]);
+      expect(node.setProperty('Value', '@cos')).toMatchObject({ error: true });
+      expect(node.toRow().Value).toBe(browser(name).Value);
+    }
+  });
+
+  it('an empty one is an empty function_handle', () => {
+    const { root } = open('dispcat_opaque.mat');
+    const node = entry(root, 'e_func_handle_none');
+    // MATLAB's `[]`; this package spells every empty of a class with no summary `[ ]`, as a
+    // text dictionary's empty function handle reads (MatlabVariableNode.parse).
+    expect([browser('e_func_handle_none').Class, meta('e_func_handle_none').size]).toEqual(['function_handle', [0, 0]]);
+    expect([node.toRow().Value, node.toRow().Class, node.dims, node.valueEditable]).toEqual(['[ ]', 'function_handle', [0, 0], false]);
+  });
+
+  it('and none of the three is reported as a value this reader did not read', async () => {
+    const { parseMat } = await import('../src/datamodel/parser/MatParser.js');
+    const parsed = parseMat(buffer(bytes('dispcat_opaque.mat')));
+    expect(parsed.warnings.filter((w: any) => ['fh_sin', 'fh_anon', 'e_func_handle_none'].includes(w.part))).toEqual([]);
+  });
+});
