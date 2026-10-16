@@ -72,6 +72,42 @@
     "Error": ""
   },
   {
+    "Name": "i8_1x10",
+    "Path": "FieldColumns",
+    "Size": "1×10",
+    "Class": "int8",
+    "Value": "[1,2,3,4,5,6,7,8,9,10]",
+    "IsSummary": false,
+    "Error": ""
+  },
+  {
+    "Name": "i8_1x11",
+    "Path": "FieldColumns",
+    "Size": "1×11",
+    "Class": "int8",
+    "Value": "1×11 int8",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "l_1x10",
+    "Path": "FieldColumns",
+    "Size": "1×10",
+    "Class": "logical",
+    "Value": "1×10 logical",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
+    "Name": "l_1x11",
+    "Path": "FieldColumns",
+    "Size": "1×11",
+    "Class": "logical",
+    "Value": "1×11 logical",
+    "IsSummary": true,
+    "Error": ""
+  },
+  {
     "Name": "dx_double_0x0",
     "Path": "FieldColumns",
     "Size": "0×0",

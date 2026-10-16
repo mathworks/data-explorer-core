@@ -3624,7 +3624,10 @@ export default class MatlabVariableNode extends DataNode {
       if (rv._type === 'struct' && /^\[\s*\]$/.test(rv._value as string)) {
         return MatlabVariableNode.parseEmptyStruct(rv, name, parent);
       }
-      if ((rv._value as string).indexOf('Matrix(') === 0) {
+      // A `Vector(N)` header is a text dictionary's typed row of ten or more (parseMatrixValue).
+      // It fell to the typed-scalar arm, which read the header as the number 0: int8(1:10) showed
+      // `0` at 1x1, editable as that scalar, where MATLAB reads the file back as the 1x10.
+      if ((rv._value as string).indexOf('Matrix(') === 0 || (rv._value as string).indexOf('Vector(') === 0) {
         return MatlabVariableNode.parseTypedArray(rv, name, parent);
       }
       if ((rv._value as string).charAt(0) === '[') {

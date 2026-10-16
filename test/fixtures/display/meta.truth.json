@@ -192,6 +192,98 @@
       "paramValue": []
     },
     {
+      "name": "i8_1x10",
+      "group": "int-array",
+      "class": "int8",
+      "size": [
+        1,
+        10
+      ],
+      "numel": 10,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "int8",
+      "mat2str": "[1 2 3 4 5 6 7 8 9 10]",
+      "mat2str17": "[1 2 3 4 5 6 7 8 9 10]",
+      "hex": [],
+      "disp": "    1    2    3    4    5    6    7    8    9   10\n",
+      "paramValue": []
+    },
+    {
+      "name": "i8_1x11",
+      "group": "int-array",
+      "class": "int8",
+      "size": [
+        1,
+        11
+      ],
+      "numel": 11,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "int8",
+      "mat2str": "[1 2 3 4 5 6 7 8 9 10 11]",
+      "mat2str17": "[1 2 3 4 5 6 7 8 9 10 11]",
+      "hex": [],
+      "disp": "    1    2    3    4    5    6    7    8    9   10   11\n",
+      "paramValue": []
+    },
+    {
+      "name": "l_1x10",
+      "group": "logical-array",
+      "class": "logical",
+      "size": [
+        1,
+        10
+      ],
+      "numel": 10,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": true,
+      "underlyingType": "logical",
+      "mat2str": "[true false true false true false true false true false]",
+      "mat2str17": "[true false true false true false true false true false]",
+      "hex": [],
+      "disp": "   1   0   1   0   1   0   1   0   1   0\n",
+      "paramValue": []
+    },
+    {
+      "name": "l_1x11",
+      "group": "logical-array",
+      "class": "logical",
+      "size": [
+        1,
+        11
+      ],
+      "numel": 11,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": false,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": true,
+      "underlyingType": "logical",
+      "mat2str": "[true false true false true false true false true false true]",
+      "mat2str17": "[true false true false true false true false true false true]",
+      "hex": [],
+      "disp": "   1   0   1   0   1   0   1   0   1   0   1\n",
+      "paramValue": []
+    },
+    {
       "name": "dx_double_0x0",
       "group": "empty",
       "class": "double",

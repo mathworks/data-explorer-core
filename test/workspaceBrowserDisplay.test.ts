@@ -247,3 +247,54 @@ describe("an empty shows as MATLAB's Workspace browser shows it", () => {
     expect(chunkOf(session.serializeSource(root.name).bytes)).toBe(chunkOf(bytes('dispcat_bin.sldd')));
   });
 });
+
+// P1 of the 2026-10-16 list ("a text `Vector(N)` row reads as one `0`/`false`. MATLAB reads it
+// as 1×N"). A text dictionary writes a row of ten or more elements under a `Vector(N)` header,
+// `{"_type": "int8", "_value": "Vector(10)\n[1, 2, …, 10]"}`, and it was read as one scalar of
+// its class: the header is no number, so i8_1x10 showed `0` and l_1x10 `false`, at 1x1, with no
+// element rows, and was editable as that scalar. MATLAB reads the file back as the 1xN row it
+// saved (text_readback.truth.json), and the .mat and the binary dictionary read the same value
+// as that row.
+describe("a text dictionary's Vector(N) row is the 1xN row MATLAB reads back", () => {
+  const VECTOR = ['i8_1x10', 'i8_1x11', 'l_1x10', 'l_1x11'];
+  interface Readback { name: string; equal: boolean; classAfter: string; sizeAfter: number[] }
+  const READBACK = new Map((JSON.parse(readFileSync(here('text_readback.truth.json'), 'utf8')) as Readback[]).map((r) => [r.name, r]));
+  const textEntries = (): any[] =>
+    JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8')).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+
+  it('the file holds each under a Vector(N) header', () => {
+    const held = VECTOR.map((name) => textEntries().find((e: any) => e.name === name).value._value.split('\n')[0]);
+    expect(held).toEqual(VECTOR.map((name) => `Vector(${meta(name).size[1]})`));
+  });
+
+  for (const name of VECTOR) {
+    it(`${name}: its class, size and elements, as MATLAB reads the file back and as the other files hold it`, () => {
+      const rb = READBACK.get(name)!;
+      expect([rb.equal, rb.classAfter, rb.sizeAfter], 'MATLAB reads back the value it saved').toEqual([true, meta(name).class, meta(name).size]);
+      const text = entry(open('dispcat_text.sldd').root, name);
+      expect([text.className, text.dims, text.children.length]).toEqual([rb.classAfter, rb.sizeAfter, rb.sizeAfter[1]]);
+      for (const file of ['dispcat.mat', 'dispcat_bin.sldd']) {
+        const other = entry(open(file).root, name);
+        expect([file, text.toRow().Value, text.valueEditable]).toEqual([file, other.toRow().Value, other.valueEditable]);
+        expect(text.children.map((c: any) => c.displayValue), file).toEqual(other.children.map((c: any) => c.displayValue));
+      }
+    });
+  }
+
+  it('written back as the file holds it, untouched, and as a row once an element is edited', () => {
+    const { session, root } = open('dispcat_text.sldd');
+    const saved = (s: any): any[] =>
+      JSON.parse(s.serializeSource(root.name).text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const valueOf = (entries: any[], name: string): unknown => entries.find((e: any) => e.name === name).value;
+    for (const name of VECTOR) {
+      expect(valueOf(saved(session), name), name).toEqual(valueOf(textEntries(), name));
+    }
+    const node = entry(root, 'i8_1x10');
+    session.setActive(root, node.children[2]);
+    expect(session.editProperty(node.children[2].id, 'Value', '30')).toBe(true);
+    const reopened = createSession();
+    const again = ingest(reopened, buffer(new TextEncoder().encode(session.serializeSource(root.name).text)), { filename: 'dispcat_text.sldd' });
+    const back = entry(again, 'i8_1x10');
+    expect([back.className, back.dims, back.toRow().Value]).toEqual(['int8', [1, 10], '[1 2 30 4 5 6 7 8 9 10]']);
+  });
+});

@@ -184,7 +184,12 @@ export function parseMatrixValue(
   // 2x3x2 as Dimension="2*3*2", and BinarySlddParser now carries every extent
   // through. Only the two-group form was matched, so an N-D entry fell through
   // to the [0,0] empty node with all twelve of its elements gone.
-  const dimsMatch = header.match(/^Matrix\((\d+(?:,\d+)*)\)$/);
+  //
+  // And a text dictionary's ROW of ten or more elements of a typed class is `Vector(N)` over
+  // one bracketed list: MATLAB wrote int8(1:10) as `{"_type": "int8", "_value": "Vector(10)\n[1,
+  // 2, …, 10]"}` and reads that file back as the 1x10 it saved (test/fixtures/display,
+  // i8_1x10). Its one extent is the row's length, as a one-group Matrix header's is below.
+  const dimsMatch = header.match(/^Matrix\((\d+(?:,\d+)*)\)$/) || header.match(/^Vector\((\d+)\)$/);
   if (!dimsMatch) {
     return null;
   }

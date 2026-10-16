@@ -17,7 +17,9 @@
 //     MCOS object in them (no string, enumeration or Simulink object), so the file needs no
 //     subsystem, and the header's subsystem offset is zeroed;
 //   - browser_short.truth.json / meta.truth.json: the same names' rows (meta without its
-//     matlabroot, which is a path of the machine).
+//     matlabroot, which is a path of the machine);
+//   - text_readback.truth.json: for the few values whose tests ask, what MATLAB read back
+//     out of dispcat_text.sldd when it reopened it (truth/files.json's round trip).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,9 +43,14 @@ const EMPTY = ['dx_double_0x0', 'dx_double_1x0', 'dx_double_0x1', 'dx_double_0x3
   'dx_int8_0x3', 'e_uint64_0x0', 'dx_logical_1x0', 'e_logical_0x0', 'e_logical_0x3', 'dx_char_0x0', 'dx_char_1x0',
   'dx_char_0x2', 'dx_cell_0x0', 'dx_cell_1x0', 'dx_cell_0x3', 'dx_struct_0x0', 'dx_struct_0x0_fields', 'dx_struct_1x0'];
 const PARAM = ['dx_param_empty', 'dx_param_complex_1x0'];
+// Rows of ten and more, which a text dictionary writes under a `Vector(N)` header.
+const VECTOR = ['i8_1x10', 'i8_1x11', 'l_1x10', 'l_1x11'];
 
-const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM]);
-const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY]);
+const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...VECTOR]);
+const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY, ...VECTOR]);
+// The text dictionary's values whose tests read MATLAB's own read-back of that file
+// (truth/files.json: closed, reopened, getValue), kept as text_readback.truth.json.
+const TEXT_READBACK = [...VECTOR];
 
 // --- binary: whole DD.ENTRY blocks, in MATLAB's order, between its header and its DD.Dictionary
 const zip = unzipSync(new Uint8Array(readFileSync(join(root, 'files', 'dispcat_bin.sldd'))));
@@ -101,4 +108,7 @@ const keep = ['version', 'release', 'date', 'userNumericFormat', 'timesSymbol', 
 const trimmed = Object.fromEntries(keep.map((k) => [k, meta[k]]));
 trimmed.entries = meta.entries.filter((e) => names.has(e.name));
 writeFileSync(out('meta.truth.json'), JSON.stringify(trimmed, null, 2) + '\n');
+const files = JSON.parse(readFileSync(join(root, 'truth', 'files.json'), 'utf8'));
+const readback = files.sldd_text.roundtrip.filter((r) => TEXT_READBACK.includes(r.name));
+writeFileSync(out('text_readback.truth.json'), JSON.stringify(readback, null, 2) + '\n');
 console.log(`kept ${kept.length} binary entries, ${part.entries.length} text entries, ${records.length} .mat records`);
