@@ -28,6 +28,16 @@ to signal the caller to fall back to the opaque representation.
 When no decoded properties are supplied, it builds an EMPTY SHELL (correct class
 and icon, empty columns, no children) rather than guessing values.
 
+`modelOpaqueMcosVariable` does not ask it for one when the decoder REFUSED the
+object (`mcosDecodedTable.mcosRefused`): the bytes name an object the table does not
+hold, or objects of another class than the variable declares. An empty shell of the
+declared class would then be an object that is not the one in the file, and a copy
+of it would write that empty object. It returns `null` instead, and the container
+builds the plain opaque (`<1x1 Simulink.Parameter>`, with its class, its icon and the
+bytes it was read from), as it does for a class with no typed node. Nothing to decode
+against (no blob) and a handle that is only the null object (ids `[0]`, as MATLAB
+writes a handle that saved no state) are not refusals: those still get the shell.
+
 ## Nested objects
 
 An MCOS object held in a struct field (of a scalar struct or of any element of a
@@ -40,13 +50,17 @@ same object gets at top level, apart from its name. Three pieces carry it:
   has no name), and records each result. What the decoder could not read of one —
   the confidence gate refused it, or an object it reaches addresses a property block
   the block reader stopped before — is one `part-unreadable` warning, named by its
-  MATLAB path (`s.f`, `s(2).f`, `c{3}`). Both containers pass their file's warnings;
+  MATLAB path (`s.f`, `s(2).f`, `c{3}`). A refusal is also recorded, for
+  `modelOpaqueMcosVariable`, and cleared for every other variable, so a detach
+  (`blob` null) clears it too. Both containers pass their file's warnings;
   a dictionary's encoded value passes its own, under the entry's name (`rootPath`),
   which `SlddNode.parse` collects per entry (`EncodedValue.recordPartialDecode`).
 - **The side table, `mcosDecodedTable.ts`**: the results live in a module-level
   `WeakMap` keyed by the parsed variable, not on the variable, which may be a
   host's own object. `mcosDecodedFor(variable)` reads it. A re-attach that no
-  longer decodes a variable removes its entry. The module imports nothing at run
+  longer decodes a variable removes its entry. Beside it, a `WeakSet` of the
+  variables the decoder refused (`setMcosRefused`, `mcosRefused`), filled and cleared
+  by the same attach. The module imports nothing at run
   time, so all three layers that read it can import it without a cycle.
 - **The hook in `MatlabVariableNode.parseMatVariable`**, the one dispatch every
   struct field and cell element goes through. Its opaque arm looks the variable up

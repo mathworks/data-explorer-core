@@ -18,6 +18,9 @@
 // The null object is not a refusal: MATLAB writes ids [0] for a handle that saved no state
 // (a delite .mat holds two Simulink.ModelWorkspace handles that way), and it stays quiet.
 //
+// A refused variable of a class the data model knows is the plain opaque it is with no
+// decode, not an empty typed node of the declared class (C-229).
+//
 // Every fixture here is MATLAB-written; the damage is a same-length word patch, located by
 // the decoder's own header predicate and asserted, so a fixture that moves fails loudly.
 import { describe, it, expect } from 'vitest';
@@ -32,7 +35,11 @@ import { uuencode } from '../src/datamodel/parser/CdataCodec.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 import { regenerateEntryXml, serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
-import { mcosDecodedFor } from '../src/datamodel/node/data/mcosDecodedTable.js';
+import { mcosDecodedFor, mcosRefused } from '../src/datamodel/node/data/mcosDecodedTable.js';
+import { attachMcosDecoded, modelOpaqueMcosVariable } from '../src/datamodel/node/data/mcosTypedNode.js';
+import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
+import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
+import SignalNode from '../src/datamodel/node/data/SignalNode.js';
 import MatNode from '../src/datamodel/node/container/MatNode.js';
 import ModelNode from '../src/datamodel/node/container/ModelNode.js';
 import { createSession } from '../src/index.js';
@@ -415,6 +422,167 @@ describe('a model workspace', () => {
     parsed.workspace.find((v) => v.name === 'Param')!.mcosHandle = { dims: [1, 1], ids: [99999] };
     ModelNode.fromParsed(parsed, 'mcosfix.slx');
     expect(mcosWarnings(parsed.warnings).map((w) => [w.code, w.part])).toEqual([['part-unreadable', 'Param']]);
+  });
+});
+
+// ---- C-229: what a refused object of a known class is shown as -------------------------
+
+describe('C-229: a refused object of a class the data model knows is the plain opaque, not an empty typed node', () => {
+  // Param.mat: Param = Simulink.Parameter(int32(42)). Refused, it was a ParameterNode built
+  // from no properties at all — Value `[ ]`, DataType `auto`: a 1x1 Parameter that is not the
+  // one in the file, and that a copy wrote out as an empty Parameter. It is now the row it is
+  // with no decode, `<1x1 Simulink.Parameter>`: its class and its icon, no Value to edit, and
+  // the bytes it was read from. The refusal itself, and its warning, are as they were.
+  const setHandle = (name: string, ids: number[]) => (parsed: ReturnType<typeof parseMat>): void => {
+    parsed.variables.find((v) => v.name === name)!.mcosHandle = { dims: [1, ids.length], ids };
+  };
+  const rowOf = (parent: { children: unknown[] }, name: string): any =>
+    parent.children.find((c) => (c as { name: string }).name === name);
+
+  /**
+   * `row` is the plain opaque of `variable`: the node a variable of its class gets when there
+   * is no decode, built here for a fresh copy of it (which neither table has heard of) by the
+   * dispatch every undecoded opaque goes through.
+   */
+  function expectPlainOpaque(row: any, variable: MatVariable, className: string): void {
+    expect(row.constructor, 'the node class').toBe(MatlabVariableNode);
+    expect(row._isOpaque).toBe(true);
+    expect(row._opaqueClassName).toBe(className);
+    expect(row._matVar).toBe(variable);
+    expect(variable._rawBytes, 'a top-level variable keeps its bytes').toBeInstanceOf(Uint8Array);
+    expect(row._rawBytes).toBe(variable._rawBytes);
+    const twin: any = MatlabVariableNode.parseMatVariable({ ...variable }, variable.name, null);
+    expect(twin._isOpaque, 'the twin is the undecoded opaque').toBe(true);
+    const shown = (n: any) => [n.className, n.icon, n.displayValue, n.dataType, n.children.length];
+    expect(shown(row)).toEqual(shown(twin));
+    expect(shown(row)).toEqual([className, expect.any(String), `<1x1 ${className}>`, '', 0]);
+  }
+
+  for (const ids of [[99999], [1.5], [-1]]) {
+    it(`a handle naming object ${ids[0]}: the opaque, with its class and icon, and one warning`, () => {
+      const { parsed, node, warnings } = openMat('mcos/Param.mat', setHandle('Param', ids));
+      const variable = parsed.variables.find((v) => v.name === 'Param')!;
+      const row = rowOf(node, 'Param');
+      expect(row).not.toBeInstanceOf(ParameterNode);
+      expectPlainOpaque(row, variable, 'Simulink.Parameter');
+      expect(row.icon).toBe('wsParameters');
+      expect(warnings.map((w) => [w.code, w.part])).toEqual([['part-unreadable', 'Param']]);
+      expect(warnings[0].message).toContain(`could not be decoded, so its properties are not shown: its handle names object ${ids[0]},`);
+    });
+  }
+
+  it('objects of another class than the variable declares: the opaque of the declared class, not a SignalNode', () => {
+    const { parsed, node, warnings } = openMat('mcos/Param.mat', (p) => {
+      p.variables.find((v) => v.name === 'Param')!.className = 'Simulink.Signal';
+    });
+    const row = rowOf(node, 'Param');
+    expect(row).not.toBeInstanceOf(SignalNode);
+    expectPlainOpaque(row, parsed.variables.find((v) => v.name === 'Param')!, 'Simulink.Signal');
+    expect(warnings.map((w) => w.part)).toEqual(['Param']);
+    expect(warnings[0].message).toContain('its objects are of class Simulink.Parameter, not Simulink.Signal');
+  });
+
+  it('a model workspace: the refused row is the opaque, and every other row is what it was', () => {
+    const shape = (model: any): string[] =>
+      model.getSection('workspace').children.map((c: any) => `${c.name}:${c.constructor.name}`);
+    const pristine = shape(ModelNode.fromParsed(parseSlx(bytes('mcos/mcosfix.slx'), 'mcosfix.slx'), 'mcosfix.slx'));
+    expect(pristine).toContain('Param:ParameterNode');
+
+    const parsed = parseSlx(bytes('mcos/mcosfix.slx'), 'mcosfix.slx');
+    const variable = parsed.workspace.find((v) => v.name === 'Param')!;
+    variable.mcosHandle = { dims: [1, 1], ids: [99999] };
+    const model: any = ModelNode.fromParsed(parsed, 'mcosfix.slx');
+    expectPlainOpaque(rowOf(model.getSection('workspace'), 'Param'), variable, 'Simulink.Parameter');
+    expect(shape(model)).toEqual(pristine.map((row) => (row === 'Param:ParameterNode' ? 'Param:MatlabVariableNode' : row)));
+    expect(mcosWarnings(parsed.warnings).map((w) => [w.code, w.part])).toEqual([['part-unreadable', 'Param']]);
+  });
+
+  it('a nested object was the opaque already, and says so now', () => {
+    const { node, warnings } = openMat('strings_nested.mat', (parsed) => {
+      const mixStruct = parsed.variables.find((v) => v.name === 'mixStruct')!;
+      (mixStruct.fields!.p as MatVariable).mcosHandle = { dims: [1, 1], ids: [99999] };
+    });
+    const p = rowOf(rowOf(node, 'mixStruct'), 'p');
+    expect([p.constructor, p._isOpaque, p._opaqueClassName]).toEqual([MatlabVariableNode, true, 'Simulink.Parameter']);
+    expect(warnings.map((w) => [w.code, w.part])).toEqual([['part-unreadable', 'mixStruct.p']]);
+  });
+
+  it('a copy of the refused row is a copy of the opaque, not of an empty Parameter', () => {
+    const { parsed, node } = openMat('mcos/Param.mat', setHandle('Param', [99999]));
+    const variable = parsed.variables.find((v) => v.name === 'Param')!;
+    const copied = JSON.parse(JSON.stringify(rowOf(node, 'Param').serializeValue()));
+    const twin: any = MatlabVariableNode.parseMatVariable({ ...variable }, 'Param', null);
+    expect(copied).toEqual(JSON.parse(JSON.stringify(twin.serializeValue())));
+    expect(JSON.stringify(copied)).not.toContain('Simulink.Parameter');
+  });
+
+  // ---- Controls: none of these is a refusal, and each is the node it was -------------
+
+  it('control: the pristine file is the ParameterNode of the file', () => {
+    const { node, warnings } = openMat('mcos/Param.mat');
+    const row = rowOf(node, 'Param');
+    expect(row).toBeInstanceOf(ParameterNode);
+    expect([row.Value, row.displayValue]).toEqual([42, '42']);
+    expect(warnings).toEqual([]);
+  });
+
+  it('control: the null object, id 0, keeps its empty typed node and says nothing', () => {
+    const { node, warnings } = openMat('mcos/Param.mat', setHandle('Param', [0]));
+    expect(rowOf(node, 'Param')).toBeInstanceOf(ParameterNode);
+    expect(warnings).toEqual([]);
+  });
+
+  it('control: a known class with no decode, and nothing recorded for it, is its typed node', () => {
+    const variable = (): MatVariable =>
+      ({ name: 'K', className: 'Simulink.Parameter', dimensions: [1, 1], isComplex: false, isLogical: false, value: null, fields: null, isOpaque: true }) as unknown as MatVariable;
+    // Never attached...
+    expect(modelOpaqueMcosVariable(variable(), undefined, null)).toBeInstanceOf(ParameterNode);
+    // ...and attached with no blob to decode against.
+    const v = variable();
+    attachMcosDecoded(null, [v]);
+    expect(modelOpaqueMcosVariable(v, mcosDecodedFor(v), null)).toBeInstanceOf(ParameterNode);
+  });
+
+  it('control: a decode in part is not a refusal, and keeps its typed node', () => {
+    const pristine = rowOf(openMat('mcos/busArray.mat').node, 'buses');
+    const { parsed, node, warnings } = openMat('mcos/busArray.mat', patchTable((w) => w[5], 99999));
+    // Recorded as what it is: decoded, and not refused.
+    const buses = parsed.variables.find((v) => v.name === 'buses')!;
+    expect([mcosDecodedFor(buses) !== undefined, mcosRefused(buses)]).toEqual([true, false]);
+    const row = rowOf(node, 'buses');
+    expect(row._isOpaque).not.toBe(true);
+    expect(row.constructor).toBe(pristine.constructor);
+    expect(row.constructor).not.toBe(MatlabVariableNode);
+    expect(warnings[0].message).toContain('was decoded in part');
+  });
+
+  it('a refusal lasts only as long as the attach that found it', () => {
+    const parsed = parseMat(bytes('mcos/Param.mat'));
+    const variable = parsed.variables.find((v) => v.name === 'Param')!;
+    const handle = variable.mcosHandle;
+    const blob = anonymousOf(parsed.variables)._rawBytes;
+    variable.mcosHandle = { dims: [1, 1], ids: [99999] };
+    attachMcosDecoded(blob, [variable]);
+    expect(modelOpaqueMcosVariable(variable, mcosDecodedFor(variable), null), 'refused').toBeNull();
+    // Detached, as MatlabVariableNode._parseCdataObjects detaches one whose build threw: no
+    // decode, and no refusal either, so it is the typed node a variable with no decode is.
+    attachMcosDecoded(null, [variable]);
+    expect(modelOpaqueMcosVariable(variable, mcosDecodedFor(variable), null), 'detached').toBeInstanceOf(ParameterNode);
+    // Attached again with its own handle: the file's Parameter.
+    variable.mcosHandle = handle;
+    const node = MatNode.fromParsed(parsed, 'Param.mat');
+    expect((rowOf(node, 'Param') as ParameterNode).Value).toBe(42);
+  });
+
+  it('a variable a tree holds twice is refused both times, and said once', () => {
+    // A host's tree can hold one variable object in two places; the warning is taken once.
+    const parsed = parseMat(bytes('mcos/Param.mat'));
+    const variable = parsed.variables.find((v) => v.name === 'Param')!;
+    variable.mcosHandle = { dims: [1, 1], ids: [99999] };
+    const warnings: ParseWarning[] = [];
+    attachMcosDecoded(anonymousOf(parsed.variables)._rawBytes, [variable, variable], warnings);
+    expect(modelOpaqueMcosVariable(variable, mcosDecodedFor(variable), null)).toBeNull();
+    expect(warnings.map((w) => w.part)).toEqual(['Param']);
   });
 });
 
