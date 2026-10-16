@@ -3413,6 +3413,29 @@ export default class MatlabVariableNode extends DataNode {
     return node;
   }
 
+  // A variable shown as what was read of it and nothing more: its class and its size, as one
+  // not-decoded row (_createUndecoded), `<2x3 double, not decoded>`, spelled as MatParser
+  // spells its own placeholder (undecodedValue). It is built for a numeric value that holds no
+  // data (_createFromMatNumeric), and for a variable the builders could not make a node of at
+  // all, which the container catches one variable at a time so that the rest of the file opens
+  // (ModelSectionNode.addWorkspaceEntry, MatNode.fromParsed). `cls` is the class the row
+  // names; a logical's is `logical`, where the file's class is uint8.
+  static createNotDecoded(
+    variable: MatVariable,
+    name: string,
+    parent: BaseNode | null,
+    cls: string = variable.className,
+  ): MatlabVariableNode {
+    const dims = variable.dimensions;
+    const node = MatlabVariableNode._createUndecoded(variable, name, parent);
+    node._scalarType = cls;
+    node._scalarValue = undecodedValue(dims, cls);
+    // The size the placeholder names: a dims part cut short is at least 2-D, as MATLAB's
+    // size() always is.
+    node._dims = dims.length >= 2 ? dims.slice() : [1, dims[0] || 1];
+    return node;
+  }
+
   static createFromMcosDecoded(
     variable: MatVariable,
     decoded: {
@@ -3502,16 +3525,11 @@ export default class MatlabVariableNode extends DataNode {
     //
     // A class MatParser does not model ('unknown': a flags word overwritten, say) is not this,
     // since no arm read it. It keeps the null a real one shows, and a complex one fails in the
-    // complex arm below, which a binary dictionary shows as its value not decoded.
+    // complex arm below. What holds it catches that and shows it not decoded: a binary
+    // dictionary the whole value (parseEncoded), and a model workspace or a .mat the whole
+    // variable (ModelSectionNode.addWorkspaceEntry, MatNode.fromParsed).
     if (variable.value === null && totalElements > 0 && variable.className !== 'unknown') {
-      const cls = variable.isLogical ? 'logical' : variable.className;
-      const undecoded = MatlabVariableNode._createUndecoded(variable, name, parent);
-      undecoded._scalarType = cls;
-      undecoded._scalarValue = undecodedValue(dims, cls);
-      // The size the placeholder names: a dims part cut short is at least 2-D, as MATLAB's
-      // size() always is.
-      undecoded._dims = dims.length >= 2 ? dims.slice() : [1, dims[0] || 1];
-      return undecoded;
+      return MatlabVariableNode.createNotDecoded(variable, name, parent, variable.isLogical ? 'logical' : variable.className);
     }
 
     // What is left of a complex variable with no value declares no element, or a count that is

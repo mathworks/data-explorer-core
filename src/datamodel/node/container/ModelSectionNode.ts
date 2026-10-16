@@ -44,8 +44,21 @@ export default class ModelSectionNode extends ContainerNode {
     }
   }
 
+  // One variable the node builders cannot make a node of refused the whole model: a complex
+  // one whose flags word was overwritten with a class the reader does not model (255, say)
+  // has no value, and the complex arm read `.re` of its null. The maintainer's ruling of
+  // 2026-10-16 (group E, theme 1: show what was read, never refuse the file) catches it here,
+  // one variable at a time, and shows it as what was read of it, its name, class and size,
+  // not decoded (MatlabVariableNode.createNotDecoded), as a binary dictionary shows the same
+  // bytes. It does not warn: a model workspace does not report a value it did not decode
+  // (the C-232 ruling).
   addWorkspaceEntry(entry: MatVariable): BaseNode {
-    const node = MatlabVariableNode.parseMatVariable(entry, entry.name, this);
+    let node: BaseNode;
+    try {
+      node = MatlabVariableNode.parseMatVariable(entry, entry.name, this);
+    } catch {
+      node = MatlabVariableNode.createNotDecoded(entry, entry.name, this);
+    }
     this.addChild(node);
     return node;
   }
