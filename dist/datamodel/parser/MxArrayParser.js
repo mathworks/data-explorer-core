@@ -35,7 +35,16 @@ export function parseMxArray(buffer) {
         return result;
     }
     for (const [name, fieldVar] of Object.entries(outer.fields)) {
+        // A field of a struct ARRAY is the list of its elements that were read, and the
+        // list is empty when the stream ran out before any of them (MatParser keeps such
+        // a field, so the array does not read as having none). Then there is no variable
+        // to name. Skipped, the workspace is short of it. Named, the TypeError refused the
+        // whole model, which the maintainer's ruling of 2026-10-16 on C-232 rules out: an
+        // unreadable workspace part shows the Model Workspace section empty.
         const variable = (Array.isArray(fieldVar) ? fieldVar[0] : fieldVar);
+        if (!variable) {
+            continue;
+        }
         variable.name = name;
         result.push(variable);
     }
