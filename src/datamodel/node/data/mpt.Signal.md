@@ -4,7 +4,7 @@
 
 **Node class:** `SignalNode` (`src/datamodel/node/data/SignalNode.ts`) — shared with `Simulink.Signal`, not subclassed
 **MATLAB class:** `mpt.Signal` (Embedded Coder; subclass of `Simulink.Signal`)
-**Editable in our UI:** yes, on exactly the terms `Simulink.Signal` is (Min, Max, Description) — see [Simulink.Signal.md](Simulink.Signal.md). Not offered for creation.
+**Editable in our UI:** yes, on exactly the terms `Simulink.Signal` is (Min, Max, Description) — see [Simulink.Signal.md](Simulink.Signal.md). Not offered for creation; admitted to a paste or a drop into Design Data.
 **Verified against:** n/a — no MATLAB probe of `mpt.Signal` itself. The inherited
 properties are covered by `probe_class('Simulink.Signal')` and the `params.sldd`
 round-trip; the mpt-only properties are **unverified**.
@@ -21,7 +21,7 @@ Signal has no value to put there at all.
 
 | Registry | Entry | Effect |
 |----------|-------|--------|
-| `NodeClassMap.CLASS_MAP` | `'mpt.Signal': SignalNode` | dispatch — the typed node, in every format |
+| `registeredSubclasses.ts` `SUPERCLASS_OF` | `'mpt.Signal' → 'Simulink.Signal'` | dispatch — `NodeClassMap` registers it under `SignalNode`, the typed node, in every format; and admission to a paste or a drop where `Simulink.Signal` may live |
 | `kindMap.KIND_BY_CLASS` | `'mpt.Signal': 'Simulink Signal'` | Kind column and `kindForClass` (webview tooltip) |
 | `schema/index.ts` `CLASS_ALIASES` | `'mpt.Signal' → 'Simulink.Signal'` | typed columns (`schemaColumns`) and PI layout (`buildPILayout`) |
 
@@ -46,11 +46,16 @@ The synthesis — a MATLAB-authored `Simulink.Signal` with only the class name o
 `<Element>` changed — is justified in that file's header comment: the only thing
 under test is class-name dispatch.
 
-## Not offered for creation
+## Not offered for creation, admitted to a paste
 
 Absent from every section's `ALLOWED_TYPES` by the same deliberate decision as
 `mpt.Parameter`: `addEntry('mpt.Signal', …)` returns `null`, and the read path never
 consults that list. Locked by test.
+
+A paste or a drop is admitted, on the same ruling as `mpt.Parameter`'s: `allowsType`
+and `getAdmittedTypes` admit an `mpt.Signal` wherever a `Simulink.Signal` may live,
+which is Design Data, and `addEntry` never does. The cross-format paste round trip in
+`test/mptClasses.test.ts` carries one too.
 
 ## Open questions / deferred
 

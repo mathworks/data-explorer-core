@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import * as NodeRegistry from '../NodeRegistry.js';
+import { registeredSubclasses, superclassOf } from '../registeredSubclasses.js';
 import { objectValueClassOf } from '../DataNode.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable } from './mcosTypedNode.js';
@@ -35,27 +36,9 @@ const CLASS_MAP = {
     'Constant': ConstantNode,
     'MatlabStruct': StructNode,
     'Simulink.Parameter': ParameterNode,
-    // mpt.Parameter and mpt.Signal are the Embedded Coder subclasses of the two
-    // classes above, and they are everywhere in production dictionaries: MPT
-    // ("module packaging tool") is what a project switches to the moment it needs
-    // custom storage classes and memory sections for code generation. A subclass
-    // presents every property its superclass does, so it needs the superclass's
-    // node and not one of its own — sharing the class rather than copying it is
-    // also what keeps the two from drifting apart as the Parameter/Signal nodes
-    // grow. The node reports the class it actually read (see ParameterNode's
-    // className), so a user still sees `mpt.Parameter` in the Class column; only
-    // the TREATMENT is inherited.
-    //
-    // Deliberately NOT added to any section's ALLOWED_TYPES: these are classes we
-    // READ, not classes we offer to create. Nothing in the read path consults that
-    // list — a parsed entry lands in a section by its metadata namespace — while
-    // offering "Add mpt.Parameter" would mean claiming we write a well-formed
-    // mpt object from scratch, which the MATLAB round-trip gate has never checked.
-    'mpt.Parameter': ParameterNode,
     'Simulink.LookupTable': LookupTableNode,
     'Simulink.Breakpoint': BreakpointNode,
     'Simulink.Signal': SignalNode,
-    'mpt.Signal': SignalNode,
     'Simulink.Bus': BusNode,
     'Simulink.ConnectionBus': ConnectionBusNode,
     'Simulink.ServiceBus': ServiceBusNode,
@@ -74,6 +57,20 @@ const CLASS_MAP = {
     'Simulink.VariantConfigurationData': VariantConfigurationDataNode,
     'Simulink.VariantConfigurations': VariantConfigurationDataNode
 };
+// Each registered SUBCLASS (registeredSubclasses.ts: mpt.Parameter, mpt.Signal) under its
+// superclass's node. A subclass presents every property its superclass does, so it needs the
+// superclass's node and not one of its own; sharing the class rather than copying it is also
+// what keeps the two from drifting apart as the Parameter/Signal nodes grow. The node reports
+// the class it actually read (see ParameterNode's className), so a user still sees
+// `mpt.Parameter` in the Class column; only the TREATMENT is inherited.
+//
+// Registered here, and none of them on a section's ALLOWED_TYPES: these are classes we READ,
+// and admit to a paste or a drop where their superclass may live (SectionNode.allowsType), not
+// classes we offer to create. Offering "Add mpt.Parameter" would mean claiming we write a
+// well-formed mpt object from scratch, which the MATLAB round-trip gate has never checked.
+for (const subclass of registeredSubclasses()) {
+    CLASS_MAP[subclass] = CLASS_MAP[superclassOf(subclass)];
+}
 // A parsed value is only ever probed for MATLAB's structural marker keys
 // (`_array_type`, `_array_class`, …) when it is a non-null object. Narrowing that
 // once here lets each matcher below read as the single key test it actually is.

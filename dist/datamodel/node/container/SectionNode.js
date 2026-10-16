@@ -6,6 +6,7 @@ import ContainerNode from '../ContainerNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { matlabTimestampNow } from '../../parser/XmlUtils.js';
 import { validateMatlabName } from '../../matlabName.js';
+import { registeredSubclasses, superclassOf } from '../registeredSubclasses.js';
 import { MatBudgetError, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
 import { classificationOf as _classificationOf, renameInCatalog as _renameInCatalog, } from '../../parser/ScCatalog.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
@@ -109,16 +110,35 @@ export default class SectionNode extends ContainerNode {
         }
         return { columns: ['Name', 'Value', 'DataType', 'Status', 'UsedBy'] };
     }
+    // The classes an entry may be CREATED as here: what addEntry builds, and what a host
+    // offers to add. An empty list means "no restriction".
     getAllowedTypes() {
         return ALLOWED_TYPES[this.name] || [];
     }
-    // Whether an entry of `className` may live in this section. An empty allow-list
-    // means "no restriction". This is the ONE gate: addEntry calls it too (rather
-    // than re-testing the list inline), so the host's paste/drop pre-check can never
-    // drift from what addEntry actually permits.
-    allowsType(className) {
+    // The classes an entry PASTED or DROPPED here may have: getAllowedTypes, and each
+    // registered subclass of a class on it (registeredSubclasses.ts), so an mpt.Parameter is
+    // admitted wherever a Simulink.Parameter may live. A paste copies an object MATLAB
+    // already wrote, which is not the claim creating one would make (the maintainer's ruling
+    // on C-180, 2026-10-16). Empty when getAllowedTypes is, meaning "no restriction" as it
+    // does there. The list a host predicts a paste or a drop from, as allowsType is the
+    // check it makes before one.
+    getAdmittedTypes() {
         const allowed = this.getAllowedTypes();
-        return allowed.length === 0 || allowed.indexOf(className) !== -1;
+        const admitted = allowed.slice();
+        for (const subclass of registeredSubclasses()) {
+            if (admitted.indexOf(subclass) === -1 && allowed.indexOf(superclassOf(subclass)) !== -1) {
+                admitted.push(subclass);
+            }
+        }
+        return admitted;
+    }
+    // Whether an entry of `className` may be pasted or dropped into this section: listed by
+    // getAdmittedTypes, or anything at all when the section has no allow-list. There are two
+    // gates, and they differ by exactly the registered subclasses: this one, admission, which
+    // a host asks before a paste or a drop (core's own parseEntry builds whatever it is
+    // handed), and creation, which addEntry applies with getAllowedTypes alone.
+    allowsType(className) {
+        return this.getAllowedTypes().length === 0 || this.getAdmittedTypes().indexOf(className) !== -1;
     }
     // Every entry name that shares this section's namespace, across all sibling
     // sections. Design and Architectural Data both live in NS_DESIGN, so they
@@ -158,18 +178,22 @@ export default class SectionNode extends ContainerNode {
     }
     // A new entry of `className`, named `entryName` (or the class's default name),
     // with a counter appended when that name is taken in this section's namespace.
-    // Returns null, and adds nothing, when the class is unknown or not allowed here,
-    // or when the name is not one MATLAB can load (validateMatlabName, the rule a
-    // rename applies). The name is checked as asked for and again with the counter:
-    // the first stops an invalid name becoming a valid one by suffixing ('end' when an
-    // 'end' is already present must not become 'end1'), and the second stops a valid
-    // 63-character name growing past namelengthmax.
+    // Returns null, and adds nothing, when the class is unknown or not on this section's
+    // allow-list (getAllowedTypes), or when the name is not one MATLAB can load
+    // (validateMatlabName, the rule a rename applies). The name is checked as asked for
+    // and again with the counter: the first stops an invalid name becoming a valid one by
+    // suffixing ('end' when an 'end' is already present must not become 'end1'), and the
+    // second stops a valid 63-character name growing past namelengthmax.
+    //
+    // The allow-list and not allowsType: a class admitted only to a paste (an mpt.Parameter,
+    // whose node can build a default) is never created from scratch.
     addEntry(className, entryName) {
         const NodeClass = NodeRegistry.getClass(className);
         if (!NodeClass || !NodeClass.createDefault) {
             return null;
         }
-        if (!this.allowsType(className)) {
+        const allowed = this.getAllowedTypes();
+        if (allowed.length !== 0 && allowed.indexOf(className) === -1) {
             return null;
         }
         const baseName = entryName || NodeClass.defaultName;

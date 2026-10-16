@@ -83,7 +83,16 @@ export interface IContainerNode extends INode {
     children: INode[];
 
     getSection?(key: string): IContainerNode | null;
+    /** The classes an entry may be created as here (Add). Empty means no restriction. */
     getAllowedTypes?(): string[];
+    /**
+     * The classes an entry pasted or dropped here may have: getAllowedTypes and each
+     * registered subclass of a class on it (an mpt.Parameter where a Simulink.Parameter
+     * may live). Empty means no restriction.
+     */
+    getAdmittedTypes?(): string[];
+    /** Whether an entry of `className` may be pasted or dropped here. */
+    allowsType?(className: string): boolean;
     execAddEntry?(className: string, entryName?: string): { node: INode; undo: () => void; redo: () => void } | null;
     execRemoveEntry?(node: INode): { undo: () => void; redo: () => void } | null;
 
