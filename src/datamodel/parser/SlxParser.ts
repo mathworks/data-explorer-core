@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { unzipEntries } from './Inflate.js';
+import { unzipEntries, type UnreadableMember } from './Inflate.js';
 import { readModelXml } from './XmlReader.js';
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { ENUM_BLOCK_PARAMS } from './enumBlockParams.js';
@@ -874,7 +874,21 @@ function extractModelReferences(
 }
 
 export function parseSlx(buffer: ArrayBuffer, filename: string): ParsedSlx {
-  return parseModelParts(unzipEntries(new Uint8Array(buffer)), filename);
+  const unreadable: UnreadableMember[] = [];
+  const parsed = parseModelParts(unzipEntries(new Uint8Array(buffer), undefined, unreadable), filename);
+  // A member the package holds and that could not be inflated (one that runs past the size
+  // its directory entry declares) is not handed to `parseModelParts` at all, so to that
+  // reader it is absent — which it reads silently, as it should for a part a release never
+  // wrote. That is the one difference between the two, and this is where it is said: the
+  // bytes claim the part is there. First, because it is the first thing that went wrong.
+  parsed.warnings.unshift(
+    ...unreadable.map((m): ParseWarning => ({
+      code: 'part-unreadable',
+      message: `The model part "${m.name}" could not be read (it ${m.reason}), so it was left out.`,
+      part: m.name,
+    })),
+  );
+  return parsed;
 }
 
 /**

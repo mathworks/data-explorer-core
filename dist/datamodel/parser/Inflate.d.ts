@@ -3,7 +3,16 @@
  * wrapper) and ZLIB-wrapped (MAT `miCOMPRESSED` records do).
  */
 export interface NativeInflate {
-    raw(deflated: Uint8Array): Uint8Array;
+    /**
+     * `maxOutputLength` is the size a zip member's directory entry declares for it, passed so
+     * that an engine can stop there instead of inflating whatever the bytes expand to. An
+     * engine honours it by throwing node:zlib's `ERR_BUFFER_TOO_LARGE` (which is what
+     * node:zlib's option of the same name does) or by returning more than that many bytes;
+     * either way the member is unreadable (see `unzipEntries`). Optional, for the same reason
+     * `zlibHead` is: an engine written before it existed, which ignores it, still works, and
+     * pays for a lying member in memory rather than in correctness.
+     */
+    raw(deflated: Uint8Array, maxOutputLength?: number): Uint8Array;
     zlib(wrapped: Uint8Array): Uint8Array;
     /**
      * Inflate as much as a PREFIX of a zlib stream allows, treating the missing tail as
@@ -28,6 +37,25 @@ export declare function setNativeInflate(impl: NativeInflate | null | undefined)
 /** Which engine is live. Exported for diagnostics and for the perf harness. */
 export declare function nativeInflateAvailable(): boolean;
 /**
+ * node:zlib's options for an inflate held to `maxOutputLength` bytes, which throws
+ * `ERR_BUFFER_TOO_LARGE` as soon as its output would pass them: for 200 MB of zeros declared
+ * as 1 KB, under 1 ms and 0.05 MB of peak RSS, where the walk used to inflate all 200 MB
+ * first and raise the peak by 405 MB (test/inflateBomb.test.ts). At least 1, because
+ * node:zlib refuses 0 (`ERR_OUT_OF_RANGE`); a member declaring 0 bytes that inflates to 1
+ * is then over by the length check instead.
+ *
+ * Exported for the Node subpath, which builds the same engine for hosts too old to detect it.
+ */
+export declare function capOf(maxOutputLength: number | undefined): {
+    maxOutputLength: number;
+} | undefined;
+/** A member `unzipEntries` left out of its result because it could not be read, and why. */
+export interface UnreadableMember {
+    name: string;
+    /** Completes "the member …", e.g. "inflates to more than the 3000 bytes its directory entry declares". */
+    reason: string;
+}
+/**
  * Every entry of a zip archive, by name, exactly as `fflate.unzipSync` returns them —
  * including zero-length entries for directory members, which fflate emits and which
  * an archive written by another tool may well contain.
@@ -47,8 +75,17 @@ export declare function nativeInflateAvailable(): boolean;
  * 1817 deflated) and copying a stored member is cheap next to inflating one.
  *
  * So: pass a filter to avoid holding 25x the bytes, not because the read is slow.
+ *
+ * A deflated member that inflates to MORE than its directory entry declares is left out of
+ * the result, on every engine and every path, and is named in `unreadable` when the caller
+ * passes one. It is never returned cut to the declared size, which is what both engines
+ * used to do with it: the bytes and the directory disagree about what the member is, and a
+ * part cut short reads as a different, wrong part — a model opened with wrong workspace
+ * values and nothing to say so. The declared size is also the only bound an inflate has, so
+ * it is the cap each engine inflates under, and a member declaring 1 KB of what is 200 MB
+ * costs about 1 KB of memory. A caller that passes no list reads the member as absent.
  */
-export declare function unzipEntries(bytes: Uint8Array, wanted?: (name: string) => boolean): Record<string, Uint8Array>;
+export declare function unzipEntries(bytes: Uint8Array, wanted?: (name: string) => boolean, unreadable?: UnreadableMember[]): Record<string, Uint8Array>;
 /** A member of a zip archive as its central directory lists it, without its bytes. */
 export interface ZipMemberStamp {
     name: string;
