@@ -2,7 +2,6 @@
 import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import PropName from '../../prop/PropName.js';
 import PropDataType from '../../prop/PropDataType.js';
-import PropDescription from '../../prop/PropDescription.js';
 const CLASS_NAME = 'Simulink.LookupTable';
 export default class LookupTableNode extends SimulinkObjectNode {
     constructor(name, parent, props, serial) { super(name, parent, serial); this.Description = props.Description || ''; }
@@ -11,9 +10,18 @@ export default class LookupTableNode extends SimulinkObjectNode {
     // A LookupTable has no scalar "value" — the Value column is empty and not editable.
     get displayValue() { return ''; }
     get valueEditable() { return false; }
-    getProperties() { return [PropName, PropDataType, PropDescription]; }
+    getProperties() { return [PropName, PropDataType]; }
     // PI layout: schema-driven "General" group (classes/lookupTable.json).
-    _serializedOverrides() { return this._gatedProps({ Description: this.Description }); }
+    // No editor in the table (`row._descriptionEditable`) or the Property Inspector.
+    get descriptionEditable() { return false; }
+    // An edit is refused in MATLAB's words, rather than accepted and saved as a key MATLAB
+    // ignores on load, which is what an edit here used to do.
+    setProperty(propName, stringValue) {
+        if (propName === 'Description') {
+            return { error: true, reason: `Unrecognized property 'Description' for class '${CLASS_NAME}'.`, invalidValue: stringValue, validValue: this.Description };
+        }
+        return super.setProperty(propName, stringValue);
+    }
     static get defaultName() { return 'LookupTable'; }
     // MEASURED from what MATLAB R2027a writes for `Simulink.LookupTable` with nothing set, in
     // MATLAB's own alphabetical key order. Four nested objects and two scalars, where the bag used

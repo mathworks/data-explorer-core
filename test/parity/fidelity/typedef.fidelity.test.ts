@@ -107,22 +107,25 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
         expect(entry.displayValue).toBe('');
       });
 
-      it('Description edit round-trips in-process', { timeout: MATLAB_TIMEOUT }, () => {
+      it('Description edit is refused; the file\'s key is unchanged', { timeout: MATLAB_TIMEOUT }, () => {
         const { model, entry } = freshLUT();
 
-        expect(entry.setProperty('Description', 'throttle map')).toBe(true);
-        expect(entry.Description).toBe('throttle map');
+        // MATLAB's Simulink.LookupTable has no Description property: setting one fails with
+        // "Unrecognized property 'Description' for class 'Simulink.LookupTable'." (R2027a,
+        // measured 2026-10-16), so the edit is refused, and the file, which has no
+        // top-level Description key for this entry, still has none after a save.
+        // test/lutBreakpointNoDescription.test.ts covers a file that does carry one.
+        const result = entry.setProperty('Description', 'throttle map');
+        expect(result).not.toBe(true);
+        expect(result.error).toBe(true);
+        expect(entry.Description).toBe('');
 
         const bytes = serializeModel(model, format);
         const fresh = reparseEntry(bytes, format, 'params.sldd', 'MyLUT');
-        expect(fresh.Description).toBe('throttle map');
+        expect(fresh.Description).toBe('');
+        expect(fresh.serial._properties).not.toHaveProperty('Description');
 
-        // NOTE: MATLAB's Simulink.LookupTable does NOT expose a top-level
-        // Description property (it errors: "Unrecognized method, property, or
-        // field 'Description' for class 'Simulink.LookupTable'"). The
-        // Description we serialize is a node-level field preserved by our
-        // round-trip but not readable via obj.Description in MATLAB. Gate only
-        // asserts class.
+        // The gate asserts the class: there is no Description for it to read back.
         if (matlabAvailable()) {
           const out = matlabAssertRoundTrip(bytes, 'MyLUT', {
             __class__: 'Simulink.LookupTable',
@@ -148,22 +151,25 @@ for (const format of ['json', 'binary'] as SlddFormat[]) {
         expect(entry.displayValue).toBe('');
       });
 
-      it('Description edit round-trips in-process', { timeout: MATLAB_TIMEOUT }, () => {
+      it('Description edit is refused; the file\'s key is unchanged', { timeout: MATLAB_TIMEOUT }, () => {
         const { model, entry } = freshBkpt();
 
-        expect(entry.setProperty('Description', 'speed breakpoints')).toBe(true);
-        expect(entry.Description).toBe('speed breakpoints');
+        // MATLAB's Simulink.Breakpoint has no Description property: setting one fails with
+        // "Unrecognized property 'Description' for class 'Simulink.Breakpoint'." (R2027a,
+        // measured 2026-10-16), so the edit is refused, and the file, which has no
+        // top-level Description key for this entry, still has none after a save.
+        // test/lutBreakpointNoDescription.test.ts covers a file that does carry one.
+        const result = entry.setProperty('Description', 'speed breakpoints');
+        expect(result).not.toBe(true);
+        expect(result.error).toBe(true);
+        expect(entry.Description).toBe('');
 
         const bytes = serializeModel(model, format);
         const fresh = reparseEntry(bytes, format, 'params.sldd', 'MyBkpt');
-        expect(fresh.Description).toBe('speed breakpoints');
+        expect(fresh.Description).toBe('');
+        expect(fresh.serial._properties).not.toHaveProperty('Description');
 
-        // NOTE: MATLAB's Simulink.Breakpoint does NOT expose a top-level
-        // Description property (it errors: "Unrecognized method, property, or
-        // field 'Description' for class 'Simulink.Breakpoint'"). The
-        // Description we serialize is a node-level field preserved by our
-        // round-trip but not readable via obj.Description in MATLAB. Gate only
-        // asserts class.
+        // The gate asserts the class: there is no Description for it to read back.
         if (matlabAvailable()) {
           const out = matlabAssertRoundTrip(bytes, 'MyBkpt', {
             __class__: 'Simulink.Breakpoint',
