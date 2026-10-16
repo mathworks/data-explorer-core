@@ -443,6 +443,40 @@ describe('a consumer can name what a parser returned', () => {
     ).toEqual([]);
   });
 
+  it('names what a host carrying a function rename into the catalog scans and edits', { timeout: COMPILE_TIMEOUT }, () => {
+    // A host that edits its open document in place carries a FunctionElement rename into the
+    // System Composer catalog itself: it scans the catalog's functions, builds the edits for
+    // one rename, and splices them into its own edit. It has to name the scan's element, the
+    // rename record it passes, and the sites and edits it gets back, the last two of which
+    // the entry-rename exports already put on the barrel.
+    expect(
+      diagnose(`
+        import { applyScEdits, scFunctionRenameEdits, scanScJsonFunctions, scanScXmlFunctions } from '../src/index.js';
+        import type { CatalogFunctionRenames, ScFunction, ScNameSite, ScTextEdit } from '../src/index.js';
+
+        declare const text: string;
+        declare const xml: string;
+
+        // data-explorer-vscode's carry, in miniature: one rename of one function of one
+        // interface, keyed by the names the open document spells.
+        function carry(source: string, fns: ScFunction[], interfaceName: string, from: string, to: string): string {
+          const renames: CatalogFunctionRenames = new Map([[interfaceName, new Map([[from, to]])]]);
+          const edits: ScTextEdit[] = scFunctionRenameEdits(source, fns, renames);
+          return applyScEdits(source, edits);
+        }
+
+        const fns: ScFunction[] = scanScJsonFunctions(text);
+        const first: ScFunction | undefined = scanScXmlFunctions(xml)[0];
+        const site: ScNameSite | undefined = first?.nameSite;
+        const prototype: ScNameSite | null | undefined = first?.prototypeSite;
+        export const out =
+          carry(text, fns, 'ServiceInterface', 'f', 'compute') +
+          carry(xml, scanScXmlFunctions(xml), 'ServiceInterface', 'f', 'step') +
+          (first ? first.interfaceName + first.name : '') + (site?.start ?? 0) + (prototype?.end ?? 0);
+      `),
+    ).toEqual([]);
+  });
+
   it('reports an unexported name, so an empty diagnostic list means something', { timeout: COMPILE_TIMEOUT }, () => {
     // The negative control. Without it, a harness that silently resolved nothing
     // would pass the test above no matter what the entry point exports.

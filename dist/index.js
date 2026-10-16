@@ -163,9 +163,12 @@ export { DATA_PART, DATA_PART_XML, DATA_PART_KEY, TEXT_PARTS, TEXT_CONTENT } fro
 // in either format, writing every part back as read. These stay public for a host that
 // does not save through it and edits its open document in place instead (vscode's JSON
 // editor splices the open text, so a rename is one undo step): that host carries the
-// rename itself, with the same scan and the same edits. `classificationOf` is the read
+// rename itself, with the same scan and the same edits. The catalog also keeps its own copy
+// of each function of a service interface (`p_Name`, `p_FunctionPrototype`), so the same
+// host carries a FunctionElement rename the same way, through `scanScJsonFunctions` /
+// `scanScXmlFunctions` and `scFunctionRenameEdits`. `classificationOf` is the read
 // side, for a consumer that wants an entry's System Composer type without walking the tree.
-export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogFromDefinitions, classificationOf, scRenameEdits, scanScJsonText, scanScXml, } from './datamodel/parser/ScCatalog.js';
+export { SC_PART, SC_PART_XML, SC_TYPE_TO_CLASSIFICATION, applyScEdits, catalogFromDefinitions, classificationOf, scFunctionRenameEdits, scRenameEdits, scanScJsonFunctions, scanScJsonText, scanScXml, scanScXmlFunctions, } from './datamodel/parser/ScCatalog.js';
 // Usage across a SET OF FILES rather than across a session — which blocks refer to a
 // definition, and where a block parameter's names resolve, over files a caller has read
 // but need not have opened. session.findUsages answers the same question for registered
