@@ -62,5 +62,22 @@
     ],
     "isrealBefore": true,
     "isrealAfter": true
+  },
+  {
+    "name": "str_2x2x2",
+    "equal": false,
+    "classBefore": "string",
+    "classAfter": "double",
+    "sizeBefore": [
+      2,
+      2,
+      2
+    ],
+    "sizeAfter": [
+      1,
+      0
+    ],
+    "isrealBefore": false,
+    "isrealAfter": true
   }
 ]

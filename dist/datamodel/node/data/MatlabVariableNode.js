@@ -3332,6 +3332,21 @@ export default class MatlabVariableNode extends DataNode {
         return MatlabVariableNode.parseScalar(rawVal, name, parent);
     }
     static parseScalar(rawVal, name, parent) {
+        // A text dictionary's `null`, which holds no value: MATLAB writes it for one it could not
+        // save there (a 2x2x2 string, "uses an unsupported data format") and reads it back as a
+        // 1x0 double (test/fixtures/display, str_2x2x2). It was read as the double 0, a value the
+        // file does not hold, shown `0` and editable (P8 of the 2026-10-16 list). It is the empty
+        // MATLAB reads, shown `[ ]`, and an untouched one is written back as the null it was
+        // (serializeValue replays `_rawInput`); SlddNode.parse warns that the file held no value.
+        if (rawVal === null) {
+            const empty = new MatlabVariableNode(name, parent, {});
+            empty._rawInput = rawVal;
+            empty._kind = 'array';
+            empty._elements = [];
+            empty._dims = [1, 0];
+            empty._scalarType = 'double';
+            return empty;
+        }
         const node = new MatlabVariableNode(name, parent, {});
         node._rawInput = rawVal;
         node._kind = 'scalar';
@@ -3348,7 +3363,7 @@ export default class MatlabVariableNode extends DataNode {
         }
         else {
             node._scalarType = 'double';
-            node._scalarValue = rawVal === null || rawVal === undefined ? 0 : rawVal;
+            node._scalarValue = rawVal === undefined ? 0 : rawVal;
         }
         return node;
     }

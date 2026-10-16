@@ -44,6 +44,7 @@ can.
 | empty numeric, any class, shape and complexity | `[ ]` | MATLAB's Workspace browser's own text, space inside (`mat2str` says `[]`). An int-backed enumeration's empty too: MATLAB counts it numeric. Not a sparse double's: see the next row |
 | empty sparse double | `<0x0 sparse double>`, `<2x0 sparse double>` | **a deliberate deviation from MATLAB**, whose browser shows `[ ]` (measured at 0x0 and 2x0). See "The sparse empty keeps its summary" below |
 | empty cell | `{}` at 0x0, `<0x3 cell>` at any other empty shape | the browser's `{}` and `{0×3 cell}` |
+| a text dictionary's `"value": null` | `[ ]`, a 1x0 double, with a `part-unreadable` warning | what MATLAB reads the entry back as; MATLAB writes `null` for a value it could not save in a text dictionary (a 2x2x2 string), so the file holds no value. It read as `0` (P8 of the 2026-10-16 list) |
 | empty char | `''` | already the complete literal; char does not expand |
 | empty scalar string | `""` | same |
 | empty string array | `<0x0 string>` | the browser's `0×0 string` |

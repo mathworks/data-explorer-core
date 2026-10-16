@@ -12,7 +12,8 @@
 // test/fixtures would read 283 values for the 56 these tests ask about. So this keeps, byte
 // for byte as MATLAB wrote it:
 //   - dispcat_bin.sldd: the chosen `DD.ENTRY` blocks of data/chunk0.xml, and every other part;
-//   - dispcat_text.sldd: the chosen entries of the data/chunk0 part;
+//   - dispcat_text.sldd: the chosen entries of the data/chunk0 part, and in
+//     dispcat_text.null.json the one entry MATLAB wrote as `"value": null` (see TEXT_NULL);
 //   - dispcat.mat: the 128-byte header and the chosen top-level records. Only values with no
 //     MCOS object in them (no string, enumeration or Simulink object), so the file needs no
 //     subsystem, and the header's subsystem offset is zeroed;
@@ -55,9 +56,16 @@ const CONTROL = ['c_newline', 'c_tab', 'c_nul', 'str_newline'];
 const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...VECTOR, ...CELL,
   ...CONTROL]);
 const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY, ...VECTOR, 'cell_1', 'c_newline', 'c_tab', 'c_nul']);
+// A value the text dictionary could not hold: MATLAB saved the 2x2x2 string with a warning, as
+// `"value": null`. Its entry is kept as MATLAB wrote it, but beside dispcat_text.sldd, in
+// dispcat_text.null.json, and not in it: the reader warns that the entry holds no value, and
+// test/parseWarnings.test.ts holds every .sldd in the repo to no warning at all. The test that
+// reads it puts it back into the dictionary. Out of the browser and meta truth too, which are of
+// the value MATLAB had and not of what the file holds; its truth is the read-back below.
+const TEXT_NULL = ['str_2x2x2'];
 // The text dictionary's values whose tests read MATLAB's own read-back of that file
 // (truth/files.json: closed, reopened, getValue), kept as text_readback.truth.json.
-const TEXT_READBACK = [...VECTOR];
+const TEXT_READBACK = [...VECTOR, ...TEXT_NULL];
 
 // --- binary: whole DD.ENTRY blocks, in MATLAB's order, between its header and its DD.Dictionary
 const zip = unzipSync(new Uint8Array(readFileSync(join(root, 'files', 'dispcat_bin.sldd'))));
@@ -76,8 +84,10 @@ writeFileSync(out('dispcat_bin.sldd'), zipSync(zip, { level: 6, mtime: new Date(
 // --- text: the chosen entries of the one data part
 const text = JSON.parse(readFileSync(join(root, 'files', 'dispcat_text.sldd'), 'utf8'));
 const part = text.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content;
+const nulls = part.entries.filter((e) => TEXT_NULL.includes(e.name));
 part.entries = part.entries.filter((e) => SLDD.has(e.name));
 writeFileSync(out('dispcat_text.sldd'), JSON.stringify(text, null, '\t'));
+writeFileSync(out('dispcat_text.null.json'), JSON.stringify(nulls, null, '\t') + '\n');
 
 // --- .mat: the header, then each chosen record as it stands
 const mat = new Uint8Array(readFileSync(join(root, 'files', 'catalog.mat')));
