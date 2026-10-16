@@ -27,6 +27,12 @@ one. `session.resolveLink(target)` follows it and, because that extension is a g
 falls back to matching an open model with the other model extension once no exact or
 basename match is found.
 
+Its id is `<parent id>/<name>@<blockPath>`, e.g. `model_with_refs.slx/references/plant.slx@ctrl/plant`,
+not the inherited `<parent id>/<name>`. A model that references one model from two Model
+blocks has two rows with the same name, and the block path is what tells them apart, as
+the SID does for `ModelBlockNode.id`. The Name column and the link target are still the
+bare name.
+
 ## Property table
 
 | Property   | Editor | Notes                                           |
