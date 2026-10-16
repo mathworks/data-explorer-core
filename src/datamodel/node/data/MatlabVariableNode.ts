@@ -15,7 +15,7 @@ import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
-import MatlabValueParser, { formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
+import MatlabValueParser, { controlsAsOneChar, formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
@@ -650,7 +650,28 @@ export default class MatlabVariableNode extends DataNode {
     }
   }
 
-  _formatScalar(): string {
+  /**
+   * This node's Value text as the runaway length guard measures it where it is an element of a
+   * cell's literal: its displayValue, but with each control character of a char or a string in
+   * it counted as the one character it is (controlsAsOneChar). A summary is itself.
+   */
+  _guardText(): string {
+    if (this._isOpaque && this._kind !== 'string') {
+      return this.displayValue;
+    }
+    switch (this._kind) {
+      case 'scalar':
+        return this._formatScalar(true);
+      case 'cell':
+        return this._formatCell(true);
+      case 'string':
+        return this._formatString(true);
+    }
+    return this.displayValue;
+  }
+
+  /** `asMeasured`: the text the length guard measures (_guardText), not the one shown. */
+  _formatScalar(asMeasured = false): string {
     // The MCOS decoder's "value unrecoverable" sentinel is a bare-angle-bracket
     // placeholder, not real text — render it unquoted (like `<1x1 class_name>`) so
     // the table styles it gray/italic and gives it no editor, rather than showing
@@ -682,14 +703,25 @@ export default class MatlabVariableNode extends DataNode {
       // column-major storage read out as if it were text, so both the shape and the
       // reading order were wrong on screen (defect 25).
       // An empty one, of any rank-2 size, as an empty char shows: a 2x0 has no row to print.
-      const text = dims[0] > 1 && s !== '' ? formatCharMatrix(s, dims) : formatMatlabChar(s);
-      return overCharBudget(text) ? summaryForm(dims, 'char') : text;
+      const literal = (text: string): string =>
+        dims[0] > 1 && text !== '' ? formatCharMatrix(text, dims) : formatMatlabChar(text);
+      // The guard measures the literal with each control character as one character
+      // (controlsAsOneChar): spelling them changed how the text reads, not whether it shows.
+      const measured = literal(controlsAsOneChar(s));
+      if (overCharBudget(measured)) {
+        return summaryForm(dims, 'char');
+      }
+      return asMeasured ? measured : literal(s);
     }
     // A string scalar stays 1x1 however long its text is — a MATLAB string holds
     // the text, it is not made of it — so no _textDims here.
     if (this._scalarType === 'string') {
-      const text = formatMatlabString(String(this._scalarValue));
-      return overCharBudget(text) ? summaryForm(this._dims, 'string') : text;
+      const s = String(this._scalarValue);
+      const measured = formatMatlabString(controlsAsOneChar(s));
+      if (overCharBudget(measured)) {
+        return summaryForm(this._dims, 'string');
+      }
+      return asMeasured ? measured : formatMatlabString(s);
     }
     if (this._scalarType === 'struct') {
       // Always a summary, at every size: MATLAB never prints a struct inline.
@@ -785,7 +817,8 @@ export default class MatlabVariableNode extends DataNode {
     return EMPTY_NUMERIC;
   }
 
-  _formatCell(): string {
+  /** `asMeasured`: the text the length guard measures (_guardText), not the one shown. */
+  _formatCell(asMeasured = false): string {
     if (this.children.length === 0) {
       // MATLAB's browser shows a 0x0 cell as `{}`, and an empty cell of any other shape as its
       // size-and-class summary, `{0×3 cell}`, here `<0x3 cell>`. A cell that holds no element
@@ -801,25 +834,33 @@ export default class MatlabVariableNode extends DataNode {
     }
     const rows = this._dims[0];
     const cols = this._dims[1];
-    const rowStrs: string[] = [];
-    for (let r = 0; r < rows; r++) {
-      const vals: string[] = [];
-      for (let c = 0; c < cols; c++) {
-        // A cell's element list is COLUMN-major -- MatParser's cell branch does
-        // not transpose, unlike its numeric branch -- so display position (r,c)
-        // is list index c*rows+r. Reading r*cols+c here transposed every
-        // non-square cell's literal: MATLAB's {1 2 3; 4 5 6} printed as
-        // {1, 4, 2; 5, 3, 6}. See test/cellElementOrder.test.ts.
-        const child = this.children[c * rows + r];
-        vals.push(child ? this._cellLiteralElement(child) : EMPTY_NUMERIC);
+    const literal = (measured: boolean): string => {
+      const rowStrs: string[] = [];
+      for (let r = 0; r < rows; r++) {
+        const vals: string[] = [];
+        for (let c = 0; c < cols; c++) {
+          // A cell's element list is COLUMN-major -- MatParser's cell branch does
+          // not transpose, unlike its numeric branch -- so display position (r,c)
+          // is list index c*rows+r. Reading r*cols+c here transposed every
+          // non-square cell's literal: MATLAB's {1 2 3; 4 5 6} printed as
+          // {1, 4, 2; 5, 3, 6}. See test/cellElementOrder.test.ts.
+          const child = this.children[c * rows + r];
+          vals.push(child ? this._cellLiteralElement(child, measured) : EMPTY_NUMERIC);
+        }
+        rowStrs.push(vals.join(', '));
       }
-      rowStrs.push(vals.join(', '));
-    }
-    const text = '{' + rowStrs.join('; ') + '}';
+      return '{' + rowStrs.join('; ') + '}';
+    };
     // Under the element budget but over the char budget: a 1x4 cell of 300-char
     // strings is a 1200-character table cell. Angle brackets, not the old
-    // '{1x4 cell}' — only the angle form reads as a summary downstream.
-    return overCharBudget(text) ? summaryForm(this._dims, 'cell') : text;
+    // '{1x4 cell}' — only the angle form reads as a summary downstream. The guard
+    // measures the elements' texts as _guardText does; the shown text is never shorter
+    // than that, so it is measured only when the shown one is over.
+    const text = literal(asMeasured);
+    if (!overCharBudget(text)) {
+      return text;
+    }
+    return asMeasured || overCharBudget(literal(true)) ? summaryForm(this._dims, 'cell') : text;
   }
 
   // One element as this cell's one-line literal spells it: its own displayValue, except for an
@@ -838,12 +879,14 @@ export default class MatlabVariableNode extends DataNode {
   // was `<1x1 Class>` whatever the shape, from when an undecoded opaque was never told its
   // dimensions, so a 1x3 string and a 0x0 one both read as a 1x1. The element's own row shows
   // the object, shape and all. A nested cell prints its own literal by the same rule.
-  _cellLiteralElement(child: BaseNode): string {
+  //
+  // `asMeasured`: the element's text as the length guard measures it (_guardText).
+  _cellLiteralElement(child: BaseNode, asMeasured = false): string {
     if (child instanceof MatlabVariableNode) {
       if (this._matVar && child._isOpaque) {
         return summaryForm(child.dims, child._opaqueClassName || 'double');
       }
-      return child.displayValue;
+      return asMeasured ? child._guardText() : child.displayValue;
     }
     const object = child as DataNode;
     if (isEnumBag(object.serial?._rawVal)) {
@@ -877,13 +920,21 @@ export default class MatlabVariableNode extends DataNode {
     });
   }
 
-  _formatString(): string {
+  /** `asMeasured`: the text the length guard measures (_guardText), not the one shown. */
+  _formatString(asMeasured = false): string {
     const d = this._dims;
+    // The guard measures each element with its control characters as one character each
+    // (controlsAsOneChar), as the char arm of _formatScalar does.
+    const measuredElement = (el: unknown): string =>
+      formatStringElement(typeof el === 'string' ? controlsAsOneChar(el) : el);
     if (d[0] === 1 && d[1] === 1 && this._elements.length === 1) {
       // A scalar string has no child rows, so the char budget is the rule — same
       // as the char arm of _formatScalar.
-      const text = formatStringElement(this._elements[0]);
-      return overCharBudget(text) ? summaryForm(d, 'string') : text;
+      const measured = measuredElement(this._elements[0]);
+      if (overCharBudget(measured)) {
+        return summaryForm(d, 'string');
+      }
+      return asMeasured ? measured : formatStringElement(this._elements[0]);
     }
     if (needsSummary(d)) {
       return summaryForm(d, 'string');
@@ -896,18 +947,24 @@ export default class MatlabVariableNode extends DataNode {
     }
     const rows = d[0];
     const cols = d[1];
-    const rowStrs: string[] = [];
-    for (let r = 0; r < rows; r++) {
-      const vals: string[] = [];
-      for (let c = 0; c < cols; c++) {
-        // COLUMN-major, exactly as in _formatCell above: a string array's element
-        // list is not transposed on the way in either.
-        vals.push(formatStringElement(this._elements[c * rows + r]));
+    const literal = (element: (el: unknown) => string): string => {
+      const rowStrs: string[] = [];
+      for (let r = 0; r < rows; r++) {
+        const vals: string[] = [];
+        for (let c = 0; c < cols; c++) {
+          // COLUMN-major, exactly as in _formatCell above: a string array's element
+          // list is not transposed on the way in either.
+          vals.push(element(this._elements[c * rows + r]));
+        }
+        rowStrs.push(vals.join(' '));
       }
-      rowStrs.push(vals.join(' '));
+      return '[' + rowStrs.join('; ') + ']';
+    };
+    const measured = literal(measuredElement);
+    if (overCharBudget(measured)) {
+      return summaryForm(d, 'string');
     }
-    const text = '[' + rowStrs.join('; ') + ']';
-    return overCharBudget(text) ? summaryForm(d, 'string') : text;
+    return asMeasured ? measured : literal(formatStringElement);
   }
 
   /**

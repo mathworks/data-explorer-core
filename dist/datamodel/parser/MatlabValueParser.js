@@ -145,6 +145,7 @@ function unquote(str, q) {
 // concatenation MATLAB evaluates to the value: ['a' newline 'b'] for a char, and
 // "a" + newline + "b" for a string. parse() reads both back (scanControl, scanStringSum).
 const CONTROL_CHAR = /[\u0000-\u001f\u007f-\u009f]/;
+const CONTROL_CHARS = new RegExp(CONTROL_CHAR.source, 'g');
 /** The MATLAB expression for one control character. */
 function controlExpr(ch) {
     return ch === '\n' ? 'newline' : 'char(' + ch.charCodeAt(0) + ')';
@@ -193,6 +194,15 @@ export function formatMatlabString(value) {
         pieces.unshift('""');
     }
     return pieces.join(' + ');
+}
+// The runaway length guard (DisplayConvention.SUMMARY_MAX_CHARS) measures a text's literal as it
+// was before a control character was spelled as the expression that makes it. That spelling
+// changed how the text reads, not which texts the guard summarises: a tab is `' char(9) '`, ten
+// characters where the literal had one, so measured on the spelling a 952-character description
+// holding tabs became `<1x952 char>`. Formatted from this, a literal is as long as it was then:
+// each control character counts as the one character it is.
+export function controlsAsOneChar(value) {
+    return value.replace(CONTROL_CHARS, ' ');
 }
 // For a property whose DISPLAY is the quoted literal but whose stored value is the
 // raw text (a Variant condition/specification, a bank Value): strip one layer of

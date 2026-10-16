@@ -166,6 +166,13 @@ length: a 1x4 cell of 300-character strings is 8 elements under budget and a
 rather than a display budget, it applies to every literal — primary rule
 unchanged, pathological case bounded.
 
+The length is the literal's as it was before a control character was spelled
+(P7 of the 2026-10-16 list): each control character counts as the one character
+it is, and the quotes count as they always did (`controlsAsOneChar`). The
+`' char(9) '` spelling changed how a text reads, not which texts summarize: a
+952-character description holding tabs is a full, editable literal, and 998
+characters of plain text are still the last that show inline.
+
 Rationale: element count makes shapes look consistent — every 1x10 double
 renders like every other 1x10 double, rather than depending on how many digits
 its values happen to have. `N = 10` keeps every vector and small matrix up to

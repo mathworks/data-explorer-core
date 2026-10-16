@@ -28,6 +28,7 @@ export declare function collapseExact(parsed: ParsedValue): ParsedValue;
 export declare function formatMatlabCharRow(value: string): string;
 export declare function formatMatlabChar(value: string): string;
 export declare function formatMatlabString(value: string): string;
+export declare function controlsAsOneChar(value: string): string;
 export declare function unquoteMatlabText(text: string): string;
 declare function parseArray(str: string): ParsedValue | null;
 declare function parseCell(str: string): ParsedValue | null;
