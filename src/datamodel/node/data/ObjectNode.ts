@@ -249,10 +249,50 @@ export default class ObjectNode extends DataNode {
         if (textEnum) {
             return effectiveDims(textEnum.dims);
         }
+        const ofData = this._dataDims();
+        if (ofData) {
+            return ofData;
+        }
         const raw = (this.serial._rawVal as Record<string, unknown>) || {};
         // A nested object ({ _object_class, _properties }) carries no _dimensions at
         // all — it is always a scalar, which effectiveDims spells [1, 1].
         return effectiveDims(raw._dimensions as number[] | undefined);
+    }
+
+    /**
+     * The size of an object whose size() is its data's, MATLAB's own classes that every file
+     * holds as one object, a 1x1 bag, whatever their size: an `embedded.fi` is the size of its
+     * stored integers, `intarray`; a `categorical` of its `codes`; a `table` is `nrows` by
+     * `nvars`. Read off the property rows. Null for any other object,
+     * an array of objects, and one whose rows do not say (measured in R2027a, the display
+     * catalog's fi_vec 1x3, cat_ab 1x2 and tbl_2x2 2x2, in each of the three formats).
+     */
+    _dataDims(): number[] | null {
+        if (this._isElementArray || elementCount(effectiveDims(((this.serial._rawVal as Record<string, unknown>) || {})._dimensions as number[] | undefined)) !== 1) {
+            return null;
+        }
+        const row = (name: string): DataNode | undefined => this.children.find((c) => c.name === name) as DataNode | undefined;
+        const sizeOf = (name: string): number[] | null => {
+            const dims = (row(name) as { dims?: unknown } | undefined)?.dims;
+            return Array.isArray(dims) && dims.length >= 2 ? effectiveDims(dims as number[]) : null;
+        };
+        const countOf = (name: string): number | null => {
+            const text = row(name)?.displayValue;
+            return typeof text === 'string' && /^\d+$/.test(text) ? Number(text) : null;
+        };
+        switch (this.arrayClass) {
+            case 'embedded.fi':
+                return sizeOf('intarray');
+            case 'categorical':
+                return sizeOf('codes');
+            case 'table': {
+                const rows = countOf('nrows');
+                const vars = countOf('nvars');
+                return rows !== null && vars !== null ? [rows, vars] : null;
+            }
+            default:
+                return null;
+        }
     }
 
     // The enumeration value this node is, when it is one as a text dictionary spells it

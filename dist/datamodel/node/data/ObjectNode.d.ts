@@ -19,6 +19,15 @@ export default class ObjectNode extends DataNode {
     get className(): string;
     get isObjectPropertyBag(): boolean;
     get dims(): number[];
+    /**
+     * The size of an object whose size() is its data's, MATLAB's own classes that every file
+     * holds as one object, a 1x1 bag, whatever their size: an `embedded.fi` is the size of its
+     * stored integers, `intarray`; a `categorical` of its `codes`; a `table` is `nrows` by
+     * `nvars`. Read off the property rows. Null for any other object,
+     * an array of objects, and one whose rows do not say (measured in R2027a, the display
+     * catalog's fi_vec 1x3, cat_ab 1x2 and tbl_2x2 2x2, in each of the three formats).
+     */
+    _dataDims(): number[] | null;
     _textEnumRead?: TextEnum | null;
     _textEnum(): TextEnum | null;
     /**

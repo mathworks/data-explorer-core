@@ -411,3 +411,29 @@ describe('an enumeration value of a .mat, or of a binary dictionary\'s MAT strea
     expect(param.toRow().Value).toBe(entry(open('dispcat_bin.sldd').root, 'p_enum').toRow().Value);
   });
 });
+
+// P4 of the 2026-10-16 list: a fixed-point value, a categorical and a table are each one MCOS
+// object however many elements they hold, so every file holds each as a 1x1 bag, and each
+// showed `<1x1 embedded.fi>`, `<1x1 categorical>`, `<1x1 table>`. MATLAB's size() of each is
+// its data's: the stored integers' (`intarray`), the codes' (`codes`), and `nrows` by `nvars`.
+describe('a fi, a categorical and a table are the size of their data', () => {
+  const SIZED = ['fi_vec', 'cat_ab', 'tbl_2x2'];
+
+  for (const file of ['dispcat_opaque.mat', 'dispcat_text.sldd', 'dispcat_bin.sldd']) {
+    it(file, () => {
+      const { root } = open(file);
+      for (const name of SIZED) {
+        const node = entry(root, name);
+        const m = meta(name);
+        expect([name, node.className, node.dims, node.toRow().Value], file).toEqual([name, m.class, m.size, `<${m.size.join('x')} ${m.class}>`]);
+      }
+      // MATLAB's Size column, and its summary where it shows one (`1×2 categorical`, `2×2 table`).
+      for (const name of SIZED) {
+        expect(entry(root, name).dims.join('×'), name).toBe(browser(name).Size);
+        if (browser(name).IsSummary) {
+          expect(entry(root, name).toRow().Value, name).toBe('<' + browser(name).Value.replace(/×/g, 'x') + '>');
+        }
+      }
+    });
+  }
+});

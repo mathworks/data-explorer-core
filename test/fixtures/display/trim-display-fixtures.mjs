@@ -9,7 +9,7 @@
 // MATLAB's own Value/Class/Size for each into truth/browser_short.json and truth/meta.json.
 // Whole, the three files do not belong in this repo: they hold function handles, whose MAT
 // bytes carry the matlabroot MATLAB was run from (fixtureHygiene.test.ts), and every walk of
-// test/fixtures would read 283 values for the 62 these tests ask about. So this keeps, byte
+// test/fixtures would read 283 values for the 65 these tests ask about. So this keeps, byte
 // for byte as MATLAB wrote it:
 //   - dispcat_bin.sldd: the chosen `DD.ENTRY` blocks of data/chunk0.xml, and every other part;
 //   - dispcat_text.sldd: the chosen entries of the data/chunk0 part;
@@ -49,14 +49,16 @@ const PARAM = ['dx_param_empty', 'dx_param_complex_1x0'];
 // Enumeration values of a user class, scalar and row, and a Parameter holding one, with the
 // catalog's EnumTypeDefinition beside them.
 const ENUM_VALUE = ['en_sl_red', 'en_sl_vec', 'en_i32_high', 'en_i32_vec', 'p_enum', 'enumdef'];
+// Objects whose size is their data's: a fixed-point row, a categorical row, a 2x2 table.
+const SIZED = ['fi_vec', 'cat_ab', 'tbl_2x2'];
 
-const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...ENUM_VALUE]);
+const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...ENUM_VALUE, ...SIZED]);
 const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY]);
 // MCOS objects of the .mat, which need its subsystem: enumeration values, empties among them,
-// and a Parameter holding one.
+// a Parameter holding one, and the SIZED objects.
 const MAT_ENUM = ['en_on', 'en_off', 'en_onoff_vec', 'en_sl_red', 'en_sl_vec', 'en_sl_empty', 'en_i32_high', 'en_i32_vec',
   'en_i32_empty', 'dx_enum_0x0', 'dx_enum_1x0', 'p_enum'];
-const OPAQUE_MAT = new Set([...MAT_ENUM]);
+const OPAQUE_MAT = new Set([...MAT_ENUM, ...SIZED]);
 
 // --- binary: whole DD.ENTRY blocks, in MATLAB's order, between its header and its DD.Dictionary
 const zip = unzipSync(new Uint8Array(readFileSync(join(root, 'files', 'dispcat_bin.sldd'))));

@@ -208,10 +208,49 @@ export default class ObjectNode extends DataNode {
         if (textEnum) {
             return effectiveDims(textEnum.dims);
         }
+        const ofData = this._dataDims();
+        if (ofData) {
+            return ofData;
+        }
         const raw = this.serial._rawVal || {};
         // A nested object ({ _object_class, _properties }) carries no _dimensions at
         // all — it is always a scalar, which effectiveDims spells [1, 1].
         return effectiveDims(raw._dimensions);
+    }
+    /**
+     * The size of an object whose size() is its data's, MATLAB's own classes that every file
+     * holds as one object, a 1x1 bag, whatever their size: an `embedded.fi` is the size of its
+     * stored integers, `intarray`; a `categorical` of its `codes`; a `table` is `nrows` by
+     * `nvars`. Read off the property rows. Null for any other object,
+     * an array of objects, and one whose rows do not say (measured in R2027a, the display
+     * catalog's fi_vec 1x3, cat_ab 1x2 and tbl_2x2 2x2, in each of the three formats).
+     */
+    _dataDims() {
+        if (this._isElementArray || elementCount(effectiveDims((this.serial._rawVal || {})._dimensions)) !== 1) {
+            return null;
+        }
+        const row = (name) => this.children.find((c) => c.name === name);
+        const sizeOf = (name) => {
+            const dims = row(name)?.dims;
+            return Array.isArray(dims) && dims.length >= 2 ? effectiveDims(dims) : null;
+        };
+        const countOf = (name) => {
+            const text = row(name)?.displayValue;
+            return typeof text === 'string' && /^\d+$/.test(text) ? Number(text) : null;
+        };
+        switch (this.arrayClass) {
+            case 'embedded.fi':
+                return sizeOf('intarray');
+            case 'categorical':
+                return sizeOf('codes');
+            case 'table': {
+                const rows = countOf('nrows');
+                const vars = countOf('nvars');
+                return rows !== null && vars !== null ? [rows, vars] : null;
+            }
+            default:
+                return null;
+        }
     }
     _textEnum() {
         if (this._textEnumRead === undefined) {
