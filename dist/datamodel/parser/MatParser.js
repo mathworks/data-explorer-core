@@ -839,7 +839,9 @@ export function parseMatrix(view, baseOffset, length) {
         // reader does not model, which is what sends a stream holding one to a binary
         // dictionary as the hex MATLAB writes it there (MatlabVariableNode.needsHexInBinary);
         // its text, `sin` or `@(x)x.^2+1`, is kept beside it (functionHandleOf), for the node
-        // a .mat's own handle is built as (MatNode.fromParsed). An empty one has no body.
+        // a handle is built as, at the top of a .mat (MatNode.fromParsed) and in a struct
+        // field or a cell element (MatlabVariableNode.parseMatVariable). An empty one has no
+        // body.
         const text = totalElements > 0 && offset + 8 <= end ? functionHandleElementText(view, offset, end) : null;
         if (totalElements === 0 || text !== null) {
             functionHandles.set(result, { text });
@@ -1189,7 +1191,7 @@ export function parseMat(arrayBuffer) {
     // it does not model, becomes one warning here — including the ones nested inside a
     // struct or a cell, which no file-level list could otherwise point at.
     for (const variable of variables) {
-        collectUndecoded(variable, variable.name || '<unnamed>', warnings, true);
+        collectUndecoded(variable, variable.name || '<unnamed>', warnings);
     }
     return { header, variables, warnings };
 }
@@ -1207,7 +1209,7 @@ export function parseMat(arrayBuffer) {
  * once, at the point that decided, and the variable keeps it whether or not anyone
  * looks at the file-level list.
  */
-function collectUndecoded(variable, path, warnings, top = false) {
+function collectUndecoded(variable, path, warnings) {
     const unbacked = variable.sparse ? unbackedColumns(variable.sparse, variable.dimensions) : null;
     if (variable.undecoded) {
         warnings.push({
@@ -1221,15 +1223,15 @@ function collectUndecoded(variable, path, warnings, top = false) {
         // which is all of its bytes, and said so — it shows a size no byte of it backs.
         warnings.push({ code: 'part-unreadable', message: `"${path}" ${unbacked}.`, part: path });
     }
-    else if (variable.className === 'unknown' && !(top && functionHandles.has(variable))) {
+    else if (variable.className === 'unknown' && !functionHandles.has(variable)) {
         // A class code CLASS_NAMES has no name for: a function handle (16), or a class
-        // a later release added. A function handle at the top of the file whose text read
-        // is shown (MatNode.fromParsed); one in a struct field or a cell element is not, as
-        // nothing below the top builds one. The value is in the file and comes back null, which is
-        // indistinguishable from an empty variable — the confusion this channel exists
-        // to remove. Note this is a limit of the READER, not of the file, and the
-        // policy that keeps file limits quiet does not cover it: the bytes claim a
-        // value and the reader did not produce one.
+        // a later release added. A function handle whose text read is shown wherever it
+        // stands: at the top of the file (MatNode.fromParsed), and in a struct field or a
+        // cell element (MatlabVariableNode.parseMatVariable). Any other value of such a class
+        // is in the file and comes back null, which is indistinguishable from an empty
+        // variable — the confusion this channel exists to remove. Note this is a limit of
+        // the READER, not of the file, and the policy that keeps file limits quiet does
+        // not cover it: the bytes claim a value and the reader did not produce one.
         //
         // The class NUMBER is deliberately not in the message. It is known only inside
         // parseMatrix, and carrying it out would mean a new field on MatVariable —

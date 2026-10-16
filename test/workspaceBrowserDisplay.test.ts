@@ -674,3 +674,102 @@ describe("a .mat's function handle shows its text and its class", () => {
     expect(parsed.warnings.filter((w: any) => ['fh_sin', 'fh_anon', 'e_func_handle_none'].includes(w.part))).toEqual([]);
   });
 });
+
+// P6, the part #112 left: a function handle in a .mat struct field or cell element, at any
+// depth, is still MAT class 16, which MatParser reads (functionHandleOf) wherever it stands.
+// Only the top-level variable was built from it (MatNode.fromParsed); a nested one went
+// through MatlabVariableNode.parseMatVariable, which did not ask, so it showed `null`,
+// editable, of class `unknown`, and an empty one `[ ]` of class `unknown`. MATLAB's truth is
+// nested_handles.truth.json (make_nested_handle_fixture.m): each member's class(), size(),
+// func2str and the browser's Class and Value columns for it.
+describe("a function handle inside a .mat's struct or cell shows its text and its class", () => {
+  interface Member { path: string; class: string; size: number[]; func2str: string; Class: string; Value: string }
+  const truth = JSON.parse(readFileSync(here('nested_handles.truth.json'), 'utf8')).members as Member[];
+
+  /** The node at a MATLAB path such as `deep_fh.list{1}{1}` or `sa_fh(2).h`. */
+  function at(root: any, path: string): any {
+    const [top, ...steps] = path.match(/[A-Za-z_]\w*|\{\d+\}|\(\d+\)/g)!;
+    let node = entry(root, top);
+    for (const step of steps) {
+      const name = step.replace(/[{}()]/g, '');
+      node = node.children.find((c: any) => c.name === name);
+      expect(node, `${path} at ${step}`).toBeDefined();
+    }
+    return node;
+  }
+
+  it('the truth holds a named, an anonymous and an empty handle in a struct, a cell, two levels down and in a struct array', () => {
+    const handles = truth.filter((m) => m.class === 'function_handle');
+    expect(handles.map((m) => m.path)).toEqual([
+      's_fh.named', 's_fh.anon', 's_fh.none', 'c_fh{1}', 'c_fh{2}', 'c_fh{3}', 'deep_fh.inner.h', 'deep_fh.list{1}{1}', 'sa_fh(1).h', 'sa_fh(2).h',
+    ]);
+  });
+
+  for (const m of truth.filter((t) => t.class === 'function_handle' && t.func2str !== '')) {
+    it(`${m.path} is ${m.Value}, as MATLAB shows it, with no editor`, () => {
+      const { root } = open('nested_handles.mat');
+      const node = at(root, m.path);
+      expect([node.toRow().Value, node.toRow().Class, node.dims, node.valueEditable]).toEqual([m.Value, m.Class, m.size, false]);
+      expect(node.setProperty('Value', '@cos')).toMatchObject({ error: true });
+      expect(node.toRow().Value).toBe(m.Value);
+    });
+  }
+
+  it('an empty one is an empty function_handle, as the top-level one is', () => {
+    const { root } = open('nested_handles.mat');
+    for (const m of truth.filter((t) => t.class === 'function_handle' && t.func2str === '')) {
+      // MATLAB's `[]`; this package's `[ ]`, as for e_func_handle_none above.
+      expect([m.Value, m.size], m.path).toEqual(['[]', [0, 0]]);
+      const node = at(root, m.path);
+      expect([node.toRow().Value, node.toRow().Class, node.dims, node.valueEditable], m.path).toEqual(['[ ]', m.Class, m.size, false]);
+    }
+  });
+
+  it('the value beside them is unchanged, and the cell spells each handle as its row does', () => {
+    const { root } = open('nested_handles.mat');
+    for (const path of ['s_fh.num', 'c_fh{4}']) {
+      const m = truth.find((t) => t.path === path)!;
+      expect([at(root, path).toRow().Value, at(root, path).toRow().Class], path).toEqual([m.Value, m.Class]);
+    }
+    expect(entry(root, 'c_fh').toRow().Value).toBe('{@sin, @(x)x.^2+1, [ ], 3}');
+  });
+
+  it('and none of them is reported as a value this reader did not read', async () => {
+    const { parseMat } = await import('../src/datamodel/parser/MatParser.js');
+    expect(parseMat(buffer(bytes('nested_handles.mat'))).warnings).toEqual([]);
+  });
+
+  it("in a text dictionary's MAT stream it shows the same, and the stream still pastes into a binary dictionary as its hex", async () => {
+    // A stream of the handle alone, and of the struct, framed from MATLAB's own elements as
+    // getByteStreamFromArray frames one (MatWriter.matStreamOfElement).
+    const { parseMat } = await import('../src/datamodel/parser/MatParser.js');
+    const { matStreamOfElement } = await import('../src/datamodel/parser/MatWriter.js');
+    const { uuencode } = await import('../src/datamodel/parser/CdataCodec.js');
+    const s = parseMat(buffer(bytes('nested_handles.mat'))).variables.find((v: any) => v.name === 's_fh') as any;
+    const text: any = open('dispcat_text.sldd').root;
+    const binary: any = open('dispcat_bin.sldd').root;
+    const paste = (into: any, value: unknown): any => into.getSection('design').parseEntry({ name: 'v', metadata: { uuid: '00000000-0000-4000-9900-0000000000f6' }, value });
+    for (const [element, shown] of [[s.fields.named._rawBytes, '@sin'], [s._rawBytes, '<1x1 struct>']]) {
+      const cdata = { _type: 'cdata', _value: uuencode(matStreamOfElement(element)!) };
+      const read = paste(text, cdata);
+      expect([read.displayValue, read.valueEditable]).toEqual([shown, false]);
+      expect(read.serialize().value).toEqual(cdata);
+      const xml = regenerateEntryXml(paste(binary, read.serialize().value));
+      expect(/<P Name="Value"[^>]*>/.exec(xml)![0]).toMatch(/^<P Name="Value" Class="[^"]+" Encoding="hex" EncodedLength="\d+">$/);
+    }
+    const struct = paste(text, { _type: 'cdata', _value: uuencode(matStreamOfElement(s._rawBytes)!) });
+    expect(struct.children.map((c: any) => [c.name, c.displayValue, c.className, c.valueEditable])).toEqual([
+      ['named', '@sin', 'function_handle', false], ['anon', '@(x)x.^2+1', 'function_handle', false],
+      ['none', '[ ]', 'function_handle', false], ['num', '3', 'double', false],
+    ]);
+  });
+
+  it('copied, each is the value a top-level one copies as, where it was null', () => {
+    const top = open('dispcat_opaque.mat').root;
+    const { root } = open('nested_handles.mat');
+    const copied = (node: any): unknown => node.serialize().value;
+    const [named, anon, none] = ['fh_sin', 'fh_anon', 'e_func_handle_none'].map((name) => copied(entry(top, name)));
+    expect((copied(entry(root, 's_fh')) as any)._elements[0]).toEqual({ named, anon, none, num: 3 });
+    expect((copied(entry(root, 'c_fh')) as any)._elements).toEqual([named, anon, none, 3]);
+  });
+});

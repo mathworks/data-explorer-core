@@ -1,0 +1,138 @@
+{
+  "version": "27.1.0.3400455 (R2027a) Prerelease",
+  "release": "2027a",
+  "members": [
+    {
+      "path": "s_fh.named",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "func2str": "sin",
+      "Class": "function_handle",
+      "Value": "@sin"
+    },
+    {
+      "path": "s_fh.anon",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "func2str": "@(x)x.^2+1",
+      "Class": "function_handle",
+      "Value": "@(x)x.^2+1"
+    },
+    {
+      "path": "s_fh.none",
+      "class": "function_handle",
+      "size": [
+        0,
+        0
+      ],
+      "func2str": "",
+      "Class": "function_handle",
+      "Value": "[]"
+    },
+    {
+      "path": "s_fh.num",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "func2str": "",
+      "Class": "double",
+      "Value": "3"
+    },
+    {
+      "path": "c_fh{1}",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "func2str": "sin",
+      "Class": "function_handle",
+      "Value": "@sin"
+    },
+    {
+      "path": "c_fh{2}",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "func2str": "@(x)x.^2+1",
+      "Class": "function_handle",
+      "Value": "@(x)x.^2+1"
+    },
+    {
+      "path": "c_fh{3}",
+      "class": "function_handle",
+      "size": [
+        0,
+        0
+      ],
+      "func2str": "",
+      "Class": "function_handle",
+      "Value": "[]"
+    },
+    {
+      "path": "c_fh{4}",
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "func2str": "",
+      "Class": "double",
+      "Value": "3"
+    },
+    {
+      "path": "deep_fh.inner.h",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "func2str": "cos",
+      "Class": "function_handle",
+      "Value": "@cos"
+    },
+    {
+      "path": "deep_fh.list{1}{1}",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "func2str": "tan",
+      "Class": "function_handle",
+      "Value": "@tan"
+    },
+    {
+      "path": "sa_fh(1).h",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "func2str": "sin",
+      "Class": "function_handle",
+      "Value": "@sin"
+    },
+    {
+      "path": "sa_fh(2).h",
+      "class": "function_handle",
+      "size": [
+        1,
+        1
+      ],
+      "func2str": "cos",
+      "Class": "function_handle",
+      "Value": "@cos"
+    }
+  ]
+}
