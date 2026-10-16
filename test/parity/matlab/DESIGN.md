@@ -2466,11 +2466,6 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   object and in a text dictionary (whose stream is read by the same arm), where a binary
   dictionary shows MATLAB's own text, `0.1+0.2i`, and MATLAB's display `0.1000 + 0.2000i`.
   The shortest spelling of the float32 would change every one of those venues at once.
-- **The Inspector's "Other" group does not flatten a nested object out of a binary
-  dictionary.** The binary reader spells one `{_array_class, _elements: [{_properties}]}`
-  and the group flattens only `{_object_class, _properties}`, so a LookupTable's Table
-  shows as one empty row there where the `.mat` and the text dictionary list its
-  properties. Not about complex numbers, and pinned as it is in `complexMcosFixtures`.
 - **A complex EMPTY in a binary dictionary shows as an empty quoted char.** MATLAB writes
   `<P Class="double" IsComplex="1" Dimension="1*0"/>`; the empty body fails parseCdata's
   text test and its stream decode, so the value is `''` where the same Parameter in a
