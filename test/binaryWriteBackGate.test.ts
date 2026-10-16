@@ -37,7 +37,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { unzipSync } from 'fflate';
+import { unzipSync, zipSync } from 'fflate';
 import DataModel from '../src/core/DataModel.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
@@ -347,6 +347,34 @@ describe('C-199: a value saved beside an envelope can be cleared, as MATLAB clea
       expect(Object.prototype.hasOwnProperty.call(merged, 'Specification'), String(empty)).toBe(false);
       expect(merged[SAVEOBJ_KEY], String(empty)).toBe(stored);
     }
+  });
+
+  it('an EMPTY sibling beside a real envelope value is no change, and the envelope keeps it', () => {
+    // The node read its value from the sibling, and here that value is '': an empty override
+    // then repeats what the node read, so it is no change, not a clear. Treated as a clear, an
+    // edit to Description alone rewrote the envelope's 'B' as the 0x0 double. No writer leaves
+    // this shape today (PR #123's correctness review: MATLAB writes no sibling, and v1.0.0+ never
+    // an empty one beside an envelope), so it is built: the first save writes 'B' to both places,
+    // and the sibling alone is blanked.
+    const SAVED = '<P Name="Specification" Class="char">B</P>';
+    const EMPTY_SIBLING = '<P Name="Specification" Class="char"/>';
+    const model = loadModel('binary', FIXTURE, URI);
+    expect(entryByName(model, URI, 'aVariant').setProperty('Specification', 'B')).toBe(true);
+    const parts = unzipSync(serializeModel(model, 'binary'));
+    const xml = new TextDecoder().decode(parts['data/chunk0.xml']);
+    const block = variantBlock(xml);
+    // Envelope first, sibling second: the reopen reads '' only because the sibling is blanked.
+    expect(specTags(block)).toEqual([SAVED, SAVED]);
+    const at = block.lastIndexOf(SAVED);
+    const shaped = block.slice(0, at) + EMPTY_SIBLING + block.slice(at + SAVED.length);
+    parts['data/chunk0.xml'] = new TextEncoder().encode(xml.replace(block, shaped));
+
+    const legacy = reparseModel(zipSync(parts), 'binary', FIXTURE, URI);
+    const v = entryByName(legacy, URI, 'aVariant');
+    expect(v.Specification).toBe('');
+    expect(v.setProperty('Description', 'note')).toBe(true);
+    // Written as it was read: the envelope still says B, and the empty sibling stays empty.
+    expect(specTags(variantBlock(chunkOf(serializeModel(legacy, 'binary'))))).toEqual([SAVED, EMPTY_SIBLING]);
   });
 
   it('CONTROL: a non-empty edit over a saved one still goes to both places', () => {

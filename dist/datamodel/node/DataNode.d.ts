@@ -177,8 +177,8 @@ export default class DataNode extends BaseNode {
      * standing in for an empty 0x0 double it could not see.
      *
      * So under an envelope an EMPTY override is dropped when the stored bag holds no sibling
-     * for that key: it is a default rather than an edit, and the envelope is already the
-     * authority on that property.
+     * for that key, or an empty one: it is a default rather than an edit, and the envelope is
+     * already the authority on that property.
      *
      * A non-empty override goes to BOTH places, and the reason it is both is defect 46.
      * The sibling used to be the only place it went, on the reasoning that silently
@@ -207,6 +207,14 @@ export default class DataNode extends BaseNode {
      * Specification and for one set to '' (measured 2026-10-16), whichever empty the override
      * was. A field the envelope does not declare leaves the envelope untouched, as an edit does.
      * Own keys only, so a stored bag can never claim a sibling through its prototype.
+     *
+     * Only a NON-EMPTY sibling makes an empty override a clear. When the sibling is itself
+     * empty ('', null or undefined), as in `<P Name="Specification" Class="char"/>`, the node
+     * read '' from it, so an empty override repeats what it read: no change, and the file is
+     * written as it was read. Read as a clear, an edit to another property alone overwrote a
+     * real envelope value: Specification 'B' beside an empty sibling was saved as the 0x0
+     * double. No writer leaves that shape today, since MATLAB writes no sibling and this
+     * package (from v1.0.0) writes no empty one beside an envelope.
      */
     _mergeProps(propOverrides: Record<string, unknown>): Record<string, unknown>;
     serializeValue(): unknown;
