@@ -45,6 +45,10 @@ function refusedAsField(parsed) {
 export default class ParameterNode extends DataNode {
     constructor(name, parent, props, serial) {
         super(name, parent, serial);
+        // The Dimensions and Complexity this Parameter held before a removal collapsed its Value
+        // node `of` to a scalar, which the undo of that removal puts back (childStructureChanged);
+        // null otherwise. Kept with the node it is of: a Value typed in since is another node.
+        this._preCollapseShape = null;
         this.Value = props.Value;
         this._valueNode = null;
         // 'auto' when the key is absent, because that is MATLAB's default and not a
@@ -207,6 +211,12 @@ export default class ParameterNode extends DataNode {
     // an edit has moved the value across the line. Deleting [1 2] down to one element
     // collapses the value node to the scalar 1, and without this the Parameter kept a
     // childless Value row (an expander onto nothing) until the file was reloaded.
+    //
+    // Its Dimensions and Complexity follow the same line (the maintainer's ruling A7, 2026-10-15
+    // evening): MATLAB keeps them as the Value's, and `p.Value(2:3) = []` of [1+2i 3+4i 5+6i]
+    // leaves Dimensions [1 1] and Complexity 'complex', of [7 3+4i 5+6i] 'real' (measured, R2027a).
+    // They stayed [1 3] and 'complex', shown and saved. So the collapse sets them from the scalar
+    // left (_collapseShape), and the undo that brings the elements back puts back what they were.
     childStructureChanged(child) {
         if (child !== this._valueNode) {
             return;
@@ -214,13 +224,51 @@ export default class ParameterNode extends DataNode {
         if (ParameterNode._needsValueRow(child)) {
             if (this.children.length === 0) {
                 this.addChild(child);
+                this._restoreShape(child);
             }
             return;
+        }
+        if (this.children.length > 0) {
+            this._collapseShape(child);
         }
         // Not removeChild: that nulls the child's parent, and this node lives on as
         // _valueNode — it still formats and serializes the value, so it has to keep
         // pointing back at this Parameter.
         this.children = [];
+    }
+    // The Value has just lost its row: a scalar is all that is left of the array it was. Its
+    // Dimensions and Complexity become the scalar's, as MATLAB makes them, each where the file
+    // holds one: Dimensions [1 1], unless it is a symbolic one ('[1,N]'), which MATLAB keeps; and
+    // Complexity the scalar's, by the rule its save follows (MatlabVariableNode._isComplexValue).
+    _collapseShape(valueNode) {
+        const sp = this.serial._properties;
+        if (!sp) {
+            return;
+        }
+        const isComplex = valueNode._isComplexValue;
+        const props = {};
+        if (Object.prototype.hasOwnProperty.call(sp, 'Dimensions') && typeof sp.Dimensions !== 'string') {
+            props.Dimensions = sp.Dimensions;
+            sp.Dimensions = [1, 1];
+        }
+        if (Object.prototype.hasOwnProperty.call(sp, 'Complexity') && typeof isComplex === 'function') {
+            props.Complexity = sp.Complexity;
+            sp.Complexity = isComplex.call(valueNode) ? 'complex' : 'real';
+        }
+        this._preCollapseShape = { of: valueNode, props };
+    }
+    // The Value has its row back: the undo of the removal that collapsed it. What the collapse
+    // set is put back as the file had it.
+    _restoreShape(valueNode) {
+        const shape = this._preCollapseShape;
+        const sp = this.serial._properties;
+        if (!shape || shape.of !== valueNode || !sp) {
+            return;
+        }
+        for (const key of Object.keys(shape.props)) {
+            sp[key] = shape.props[key];
+        }
+        this._preCollapseShape = null;
     }
     // This node's one child IS the class's `Value` property, exactly as an object's
     // children are its properties — so its name is fixed by the class, not chosen by the
