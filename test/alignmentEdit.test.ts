@@ -210,6 +210,47 @@ describe("Alignment is edited in its table cell by MATLAB's rule, and saved as M
         expect(saved(session, source)).toEqual(before);
       });
 
+      // A negative half is rounded away from zero, as MATLAB's int32 rounds it. Measured in R2027a
+      // (27.1.0.3409468, 2026-10-16) on a Parameter's and a Signal's CoderInfo under ExportedGlobal:
+      // int32(-0.5) is -1 and the Alignment is set to -1; -1.5 and -1.6 are refused with "-2 is not a
+      // valid alignment boundary…", -2.5 with "-3 …", and -0.4 with "0 …"; 0.5 is set to 1. A
+      // JavaScript Math.round rounds a half towards +Inf instead (-0.5 to -0, -1.5 to -1), which
+      // would refuse the -0.5 MATLAB takes and take the -1.5 MATLAB refuses.
+      it('refuses -1.5 as MATLAB does, because int32(-1.5) is -2, and changes nothing', () => {
+        const { session, source } = open(fixture(format));
+        const before = saved(session, source);
+        for (const entry of ['pAl8', 'sAl16']) {
+          const node = entryIn(source, entry);
+          const shown = cellText(node);
+          for (const [typed, n] of [['-1.5', -2], ['-1.6', -2], ['-2.5', -3], ['-0.4', 0]] as const) {
+            expect(node.setProperty('alignment', typed), `${entry} ${typed}`).toEqual(refusal(invalid(n), typed, shown));
+            expect(cellText(node), `${entry} ${typed}`).toBe(shown);
+          }
+          expect(node.status, entry).not.toBe('Modified');
+        }
+        expect(saved(session, source)).toEqual(before);
+      });
+
+      it('takes -0.5 as -1, because int32(-0.5) is -1, and saves it as MATLAB saves -1', () => {
+        const { session, source } = open(fixture(format));
+        for (const entry of ['pAl8', 'sAl16']) {
+          const node = entryIn(source, entry);
+          expect(node.setProperty('alignment', '-0.5'), entry).toBe(true);
+          expect(cell(node), entry).toEqual(editableCell('-1'));
+          expect(node.status, entry).toBe('Modified');
+        }
+        // -1 is no key in text and an int32 -1 in binary, and reads back as -1.
+        const out = saved(session, source);
+        for (const entry of ['pAl8', 'sAl16']) {
+          expect(alignmentSpelled(out, entry), entry).toEqual(format === 'text' ? undefined : int32Spelled(format, -1));
+          expect(cellText(entryIn(open(out).source, entry)), entry).toBe('-1');
+        }
+        // A positive half the same way: 0.5 is 1.
+        const pSC = entryIn(source, 'pSC');
+        expect(pSC.setProperty('alignment', '0.5')).toBe(true);
+        expect(cell(pSC)).toEqual(editableCell('1'));
+      });
+
       it('under StorageClass Auto, refuses an edit as MATLAB does, after checking the value', () => {
         const { session, source } = open(fixture(format));
         const node = entryIn(source, 'pNo');

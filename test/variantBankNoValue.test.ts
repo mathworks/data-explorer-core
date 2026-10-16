@@ -267,3 +267,76 @@ for (const c of CASES) {
     });
   });
 }
+
+// A bank and a bank coder info in the form the corpus's text dictionaries hold them
+// (mix/dd_json.sldd and textsldd/dd.sldd, release R2026b): plain, sorted `_properties` with no
+// saveobj envelope and no Value key. Copied from those files' VariantBank and VariantBankCoderInfo
+// entries, field for field.
+const NO_ENVELOPE: Record<Case['CLASS'], Record<string, unknown>> = {
+  'Simulink.VariantBank': {
+    ActiveChoiceCoderInfo: '',
+    AllChoicesCoderInfo: '',
+    BankCoderInfo: '',
+    Description: '',
+    Name: '',
+    VariantConditions: { _array_type: 'Cell', _dimensions: [1, 0], _elements: [], _mw_element_type: 'MATLABArray' },
+  },
+  'Simulink.VariantBankCoderInfo': {
+    DefinitionFile: '',
+    HeaderFile: '',
+    PostStatement: '',
+    PreStatement: '',
+    Qualifier: 'None',
+  },
+};
+
+// The text fixture with one case's entry (vbD or vbciD) rewritten into that form, the other left as
+// MATLAB wrote it, spelled as the fixture is (tabs) so that a save changing nothing gives these
+// bytes back.
+function withoutEnvelope({ CLASS, ENTRY }: Case): string {
+  const json = JSON.parse(strFromU8(fixture('text')));
+  const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries as any[];
+  const value = entries.find((e) => e.name === ENTRY).value;
+  expect(value._array_class).toBe(CLASS);
+  expect(value._elements[0]).toHaveProperty('_custom_save');
+  value._elements[0] = { _id: value._elements[0]._id, _properties: NO_ENVELOPE[CLASS] };
+  return JSON.stringify(json, null, '\t');
+}
+
+describe('a bank held with no saveobj envelope, as the corpus text dictionaries hold one', () => {
+  // The envelope cases above cannot see the writer's Value: under an envelope `_mergeProps` drops
+  // an EMPTY override, so the `{ Value: '' }` the node used to return never reached the file. With
+  // no envelope it did, and an unedited save added `"Value": ""` to every such bank and bank coder
+  // info. This pins that a save adds nothing, the unedited one included.
+  for (const c of CASES) {
+    const { CLASS, ENTRY, RENAMED } = c;
+    it(`${CLASS}: an unedited save writes no Value, and gives the file back as it was read`, () => {
+      const input = withoutEnvelope(c);
+      const { session, source } = open(input);
+      const node = entryIn(source, ENTRY);
+      expect(node.className).toBe(CLASS);
+      // The reader takes the bag as the file holds it: no Value.
+      expect((node as any).serial._properties).toEqual(NO_ENVELOPE[CLASS]);
+      expect(node.displayValue).toBe('');
+
+      // The save, where the old writer's `"Value": ""` appeared: the entry as read, and the whole file.
+      const out = saved(session, source) as string;
+      const elem = textEntries(out).find((e) => e.name === ENTRY).value._elements[0];
+      expect(elem._properties).not.toHaveProperty('Value');
+      expect(elem).toEqual({ _id: '1', _properties: NO_ENVELOPE[CLASS] });
+      expect(out).toBe(input);
+
+      // Both save paths, each reduced to the bag it puts in the file.
+      expect(textElem(node)._properties).toEqual(NO_ENVELOPE[CLASS]);
+      expect(binaryPath(node)).not.toHaveProperty('Value');
+    });
+
+    it(`${CLASS}: a save after a rename writes no Value either`, () => {
+      const { session, source } = open(withoutEnvelope(c));
+      expect(entryIn(source, ENTRY).setProperty('Name', RENAMED)).toBe(true);
+      const { bag, spelled } = savedEntry(saved(session, source), RENAMED, CLASS);
+      expect(spelled).not.toContain('"Value"');
+      expect(bag).toEqual(NO_ENVELOPE[CLASS]);
+    });
+  }
+});
