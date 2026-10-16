@@ -944,6 +944,184 @@ describe('a .slx whose workspace part is cut short inside a complex variable ope
 });
 
 // ---------------------------------------------------------------------------
+// An index part in a shape MATLAB never writes: read what it states, never refuse
+// ---------------------------------------------------------------------------
+
+// The maintainer's ruling of 2026-10-16 on C-255 (recommendation (c)). MATLAB writes
+// `ConfigSetInfo` and `ModelReferences` as arrays: every one of the 68 `.slx` holding a
+// configSetInfo.json in this repo and the corpus does, and a `ModelReferences` that is
+// there at all (46 files) is one too. A hand-edited or third-party package is the only
+// source of another shape. Most of them threw out of parseSlx: a lone object is not
+// iterable and has no `.map`, and a non-string `PartName` has no `.replace`. Nothing
+// caught it, so the whole model failed to open. The rest (null, false, 0, an empty
+// string, the key left out) were read silently as an index listing nothing. Now a lone
+// object is read as a one-entry list, any other non-array loses the index with a
+// warning, and an entry that cannot name what it lists is skipped with a warning while
+// its neighbours are still read.
+describe('an index part that is not a list is read for what it states, and the model still opens', () => {
+  const CS_INFO = 'simulink/configSetInfo.json';
+  const GI = 'simulink/graphicalInterface.json';
+  const FAST = { ConfigSetName: 'Fast', PartName: '/simulink/configSet1.json' };
+  const PLANT = { BlockPath: 'ctrl/plant', ModelName: 'plant.slx' };
+  const casesWithIndex = (index: unknown) =>
+    parseSlx(slxWith(SLX_CASES, { [CS_INFO]: JSON.stringify(index) }), 'slxcases.slx');
+  const refsWithIndex = (index: unknown) =>
+    parseSlx(slxWith(SLX_REFS, { [GI]: JSON.stringify(index) }), 'model_with_refs.slx');
+
+  describe('configSetInfo.json', () => {
+    it('reads a ConfigSetInfo that is one object, not a list, as one configuration set', () => {
+      const clean = parseSlx(bytesAt(SLX_CASES), 'slxcases.slx');
+      const parsed = casesWithIndex({
+        ConfigSetInfo: { Active: true, ConfigSetName: 'Configuration', PartName: '/simulink/configSet0.json' },
+      });
+      expect(parsed.warnings).toEqual([]);
+      // The same set, read from the same part, as the intact index's first entry gives.
+      expect(parsed.configSets).toEqual([clean.configSets[0]]);
+      expect(parsed.configSets[0]).toMatchObject({ name: 'Configuration', active: true });
+    });
+
+    it.each(['"x"', '""', '5', '0', 'true', 'false', 'null'])(
+      'reports a ConfigSetInfo of %s once, reads no sets, and reads the rest of the model',
+      (value) => {
+        const clean = parseSlx(bytesAt(SLX_CASES), 'slxcases.slx');
+        const parsed = parseSlx(slxWith(SLX_CASES, { [CS_INFO]: `{ "ConfigSetInfo": ${value} }` }), 'slxcases.slx');
+        expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', CS_INFO]]);
+        expect(parsed.warnings[0].message).toContain('no configuration sets were read');
+        expect(parsed.configSets).toEqual([]);
+        expect(parsed.uuid).not.toBe('');
+        expect(parsed.uuid).toBe(clean.uuid);
+        expect(parsed.blockParamUsages).toEqual(clean.blockParamUsages);
+        expect(parsed.modelReferences).toEqual(clean.modelReferences);
+      },
+    );
+
+    it('reports an index that lists no ConfigSetInfo at all, once', () => {
+      // The part parsed and holds something, so it is not the empty-part case readPart
+      // reports; it simply does not say which sets there are, and every model has one.
+      const parsed = casesWithIndex({ Version: '1.0' });
+      expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', CS_INFO]]);
+      expect(parsed.warnings[0].message).toContain('no configuration sets were read');
+      expect(parsed.configSets).toEqual([]);
+    });
+
+    it.each<[string, unknown]>([
+      ['a PartName that is a number', { Active: true, ConfigSetName: 'Configuration', PartName: 7 }],
+      ['no PartName', { Active: true, ConfigSetName: 'Configuration' }],
+      ['a ConfigSetName that is a number', { Active: true, ConfigSetName: 7, PartName: '/simulink/configSet0.json' }],
+      ['no ConfigSetName', { Active: true, PartName: '/simulink/configSet0.json' }],
+      ['null', null],
+      ['a string', '/simulink/configSet0.json'],
+      ['a list', [{ ConfigSetName: 'Configuration', PartName: '/simulink/configSet0.json' }]],
+    ])('skips an entry that is %s with a warning, and still reads the set after it', (_what, entry) => {
+      const parsed = casesWithIndex({ ConfigSetInfo: [entry, FAST] });
+      expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', CS_INFO]]);
+      expect(parsed.warnings[0].message).toContain('was not read');
+      expect(parsed.configSets.map((c) => c.name)).toEqual(['Fast']);
+    });
+
+    it('applies the same rule to a .mdl package, which reads the same parts', () => {
+      // MdlParser decodes the text framing and hands the parts to the same reader.
+      const index = JSON.stringify({
+        ConfigSetInfo: { Active: true, ConfigSetName: 'Configuration', PartName: '/simulink/configSet0.json' },
+      });
+      const parsed = parseMdl(mdlWithPart(CS_INFO, index), 'mdlcases.mdl');
+      expect(parsed.warnings).toEqual([]);
+      expect(parsed.configSets.map((c) => c.name)).toEqual(['Configuration']);
+    });
+
+    it('opens a .slx whose ConfigSetInfo is one object, with that one set in its config section', () => {
+      // The user-visible half: the open used to fail outright, every section with it.
+      const intact = openedModel(bytesAt(SLX_CASES), 'slxcases.slx');
+      const lone = JSON.stringify({
+        ConfigSetInfo: { Active: true, ConfigSetName: 'Configuration', PartName: '/simulink/configSet0.json' },
+      });
+      const opened = openedModel(slxWith(SLX_CASES, { [CS_INFO]: lone }), 'slxcases.slx');
+      expect(intact.sections).toContainEqual(['config', 2]);
+      expect(opened).toEqual({
+        format: intact.format,
+        sections: intact.sections.map(([s, n]): [string, number] => [s, s === 'config' ? 1 : n]),
+        warnings: [],
+      });
+    });
+  });
+
+  describe('graphicalInterface.json', () => {
+    it('reads a ModelReferences that is one object, not a list, as one model reference', () => {
+      const parsed = refsWithIndex({ ModelReferences: PLANT });
+      expect(parsed.warnings).toEqual([]);
+      expect(parsed.modelReferences).toEqual([{ blockPath: 'ctrl/plant', modelName: 'plant.slx' }]);
+    });
+
+    it('reads a lone object inside the wrapped GraphicalInterface of R2024b-R2026a the same way', () => {
+      const parsed = refsWithIndex({ GraphicalInterface: { ModelReferences: PLANT } });
+      expect(parsed.warnings).toEqual([]);
+      expect(parsed.modelReferences).toEqual([{ blockPath: 'ctrl/plant', modelName: 'plant.slx' }]);
+    });
+
+    it.each(['"x"', '""', '5', '0', 'true', 'false'])(
+      'reports a ModelReferences of %s once, and reads no references',
+      (value) => {
+        const clean = parseSlx(bytesAt(SLX_REFS), 'model_with_refs.slx');
+        const parsed = parseSlx(slxWith(SLX_REFS, { [GI]: `{ "ModelReferences": ${value} }` }), 'model_with_refs.slx');
+        expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', GI]]);
+        expect(parsed.warnings[0].message).toContain("this model's references to other models are missing");
+        expect(parsed.modelReferences).toEqual([]);
+        expect(parsed.dataDictionary).toBe(clean.dataDictionary);
+        expect(parsed.externalDataSources).toEqual(clean.externalDataSources);
+      },
+    );
+
+    it.each<[string, Record<string, unknown>]>([
+      ['absent', { SolverName: 'VariableStepAuto' }],
+      ['null', { ModelReferences: null }],
+      ['an empty list', { ModelReferences: [] }],
+    ])('stays silent for a ModelReferences that is %s: a model that references none', (_what, index) => {
+      // The normal case, not a loss: 78 of the 124 graphicalInterface.json parts in the
+      // repo and the corpus hold no ModelReferences at all, and 4 hold an empty list.
+      const parsed = refsWithIndex(index);
+      expect(parsed.warnings).toEqual([]);
+      expect(parsed.modelReferences).toEqual([]);
+    });
+
+    it.each<[string, unknown]>([
+      ['a BlockPath that is a number', { BlockPath: 3, ModelName: 'other.slx' }],
+      ['no BlockPath', { ModelName: 'other.slx' }],
+      ['a ModelName that is a number', { BlockPath: 'ctrl/other', ModelName: 3 }],
+      ['no ModelName', { BlockPath: 'ctrl/other' }],
+      ['null', null],
+      ['a string', 'ctrl/other|other.slx'],
+    ])('skips a reference that is %s with a warning, and still reads the one after it', (_what, entry) => {
+      const parsed = refsWithIndex({ ModelReferences: [entry, PLANT] });
+      expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', GI]]);
+      expect(parsed.warnings[0].message).toContain('was not read');
+      expect(parsed.modelReferences).toEqual([{ blockPath: 'ctrl/plant', modelName: 'plant.slx' }]);
+    });
+
+    it('opens a .slx whose ModelReferences is one object, with that reference in its references section', () => {
+      const intact = openedModel(bytesAt(SLX_REFS), 'model_with_refs.slx');
+      const opened = openedModel(
+        slxWith(SLX_REFS, { [GI]: JSON.stringify({ ModelReferences: PLANT }) }),
+        'model_with_refs.slx',
+      );
+      expect(intact.sections).toContainEqual(['references', 1]);
+      expect(opened).toEqual({ ...intact, warnings: [] });
+    });
+
+    it('opens a .slx one of whose references names no model, listing the reference that does', () => {
+      // The reference with no ModelName used to reach the references section, whose
+      // file-kind check threw on it, so the whole open failed.
+      const intact = openedModel(bytesAt(SLX_REFS), 'model_with_refs.slx');
+      const index = JSON.stringify({ ModelReferences: [{ BlockPath: 'ctrl/other' }, PLANT] });
+      const opened = openedModel(slxWith(SLX_REFS, { [GI]: index }), 'model_with_refs.slx');
+      expect({ ...opened, warnings: codesAndParts(opened.warnings) }).toEqual({
+        ...intact,
+        warnings: [['part-unreadable', GI]],
+      });
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // .mat — the Level-5 MAT-file
 // ---------------------------------------------------------------------------
 

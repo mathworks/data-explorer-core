@@ -224,6 +224,68 @@ export function configSetIdentity(data: unknown): { objectClass: string; sourceN
   return { objectClass: obj['@_ClassName'], sourceName: props.SourceName ?? props.WSVarName ?? '' };
 }
 
+// The entries a JSON index part lists (`ConfigSetInfo` in configSetInfo.json,
+// `ModelReferences` in graphicalInterface.json) as a list, or null when the value cannot
+// be read as one. MATLAB always writes an array: all 68 configSetInfo.json parts in this
+// repo and the corpus, and every graphicalInterface.json that has ModelReferences at all.
+// So any other shape comes from a hand-edited or third-party package. Most used to throw
+// out of the read and take the whole model with it (C-255); a falsy one read as nothing.
+// A lone object is read as a list of one, the file's own idiom for single-vs-array
+// (`findAll`, `systemRefsIn`).
+// What the caller does with a null, and with an entry it cannot use, is the caller's call.
+function indexEntries(value: unknown): unknown[] | null {
+  if (Array.isArray(value)) return value;
+  if (value !== null && typeof value === 'object') return [value];
+  return null;
+}
+
+/** One entry an index lists, when it is an object (not an array) and so can name anything. */
+function isEntryObject(entry: unknown): entry is Record<string, unknown> {
+  return entry !== null && typeof entry === 'object' && !Array.isArray(entry);
+}
+
+/** What a value that is not a list or an object is, for a warning's message. */
+function shapeOf(value: unknown): string {
+  return value === undefined ? 'absent' : value === null ? 'null' : `a ${typeof value}`;
+}
+
+// The configuration sets that configSetInfo.json lists, as `legacyConfigSetInfo` gives
+// the XML index's. Only for an index part that parsed: one that did not has already been
+// reported once, by readPart. Anything but a list or an object is one warning and no sets:
+// the part is there and does not say which sets the model has, and every model has one.
+// An entry that does not name both its part and its set is one warning and is skipped;
+// the sets listed around it are still read.
+function jsonConfigSetInfo(
+  value: unknown,
+  warnings: ParseWarning[],
+): { PartName: string; ConfigSetName: string; Active: boolean }[] {
+  const part = 'simulink/configSetInfo.json';
+  const list = indexEntries(value);
+  if (list === null) {
+    warnings.push({
+      code: 'part-unreadable',
+      message: `The model part "${part}" does not list its configuration sets `
+        + `(its ConfigSetInfo is ${shapeOf(value)}), so no configuration sets were read.`,
+      part,
+    });
+    return [];
+  }
+  const out: { PartName: string; ConfigSetName: string; Active: boolean }[] = [];
+  list.forEach((entry, i) => {
+    if (!isEntryObject(entry) || typeof entry.PartName !== 'string' || typeof entry.ConfigSetName !== 'string') {
+      warnings.push({
+        code: 'part-unreadable',
+        message: `Entry ${i + 1} of the configuration sets listed in "${part}" does not name both its part `
+          + 'and its set, so that set was not read.',
+        part,
+      });
+      return;
+    }
+    out.push({ PartName: entry.PartName, ConfigSetName: entry.ConfigSetName, Active: !!entry.Active });
+  });
+  return out;
+}
+
 function extractConfigSets(
   entries: Record<string, Uint8Array>,
   configSetInfo: { PartName: string; ConfigSetName: string; Active: boolean }[],
@@ -864,8 +926,11 @@ function extractBlockParamUsages(
   return { usages, masks };
 }
 
+const REFS_LOST = "this model's references to other models are missing";
+
 function extractModelReferences(
   graphicalInterface: Record<string, unknown> | null,
+  warnings: ParseWarning[],
 ): { blockPath: string; modelName: string }[] {
   if (!graphicalInterface) {
     return [];
@@ -878,12 +943,39 @@ function extractModelReferences(
   // unwrapped for above.
   const gi = (graphicalInterface.GraphicalInterface as Record<string, unknown>) || graphicalInterface;
   const refs = gi.ModelReferences;
-  if (!refs) {
+  // Absent is a model that references no other model: 78 of the 124 graphicalInterface.json
+  // parts in this repo and the corpus have no ModelReferences. That is not a loss, so it
+  // stays silent. Any other value that is not a list or an object is one (C-255).
+  if (refs === undefined || refs === null) {
     return [];
   }
-  return (refs as { BlockPath: string; ModelName: string }[]).map(function (ref) {
-    return { blockPath: ref.BlockPath, modelName: ref.ModelName };
+  const part = 'simulink/graphicalInterface.json';
+  const list = indexEntries(refs);
+  if (list === null) {
+    warnings.push({
+      code: 'part-unreadable',
+      message: `The model part "${part}" does not list its model references `
+        + `(its ModelReferences is ${shapeOf(refs)}), so ${REFS_LOST}.`,
+      part,
+    });
+    return [];
+  }
+  const out: { blockPath: string; modelName: string }[] = [];
+  list.forEach((ref, i) => {
+    // Without this check, a reference with no ModelName reached the references section,
+    // whose file-kind check threw on it, and the whole model failed to open.
+    if (!isEntryObject(ref) || typeof ref.BlockPath !== 'string' || typeof ref.ModelName !== 'string') {
+      warnings.push({
+        code: 'part-unreadable',
+        message: `Entry ${i + 1} of the model references listed in "${part}" does not name both its block `
+          + 'and the model it references, so that reference was not read.',
+        part,
+      });
+      return;
+    }
+    out.push({ blockPath: ref.BlockPath, modelName: ref.ModelName });
   });
+  return out;
 }
 
 export function parseSlx(buffer: ArrayBuffer, filename: string): ParsedSlx {
@@ -992,11 +1084,7 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
       'no configuration sets were read',
       warnings,
     ) as Record<string, unknown> | null;
-    configSets = extractConfigSets(
-      entries,
-      (info?.ConfigSetInfo as { PartName: string; ConfigSetName: string; Active: boolean }[]) || [],
-      warnings,
-    );
+    configSets = extractConfigSets(entries, info ? jsonConfigSetInfo(info.ConfigSetInfo, warnings) : [], warnings);
   } else if (entries['simulink/configSetInfo.xml']) {
     const info = readPart(entries, 'simulink/configSetInfo.xml', 'no configuration sets were read', warnings);
     configSets = extractConfigSets(entries, legacyConfigSetInfo(info), warnings);
@@ -1007,13 +1095,12 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
   // Graphical interface (model references). JSON from R2024b, XML from R2014b, and
   // inline in the block diagram before that.
   let modelReferences: { blockPath: string; modelName: string }[] = [];
-  const REFS_LOST = "this model's references to other models are missing";
   if (entries['simulink/graphicalInterface.json']) {
     const gi = readPart(entries, 'simulink/graphicalInterface.json', REFS_LOST, warnings) as Record<
       string,
       unknown
     > | null;
-    modelReferences = gi ? extractModelReferences(gi) : [];
+    modelReferences = gi ? extractModelReferences(gi, warnings) : [];
   } else if (entries['simulink/graphicalInterface.xml']) {
     modelReferences = legacyModelReferences(
       readPart(entries, 'simulink/graphicalInterface.xml', REFS_LOST, warnings),
