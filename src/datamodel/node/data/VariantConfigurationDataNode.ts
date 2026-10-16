@@ -18,7 +18,8 @@ export default class VariantConfigurationDataNode extends SimulinkObjectNode {
     get valueEditable(): boolean { return false; }
     getProperties(): PropClass[] { return [PropName, PropDataType]; }
     // PI layout: schema-driven "General" group (classes/variantConfigurationData.json).
-    // UNGATED, as VariantBankNode's Value is.
+    // UNGATED. (VariantBankNode's Value was too, until it stopped writing one at all: MATLAB's
+    // Simulink.VariantBank has no Value.)
     _serializedOverrides(): Record<string, unknown> { return { Value: this.Value }; }
     static get defaultName(): string { return 'VariantConfigurationData'; }
 

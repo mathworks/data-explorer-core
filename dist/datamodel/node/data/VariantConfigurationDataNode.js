@@ -15,7 +15,8 @@ export default class VariantConfigurationDataNode extends SimulinkObjectNode {
     get valueEditable() { return false; }
     getProperties() { return [PropName, PropDataType]; }
     // PI layout: schema-driven "General" group (classes/variantConfigurationData.json).
-    // UNGATED, as VariantBankNode's Value is.
+    // UNGATED. (VariantBankNode's Value was too, until it stopped writing one at all: MATLAB's
+    // Simulink.VariantBank has no Value.)
     _serializedOverrides() { return { Value: this.Value }; }
     static get defaultName() { return 'VariantConfigurationData'; }
     // The one entry the Add gallery produced that MATLAB REFUSED to load, in both formats:
