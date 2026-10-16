@@ -269,9 +269,24 @@ describe("a Signal's Complexity and DimensionsMode are dropdowns over the Signal
           expect(piGroupKeys(node, g.group), g.group).toEqual(g.items.map((pc) => pc.key));
         }
         // The catch-all lists what no row shows (LoggingInfo, spelled as it spells a key), and
-        // neither enum, which the rows above show.
+        // neither enum, which the rows above show. LoggingInfo is one row or seven by what the
+        // file holds: MATLAB's text writer gives it no properties, so it is the object by its
+        // class, and its binary writer states all seven, which the group flattens one level
+        // (C-032, #123: a binary 1x1 object is the same object as out of a .mat).
         expect(piGroups(node)).toEqual([...buildPILayout('Simulink.Signal')!.map((g) => g.group), 'Other']);
-        expect(piGroupKeys(node, 'Other')).toEqual(['Other.LoggingInfo']);
+        expect(piGroupKeys(node, 'Other')).toEqual(
+          format === 'text'
+            ? ['Other.LoggingInfo']
+            : [
+                'Other.LoggingInfo.DataLogging',
+                'Other.LoggingInfo.NameMode',
+                'Other.LoggingInfo.LoggingName',
+                'Other.LoggingInfo.DecimateData',
+                'Other.LoggingInfo.Decimation',
+                'Other.LoggingInfo.LimitDataPoints',
+                'Other.LoggingInfo.MaxPoints',
+              ],
+        );
         // Dimensions is not part of the ruling: it stays a label.
         expect(cell(node, 'dimensions')).toBe('-1');
         expect(piRow(node, 'dimensions').editable).toBe(false);
