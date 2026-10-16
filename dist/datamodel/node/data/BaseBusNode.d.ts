@@ -1,4 +1,5 @@
 import DataNode from '../DataNode.js';
+import type { SetPropertyResult } from '../DataNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
@@ -14,6 +15,8 @@ export declare class BaseBusElementNode extends DataNode {
     get icon(): string;
     get displayValue(): string;
     get disabled(): boolean;
+    get valueEditable(): boolean;
+    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     serializeValue(): unknown;
     _applyElementOverrides(props: Record<string, unknown>): void;
 }

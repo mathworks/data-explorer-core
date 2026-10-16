@@ -36,6 +36,28 @@ export class BaseBusElementNode extends DataNode {
     get icon() { return 'typeBusElement'; }
     get displayValue() { return ''; }
     get disabled() { return true; }
+    // An element has no Value: a Simulink.BusElement, Simulink.ConnectionElement or
+    // Simulink.FunctionElement carries none (see their .md files), and no element property
+    // maps to the Value column. So the cell takes no editor, as the bus's own does
+    // (BaseBusNode), though what it shows, blank or a function element's Prototype, is
+    // text that BaseNode.valueEditable would otherwise offer one for.
+    get valueEditable() { return false; }
+    // And a Value set on one is refused rather than taken, as an object's is
+    // (ObjectNode.setProperty): DataNode's generic tail kept the text on a field nothing
+    // writes, marked the bus Modified, pushed an undo step and answered `true`, and the save
+    // dropped it. One still in the encoded stream it was read from keeps that refusal's own
+    // reason. Every subclass's setProperty reaches this one for a Value.
+    setProperty(propName, stringValue) {
+        if (this._resolveProperty(propName) === 'Value') {
+            return (this._refuseEncodedEdit(propName, stringValue) ?? {
+                error: true,
+                reason: `'${this.displayName}' is a ${this.className}, which has no Value, so none can be set on it.`,
+                invalidValue: stringValue,
+                validValue: this.displayValue,
+            });
+        }
+        return super.setProperty(propName, stringValue);
+    }
     serializeValue() {
         const props = { ...this.serial._properties };
         props.Name = this.name;
