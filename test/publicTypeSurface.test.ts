@@ -177,12 +177,14 @@ describe('a consumer can name what a parser returned', () => {
         }
 
         // The codes as a closed union: every arm is reachable and the switch is
-        // exhaustive, which is what makes a per-code UI safe to write.
+        // exhaustive, which is what makes a per-code UI safe to write. Four arms since
+        // F1-50 added \`duplicate-id\` (the 2026-10-16 group E ruling).
         function icon(code: ParseWarningCode): string {
           switch (code) {
             case 'part-unreadable': return 'part';
             case 'source-empty': return 'empty';
             case 'source-unreadable': return 'broken';
+            case 'duplicate-id': return 'twins';
           }
         }
 

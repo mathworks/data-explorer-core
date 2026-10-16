@@ -4,7 +4,8 @@
  *
  * Deliberately about CONTAINERS AND PARTS rather than about any one format, so a
  * `.slx` part, a `.prj` store document and a `.mat` variable all report through
- * the same three shapes as their readers gain the channel.
+ * the same three shapes as their readers gain the channel. The fourth, `duplicate-id`,
+ * is about what the session can do with a read that lost nothing; see above.
  */
 export type ParseWarningCode = 
 /** One named piece of the source could not be read; the rest of it was. */
@@ -12,8 +13,15 @@ export type ParseWarningCode =
 /** The source opened but held nothing this reader recognizes; the result is empty. */
  | 'source-empty'
 /** Reading the source failed outright and was recovered from; the result is empty. */
- | 'source-unreadable';
-/** One thing that could not be read, in a source that otherwise opened. */
+ | 'source-unreadable'
+/**
+ * Nothing is missing: two or more siblings share a name, and so one node id, so
+ * none of them can be edited or deleted by id until the file names them apart.
+ * `part` is the entry's name, or the MATLAB path of a field or element. Added by the
+ * session when a source is registered, not by a reader.
+ */
+ | 'duplicate-id';
+/** One thing that could not be read (or, for `duplicate-id`, addressed), in a source that otherwise opened. */
 export interface ParseWarning {
     code: ParseWarningCode;
     /** One line, host-renderable, naming what was lost rather than where it broke. */
