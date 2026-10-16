@@ -27,7 +27,7 @@ import { escapeXml, matlabTimestampNow } from './XmlUtils.js';
 import { encodedXml } from './EncodedValue.js';
 import { oneWrite } from './MatWriter.js';
 import { DATA_PART_XML } from './SlddParts.js';
-import { SC_PART_XML, catalogRenames, scXmlWithRenames } from './ScCatalog.js';
+import { SC_PART_XML, catalogFunctionRenames, catalogRenames, scXmlWithRenames } from './ScCatalog.js';
 import { chunkFrameOf, entrySourceOf, keptFragmentOf, packageStampsOf, type ChunkFrame } from './EntrySource.js';
 import { WRITER_LAYOUT, inLayout, layoutOf, type ChunkLayout } from './ChunkLayout.js';
 import type { ZipMemberStamp } from './Inflate.js';
@@ -47,12 +47,14 @@ export function serializeBinarySldd(slddNode: SlddNode): ArrayBuffer {
     // The System Composer catalog names each architectural entry it models, so an entry
     // renamed since the read has to be renamed there too, or it reopens as its raw class
     // (a struct type as a data interface) and the catalog defines a name no entry has. The
-    // member is written as read, with only the renamed definitions' name sites changed.
+    // member is written as read, with only the renamed definitions' name sites changed; a
+    // service interface's renamed function, which the catalog keeps a copy of, likewise.
     const catalog = zipEntries[SC_PART_XML];
     const renames = catalogRenames(slddNode.systemComposer);
-    if (catalog && renames.size > 0) {
+    const functionRenames = catalogFunctionRenames(slddNode.systemComposer);
+    if (catalog && (renames.size > 0 || functionRenames.size > 0)) {
         const xml = new TextDecoder().decode(catalog);
-        const renamed = scXmlWithRenames(xml, renames);
+        const renamed = scXmlWithRenames(xml, renames, functionRenames);
         if (renamed !== xml) {
             zipEntries[SC_PART_XML] = encoder.encode(renamed);
         }

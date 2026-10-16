@@ -825,44 +825,333 @@ export function catalogRenames(catalog: SystemComposerCatalog | null | undefined
  * the definition and its own value-type descriptor, never a reference elsewhere that
  * happens to share the name), and every other byte as it was.
  *
+ * A renamed function of a service interface (`functionRenames`, from
+ * `catalogFunctionRenames`) is renamed at its own `p_Name` and in its `p_FunctionPrototype`.
+ *
  * All renames are applied in one pass over the member as read, so a swap of two names
  * (A -> B and B -> A) lands as a swap rather than as two definitions named A.
  */
-export function scXmlWithRenames(xml: string, renames: ReadonlyMap<string, string>): string {
-    if (renames.size === 0) {
+export function scXmlWithRenames(
+    xml: string,
+    renames: ReadonlyMap<string, string>,
+    functionRenames: CatalogFunctionRenames = new Map(),
+): string {
+    if (renames.size === 0 && functionRenames.size === 0) {
         return xml;
     }
     const edits: ScTextEdit[] = [];
-    scanScXml(xml).forEach((def) => {
-        const now = renames.get(def.name);
-        if (now === undefined || now === def.name) {
-            return;
-        }
-        def.nameSites.forEach((site) => edits.push({ start: site.start, end: site.end, text: now }));
-    });
+    if (renames.size > 0) {
+        scanScXml(xml).forEach((def) => {
+            const now = renames.get(def.name);
+            if (now === undefined || now === def.name) {
+                return;
+            }
+            def.nameSites.forEach((site) => edits.push({ start: site.start, end: site.end, text: now }));
+        });
+    }
+    if (functionRenames.size > 0) {
+        edits.push(...functionRenameEdits(xml, scanScXmlFunctions(xml), functionRenames));
+    }
     return edits.length === 0 ? xml : applyScEdits(xml, edits);
 }
 
 /**
  * An uncompressed-text dictionary's whole JSON text, with every renamed definition's name
  * written where the definition spells it in the interface dictionary part, and every other
- * character as it was: the text twin of `scXmlWithRenames`, and the same sites.
+ * character as it was: the text twin of `scXmlWithRenames`, and the same sites, a renamed
+ * function's among them.
  *
  * The save writes a text dictionary's parts back as read, so this is what carries a rename
  * into its catalog. All renames are applied in one pass over the text as written, so a swap
  * of two names lands as a swap.
  */
-export function scJsonTextWithRenames(text: string, renames: ReadonlyMap<string, string>): string {
-    if (renames.size === 0) {
+export function scJsonTextWithRenames(
+    text: string,
+    renames: ReadonlyMap<string, string>,
+    functionRenames: CatalogFunctionRenames = new Map(),
+): string {
+    if (renames.size === 0 && functionRenames.size === 0) {
         return text;
     }
     const edits: ScTextEdit[] = [];
-    scanScJsonText(text).forEach((def) => {
-        const now = renames.get(def.name);
-        if (now === undefined || now === def.name) {
+    if (renames.size > 0) {
+        scanScJsonText(text).forEach((def) => {
+            const now = renames.get(def.name);
+            if (now === undefined || now === def.name) {
+                return;
+            }
+            def.nameSites.forEach((site) => edits.push({ start: site.start, end: site.end, text: now }));
+        });
+    }
+    if (functionRenames.size > 0) {
+        edits.push(...functionRenameEdits(text, scanScJsonFunctions(text), functionRenames));
+    }
+    return edits.length === 0 ? text : applyScEdits(text, edits);
+}
+
+// ---------------------------------------------------------------------------------------
+// A service interface's functions.
+//
+// A ServiceInterface definition in the catalog keeps its own copy of each of its functions,
+// a `p_FunctionElements` child spelling the function's `p_Name` and `p_FunctionPrototype`
+// (`f` / `y = f(u,v)`), beside the Simulink.FunctionElement in the data part that MATLAB
+// keeps equal to it. So a FunctionElement renamed in the tree is renamed here too, at those
+// two sites of that function of that interface and nowhere else: a function argument's
+// `p_Name` is one level deeper, and a function of the same name in another interface is
+// another function.
+
+// The function elements of a service interface definition, under both formats' spelling.
+const FUNCTIONS_KEY = 'p_FunctionElements';
+
+/** One function of a service interface definition, as the source text spells it. */
+interface ScFunction {
+    /** The interface's name in the source text. */
+    interfaceName: string;
+    name: string;
+    nameSite: ScNameSite;
+    /** Null when the function has no Prototype text to rename. */
+    prototypeSite: ScNameSite | null;
+}
+
+/**
+ * Every function of the catalog renamed since it was read: interface name in the file ->
+ * (function name in the file -> function name now). The interface is keyed by its name in
+ * the FILE, so a function rename and a rename of its interface, in either order, both land.
+ */
+export type CatalogFunctionRenames = ReadonlyMap<string, ReadonlyMap<string, string>>;
+
+// For each catalog, per interface (by its name in the file), what each renamed function is
+// called NOW, keyed to what it is called in the file — the shape and the folding of
+// `fileNames`: a chain is one rename, and a function renamed back is dropped.
+const functionFileNames = new WeakMap<SystemComposerCatalog, Map<string, Map<string, string>>>();
+
+/**
+ * Record that the function `oldName` of the service interface entry now called
+ * `interfaceName` is renamed `newName`, so the save renames the catalog's copy of it
+ * (`catalogFunctionRenames`). Nothing is recorded for an interface the catalog does not
+ * list. Returns whether anything was recorded.
+ */
+export function renameFunctionInCatalog(
+    catalog: SystemComposerCatalog | null | undefined,
+    interfaceName: string,
+    oldName: string,
+    newName: string,
+): boolean {
+    if (!catalog || oldName === newName || ownValue(catalog.interfaces, interfaceName) === undefined) {
+        return false;
+    }
+    const entryNames = fileNames.get(catalog);
+    const interfaceInFile = entryNames?.has(interfaceName) ? (entryNames.get(interfaceName) as string) : interfaceName;
+    let perInterface = functionFileNames.get(catalog);
+    if (!perInterface) {
+        perInterface = new Map<string, Map<string, string>>();
+        functionFileNames.set(catalog, perInterface);
+    }
+    let names = perInterface.get(interfaceInFile);
+    if (!names) {
+        names = new Map<string, string>();
+        perInterface.set(interfaceInFile, names);
+    }
+    const inFile = names.has(oldName) ? (names.get(oldName) as string) : oldName;
+    names.delete(oldName);
+    if (inFile === newName) {
+        names.delete(newName);
+    } else {
+        names.set(newName, inFile);
+    }
+    if (names.size === 0) {
+        perInterface.delete(interfaceInFile);
+    }
+    return true;
+}
+
+/**
+ * Every function of this catalog renamed since it was read, per interface: interface name
+ * in the file -> (function name in the file -> name now). Empty for a catalog none has been
+ * renamed in, and for none at all.
+ */
+export function catalogFunctionRenames(catalog: SystemComposerCatalog | null | undefined): Map<string, Map<string, string>> {
+    const renames = new Map<string, Map<string, string>>();
+    const perInterface = catalog ? functionFileNames.get(catalog) : undefined;
+    for (const [interfaceInFile, names] of perInterface ?? []) {
+        const inverted = new Map<string, string>();
+        for (const [now, inFile] of names) {
+            inverted.set(inFile, now);
+        }
+        renames.set(interfaceInFile, inverted);
+    }
+    return renames;
+}
+
+// `[outputs =] name(inputs)`, the form a FunctionElement's Prototype takes, split around the
+// function name: what precedes it, the name itself, and the input list. Neither side may hold
+// a second call, a second `=`, or anything after the closing parenthesis, so a match finds
+// exactly one function name.
+const PROTOTYPE_RE = /^(\s*(?:(?:\[[^[\]()=]*\]|[A-Za-z]\w*)\s*=\s*)?)([A-Za-z]\w*)(\s*\([^()=]*\)\s*)$/;
+
+/**
+ * `prototype` with its function name `from` replaced by `to` (that token only, so an output or
+ * input spelled like the function keeps its spelling), or null when the Prototype does not have
+ * that form or declares a function other than `from`. The rule MATLAB's FunctionElement Name
+ * setter follows (Simulink.FunctionElement.md), shared by the node and the catalog's copy.
+ */
+export function renamedPrototype(prototype: unknown, from: string, to: string): string | null {
+    if (typeof prototype !== 'string') {
+        return null;
+    }
+    const m = PROTOTYPE_RE.exec(prototype);
+    if (!m || m[2] !== from) {
+        return null;
+    }
+    return m[1] + to + m[3];
+}
+
+// The edits that carry the function renames into a catalog part: each renamed function's
+// `p_Name`, and its `p_FunctionPrototype` where that declares the function by the name in the
+// file. A Prototype in another form keeps its text; the name still moves.
+function functionRenameEdits(text: string, fns: ScFunction[], renames: CatalogFunctionRenames): ScTextEdit[] {
+    const edits: ScTextEdit[] = [];
+    fns.forEach((fn) => {
+        const now = renames.get(fn.interfaceName)?.get(fn.name);
+        if (now === undefined || now === fn.name) {
             return;
         }
-        def.nameSites.forEach((site) => edits.push({ start: site.start, end: site.end, text: now }));
+        edits.push({ start: fn.nameSite.start, end: fn.nameSite.end, text: now });
+        if (fn.prototypeSite) {
+            const prototype = renamedPrototype(text.slice(fn.prototypeSite.start, fn.prototypeSite.end), fn.name, now);
+            if (prototype !== null) {
+                edits.push({ start: fn.prototypeSite.start, end: fn.prototypeSite.end, text: prototype });
+            }
+        }
     });
-    return edits.length === 0 ? text : applyScEdits(text, edits);
+    return edits;
+}
+
+interface XmlFunctionFrame {
+    tag: string;
+    textStart: number;
+    /** Text spans of this element's direct-child `p_Name` and `p_FunctionPrototype`. */
+    sites: Record<string, ScNameSite>;
+    /** Direct-child function elements, once closed. */
+    functions: { nameSite: ScNameSite; prototypeSite: ScNameSite | null }[];
+}
+
+// The functions of every service interface definition in a compressed-binary dictionary's
+// catalog member: the same tag walk as `scanScXml`, reading a definition's direct-child
+// `p_FunctionElements` and, in each, its own direct-child `p_Name` and `p_FunctionPrototype`.
+function scanScXmlFunctions(xml: string): ScFunction[] {
+    const fns: ScFunction[] = [];
+    const stack: XmlFunctionFrame[] = [];
+    const tags = new XmlTagScanner(xml);
+    let tag: XmlTag | null;
+    while ((tag = tags.next())) {
+        if (tag.selfClosing) {
+            continue;
+        }
+        if (!tag.closing) {
+            stack.push({ tag: tag.name, textStart: tag.end, sites: {}, functions: [] });
+            continue;
+        }
+        const frame = stack.pop();
+        if (!frame) {
+            continue;
+        }
+        const parent = stack[stack.length - 1];
+        if (frame.tag === 'p_Name' || frame.tag === 'p_FunctionPrototype') {
+            if (parent) {
+                parent.sites[frame.tag] = { start: frame.textStart, end: tag.index };
+            }
+            continue;
+        }
+        if (frame.tag === FUNCTIONS_KEY) {
+            if (parent && frame.sites.p_Name) {
+                parent.functions.push({ nameSite: frame.sites.p_Name, prototypeSite: frame.sites.p_FunctionPrototype ?? null });
+            }
+            continue;
+        }
+        if (frame.tag === IFACE_KEY && frame.sites.p_Name) {
+            const interfaceName = xml.slice(frame.sites.p_Name.start, frame.sites.p_Name.end);
+            frame.functions.forEach((fn) => fns.push({
+                interfaceName,
+                name: xml.slice(fn.nameSite.start, fn.nameSite.end),
+                nameSite: fn.nameSite,
+                prototypeSite: fn.prototypeSite,
+            }));
+        }
+    }
+    return fns;
+}
+
+// The same, in an uncompressed-text dictionary's whole JSON text: each interface definition's
+// `content.p_FunctionElements`, and in each function its `content.p_Name` and
+// `content.p_FunctionPrototype`.
+function scanScJsonFunctions(text: string): ScFunction[] {
+    const region = scPartRegion(text);
+    if (!region) {
+        return [];
+    }
+    const fns: ScFunction[] = [];
+    eachKeyedArray(text, region, IFACE_KEY, (defStart) => {
+        const content = contentOf(text, defStart);
+        if (content < 0) {
+            return;
+        }
+        let interfaceSite: ScNameSite | null = null;
+        const functions: { nameSite: ScNameSite; prototypeSite: ScNameSite | null }[] = [];
+        eachMember(text, content, (key, valueStart) => {
+            if (key === 'p_Name' && text[valueStart] === '"') {
+                interfaceSite = stringSite(text, valueStart);
+            } else if (key === FUNCTIONS_KEY && text[valueStart] === '[') {
+                eachElement(text, valueStart, (fnStart) => {
+                    const fnContent = contentOf(text, fnStart);
+                    if (fnContent < 0) {
+                        return;
+                    }
+                    let nameSite: ScNameSite | null = null;
+                    let prototypeSite: ScNameSite | null = null;
+                    eachMember(text, fnContent, (fnKey, fnValue) => {
+                        if (fnKey === 'p_Name' && text[fnValue] === '"') {
+                            nameSite = stringSite(text, fnValue);
+                        } else if (fnKey === 'p_FunctionPrototype' && text[fnValue] === '"') {
+                            prototypeSite = stringSite(text, fnValue);
+                        }
+                    });
+                    if (nameSite) {
+                        functions.push({ nameSite, prototypeSite });
+                    }
+                });
+            }
+        });
+        const site = interfaceSite as ScNameSite | null;
+        if (!site) {
+            return;
+        }
+        const interfaceName = text.slice(site.start, site.end);
+        functions.forEach((fn) => fns.push({
+            interfaceName,
+            name: text.slice(fn.nameSite.start, fn.nameSite.end),
+            nameSite: fn.nameSite,
+            prototypeSite: fn.prototypeSite,
+        }));
+    });
+    return fns;
+}
+
+// Where the `content` object of the definition object at `objStart` starts, or -1.
+function contentOf(text: string, objStart: number): number {
+    if (text[objStart] !== '{') {
+        return -1;
+    }
+    let content = -1;
+    eachMember(text, objStart, (key, valueStart) => {
+        if (key === 'content' && text[valueStart] === '{') {
+            content = valueStart;
+        }
+    });
+    return content;
+}
+
+// The span inside the quotes of the JSON string starting at `valueStart`.
+function stringSite(text: string, valueStart: number): ScNameSite {
+    return { start: valueStart + 1, end: skipValue(text, valueStart) - 1 };
 }
