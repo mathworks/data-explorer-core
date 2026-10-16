@@ -44,7 +44,12 @@ const block = (name: string, type: string, prop: string, value: string): string 
 // The same builders the two suites use, so these files go through the real parsers: an
 // engine that reads the wrong field of a parse result is exactly what a hand-built summary
 // or a hand-assembled tree would hide.
-function slxModel(opts: { dictionary?: string | null; blocks: string; workspaceMat?: string }): ArrayBuffer {
+function slxModel(opts: {
+  dictionary?: string | null;
+  blocks: string;
+  workspaceMat?: string;
+  externals?: string[];
+}): ArrayBuffer {
   const diagram: Record<string, unknown> = { ModelUUID: 'u1' };
   if (opts.dictionary) {
     diagram.DataDictionary = opts.dictionary;
@@ -52,7 +57,7 @@ function slxModel(opts: { dictionary?: string | null; blocks: string; workspaceM
   if (opts.workspaceMat) {
     diagram.ModelWorkspace = { WSDataSource: 'MAT-File', WSSourceFileName: opts.workspaceMat };
   }
-  const zipped = zipSync({
+  const parts: Record<string, Uint8Array> = {
     'simulink/blockDiagram.json': strToU8(JSON.stringify({ BlockDiagram: diagram })),
     'simulink/systems/system_root.xml': strToU8(
       `<?xml version="1.0" encoding="utf-8"?><System>${opts.blocks}</System>`,
@@ -60,8 +65,49 @@ function slxModel(opts: { dictionary?: string | null; blocks: string; workspaceM
     'metadata/coreProperties.xml': strToU8(
       `<?xml version="1.0"?><coreProperties><version>R2026b</version></coreProperties>`,
     ),
-  });
+  };
+  // The external data sources, in the part MATLAB keeps them in. That is not where it
+  // records a model workspace's `.mat`, which is blockDiagram.json, above.
+  if (opts.externals && opts.externals.length > 0) {
+    parts['simulink/ExternalDataSourceSettings.xml'] = strToU8(
+      `<?xml version="1.0" encoding="utf-8"?><ExternalDataSourceSettings>${opts.externals
+        .map((s) => `<ExplicitExternalBrokerSources><fullPathToSource>${s}</fullPathToSource></ExplicitExternalBrokerSources>`)
+        .join('')}</ExternalDataSourceSettings>`,
+    );
+  }
+  const zipped = zipSync(parts);
   return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
+}
+
+// A classic `.mdl`, the pre-R2012 brace format. MdlParser reads it on a path of its own,
+// apart from every package reader, so a fact that path drops is a fact neither engine gets.
+// Each block's SID is its name, as in `block` above.
+function classicMdl(opts: {
+  dictionary?: string;
+  workspaceMat?: string;
+  blocks: { name: string; type: string; prop: string; value: string }[];
+}): ArrayBuffer {
+  const lines = ['Model {', '  Name "wsmdl"'];
+  if (opts.dictionary) {
+    lines.push(`  DataDictionary "${opts.dictionary}"`);
+  }
+  if (opts.workspaceMat) {
+    lines.push('  WSDataSource "MAT-File"', `  WSSourceFileName "${opts.workspaceMat}"`);
+  }
+  lines.push('  System {', '    Name "wsmdl"');
+  for (const b of opts.blocks) {
+    lines.push(
+      '    Block {',
+      `      BlockType ${b.type}`,
+      `      Name "${b.name}"`,
+      `      SID "${b.name}"`,
+      `      ${b.prop} "${b.value}"`,
+      '    }',
+    );
+  }
+  lines.push('  }', '}', '');
+  const u8 = strToU8(lines.join('\n'));
+  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
 }
 
 // A textual `.sldd`. `entries` is either a bare name (a design entry) or a name plus the
@@ -276,6 +322,109 @@ describe('what shadowing must NOT take away', () => {
       file('signals.mat', artifact('mat/cases.mat')),
     ];
     expectBoth(files, 'signals.mat/kp', 'signals.mat', 'kp', ['K']);
+  });
+});
+
+// A model whose workspace is KEPT in a `.mat` (`WSDataSource` 'MAT-File'). That file is
+// the model workspace, so MATLAB resolves a name in it right after the model's own
+// workspace and ahead of every dictionary. Both engines used to rank it last, with the
+// other `.mat` files, because both parsers put it in `externalDataSources` with them. So a
+// name the linked dictionary defined as well was credited to the dictionary, which is the
+// one definition the block does not read.
+//
+// `signals.mat` is cases.mat, which defines `kp` and not `Kd`. The dictionary defines both.
+describe('a model workspace kept in a .mat — ahead of the dictionary', () => {
+  const MAT = () => file('signals.mat', artifact('mat/cases.mat'));
+  const DICT = () => file('mdlparams.sldd', slddBytes(['kp', 'Kd']));
+
+  // The same model in the two formats whose parsers record this on separate code paths:
+  // the package reader (blockDiagram.json) and the classic `.mdl` reader.
+  const MODELS: [what: string, model: () => File][] = [
+    [
+      '.slx',
+      () =>
+        file(
+          'ws.slx',
+          slxModel({
+            dictionary: 'mdlparams.sldd',
+            workspaceMat: 'signals.mat',
+            blocks: block('K', 'Constant', 'Value', 'kp') + block('D', 'Gain', 'Gain', 'Kd'),
+          }),
+        ),
+    ],
+    [
+      'classic .mdl',
+      () =>
+        file(
+          'ws.mdl',
+          classicMdl({
+            dictionary: 'mdlparams.sldd',
+            workspaceMat: 'signals.mat',
+            blocks: [
+              { name: 'K', type: 'Constant', prop: 'Value', value: 'kp' },
+              { name: 'D', type: 'Gain', prop: 'Gain', value: 'Kd' },
+            ],
+          }),
+        ),
+    ],
+  ];
+
+  for (const [what, model] of MODELS) {
+    describe(what, () => {
+      const files = [model(), MAT(), DICT()];
+
+      it('credits the workspace .mat, which is the value the block reads', () => {
+        expectBoth(files, 'signals.mat/kp', 'signals.mat', 'kp', ['K']);
+      });
+
+      it('credits the dictionary entry it shadows with NOTHING', () => {
+        expectBoth(files, 'mdlparams.sldd/design/kp', 'mdlparams.sldd', 'kp', []);
+      });
+
+      it('still credits the dictionary for a name only IT defines', () => {
+        expectBoth(files, 'mdlparams.sldd/design/Kd', 'mdlparams.sldd', 'Kd', ['D']);
+      });
+    });
+  }
+
+  it('keeps it ahead when the settings part names the same file as an external too', () => {
+    // The parser lists the file once, so it is both the workspace file and an external.
+    // It is still the model workspace.
+    const files = [
+      file(
+        'ws.slx',
+        slxModel({
+          dictionary: 'mdlparams.sldd',
+          workspaceMat: 'signals.mat',
+          externals: ['signals.mat'],
+          blocks: block('K', 'Constant', 'Value', 'kp'),
+        }),
+      ),
+      MAT(),
+      DICT(),
+    ];
+    expectBoth(files, 'signals.mat/kp', 'signals.mat', 'kp', ['K']);
+    expectBoth(files, 'mdlparams.sldd/design/kp', 'mdlparams.sldd', 'kp', []);
+  });
+
+  it('leaves an ordinary external .mat behind the dictionary', () => {
+    // The control. A `.mat` the model only lists as an external data source is not its
+    // workspace, so the dictionary still wins. Moving every `.mat` ahead of the
+    // dictionaries would pass the cases above and fail this one.
+    const files = [
+      file(
+        'ext.slx',
+        slxModel({
+          dictionary: 'mdlparams.sldd',
+          externals: ['signals.mat'],
+          blocks: block('K', 'Constant', 'Value', 'kp'),
+        }),
+      ),
+      MAT(),
+      DICT(),
+    ];
+    expectBoth(files, 'mdlparams.sldd/design/kp', 'mdlparams.sldd', 'kp', ['K']);
+    expectBoth(files, 'signals.mat/kp', 'signals.mat', 'kp', []);
   });
 });
 

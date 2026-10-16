@@ -20,6 +20,12 @@
 // a defect in the file or in the read, and warning about them would put a count on
 // every legacy file a user opens — which teaches a host, and its user, to ignore
 // the count. Warn when the bytes claim something is there and it could not be read.
+//
+// ONE KIND IS NOT A LOSS. `duplicate-id` is a file that read in full but holds two
+// entries (or two fields, two elements) with one name in one place, which MATLAB never
+// writes. Both are kept as read; the session cannot tell them apart by id, so it refuses
+// to edit or delete either by id, and this is how the user hears why. A host that counts
+// losses counts the other codes.
 
 /**
  * Stable, machine-readable warning kinds. Hosts group, filter and localize on
@@ -27,7 +33,8 @@
  *
  * Deliberately about CONTAINERS AND PARTS rather than about any one format, so a
  * `.slx` part, a `.prj` store document and a `.mat` variable all report through
- * the same three shapes as their readers gain the channel.
+ * the same three shapes as their readers gain the channel. The fourth, `duplicate-id`,
+ * is about what the session can do with a read that lost nothing; see above.
  */
 export type ParseWarningCode =
   /** One named piece of the source could not be read; the rest of it was. */
@@ -35,9 +42,16 @@ export type ParseWarningCode =
   /** The source opened but held nothing this reader recognizes; the result is empty. */
   | 'source-empty'
   /** Reading the source failed outright and was recovered from; the result is empty. */
-  | 'source-unreadable';
+  | 'source-unreadable'
+  /**
+   * Nothing is missing: two or more siblings share a name, and so one node id, so
+   * none of them can be edited or deleted by id until the file names them apart.
+   * `part` is the entry's name, or the MATLAB path of a field or element. Added by the
+   * session when a source is registered, not by a reader.
+   */
+  | 'duplicate-id';
 
-/** One thing that could not be read, in a source that otherwise opened. */
+/** One thing that could not be read (or, for `duplicate-id`, addressed), in a source that otherwise opened. */
 export interface ParseWarning {
   code: ParseWarningCode;
   /** One line, host-renderable, naming what was lost rather than where it broke. */

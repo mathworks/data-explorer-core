@@ -708,7 +708,8 @@ export default class ObjectNode extends DataNode {
                 if (isEnumBag(rawVal)) {
                     elemRaw[ENUM_KEY] = rawVal[ENUM_KEY];
                 }
-                const elemNode = NodeRegistry.parseValue(elemRaw, String(ei), node) as DataNode;
+                // Named by its 1-based slot, as every element is (BaseNode._slotAmongSiblings).
+                const elemNode = NodeRegistry.parseValue(elemRaw, String(ei + 1), node) as DataNode;
                 // The MCOS decoder and both SLDD paths deliver elements in MATLAB's
                 // own COLUMN-major order, so element ei is MATLAB's linear index
                 // ei+1. Reading it row-major named 4 of the 6 elements of a 2x3
@@ -748,7 +749,8 @@ export default class ObjectNode extends DataNode {
                 _elements: [{ _enum_value: value }],
                 _mw_element_type: (rawVal._mw_element_type as string) || 'MATLABArray',
             };
-            const elemNode = ObjectNode.parse(elemRaw, String(ei), node);
+            // Named by its 1-based slot, as the binary dictionary's rows of the same value are.
+            const elemNode = ObjectNode.parse(elemRaw, String(ei + 1), node);
             elemNode._subscript = { index: ei, dims, order: 'column-major', bracket: '()' };
             node.addChild(elemNode);
         });

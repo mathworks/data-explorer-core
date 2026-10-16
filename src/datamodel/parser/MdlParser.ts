@@ -664,11 +664,14 @@ function parseClassicMdl(bytes: Uint8Array, filename: string): ParsedMdl {
   const modelName = prop(model, 'Name') || '';
 
   // The model workspace, for the case where it lives in a MAT file instead of in
-  // the model. Same relationship the `.slx` reads out of blockDiagram.json.
+  // the model. Same relationship the `.slx` reads out of blockDiagram.json, and
+  // returned the same two ways: as external data, which a host loads, and on its own
+  // as `workspaceDataSource`, which resolves ahead of the dictionary.
   const externalDataSources: string[] = [];
   const wsFile = prop(model, 'WSSourceFileName');
-  if (prop(model, 'WSDataSource') === 'MAT-File' && wsFile) {
-    externalDataSources.push(wsFile);
+  const workspaceDataSource = prop(model, 'WSDataSource') === 'MAT-File' && wsFile ? wsFile : null;
+  if (workspaceDataSource) {
+    externalDataSources.push(workspaceDataSource);
   }
 
   return {
@@ -689,6 +692,7 @@ function parseClassicMdl(bytes: Uint8Array, filename: string): ParsedMdl {
     dataDictionary: prop(model, 'DataDictionary') || null,
     modelReferences: classicModelReferences(model, modelName),
     externalDataSources,
+    workspaceDataSource,
     configSets: classicConfigSets(model),
     workspace: classicWorkspace(root, model, warnings),
     ...classicBlockParamUsages(model),

@@ -26,18 +26,20 @@
 // whichever engine happened to answer, which is how the shadowed usage was found.
 //
 // The rule below is the one both express: the enclosing mask workspaces innermost-out, then
-// the model workspace, then the dictionary chain, then the MATs, first hit wins. Two
+// the model workspace, then the `.mat` the model workspace is kept in (if it is kept in
+// one), then the dictionary chain, then the other MATs, first hit wins. Two
 // implementations remain because the INPUTS genuinely differ
 // (bytes on disk versus trees in a session, and neither can be had from the other), so the
 // agreement is pinned by test rather than by construction — see test/usageEngines.test.ts,
 // which asks both the same question about the same files.
 //
-// ==> OPEN, and not the same question: a model whose WORKSPACE is sourced from a `.mat`
-// (`WSDataSource: 'MAT-File'`) resolves that file last here, with the other externals,
-// because both parsers merge it into `externalDataSources` and the distinction is gone by
-// the time a summary is built. MATLAB would resolve it FIRST — it is the model workspace.
-// It only shows when such a model also links a dictionary defining the same name, and
-// closing it needs the parsers to keep the workspace file apart from the rest.
+// The workspace `.mat` (`WSDataSource: 'MAT-File'`) is the one file that is in two places.
+// Both parsers list it in `externalDataSources` with the other externals, which is how a
+// host knows to load it, and name it again as `workspaceDataSource`, because it IS the
+// model workspace and MATLAB resolves a name in it ahead of the dictionaries. This used to
+// rank it last, with the externals, since nothing else told it apart: a name such a model's
+// linked dictionary defined too was credited to the dictionary, the one definition the block
+// does not read. It stays in `matRefs` as well, where a second look in it finds nothing new.
 import { blockKey, blockLabel, joinBlockPath } from '../blockIdentity.js';
 import { identifiersIn } from '../expressions.js';
 import { maskDefining } from '../maskScope.js';
@@ -87,6 +89,14 @@ export interface ModelSummary {
   slddRefs: string[];
   /** refBasename'd names of linked MAT-files. */
   matRefs: string[];
+  /**
+   * refBasename'd name of the MAT-file the model workspace is kept in, which resolves
+   * right after `workspaceNames` and ahead of `slddRefs`. It is in `matRefs` too.
+   *
+   * Absent when there is no such file. Optional, rather than null, so that a summary a
+   * host built before this existed is still a ModelSummary, and resolves as it always did.
+   */
+  workspaceMatRef?: string;
   /**
    * The model's mask workspaces — a scope INSIDE the model, ahead of everything above.
    * Unlike the three ref lists this needs no lookup elsewhere: a mask is defined in the
@@ -196,6 +206,12 @@ export interface UsageIndex {
 // the rest of the folder.
 function modelSummary(parsed: ParsedSlx, srcId: string, filename: string): ModelSummary {
   const externals = parsed.externalDataSources ?? [];
+  // A typeof test rather than a `??`, for the same reason: summarizeParsedModel is handed a
+  // host's parse, which may predate the field. Only a `.mat` is a file this looks in, as for
+  // matRefs.
+  const workspaceMat = parsed.workspaceDataSource;
+  const workspaceMatRef =
+    typeof workspaceMat === 'string' && isMatFile(workspaceMat) ? refBasename(workspaceMat) : null;
   return {
     srcId,
     // The bare model name, off the BASENAME: a caller hands over whatever path it has, and
@@ -214,6 +230,7 @@ function modelSummary(parsed: ParsedSlx, srcId: string, filename: string): Model
       ...externals.filter(isSlddFile).map(refBasename),
     ],
     matRefs: externals.filter(isMatFile).map(refBasename),
+    ...(workspaceMatRef !== null ? { workspaceMatRef } : {}),
     masks: parsed.masks ?? [],
     blockParams: (parsed.blockParamUsages ?? []).map((u) => ({
       blockName: u.blockName,
@@ -392,8 +409,10 @@ export function summarizeMatScan(scan: MatScanResult, srcId: string, filename: s
  * if it does not.
  *
  * MATLAB's order, and the FIRST hit wins: the mask workspaces of the masked subsystems
- * this block is inside (innermost out), then the model's own workspace, then the linked
- * dictionary and any dictionary it references transitively, then linked MAT-files. Each
+ * this block is inside (innermost out), then the model's own workspace, then the MAT-file
+ * that workspace is kept in (`workspaceMatRef`, whose hit is kind `'mat'` since the
+ * definition is in that file), then the linked dictionary and any dictionary it
+ * references transitively, then the other linked MAT-files. Each
  * scope SHADOWS the ones after it — the block reads one value, so only one definition is
  * used, and crediting both would put a usage on a definition whose value never reaches
  * the block.
@@ -423,6 +442,15 @@ export function resolveName(
 
   if (model.workspaceNames.has(name)) {
     return { kind: 'workspace', srcId: model.srcId };
+  }
+
+  // The model workspace kept in a `.mat`. It is in matRefs too, so the MAT pass below may
+  // look in it again; for a name it does not define that finds nothing either.
+  if (model.workspaceMatRef) {
+    const workspaceMat = matByName.get(model.workspaceMatRef);
+    if (workspaceMat?.names.has(name)) {
+      return { kind: 'mat', srcId: workspaceMat.srcId };
+    }
   }
 
   const seen = new Set<string>();

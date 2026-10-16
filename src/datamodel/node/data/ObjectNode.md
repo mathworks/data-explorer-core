@@ -36,8 +36,9 @@ icon (architectural data support).
 ## Element rows of an object array
 
 A multi-element value object expands in two levels — N element rows `name(i)`, each
-expanding into its own rows (see `test/objectArrayExpansion.test.ts`). Those element
-rows do NOT inherit a data type from the container, which is the opposite of the
+expanding into its own rows (see `test/objectArrayExpansion.test.ts`). Each element is
+named by its 1-based slot, `1` to `N`, as a struct array's elements are
+(`test/elementNameBase.test.ts`). Those element rows do NOT inherit a data type from the container, which is the opposite of the
 numeric rule one level over (an int32 array's elements are int32s — see
 `MatlabVariable.md`). An object's class is Class, not a data type, so:
 

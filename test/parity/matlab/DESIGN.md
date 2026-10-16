@@ -2084,10 +2084,14 @@ Two things this measurement settled and left alone:
   carried the right dims, class and count, `MatlabVariableNode._serializeCellXml` and
   `_serializeArrayXml` already spelled each of the three forms MATLAB's way. That is the
   byte-identity test's second job.
-- **Struct-array element rows are labelled 0-based** (`0`, `1`, …) where every other
-  container in the tree is 1-based, and for an N-D struct array the two channels disagree
+- **Struct-array element rows were named 0-based** (`0`, `1`, …) where every other
+  container in the tree is 1-based, and for an N-D struct array the two channels disagreed
   about it (text `1…12`, binary `0…11`). Visible in the fixtures here, unrelated to cells,
-  not asserted either way.
+  and not asserted either way then. *Retired (C-058, group E ruling of 2026-10-16):* every
+  struct-array, object-array and enumeration-array element is now named by its 1-based
+  slot in every flavour, so its node id is the same whichever reader built it (`structNd/1`
+  … `structNd/12` from all four of `cases.*`). The label (`structNd(1,1,1)`) was already
+  the same and did not change. `test/elementNameBase.test.ts` asserts both.
 
 ## Reading a format that changes: derive from structure, do not trust a spelling
 

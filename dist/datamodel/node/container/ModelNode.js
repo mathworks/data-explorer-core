@@ -22,6 +22,7 @@ export default class ModelNode extends ContainerNode {
         this.lastModified = '';
         this.uuid = '';
         this.dataDictionary = null;
+        this.workspaceDataSource = null;
         this.rawContents = null;
         this.dirty = false;
         this.blockParamUsages = [];
@@ -140,6 +141,12 @@ export default class ModelNode extends ContainerNode {
         node.lastModified = parsed.lastModified;
         node.uuid = parsed.uuid;
         node.dataDictionary = parsed.dataDictionary;
+        // A string or nothing: a host parse may predate the field, and one that crossed a
+        // worker boundary is plain data with no type behind it.
+        node.workspaceDataSource =
+            typeof parsed.workspaceDataSource === 'string' && parsed.workspaceDataSource !== ''
+                ? parsed.workspaceDataSource
+                : null;
         node.rawContents = parsed.rawContents || null;
         node._zipEntries = parsed.zipEntries || null;
         node._workspaceVars = parsed.workspace;

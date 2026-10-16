@@ -102,6 +102,19 @@ export function createSession(opts: CreateSessionOptions = {}) {
 
 const dataSources: Map<string, ISourceNode> = new Map();
 const nodeIndex: Map<string, INode> = new Map();
+// Ids that a second node was indexed under while another node already held them, since
+// the index was last rebuilt whole. A node id is its PATH (BaseNode.id), so two entries
+// with one name in one section are one id, and so is every node inside them; the index
+// keeps the last one, and an operation addressed by that id would act on whichever that
+// was. Only a malformed file holds such a pair (F1-50; MATLAB writes none, and a rename
+// here refuses to make one), and D13 keeps both as read, so no id changes. Instead every
+// id-addressed operation resolves through resolveId, which refuses an id that names more
+// than one node.
+//
+// A filter, not the answer: the live check (hasTwin) decides, so an entry here that has
+// since stopped being shared (one twin renamed) costs one check and refuses nothing.
+// Empty for every well-formed file, which keeps resolveId a single Map lookup.
+const sharedIds: Set<string> = new Set();
 let contextNode: INode | IAllNode | null = null;
 let entryNodes: INode[] = [];
 let previewNode: INode | null = null;
@@ -161,16 +174,170 @@ function registerSource(
     deindexSource(previous);
   }
   dataSources.set(srcId, sourceNode);
-  indexSource(sourceNode);
+  // Two nodes of this tree under one id is a file holding two entries (or two fields,
+  // two elements) with one name, and it is said here, at open, because from now on the
+  // session refuses to edit or delete either of them by id (resolveId). Looked for only
+  // when indexing met an id already held, so a clean file pays nothing for it.
+  if (indexSource(sourceNode)) {
+    const twins = twinWarnings(sourceNode);
+    if (twins.length > 0) {
+      // Appended to whatever the reader reported, and only when there is something: a
+      // clean file keeps no `warnings` field at all (see above). A new array, so the
+      // caller's own `warnings` argument is not written into.
+      const holder = sourceNode as unknown as { warnings?: ParseWarning[] };
+      holder.warnings = (holder.warnings ?? []).concat(twins);
+    }
+  }
   publish('datamodel/source-added', { srcId, slddNode: sourceNode });
   return sourceNode;
 }
 
-function indexSource(source: ISourceNode): void {
-  const flat = source.flatten();
-  for (let i = 0; i < flat.length; i++) {
-    nodeIndex.set(flat[i].id, flat[i]);
+// Index one node, noting its id in sharedIds when a different node already holds it.
+// Every write into nodeIndex goes through here, so no path can make two nodes share an
+// id without the filter hearing of it. Returns whether it did.
+function indexNode(node: INode): boolean {
+  const id = node.id;
+  const held = nodeIndex.get(id);
+  nodeIndex.set(id, node);
+  if (held !== undefined && held !== node) {
+    sharedIds.add(id);
+    return true;
   }
+  return false;
+}
+
+// Whether any node of `source` went in under an id another node already held.
+function indexSource(source: ISourceNode): boolean {
+  const flat = source.flatten();
+  let met = false;
+  for (let i = 0; i < flat.length; i++) {
+    if (indexNode(flat[i])) {
+      met = true;
+    }
+  }
+  return met;
+}
+
+// Whether `node`, or any node above it, has a sibling with the same id: what makes the
+// id `node` answers to name more than one node. A node inside a shared entry counts, since
+// `S/a` is a field of each `S`. Ids rather than names, because an id is not always the
+// name (ModelBlockNode keys a block on its SID, ModelReferenceNode on its block path),
+// and two same-named nodes with ids of their own are not shared. A source root has no
+// parent, so two open files are never twins here.
+function hasTwin(node: INode): boolean {
+  for (let n: INode = node; n.parent; n = n.parent) {
+    const id = n.id;
+    const siblings = n.parent.children;
+    for (let i = 0; i < siblings.length; i++) {
+      if (siblings[i] !== n && siblings[i].id === id) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Whether the id `node` answers to is shared, so an operation addressed by it must be
+// refused. sharedIds first: it is empty for a well-formed file, so this is free there,
+// and it holds the id of every shared node, and so the id of a shared ancestor of any
+// node inside one (an id is its parent's id, '/', and a key).
+function idIsShared(node: INode): boolean {
+  if (sharedIds.size === 0) {
+    return false;
+  }
+  const id = node.id;
+  for (const shared of sharedIds) {
+    if (id === shared || id.startsWith(shared + '/')) {
+      return hasTwin(node);
+    }
+  }
+  return false;
+}
+
+// The node an id-addressed operation acts on: the indexed node, or null when there is
+// none or when the id names more than one (idIsShared). Null for both, because a caller
+// can do nothing right with either: the index holds the LAST twin indexed, which is not
+// the row a host painted and is not necessarily the one its user meant.
+function resolveId(nodeId: string): INode | null {
+  const node = nodeIndex.get(nodeId);
+  if (!node || idIsShared(node)) {
+    return null;
+  }
+  return node;
+}
+
+// After `ids` have left nodeIndex, put back any node still in an open tree that answers
+// to one of them, other than the nodes in `leaving`. Deleting an id deletes it for every
+// node that shared it, so a host that renames or removes one twin would otherwise leave
+// the other unfindable until the next whole rebuild; with this, the twin left behind is
+// the one node under that id, and resolveId hands it out again. Walks the trees only when
+// one of the ids was shared, which a well-formed file never has.
+function reindexLeftBehind(ids: string[], leaving: Set<INode>): void {
+  const wanted = new Set<string>();
+  for (let i = 0; i < ids.length; i++) {
+    if (sharedIds.has(ids[i]) && !nodeIndex.has(ids[i])) {
+      wanted.add(ids[i]);
+    }
+  }
+  if (wanted.size === 0) {
+    return;
+  }
+  dataSources.forEach((source) => {
+    const flat = source.flatten();
+    for (let i = 0; i < flat.length; i++) {
+      if (!leaving.has(flat[i]) && wanted.has(flat[i].id)) {
+        indexNode(flat[i]);
+      }
+    }
+  });
+}
+
+// One warning per group of siblings that share an id, at the shallowest level they do:
+// everything inside a shared entry shares an id too, and the one warning already says
+// that none of it can be edited or deleted. Walks the tree again, which registerSource
+// asks of it only when indexing found an id held twice.
+function twinWarnings(source: ISourceNode): ParseWarning[] {
+  const warnings: ParseWarning[] = [];
+  const visit = (parent: INode): void => {
+    const byId = new Map<string, INode[]>();
+    for (let i = 0; i < parent.children.length; i++) {
+      const child = parent.children[i];
+      const id = child.id;
+      const group = byId.get(id);
+      if (group) {
+        group.push(child);
+      } else {
+        byId.set(id, [child]);
+      }
+    }
+    for (const group of byId.values()) {
+      if (group.length > 1) {
+        warnings.push(twinWarning(parent, group));
+      } else {
+        visit(group[0]);
+      }
+    }
+  };
+  visit(source as unknown as INode);
+  return warnings;
+}
+
+// What a group of twins reads as: where they are, the name they share, and what that
+// costs the user, without the word "id", which a user never sees. `part` is the entry's
+// name, the way a dictionary names one, or the MATLAB path of a field or element.
+function twinWarning(parent: INode, group: INode[]): ParseWarning {
+  const first = group[0];
+  const pathOf = (node: INode): string => (node as unknown as { matlabPath?: string }).matlabPath || node.name;
+  const where = parent.isContainer ? parent.displayName : pathOf(parent);
+  const noun = first.isEntry ? 'entries' : 'items';
+  const name = first.displayName || first.name;
+  const message =
+    group.length === 2
+      ? `Two ${noun} in ${where} are named '${name}'. ` +
+        'Neither can be edited or deleted until the file gives one of them another name.'
+      : `${group.length} ${noun} in ${where} are named '${name}'. ` +
+        'None of them can be edited or deleted until the file gives each its own name.';
+  return { code: 'duplicate-id', message, part: first.isEntry ? first.name : pathOf(first) };
 }
 
 function deindexSource(source: ISourceNode): void {
@@ -230,13 +397,17 @@ function mutateSubtree<T>(root: INode, mutate: () => T): T {
     }
     const after = root.flatten();
     for (let i = 0; i < after.length; i++) {
-      nodeIndex.set(after[i].id, after[i]);
+      indexNode(after[i]);
     }
     // Whatever `mutate` removed is a node the session must stop pointing at, for the
     // reason deleteOneNode releases it there: `before` minus `after`, by identity, so a
     // rename (same nodes, new ids) releases nothing.
     const survivors = new Set<INode>(after);
-    releaseSubtreeSelection(before.filter((n) => !survivors.has(n)));
+    const removed = before.filter((n) => !survivors.has(n));
+    // An id this subtree shared with a node outside it (a twin, renamed here) has just
+    // been deleted for both; the twin left behind goes back in.
+    reindexLeftBehind(staleIds, new Set<INode>(removed));
+    releaseSubtreeSelection(removed);
   }
 }
 
@@ -257,7 +428,7 @@ function mutateSubtree<T>(root: INode, mutate: () => T): T {
 function indexSubtree(root: INode): void {
   const flat = root.flatten();
   for (let i = 0; i < flat.length; i++) {
-    nodeIndex.set(flat[i].id, flat[i]);
+    indexNode(flat[i]);
   }
 }
 
@@ -286,6 +457,9 @@ function unindexSubtree(root: INode, detach?: () => void): void {
     for (let i = 0; i < ids.length; i++) {
       nodeIndex.delete(ids[i]);
     }
+    // A twin of a leaving node lost its id with it, and is still in the tree. By
+    // identity, not by attachment, since with no callback the subtree is still attached.
+    reindexLeftBehind(ids, new Set<INode>(flat));
     // Every node here is leaving the tree, so the whole subtree is what the selection
     // must stop pointing at — see releaseSubtreeSelection, and mutateSubtree's
     // before-minus-after form of the same rule.
@@ -558,6 +732,7 @@ function removeDataSource(srcId: string): void {
 function removeAll(): void {
   dataSources.clear();
   nodeIndex.clear();
+  sharedIds.clear();
   publish('datamodel/cleared');
   releaseSelection(null);
 }
@@ -582,8 +757,12 @@ function isBatching(): boolean {
   return batchDepth > 0;
 }
 
+// Null for an id no indexed node answers to, and for one that more than one node answers
+// to: two entries with one name in one section, or anything inside them (resolveId). A
+// host resolves a row it painted through this before it edits or deletes it, so this is
+// where an id naming two nodes has to stop, not only in the session's own mutations.
 function findNodeById(nodeId: string): INode | null {
-  return nodeIndex.get(nodeId) || null;
+  return resolveId(nodeId);
 }
 
 /**
@@ -936,20 +1115,27 @@ function dictionaryRefNamesOf(srcId: string): string[] {
 // same way in both places, and the order below is that rule:
 //
 //   1. the model's OWN model workspace, which is private to it.
+//   1b. the `.mat` that workspace is kept in, when the model keeps it in one
+//      (`WSDataSource: 'MAT-File'`). That file IS the model workspace, so it comes here and
+//      not with the other `.mat` files: a name it defines and the linked dictionary defines
+//      as well is the file's. It used to come last, because it is also one of the model's
+//      externals (below) and nothing else told it apart. It is read off the model's
+//      `workspaceDataSource`, which the parsers set for exactly this.
 //   2. the dictionaries it links, and every dictionary those reference, transitively.
 //      Chased breadth-first, so the nearer file wins, with a seen-set keyed by
 //      refBasename because a dictionary hierarchy is a graph a user can make cyclic.
 //      resolveDictionaryReferences is deliberately one level — a host follows a link at a
 //      time — but a NAME resolves down the whole chain, which is what MATLAB does and
 //      what made a sub-dictionary's entries show no usages here at all.
-//   3. its external `.mat` files.
+//   3. its other external `.mat` files.
 //
-// Read off the `dataSources` section rather than the `dataDictionary` field, because that
-// section is where ModelNode.fromParsed puts both kinds, in that same order — the linked
-// dictionary first, then the externals — so one read covers dictionary entries and MAT
-// variables without naming either. Each recorded name goes through openSourceNamed, the
-// same matcher a bare link target goes through, so "the dictionary this model links" and
-// "the dictionary that link points at" can never be answered differently.
+// Steps 2 and 3 are read off the `dataSources` section rather than the `dataDictionary`
+// field, because that section is where ModelNode.fromParsed puts both kinds, in that same
+// order — the linked dictionary first, then the externals — so one read covers dictionary
+// entries and MAT variables without naming either. Each recorded name goes through
+// openSourceNamed, the same matcher a bare link target goes through, so "the dictionary
+// this model links" and "the dictionary that link points at" can never be answered
+// differently. Step 1b's name goes through it too.
 //
 // A file NOT in this list is invisible: two unrelated projects open in one session, or a
 // model linked to a different dictionary that happens to define the same name, must not
@@ -961,6 +1147,13 @@ function dictionaryRefNamesOf(srcId: string): string[] {
 function resolutionOrder(model: ISourceNode, modelSrcId: string): string[] {
   // Index 0 is the model itself, which is how its own workspace comes first.
   const order: string[] = [modelSrcId];
+  // Step 1b. Duck-typed, as the section below is: a host-supplied tree, or a parse from
+  // before the field, has no `workspaceDataSource`, and its model resolves as it always did.
+  const recorded = (model as unknown as { workspaceDataSource?: unknown }).workspaceDataSource;
+  const workspaceMat = typeof recorded === 'string' && isMatFile(recorded) ? openSourceNamed(recorded) : null;
+  if (workspaceMat !== null) {
+    order.push(workspaceMat.srcId);
+  }
   // A host-supplied tree (addParsedSource) need not have sections at all.
   const declared = typeof model.getSection === 'function' ? model.getSection('dataSources') : null;
   const children = declared && Array.isArray(declared.children) ? declared.children : [];
@@ -996,7 +1189,8 @@ function resolutionOrder(model: ISourceNode, modelSrcId: string): string[] {
   }
   for (const ref of mats) {
     const open = openSourceNamed(ref);
-    if (open !== null) {
+    // The workspace `.mat` is in the section too, as an external; it already has its place.
+    if (open !== null && open.srcId !== workspaceMat?.srcId) {
       order.push(open.srcId);
     }
   }
@@ -1116,6 +1310,11 @@ function definitionRank(
  * that crosses a structured-clone boundary — see NodeUsage.
  */
 function findUsages(nodeId: string): NodeUsage[] {
+  // The index directly, not resolveId: this reads, and what it reads is the same for every
+  // node an id names (a usage is found by the definition's NAME, in its source and its
+  // section, and twins share all three), so it cannot act on the wrong one. Refusing here
+  // would also make an out-of-batch row's UsedBy cell differ from the same row's cell in
+  // a rowsOf() batch, which credits both twins; see usagesForRow.
   const definition = nodeIndex.get(nodeId);
   // The same empty answer findNodeById gives for an id it does not hold: enumerating
   // rows and asking about each should not need a guard per row.
@@ -1412,6 +1611,9 @@ function resolveDictionaryReferences(srcId: string): DictionaryReference[] {
 
 function reindexAll(): void {
   nodeIndex.clear();
+  // Rebuilt whole, so the filter is too: an id two nodes shared before the edit that
+  // triggered this and no longer do drops out of it here.
+  sharedIds.clear();
   dataSources.forEach((src) => indexSource(src));
 }
 
@@ -1468,6 +1670,12 @@ function editProperty(
   }
   const node = activeNode as INode;
   if (!node.setProperty) {
+    return false;
+  }
+  // The edit is addressed by `nodeId`, and an id two nodes answer to does not say which:
+  // the selection may hold either twin, or the one findNodeById used to hand out. Refused
+  // as findNodeById refuses it (resolveId).
+  if (idIsShared(node)) {
     return false;
   }
 
@@ -1573,7 +1781,7 @@ function addEntry(sectionKey: string, className: string, entryName?: string): IN
   UndoManager.pushExecuted(srcId, {
     execute() {
       result.redo();
-      nodeIndex.set(node.id, node);
+      indexNode(node);
       setActiveEntry(node);
       publish('node/added', { node, sectionKey: sectionRef.name });
     },
@@ -1585,7 +1793,7 @@ function addEntry(sectionKey: string, className: string, entryName?: string): IN
     },
   });
 
-  nodeIndex.set(node.id, node);
+  indexNode(node);
   publish('node/added', { node, sectionKey: section.name });
   setActiveEntry(node);
   return node;
@@ -1637,7 +1845,7 @@ function addChildOfNode(node: INode, scope: ISourceNode | null, policy: Selectio
     UndoManager.pushExecuted(scope.name, {
       execute() {
         result.redo();
-        nodeIndex.set(child.id, child);
+        indexNode(child);
         if (policy === 'follow') {
           setActiveEntry(child);
         }
@@ -1655,7 +1863,7 @@ function addChildOfNode(node: INode, scope: ISourceNode | null, policy: Selectio
     });
   }
 
-  nodeIndex.set(child.id, child);
+  indexNode(child);
   publish('node/children-changed', { parent: node });
   return child;
 }
@@ -1687,7 +1895,7 @@ function deleteOneNode(node: INode, scope: ISourceNode, policy: SelectionPolicy)
       },
       undo() {
         result.undo();
-        nodeIndex.set(node.id, node);
+        indexNode(node);
         if (policy === 'follow') {
           setActiveEntry(node);
         }
@@ -1725,7 +1933,7 @@ function deleteOneNode(node: INode, scope: ISourceNode, policy: SelectionPolicy)
     },
     undo() {
       result.undo();
-      nodeIndex.set(node.id, node);
+      indexNode(node);
       if (policy === 'follow') {
         setActiveEntry(node);
       }
@@ -1781,7 +1989,7 @@ function deleteEntryBatch(nodes: INode[], scope: ISourceNode, policy: SelectionP
     undo() {
       for (let i = undoInfo.length - 1; i >= 0; i--) {
         undoInfo[i].result.undo();
-        nodeIndex.set(undoInfo[i].node.id, undoInfo[i].node);
+        indexNode(undoInfo[i].node);
       }
       if (policy === 'follow') {
         setActiveEntry(undoInfo.map((info) => info.node));
@@ -1812,7 +2020,7 @@ function addChild(): INode | null {
 // The undo scope is resolved from the TARGET, because getActiveSlddNode() derives
 // from contextNode and a headless caller has none — which is the whole gap.
 function addChildTo(nodeId: string): INode | null {
-  const node = nodeIndex.get(nodeId);
+  const node = resolveId(nodeId);
   if (!node) {
     return null;
   }
@@ -1842,7 +2050,7 @@ function deleteNode(): boolean {
 // whatever file happened to be selected — so undo in the file that actually changed
 // would do nothing, and undo in the untouched one would replay a change it never made.
 function deleteNodeById(nodeId: string): boolean {
-  const node = nodeIndex.get(nodeId);
+  const node = resolveId(nodeId);
   if (!node) {
     return false;
   }
@@ -1861,9 +2069,16 @@ function deleteNodesById(nodeIds: string[]): boolean {
   const nodes: INode[] = [];
   for (const id of nodeIds) {
     const node = nodeIndex.get(id);
-    if (node) {
-      nodes.push(node);
+    if (!node) {
+      continue;
     }
+    // An id naming two entries refuses the whole batch, as a batch spanning two files
+    // does below: it names an entry that is there and that this cannot tell from its
+    // twin, so deleting the rest would report a success for a request half carried out.
+    if (idIsShared(node)) {
+      return false;
+    }
+    nodes.push(node);
   }
   if (nodes.length === 0) {
     return false;

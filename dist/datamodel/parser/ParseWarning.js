@@ -20,6 +20,12 @@
 // a defect in the file or in the read, and warning about them would put a count on
 // every legacy file a user opens — which teaches a host, and its user, to ignore
 // the count. Warn when the bytes claim something is there and it could not be read.
+//
+// ONE KIND IS NOT A LOSS. `duplicate-id` is a file that read in full but holds two
+// entries (or two fields, two elements) with one name in one place, which MATLAB never
+// writes. Both are kept as read; the session cannot tell them apart by id, so it refuses
+// to edit or delete either by id, and this is how the user hears why. A host that counts
+// losses counts the other codes.
 /**
  * The reason an unknown throw carried, reduced to a string.
  *

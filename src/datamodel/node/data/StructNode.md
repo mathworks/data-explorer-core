@@ -24,7 +24,9 @@ format it is represented as:
 
 StructNode handles both scalar structs (1x1) and struct arrays (e.g. 1x2, 2x3).
 Struct arrays have multiple `_elements`, each sharing the same `_fields` list. Each
-element is parsed as a child `StructNode` with `_isElementNode = true`.
+element is parsed as a child `StructNode` with `_isElementNode = true`, named by its
+1-based slot (`1`, `2`, …, so its id is the array's id and `/1`) as every reader names an
+element, and labelled by its MATLAB subscript (`s(2,1)`).
 
 ### Columns surfaced
 | Column    | Source              | Editable |
