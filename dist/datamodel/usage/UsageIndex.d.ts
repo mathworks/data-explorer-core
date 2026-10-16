@@ -38,6 +38,14 @@ export interface ModelSummary {
     /** refBasename'd names of linked MAT-files. */
     matRefs: string[];
     /**
+     * refBasename'd name of the MAT-file the model workspace is kept in, which resolves
+     * right after `workspaceNames` and ahead of `slddRefs`. It is in `matRefs` too.
+     *
+     * Absent when there is no such file. Optional, rather than null, so that a summary a
+     * host built before this existed is still a ModelSummary, and resolves as it always did.
+     */
+    workspaceMatRef?: string;
+    /**
      * The model's mask workspaces — a scope INSIDE the model, ahead of everything above.
      * Unlike the three ref lists this needs no lookup elsewhere: a mask is defined in the
      * same file as the blocks that see it.
@@ -206,8 +214,10 @@ export declare function summarizeMatScan(scan: MatScanResult, srcId: string, fil
  * if it does not.
  *
  * MATLAB's order, and the FIRST hit wins: the mask workspaces of the masked subsystems
- * this block is inside (innermost out), then the model's own workspace, then the linked
- * dictionary and any dictionary it references transitively, then linked MAT-files. Each
+ * this block is inside (innermost out), then the model's own workspace, then the MAT-file
+ * that workspace is kept in (`workspaceMatRef`, whose hit is kind `'mat'` since the
+ * definition is in that file), then the linked dictionary and any dictionary it
+ * references transitively, then the other linked MAT-files. Each
  * scope SHADOWS the ones after it — the block reads one value, so only one definition is
  * used, and crediting both would put a usage on a definition whose value never reaches
  * the block.

@@ -37,6 +37,10 @@ export interface ParsedSlx {
   dataDictionary: string | null;
   modelReferences: { blockPath: string; modelName: string }[];
   externalDataSources: string[];
+  // Optional here and required on SlxParser's, for the reason `warnings` gives below: a
+  // host parse from before the field existed has none, and its model then resolves as it
+  // always did, with this file among the externals.
+  workspaceDataSource?: string | null;
   configSets: ParsedConfigSet[];
   workspace: MatVariable[];
   blockParamUsages?: BlockParamUsage[];
@@ -56,6 +60,14 @@ export default class ModelNode extends ContainerNode {
   lastModified: string;
   uuid: string;
   dataDictionary: string | null;
+  /**
+   * The MAT file this model's workspace is kept in, as the model recorded it, or null.
+   * It is also a child of the dataSources section, with the externals. It is kept here
+   * as well because the session's usage engine resolves a name in it right after the
+   * model's own workspace and ahead of the dictionaries, and in that section it is one
+   * `.mat` among the others. See SlxParser's ParsedSlx.workspaceDataSource.
+   */
+  workspaceDataSource: string | null;
   rawContents: Record<string, string> | null;
   dirty: boolean;
   blockParamUsages: BlockParamUsage[];
@@ -75,6 +87,7 @@ export default class ModelNode extends ContainerNode {
     this.lastModified = '';
     this.uuid = '';
     this.dataDictionary = null;
+    this.workspaceDataSource = null;
     this.rawContents = null;
     this.dirty = false;
     this.blockParamUsages = [];
@@ -208,6 +221,12 @@ export default class ModelNode extends ContainerNode {
     node.lastModified = parsed.lastModified;
     node.uuid = parsed.uuid;
     node.dataDictionary = parsed.dataDictionary;
+    // A string or nothing: a host parse may predate the field, and one that crossed a
+    // worker boundary is plain data with no type behind it.
+    node.workspaceDataSource =
+      typeof parsed.workspaceDataSource === 'string' && parsed.workspaceDataSource !== ''
+        ? parsed.workspaceDataSource
+        : null;
     node.rawContents = parsed.rawContents || null;
     node._zipEntries = parsed.zipEntries || null;
     node._workspaceVars = parsed.workspace;

@@ -158,6 +158,38 @@ describe('ModelNode — workspace section', () => {
   });
 });
 
+// The MAT file a model's workspace is kept in, which the session's usage engine resolves
+// right after the model's own workspace. It reads it off the node, not off the dataSources
+// section, where the file is one `.mat` among the externals.
+describe('ModelNode — workspaceDataSource', () => {
+  it('carries the file the parse names, and keeps it in dataSources too', () => {
+    const m = model({ workspaceDataSource: 'signals.mat', externalDataSources: ['signals.mat'] });
+    expect(m.workspaceDataSource).toBe('signals.mat');
+    expect(m.getSection('dataSources').children.map((c: any) => c.name)).toEqual(['signals.mat']);
+  });
+
+  it('reads it off a real parse', () => {
+    const z = zipSync({
+      'simulink/blockDiagram.json': strToU8(
+        JSON.stringify({
+          BlockDiagram: { ModelUUID: 'u1', ModelWorkspace: { WSDataSource: 'MAT-File', WSSourceFileName: 'ws.mat' } },
+        }),
+      ),
+      'metadata/coreProperties.xml': strToU8(`<?xml version="1.0"?><coreProperties><version>R2026b</version></coreProperties>`),
+    });
+    const buf = z.buffer.slice(z.byteOffset, z.byteOffset + z.byteLength) as ArrayBuffer;
+    expect((ModelNode.fromParsed(parseSlx(buf, 'm.slx'), 'm.slx') as any).workspaceDataSource).toBe('ws.mat');
+  });
+
+  it('is null for a parse without one, and for a host parse that predates the field', () => {
+    // `parsedSlx()` has no such key at all, which is what an older host hands over.
+    expect(model().workspaceDataSource).toBeNull();
+    expect(model({ workspaceDataSource: null }).workspaceDataSource).toBeNull();
+    // A parse that crossed a boundary is plain data, and only a string names a file.
+    expect(model({ workspaceDataSource: 42 as unknown as string }).workspaceDataSource).toBeNull();
+  });
+});
+
 describe('ModelNode — config section', () => {
   // The class comes from `objectClass`, which the parser has already normalized across
   // the five .slx layouts and the classic .mdl grammar — the node layer does not sniff

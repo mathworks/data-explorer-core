@@ -135,6 +135,12 @@ describe('parseMdl — modern .mdl (OPC text package)', () => {
     ]);
   });
 
+  it('names the MAT file its model workspace is kept in', () => {
+    // The whole-model comparison above passes when neither reader has the field, so the
+    // field is asked for by name.
+    expect(parseMdl(textPackage(MODEL_PARTS), 'm.mdl').workspaceDataSource).toBe('wsdata.mat');
+  });
+
   it('decodes a base64 part to its exact bytes', () => {
     // The model workspace is a binary part; a single byte off and it does not parse
     // at all. Every byte value, so a sign- or masking bug shows up.
@@ -333,6 +339,21 @@ describe('parseMdl — classic .mdl metadata', () => {
 
   it('reads a model workspace kept in a MAT file as external data', () => {
     expect(parsed.externalDataSources).toEqual(['wsdata.mat']);
+  });
+
+  it('names that MAT file as workspaceDataSource as well, apart from the externals', () => {
+    // The usage engines resolve it ahead of the dictionary, as the model workspace it is,
+    // and they can only do that if the parse says which `.mat` it is.
+    expect(parsed.workspaceDataSource).toBe('wsdata.mat');
+  });
+
+  it('gives a null workspaceDataSource when the workspace is not kept in a MAT file', () => {
+    // A file name recorded with any other source is not a `.mat` to look in.
+    const inModel = CLASSIC.replace('WSDataSource            "MAT-File"', 'WSDataSource            "Model File"');
+    expect(inModel).not.toBe(CLASSIC);
+    const other = parseMdl(bytes(inModel), 'unit.mdl');
+    expect(other.workspaceDataSource).toBeNull();
+    expect(other.externalDataSources).toEqual([]);
   });
 
   it('splits ModelRefBlockPath at the LAST bar and roots the path at $bdroot', () => {

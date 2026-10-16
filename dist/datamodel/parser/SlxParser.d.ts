@@ -69,6 +69,17 @@ export interface ParsedSlx {
         modelName: string;
     }[];
     externalDataSources: string[];
+    /**
+     * The MAT file this model's workspace is kept in (`WSDataSource: 'MAT-File'`), as
+     * the model recorded it, or null when the workspace is not kept in a MAT file.
+     *
+     * The same file is in `externalDataSources` too, where a host already finds it. It
+     * is named again here because a name resolves differently in it: it IS the model
+     * workspace, so MATLAB looks in it right after the model's own workspace and ahead of
+     * every dictionary, where the other externals come after them. Both usage engines
+     * read this for that (UsageIndex.resolveName, DataModel's resolutionOrder).
+     */
+    workspaceDataSource: string | null;
     configSets: ParsedConfigSet[];
     workspace: MatVariable[] & {
         _trailingElements: Uint8Array[];

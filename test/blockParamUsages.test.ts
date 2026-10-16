@@ -629,6 +629,80 @@ describe('parseSlx — model workspace MAT-File source + edge cases', () => {
     expect(parsed.externalDataSources.filter((s) => s === 'data.mat')).toHaveLength(1);
   });
 
+  // The same file again, kept apart. In externalDataSources it cannot be told from any
+  // other `.mat`, and the usage engines rank it differently: it is the model workspace, so
+  // it comes ahead of the dictionaries (see UsageIndex.resolveName).
+  it('names the model-workspace MAT source as workspaceDataSource as well', () => {
+    const buf = slxWith({
+      'simulink/blockDiagram.json': strToU8(JSON.stringify({
+        BlockDiagram: {
+          ModelUUID: 'u1',
+          ModelWorkspace: { WSDataSource: 'MAT-File', WSSourceFileName: 'model_data.mat' },
+        },
+      })),
+    });
+    expect(parseSlx(buf, 'test.slx').workspaceDataSource).toBe('model_data.mat');
+  });
+
+  it('still names it as workspaceDataSource when the settings part lists it as an external', () => {
+    // externalDataSources lists the file once, so it cannot say this.
+    const buf = slxWith({
+      'simulink/blockDiagram.json': strToU8(JSON.stringify({
+        BlockDiagram: {
+          ModelUUID: 'u1',
+          ModelWorkspace: { WSDataSource: 'MAT-File', WSSourceFileName: 'data.mat' },
+        },
+      })),
+      'simulink/ExternalDataSourceSettings.xml': strToU8(
+        `<?xml version="1.0"?><ExternalDataSourceSettings>` +
+        `<ExplicitExternalBrokerSources><fullPathToSource>other.mat</fullPathToSource></ExplicitExternalBrokerSources>` +
+        `<ExplicitExternalBrokerSources><fullPathToSource>data.mat</fullPathToSource></ExplicitExternalBrokerSources>` +
+        `</ExternalDataSourceSettings>`,
+      ),
+    });
+    const parsed = parseSlx(buf, 'test.slx');
+    expect(parsed.externalDataSources).toEqual(['other.mat', 'data.mat']);
+    expect(parsed.workspaceDataSource).toBe('data.mat');
+  });
+
+  it('reads workspaceDataSource from a legacy blockdiagram.xml too', () => {
+    // Before R2020a the same two facts are `<P>` children of `<ModelWorkspace>`.
+    const zipped = zipSync({
+      'simulink/blockdiagram.xml': strToU8(
+        `<?xml version="1.0"?><ModelInformation><Model>` +
+          `<ModelWorkspace><P Name="WSDataSource">MAT-File</P><P Name="WSSourceFileName">legacy.mat</P></ModelWorkspace>` +
+          `<System></System></Model></ModelInformation>`,
+      ),
+      'metadata/coreProperties.xml': strToU8(
+        `<?xml version="1.0"?><coreProperties><version>R2018a</version></coreProperties>`,
+      ),
+    });
+    const buf = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
+    const parsed = parseSlx(buf, 'old.slx');
+    expect(parsed.workspaceDataSource).toBe('legacy.mat');
+    expect(parsed.externalDataSources).toEqual(['legacy.mat']);
+  });
+
+  it('gives a null workspaceDataSource for a model whose workspace is not in a MAT file', () => {
+    // A workspace kept in the model, and one sourced from a MATLAB file: neither is a
+    // `.mat` the engines should look in. A name for the file with no MAT-File source
+    // names nothing.
+    const kept = slxWith({});
+    const script = slxWith({
+      'simulink/blockDiagram.json': strToU8(JSON.stringify({
+        BlockDiagram: {
+          ModelUUID: 'u1',
+          ModelWorkspace: { WSDataSource: 'MATLAB File', WSSourceFileName: 'init.m' },
+        },
+      })),
+    });
+    for (const buf of [kept, script]) {
+      const parsed = parseSlx(buf, 'test.slx');
+      expect(parsed.workspaceDataSource).toBeNull();
+      expect(parsed.externalDataSources).toEqual([]);
+    }
+  });
+
   it('surfaces a numeric-only version tag via the String() fallback in findText', () => {
     // fast-xml-parser parses <version>42</version> as the number 42, not the string
     // "42". The findText helper must stringify it so the parser always returns a

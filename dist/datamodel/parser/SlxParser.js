@@ -870,7 +870,10 @@ export function parseModelParts(entries, filename) {
     if (eds) {
         externalDataSources = extractExternalDataSources(eds);
     }
-    // Model-workspace MAT source (from blockDiagram.json) is also external data.
+    // Model-workspace MAT source (from blockDiagram.json) is also external data, so a
+    // host that loads the externals loads it. It is returned on its own as well, as
+    // `workspaceDataSource`, because it resolves ahead of the dictionaries and the rest
+    // of this list does not.
     if (workspaceMatFile && !externalDataSources.includes(workspaceMatFile)) {
         externalDataSources.push(workspaceMatFile);
     }
@@ -960,6 +963,7 @@ export function parseModelParts(entries, filename) {
         dataDictionary,
         modelReferences,
         externalDataSources,
+        workspaceDataSource: workspaceMatFile,
         configSets,
         workspace,
         blockParamUsages,

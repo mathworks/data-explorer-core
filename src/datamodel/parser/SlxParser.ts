@@ -77,7 +77,20 @@ export interface ParsedSlx {
   uuid: string;
   dataDictionary: string | null;
   modelReferences: { blockPath: string; modelName: string }[];
+  // Every data file the model names: the external sources, then the MAT file its
+  // workspace is kept in (listed once, if both name it). A host loads these.
   externalDataSources: string[];
+  /**
+   * The MAT file this model's workspace is kept in (`WSDataSource: 'MAT-File'`), as
+   * the model recorded it, or null when the workspace is not kept in a MAT file.
+   *
+   * The same file is in `externalDataSources` too, where a host already finds it. It
+   * is named again here because a name resolves differently in it: it IS the model
+   * workspace, so MATLAB looks in it right after the model's own workspace and ahead of
+   * every dictionary, where the other externals come after them. Both usage engines
+   * read this for that (UsageIndex.resolveName, DataModel's resolutionOrder).
+   */
+  workspaceDataSource: string | null;
   configSets: ParsedConfigSet[];
   workspace: MatVariable[] & { _trailingElements: Uint8Array[] };
   blockParamUsages: BlockParamUsage[];
@@ -1022,7 +1035,10 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
   if (eds) {
     externalDataSources = extractExternalDataSources(eds);
   }
-  // Model-workspace MAT source (from blockDiagram.json) is also external data.
+  // Model-workspace MAT source (from blockDiagram.json) is also external data, so a
+  // host that loads the externals loads it. It is returned on its own as well, as
+  // `workspaceDataSource`, because it resolves ahead of the dictionaries and the rest
+  // of this list does not.
   if (workspaceMatFile && !externalDataSources.includes(workspaceMatFile)) {
     externalDataSources.push(workspaceMatFile);
   }
@@ -1118,6 +1134,7 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
     dataDictionary,
     modelReferences,
     externalDataSources,
+    workspaceDataSource: workspaceMatFile,
     configSets,
     workspace,
     blockParamUsages,

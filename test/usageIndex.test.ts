@@ -320,6 +320,26 @@ describe('resolveName — MATLAB’s order, first hit wins', () => {
     expect(resolveName(model, 'span', sldd, mat)).toEqual({ kind: 'mat', srcId: 'data.mat' });
   });
 
+  it('takes a MAT-file the model workspace is kept in ahead of the linked dictionary', () => {
+    // `WSDataSource: 'MAT-File'`. That file IS the model workspace, so it comes second, after
+    // the model's own workspace, and not last with the other MAT-files. It is in `matRefs`
+    // too, as the parser lists it with the externals.
+    const model = summaryOf({ slddRefs: ['params.sldd'], matRefs: ['data.mat'], workspaceMatRef: 'data.mat' });
+    expect(resolveName(model, 'Kp', sldd, mat)).toEqual({ kind: 'mat', srcId: 'data.mat' });
+    // A name only the dictionary defines still resolves there.
+    expect(resolveName(model, 'tau', sldd, mat)).toEqual({ kind: 'sldd', srcId: 'params.sldd' });
+  });
+
+  it('still takes the model’s own workspace ahead of its workspace MAT-file', () => {
+    const model = summaryOf({
+      workspaceNames: new Set(['Kp']),
+      slddRefs: ['params.sldd'],
+      matRefs: ['data.mat'],
+      workspaceMatRef: 'data.mat',
+    });
+    expect(resolveName(model, 'Kp', sldd, mat)).toEqual({ kind: 'workspace', srcId: 'm.slx' });
+  });
+
   it('takes the FIRST linked dictionary, so the dictionary link outranks an external', () => {
     // The order the summary records is the order MATLAB resolves in: the linked data
     // dictionary first, then the externals as the model lists them.
@@ -881,6 +901,41 @@ describe('summarizeParsedModel — the same summary, from a parse the caller alr
       masks: [],
       blockParams: [],
     });
+  });
+
+  it('names the MAT-file the model workspace is kept in, apart from the externals', () => {
+    // Both summary paths, since they share modelSummary and a host may take either.
+    const both = (f: UsageFile): ModelSummary[] => [
+      summarizeParsedModel(parseModel(f.bytes, f.filename), f.srcId, f.filename).models[0],
+      summarizeFiles([f]).models[0],
+    ];
+
+    for (const params of both(MODELS[0][1]())) {
+      expect(params.workspaceMatRef).toBe('ws.mat');
+      // Still with the externals too, which is where a host learns to load it.
+      expect(params.matRefs).toEqual(['extra.mat', 'ws.mat']);
+    }
+
+    // refBasename'd, as every other ref here is: a model records the path its author gave.
+    const pathed = opened(
+      'p.slx',
+      slxModel({ dictionary: 'top.sldd', workspaceMat: 'C:\\work\\WS.MAT', blocks: block('G', 'Gain', 'Gain', 'Kp') }),
+    );
+    for (const summary of both(pathed)) {
+      expect(summary.workspaceMatRef).toBe('ws.mat');
+    }
+
+    // Absent where there is no such file, so a summary built by a host before the field
+    // existed reads the same as one that has none.
+    for (const summary of both(MODELS[5][1]())) {
+      expect(summary).not.toHaveProperty('workspaceMatRef');
+    }
+    // And a file that is not a `.mat`, which matRefs leaves out too.
+    const notMat = opened('n.slx', slxModel({ workspaceMat: 'data.txt', blocks: block('G', 'Gain', 'Gain', 'Kp') }));
+    for (const summary of both(notMat)) {
+      expect(summary).not.toHaveProperty('workspaceMatRef');
+      expect(summary.matRefs).toEqual([]);
+    }
   });
 
   it('has no answer to give for bytes the parser refuses, because there is no parse', () => {

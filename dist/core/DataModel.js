@@ -1016,20 +1016,27 @@ export function createSession(opts = {}) {
     // same way in both places, and the order below is that rule:
     //
     //   1. the model's OWN model workspace, which is private to it.
+    //   1b. the `.mat` that workspace is kept in, when the model keeps it in one
+    //      (`WSDataSource: 'MAT-File'`). That file IS the model workspace, so it comes here and
+    //      not with the other `.mat` files: a name it defines and the linked dictionary defines
+    //      as well is the file's. It used to come last, because it is also one of the model's
+    //      externals (below) and nothing else told it apart. It is read off the model's
+    //      `workspaceDataSource`, which the parsers set for exactly this.
     //   2. the dictionaries it links, and every dictionary those reference, transitively.
     //      Chased breadth-first, so the nearer file wins, with a seen-set keyed by
     //      refBasename because a dictionary hierarchy is a graph a user can make cyclic.
     //      resolveDictionaryReferences is deliberately one level — a host follows a link at a
     //      time — but a NAME resolves down the whole chain, which is what MATLAB does and
     //      what made a sub-dictionary's entries show no usages here at all.
-    //   3. its external `.mat` files.
+    //   3. its other external `.mat` files.
     //
-    // Read off the `dataSources` section rather than the `dataDictionary` field, because that
-    // section is where ModelNode.fromParsed puts both kinds, in that same order — the linked
-    // dictionary first, then the externals — so one read covers dictionary entries and MAT
-    // variables without naming either. Each recorded name goes through openSourceNamed, the
-    // same matcher a bare link target goes through, so "the dictionary this model links" and
-    // "the dictionary that link points at" can never be answered differently.
+    // Steps 2 and 3 are read off the `dataSources` section rather than the `dataDictionary`
+    // field, because that section is where ModelNode.fromParsed puts both kinds, in that same
+    // order — the linked dictionary first, then the externals — so one read covers dictionary
+    // entries and MAT variables without naming either. Each recorded name goes through
+    // openSourceNamed, the same matcher a bare link target goes through, so "the dictionary
+    // this model links" and "the dictionary that link points at" can never be answered
+    // differently. Step 1b's name goes through it too.
     //
     // A file NOT in this list is invisible: two unrelated projects open in one session, or a
     // model linked to a different dictionary that happens to define the same name, must not
@@ -1041,6 +1048,13 @@ export function createSession(opts = {}) {
     function resolutionOrder(model, modelSrcId) {
         // Index 0 is the model itself, which is how its own workspace comes first.
         const order = [modelSrcId];
+        // Step 1b. Duck-typed, as the section below is: a host-supplied tree, or a parse from
+        // before the field, has no `workspaceDataSource`, and its model resolves as it always did.
+        const recorded = model.workspaceDataSource;
+        const workspaceMat = typeof recorded === 'string' && isMatFile(recorded) ? openSourceNamed(recorded) : null;
+        if (workspaceMat !== null) {
+            order.push(workspaceMat.srcId);
+        }
         // A host-supplied tree (addParsedSource) need not have sections at all.
         const declared = typeof model.getSection === 'function' ? model.getSection('dataSources') : null;
         const children = declared && Array.isArray(declared.children) ? declared.children : [];
@@ -1077,7 +1091,8 @@ export function createSession(opts = {}) {
         }
         for (const ref of mats) {
             const open = openSourceNamed(ref);
-            if (open !== null) {
+            // The workspace `.mat` is in the section too, as an external; it already has its place.
+            if (open !== null && open.srcId !== workspaceMat?.srcId) {
                 order.push(open.srcId);
             }
         }
