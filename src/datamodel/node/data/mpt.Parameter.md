@@ -24,13 +24,15 @@ registered as the superclass's treatment rather than given a node of its own:
 
 | Registry | Entry | Effect |
 |----------|-------|--------|
-| `NodeClassMap.CLASS_MAP` | `'mpt.Parameter': ParameterNode` | dispatch — the typed node, in every format |
+| `registeredSubclasses.ts` `SUPERCLASS_OF` | `'mpt.Parameter' → 'Simulink.Parameter'` | dispatch — `NodeClassMap` registers it under `ParameterNode`, the typed node, in every format; and admission to a paste or a drop where `Simulink.Parameter` may live |
 | `kindMap.KIND_BY_CLASS` | `'mpt.Parameter': 'Simulink Parameter'` | Kind column and `kindForClass` (webview tooltip) |
 | `schema/index.ts` `CLASS_ALIASES` | `'mpt.Parameter' → 'Simulink.Parameter'` | typed columns (`schemaColumns`) and PI layout (`buildPILayout`) |
 
 Nothing else. Section placement is keyed on an entry's metadata namespace, not its
 class, so `SectionConstants` needs no entry; the MCOS decoder for `.mat`/`.slx`
-resolves through the same registry, so it inherits the dispatch for free.
+resolves through the same registry, so it inherits the dispatch for free. The schema
+cannot import `registeredSubclasses.ts` (dependencies point into it), so its alias is
+a row of its own, and `test/mptClasses.test.ts` holds the two together.
 
 ## Class identity is the subclass's, only the treatment is inherited
 
@@ -67,7 +69,7 @@ changed and nothing else — legitimate because the only thing under test is
 class-name dispatch, and the property shape an `mpt.Parameter` presents is its
 superclass's. See the header comment of that file.
 
-## Not offered for creation
+## Not offered for creation, admitted to a paste
 
 Deliberately absent from every section's `ALLOWED_TYPES`, so `getAllowedTypes()`
 does not list it and `addEntry('mpt.Parameter', …)` returns `null`. Item 12 is about
@@ -76,8 +78,14 @@ Offering "Add mpt.Parameter" would instead claim we can write a well-formed mpt
 object from scratch — a class whose creation the MATLAB round-trip gate has never
 seen. Locked by test so the exclusion is a decision rather than an oversight.
 
-Note the consequence: a host-side paste or drag/drop pre-check that calls
-`allowsType` will refuse an `mpt.*` entry even though the model can hold one.
+A paste or a drop is another matter, and is admitted (the maintainer's ruling on
+C-180, 2026-10-16): it copies an mpt object MATLAB already wrote rather than writing
+one from scratch, and MATLAB holds `mpt.*` in Design Data. So `allowsType` and
+`getAdmittedTypes` (the host's paste and drop pre-check, and the list it predicts one
+from) admit an `mpt.Parameter` wherever a `Simulink.Parameter` may live, which is
+Design Data; `addEntry` never does. `test/mptClasses.test.ts` pins both halves, and
+carries a copied `mpt.Parameter` from a binary dictionary into a text one and back,
+saved and reopened, with its class and value intact.
 
 ## Open questions / deferred
 

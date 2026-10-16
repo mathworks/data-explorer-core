@@ -32,13 +32,16 @@ import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
 import SignalNode from '../src/datamodel/node/data/SignalNode.js';
 import ObjectNode from '../src/datamodel/node/data/ObjectNode.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
+import SectionNode from '../src/datamodel/node/container/SectionNode.js';
 import type DataNode from '../src/datamodel/node/DataNode.js';
 import type BaseNode from '../src/datamodel/node/BaseNode.js';
 import * as NodeClassMap from '../src/datamodel/node/data/NodeClassMap.js';
 import { buildTypedNodeFromMcos } from '../src/datamodel/node/data/mcosTypedNode.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 import { buildDataChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
-import { kindForClass } from '../src/index.js';
+import { createSession, kindForClass } from '../src/index.js';
+import { ingest } from '../src/core/ingest.js';
+import { getLayout, getSchema } from '../src/datamodel/schema/index.js';
 
 // The value-object shape both .sldd paths and the MCOS decoder converge on: the
 // class name on `_array_class`, the on-disk property bag on the single element.
@@ -402,20 +405,24 @@ describe('mpt.* are known on the MCOS path too', () => {
 });
 
 describe('mpt.* are classes we READ, not classes we offer to create', () => {
-  it('no section offers an mpt class in its allowed types', () => {
-    // Deliberate, and the reason is the write path rather than the read one: the
-    // live MATLAB gate has never seen a dictionary in which WE created an mpt entry
-    // from scratch, so offering "Add mpt.Parameter" would claim more than item 12
-    // does. Reading a production dictionary that already contains one — which is
-    // what the item is about — needs nothing from this list, because an entry's
-    // section comes from its metadata namespace and allowsType gates addEntry only.
+  it('no section offers an mpt class for creation, and one is admitted to a paste where its superclass is', () => {
+    // Creation stays refused, and the reason is the write path rather than the read
+    // one: the live MATLAB gate has never seen a dictionary in which WE created an mpt
+    // entry from scratch, so offering "Add mpt.Parameter" would claim more than item 12
+    // does. Reading a production dictionary that already contains one needs nothing
+    // from these lists, because an entry's section comes from its metadata namespace.
+    //
+    // A paste or a drop is admitted where the superclass is (the maintainer's ruling on
+    // C-180, 2026-10-16): it copies an mpt object MATLAB already wrote rather than
+    // writing one from scratch, and MATLAB holds mpt.* in Design Data. allowsType is
+    // the gate a host asks before it pastes or drops.
     const root = new SlddNode('d.sldd');
     for (const key of ['design', 'arch', 'config', 'other']) {
       const section = root.getSection(key)!;
       expect(section.getAllowedTypes(), key).not.toContain('mpt.Parameter');
       expect(section.getAllowedTypes(), key).not.toContain('mpt.Signal');
-      expect(section.allowsType('mpt.Parameter'), key).toBe(false);
-      expect(section.allowsType('mpt.Signal'), key).toBe(false);
+      expect(section.allowsType('mpt.Parameter'), key).toBe(key === 'design');
+      expect(section.allowsType('mpt.Signal'), key).toBe(key === 'design');
     }
   });
 
@@ -424,4 +431,151 @@ describe('mpt.* are classes we READ, not classes we offer to create', () => {
     expect(root.getSection('design')!.addEntry('mpt.Parameter', 'Kp')).toBeNull();
     expect(root.getSection('design')!.children.length).toBe(0);
   });
+
+  it('admits beyond the allow-list exactly the registered subclasses of a class on it', () => {
+    // getAdmittedTypes is the list a host predicts a paste or a drop from, as
+    // getAllowedTypes is the one it offers "Add" from. The difference between the two
+    // is pinned as a whole, so that admitting any further class is a decision.
+    const root = new SlddNode('d.sldd');
+    const beyond: Record<string, string[]> = {};
+    for (const key of ['design', 'arch', 'config', 'other']) {
+      const section = root.getSection(key)!;
+      const allowed = section.getAllowedTypes();
+      const admitted = section.getAdmittedTypes();
+      for (const className of allowed) {
+        expect(admitted, key + ' drops ' + className).toContain(className);
+      }
+      beyond[key] = admitted.filter((c) => !allowed.includes(c)).sort();
+      for (const className of admitted) {
+        expect(section.allowsType(className), key + ' ' + className).toBe(true);
+      }
+    }
+    expect(beyond).toEqual({ design: ['mpt.Parameter', 'mpt.Signal'], arch: [], config: [], other: [] });
+    // Each is admitted where its superclass may live, and is read with that superclass's
+    // node and its schema: the three registrations a subclass has, held together.
+    const design = root.getSection('design')!;
+    for (const [subclass, superclass] of [
+      ['mpt.Parameter', 'Simulink.Parameter'],
+      ['mpt.Signal', 'Simulink.Signal'],
+    ]) {
+      expect(design.getAllowedTypes()).toContain(superclass);
+      expect(NodeClassMap.getClass(subclass), subclass).toBe(NodeClassMap.getClass(superclass));
+      expect(getSchema(subclass), subclass).toEqual(getSchema(superclass));
+      expect(getLayout(subclass), subclass).toEqual(getLayout(superclass));
+    }
+  });
+
+  it('never creates a class it admits only to a paste', () => {
+    const root = new SlddNode('d.sldd');
+    for (const key of ['design', 'arch', 'config', 'other']) {
+      const section = root.getSection(key)!;
+      const pasteOnly = section.getAdmittedTypes().filter((c) => !section.getAllowedTypes().includes(c));
+      for (const className of pasteOnly) {
+        expect(section.addEntry(className), key + ' ' + className).toBeNull();
+        expect(section.execAddEntry(className), key + ' ' + className).toBeNull();
+      }
+      expect(section.children, key).toHaveLength(0);
+    }
+    expect(root.getSection('design')!.getAdmittedTypes()).toContain('mpt.Signal');
+  });
+
+  it('keeps an unrestricted section unrestricted, with an empty list as before', () => {
+    // An empty allow-list means "no restriction" (allowsType), so an empty admitted list
+    // means the same rather than "admits nothing".
+    const section = new SectionNode('unlisted', null, 'Unlisted', 'icon');
+    expect(section.getAllowedTypes()).toEqual([]);
+    expect(section.getAdmittedTypes()).toEqual([]);
+    expect(section.allowsType('mpt.Parameter')).toBe(true);
+    expect(section.allowsType('Anything.AtAll')).toBe(true);
+  });
+});
+
+// A paste copies an entry out of one dictionary and builds it into another, which may be
+// of the other format. The write tests above save an mpt entry into the dictionary it was
+// read from; these carry one across, through what a host does: copy the entry's serialize()
+// record, ask the target section whether it admits the record's class (the host's paste and
+// drop pre-check), build it there with parseEntry, save, and open the saved file again.
+//
+// The source entries are synthesized as the binary ones above are: params.sldd's own
+// MATLAB-written `gravity` and `sig1`, copied, renamed and re-classed, in the binary
+// dictionary or in its text twin (test/parity/artifacts/text/params.sldd).
+type Flavour = 'binary' | 'text';
+
+function artifact(flavour: Flavour): ArrayBuffer {
+  const u8 = new Uint8Array(readFileSync(fileURLToPath(new URL(`./parity/artifacts/${flavour}/params.sldd`, import.meta.url))));
+  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
+}
+
+// The text twin of withMptClone: a copy of the MATLAB-written entry `from`, renamed to
+// `to`, given a fresh UUID and re-classed to `mptClass`, appended beside the original.
+function textWithMptClone(from: string, to: string, superClass: string, mptClass: string): ArrayBuffer {
+  const doc = JSON.parse(new TextDecoder().decode(artifact('text')));
+  const entries = doc.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries as any[];
+  const src = entries.find((e) => e.name === from);
+  expect(src, 'the text params.sldd no longer has an entry named ' + from).toBeDefined();
+  expect(src.value._array_class).toBe(superClass);
+  const clone = JSON.parse(JSON.stringify(src));
+  clone.name = to;
+  clone.metadata.uuid = '2b0f5c14-0000-4000-8000-0000000000aa';
+  clone.value._array_class = mptClass;
+  entries.push(clone);
+  const bytes = new TextEncoder().encode(JSON.stringify(doc, null, '\t'));
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+function mptSourceEntry(flavour: Flavour, from: string, to: string, superClass: string, mptClass: string): DataNode {
+  const root =
+    flavour === 'binary'
+      ? loadWithClone('mem://mpt-paste-' + to, from, to, superClass, mptClass)
+      : (ingest(createSession(), textWithMptClone(from, to, superClass, mptClass), { filename: 'params.sldd' }) as unknown as SlddNode);
+  expect(root.sourceFormat).toBe(flavour === 'binary' ? 'xml' : 'json');
+  return entryNamed(root, to);
+}
+
+const MPT_CASES = [
+  { mptClass: 'mpt.Parameter', superClass: 'Simulink.Parameter', from: 'gravity', NodeClass: ParameterNode, dataType: 'double', value: '9.81' },
+  { mptClass: 'mpt.Signal', superClass: 'Simulink.Signal', from: 'sig1', NodeClass: SignalNode, dataType: 'single', value: '' },
+];
+const FLAVOUR_PAIRS: [Flavour, Flavour][] = [
+  ['binary', 'text'],
+  ['text', 'binary'],
+  ['binary', 'binary'],
+  ['text', 'text'],
+];
+
+describe('a pasted mpt.* entry is admitted to Design Data and keeps its class in either format', () => {
+  it.each(MPT_CASES.flatMap((c) => FLAVOUR_PAIRS.map(([from, to]) => ({ ...c, source: from, target: to }))))(
+    '$mptClass from a $source dictionary into a $target one',
+    ({ mptClass, superClass, from, NodeClass, dataType, value, source, target }) => {
+      const entry = mptSourceEntry(source, from, 'mptCopy', superClass, mptClass);
+      expect(entry.className).toBe(mptClass);
+      const payload = JSON.parse(JSON.stringify(entry.serialize())) as Record<string, any>;
+      expect(payload.value._array_class).toBe(mptClass);
+
+      const session = createSession();
+      const root = ingest(session, artifact(target), { filename: 'params.sldd' }) as unknown as SlddNode;
+      const design = root.getSection('design')!;
+      // The host's pre-check, by the class the copied record names.
+      expect(design.allowsType(payload.value._array_class)).toBe(true);
+      expect(root.getSection('arch')!.allowsType(payload.value._array_class)).toBe(false);
+
+      const pasted = design.parseEntry({ ...payload, name: 'pasted' });
+      expect(pasted).toBeInstanceOf(NodeClass);
+      expect(pasted.className).toBe(mptClass);
+
+      const out = session.serializeSource(root.name)!;
+      expect(out.kind).toBe(target === 'binary' ? 'binary' : 'text');
+      const bytes = out.kind === 'text' ? new TextEncoder().encode(out.text!) : out.bytes!;
+      const reopened = ingest(createSession(), bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer, {
+        filename: 'params.sldd',
+      }) as unknown as SlddNode;
+      const again = reopened.getSection('design')!.children.find((e) => e.name === 'pasted') as unknown as DataNode;
+      expect(again).toBeInstanceOf(NodeClass);
+      expect(again.className).toBe(mptClass);
+      expect(again.dataType).toBe(dataType);
+      expect(again.displayValue).toBe(value);
+      // The entry it was copied from is still its superclass in the target, untouched.
+      expect(entryNamed(reopened, from).className).toBe(superClass);
+    },
+  );
 });

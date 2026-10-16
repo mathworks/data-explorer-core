@@ -11,6 +11,7 @@ import { dimsText, isExactDigits, isSpellableExtent, isTextExtent } from '../par
 import { encodedXml, isEncodedValue, type EncodedValue } from '../parser/EncodedValue.js';
 import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
+import { validateMatlabName } from '../matlabName.js';
 import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
 import {
   charTextFromCodes,
@@ -50,46 +51,6 @@ function formatMatlabTimestamp(raw: string): string {
   const min = raw.substring(11, 13);
   const sec = raw.substring(13, 15);
   return year + '-' + month + '-' + day + 'T' + hour + ':' + min + ':' + sec + 'Z';
-}
-
-const MATLAB_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
-const MATLAB_KEYWORDS = new Set([
-  'break',
-  'case',
-  'catch',
-  'classdef',
-  'continue',
-  'else',
-  'elseif',
-  'end',
-  'for',
-  'function',
-  'global',
-  'if',
-  'otherwise',
-  'parfor',
-  'persistent',
-  'return',
-  'spmd',
-  'switch',
-  'try',
-  'while',
-]);
-
-function validateMatlabName(name: string): string | null {
-  if (!name || !name.trim()) {
-    return 'Name cannot be empty';
-  }
-  if (!MATLAB_NAME_RE.test(name)) {
-    return 'Invalid MATLAB name. Must start with a letter and contain only letters, digits, and underscores';
-  }
-  if (name.length > 63) {
-    return 'Name exceeds maximum length of 63 characters';
-  }
-  if (MATLAB_KEYWORDS.has(name)) {
-    return "'" + name + "' is a reserved MATLAB keyword";
-  }
-  return null;
 }
 
 /**

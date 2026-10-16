@@ -14,6 +14,7 @@ export default class SectionNode extends ContainerNode {
     get displayName(): string;
     get tableColumnConfig(): TableColumnConfig;
     getAllowedTypes(): string[];
+    getAdmittedTypes(): string[];
     allowsType(className: string): boolean;
     _namespaceEntryNames(): string[];
     _entryRenamed(oldName: string, newName: string): void;

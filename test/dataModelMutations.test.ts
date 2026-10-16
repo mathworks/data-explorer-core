@@ -109,6 +109,37 @@ describe('addEntry', () => {
     expect(s.canUndo()).toBe(false);
   });
 
+  // A name MATLAB cannot load is refused the same way: null, nothing added, and no
+  // undo step, so the document is not marked as changed.
+  it('returns null for a name MATLAB cannot load, and records no undo step', () => {
+    const { s, src } = loadedSession();
+    const design = sectionOf(src, 'design');
+    const before = design.children.length;
+    expect(s.addEntry('design', 'Simulink.Parameter', '2nd')).toBeNull();
+    expect(design.children.length).toBe(before);
+    expect(s.canUndo()).toBe(false);
+    expect(src.dirty).toBe(false);
+  });
+
+  // A file can already hold a name that addEntry would refuse, because the reader keeps
+  // each name as written. Asking for that name again must still be refused. It must not
+  // create 'end1' instead: that is a valid name, but it is not the one that was asked for.
+  it('refuses an invalid name even when the file already holds an entry by that name', () => {
+    const doc = loadFixture('numeric_json.sldd') as any;
+    doc.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries[0].name = 'end';
+    const s = createSession();
+    const src = s.addDataSource('numeric_json.sldd', doc) as any;
+    s.setActiveContext(src);
+    const design = sectionOf(src, 'design');
+    expect(design.children.map((c: any) => c.name)).toContain('end');
+    const before = design.children.length;
+
+    expect(s.addEntry('design', 'Simulink.Parameter', 'end')).toBeNull();
+    expect(design.children.length).toBe(before);
+    expect(design.children.map((c: any) => c.name)).not.toContain('end1');
+    expect(s.canUndo()).toBe(false);
+  });
+
   // The ADD-side twin of 'refuses to delete an entry out of a read-only model
   // section'. A .slx model's ModelSectionNode implements neither getAllowedTypes
   // nor execAddEntry, so it is found by name (skipping the class-inference loop

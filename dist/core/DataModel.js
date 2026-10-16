@@ -1403,6 +1403,12 @@ export function createSession(opts = {}) {
         publish('node/children-changed', { parent: node });
         return true;
     }
+    // Adds an entry of `className` to the active dictionary's section `sectionKey`, or to
+    // the section that accepts the class when `sectionKey` names none, and selects it. The
+    // entry is named `entryName`, or the class's default name, with a counter appended if
+    // that name is taken. Returns null, and adds nothing and records no undo step, when
+    // there is no active dictionary, no section takes the class, or the name is not one
+    // MATLAB can load (see SectionNode.addEntry): the same rule a rename applies.
     function addEntry(sectionKey, className, entryName) {
         const slddNode = getActiveSlddNode();
         if (!slddNode) {
