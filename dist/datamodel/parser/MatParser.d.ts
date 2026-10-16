@@ -26,6 +26,7 @@ export interface ParsedMat {
     variables: MatVariable[];
     warnings: ParseWarning[];
 }
+export declare const MAX_NESTING = 128;
 /**
  * Whether `v` is a struct array whose elements nothing reads one by one: one this reader
  * recorded without decoding (`undecoded`), or one with no fields declaring more than
@@ -68,7 +69,7 @@ export declare function functionHandleText(fn: unknown, type: unknown): string |
 export declare function functionHandleOf(variable: MatVariable): {
     text: string | null;
 } | undefined;
-export declare function parseMatrix(view: DataView, baseOffset: number, length: number): MatVariable;
+export declare function parseMatrix(view: DataView, baseOffset: number, length: number, depth?: number): MatVariable;
 export declare function parseMat(arrayBuffer: ArrayBuffer): ParsedMat;
 /** A MAT stream read: the variable and the elements after it, or why there is none. */
 export type MatStream = {

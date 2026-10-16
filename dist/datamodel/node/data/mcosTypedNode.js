@@ -166,8 +166,8 @@ export function decodeMcosObjects(blobBytes, variables) {
 // A variable left without one could not be resolved with confidence, or there was no
 // blob; the node layer then models it exactly as it did before this existed. That
 // includes a variable decoded by an EARLIER attach that this one does not repeat, so a
-// tree attached twice reflects only the second. Walked with an explicit stack, because
-// a struct nested a few thousand deep is a legal file.
+// tree attached twice reflects only the second. Walked with an explicit stack, so the walk
+// has no depth limit of its own. MatParser reads a tree to MAX_NESTING levels (128).
 //
 // One the decoder REFUSED is recorded as refused (mcosDecodedTable.setMcosRefused), which
 // is what tells it from one with nothing to decode against; every other one is cleared, the

@@ -226,6 +226,19 @@ const MAX_UNBACKED_ELEMENTS = 1000000;
 // because this folder imports nothing from display/ (test/moduleBoundaries.test.ts), and held
 // to it by test/matStructArray.test.ts, which asks each route at the cap and one past it.
 const MAX_LAID_OUT_FIELDLESS = 10000;
+// How many levels of struct fields and cell elements parseMatrix reads, the variable itself the
+// first: the value at the next level down is recorded rather than read (the cap in parseMatrix).
+// parseMatrix recurses into each field and element, and it had no bound but the call stack: a
+// 1x1 cell nested about 1,600 deep, a 77 KB file, threw "Maximum call stack size exceeded" out
+// of parseMat and refused the whole .mat. Where the stack ran out moved with the engine, the
+// thread and the JIT (on half node's default stack a 900-deep cell failed to open and a
+// 1,000-deep one opened); a cap is the same on all of them.
+//
+// 128 is dex-core's mat5::MAX_NESTING, and 21 times the deepest variable in the corpus (6
+// levels, across 58 .mat files and 151 .slx workspaces). What walks a MatVariable after this
+// reader (collectUndecoded, the node layer, MatWriter) recurses too, and stops where this does,
+// at a value with nothing under it.
+export const MAX_NESTING = 128;
 /**
  * Whether `v` is a struct array whose elements nothing reads one by one: one this reader
  * recorded without decoding (`undecoded`), or one with no fields declaring more than
@@ -625,7 +638,9 @@ function structFieldCount(view, offset, end) {
     }
     return Math.ceil(readSubelement(view, namesAt).bytes / stride);
 }
-export function parseMatrix(view, baseOffset, length) {
+// `depth` is how many levels of struct fields and cell elements lie above this matrix: 0 for a
+// variable, and for any other matrix a caller reads on its own (an MCOS subsystem, a MAT stream).
+export function parseMatrix(view, baseOffset, length, depth = 0) {
     let offset = baseOffset;
     // The element ends where its length says or where the bytes do, whichever comes first.
     // `length` can be the file's own claim, unchecked: a top-level record's, or the one a
@@ -711,6 +726,14 @@ export function parseMatrix(view, baseOffset, length) {
     const result = { name, className, dimensions, isComplex, isLogical, value: null, fields: null };
     if (isSparse) {
         result.isSparse = true;
+    }
+    // Past MAX_NESTING levels a matrix is recorded with its class, size and name, and nothing in
+    // it is read. What holds it keeps its bytes, as for every value this reader does not decode:
+    // a struct field always, and a cell element when it is not decoded.
+    if (depth >= MAX_NESTING) {
+        result.value = undecodedValue(dimensions, className);
+        result.undecoded = 'nested more than ' + MAX_NESTING + ' levels deep, so it was not read';
+        return result;
     }
     // A declared size no bytes here could hold. Every element of a full array, of a cell,
     // and of a struct array with a field takes at least a byte of this element (a cell's
@@ -937,7 +960,7 @@ export function parseMatrix(view, baseOffset, length) {
                     const fieldStart = offset;
                     const fieldMatrixSub = readSubelement(view, offset);
                     if (fieldMatrixSub.type === MI_MATRIX) {
-                        const child = parseMatrix(view, offset + 8, childLength(view, fieldMatrixSub, offset, end));
+                        const child = parseMatrix(view, offset + 8, childLength(view, fieldMatrixSub, offset, end), depth + 1);
                         // totalSize rounds the payload up to an 8-byte boundary, so
                         // on a file that ends mid-padding it can name more bytes
                         // than exist. The writer replays these bytes verbatim, so
@@ -1004,7 +1027,7 @@ export function parseMatrix(view, baseOffset, length) {
         for (let i = 0; i < totalElements && offset < end; i++) {
             const cellSub = readSubelement(view, offset);
             if (cellSub.type === MI_MATRIX) {
-                const child = parseMatrix(view, offset + 8, childLength(view, cellSub, offset, end));
+                const child = parseMatrix(view, offset + 8, childLength(view, cellSub, offset, end), depth + 1);
                 // A value recorded without being decoded has nothing to be written from
                 // but the bytes it was read from (MatWriter.matStreamOfElement), so it
                 // keeps them, as a struct field does: copied out of a cell — or out of an
