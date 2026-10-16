@@ -12,7 +12,7 @@ export declare function createSession(opts?: CreateSessionOptions): {
     addModelSourceParsed: (srcId: string, parsed: unknown, meta?: Partial<SourceMeta>) => ISourceNode;
     addMatSource: (srcId: string, buffer: ArrayBuffer, meta?: Partial<SourceMeta>) => ISourceNode;
     addMatSourceParsed: (srcId: string, parsed: unknown, meta?: Partial<SourceMeta>) => ISourceNode;
-    addProjectSource: (srcId: string, files: Record<string, string>, meta?: Partial<SourceMeta>) => ISourceNode;
+    addProjectSource: (srcId: string, files: Record<string, string>, meta?: Partial<SourceMeta>, warnings?: ParseWarning[]) => ISourceNode;
     removeDataSource: (srcId: string) => void;
     removeAll: () => void;
     getDataSource: (srcId: string) => ISourceNode | null;
@@ -72,7 +72,7 @@ declare const DataModel: {
     addModelSourceParsed: (srcId: string, parsed: unknown, meta?: Partial<SourceMeta>) => ISourceNode;
     addMatSource: (srcId: string, buffer: ArrayBuffer, meta?: Partial<SourceMeta>) => ISourceNode;
     addMatSourceParsed: (srcId: string, parsed: unknown, meta?: Partial<SourceMeta>) => ISourceNode;
-    addProjectSource: (srcId: string, files: Record<string, string>, meta?: Partial<SourceMeta>) => ISourceNode;
+    addProjectSource: (srcId: string, files: Record<string, string>, meta?: Partial<SourceMeta>, warnings?: ParseWarning[]) => ISourceNode;
     removeDataSource: (srcId: string) => void;
     removeAll: () => void;
     getDataSource: (srcId: string) => ISourceNode | null;

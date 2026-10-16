@@ -142,9 +142,10 @@ export default class MatNode extends ContainerNode {
     node.header = parsed.header;
 
     // A .mat file keeps the MCOS blob in an anonymous trailing element. Every opaque in
-    // the file, nested or not, comes back carrying its own decode.
+    // the file, nested or not, comes back carrying its own decode, and what the decoder
+    // could not read of one is a warning on the file.
     const anonElement = parsed.variables.find((v) => v._anonymous);
-    attachMcosDecoded(anonElement?._rawBytes, parsed.variables);
+    attachMcosDecoded(anonElement?._rawBytes, parsed.variables, parsed.warnings);
 
     for (const variable of parsed.variables) {
       if ((variable as unknown as { _anonymous?: boolean })._anonymous) {

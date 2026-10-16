@@ -56,6 +56,17 @@ ValueType editing, this rejection is **unreachable** and no code is added.
 ActivationTime is an enum property ('update diagram', etc.). Our UI does not expose
 it for editing, so its enum rejections are **unreachable** — no code added.
 
+### Description — the class has none, so the edit is refused
+
+A VariantControl has no Description. MATLAB writes none for it (`MyVarCtrl` in
+`test/parity/artifacts/binary/params.sldd` holds Value, ActivationTime and ValueType, and
+the text one Value and ValueType), the schema has none, and the node writes back its Value
+alone. So `descriptionEditable` is false:
+the Description cell and the Property Inspector field offer no editor, and
+`setProperty('Description', …)` returns DataNode's "has no Description in a dictionary"
+refusal, with nothing changed and no undo step (decision D11). It used to accept the edit
+and lose it on save. Test: `test/editsTheFormatCannotKeep.test.ts`.
+
 ### Non-string type assignment — unreachable
 
 Assigning a non-string MATLAB value to a char property (e.g. `obj.ValueType = 5`)

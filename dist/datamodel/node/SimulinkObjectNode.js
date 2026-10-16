@@ -22,9 +22,11 @@ import { oneWrite, writeUnderWay } from '../parser/MatWriter.js';
  * saveobj envelope — it drops an EMPTY override rather than writing back a default MATLAB
  * never wrote, and writes a non-empty one INTO the envelope as well as beside it, because the
  * envelope is what MATLAB's loadobj actually reads (defects 40 and 46; `_mergeProps` carries
- * the full account). That used to be the TEXT path only, with `VariantVariableNode` overriding
- * `_getSerializedProperties` to opt its binary path in, and the asymmetry was recorded here as
- * a separate question. Reading the emitted binary bytes answered it: `Simulink.VariantBank`,
+ * the full account). An empty override that meets a sibling this package wrote earlier is a
+ * clear, and is written as MATLAB writes one (C-199). That used to be the TEXT path only,
+ * with `VariantVariableNode` overriding `_getSerializedProperties` to opt its binary path in,
+ * and the asymmetry was recorded here as a separate question. Reading the emitted binary
+ * bytes answered it: `Simulink.VariantBank`,
  * `Simulink.VariantBankCoderInfo` and `Simulink.VariantConfigurations` each came out carrying
  * `<P Name="Value" Class="char"/>` NEXT TO their envelope — a property none of those MATLAB
  * classes has, standing in for a default this node cannot see inside the envelope, written

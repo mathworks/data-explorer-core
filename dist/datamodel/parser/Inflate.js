@@ -33,7 +33,7 @@
 // Equality is the load-bearing claim, and it is checked rather than asserted: over
 // the whole corpus the two engines produce byte-identical output for all 32 zipped
 // dictionaries, every `.slx`, and all 236 MAT payloads.
-import { Unzlib, unzipSync, unzlibSync } from 'fflate';
+import { Unzlib, inflateSync, unzipSync, unzlibSync } from 'fflate';
 // `undefined` means "no override, use detection"; `null` means "explicitly disabled".
 // Tests need the disabled state to exercise the fallback on a machine where the
 // native engine is present, which is otherwise unreachable.
@@ -83,6 +83,7 @@ function detectNative() {
         return null;
     }
     const inflateSync = zlib.inflateSync;
+    const inflateRawSync = zlib.inflateRawSync;
     // `Z_SYNC_FLUSH` as the FINISH flush is what makes a truncated input an end rather
     // than an error: zlib's default is Z_FINISH, which demands the stream's own
     // end-of-data marker and throws `unexpected end of file` without it. Read off
@@ -92,12 +93,25 @@ function detectNative() {
     // Returned unwrapped: `ownExactBuffer` is applied at the seam below, so it holds for
     // an INJECTED engine too and not only for this one.
     return {
-        raw: zlib.inflateRawSync,
+        raw: (deflated, maxOutputLength) => inflateRawSync(deflated, capOf(maxOutputLength)),
         zlib: inflateSync,
         zlibHead: typeof syncFlush === 'number'
             ? (prefix) => inflateSync(prefix, { finishFlush: syncFlush })
             : undefined,
     };
+}
+/**
+ * node:zlib's options for an inflate held to `maxOutputLength` bytes, which throws
+ * `ERR_BUFFER_TOO_LARGE` as soon as its output would pass them: for 200 MB of zeros declared
+ * as 1 KB, under 1 ms and 0.05 MB of peak RSS, where the walk used to inflate all 200 MB
+ * first and raise the peak by 405 MB (test/inflateBomb.test.ts). At least 1, because
+ * node:zlib refuses 0 (`ERR_OUT_OF_RANGE`); a member declaring 0 bytes that inflates to 1
+ * is then over by the length check instead.
+ *
+ * Exported for the Node subpath, which builds the same engine for hosts too old to detect it.
+ */
+export function capOf(maxOutputLength) {
+    return maxOutputLength === undefined ? undefined : { maxOutputLength: Math.max(1, maxOutputLength) };
 }
 /**
  * Reproduce fflate's contract: every result is a plain `Uint8Array` whose
@@ -125,6 +139,7 @@ function ownExactBuffer(b) {
 // ---------------------------------------------------------------------------------
 const SIG_EOCD = 0x06054b50;
 const SIG_ZIP64_LOCATOR = 0x07064b50;
+const SIG_ZIP64_END = 0x06064b50;
 const SIG_CENTRAL = 0x02014b50;
 const SIG_LOCAL = 0x04034b50;
 /**
@@ -169,31 +184,202 @@ function isHoldable(name) {
  * 1817 deflated) and copying a stored member is cheap next to inflating one.
  *
  * So: pass a filter to avoid holding 25x the bytes, not because the read is slow.
+ *
+ * A deflated member that inflates to MORE than its directory entry declares is left out of
+ * the result, on every engine and every path, and is named in `unreadable` when the caller
+ * passes one. It is never returned cut to the declared size, which is what both engines
+ * used to do with it: the bytes and the directory disagree about what the member is, and a
+ * part cut short reads as a different, wrong part — a model opened with wrong workspace
+ * values and nothing to say so. The declared size is also the only bound an inflate has, so
+ * it is the cap each engine inflates under, and a member declaring 1 KB of what is 200 MB
+ * costs about 1 KB of memory. A caller that passes no list reads the member as absent.
  */
-export function unzipEntries(bytes, wanted) {
+export function unzipEntries(bytes, wanted, unreadable) {
     const native = activeNative();
-    // With no native engine the walk would only be fflate's inflate wearing a hat, and
-    // the framing it would save is ~2 ms of 105 ms. Not worth a second code path. The
-    // filter still has to reach fflate, though: it is the whole point of the call.
-    if (native === null)
-        return unzipWithFflate(bytes, wanted);
+    // Collected here and handed over only once a read has SUCCEEDED, so a walk that is
+    // abandoned for the fallback cannot leave its findings behind beside the fallback's own.
+    const lost = [];
+    let out;
+    if (native === null) {
+        // With no native engine the walk would only be fflate's inflate wearing a hat, and the
+        // framing it would save is ~2 ms of 105 ms. Not worth a second code path. The filter
+        // still has to reach fflate, though: it is the whole point of the call.
+        out = unzipWithFflate(bytes, wanted, lost);
+    }
+    else {
+        try {
+            out = walkCentralDirectory(bytes, native, wanted, lost);
+        }
+        catch {
+            // Everything falls back, whether it was an `UnsupportedArchive` we recognised or
+            // an inflate that threw: a misread on our side must not become a hard failure when
+            // the engine that shipped for years can still read the file. And if fflate cannot
+            // read it either, ITS throw is the one the caller sees — which is how the existing
+            // diagnostics for a corrupt archive stay exactly as they were.
+            lost.length = 0;
+            out = unzipWithFflate(bytes, wanted, lost);
+        }
+    }
+    if (unreadable !== undefined) {
+        for (const member of lost)
+            unreadable.push(member);
+    }
+    return out;
+}
+function inflatesPastDeclared(name, declared) {
+    return { name, reason: `inflates to more than the ${declared} bytes its directory entry declares` };
+}
+/**
+ * A deflated member, inflated under its declared size as a cap: its bytes, or null when it
+ * inflates to more than `declared`. Anything else the engine throws is rethrown, because
+ * it says nothing about the member's size, only that this engine could not read it.
+ */
+function inflateWithin(engine, deflated, declared) {
+    let inflated;
     try {
-        return walkCentralDirectory(bytes, native, wanted);
+        inflated = engine.raw(deflated, declared);
     }
-    catch {
-        // Everything falls back, whether it was an `UnsupportedArchive` we recognised or
-        // an inflate that threw: a misread on our side must not become a hard failure when
-        // the engine that shipped for years can still read the file. And if fflate cannot
-        // read it either, ITS throw is the one the caller sees — which is how the existing
-        // diagnostics for a corrupt archive stay exactly as they were.
-        return unzipWithFflate(bytes, wanted);
+    catch (err) {
+        if (err?.code === 'ERR_BUFFER_TOO_LARGE')
+            return null;
+        throw err;
     }
+    // Checked before `ownExactBuffer`, so the bytes of a member that is over are not copied.
+    return inflated.byteLength > declared ? null : ownExactBuffer(inflated);
 }
-/** The fallback, with the filter expressed in fflate's own terms. */
-function unzipWithFflate(bytes, wanted) {
-    return unzipSync(bytes, { filter: (file) => isHoldable(file.name) && (wanted === undefined || wanted(file.name)) });
+/**
+ * fflate as an engine, held to the cap the same way node:zlib is. fflate inflates into an
+ * output buffer it is handed without growing it, and drops what does not fit, so the
+ * buffer is one byte past the cap and a result that fills it is over. A STORED block that
+ * does not fit is the exception: fflate copies one with a single `set`, which throws a
+ * RangeError, and that throw is the same answer. The allocation stays outside the `try`,
+ * so a declared size too large to allocate is not mistaken for one exceeded.
+ *
+ * What it does not bound is time: fflate decodes the whole stream into nowhere, about 0.4 s
+ * for 200 MB of zeros declared as 1 KB. Memory is the hazard, and it is bounded.
+ */
+const FFLATE = {
+    raw(deflated, maxOutputLength) {
+        if (maxOutputLength === undefined)
+            return inflateSync(deflated);
+        // fflate hands back its output buffer WHOLE for an empty input, which would read as
+        // over. `unzipSync` answers an empty member with a buffer of its declared size, and
+        // so does this, so the fallback reads one exactly as fflate always did.
+        if (deflated.byteLength === 0)
+            return new Uint8Array(maxOutputLength);
+        const out = new Uint8Array(maxOutputLength + 1);
+        try {
+            return inflateSync(deflated, { out });
+        }
+        catch (err) {
+            if (err instanceof RangeError)
+                return out;
+            throw err;
+        }
+    },
+    zlib: (wrapped) => unzlibSync(wrapped),
+};
+/**
+ * The fflate read: the fallback, and the whole read where there is no native engine.
+ *
+ * fflate's `unzipSync` still frames the archive — it decides where the end record and the
+ * directory are, reads ZIP64, decodes names, and raises its own diagnostics, so a caller
+ * matching `invalid zip data` or `unknown compression type` sees what it always saw — but
+ * it is not left to inflate anything, because it inflates into a buffer of the declared
+ * size and silently drops the rest. Its filter is told about every member and admits only
+ * the ones it must refuse; the members it would have copied or inflated are read here
+ * instead, at the offsets fflate's own arithmetic gives (`fflateDataStarts`), and a
+ * deflated one is inflated under its declared size like on the walk.
+ *
+ * A deflated member SHORTER than declared is returned as fflate returns it, short, as it
+ * always was: that is fflate's answer for an archive the walk has already given up on.
+ */
+function unzipWithFflate(bytes, wanted, lost) {
+    const members = [];
+    unzipSync(bytes, {
+        filter: (file) => {
+            const keep = isHoldable(file.name) && (wanted === undefined || wanted(file.name));
+            members.push({ name: file.name, method: file.compression, size: file.size, declared: file.originalSize, keep });
+            // Admitted only to be refused: fflate throws `unknown compression type` on one.
+            return keep && file.compression !== 0 && file.compression !== 8;
+        },
+    });
+    const out = {};
+    if (!members.some((m) => m.keep))
+        return out;
+    const starts = fflateDataStarts(bytes);
+    if (starts.length !== members.length) {
+        // The two walks of one directory disagree, which is a defect here, not in the file.
+        throw new Error(`zip: located ${starts.length} members of the ${members.length} fflate listed`);
+    }
+    members.forEach((m, i) => {
+        if (!m.keep)
+            return;
+        const data = bytes.subarray(starts[i], starts[i] + m.size);
+        if (m.method === 0) {
+            out[m.name] = data.slice();
+            return;
+        }
+        const inflated = inflateWithin(FFLATE, data, m.declared);
+        if (inflated === null)
+            lost.push(inflatesPastDeclared(m.name, m.declared));
+        else
+            out[m.name] = inflated;
+    });
+    return out;
 }
-function walkCentralDirectory(bytes, native, wanted) {
+/**
+ * Where each member's data begins, in directory order, by fflate's arithmetic: the offsets
+ * `unzipSync` computes and keeps to itself (fflate 0.8.3's `unzipSync`, `zh`, `z64hs` and
+ * `slzh`), reproduced read for read, so the bytes read here are the ones fflate would have
+ * read. Called only after `unzipSync` has framed the same bytes without complaint, so every
+ * read is one fflate already made, and it reads bytes the way fflate does: a byte past
+ * either end reads as 0.
+ */
+function fflateDataStarts(d) {
+    const b2 = (b) => d[b] | (d[b + 1] << 8);
+    const b4 = (b) => (d[b] | (d[b + 1] << 8) | (d[b + 2] << 16) | (d[b + 3] << 24)) >>> 0;
+    const b8 = (b) => b4(b) + b4(b + 4) * 4294967296;
+    let e = d.length - 22;
+    while (b4(e) !== SIG_EOCD)
+        --e;
+    let count = b2(e + 8);
+    let o = b4(e + 16);
+    let z = b4(e - 20) === SIG_ZIP64_LOCATOR;
+    if (z) {
+        const ze = b4(e - 12);
+        z = b4(ze) === SIG_ZIP64_END;
+        if (z) {
+            count = b4(ze + 32);
+            o = b4(ze + 48);
+        }
+    }
+    const starts = [];
+    for (let i = 0; i < count; i++) {
+        const nameLength = b2(o + 28);
+        const extraLength = b2(o + 30);
+        const extraAt = o + 46 + nameLength;
+        const compressed = b4(o + 20);
+        const uncompressed = b4(o + 24);
+        let local = b4(o + 42);
+        // ZIP64's extended information extra field, which holds the real values of whichever
+        // of the three a sentinel marks, in the order uncompressed, compressed, offset.
+        const nsc = compressed === 0xffffffff ? 1 : 0;
+        const nsu = uncompressed === 0xffffffff ? 1 : 0;
+        if (z && local === 0xffffffff) {
+            for (let b = extraAt; b + 4 < extraAt + extraLength; b += 4 + b2(b + 2)) {
+                if (b2(b) === 1) {
+                    local = b8(b + 4 + 8 * (nsu + nsc));
+                    break;
+                }
+            }
+        }
+        starts.push(local + 30 + b2(local + 26) + b2(local + 28));
+        o = extraAt + extraLength + b2(o + 32);
+    }
+    return starts;
+}
+function walkCentralDirectory(bytes, native, wanted, lost) {
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
     const eocd = findEndOfCentralDirectory(view);
     // ZIP64 moves the real counts and offsets into a different record and widens them
@@ -277,13 +463,22 @@ function walkCentralDirectory(bytes, native, wanted) {
             // exists to police. An unread member's declared size therefore goes unverified —
             // the same amount of trust as not reading the member at all.
             if (keep) {
-                const inflated = ownExactBuffer(native.raw(raw));
-                // A length disagreement means the walk misread an offset. Better to hand the
-                // whole archive to fflate than to return bytes that are confidently wrong.
-                if (inflated.byteLength !== uncompressedSize) {
+                const inflated = inflateWithin(native, raw, uncompressedSize);
+                if (inflated === null) {
+                    // MORE than declared is the member, not the walk: the walk found a stream there
+                    // and it decoded, past the size the directory gives it. Handing the archive to
+                    // fflate would only have it cut the member to that size, so it is unreadable
+                    // here, as fflate's read below calls it too.
+                    lost.push(inflatesPastDeclared(name, uncompressedSize));
+                }
+                else if (inflated.byteLength !== uncompressedSize) {
+                    // FEWER means the walk may have misread an offset. Better to hand the whole
+                    // archive to fflate than to return bytes that are confidently wrong.
                     throw new UnsupportedArchive('inflated size disagrees with the directory');
                 }
-                out[name] = inflated;
+                else {
+                    out[name] = inflated;
+                }
             }
         }
         else {

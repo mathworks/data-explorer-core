@@ -35,7 +35,10 @@ export declare function parseDims(dimension: string): number[];
  * A package with no `data/chunk0.xml` at all still throws, because that is not a
  * dictionary this reader can answer for at all — there is no content to hand back and
  * warn beside. The line between the throw and a warning is whether the part is there:
- * present-and-unreadable is a short read, absent is not a `.sldd`.
+ * present-and-unreadable is a short read, absent is not a `.sldd`. A chunk the package
+ * holds and that could not be inflated (it runs past the size its directory entry
+ * declares, see `unzipEntries`) is present-and-unreadable: an empty dictionary, and a
+ * `source-unreadable` warning saying why.
  */
 export declare function parseBinarySldd(arrayBuffer: ArrayBuffer, warnings?: ParseWarning[]): Record<string, unknown>;
 export declare function parseBinarySlddParts(xmlString: string, zipMetadata: Record<string, Uint8Array>, warnings?: ParseWarning[]): Record<string, unknown>;

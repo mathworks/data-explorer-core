@@ -259,6 +259,10 @@ describe('UsedBy — a definition nothing uses gets no cell at all', () => {
     const s = itemFourSession();
     openParamsAs(s, 'other.sldd');
     const rowFor = (id: string) => (s.findNodeById(id) as any).toRow();
+    // A reference or data-source entry's id carries its block path or recorded path after
+    // the name (ModelReferenceNode.id, DataSourceNode.id), so those two are found by name.
+    const idOf = (section: string, name: string): string =>
+      (s.getDataSource('mdlcases.mdl') as any).getSection(section).children.find((c: any) => c.name === name).id;
 
     // A struct FIELD is not a definition: `cfg.mode` is a reference to `cfg`, and `cfg`
     // takes the credit.
@@ -274,11 +278,11 @@ describe('UsedBy — a definition nothing uses gets no cell at all', () => {
     // An external-data FILE row is the file-level reverse direction ("which models use
     // this dictionary"), which findUsages deliberately does not answer. Its own forward
     // link is untouched.
-    const fileRow = rowFor('mdlcases.mdl/dataSources/mdlparams.sldd');
+    const fileRow = rowFor(idOf('dataSources', 'mdlparams.sldd'));
     expect('UsedBy' in fileRow).toBe(false);
     expect(fileRow.Value).toEqual({ text: 'mdlparams.sldd', linkTarget: 'mdlparams.sldd' });
     // A model REFERENCE row, same reason.
-    expect('UsedBy' in rowFor('mdlcases.mdl/references/mdl_child.mdl')).toBe(false);
+    expect('UsedBy' in rowFor(idOf('references', 'mdl_child.mdl'))).toBe(false);
     // A container projects no row at all, and still does not.
     expect((s.getDataSource('mdlparams.sldd') as any).getSection('design').toRow()).toBe(null);
   });

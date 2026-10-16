@@ -11,6 +11,23 @@ export interface McosObjectData {
     stringElements?: (string | null)[] | null;
     enumeration?: Record<string, unknown>;
 }
+/**
+ * What the decoder could not read of one variable it was asked for, for the caller's
+ * warnings (decodeMcosVariables' `issues`). ParseWarning.ts's rule, at this layer: the bytes
+ * say an object is there, and it was not read, or not all of it.
+ *
+ * `refused`: the confidence gate turned the whole variable down, so it is absent from the
+ * result — its handle names an object the table does not hold, or objects of another class.
+ * Otherwise it is in the result, decoded in part: an object it reaches addresses a property
+ * block that readBlocks stopped before.
+ *
+ * `reason` is one clause, for a message: it names what was wrong and, for a partial decode,
+ * what is shown instead.
+ */
+export interface McosDecodeIssue {
+    refused: boolean;
+    reason: string;
+}
 export declare const NOT_AVAILABLE = "<not available>";
 export declare const STRING_CLASS_NAME = "string";
 /**
@@ -53,6 +70,6 @@ export interface OpaqueVarRef {
     rawBytes?: Uint8Array | null;
 }
 export type McosVariableRef = Pick<MatVariable, 'name' | 'className' | 'mcosHandle' | '_rawBytes'>;
-export declare function decodeMcosVariables<V extends McosVariableRef>(anonRawBytes: Uint8Array, variables: readonly V[]): Map<V, McosObjectData>;
+export declare function decodeMcosVariables<V extends McosVariableRef>(anonRawBytes: Uint8Array, variables: readonly V[], issues?: Map<V, McosDecodeIssue>): Map<V, McosObjectData>;
 export declare function decodeMcosBlob(anonRawBytes: Uint8Array, opaqueVars: OpaqueVarRef[]): Map<string, McosObjectData>;
 //# sourceMappingURL=McosParser.d.ts.map

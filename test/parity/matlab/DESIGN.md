@@ -1760,9 +1760,16 @@ worth recording so they are not rediscovered as defects:
     the sibling unnecessary, and would also fix the VariantVariable choices that display
     in no format — is the remaining half of defect 40 and is not done here.
 
-    An EMPTY override is still dropped, unchanged: read through a sibling that is not
-    there, `Specification` is `''` — a default, not a value — and writing it back would
-    replace MATLAB's own empty 0x0 double with an empty char.
+    An EMPTY override is still dropped when the stored bag has no sibling for it: read
+    through a sibling that is not there, `Specification` is `''` — a default, not a value
+    — and writing it back would replace MATLAB's own empty 0x0 double with an empty char.
+    When a sibling IS there (C-199), this package wrote it, since MATLAB never writes one
+    beside an envelope, and the empty override is a real clear. Dropped, it kept the old
+    value in both copies, and MATLAB reopened the cleared variable with that value. Now
+    the sibling is deleted and the envelope's field is written as `[]`, MATLAB's own 0x0
+    double. That is the spelling MATLAB writes for a cleared `Specification`, and MATLAB
+    reads it back as an empty char (both measured on R2027a, 2026-10-16). After the clear,
+    `aVariant` is MATLAB's own bytes again.
 
 **Why 44, 45 and 46 are numbered separately from 43 and 28.** They are different code
 paths that each would have shipped a file MATLAB reads differently. 44 and 45 became
@@ -2466,11 +2473,6 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   object and in a text dictionary (whose stream is read by the same arm), where a binary
   dictionary shows MATLAB's own text, `0.1+0.2i`, and MATLAB's display `0.1000 + 0.2000i`.
   The shortest spelling of the float32 would change every one of those venues at once.
-- **The Inspector's "Other" group does not flatten a nested object out of a binary
-  dictionary.** The binary reader spells one `{_array_class, _elements: [{_properties}]}`
-  and the group flattens only `{_object_class, _properties}`, so a LookupTable's Table
-  shows as one empty row there where the `.mat` and the text dictionary list its
-  properties. Not about complex numbers, and pinned as it is in `complexMcosFixtures`.
 - **A complex EMPTY in a binary dictionary shows as an empty quoted char.** MATLAB writes
   `<P Class="double" IsComplex="1" Dimension="1*0"/>`; the empty body fails parseCdata's
   text test and its stream decode, so the value is `''` where the same Parameter in a

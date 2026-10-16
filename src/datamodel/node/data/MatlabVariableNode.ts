@@ -32,8 +32,10 @@ import {
   isEncodedValue,
   matStreamPrefix,
   recordDecodeFailure,
+  recordPartialDecode,
   type EncodedValue,
 } from '../../parser/EncodedValue.js';
+import type { ParseWarning } from '../../parser/ParseWarning.js';
 import { dimsText, isSize, isStreamSize } from '../../parser/Size.js';
 import {
   classPhrase,
@@ -3903,11 +3905,17 @@ export default class MatlabVariableNode extends DataNode {
       return MatlabVariableNode._createEncodedPlaceholder(encoded, name, parent, dims);
     }
     try {
-      NodeRegistry.attachMcosDecoded(decoded.trailingElements[0], [outer]);
+      // What the decoder could not read of an object in the stream is reported under this
+      // value's name, once the node stands (EncodedValue.recordPartialDecode).
+      const partial: ParseWarning[] = [];
+      NodeRegistry.attachMcosDecoded(decoded.trailingElements[0], [outer], partial, name);
       const node = MatlabVariableNode.parseMatVariable(outer, name, parent);
       node._adoptEncoded(encoded);
       if (node instanceof MatlabVariableNode) {
         node._keepStreamElement(stream.bytes);
+      }
+      for (const warning of partial) {
+        recordPartialDecode(warning.message);
       }
       return node;
     } catch (e) {
@@ -4159,8 +4167,10 @@ export default class MatlabVariableNode extends DataNode {
     parent: BaseNode | null,
   ): DataNode | null {
     let node: DataNode;
+    // As parseEncoded's: reported under this value's name once the node stands.
+    const partial: ParseWarning[] = [];
     try {
-      NodeRegistry.attachMcosDecoded(trailingElements[0], [variable]);
+      NodeRegistry.attachMcosDecoded(trailingElements[0], [variable], partial, name);
       node = MatlabVariableNode.parseMatVariable(variable, name, parent);
     } catch (_e) {
       // Detached again, so the variable builds as it did before there was a decode.
@@ -4180,6 +4190,9 @@ export default class MatlabVariableNode extends DataNode {
     if (node instanceof MatlabVariableNode) {
       node._rawInput = rawVal;
       node._keepStreamElement(bytes);
+    }
+    for (const warning of partial) {
+      recordPartialDecode(warning.message);
     }
     return node;
   }

@@ -28,6 +28,11 @@ node when the file is open in the session — matching the name against each ope
 source's srcId, its basename and its recorded `meta.path` — and a `'source-not-open'`
 status naming the file when it is not, which is what lets a host offer to open it.
 
+Its id is `<parent id>/<name>@<fullPath>`, e.g. `mdlcases.mdl/dataSources/mdlparams.sldd@mdlparams.sldd`,
+not the inherited `<parent id>/<name>`. The name is the basename of the recorded path, so
+`a/signals.mat` and `b/signals.mat` are two rows named `signals.mat`, and the path is what
+tells them apart. The Name column and the link target are still the bare name.
+
 ## Property table
 
 | Property   | Editor | Notes                                           |

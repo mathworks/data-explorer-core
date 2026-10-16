@@ -24,7 +24,7 @@
 //      checking in a new broken binary. The corruption is then visible in the test
 //      that depends on it, and the fixture corpus stays a corpus of real files.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
@@ -40,7 +40,8 @@ import { parseBinarySldd, parseBinarySlddParts } from '../src/datamodel/parser/B
 // Through the public entry point, which is what registers the node classes
 // SlddNode.parse builds a tree out of. A deep import of SlddNode alone leaves
 // NodeRegistry empty and parseEntry with nothing to route an entry to.
-import { SlddNode, createSession } from '../src/index.js';
+import { SlddNode, createSession, ingest, scanSldd } from '../src/index.js';
+import { setNativeInflate } from '../src/datamodel/parser/Inflate.js';
 import { reasonOf } from '../src/datamodel/parser/ParseWarning.js';
 import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
 import {
@@ -976,6 +977,137 @@ const scalar = (name: string, value: number) =>
   numericVar({ name, cls: CLASS.DOUBLE, dimensions: [1, 1], real: [value] });
 
 const names = (warnings: ParseWarning[]) => warnings.map((w) => w.part);
+
+// A zip member whose bytes inflate to more than its directory entry declares is unreadable,
+// and the inflate seam leaves it out (test/inflateSeam.test.ts). It used to come back cut
+// to the declared size, so it read as a shorter, wrong part, with nothing to say so: a model
+// opened with wrong workspace values, and a dictionary with whatever the cut left of its
+// chunk. Now each reader that unzips a package says which member it could not read, and
+// reads the rest as it would have.
+describe('a zip member that inflates past its declared size is named unreadable, never read cut short', () => {
+  const reasonFor = (declared: number) => `more than the ${declared} bytes its directory entry declares`;
+
+  /**
+   * A real package, rezipped with `part` deflated and every other member stored, and `part`'s
+   * declared uncompressed size rewritten to `declared` in its directory entry and local
+   * header. Deflated because a stored member's size IS its bytes: only an inflate can run
+   * past what the directory declares.
+   */
+  function overDeclared(entries: Record<string, Uint8Array>, part: string, declared: number): ArrayBuffer {
+    expect(Object.keys(entries)).toContain(part); // the package really holds it
+    expect(entries[part].byteLength).toBeGreaterThan(declared); // and the size is a lie
+    const zipped = zipSync(
+      Object.fromEntries(Object.entries(entries).map(([k, b]) => [k, [b, { level: k === part ? 6 : 0 }]])),
+    );
+    const v = new DataView(zipped.buffer, zipped.byteOffset, zipped.byteLength);
+    const named = (at: number, length: number) => new TextDecoder().decode(zipped.subarray(at, at + length));
+    let patched = 0;
+    for (let i = 0; i + 4 <= zipped.byteLength; i++) {
+      const sig = v.getUint32(i, true);
+      if (sig === 0x02014b50 && named(i + 46, v.getUint16(i + 28, true)) === part) {
+        v.setUint32(i + 24, declared, true);
+        patched++;
+      } else if (sig === 0x04034b50 && named(i + 30, v.getUint16(i + 26, true)) === part) {
+        v.setUint32(i + 22, declared, true);
+        patched++;
+      }
+    }
+    expect(patched).toBe(2);
+    return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
+  }
+
+  const unzipped = (file: string) => unzipSync(new Uint8Array(bytesAt(file)));
+
+  // Each engine reaches the member by its own route (see test/inflateSeam.test.ts); a host
+  // has one or the other, and both are held to the rule.
+  const ENGINES = [
+    ['node:zlib', undefined],
+    ['fflate', null],
+  ] as Array<[string, null | undefined]>;
+  afterEach(() => setNativeInflate(undefined));
+
+  const COMPLEX_WS = join(FIXTURES, 'mcos', 'complex_ws.slx');
+  const WORKSPACE_PART = 'simulink/modelWorkspace.mxarray';
+
+  it.each(ENGINES)('a .slx whose workspace part runs past its size opens with that section empty and the part named (%s)', (_l, engine) => {
+    setNativeInflate(engine);
+    // complex_ws.slx's workspace part inflates to 7,936 bytes; cut to the 3,000 declared, it
+    // used to open with seven variables, five of them showing `[ ]` where the file holds
+    // `11-12i`, `[1+2i 3-4i 5+6i]` and the like, and no warning.
+    const opened = openedModel(overDeclared(unzipped(COMPLEX_WS), WORKSPACE_PART, 3_000), 'complex_ws.slx');
+    const intact = openedModel(bytesAt(COMPLEX_WS), 'complex_ws.slx');
+    const held = intact.sections.find(([s]) => s === 'workspace');
+    expect(held && held[1]).toBeGreaterThan(0); // the intact file has a workspace to lose
+    expect({ ...opened, warnings: codesAndParts(opened.warnings) }).toEqual({
+      format: intact.format,
+      sections: intact.sections.map(([s, n]): [string, number] => [s, s === 'workspace' ? 0 : n]),
+      warnings: [['part-unreadable', WORKSPACE_PART]],
+    });
+    expect(opened.warnings[0].message).toContain(reasonFor(3_000));
+  });
+
+  it.each(ENGINES)('a binary .sldd whose data chunk runs past its size opens empty, saying so, rather than throwing (%s)', (_l, engine) => {
+    setNativeInflate(engine);
+    const entries = unzipped(SLDD_BIN);
+    const declared = Math.floor(entries[CHUNK_PART].byteLength / 2);
+    const bytes = overDeclared(entries, CHUNK_PART, declared);
+    const warnings: ParseWarning[] = [];
+    const content = parseBinarySldd(bytes, warnings);
+    // An unreadable chunk is not a MISSING one: "Missing data/chunk0.xml" is for a package
+    // that does not hold it at all, and a package that does is a dictionary that read short.
+    expect(codesAndParts(warnings)).toEqual([['source-unreadable', undefined]]);
+    expect(warnings[0].message).toContain(CHUNK_PART);
+    expect(warnings[0].message).toContain(reasonFor(declared));
+    expect(entriesOf(content)).toEqual([]);
+    // Short, not failed: the metadata members are read as before.
+    expect(content.__MW_TEXT_COREPROPERTIES__).toEqual({ release: 'R2027a' });
+    // And the same through a session, as a host opens one.
+    const source = ingest(createSession(), bytes, { filename: 'params.sldd' }) as unknown as {
+      warnings?: ParseWarning[];
+      flatten(): unknown[];
+    };
+    expect(codesAndParts(source.warnings ?? [])).toEqual([['source-unreadable', undefined]]);
+  });
+
+  it.each(ENGINES)('a binary .sldd whose metadata member runs past its size reads every entry and names the member (%s)', (_l, engine) => {
+    setNativeInflate(engine);
+    const META = 'metadata/mwcoreProperties.xml';
+    const entries = unzipped(SLDD_BIN);
+    const declared = Math.floor(entries[META].byteLength / 2);
+    const warnings: ParseWarning[] = [];
+    const content = parseBinarySldd(overDeclared(entries, META, declared), warnings);
+    expect(codesAndParts(warnings)).toEqual([['part-unreadable', META]]);
+    expect(warnings[0].message).toContain(reasonFor(declared));
+    expect(entriesOf(content)).toEqual(entriesOf(parseBinarySldd(bytesAt(SLDD_BIN))));
+    expect(Object.keys(content.__zipMetadata as object)).not.toContain(META);
+  });
+
+  it.each(ENGINES)('scanSldd reads a dictionary whose data chunk runs past its size as the empty one it opens as (%s)', (_l, engine) => {
+    setNativeInflate(engine);
+    const entries = unzipped(SLDD_BIN);
+    const declared = Math.floor(entries[CHUNK_PART].byteLength / 2);
+    const warnings: ParseWarning[] = [];
+    const scanned = scanSldd(overDeclared(entries, CHUNK_PART, declared), warnings);
+    expect(scanned.names).toEqual([]);
+    expect(codesAndParts(warnings)).toEqual([['source-unreadable', undefined]]);
+  });
+
+  it.each(ENGINES)('a .prj whose store document runs past its size opens and names the document (%s)', (_l, engine) => {
+    setNativeInflate(engine);
+    const info = (body: string) => `<?xml version="1.0" encoding="UTF-8"?>\n${body}`;
+    const DOC = 'resources/project/FILESHASH/AAAp.xml';
+    const store: Record<string, Uint8Array> = {
+      'resources/project/root/FILESHASHp.xml': strToU8(info('<Info location="Root" type="Files"/>')),
+      [DOC]: strToU8(info(`<Info location="helper.m" type="File"/>${' '.repeat(400)}`)),
+      'resources/project/FILESHASH/AAAd.xml': strToU8(info('<Info/>')),
+    };
+    const source = ingest(createSession(), overDeclared(store, DOC, 60), { filename: 'Proj.prj' }) as unknown as {
+      warnings?: ParseWarning[];
+    };
+    expect(codesAndParts(source.warnings ?? [])).toEqual([['part-unreadable', DOC]]);
+    expect(source.warnings?.[0].message).toContain(reasonFor(60));
+  });
+});
 
 describe('parseMat — the warnings channel', () => {
   it('reports nothing for a file it read completely', () => {

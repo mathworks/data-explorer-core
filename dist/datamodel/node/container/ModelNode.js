@@ -184,8 +184,9 @@ export default class ModelNode extends ContainerNode {
         const wsVars = parsed.workspace;
         const trailingElements = wsVars._trailingElements;
         // An .slx model workspace keeps the MCOS blob in its own trailing-element list.
-        // Every opaque in the workspace, nested or not, comes back carrying its own decode.
-        attachMcosDecoded(trailingElements?.[0], wsVars);
+        // Every opaque in the workspace, nested or not, comes back carrying its own decode, and
+        // what the decoder could not read of one is a warning on the model.
+        attachMcosDecoded(trailingElements?.[0], wsVars, parsed.warnings);
         for (const entry of wsVars) {
             if (entry.isOpaque) {
                 // `parsed.warnings` is the very array addModelSource hands to registerSource

@@ -2,7 +2,7 @@
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME } from '../../parser/McosParser.js';
-import { setMcosDecoded } from './mcosDecodedTable.js';
+import { mcosRefused, setMcosDecoded, setMcosRefused } from './mcosDecodedTable.js';
 import { reasonOf } from '../../parser/ParseWarning.js';
 import { unbackedColumns } from '../../parser/SparseData.js';
 // Bridges the binary (MCOS) decode path to the same typed data-model nodes the
@@ -168,38 +168,89 @@ export function decodeMcosObjects(blobBytes, variables) {
 // includes a variable decoded by an EARLIER attach that this one does not repeat, so a
 // tree attached twice reflects only the second. Walked with an explicit stack, because
 // a struct nested a few thousand deep is a legal file.
-export function attachMcosDecoded(blobBytes, variables) {
+//
+// One the decoder REFUSED is recorded as refused (mcosDecodedTable.setMcosRefused), which
+// is what tells it from one with nothing to decode against; every other one is cleared, the
+// detach (`blobBytes` null) included, so a refusal goes with the attach that found it.
+//
+// `warnings`, when given, gets one `part-unreadable` per object the decoder could not read
+// or read only in part (McosParser.McosDecodeIssue), named by its MATLAB path the way
+// MatParser.collectUndecoded names an undecoded piece: `s.f`, `s(2).f`, `c{3}`, 1-based.
+// `rootPath` is what a top-level variable is called in that path when it is not its own
+// name: a dictionary's encoded value, whose stream MATLAB writes unnamed, is the entry's.
+export function attachMcosDecoded(blobBytes, variables, warnings, rootPath) {
     const opaque = [];
-    const stack = variables.slice();
+    // Pushed in reverse, so the walk, and the warnings with it, go in file order.
+    const stack = variables.map((v) => ({ v, up: null, name: rootPath ?? v.name, index: 0 })).reverse();
     while (stack.length > 0) {
-        const v = stack.pop();
+        const step = stack.pop();
+        const v = step.v;
         if (v.isOpaque) {
-            opaque.push(v);
+            opaque.push(step);
             continue;
         }
+        const children = [];
         if (v.fields) {
-            for (const field of Object.values(v.fields)) {
+            for (const [name, field] of Object.entries(v.fields)) {
                 if (Array.isArray(field)) {
-                    for (const element of field)
-                        stack.push(element);
+                    field.forEach((element, i) => children.push({ v: element, up: step, name, index: i + 1 }));
                 }
                 else {
-                    stack.push(field);
+                    children.push({ v: field, up: step, name, index: 0 });
                 }
             }
         }
         if (v.className === 'cell' && Array.isArray(v.value)) {
             // A slot MatParser could not read is a null, not a variable.
-            for (const cell of v.value) {
+            v.value.forEach((cell, i) => {
                 if (cell)
-                    stack.push(cell);
-            }
+                    children.push({ v: cell, up: step, name: null, index: i + 1 });
+            });
+        }
+        for (let i = children.length - 1; i >= 0; i--)
+            stack.push(children[i]);
+    }
+    const issues = new Map();
+    const decoded = blobBytes && opaque.length > 0 ? decodeMcosVariables(blobBytes, opaque.map((step) => step.v), issues) : null;
+    // Read before the loop takes the issues: a variable met twice is refused both times.
+    const refused = new Set();
+    for (const [variable, issue] of issues) {
+        if (issue.refused)
+            refused.add(variable);
+    }
+    for (const step of opaque) {
+        const variable = step.v;
+        setMcosDecoded(variable, decoded?.get(variable));
+        setMcosRefused(variable, refused.has(variable));
+        const issue = issues.get(variable);
+        // Taken once: a host's tree can hold one variable object in two places.
+        issues.delete(variable);
+        if (issue && warnings) {
+            const path = pathOf(step);
+            warnings.push({
+                code: 'part-unreadable',
+                message: `the MATLAB object "${path}" `
+                    + (issue.refused ? 'could not be decoded, so its properties are not shown' : 'was decoded in part')
+                    + `: ${issue.reason}.`,
+                part: path,
+            });
         }
     }
-    const decoded = blobBytes && opaque.length > 0 ? decodeMcosVariables(blobBytes, opaque) : null;
-    for (const variable of opaque) {
-        setMcosDecoded(variable, decoded?.get(variable));
+}
+function pathOf(step) {
+    const parts = [];
+    for (let s = step; s; s = s.up) {
+        if (!s.up) {
+            parts.push(s.name ?? '');
+        }
+        else if (s.name === null) {
+            parts.push(`{${s.index}}`);
+        }
+        else {
+            parts.push(s.index > 0 ? `(${s.index}).${s.name}` : `.${s.name}`);
+        }
     }
+    return parts.reverse().join('');
 }
 // Model ONE opaque MCOS variable, or null to say "not an MCOS object — model it the
 // container's normal way". Shared verbatim by MatNode (.mat) and ModelNode (.slx
@@ -212,6 +263,14 @@ export function attachMcosDecoded(blobBytes, variables) {
 //      resolve it -> the opaque MatlabVariableNode, enriched with those properties.
 //   3. Neither -> null; the caller falls back to its plain-variable path, which
 //      still shows the right class and icon from the variable's own metadata.
+//
+// A known class with no decode is case 1, built from no properties at all, unless the
+// decoder REFUSED it (mcosDecodedTable.mcosRefused): its bytes name an object the table does
+// not hold, or objects of another class, so a typed node would be an empty object of the
+// declared class that is not the one in the file, and a copy of it would write that. It is
+// case 3, the plain opaque, and the refusal is a warning (attachMcosDecoded). One with
+// nothing to decode against — no blob, or a handle that is only the null object — is not
+// refused, and stays the typed node it has always been.
 //
 // A `string` short-circuits ahead of all three. It is the one opaque className that is a
 // MATLAB DATA TYPE rather than a class with properties, so case 1 would hand it to a
@@ -231,6 +290,9 @@ name = variable.name) {
     // An enumeration value is the node a binary dictionary's is: its bag is that reader's.
     if (decoded?.enumeration) {
         return NodeRegistry.parseValue(decoded.enumeration, name, parent);
+    }
+    if (!decoded && mcosRefused(variable)) {
+        return null;
     }
     const typed = buildTypedNodeFromMcos(variable.className, name, parent, decoded?.properties, decoded?.elements, decoded?.dimensions, warnings);
     if (typed) {

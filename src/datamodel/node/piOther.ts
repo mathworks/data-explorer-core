@@ -8,20 +8,25 @@
 // helpers that read a value out of one, and the display convention's spellings), so it
 // stays inside the extractable data-model layer. Behavior:
 //   - Nested MATLAB objects ({ _object_class, _properties }) are flattened ONE
-//     level: `CoderInfo.StorageClass`, `CoderInfo.CSCPackageName`, …
+//     level: `CoderInfo.StorageClass`, `CoderInfo.CSCPackageName`, … So is an object
+//     array of one 1x1 element ({ _array_class, _elements: [{ _properties }] }), which is
+//     how a binary dictionary spells a nested object; an object array of any other
+//     extent is its summary, `<1x2 Simulink.lookuptable.Breakpoint>`.
 //   - Typed scalars ({ _type, _value }) are unwrapped to their value, and a typed empty is `[ ]`.
 //   - A `cdata` value — complex text, or a text dictionary's MAT stream — is read
 //     and laid out the way the same channel shows a real value of its shape; a sparse
 //     array, however it is spelled, is its summary (`<3x3 sparse double>`).
-//   - Objects nested DEEPER than one level render as their `[ClassName]`.
+//   - Objects nested DEEPER than one level render as their `[ClassName]`, and object
+//     arrays there as their `<mxn ClassName>`.
 //   - Arrays render as `[a, b, c]`.
 // Values are read-only display strings; the bag is never mutated.
 
 import { isMatCdata, uudecode } from '../parser/CdataCodec.js';
 import { encodedClass, encodedStream, isEncodedValue } from '../parser/EncodedValue.js';
 import { decodeMatStream } from '../parser/MatParser.js';
-import { EMPTY_NUMERIC, sparseSummaryForm } from '../display/DisplayConvention.js';
+import { EMPTY_NUMERIC, sparseSummaryForm, summaryForm } from '../display/DisplayConvention.js';
 import {
+    ENUMERATION_KEY,
     complexClassTag,
     formatComplexNum,
     formatMatlabNum,
@@ -165,16 +170,53 @@ function formatStream(bytes: Uint8Array): string {
     }
 }
 
-// A nested MATLAB object { _object_class, _properties } → its class + prop bag.
+// An object array { _array_class, _dimensions, _elements: [{ _properties }, …] }: how a
+// binary dictionary spells every object value, a text dictionary an object array (a bus's
+// elements) or a mixed-class object, and a `.mat` an object array property (McosParser,
+// `_array_type: 'MATLABArray'`). Not a struct, cell or string array, which share the
+// envelope, and not an enumeration value, whose elements are enumerals with an empty bag.
+// Unshaped, its elements are a row.
+function asObjectArray(v: Record<string, unknown>): { className: string; dims: number[]; elements: Record<string, unknown>[] } | null {
+    const elements = v._elements;
+    if (typeof v._array_class !== 'string' || v._array_class === '' || !Array.isArray(elements)) {
+        return null;
+    }
+    if (v._array_type === 'Struct' || v._array_type === 'Cell' || v._array_type === 'String') {
+        return null;
+    }
+    if (!elements.every((e) => isPlainObject(e) && isPlainObject(e._properties) && !(ENUMERATION_KEY in e))) {
+        return null;
+    }
+    const dims = Array.isArray(v._dimensions) ? (v._dimensions as number[]) : [1, elements.length];
+    return { className: v._array_class, dims, elements: elements as Record<string, unknown>[] };
+}
+
+// One element in a 1x1 shape: the object that element is.
+function isOneObject(arr: { dims: number[]; elements: unknown[] }): boolean {
+    return arr.elements.length === 1 && arr.dims.every((d) => d === 1);
+}
+
+// A nested MATLAB object { _object_class, _properties }, or an object array of one 1x1
+// element → its class + prop bag. The element's own class is the object's, and the array's
+// only where it has none, as the node layer reads one (DataNode.elementClassOf).
 function asNestedObject(v: Record<string, unknown>): { className: string; props: Record<string, unknown> } | null {
     if (isPlainObject(v._properties)) {
         return { className: String(v._object_class ?? ''), props: v._properties as Record<string, unknown> };
+    }
+    const arr = asObjectArray(v);
+    if (arr && isOneObject(arr)) {
+        const own = arr.elements[0]._object_class;
+        return {
+            className: typeof own === 'string' && own !== '' ? own : arr.className,
+            props: arr.elements[0]._properties as Record<string, unknown>,
+        };
     }
     return null;
 }
 
 // Format a leaf value (primitive / array / deeper object) for display. A deeper
-// object collapses to its `[ClassName]` rather than recursing (one-level rule).
+// object collapses to its `[ClassName]` rather than recursing (one-level rule), and an
+// object array that is not one object to its summary, at any depth.
 function formatOther(v: unknown): string {
     if (v === undefined || v === null) {
         return '';
@@ -191,7 +233,8 @@ function formatOther(v: unknown): string {
         if (obj) {
             return obj.className ? '[' + obj.className + ']' : '[object]';
         }
-        return '';
+        const arr = asObjectArray(v);
+        return arr ? summaryForm(arr.dims, arr.className) : '';
     }
     return String(v);
 }

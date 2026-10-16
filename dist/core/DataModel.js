@@ -340,7 +340,11 @@ export function createSession(opts = {}) {
         const matNode = MatNode.fromParsed(parsed, srcId);
         return registerSource(srcId, matNode, meta, parsed.warnings);
     }
-    function addProjectSource(srcId, files, meta) {
+    // `warnings` is the same caller-owned sink `addDataSource` takes, for the same caller:
+    // `ingest` unzips a `.prj` itself, so a store member it could not read is known there and
+    // nowhere else — `files` simply lacks it. Those come first in the source's one list, ahead
+    // of what the project reader finds in the members it was handed.
+    function addProjectSource(srcId, files, meta, warnings) {
         // srcId may be a full path or an opaque URI, so prefer meta.path when the host
         // supplied one; either way the node is labelled with the basename, `.prj` or
         // `matlab.toml` included, because the tree shows a file. parseProject wants a project
@@ -360,7 +364,7 @@ export function createSession(opts = {}) {
         const basename = basenameOf(path);
         const parsed = parseProject(files, projectFallbackName(path));
         const projectNode = ProjectNode.fromParsed(parsed, basename);
-        return registerSource(srcId, projectNode, meta, parsed.warnings);
+        return registerSource(srcId, projectNode, meta, warnings?.length ? [...warnings, ...parsed.warnings] : parsed.warnings);
     }
     // The *Parsed entry points take `unknown` because the host parsed the file itself
     // (on a worker, say) and hands the result back across a boundary that erased its

@@ -18,8 +18,8 @@ export function wrapDerivedVariable(node) {
 export function modelMcosVariable(variable, decoded, name, parent) {
     return classMap.modelMcosVariable(variable, decoded, name, parent);
 }
-export function attachMcosDecoded(blobBytes, variables) {
-    classMap.attachMcosDecoded(blobBytes, variables);
+export function attachMcosDecoded(blobBytes, variables, warnings, rootPath) {
+    classMap.attachMcosDecoded(blobBytes, variables, warnings, rootPath);
 }
 export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded };
 //# sourceMappingURL=NodeRegistry.js.map

@@ -106,17 +106,34 @@ export function parseDims(dimension) {
  * A package with no `data/chunk0.xml` at all still throws, because that is not a
  * dictionary this reader can answer for at all — there is no content to hand back and
  * warn beside. The line between the throw and a warning is whether the part is there:
- * present-and-unreadable is a short read, absent is not a `.sldd`.
+ * present-and-unreadable is a short read, absent is not a `.sldd`. A chunk the package
+ * holds and that could not be inflated (it runs past the size its directory entry
+ * declares, see `unzipEntries`) is present-and-unreadable: an empty dictionary, and a
+ * `source-unreadable` warning saying why.
  */
 export function parseBinarySldd(arrayBuffer, warnings) {
     const uint8 = new Uint8Array(arrayBuffer);
-    const entries = unzipEntries(uint8);
+    const unreadable = [];
+    const entries = unzipEntries(uint8, undefined, unreadable);
     const decoder = new TextDecoder();
+    const lostChunk = unreadable.find((m) => m.name === DATA_PART_XML);
     const dataXml = entries[DATA_PART_XML];
-    if (!dataXml) {
+    if (!dataXml && !lostChunk) {
         throw new Error(`Missing ${DATA_PART_XML} in binary SLDD`);
     }
-    const xmlString = decoder.decode(dataXml);
+    for (const m of unreadable) {
+        if (m === lostChunk)
+            continue;
+        // Any other member is pass-through bytes this reader reads little or nothing out of
+        // (the release, the System Composer catalog), so one piece of the package is lost and
+        // the dictionary's entries are not. A save writes the package back without it.
+        warnings?.push({
+            code: 'part-unreadable',
+            message: `The dictionary part "${m.name}" could not be read (it ${m.reason}), so it was left out.`,
+            part: m.name,
+        });
+    }
+    const xmlString = dataXml ? decoder.decode(dataXml) : '';
     const zipMetadata = {};
     for (const [name, data] of Object.entries(entries)) {
         if (name !== DATA_PART_XML) {
@@ -129,6 +146,19 @@ export function parseBinarySldd(arrayBuffer, warnings) {
     const stamps = zipMemberStamps(uint8);
     if (stamps) {
         recordPackageStamps(zipMetadata, stamps);
+    }
+    if (lostChunk) {
+        // The chunk is the one part this reader reads the dictionary out of, so its loss is
+        // the source's, as for a chunk that inflates and then does not parse. Reported here,
+        // where the reason is known, and the empty text read without a sink: the only thing
+        // `parseBinarySlddParts` could add about it is that it holds no <DataSource>, which is
+        // the same lost dictionary reported a second time.
+        warnings?.push({
+            code: 'source-unreadable',
+            message: `The dictionary part "${DATA_PART_XML}" could not be read (it ${lostChunk.reason}), `
+                + 'so this dictionary reads as empty.',
+        });
+        return parseBinarySlddParts(xmlString, zipMetadata);
     }
     return parseBinarySlddParts(xmlString, zipMetadata, warnings);
 }

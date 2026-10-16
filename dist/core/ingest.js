@@ -79,11 +79,21 @@ export function ingest(session, content, opts) {
         return session.addProjectSource(id, { [TOML_PROJECT_FILE]: text }, meta);
     }
     if (isProjectFile(filename)) {
-        const entries = unzipEntries(new Uint8Array(requireBinary(content, ext)));
+        // The second branch that unzips here, and so the second that carries a finding onward
+        // by hand: a store member that could not be inflated (it runs past the size its
+        // directory entry declares) is absent from `files`, and only this unzip knows it was
+        // in the package.
+        const unreadable = [];
+        const entries = unzipEntries(new Uint8Array(requireBinary(content, ext)), undefined, unreadable);
         const files = {};
         for (const [name, bytesU8] of Object.entries(entries))
             files[name] = strFromU8(bytesU8);
-        return session.addProjectSource(id, files, meta);
+        const warnings = unreadable.map((m) => ({
+            code: 'part-unreadable',
+            message: `The project entry "${m.name}" could not be read (it ${m.reason}), so it was left out.`,
+            part: m.name,
+        }));
+        return session.addProjectSource(id, files, meta, warnings);
     }
     // The list names the four extensions AND the one file NAME, because a project is now
     // identified either way (see isProjectFile) — and a list that reads as exhaustive while

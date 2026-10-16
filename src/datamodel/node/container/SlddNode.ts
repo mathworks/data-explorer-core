@@ -14,7 +14,7 @@ import type { ParseWarning } from '../../parser/ParseWarning.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 import { SC_PART, emptyCatalogBag } from '../../parser/ScCatalog.js';
 import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.js';
-import { takeDecodeFailures } from '../../parser/EncodedValue.js';
+import { takeDecodeFailures, takePartialDecodes } from '../../parser/EncodedValue.js';
 import { heldByTextDictionary } from '../../parser/MatWriter.js';
 import { attachChunkFrame, attachEntrySource, readFrameOf, readSourceOf } from '../../parser/EntrySource.js';
 
@@ -255,8 +255,11 @@ export default class SlddNode extends ContainerNode {
                     // shown as not decoded and saved unchanged; the node layer that finds
                     // out records why, and this is the read that can say so (see
                     // EncodedValue.recordDecodeFailure). Taken before too, so that nothing
-                    // recorded outside this read is reported against this entry.
+                    // recorded outside this read is reported against this entry. And one
+                    // that decoded with an object in it read only in part is shown from what
+                    // was read and says so, collected the same way (recordPartialDecode).
                     takeDecodeFailures();
+                    takePartialDecodes();
                     // A text dictionary's complex text is this file's own, which a save writes
                     // back as read where it has no stream to be instead
                     // (MatWriter.heldByTextDictionary). A binary dictionary's is not: the record
@@ -282,6 +285,9 @@ export default class SlddNode extends ContainerNode {
                                 + `because ${reason}; it is shown as not decoded and saved unchanged.`,
                             part: String(entry.name),
                         });
+                    }
+                    for (const message of takePartialDecodes()) {
+                        warnings?.push({ code: 'part-unreadable', message, part: String(entry.name) });
                     }
                 }
             });
