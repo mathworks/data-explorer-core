@@ -1,4 +1,5 @@
 import DataNode from '../DataNode.js';
+import type { ValueShape } from '../DataNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
@@ -24,6 +25,7 @@ export default class StructNode extends DataNode {
     removeChildNode(child: BaseNode): void;
     restoreChildNode(child: BaseNode, index: number): void;
     canAddChild(): boolean;
+    _shapeAfterChildEdit(op: 'add' | 'remove'): ValueShape | null;
     addChildNode(): DataNode;
     execAddChild(): ChildAddEdit<DataNode> | null;
     execRemoveChild(child?: BaseNode): ChildUndoRedo | null;

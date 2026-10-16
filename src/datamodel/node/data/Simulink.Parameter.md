@@ -177,9 +177,16 @@ the custom-class scoping guard).
 ## Open questions / deferred
 
 - **Struct Value editing**: a struct Value's fields are edited on its child rows, and an
-  edit there is held to MATLAB's rules (see Value, above). Not judged: a STRUCTURAL edit.
-  Removing the last field of a nested struct gives `struct('a', struct())`, which MATLAB
-  refuses (`field_struct_nofields`), and is not refused here.
+  edit there is held to MATLAB's rules (see Value, above). So is a STRUCTURAL edit (the
+  ruling A2, 2026-10-15 evening), as measured by `probe_parameter_value.m`'s `structural`
+  cases: the gates (`canAddChild`, `canRemoveChild`) close on an edit whose resulting Value
+  MATLAB refuses, and `_structuralRefusal` gives MATLAB's message
+  (`ParameterNode._refuseStructureBelow`). Refused: removing the last field of a struct
+  nested in the Value (`struct('a', struct())`, PrmInvalidStruct), and, in a struct array,
+  adding or removing a field of a struct, or an element of an array, in one element
+  (PrmInvalidArrayOfStructs, or the outermost scalar struct's PrmInvalidStruct). Accepted:
+  every other field or element added or removed, and the Value's own last field
+  (`struct()` is a valid Value).
 
 - **Dimensions property**: complex validation rules exist (positive integer row
   vector, no trailing 1 for >2D, symbolic expressions). Not currently editable in

@@ -10,6 +10,18 @@ export interface SetPropertyResult {
     invalidValue: string;
     validValue: string;
 }
+/** What MATLAB compares across the elements of a Parameter's array of structures (DataNode._differsFromTwins). */
+export interface ValueShape {
+    cls: string;
+    complex: boolean;
+    dims: number[];
+    /** A scalar struct's field names, in order: what adding or removing a field changes. */
+    fields?: string[];
+}
+/** Do two values agree as MATLAB requires across an array of structures (DataNode._differsFromTwins)? */
+export declare function sameShape(a: ValueShape, b: ValueShape): boolean;
+/** The name Add gives a struct's new field: `field`, or the first `fieldN` none of `names` is. */
+export declare function newFieldName(names: string[]): string;
 /**
  * The ENTRY `node` belongs to — itself when it IS one, null when nothing above it is.
  *
@@ -260,6 +272,37 @@ export default class DataNode extends BaseNode {
      * a value (its override); every other node asks its rows, which is what it is written from.
      */
     _unwritableStream(): MatWriteError | null;
+    /**
+     * The shape of the value this node holds, as _differsFromTwins compares it: its class and its
+     * size, and a scalar struct's fields. A MatlabVariableNode's says whether it is complex.
+     */
+    _valueShape(): ValueShape;
+    /**
+     * Would this node, holding a value of shape `after`, be unlike its twin in another element of a
+     * struct array, at or below `root`? The twin is the node at the same path under the other
+     * element, and "unlike" is MATLAB's rule for a Simulink.Parameter's array of structures
+     * (probe_parameter_value.m): a field has to agree across the elements in class, in complexity
+     * and in size, except that a char field may differ in length (`struct('a', {'x', 'yz'})` is
+     * accepted), and a struct in one in its fields. A struct array nested in a field is held to it
+     * too, at every level the path crosses. Asked for a value edit (MatlabVariableNode
+     * _differsFromTwinsAfter) and for a structural one (ParameterNode._refuseStructureBelow).
+     */
+    _differsFromTwins(after: ValueShape, root: BaseNode): boolean;
+    /**
+     * MATLAB's refusal of adding a child to this node (`op` 'add') or removing one ('remove'), in
+     * its words, or null. Asked by the gates (canAddChild, canRemoveChild) of a struct and of an
+     * array, of what holds the value they are in: the nearest node above that is not a struct, as
+     * a value edit asks it (MatlabVariableNode._valueHolderRefusal). For a Parameter's Value, that
+     * is the Parameter (ParameterNode._refuseStructureBelow, the maintainer's ruling A2, 2026-10-15
+     * evening).
+     */
+    _structuralRefusal(op: 'add' | 'remove'): string | null;
+    /**
+     * The shape this node's value would have once Add gives it a child (`op` 'add') or a child is
+     * removed ('remove'), or null where there is none to judge. A removal is judged as of the
+     * last child: in a value MATLAB accepts, the removal of any one of them gets the same answer.
+     */
+    _shapeAfterChildEdit(_op: 'add' | 'remove'): ValueShape | null;
     /**
      * Is this node at or under one whose value is still an encoded stream? The structural
      * gates (canAddChild, canRemoveChild) of every class that has them ask this, for the

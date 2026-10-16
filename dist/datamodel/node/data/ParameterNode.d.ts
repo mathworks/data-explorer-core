@@ -24,6 +24,7 @@ export default class ParameterNode extends DataNode {
     get valueEditable(): boolean;
     _refuseStreamValue(stringValue: string): SetPropertyResult | null;
     _refuseValueBelow(node: MatlabVariableNode, parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
+    _refuseStructureBelow(container: DataNode, op: 'add' | 'remove'): string | null;
     _adoptValueNode(rawValue: unknown, edited?: boolean): void;
     static _needsValueRow(valueNode: BaseNode): boolean;
     childStructureChanged(child: BaseNode): void;

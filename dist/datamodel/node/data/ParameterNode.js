@@ -151,6 +151,57 @@ export default class ParameterNode extends DataNode {
         }
         return null;
     }
+    // A structural edit below this node, at any depth of its Value: `container` gains a child
+    // (`op` 'add') or loses one ('remove'). It gets the answer MATLAB gives on assigning the Value
+    // it would leave (the maintainer's ruling A2, 2026-10-15 evening: "structural edits follow
+    // the same policy as value edits"), measured by probe_parameter_value.m's `structural` cases:
+    //
+    //   - removing the last field of a struct nested in the Value, at any depth, is refused:
+    //     `struct('a', struct())` is not a valid structure. The Value itself may lose its last
+    //     one, `struct()` being a valid Value;
+    //   - in a struct array, a field added to or removed from a struct in one element, or an
+    //     element added to or removed from an array in one, leaves that element unlike the
+    //     others, and is refused (_differsFromTwins);
+    //   - every other one is accepted: a field or an array element added or removed in a scalar
+    //     struct, and an element of an array Value.
+    //
+    // The message is the outermost struct's, as for a value edit (_refuseValueBelow). The Value
+    // itself (`container` is the value node) is not judged here: what Add or a removal leaves of
+    // it is a struct, or an array MATLAB takes. Answered for the gates the containers ask
+    // (canAddChild, canRemoveChild), so a refused edit is not made.
+    _refuseStructureBelow(container, op) {
+        const valueNode = this._valueNode;
+        if (!valueNode || container === valueNode) {
+            return null;
+        }
+        // The node just under the Value, and whether the way down to `container` crosses an
+        // element of a struct array, which is where it has twins to be unlike (_differsFromTwins).
+        let under = container;
+        let inArray = false;
+        while (under && under.parent !== valueNode) {
+            inArray = inArray || (!!under._subscript && under.parent?.className === 'struct');
+            under = under.parent;
+        }
+        if (!under) {
+            return null;
+        }
+        inArray = inArray || !!under._subscript;
+        // Outside a struct array, only a struct can be left a Value MATLAB refuses, by losing its
+        // last field: asked before the shape, which for an array is a walk of its elements, and
+        // the gates are asked of every row.
+        if (!inArray && container.className !== 'struct') {
+            return null;
+        }
+        const after = container._shapeAfterChildEdit(op);
+        if (!after) {
+            return null;
+        }
+        const emptied = !!after.fields && after.fields.length === 0;
+        if (emptied || (inArray && container._differsFromTwins(after, valueNode))) {
+            return under._subscript ? PRM_INVALID_ARRAY_OF_STRUCTS : PRM_INVALID_STRUCT;
+        }
+        return null;
+    }
     // Model `rawValue` as this Parameter's Value, giving it a tree row only when
     // the resulting node has children — array elements or struct fields, i.e. the
     // only cases where expanding the row reveals anything. A SCALAR of any class

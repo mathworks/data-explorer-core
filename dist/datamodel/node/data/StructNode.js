@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import DataNode, { isFieldBag } from '../DataNode.js';
+import DataNode, { isFieldBag, newFieldName } from '../DataNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import PropName from '../../prop/PropName.js';
@@ -267,9 +267,12 @@ export default class StructNode extends DataNode {
             }
         }
     }
-    // Neither gate opens inside a value still in its encoded stream (DataNode._encodedReadOnly).
+    // Neither gate opens inside a value still in its encoded stream (DataNode._encodedReadOnly),
+    // nor where what holds the value refuses the one the edit would leave: in a Simulink.Parameter's
+    // Value, MATLAB's rules for it (DataNode._structuralRefusal, the ruling A2).
     canRemoveChild() {
-        return !this._encodedReadOnly && this._isScalarStruct && !this._isElementNode && this.children.length > 0;
+        return !this._encodedReadOnly && this._isScalarStruct && !this._isElementNode && this.children.length > 0
+            && !this._structuralRefusal('remove');
     }
     removeChildNode(child) {
         const idx = this.children.indexOf(child);
@@ -295,17 +298,18 @@ export default class StructNode extends DataNode {
         this._markModified();
     }
     canAddChild() {
-        return !this._encodedReadOnly && this._isScalarStruct && !this._isElementNode;
+        return !this._encodedReadOnly && this._isScalarStruct && !this._isElementNode && !this._structuralRefusal('add');
+    }
+    // The fields it would have once Add gives it one or a field is removed (DataNode._shapeAfterChildEdit).
+    _shapeAfterChildEdit(op) {
+        if (!this._isScalarStruct || this._isElementNode) {
+            return null;
+        }
+        const fields = this.children.map((c) => c.name);
+        return { cls: 'struct', complex: false, dims: [1, 1], fields: op === 'add' ? [...fields, newFieldName(fields)] : fields.slice(0, -1) };
     }
     addChildNode() {
-        const baseName = 'field';
-        const existing = new Set(this.children.map((c) => c.name));
-        let uniqueName = baseName;
-        let i = 1;
-        while (existing.has(uniqueName)) {
-            uniqueName = baseName + i;
-            i++;
-        }
+        const uniqueName = newFieldName(this.children.map((c) => c.name));
         const childNode = NodeRegistry.parseValue(0, uniqueName, this);
         this.addChild(childNode);
         if (!this.serial._fields) {

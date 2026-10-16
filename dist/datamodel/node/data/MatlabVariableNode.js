@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import DataNode from '../DataNode.js';
+import DataNode, { newFieldName } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import * as NodeRegistry from '../NodeRegistry.js';
@@ -114,30 +114,6 @@ function holdsMcosObject(variable) {
  */
 function matlabClassOf(variable) {
     return variable.isLogical ? 'logical' : variable.className;
-}
-/**
- * The shape of the value a node holds. The class of a complex value is its own
- * (_complexClass), not the 'double' its className reports for a complex scalar; any node but a
- * MATLAB value (a struct) is its class and its size.
- */
-function shapeOf(node) {
-    if (node instanceof MatlabVariableNode) {
-        const complex = node._isComplexValue();
-        return { cls: complex ? node._complexClass() : node.className, complex, dims: node.dims };
-    }
-    return { cls: node.className, complex: false, dims: node.dims ?? [1, 1] };
-}
-/** Do two values agree as MATLAB requires across an array of structures (_differsFromTwinsAfter)? */
-function sameShape(a, b) {
-    if (a.cls !== b.cls || a.complex !== b.complex) {
-        return false;
-    }
-    if (a.cls === 'char') {
-        return true;
-    }
-    const da = effectiveDims(a.dims);
-    const db = effectiveDims(b.dims);
-    return da.length === db.length && da.every((d, i) => d === db[i]);
 }
 export default class MatlabVariableNode extends DataNode {
     constructor(name, parent, serial) {
@@ -1009,34 +985,41 @@ export default class MatlabVariableNode extends DataNode {
      * into an int8 field is an int8, as the field then is.
      */
     _differsFromTwinsAfter(parsed, root) {
-        const after = this._shapeAfter(parsed);
-        // The names from just under `below` down to this node.
-        const path = [];
-        let below = this;
-        for (let n = this.parent; n; below = n, n = n.parent) {
-            // An element of a struct array carries its subscript (BaseNode.isElementName); a field
-            // never does. The tree's own answer, not a count of the dimensions, which a pasted value
-            // can declare as bigints no count takes.
-            if (n.className === 'struct' && below._subscript) {
-                for (const element of n.children) {
-                    if (element === below) {
-                        continue;
-                    }
-                    let twin = element;
-                    for (const name of path) {
-                        twin = twin?.children.find((c) => c.name === name);
-                    }
-                    if (twin && !sameShape(after, shapeOf(twin))) {
-                        return true;
-                    }
-                }
-            }
-            if (n === root) {
-                break;
-            }
-            path.unshift(below.name);
+        return this._differsFromTwins(this._shapeAfter(parsed), root);
+    }
+    /**
+     * The class of a complex value is its own (_complexClass), not the 'double' its className
+     * reports for a complex scalar (DataNode._valueShape).
+     */
+    _valueShape() {
+        const shape = super._valueShape();
+        if (this._isComplexValue()) {
+            shape.cls = this._complexClass();
+            shape.complex = true;
         }
-        return false;
+        return shape;
+    }
+    /**
+     * The shape Add or a removal would leave (DataNode._shapeAfterChildEdit): a struct one field
+     * more (_addStructField); an untyped `[]` a struct of one field (_convertToStructAndAddField);
+     * an array or a string array one element more or fewer, shaped as _updateDimsForCount shapes
+     * it, or as the collapse to one element does. Not a cell's: a Parameter refuses a cell Value
+     * whole, and does not judge what is in one, a value edit there included.
+     */
+    _shapeAfterChildEdit(op) {
+        if (this._kind === 'scalar' && this._scalarType === 'struct') {
+            const fields = this.children.map((c) => c.name);
+            return op === 'add' ? { cls: 'struct', complex: false, dims: [1, 1], fields: [...fields, newFieldName(fields)] } : null;
+        }
+        if (this._kind === 'array' && op === 'add' && this._elements.length === 0) {
+            return { cls: 'struct', complex: false, dims: [1, 1], fields: ['field'] };
+        }
+        if (this._kind === 'array' || this._kind === 'string') {
+            const count = this._elements.length + (op === 'add' ? 1 : -1);
+            const dims = count === 1 ? [1, 1] : count === 0 ? [1, 0] : this._dims[1] === 1 ? [count, 1] : [1, count];
+            return { ...this._valueShape(), dims };
+        }
+        return null;
     }
     /** Class, complexity and size of this value once `parsed` is applied, as _applyParsed applies it. */
     _shapeAfter(parsed) {
@@ -1486,8 +1469,10 @@ export default class MatlabVariableNode extends DataNode {
         if (this._unexpandedStruct()) {
             return false;
         }
+        // Nor where what holds the value refuses the one Add would leave: in a Simulink.Parameter's
+        // Value, MATLAB's rules for it (DataNode._structuralRefusal, the ruling A2).
         if (this._kind === 'scalar' && this._scalarType === 'struct') {
-            return true;
+            return !this._structuralRefusal('add');
         }
         if (this._kind === 'scalar') {
             return false;
@@ -1504,7 +1489,7 @@ export default class MatlabVariableNode extends DataNode {
         if (this._kind === 'string' && this._dims[0] === 1 && this._dims[1] === 1) {
             return false;
         }
-        return true;
+        return !this._structuralRefusal('add');
     }
     addChildNode() {
         if (this._kind === 'array' && this._elements.length === 0) {
@@ -1544,14 +1529,7 @@ export default class MatlabVariableNode extends DataNode {
         return child;
     }
     _addStructField() {
-        const baseName = 'field';
-        const existing = new Set(this.children.map((c) => c.name));
-        let uniqueName = baseName;
-        let i = 1;
-        while (existing.has(uniqueName)) {
-            uniqueName = baseName + i;
-            i++;
-        }
+        const uniqueName = newFieldName(this.children.map((c) => c.name));
         const child = MatlabVariableNode._createScalar(0, 'double', uniqueName, this);
         this.addChild(child);
         this._markModified();
@@ -1604,7 +1582,8 @@ export default class MatlabVariableNode extends DataNode {
         if ((this._kind === 'array' || this._kind === 'cell' || this._kind === 'string') && this._dims[0] > 1 && this._dims[1] > 1) {
             return false;
         }
-        return this.children.length > 0;
+        // Nor where what holds the value refuses the one the removal would leave (canAddChild).
+        return this.children.length > 0 && !this._structuralRefusal('remove');
     }
     removeChildNode(child) {
         const idx = this.children.indexOf(child);

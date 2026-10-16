@@ -8,6 +8,7 @@ import { dimsText, isExactDigits, isSpellableExtent, isTextExtent } from '../par
 import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
 import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
+import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
 import { charTextFromCodes, decimalCharXml, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
@@ -137,6 +138,30 @@ function textDictionaryMetadata(md) {
         }
     }
     return out;
+}
+/** Do two values agree as MATLAB requires across an array of structures (DataNode._differsFromTwins)? */
+export function sameShape(a, b) {
+    if (a.cls !== b.cls || a.complex !== b.complex) {
+        return false;
+    }
+    if (a.fields && b.fields && (a.fields.length !== b.fields.length || a.fields.some((f, i) => f !== b.fields[i]))) {
+        return false;
+    }
+    if (a.cls === 'char') {
+        return true;
+    }
+    const da = effectiveDims(a.dims);
+    const db = effectiveDims(b.dims);
+    return da.length === db.length && da.every((d, i) => d === db[i]);
+}
+/** The name Add gives a struct's new field: `field`, or the first `fieldN` none of `names` is. */
+export function newFieldName(names) {
+    const existing = new Set(names);
+    let name = 'field';
+    for (let i = 1; existing.has(name); i++) {
+        name = 'field' + i;
+    }
+    return name;
 }
 /**
  * The ENTRY `node` belongs to — itself when it IS one, null when nothing above it is.
@@ -940,6 +965,82 @@ export default class DataNode extends BaseNode {
                 return refusal;
             }
         }
+        return null;
+    }
+    /**
+     * The shape of the value this node holds, as _differsFromTwins compares it: its class and its
+     * size, and a scalar struct's fields. A MatlabVariableNode's says whether it is complex.
+     */
+    _valueShape() {
+        const dims = this.dims ?? [1, 1];
+        const shape = { cls: this.className, complex: false, dims };
+        if (this.className === 'struct' && elementCount(dims) === 1) {
+            shape.fields = this.children.map((c) => c.name);
+        }
+        return shape;
+    }
+    /**
+     * Would this node, holding a value of shape `after`, be unlike its twin in another element of a
+     * struct array, at or below `root`? The twin is the node at the same path under the other
+     * element, and "unlike" is MATLAB's rule for a Simulink.Parameter's array of structures
+     * (probe_parameter_value.m): a field has to agree across the elements in class, in complexity
+     * and in size, except that a char field may differ in length (`struct('a', {'x', 'yz'})` is
+     * accepted), and a struct in one in its fields. A struct array nested in a field is held to it
+     * too, at every level the path crosses. Asked for a value edit (MatlabVariableNode
+     * _differsFromTwinsAfter) and for a structural one (ParameterNode._refuseStructureBelow).
+     */
+    _differsFromTwins(after, root) {
+        // The names from just under `below` down to this node.
+        const path = [];
+        let below = this;
+        for (let n = this.parent; n; below = n, n = n.parent) {
+            // An element of a struct array carries its subscript (BaseNode.isElementName); a field
+            // never does. The tree's own answer, not a count of the dimensions, which a pasted value
+            // can declare as bigints no count takes.
+            if (n.className === 'struct' && below._subscript) {
+                for (const element of n.children) {
+                    if (element === below) {
+                        continue;
+                    }
+                    let twin = element;
+                    for (const name of path) {
+                        twin = twin?.children.find((c) => c.name === name);
+                    }
+                    if (twin && !sameShape(after, twin._valueShape())) {
+                        return true;
+                    }
+                }
+            }
+            if (n === root) {
+                break;
+            }
+            path.unshift(below.name);
+        }
+        return false;
+    }
+    /**
+     * MATLAB's refusal of adding a child to this node (`op` 'add') or removing one ('remove'), in
+     * its words, or null. Asked by the gates (canAddChild, canRemoveChild) of a struct and of an
+     * array, of what holds the value they are in: the nearest node above that is not a struct, as
+     * a value edit asks it (MatlabVariableNode._valueHolderRefusal). For a Parameter's Value, that
+     * is the Parameter (ParameterNode._refuseStructureBelow, the maintainer's ruling A2, 2026-10-15
+     * evening).
+     */
+    _structuralRefusal(op) {
+        let holder = this.parent;
+        while (holder && holder.className === 'struct') {
+            holder = holder.parent;
+        }
+        const refuse = holder
+            ?._refuseStructureBelow;
+        return typeof refuse === 'function' ? refuse.call(holder, this, op) : null;
+    }
+    /**
+     * The shape this node's value would have once Add gives it a child (`op` 'add') or a child is
+     * removed ('remove'), or null where there is none to judge. A removal is judged as of the
+     * last child: in a value MATLAB accepts, the removal of any one of them gets the same answer.
+     */
+    _shapeAfterChildEdit(_op) {
         return null;
     }
     /**

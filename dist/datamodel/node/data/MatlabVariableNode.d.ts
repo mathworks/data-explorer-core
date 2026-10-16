@@ -1,5 +1,5 @@
 import DataNode from '../DataNode.js';
-import type { SetPropertyResult } from '../DataNode.js';
+import type { SetPropertyResult, ValueShape } from '../DataNode.js';
 import type { PropClass, MatlabVariableKind } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
@@ -11,12 +11,6 @@ import { type EncodedValue } from '../../parser/EncodedValue.js';
 import { MatWriteError } from '../../parser/MatWriter.js';
 import { type SparseData } from '../../parser/SparseData.js';
 export type { MatVariable };
-/** What MATLAB compares across the elements of a Parameter's array of structures. */
-interface ValueShape {
-    cls: string;
-    complex: boolean;
-    dims: number[];
-}
 export default class MatlabVariableNode extends DataNode {
     _kind: MatlabVariableKind;
     _scalarValue: unknown;
@@ -208,6 +202,19 @@ export default class MatlabVariableNode extends DataNode {
      * into an int8 field is an int8, as the field then is.
      */
     _differsFromTwinsAfter(parsed: ParsedValue, root: BaseNode): boolean;
+    /**
+     * The class of a complex value is its own (_complexClass), not the 'double' its className
+     * reports for a complex scalar (DataNode._valueShape).
+     */
+    _valueShape(): ValueShape;
+    /**
+     * The shape Add or a removal would leave (DataNode._shapeAfterChildEdit): a struct one field
+     * more (_addStructField); an untyped `[]` a struct of one field (_convertToStructAndAddField);
+     * an array or a string array one element more or fewer, shaped as _updateDimsForCount shapes
+     * it, or as the collapse to one element does. Not a cell's: a Parameter refuses a cell Value
+     * whole, and does not judge what is in one, a value edit there included.
+     */
+    _shapeAfterChildEdit(op: 'add' | 'remove'): ValueShape | null;
     /** Class, complexity and size of this value once `parsed` is applied, as _applyParsed applies it. */
     _shapeAfter(parsed: ParsedValue): ValueShape;
     _isConstrainedChild(): boolean;
