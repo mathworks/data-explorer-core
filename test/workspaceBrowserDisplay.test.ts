@@ -399,36 +399,28 @@ describe('a char or string holding a control character shows it as MATLAB spells
 // str_2x2x2, a 2x2x2 string, into a text dictionary ("Cannot save the value of parameter
 // "MxData" because it uses an unsupported data format") and wrote `"value": null`, which it
 // reads back as a 1x0 double (text_readback.truth.json). MatlabVariableNode.parseScalar read the
-// null as the double 0, a value the file does not hold, shown `0` and editable. The entry, as
-// MATLAB wrote it, is dispcat_text.null.json, put back into the dictionary here (see
-// trim-display-fixtures.mjs's TEXT_NULL for why it is kept beside it).
-describe("a text dictionary's null value is the empty MATLAB reads back, and says so", () => {
+// null as the double 0, a value the file does not hold, shown `0` and editable. The entry is in
+// dispcat_text.sldd as MATLAB wrote it. MATLAB opens that file again without complaint, so the
+// reader raises no warning for it (test/parseWarnings.test.ts's corpus sweep reads this file too).
+describe("a text dictionary's null value is the empty MATLAB reads back", () => {
   interface Readback { name: string; equal: boolean; classAfter: string; sizeAfter: number[] }
   const rb = (JSON.parse(readFileSync(here('text_readback.truth.json'), 'utf8')) as Readback[]).find((r) => r.name === 'str_2x2x2')!;
-  const withNull = (): { session: any; root: any; written: any[] } => {
-    const text = JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8'));
-    const written = JSON.parse(readFileSync(here('dispcat_text.null.json'), 'utf8'));
-    text.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.push(...written);
-    const session = createSession();
-    const root: any = ingest(session, buffer(new TextEncoder().encode(JSON.stringify(text, null, '\t'))), { filename: 'dispcat_text.sldd' });
-    return { session, root, written };
-  };
+  const written = (JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8'))
+    .__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries as any[])
+    .filter((e) => e.name === 'str_2x2x2');
 
-  it('str_2x2x2 reads as a 1x0 double, shown as every numeric empty is, with a warning', () => {
-    const { root, written } = withNull();
+  it('str_2x2x2 reads as a 1x0 double, shown as every numeric empty is, and raises no warning', () => {
     expect(written.map((e: any) => [e.name, e.value])).toEqual([['str_2x2x2', null]]);
     expect([rb.equal, rb.classAfter, rb.sizeAfter]).toEqual([false, 'double', [1, 0]]);
+    const { root } = open('dispcat_text.sldd');
     const node = entry(root, 'str_2x2x2');
     expect([node.className, node.dims, node.children.length, node.toRow().Value]).toEqual([rb.classAfter, rb.sizeAfter, 0, '[ ]']);
     expect(node.toRow().Value).toBe(browser('dx_double_1x0').Value);
-    // One warning, for the one null in the file, and none for the dictionary without it.
-    expect((root.warnings || []).map((w: any) => [w.code, w.part])).toEqual([['part-unreadable', 'str_2x2x2']]);
-    expect(root.warnings[0].message).toContain('has no value in the file');
-    expect(open('dispcat_text.sldd').root.warnings).toBeUndefined();
+    expect(root.warnings).toBeUndefined();
   });
 
   it('written back as the null the file holds, untouched', () => {
-    const { session, root } = withNull();
+    const { session, root } = open('dispcat_text.sldd');
     const saved = JSON.parse(session.serializeSource(root.name).text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
     expect(saved.find((e: any) => e.name === 'str_2x2x2').value).toBeNull();
   });

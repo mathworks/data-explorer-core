@@ -941,6 +941,17 @@
 						}
 					},
 					{
+						"name": "str_2x2x2",
+						"metadata": {
+							"uuid": "a27e6d6b-9f7a-405c-83bf-93f6a84d64af",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.668934",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": null
+					},
+					{
 						"name": "str_newline",
 						"metadata": {
 							"uuid": "3c00509d-b018-4b1f-9458-e6ad3ecd57ce",

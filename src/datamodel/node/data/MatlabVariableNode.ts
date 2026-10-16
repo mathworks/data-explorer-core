@@ -3672,7 +3672,8 @@ export default class MatlabVariableNode extends DataNode {
     // 1x0 double (test/fixtures/display, str_2x2x2). It was read as the double 0, a value the
     // file does not hold, shown `0` and editable (P8 of the 2026-10-16 list). It is the empty
     // MATLAB reads, shown `[ ]`, and an untouched one is written back as the null it was
-    // (serializeValue replays `_rawInput`); SlddNode.parse warns that the file held no value.
+    // (serializeValue replays `_rawInput`). No parse warning: MATLAB opens the file without
+    // complaint, so the entry is the file read correctly (test/parseWarnings.test.ts's rule).
     if (rawVal === null) {
       const empty = new MatlabVariableNode(name, parent, {});
       empty._rawInput = rawVal;

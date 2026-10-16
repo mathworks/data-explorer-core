@@ -223,20 +223,6 @@ export default class SlddNode extends ContainerNode {
                     if (source && frame && source.frame === frame && frame.xml === node.rawXml) {
                         attachEntrySource(entryNode, source);
                     }
-                    // A text dictionary's `"value": null` holds no value: MATLAB writes one for a
-                    // value it could not save there, with a warning of its own at the save
-                    // ("uses an unsupported data format"), and reads it back as an empty 1x0
-                    // double, which is what it shows (MatlabVariableNode.parseScalar). Nothing in
-                    // the file says what the value was, so this says that it was not kept.
-                    if (node.sourceFormat !== 'xml' && entry.value === null) {
-                        warnings?.push({
-                            code: 'part-unreadable',
-                            message: `"${String(entry.name)}" has no value in the file ("value": null, which MATLAB `
-                                + 'writes for a value it could not save in a text dictionary); it reads as the empty '
-                                + '1x0 double MATLAB reads it as.',
-                            part: String(entry.name),
-                        });
-                    }
                     for (const reason of takeDecodeFailures()) {
                         warnings?.push({
                             code: 'part-unreadable',
