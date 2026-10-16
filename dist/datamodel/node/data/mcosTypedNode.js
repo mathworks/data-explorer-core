@@ -168,38 +168,78 @@ export function decodeMcosObjects(blobBytes, variables) {
 // includes a variable decoded by an EARLIER attach that this one does not repeat, so a
 // tree attached twice reflects only the second. Walked with an explicit stack, because
 // a struct nested a few thousand deep is a legal file.
-export function attachMcosDecoded(blobBytes, variables) {
+//
+// `warnings`, when given, gets one `part-unreadable` per object the decoder could not read
+// or read only in part (McosParser.McosDecodeIssue), named by its MATLAB path the way
+// MatParser.collectUndecoded names an undecoded piece: `s.f`, `s(2).f`, `c{3}`, 1-based.
+// `rootPath` is what a top-level variable is called in that path when it is not its own
+// name: a dictionary's encoded value, whose stream MATLAB writes unnamed, is the entry's.
+export function attachMcosDecoded(blobBytes, variables, warnings, rootPath) {
     const opaque = [];
-    const stack = variables.slice();
+    // Pushed in reverse, so the walk, and the warnings with it, go in file order.
+    const stack = variables.map((v) => ({ v, up: null, name: rootPath ?? v.name, index: 0 })).reverse();
     while (stack.length > 0) {
-        const v = stack.pop();
+        const step = stack.pop();
+        const v = step.v;
         if (v.isOpaque) {
-            opaque.push(v);
+            opaque.push(step);
             continue;
         }
+        const children = [];
         if (v.fields) {
-            for (const field of Object.values(v.fields)) {
+            for (const [name, field] of Object.entries(v.fields)) {
                 if (Array.isArray(field)) {
-                    for (const element of field)
-                        stack.push(element);
+                    field.forEach((element, i) => children.push({ v: element, up: step, name, index: i + 1 }));
                 }
                 else {
-                    stack.push(field);
+                    children.push({ v: field, up: step, name, index: 0 });
                 }
             }
         }
         if (v.className === 'cell' && Array.isArray(v.value)) {
             // A slot MatParser could not read is a null, not a variable.
-            for (const cell of v.value) {
+            v.value.forEach((cell, i) => {
                 if (cell)
-                    stack.push(cell);
-            }
+                    children.push({ v: cell, up: step, name: null, index: i + 1 });
+            });
+        }
+        for (let i = children.length - 1; i >= 0; i--)
+            stack.push(children[i]);
+    }
+    const issues = new Map();
+    const decoded = blobBytes && opaque.length > 0 ? decodeMcosVariables(blobBytes, opaque.map((step) => step.v), issues) : null;
+    for (const step of opaque) {
+        const variable = step.v;
+        setMcosDecoded(variable, decoded?.get(variable));
+        const issue = issues.get(variable);
+        // Taken once: a host's tree can hold one variable object in two places.
+        issues.delete(variable);
+        if (issue && warnings) {
+            const path = pathOf(step);
+            warnings.push({
+                code: 'part-unreadable',
+                message: `the MATLAB object "${path}" `
+                    + (issue.refused ? 'could not be decoded, so its properties are not shown' : 'was decoded in part')
+                    + `: ${issue.reason}.`,
+                part: path,
+            });
         }
     }
-    const decoded = blobBytes && opaque.length > 0 ? decodeMcosVariables(blobBytes, opaque) : null;
-    for (const variable of opaque) {
-        setMcosDecoded(variable, decoded?.get(variable));
+}
+function pathOf(step) {
+    const parts = [];
+    for (let s = step; s; s = s.up) {
+        if (!s.up) {
+            parts.push(s.name ?? '');
+        }
+        else if (s.name === null) {
+            parts.push(`{${s.index}}`);
+        }
+        else {
+            parts.push(s.index > 0 ? `(${s.index}).${s.name}` : `.${s.name}`);
+        }
     }
+    return parts.reverse().join('');
 }
 // Model ONE opaque MCOS variable, or null to say "not an MCOS object — model it the
 // container's normal way". Shared verbatim by MatNode (.mat) and ModelNode (.slx

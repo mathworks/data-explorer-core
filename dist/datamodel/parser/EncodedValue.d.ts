@@ -68,6 +68,10 @@ export declare function encodedBytes(v: EncodedValue): EncodedBytes;
 export declare function recordDecodeFailure(reason: string): void;
 /** The decode failures recorded since the last call, which clears them. */
 export declare function takeDecodeFailures(): string[];
+/** Record one message about an encoded value decoded in part (see `partialDecodes`). */
+export declare function recordPartialDecode(message: string): void;
+/** The partial decodes recorded since the last call, which clears them. */
+export declare function takePartialDecodes(): string[];
 /**
  * The bytes of an encoded value when they are a MAT stream this package can read, every
  * element of it whole — or the reason they are not (MatParser.matStreamFailure, which

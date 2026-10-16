@@ -17,7 +17,7 @@ import { subscriptLabel } from '../../display/Subscript.js';
 import { decodeMatStream, functionHandleOf, structElementsHeld } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
-import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
+import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, recordPartialDecode, } from '../../parser/EncodedValue.js';
 import { dimsText, isSize, isStreamSize } from '../../parser/Size.js';
 import { classPhrase, classRefusal, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
@@ -3569,11 +3569,17 @@ export default class MatlabVariableNode extends DataNode {
             return MatlabVariableNode._createEncodedPlaceholder(encoded, name, parent, dims);
         }
         try {
-            NodeRegistry.attachMcosDecoded(decoded.trailingElements[0], [outer]);
+            // What the decoder could not read of an object in the stream is reported under this
+            // value's name, once the node stands (EncodedValue.recordPartialDecode).
+            const partial = [];
+            NodeRegistry.attachMcosDecoded(decoded.trailingElements[0], [outer], partial, name);
             const node = MatlabVariableNode.parseMatVariable(outer, name, parent);
             node._adoptEncoded(encoded);
             if (node instanceof MatlabVariableNode) {
                 node._keepStreamElement(stream.bytes);
+            }
+            for (const warning of partial) {
+                recordPartialDecode(warning.message);
             }
             return node;
         }
@@ -3802,8 +3808,10 @@ export default class MatlabVariableNode extends DataNode {
      */
     static _parseCdataObjects(rawVal, bytes, variable, trailingElements, name, parent) {
         let node;
+        // As parseEncoded's: reported under this value's name once the node stands.
+        const partial = [];
         try {
-            NodeRegistry.attachMcosDecoded(trailingElements[0], [variable]);
+            NodeRegistry.attachMcosDecoded(trailingElements[0], [variable], partial, name);
             node = MatlabVariableNode.parseMatVariable(variable, name, parent);
         }
         catch (_e) {
@@ -3824,6 +3832,9 @@ export default class MatlabVariableNode extends DataNode {
         if (node instanceof MatlabVariableNode) {
             node._rawInput = rawVal;
             node._keepStreamElement(bytes);
+        }
+        for (const warning of partial) {
+            recordPartialDecode(warning.message);
         }
         return node;
     }

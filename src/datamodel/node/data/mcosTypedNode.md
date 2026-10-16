@@ -34,10 +34,15 @@ An MCOS object held in a struct field (of a scalar struct or of any element of a
 struct array) or in a cell element, at any depth, resolves to EXACTLY the node the
 same object gets at top level, apart from its name. Three pieces carry it:
 
-- **`attachMcosDecoded(blob, variables)`** walks the whole parsed tree with an
-  explicit stack, collects every opaque, decodes them in one
+- **`attachMcosDecoded(blob, variables, warnings?, rootPath?)`** walks the whole
+  parsed tree with an explicit stack, collects every opaque, decodes them in one
   `McosParser.decodeMcosVariables` call (keyed per variable, since a nested object
-  has no name), and records each result.
+  has no name), and records each result. What the decoder could not read of one —
+  the confidence gate refused it, or an object it reaches addresses a property block
+  the block reader stopped before — is one `part-unreadable` warning, named by its
+  MATLAB path (`s.f`, `s(2).f`, `c{3}`). Both containers pass their file's warnings;
+  a dictionary's encoded value passes its own, under the entry's name (`rootPath`),
+  which `SlddNode.parse` collects per entry (`EncodedValue.recordPartialDecode`).
 - **The side table, `mcosDecodedTable.ts`**: the results live in a module-level
   `WeakMap` keyed by the parsed variable, not on the variable, which may be a
   host's own object. `mcosDecodedFor(variable)` reads it. A re-attach that no
