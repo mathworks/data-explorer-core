@@ -1049,6 +1049,20 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number):
                         } else {
                             setOwn<MatVariable | MatVariable[]>(fields, fn, [child]);
                         }
+                    } else if (totalElements > 1 && fieldStart + 8 <= end) {
+                        // A slot of a struct array that is not a matrix, its tag whole inside
+                        // the array, is a damaged struct, recorded as one, as pastItsEnd records
+                        // one: MATLAB writes every field of every element as a matrix. It was
+                        // stepped over and left no hole in its field's list, so the elements
+                        // after it moved up one in that field and not in the others: element 3's
+                        // value showed as element 2's, and nothing said so. A tag the end of the
+                        // bytes cuts is not this: it is a cut, and the elements before it are
+                        // kept, as for a struct array cut anywhere else. In a 1x1 such a slot
+                        // only leaves its field out, and nothing moves.
+                        result.value = undecodedValue(dimensions, className);
+                        result.undecoded = 'element ' + (e + 1) + "'s field " + fn
+                            + ' is not a matrix (a data element of type ' + fieldMatrixSub.type + ')';
+                        return result;
                     }
                     offset += fieldMatrixSub.totalSize;
                 }

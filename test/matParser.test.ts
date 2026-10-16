@@ -483,6 +483,112 @@ describe('parseMat — structs', () => {
     expect(v.fields).toEqual({});
   });
 
+  it('records a struct ARRAY with a field slot that is not a matrix as not decoded, and shifts no element onto another', () => {
+    // MATLAB writes every field of every element of a struct array as a matrix, so a slot that
+    // is anything else is a damaged file. The reader stepped over such a slot and left no hole,
+    // so that field's list closed up: here a's list held elements 1 and 3, a host showed element
+    // 3's a as element 2's, and nothing was said. The array is now recorded as one whose field
+    // names lie past its end is: not decoded, with the reason, which parseMat reports. A 1x1
+    // (above) is not this: a slot there only leaves its field out, and nothing moves.
+    const notAMatrix = element(MI.DOUBLE, new Uint8Array(8));
+    const s = structVar(
+      's',
+      ['a', 'b'],
+      [
+        { a: scalarField(1), b: scalarField(2) },
+        { a: notAMatrix, b: scalarField(4) },
+        { a: scalarField(5), b: scalarField(6) },
+      ],
+      [1, 3],
+    );
+    const after = numericVar({ name: 'after', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [7] });
+    const parsed = parseMat(matFile([s, after]));
+    const reason = "element 2's field a is not a matrix (a data element of type 9)";
+    const v = parsed.variables[0];
+    const lists = v.fields && Object.entries(v.fields).map(([name, list]) => [name, (list as MatVariable[]).map((c) => c.value)]);
+    expect([v.value, v.undecoded, lists]).toEqual(['<1x3 struct, not decoded>', reason, null]);
+    expect(shapeOf(v)).toEqual({
+      name: 's',
+      className: 'struct',
+      dimensions: [1, 3],
+      isComplex: false,
+      isLogical: false,
+      value: '<1x3 struct, not decoded>',
+      fields: null,
+      undecoded: reason,
+    });
+    expect(parsed.warnings).toEqual([{ code: 'part-unreadable', message: `"s" was not decoded: ${reason}.`, part: 's' }]);
+    // The variable after it reads as it does without it.
+    expect(shapeOf(parsed.variables[1])).toEqual(shapeOf(only(matFile([after]))));
+
+    // A slot in the small-element form, which keeps its type in the low half of the tag, in a
+    // later element and field: the element is counted from 1, in the order the file holds them.
+    const small = new Uint8Array([MI.INT32, 0, 4, 0, 1, 0, 0, 0]);
+    const late = only(
+      matFile([
+        structVar(
+          'm',
+          ['a', 'b'],
+          [
+            { a: scalarField(1), b: scalarField(2) },
+            { a: scalarField(3), b: scalarField(4) },
+            { a: scalarField(5), b: small },
+            { a: scalarField(7), b: scalarField(8) },
+          ],
+          [2, 2],
+        ),
+      ]),
+    );
+    expect([late.value, late.undecoded]).toEqual(['<2x2 struct, not decoded>', "element 3's field b is not a matrix (a data element of type 5)"]);
+
+    // Named the way MATLAB names it, inside a struct and inside a cell.
+    const nested = parseMat(matFile([structVar('t', ['f'], [{ f: s }]), cellVar('c', [scalarField(1), s])]));
+    expect(nested.warnings.map((w) => [w.part, w.message])).toEqual([
+      ['t.f', `"t.f" was not decoded: ${reason}.`],
+      ['c{2}', `"c{2}" was not decoded: ${reason}.`],
+    ]);
+  });
+
+  it('reads a struct array cut inside a field tag as one cut short, not as one with a slot that is not a matrix', () => {
+    // A file that ends 1 to 7 bytes into a field's tag has no tag there to read, and what it
+    // holds is the elements before the cut: they are kept, and parseMat says how many of the
+    // declared elements could be read, as for a struct array cut anywhere else. Only a tag that
+    // is whole inside the array is a slot that is not a matrix (above).
+    const s = structVar(
+      's',
+      ['a', 'b'],
+      [
+        { a: scalarField(1), b: scalarField(2) },
+        { a: scalarField(3), b: scalarField(4) },
+        { a: scalarField(5), b: scalarField(6) },
+      ],
+      [1, 3],
+    );
+    const file = new Uint8Array(matFile([s]));
+    const slot = scalarField(0).length;
+    const valuesOf = (v: MatVariable) =>
+      v.fields && Object.entries(v.fields).map(([name, list]) => [name, (list as MatVariable[]).map((c) => c.value)]);
+    // Into element 3's a, two slots from the end, and into element 2's b, three from it.
+    for (const [from, want, read] of [
+      [2 * slot, [['a', [1, 3]], ['b', [2, 4]]], 2],
+      [3 * slot, [['a', [1, 3]], ['b', [2]]], 1],
+    ] as const) {
+      for (let k = 1; k <= 7; k++) {
+        const cut = file.slice(0, file.length - from + k).buffer;
+        const parsed = parseMat(cut);
+        expect([from, k, parsed.variables[0].undecoded, valuesOf(parsed.variables[0])]).toEqual([from, k, undefined, want]);
+        expect([from, k, parsed.warnings.map((w) => w.message)]).toEqual([
+          from,
+          k,
+          [
+            `A record at byte 128 declares ${s.length - 8} bytes and the file holds only ${cut.byteLength - 136}, so it was read short.`,
+            `"s" declares 3 element(s) and only ${read} could be read.`,
+          ],
+        ]);
+      }
+    }
+  });
+
   it('ignores padding in the field-name block rather than inventing empty names', () => {
     // Names are fixed-stride and zero-padded; a stride that holds no name at all
     // must not become a '' key.

@@ -701,3 +701,39 @@ describe('a MAT struct array with fields whose bytes hold fewer elements than it
     }
   });
 });
+
+describe('a MAT struct array with a field slot that is not a matrix', () => {
+  const one = (n: number) => numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [n] });
+  // A 1x3 with fields a and b whose element 2's a is a bare double, not a matrix: MATLAB writes
+  // every field of every element as one, so only a damaged file holds this.
+  const damaged = structVar(
+    's',
+    ['a', 'b'],
+    [{ a: one(1), b: one(2) }, { a: element(MI.DOUBLE, new Uint8Array(8)), b: one(4) }, { a: one(5), b: one(6) }],
+    [1, 3],
+  );
+  const opened = (name: string, ...variables: Uint8Array[]): any => createSession().addMatSource(name, matFile(variables));
+  const shown = (n: any) => [n.name, n.displayValue, n.children.length, n.valueEditable];
+  const deep = (n: any): unknown => [n.name, n.displayValue, n.children.map(deep)];
+
+  it('opens as its summary, not decoded, with no rows and no editor, and the file says why', () => {
+    // With the slot stepped over, a's list closed up: the array had three rows, s(2).a showing
+    // element 3's 5 and s(3) no a at all, and the file warned only that two elements were read.
+    const before = numericVar({ name: 'before', cls: CLASS.DOUBLE, dimensions: [1, 2], real: [1, 2] });
+    const after = cellVar('after', [one(9), structVar('', ['a'], [{ a: one(8) }])]);
+    const mat = opened('s.mat', before, damaged, after);
+    const [b, s, a] = mat.children;
+    expect(shown(s)).toEqual(['s', '<1x3 struct, not decoded>', 0, false]);
+    expect(mat.warnings).toEqual([
+      {
+        code: 'part-unreadable',
+        message: `"s" was not decoded: element 2's field a is not a matrix (a data element of type 9).`,
+        part: 's',
+      },
+    ]);
+    // The file opens, and every other variable in it is what it is in a file without it.
+    const control = opened('c.mat', before, after);
+    expect([b, a].map(deep)).toEqual(control.children.map(deep));
+    expect(control.warnings).toBeUndefined();
+  });
+});
