@@ -7,6 +7,7 @@ export default class ContainerNode extends BaseNode {
     get isContainer(): boolean;
     get tableColumnConfig(): TableColumnConfig;
     toRow(): null;
+    get valueEditable(): boolean;
     flatten(): BaseNode[];
 }
 //# sourceMappingURL=ContainerNode.d.ts.map
