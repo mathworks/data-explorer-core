@@ -12,7 +12,7 @@ import { parseMat } from '../datamodel/parser/MatParser.js';
 import type { ParsedMat } from '../datamodel/parser/MatParser.js';
 import { parseProject } from '../datamodel/parser/ProjectParser.js';
 import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js';
-import { catalogRenames, scJsonTextWithRenames } from '../datamodel/parser/ScCatalog.js';
+import { catalogFunctionRenames, catalogRenames, scJsonTextWithRenames } from '../datamodel/parser/ScCatalog.js';
 // The name reductions and the expression reading, from the leaf modules that hold the
 // single copy of each. This file used to spell all three itself; the usage index needs
 // the same three, and a rule stated twice is a rule that drifts (see fileKinds).
@@ -1987,11 +1987,12 @@ function serializeSource(srcId: string): SerializedSource | null {
   // Composer catalog among them. That catalog names each architectural entry it models, so
   // an entry renamed since the read is renamed in it here, in the text, as the binary save
   // does in its member, or it reopens as its raw class (a struct type as a data interface).
+  // So is a service interface's function, which the catalog keeps a copy of.
   const text = JSON.stringify(source.serializeJson(), null, '\t');
   return {
     kind: 'text',
     sourceFormat: source.sourceFormat,
-    text: scJsonTextWithRenames(text, catalogRenames(source.systemComposer)),
+    text: scJsonTextWithRenames(text, catalogRenames(source.systemComposer), catalogFunctionRenames(source.systemComposer)),
   };
 }
 

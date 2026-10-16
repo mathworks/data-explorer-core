@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 import { BaseBusNode, BaseBusElementNode, PropName, PropKind, PropClassAtom } from './BaseBusNode.js';
+import { renameFunctionInCatalog, renamedPrototype } from '../../parser/ScCatalog.js';
 const CLASS_NAME = 'Simulink.ServiceBus';
 // A ServiceBus element is a Simulink.FunctionElement (one service function). The
 // element name is the function name, and the Value column shows the function's
@@ -47,11 +48,27 @@ export class FunctionElementNode extends BaseBusElementNode {
         }
         // The usual name checks (identifier, sibling uniqueness) still decide; the
         // Prototype moves only when the Name did.
+        const oldName = this.name;
         const result = super.setProperty(propName, stringValue);
         if (result === true) {
             this.Prototype = prototype;
+            this._functionRenamed(oldName, this.name);
         }
         return result;
+    }
+    // The System Composer catalog keeps its own copy of each function of a service
+    // interface (`p_Name` / `p_FunctionPrototype`), so a rename is recorded there for the save
+    // to carry (ScCatalog.renameFunctionInCatalog). Only for the function of an ENTRY: its
+    // bus's parent is a section (the one parent with `_entryRenamed`), whose parent is the
+    // dictionary holding the catalog. Undo replays this setter, so it records the way back.
+    _functionRenamed(oldName, newName) {
+        const bus = this.parent;
+        const section = bus?.parent;
+        if (!bus || typeof section?._entryRenamed !== 'function') {
+            return;
+        }
+        const dictionary = section.parent;
+        renameFunctionInCatalog(dictionary?.systemComposer, bus.name, oldName, newName);
     }
     // The Prototype is written back only once it is no longer the one read, so a
     // FunctionElement that was not renamed saves its Prototype exactly as it came in.
@@ -61,24 +78,6 @@ export class FunctionElementNode extends BaseBusElementNode {
             props.Prototype = this.Prototype;
         }
     }
-}
-// `[outputs =] name(inputs)`, the form a Prototype takes, split around the function name:
-// what precedes it, the name itself, and the input list. Neither side may hold a second
-// call, a second `=`, or anything after the closing parenthesis, so a match finds exactly
-// one function name.
-const PROTOTYPE_RE = /^(\s*(?:(?:\[[^[\]()=]*\]|[A-Za-z]\w*)\s*=\s*)?)([A-Za-z]\w*)(\s*\([^()=]*\)\s*)$/;
-// `prototype` with its function name `from` replaced by `to` (that token only, so an output
-// or input spelled like the function keeps its spelling), or null when the Prototype does
-// not have that form or declares a function other than `from`.
-function renamedPrototype(prototype, from, to) {
-    if (typeof prototype !== 'string') {
-        return null;
-    }
-    const m = PROTOTYPE_RE.exec(prototype);
-    if (!m || m[2] !== from) {
-        return null;
-    }
-    return m[1] + to + m[3];
 }
 export class ServiceBusNode extends BaseBusNode {
     // A derived ServiceBus is an Architectural Data ServiceInterface.

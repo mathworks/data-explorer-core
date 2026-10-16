@@ -147,18 +147,48 @@ export declare function catalogRenames(catalog: SystemComposerCatalog | null | u
  * the definition and its own value-type descriptor, never a reference elsewhere that
  * happens to share the name), and every other byte as it was.
  *
+ * A renamed function of a service interface (`functionRenames`, from
+ * `catalogFunctionRenames`) is renamed at its own `p_Name` and in its `p_FunctionPrototype`.
+ *
  * All renames are applied in one pass over the member as read, so a swap of two names
  * (A -> B and B -> A) lands as a swap rather than as two definitions named A.
  */
-export declare function scXmlWithRenames(xml: string, renames: ReadonlyMap<string, string>): string;
+export declare function scXmlWithRenames(xml: string, renames: ReadonlyMap<string, string>, functionRenames?: CatalogFunctionRenames): string;
 /**
  * An uncompressed-text dictionary's whole JSON text, with every renamed definition's name
  * written where the definition spells it in the interface dictionary part, and every other
- * character as it was: the text twin of `scXmlWithRenames`, and the same sites.
+ * character as it was: the text twin of `scXmlWithRenames`, and the same sites, a renamed
+ * function's among them.
  *
  * The save writes a text dictionary's parts back as read, so this is what carries a rename
  * into its catalog. All renames are applied in one pass over the text as written, so a swap
  * of two names lands as a swap.
  */
-export declare function scJsonTextWithRenames(text: string, renames: ReadonlyMap<string, string>): string;
+export declare function scJsonTextWithRenames(text: string, renames: ReadonlyMap<string, string>, functionRenames?: CatalogFunctionRenames): string;
+/**
+ * Every function of the catalog renamed since it was read: interface name in the file ->
+ * (function name in the file -> function name now). The interface is keyed by its name in
+ * the FILE, so a function rename and a rename of its interface, in either order, both land.
+ */
+export type CatalogFunctionRenames = ReadonlyMap<string, ReadonlyMap<string, string>>;
+/**
+ * Record that the function `oldName` of the service interface entry now called
+ * `interfaceName` is renamed `newName`, so the save renames the catalog's copy of it
+ * (`catalogFunctionRenames`). Nothing is recorded for an interface the catalog does not
+ * list. Returns whether anything was recorded.
+ */
+export declare function renameFunctionInCatalog(catalog: SystemComposerCatalog | null | undefined, interfaceName: string, oldName: string, newName: string): boolean;
+/**
+ * Every function of this catalog renamed since it was read, per interface: interface name
+ * in the file -> (function name in the file -> name now). Empty for a catalog none has been
+ * renamed in, and for none at all.
+ */
+export declare function catalogFunctionRenames(catalog: SystemComposerCatalog | null | undefined): Map<string, Map<string, string>>;
+/**
+ * `prototype` with its function name `from` replaced by `to` (that token only, so an output or
+ * input spelled like the function keeps its spelling), or null when the Prototype does not have
+ * that form or declares a function other than `from`. The rule MATLAB's FunctionElement Name
+ * setter follows (Simulink.FunctionElement.md), shared by the node and the catalog's copy.
+ */
+export declare function renamedPrototype(prototype: unknown, from: string, to: string): string | null;
 //# sourceMappingURL=ScCatalog.d.ts.map

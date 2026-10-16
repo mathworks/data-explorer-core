@@ -22,6 +22,7 @@ import { createSession, ingest } from '../src/index.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 import { serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { ServiceBusNode } from '../src/datamodel/node/data/ServiceBusNode.js';
+import { SC_PART_XML } from '../src/datamodel/parser/ScCatalog.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
@@ -246,4 +247,184 @@ describe('the Prototype forms MATLAB writes', () => {
       expect((elem.serializeValue() as any)._properties.Prototype).toBe(after);
     });
   }
+});
+
+// The System Composer interface dictionary keeps its own copy of each function of a service
+// interface (`p_Name` / `p_FunctionPrototype` in a `p_FunctionElements` child of the interface's
+// definition), which MATLAB keeps equal to the FunctionElement. A rename used to move the data
+// part only, so the saved catalog went on naming the old function. The save now renames the
+// copy too, through the same rename record and the same one-pass writers an entry rename uses,
+// at those two sites of that function of that interface and at no other byte.
+describe('a FunctionElement rename carries into the System Composer catalog', () => {
+  const textOf = (name: string): string => readFileSync(fixture(name), 'utf8');
+  /** `text` with each [from, to] replaced, each `from` asserted to occur exactly once. */
+  const replacedOnce = (text: string, pairs: [string, string][]): string =>
+    pairs.reduce((t, [from, to]) => {
+      expect(t.split(from), from).toHaveLength(2);
+      return t.replace(from, to);
+    }, text);
+  const entry = (src: any, name: string): any => (src.flatten() as any[]).find((n) => n.isEntry && n.name === name);
+  // An edit stamps its entry's lastmod, as MATLAB does, and undo leaves the stamp: the one
+  // byte range of the ServiceInterface entry the expected text takes from the save itself.
+  const SI_LASTMOD = '"lastmod": "20260806T125935.992797"';
+  const expectedFor = (saved: string, entryName: string, pairs: [string, string][]): string => {
+    const stamped = JSON.parse(saved).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries
+      .find((e: any) => e.name === entryName).metadata.lastmod;
+    return replacedOnce(textOf('arch.sldd'), [[SI_LASTMOD, `"lastmod": "${stamped}"`], ...pairs]);
+  };
+  const expectSaved = (saved: string, entryName: string, pairs: [string, string][], label?: string): void => {
+    expect(saved, label).toBe(expectedFor(saved, entryName, pairs));
+  };
+
+  // arch.sldd's ServiceInterface: f and f1 are in the catalog, f2 (added without System
+  // Composer) is not. A no-op save is the file's bytes, so a rename's save is too, but for
+  // the four sites the rename owns.
+  const RENAMED_F: [string, string][] = [
+    ['"Name": "f",', '"Name": "compute",'],
+    ['"Prototype": "y = f(u,v)"', '"Prototype": "y = compute(u,v)"'],
+    ['"p_FunctionPrototype": "y = f(u,v)",', '"p_FunctionPrototype": "y = compute(u,v)",'],
+    ['"p_Name": "f",', '"p_Name": "compute",'],
+  ];
+
+  it('text: the save renames the function in the catalog, and changes no other byte', () => {
+    const { s, src } = openText('arch.sldd');
+    expect(rename(s, src, functionElement(src, 'f'), 'compute')).toBe(true);
+    expectSaved(savedText(s, src), 'ServiceInterface', RENAMED_F);
+  });
+
+  it('text: undo saves the file as read, redo saves the rename again', () => {
+    const { s, src } = openText('arch.sldd');
+    expect(rename(s, src, functionElement(src, 'f'), 'compute')).toBe(true);
+    s.undo();
+    expectSaved(savedText(s, src), 'ServiceInterface', []);
+    s.redo();
+    expectSaved(savedText(s, src), 'ServiceInterface', RENAMED_F);
+  });
+
+  it('text: a chain saves its last name, a swap lands as a swap, a rename back saves nothing', () => {
+    const { s, src } = openText('arch.sldd');
+    const f = functionElement(src, 'f');
+    const f1 = functionElement(src, 'f1');
+    expect(rename(s, src, f, 'g')).toBe(true);
+    expect(rename(s, src, f, 'compute')).toBe(true);
+    expectSaved(savedText(s, src), 'ServiceInterface', RENAMED_F);
+
+    expect(rename(s, src, f, 'f')).toBe(true);
+    expectSaved(savedText(s, src), 'ServiceInterface', []);
+
+    expect(rename(s, src, f, 'tmp')).toBe(true);
+    expect(rename(s, src, f1, 'f')).toBe(true);
+    expect(rename(s, src, f, 'f1')).toBe(true);
+    const catalog = JSON.stringify(JSON.parse(savedText(s, src)).__MW_TEXT_PARTS__['__MW_TEXT_PART__/simulink/systemcomposer/interfaceDictionary']);
+    expect(catalog).toContain('"p_FunctionPrototype":"y = f1(u,v)","p_Index":"1","p_Name":"f1"');
+    expect(catalog).toContain('"p_FunctionPrototype":"y = f(u,v,w,y)","p_Index":"2","p_Name":"f"');
+  });
+
+  it('text: a function the catalog does not list leaves the catalog as read', () => {
+    const { s, src } = openText('arch.sldd');
+    expect(rename(s, src, functionElement(src, 'f2'), 'svc')).toBe(true);
+    expectSaved(savedText(s, src), 'ServiceInterface', [
+      ['"Name": "f2",', '"Name": "svc",'],
+      ['"Prototype": "y = f2(u,v)"', '"Prototype": "y = svc(u,v)"'],
+    ]);
+  });
+
+  it('text: a rename of the interface and of its function both land, in either order', () => {
+    const RENAMED_BOTH: [string, string][] = [
+      ['"name": "ServiceInterface",', '"name": "Svc",'],
+      ...RENAMED_F,
+      ['"p_Name": "ServiceInterface",', '"p_Name": "Svc",'],
+    ];
+    for (const interfaceFirst of [true, false]) {
+      const { s, src } = openText('arch.sldd');
+      const bus = entry(src, 'ServiceInterface');
+      const f = functionElement(src, 'f');
+      if (interfaceFirst) { expect(bus.setProperty('Name', 'Svc')).toBe(true); }
+      expect(rename(s, src, f, 'compute')).toBe(true);
+      if (!interfaceFirst) { expect(bus.setProperty('Name', 'Svc')).toBe(true); }
+      expectSaved(savedText(s, src), 'Svc', RENAMED_BOTH, `interface first: ${interfaceFirst}`);
+    }
+  });
+
+  it('text: a refused rename records nothing for the catalog', () => {
+    const { s, src } = openText('arch.sldd');
+    const f = functionElement(src, 'f');
+    expect(f.setProperty('Name', 'f1')).not.toBe(true);
+    expect(f.setProperty('Name', '1bad')).not.toBe(true);
+    expect(savedText(s, src)).toBe(textOf('arch.sldd'));
+  });
+
+  it('text: the saved file reopens with the function and its Prototype renamed', () => {
+    const { s, src } = openText('arch.sldd');
+    expect(rename(s, src, functionElement(src, 'f'), 'compute')).toBe(true);
+    const again: any = ingest(createSession(), new TextEncoder().encode(savedText(s, src)).buffer as ArrayBuffer, { filename: 'arch.sldd' });
+    const fn = functionElement(again, 'compute');
+    expect(fn.Prototype).toBe('y = compute(u,v)');
+    expect(entry(again, 'ServiceInterface').kind).toBe(entry(src, 'ServiceInterface').kind);
+  });
+
+  // The catalog member of a compressed-binary dictionary, in the shape of the corpus's one
+  // binary dictionary with a service interface (example/dd1.sldd, R2027a), trimmed to the
+  // definitions the chunk above holds: a ServiceInterface with f and g, and a data interface.
+  const FN_XML = (name: string, prototype: string, args: string[]) =>
+    `\n        <p_FunctionElements type="systemcomposer.architecture.model.swarch.FunctionElement" uuid="fe-${name}">${args.map((a) =>
+      `\n          <p_FunctionArguments type="systemcomposer.architecture.model.swarch.FunctionArgument" uuid="fa-${name}-${a}">\n            <p_Name>${a}</p_Name>\n          </p_FunctionArguments>`).join('')}
+          <p_FunctionPrototype>${prototype}</p_FunctionPrototype>
+          <p_Index>1</p_Index>
+          <p_Name>${name}</p_Name>
+        </p_FunctionElements>`;
+  const SC_XML = `<?xml version="1.0"?>
+<MF0 packageUris="http://schema.mathworks.com/mf0/systemcomposer_architecture_model/3.21">
+  <systemcomposer.architecture.model.SystemComposerModel type="systemcomposer.architecture.model.SystemComposerModel" uuid="m">
+    <p_Name>svc</p_Name>
+    <p_PortInterfaceCatalog type="systemcomposer.architecture.model.interface.InterfaceCatalog" uuid="c">
+      <p_Interfaces type="systemcomposer.architecture.model.interface.CompositeDataInterface" uuid="d">
+        <p_Name>f</p_Name>
+      </p_Interfaces>
+      <p_Interfaces type="systemcomposer.architecture.model.swarch.ServiceInterface" uuid="s">${FN_XML('f', 'y = f(u)', ['u', 'y'])}${FN_XML('g', '[a,b] = g(g)', ['g', 'a', 'b'])}
+        <p_Name>ServiceInterface</p_Name>
+      </p_Interfaces>
+    </p_PortInterfaceCatalog>
+  </systemcomposer.architecture.model.SystemComposerModel>
+</MF0>
+`;
+  const openBinaryWithCatalog = () => {
+    const s = createSession();
+    const src: any = s.addDataSource('mem://svc', parseBinarySlddParts(CHUNK, { [SC_PART_XML]: new TextEncoder().encode(SC_XML) }), { path: 'svc.sldd' });
+    return { s, src };
+  };
+  const savedCatalog = (s: any, src: any): string =>
+    new TextDecoder().decode(unzipSync(s.serializeSource(src.name).bytes)[SC_PART_XML]);
+
+  it('binary: the save renames the function in the catalog member, and changes no other byte', () => {
+    const { s, src } = openBinaryWithCatalog();
+    expect(entry(src, 'ServiceInterface').kind).toBe('Service Interface');
+    expect(rename(s, src, functionElement(src, 'f'), 'step')).toBe(true);
+    expect(rename(s, src, functionElement(src, 'g'), 'h')).toBe(true);
+    // The data interface named f is another definition, and g's argument named g stays.
+    expect(savedCatalog(s, src)).toBe(replacedOnce(SC_XML, [
+      ['<p_FunctionPrototype>y = f(u)</p_FunctionPrototype>', '<p_FunctionPrototype>y = step(u)</p_FunctionPrototype>'],
+      ['<p_Name>f</p_Name>\n        </p_FunctionElements>', '<p_Name>step</p_Name>\n        </p_FunctionElements>'],
+      ['<p_FunctionPrototype>[a,b] = g(g)</p_FunctionPrototype>', '<p_FunctionPrototype>[a,b] = h(g)</p_FunctionPrototype>'],
+      ['<p_Name>g</p_Name>\n        </p_FunctionElements>', '<p_Name>h</p_Name>\n        </p_FunctionElements>'],
+    ]));
+  });
+
+  it('binary: undo saves the catalog member as read', () => {
+    const { s, src } = openBinaryWithCatalog();
+    expect(rename(s, src, functionElement(src, 'f'), 'step')).toBe(true);
+    s.undo();
+    expect(savedCatalog(s, src)).toBe(SC_XML);
+  });
+
+  it('binary: a rename of the interface and of its function both land', () => {
+    const { s, src } = openBinaryWithCatalog();
+    expect(rename(s, src, functionElement(src, 'f'), 'step')).toBe(true);
+    expect(entry(src, 'ServiceInterface').setProperty('Name', 'Svc')).toBe(true);
+    expect(savedCatalog(s, src)).toBe(replacedOnce(SC_XML, [
+      ['<p_FunctionPrototype>y = f(u)</p_FunctionPrototype>', '<p_FunctionPrototype>y = step(u)</p_FunctionPrototype>'],
+      ['<p_Name>f</p_Name>\n        </p_FunctionElements>', '<p_Name>step</p_Name>\n        </p_FunctionElements>'],
+      ['<p_Name>ServiceInterface</p_Name>', '<p_Name>Svc</p_Name>'],
+    ]));
+  });
 });

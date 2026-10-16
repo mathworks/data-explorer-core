@@ -77,6 +77,22 @@ Prototype in the fixtures and the corpus has the form `y = NAME(args)`, with the
 Name as its function.
 Test: `test/functionElementRename.test.ts`.
 
+The System Composer interface dictionary
+(`simulink/systemcomposer/interfaceDictionary`) keeps its own copy of each
+function of a service interface, a `p_FunctionElements` child of the interface's
+definition with its own `p_Name` and `p_FunctionPrototype`. A rename of the
+function of an entry is recorded for that catalog
+(`ScCatalog.renameFunctionInCatalog`, keyed by the interface's name in the file,
+so a rename of the interface too lands in either order), and the save writes the
+copy's `p_Name` and the function-name token of its `p_FunctionPrototype`, by the
+same rule, at those two sites only: a text dictionary through
+`scJsonTextWithRenames`, a binary one through `scXmlWithRenames`, in the same
+one pass as the entry renames. A function the catalog does not list (`f2` in
+`arch.sldd`) leaves the catalog as read; undo replays the setter, so it records
+the way back.
+Test: `test/functionElementRename.test.ts` ("a FunctionElement rename carries
+into the System Composer catalog").
+
 ### Prototype — auto-appends parentheses
 
 MATLAB auto-normalizes the Prototype:
@@ -126,12 +142,10 @@ objects. Not directly editable through property editors. Managed internally by
 
 ## Open questions / deferred
 
-- **System Composer catalog copy**: an architectural dictionary also lists each
-  function element in its interface catalog
-  (`simulink/systemcomposer/interfaceDictionary`, as `p_Name` and
-  `p_FunctionPrototype`). A rename does not carry into that copy. No element
-  rename does yet, bus element or function element; only entry renames reach
-  the catalog.
+- **System Composer catalog copy of other elements**: a function element's
+  rename reaches the catalog (see "Name — coupled to Prototype"). A bus
+  element's does not, and adding or removing a function leaves the catalog as
+  read, as adding or deleting an entry does.
 
 - **Prototype editing**: not surfaced in the UI. If added, it must enforce the
   format `[outputs =] name(inputs)` and keep the Name in sync.

@@ -74,7 +74,13 @@ export class BaseBusNode extends DataNode {
                     || rawEI._object_class
                     || this.constructor.ELEMENT_CLASS_NAME)
                 : this.constructor.ELEMENT_CLASS_NAME;
-            props.Elements_internal = { _array_class: arrayClass, _dimensions: [elementsInternal.length, 1], _elements: elementsInternal, _mw_element_type: 'MATLABArray' };
+            // `_mw_element_type` only where the bag read had one. MATLAB omits it from this
+            // nested array in a text dictionary (arch.sldd, bus_types_text.sldd), and adding it
+            // made a no-op text save differ from the file at every bus with elements; the
+            // binary reader's bag carries it, and keeps it. The XML writer does not read it.
+            const read = rawEI && typeof rawEI === 'object' && !Array.isArray(rawEI) ? rawEI : null;
+            const elementType = read && '_mw_element_type' in read ? { _mw_element_type: read._mw_element_type } : {};
+            props.Elements_internal = { _array_class: arrayClass, _dimensions: [elementsInternal.length, 1], _elements: elementsInternal, ...elementType };
         }
         else if (isTypedEmpty(rawEI)) {
             // A bus read with no elements: its Elements_internal as the binary reader holds an

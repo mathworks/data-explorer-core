@@ -329,3 +329,62 @@ describe('a textual .sldd save carries a rename into the System Composer catalog
   });
   /* eslint-enable @typescript-eslint/no-explicit-any */
 });
+
+// A save that changes nothing writes nothing new. A bus's elements are rebuilt on every
+// save, and the rebuilt Elements_internal used to carry `_mw_element_type: "MATLABArray"`
+// whatever the bag read had: MATLAB omits that key from this nested array in a text
+// dictionary, so a no-op save of arch.sldd differed from the file at each of its 4 buses.
+// The key is kept where it was read, as the binary reader's bag carries it.
+describe('a textual .sldd save that changes nothing is the file it read', () => {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const textOf = (name: string): string => readFileSync(fixture(name), 'utf8');
+  const savedText = (file: string): string => {
+    const { s } = load(file);
+    const out = s.serializeSource(file)!;
+    expect(out.kind).toBe('text');
+    return out.kind === 'text' ? out.text : '';
+  };
+  const entriesOf = (root: any): any[] => root.children.flatMap((s: any) => s.children);
+  const elementsInternal = (node: any): any => node.serializeValue()._elements[0]._properties.Elements_internal;
+
+  it('saves arch.sldd, untouched, as the bytes of the file', () => {
+    expect(savedText('arch.sldd')).toBe(textOf('arch.sldd'));
+  });
+
+  it('saves arch_binary_as_text.sldd, untouched, as the bytes of the file in the layout a save writes', () => {
+    // make-fixtures.mjs writes this one with one space a level and a final newline;
+    // a save writes MATLAB's tab. Byte for byte against that layout, with nothing exempt.
+    const input = textOf('arch_binary_as_text.sldd');
+    expect(savedText('arch_binary_as_text.sldd')).toBe(JSON.stringify(JSON.parse(input), null, '\t'));
+  });
+
+  it('saves bus_types_text.sldd, untouched, as the bytes of the file', () => {
+    expect(savedText('bus_types_text.sldd')).toBe(textOf('bus_types_text.sldd'));
+  });
+
+  it('adds no _mw_element_type to a text bus that is edited, and keeps one that was read', () => {
+    // arch.sldd's buses were read without the key; typeLink.sldd's with it.
+    const arch = load('arch.sldd');
+    const bus = entriesOf(arch.src).find((e: any) => e.name === 'StructType');
+    expect(bus.execAddChild()).not.toBeNull();
+    expect('_mw_element_type' in elementsInternal(bus)).toBe(false);
+    expect(elementsInternal(bus)._elements).toHaveLength(bus.children.length);
+
+    const linked = load('typeLink.sldd');
+    const withKey = entriesOf(linked.src).filter((e: any) => typeof e.execAddChild === 'function' && e.children.length > 0);
+    expect(withKey.map((b: any) => b.name)).toHaveLength(1);
+    for (const b of withKey) {
+      expect(elementsInternal(b)._mw_element_type, b.name).toBe('MATLABArray');
+    }
+  });
+
+  it('keeps the _mw_element_type the binary reader gives a bus', () => {
+    const { src } = load('arch_binary.sldd');
+    const buses = entriesOf(src).filter((e: any) => e.kind === 'Struct Type' || e.kind === 'Data Interface');
+    expect(buses.map((b: any) => b.name).sort()).toEqual(['DataInterface', 'StructType']);
+    for (const b of buses) {
+      expect(elementsInternal(b)._mw_element_type, b.name).toBe('MATLABArray');
+    }
+  });
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+});
