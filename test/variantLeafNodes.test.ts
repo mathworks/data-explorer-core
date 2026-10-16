@@ -42,10 +42,10 @@ const LEAVES = [
 ] as const;
 
 // The classes whose one property MATLAB's class does not have, so the node shows a key a file
-// already carries but takes no edit of it: Simulink.VariantBank has no Value (R2027a; the
-// 2026-10-16 ruling, group E, C-168). test/variantBankNoValue.test.ts covers it over the banks
-// MATLAB wrote.
-const READ_ONLY = new Set<string>(['Simulink.VariantBank']);
+// already carries but takes no edit of it: Simulink.VariantBank has no Value, and nor has
+// Simulink.VariantBankCoderInfo (R2027a; the 2026-10-16 ruling, group E, C-168 and C-169).
+// test/variantBankNoValue.test.ts covers both over the entries MATLAB wrote.
+const READ_ONLY = new Set<string>(['Simulink.VariantBank', 'Simulink.VariantBankCoderInfo']);
 
 // The `_array_class` a NEW entry is written with, where it differs from the class the node
 // reports for a parsed one. Exactly one class differs, and it differs for a reason MATLAB
@@ -113,7 +113,9 @@ describe('single-property leaf nodes — shared contract', () => {
 });
 
 describe('per-class display differences', () => {
-  it('VariantBank and VariantBankCoderInfo quote their Value like MATLAB', () => {
+  it('VariantBank and VariantBankCoderInfo show a Value their file carries quoted', () => {
+    // Neither MATLAB class has a Value (READ_ONLY above); this is the key only this package's
+    // old writer put in a file, shown read-only.
     for (const Node of [VariantBankNode, VariantBankCoderInfoNode]) {
       const n = Node.parse(wrap('Simulink.VariantBank', { Value: 'b1' }), 'n', null) as any;
       expect(n.displayValue).toBe("'b1'");

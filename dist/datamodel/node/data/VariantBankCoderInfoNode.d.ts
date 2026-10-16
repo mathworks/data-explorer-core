@@ -1,13 +1,17 @@
 import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
+import type { SetPropertyResult } from '../DataNode.js';
 export default class VariantBankCoderInfoNode extends SimulinkObjectNode {
     Value: unknown;
+    readonly _valueInFile: boolean;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>);
     get icon(): string;
     get className(): string;
     get displayValue(): string;
+    get valueEditable(): boolean;
     getProperties(): PropClass[];
+    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _serializedOverrides(): Record<string, unknown>;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): VariantBankCoderInfoNode;
