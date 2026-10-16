@@ -44,16 +44,17 @@ describe('toRow emits schema columns for Parameter/Signal', () => {
     expect(row.storageClass.editable).toBe(true);
   });
 
-  it('SignalNode surfaces a read-only Dimensions Mode column defaulting to "auto"', () => {
+  it('SignalNode surfaces an editable Dimensions Mode column defaulting to "auto"', () => {
     // Confirmed from real MATLAB data (test/parity/gen_codegen_fixture.m probe):
-    // DimensionsMode is a top-level char on Simulink.Signal, default 'auto'.
+    // DimensionsMode is a top-level char on Simulink.Signal, default 'auto'. It is a
+    // dropdown over the Signal's own set (C-030; test/signalEnumProps.test.ts).
     const node = SignalNode.createDefault('s', null);
     const prop = node.getProperties().find((p: any) => p.key === 'dimensionsMode')!;
     expect(prop.column).toBe('dimensionsMode');
-    expect(prop.editor).toBe('label');
+    expect(prop.editor).toBe('select');
     const row: any = node.toRow();
-    // Read-only label props render as plain strings (its omitted default).
-    expect(row.dimensionsMode).toBe('auto');
+    // An editable generic column renders as a select cell (its omitted default).
+    expect(row.dimensionsMode).toEqual({ text: 'auto', editable: true, editor: 'select', options: ['auto', 'Fixed', 'Variable'] });
   });
 
   it('ParameterNode does NOT surface Dimensions Mode (absent on the class)', () => {

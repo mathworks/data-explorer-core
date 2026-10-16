@@ -16,8 +16,10 @@ dimensions, sampling mode, etc.) that a Simulink model can reference. Unlike
 and `valueEditable` is `false`.
 
 The only directly-editable numeric properties surfaced in our UI are **Min** and
-**Max** (validated by `_setMinMax` on `DataNode`). All other properties are either
-read-only labels or delegated to the schema bridge (Code Generation columns).
+**Max** (validated by `_setMinMax` on `DataNode`). **Complexity** and
+**DimensionsMode** are editable dropdowns over the Signal's own enums (validated by
+`_rejectUnknownEnumeral` on `DataNode`). All other properties are either read-only
+labels or delegated to the schema bridge (Code Generation columns).
 
 ## Property table
 
@@ -30,8 +32,8 @@ read-only labels or delegated to the schema bridge (Code Generation columns).
 | Unit | char | public | no | DocUnits or Unit | label | unit expression (parser too complex to mirror) |
 | Description | char | public | yes | Description | textArea | any string |
 | Dimensions | double/char | public | no | — | — | not an editable column (complex multi-type acceptance) |
-| DimensionsMode | char (enum) | public | no | — | — | enum {Fixed, Variable, auto}; not surfaced as editable column |
-| Complexity | char (enum) | public | no | — | — | enum {real, complex, auto}; not surfaced as editable column |
+| DimensionsMode | char (enum) | public | yes | DimensionsMode | select | enum {auto, Fixed, Variable}; default auto |
+| Complexity | char (enum) | public | yes | Complexity | select | enum {auto, real, complex}; default auto |
 | SampleTime | double | public | no | — | — | not surfaced |
 | SamplingMode | char (enum) | public | no | — | — | enum {auto}; not surfaced |
 | InitialValue | char | public | no | — | — | free-form char; not surfaced as editable column |
@@ -87,8 +89,29 @@ These accept only specific tokens (case-insensitive on first char for some):
 - **Complexity**: `real`, `complex`, `auto`. Same error pattern.
 - **SamplingMode**: `auto` only. Same error pattern.
 
-These are NOT editable columns in our UI — they are either non-projected or
-read-only. Validation not mirrored.
+Measured in R2027a (27.1.0.3409468, 2026-10-16): `set(Simulink.Signal, 'Complexity')`
+is `auto|real|complex` and `set(Simulink.Signal, 'DimensionsMode')` is
+`auto|Fixed|Variable`, both defaulting to `auto`, and `mpt.Signal` has the same two.
+`''` is refused too. A text `.sldd` holds a non-default value as a top-level key
+(`"Complexity": "complex"`) and has no key at `auto`, even for a Signal set to
+`complex` and back; a binary one always holds the key
+(`<P Name="Complexity" Class="char">auto</P>`).
+
+**Complexity** and **DimensionsMode** are editable dropdowns (C-030, the 2026-10-16
+group E ruling): `PropSignalComplexity` and `PropSignalDimensionsMode`, in the table
+and in the Property Inspector, both reading the node field. `setProperty` refuses any
+other value with MATLAB's message. Two deliberate differences:
+- MATLAB matches case-insensitively and stores the canonical spelling (`'Complex'` →
+  `complex`, `'fixed'` → `Fixed`). We match exactly, as for BusElement and ValueType;
+  the dropdown only offers canonical spellings.
+- An empty value is a CLEAR (the licence `_rejectUnknownEnumeral` gives every enum),
+  so an undo of an edit can restore absence. It shows and saves as `auto`, never as `''`.
+
+Both save paths write the key when the file had it or the value is not `auto`, so an
+untouched Signal, or one set back to `auto`, saves with no new key, as MATLAB does.
+Test: `test/signalEnumProps.test.ts`.
+
+**SamplingMode** is still a label; its validation is not mirrored.
 
 ### Dimensions — complex multi-type
 
@@ -110,9 +133,13 @@ validation is not mirrored.
   which enforces the finite-real-double-scalar rule. Returns
   `{error, reason: "<Label> must be a finite real double scalar value"}`.
   Test: `test/parity/fidelity/signal.fidelity.test.ts`.
-- Read-only props (DataType, Unit, Dimensions, DimensionsMode, Complexity,
-  SamplingMode, InitialValue): not editable in our UI; editor is `'label'` or
-  column not projected. No dead validation needed.
+- `SignalNode.setProperty('complexity'|'dimensionsMode', ...)` delegates to
+  `DataNode._rejectUnknownEnumeral`, which reads the legal set off the atom the
+  dropdown is built from. Returns `{error, reason: "There is no enumerated value
+  named 'X'."}`. Test: `test/signalEnumProps.test.ts`.
+- Read-only props (DataType, Unit, Dimensions, SamplingMode, InitialValue): not
+  editable in our UI; editor is `'label'` or column not projected. No dead
+  validation needed.
 - Description: free-form char, any string accepted — no validation needed.
 - Schema columns (StorageClass, Alignment): owned by `schemaBridge.ts`.
 
@@ -123,11 +150,19 @@ validation is not mirrored.
 - Binary sldd: same. Test: same file (format 'binary').
 - MATLAB re-open value-equality gate: set Min=-5, Max=10 → MATLAB reads them
   back. Test: same file (gated on DEX_MATLAB_CMD).
+- Complexity/DimensionsMode, both formats: a default Signal set to complex/Variable
+  saves as what MATLAB itself wrote for one (sigC in
+  `test/fixtures/classes_r2027a_{text,binary}.sldd`: the text bag equal as a value,
+  the binary element character for character), and re-parses as set. Test:
+  `test/signalEnumProps.test.ts`. MATLAB R2027a opened a text and a binary file
+  holding that write and read back complex/Variable, with no warning (measured
+  2026-10-16, not a gate in this repo).
 
 ## Open questions / deferred
 
 - **SampleTime**: accepts `0`, positive scalars, `Inf`, `-1` (inherit); rejects
   negative (except -1), arrays, NaN, complex, strings. Not surfaced as a column
   — deferred. Error message is generic "Invalid SampleTime specified".
-- **Dimensions/DimensionsMode**: complex mixed-type acceptance makes it unsafe to
-  expose as editable without a purpose-built parser. Safe as read-only.
+- **Dimensions**: complex mixed-type acceptance makes it unsafe to expose as
+  editable without a purpose-built parser (C-025). Safe as read-only.
+  DimensionsMode, a closed enum, is editable (see above).

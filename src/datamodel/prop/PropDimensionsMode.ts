@@ -26,11 +26,9 @@ import { formatText } from './formatText.js';
 // DEX_MATLAB_CMD set, "MATLAB accepts what we write here" is an expectation, not a
 // result.
 //
-// Only Simulink.BusElement uses this atom. The `dimensionsMode` COLUMN is also
-// filled for Simulink.Signal, but through the declarative schema
-// (schema/props/dataObject.json), which still declares it a label — deliberately,
-// because a Signal's DimensionsMode defaults to 'auto', a value this set does not
-// contain, so the two are separate unlocks with separate enums.
+// Simulink.BusElement and Simulink.ValueType use this atom. A Simulink.Signal's
+// DimensionsMode defaults to 'auto', a value this set does not contain, so it has
+// its own atom over its own set, PropSignalDimensionsMode.
 const OPTIONS = ['Fixed', 'Variable'];
 
 export default class PropDimensionsMode {

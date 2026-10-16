@@ -191,8 +191,9 @@ describe('mpt.Signal is the Simulink.Signal treatment under its own name', () =>
   it('gets the schema-projected typed columns', () => {
     const row = parse('mpt.Signal', SIGNAL_PROPS).toRow() as Record<string, any>;
     expect(row.dimensions).toBe('-1');
-    expect(row.complexity).toBe('auto');
-    expect(row.dimensionsMode).toBe('auto');
+    // Both are select cells (C-030), so their text is what they show.
+    expect(row.complexity.text).toBe('auto');
+    expect(row.dimensionsMode.text).toBe('auto');
     expect(row.storageClass.text).toBe('ExportedGlobal');
   });
 

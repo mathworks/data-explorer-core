@@ -24,10 +24,11 @@ import { formatText } from './formatText.js';
 // DEX_MATLAB_CMD set, "MATLAB accepts what we write here" is an expectation, not a
 // result.
 //
-// Only Simulink.BusElement uses this atom. The `complexity` COLUMN is also filled
-// for Parameter/Signal/ValueType, but through the declarative schema
-// (schema/props/dataObject.json), which still declares it a label — deliberately,
-// because those classes admit a third value ('auto') and are a separate unlock.
+// Simulink.BusElement and Simulink.ValueType use this atom. A Simulink.Signal's
+// Complexity admits a third value, 'auto' (its default), so it has its own atom over
+// its own set, PropSignalComplexity. A Parameter's `complexity` column still comes
+// from the declarative schema (schema/props/dataObject.json), as a label, because a
+// Parameter's Complexity is derived from its Value.
 const OPTIONS = ['real', 'complex'];
 export default class PropComplexity {
     static { this.key = 'complexity'; }

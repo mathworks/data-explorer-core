@@ -396,9 +396,9 @@ describe('unlocked enum atoms', () => {
 
   it('neither set was widened past the enum the source recorded', () => {
     // 'auto' is a legal Complexity/DimensionsMode for Simulink.Signal, and these
-    // atoms belong to Simulink.BusElement, which does not have it. The two surfaces
-    // share a column name and nothing else; the Signal one is schema-driven and
-    // still read-only.
+    // atoms belong to Simulink.BusElement and Simulink.ValueType, which do not have
+    // it. The Signal has its own atoms over its own sets (PropSignalComplexity,
+    // PropSignalDimensionsMode); the two share a column name and nothing else.
     expect(PropComplexity.readOptions()).not.toContain('auto');
     expect(PropDimensionsMode.readOptions()).not.toContain('auto');
   });

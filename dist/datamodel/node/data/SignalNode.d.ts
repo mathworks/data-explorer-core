@@ -1,6 +1,6 @@
 import DataNode from '../DataNode.js';
 import type { SetPropertyResult } from '../DataNode.js';
-import type { PropClass } from '../BaseNode.js';
+import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 export default class SignalNode extends DataNode {
     DataType: string;
@@ -8,6 +8,8 @@ export default class SignalNode extends DataNode {
     Max: number | undefined;
     Unit: string;
     Description: string;
+    Complexity: string;
+    DimensionsMode: string;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>);
     get icon(): string;
     get className(): string;
@@ -15,9 +17,11 @@ export default class SignalNode extends DataNode {
     get valueEditable(): boolean;
     get dataType(): string;
     getProperties(): PropClass[];
+    getPILayout(): PIGroupDef[] | null;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _getSerializedProperties(): Record<string, unknown>;
     serializeValue(): unknown;
+    _enumOverrides(sp: Record<string, unknown>): Record<string, unknown>;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): SignalNode;
     static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): SignalNode;

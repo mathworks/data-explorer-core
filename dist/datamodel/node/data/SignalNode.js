@@ -7,10 +7,22 @@ import PropMin from '../../prop/PropMin.js';
 import PropMax from '../../prop/PropMax.js';
 import PropUnit from '../../prop/PropUnit.js';
 import PropDescription from '../../prop/PropDescription.js';
+import PropSignalComplexity from '../../prop/PropSignalComplexity.js';
+import PropSignalDimensionsMode from '../../prop/PropSignalDimensionsMode.js';
 import { withSourceKeys } from './BaseBusNode.js';
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 const CLASS_NAME = 'Simulink.Signal';
+// Complexity and DimensionsMode are editable node fields, so the table and the Property Inspector
+// read them through these atoms (the Signal's own enums, auto included) rather than through the
+// schema descriptors, which read the source bag and are labels. In place, by key, so the column
+// order and the schema layout's order stay what the schema authored. The schema keeps both
+// descriptors: Parameter's complexity is one too, and stays a label, derived from its Value.
+const ENUM_ATOMS = new Map([
+    ['complexity', PropSignalComplexity],
+    ['dimensionsMode', PropSignalDimensionsMode],
+]);
+const withEnumAtoms = (props) => props.map((p) => ENUM_ATOMS.get(p.key) ?? p);
 export default class SignalNode extends DataNode {
     constructor(name, parent, props, serial) {
         super(name, parent, serial);
@@ -26,6 +38,8 @@ export default class SignalNode extends DataNode {
         this.Max = props.Max;
         this.Unit = props.DocUnits || props.Unit || '';
         this.Description = props.Description || '';
+        this.Complexity = props.Complexity || 'auto';
+        this.DimensionsMode = props.DimensionsMode || 'auto';
     }
     get icon() { return this.isDerived ? 'serviceInterfaces' : 'wsSignal'; }
     // Report the class the FILE actually holds — same reason as ParameterNode's:
@@ -41,9 +55,14 @@ export default class SignalNode extends DataNode {
     // Data Type column. Without this the column and the PI row were blank for
     // every Signal in every channel even though all four carry the key.
     get dataType() { return this.DataType; }
-    getProperties() { return [PropName, withSourceKeys(PropDataType, ['DataType', 'DataType_internal']), PropMin, PropMax, PropUnit, PropDescription, ...schemaColumns(this.className)]; }
-    // PI layout is now declarative — see schema/classes/signal.json `layout`,
-    // resolved by the inherited BaseNode.getPILayout via buildPILayout.
+    getProperties() { return [PropName, withSourceKeys(PropDataType, ['DataType', 'DataType_internal']), PropMin, PropMax, PropUnit, PropDescription, ...withEnumAtoms(schemaColumns(this.className))]; }
+    // PI layout is declarative (schema/classes/signal.json `layout`, resolved by buildPILayout),
+    // with the two enum atoms in place of their descriptors, so an edit the table makes shows in
+    // the PI too (ValueTypeNode.getPILayout gives the full account of that gap).
+    getPILayout() {
+        const layout = super.getPILayout();
+        return layout && layout.map((g) => ({ ...g, items: withEnumAtoms(g.items) }));
+    }
     setProperty(propName, stringValue) {
         // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
         if (this._isUnchangedCommit(propName, stringValue)) {
@@ -56,6 +75,15 @@ export default class SignalNode extends DataNode {
         }
         if (propName === 'Min' || propName === 'Max') {
             return this._setMinMax(propName, stringValue);
+        }
+        // Complexity and DimensionsMode take only the Signal's own enumerals, as MATLAB does;
+        // the shared check reads the set off the atom the dropdown is built from. Only these
+        // two: Storage Class is a select too, and the schema path refuses it in its own words.
+        if (ENUM_ATOMS.has(propName)) {
+            const notAnEnumeral = this._rejectUnknownEnumeral(propName, stringValue);
+            if (notAnEnumeral) {
+                return notAnEnumeral;
+            }
         }
         return DataNode.prototype.setProperty.call(this, propName, stringValue);
     }
@@ -75,6 +103,7 @@ export default class SignalNode extends DataNode {
         if ('Description' in sp || this.Description) {
             props.Description = this.Description;
         }
+        Object.assign(props, this._enumOverrides(sp));
         return props;
     }
     serializeValue() {
@@ -96,7 +125,28 @@ export default class SignalNode extends DataNode {
         if ('Description' in sp || this.Description) {
             overrides.Description = this.Description;
         }
+        Object.assign(overrides, this._enumOverrides(sp));
         return this._serializeSimulinkObject(overrides);
+    }
+    // Complexity and DimensionsMode, as both save paths write them: the key when the file had
+    // it, or when the value is not MATLAB's default. MATLAB's text form has a non-default value
+    // as a top-level key and no key at 'auto', even for a Signal set to 'complex' and back
+    // (measured in R2027a), so a Signal whose text file had no key saves with none until it
+    // leaves 'auto'. A key the file had stays, at 'auto' if set there, which MATLAB reads the
+    // same; a binary file always has both keys. A clear stores '' (DataNode._rejectUnknownEnumeral),
+    // which is no value either property has, so it is written as 'auto', what an absent key
+    // means, and never as ''.
+    _enumOverrides(sp) {
+        const overrides = {};
+        const complexity = this.Complexity || 'auto';
+        if ('Complexity' in sp || complexity !== 'auto') {
+            overrides.Complexity = complexity;
+        }
+        const dimensionsMode = this.DimensionsMode || 'auto';
+        if ('DimensionsMode' in sp || dimensionsMode !== 'auto') {
+            overrides.DimensionsMode = dimensionsMode;
+        }
+        return overrides;
     }
     static get defaultName() { return 'Signal'; }
     static createDefault(name, parent) {
