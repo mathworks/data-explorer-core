@@ -41,7 +41,8 @@ can.
 
 | case | display | note |
 |---|---|---|
-| empty numeric, any class, shape and complexity | `[ ]` | MATLAB's Workspace browser's own text, space inside (`mat2str` says `[]`). An int-backed enumeration's empty too: MATLAB counts it numeric. Not yet a sparse double's, which is `<0x0 sparse double>` here and `[ ]` in the browser |
+| empty numeric, any class, shape and complexity | `[ ]` | MATLAB's Workspace browser's own text, space inside (`mat2str` says `[]`). An int-backed enumeration's empty too: MATLAB counts it numeric. Not a sparse double's: see the next row |
+| empty sparse double | `<0x0 sparse double>`, `<2x0 sparse double>` | **a deliberate deviation from MATLAB**, whose browser shows `[ ]` (measured at 0x0 and 2x0). See "The sparse empty keeps its summary" below |
 | empty cell | `{}` at 0x0, `<0x3 cell>` at any other empty shape | the browser's `{}` and `{0×3 cell}` |
 | empty char | `''` | already the complete literal; char does not expand |
 | empty scalar string | `""` | same |
@@ -76,6 +77,20 @@ column code: `ValueCol`, `ObjectValueSummary`, and `ClassCol` for the Class
 column. `test/parity/matlab/probe_display.m` measured them for 283 values in R2027a,
 and the rows the tests read are `test/fixtures/display/browser_short.truth.json`
 (`test/workspaceBrowserDisplay.test.ts` reads its expected texts from there).
+
+**The sparse empty keeps its summary, deliberately.** It is the one numeric empty
+that is not `[ ]`. A sparse array is its summary here at every size, empty
+included (`MatlabVariable.md`, "Summary, always"), so the cell says the value is
+sparse and how big it was declared; the browser's `[ ]` for a sparse double's
+empty reads as a dense empty, and hides both. The maintainer's ruling of
+2026-10-15 (evening, A6): "keep our display format, better than MATLAB". Only the
+Value text deviates: the Class column is still the browser's `double (sparse)`. This
+is what a `.mat` and a binary dictionary show (`test/fixtures/display/dispcat.mat`,
+`dispcat_bin.sldd`); a text dictionary holds the sparse empty as a plain `[]`
+(`dispcat_text.sldd`), with nothing left to say it was sparse, so it reads and shows
+as the dense `[ ]` and `double`. A sparse logical's empty needs no exception, since
+the browser shows it as a summary too (`0×0 sparse logical`,
+`browser_short.truth.json`'s `e_sparse_logical_0x0`).
 
 **The Class column is the browser's `ClassCol`**, `getClassString(value, false,
 true, true)`: `class()`, then the value's attributes in parentheses —
