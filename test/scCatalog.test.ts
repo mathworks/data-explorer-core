@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { unzipSync, zipSync } from 'fflate';
 import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
 import { XmlTagScanner } from '../src/datamodel/parser/ScCatalog.js';
+import { TEXT_CONTENT } from '../src/datamodel/parser/SlddParts.js';
 // Through the barrel: it is what registers the node classes the entry parser
 // resolves values with.
 import {
@@ -215,6 +216,81 @@ describe('System Composer catalog, read from either format', () => {
     // The catalog also lists MATLAB's built-in types (double, int16, …). They are
     // not dictionary entries, so they are not classifications of anything.
     expect(Object.keys(catalog.modeledDataTypes).sort()).toEqual(['NumericType', 'StructType']);
+  });
+});
+
+// A definition the catalog lists with no type classifies nothing, so its entry's Kind is
+// its Simulink class's: a struct type (a `Simulink.Bus`) reads as a Data Interface, which
+// looks exactly like a right answer. The reader shows what it read, the Kind and the empty
+// type, and says so with one `part-unreadable` warning naming the definition. The warning
+// is raised in ONE place for both formats, so the same damage in either says the same
+// thing. An absent or empty catalog stays silent (the tests above).
+describe('a catalog definition that lost its type', () => {
+  const STRUCT_TYPE_ATTR = ' type="systemcomposer.property.StructDataType"';
+
+  // arch_binary.sldd with StructType's type attribute cut from its one definition tag.
+  function binaryWithoutStructType(): ArrayBuffer {
+    const members = unzipSync(new Uint8Array(readFileSync(fixture('arch_binary.sldd'))));
+    const xml = new TextDecoder().decode(members[SC_PART_XML]);
+    const tag = '<p_ModeledDataTypes' + STRUCT_TYPE_ATTR;
+    // The cut is what the test is about, so it must land, once, on the definition tag.
+    expect(xml.split(STRUCT_TYPE_ATTR)).toHaveLength(2);
+    expect(xml.split(tag)).toHaveLength(2);
+    members[SC_PART_XML] = new TextEncoder().encode(xml.replace(tag, '<p_ModeledDataTypes'));
+    const rebuilt = zipSync(members);
+    return rebuilt.buffer.slice(rebuilt.byteOffset, rebuilt.byteOffset + rebuilt.byteLength) as ArrayBuffer;
+  }
+
+  // Its text twin with the same definition's type deleted from the parsed JSON.
+  function textWithoutStructType(): Record<string, unknown> {
+    type Rec = Record<string, unknown>;
+    const json = JSON.parse(textAt('arch_binary_as_text.sldd')) as Rec;
+    const part = (json.__MW_TEXT_PARTS__ as Record<string, Rec>)['__MW_TEXT_PART__/simulink/systemcomposer/interfaceDictionary'];
+    const records = (part[TEXT_CONTENT] as Rec).entries as Rec[];
+    const typed = records.flatMap((r) => ((r.content as Rec | null)?.p_ModeledDataTypes as Rec[] | undefined) ?? [])
+      .filter((d) => d.type === 'systemcomposer.property.StructDataType');
+    expect(typed.map((d) => (d.content as Rec).p_Name)).toEqual(['StructType']);
+    delete typed[0].type;
+    return json;
+  }
+
+  it('warns once, naming the definition, in a compressed-binary dictionary, and shows the Kind it read', () => {
+    const warnings: ParseWarning[] = [];
+    const sldd = SlddNode.parse(parseBinarySldd(binaryWithoutStructType()), 'arch_binary.sldd', warnings);
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ code: 'part-unreadable', part: 'StructType' });
+    expect(warnings[0].message).toContain('"StructType"');
+    // Shown as read: listed, with no type, and so the class's Kind.
+    expect(sldd.systemComposer!.modeledDataTypes.StructType).toBe('');
+    expect(kindsOf(sldd)).toEqual({ ...kindsOf(loadBinarySldd('arch_binary.sldd')), StructType: 'Data Interface' });
+  });
+
+  it('says the same thing about the same damage in the text form', () => {
+    const binWarnings: ParseWarning[] = [];
+    const fromBinary = SlddNode.parse(parseBinarySldd(binaryWithoutStructType()), 'arch_binary.sldd', binWarnings);
+    const textWarnings: ParseWarning[] = [];
+    const fromText = SlddNode.parse(textWithoutStructType(), 'arch_binary.sldd', textWarnings);
+
+    expect(textWarnings.map((w) => w.part)).toEqual(['StructType']);
+    expect(textWarnings).toEqual(binWarnings);
+    expect(fromText.systemComposer).toEqual(fromBinary.systemComposer);
+    expect(kindsOf(fromText)).toEqual(kindsOf(fromBinary));
+  });
+
+  it('says nothing about either form of the dictionary as written', () => {
+    const binWarnings: ParseWarning[] = [];
+    const u8 = new Uint8Array(readFileSync(fixture('arch_binary.sldd')));
+    SlddNode.parse(
+      parseBinarySldd(u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer),
+      'arch_binary.sldd',
+      binWarnings,
+    );
+    const textWarnings: ParseWarning[] = [];
+    SlddNode.parse(JSON.parse(textAt('arch_binary_as_text.sldd')) as Record<string, unknown>, 'arch_binary_as_text.sldd', textWarnings);
+
+    expect(binWarnings).toEqual([]);
+    expect(textWarnings).toEqual([]);
   });
 });
 

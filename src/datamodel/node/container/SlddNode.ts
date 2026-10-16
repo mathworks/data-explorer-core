@@ -12,7 +12,7 @@ import PropNumberOfEntries from '../../prop/PropNumberOfEntries.js';
 import { slddChunkContent } from '../../parser/SlddContent.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
-import { SC_PART, emptyCatalogBag } from '../../parser/ScCatalog.js';
+import { SC_PART, emptyCatalogBag, untypedDefinitions } from '../../parser/ScCatalog.js';
 import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.js';
 import { takeDecodeFailures, takePartialDecodes } from '../../parser/EncodedValue.js';
 import { heldByTextDictionary } from '../../parser/MatWriter.js';
@@ -206,6 +206,17 @@ export default class SlddNode extends ContainerNode {
         // here, so its catalog is read out of the parts below.
         node.systemComposer = (json.__scCatalog as SystemComposerCatalog | undefined)
             ?? SlddNode._parseSystemComposer(parts);
+        // A definition the catalog lists with no type is shown as read (its entry's Kind
+        // is its class's) and said once, here, for both flavours: one site is what keeps
+        // the same damage saying the same thing however the dictionary was saved.
+        for (const name of untypedDefinitions(node.systemComposer)) {
+            warnings?.push({
+                code: 'part-unreadable',
+                message: `The System Composer definition "${name}" has no type, so its Kind is taken from `
+                    + 'its Simulink class and may be wrong (a struct type reads as a Data Interface).',
+                part: name,
+            });
+        }
 
         if (!content) {
             // The four sections are built by the constructor, so a content-less dictionary
@@ -328,6 +339,10 @@ export default class SlddNode extends ContainerNode {
             const c = (item.content as Record<string, unknown>) || {};
             return (c.p_Name as string) || '';
         };
+        // A type that is missing or not a string classifies nothing, and is recorded as
+        // the empty string either way, which is what `untypedDefinitions` warns about.
+        const readType = (item: Record<string, unknown>): string =>
+            (typeof item.type === 'string' ? item.type : '');
 
         entries.forEach((entry) => {
             const entryContent = (entry.content as Record<string, unknown>) || {};
@@ -340,7 +355,7 @@ export default class SlddNode extends ContainerNode {
                 ifaceList.forEach((iface) => {
                     const name = readName(iface);
                     if (name) {
-                        interfaces[name] = (iface.type as string) || '';
+                        interfaces[name] = readType(iface);
                     }
                 });
             }
@@ -351,7 +366,7 @@ export default class SlddNode extends ContainerNode {
                 modeled.forEach((dt) => {
                     const name = readName(dt);
                     if (name) {
-                        modeledDataTypes[name] = (dt.type as string) || '';
+                        modeledDataTypes[name] = readType(dt);
                     }
                 });
             }
