@@ -83,11 +83,20 @@ describe('common "General" identity group — schema-driven classes', () => {
     });
   });
 
-  it('LookupTable / Breakpoint / CustomObject keep Description in General', () => {
-    for (const M of [LookupTableNode, BreakpointNode, CustomObjectNode]) {
+  it('CustomObject keeps Description in General', () => {
+    expect(firstGroup(CustomObjectNode.createDefault('n', null))).toEqual({
+      name: 'General',
+      items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'Description'],
+    });
+  });
+
+  it('LookupTable / Breakpoint open with the identity five and no Description', () => {
+    // MATLAB's Simulink.LookupTable and Simulink.Breakpoint have no Description property
+    // (isprop is 0 in R2027a), so neither shows one. test/lutBreakpointNoDescription.test.ts.
+    for (const M of [LookupTableNode, BreakpointNode]) {
       expect(firstGroup(M.createDefault('n', null))).toEqual({
         name: 'General',
-        items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'Description'],
+        items: ['Name', 'Value', 'DataType', 'Kind', 'Class'],
       });
     }
   });

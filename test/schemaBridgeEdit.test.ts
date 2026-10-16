@@ -61,12 +61,14 @@ describe('trySetSchemaProperty — declining to own the edit', () => {
   });
 
   it('declines a read-only label prop, so the caller can refuse it its own way', () => {
-    // headerFile and alignment are projected but rendered as labels. Returning
-    // null (rather than a refusal) is what makes them fall through to
-    // DataNode.setProperty, which also does not handle them → read-only.
+    // headerFile is projected but rendered as a label. Returning null (rather than
+    // a refusal) is what makes it fall through to DataNode.setProperty, which also
+    // does not handle it → read-only. Alignment is no longer a label: the bridge
+    // owns it, and with no StorageClass (so 'Auto') refuses it, as MATLAB does —
+    // test/alignmentEdit.test.ts.
     const node = fakeNode(coderInfo({ Alignment: 4 }));
     expect(trySet(node, 'headerFile', 'foo.h')).toBeNull();
-    expect(trySet(node, 'alignment', '8')).toBeNull();
+    expect(trySet(node, 'alignment', '8')).toMatchObject({ error: true, reason: "Cannot set Alignment when StorageClass is 'Auto'." });
     // Nothing was written and nothing was marked dirty.
     expect(node.serial!._properties!).toEqual(coderInfo({ Alignment: 4 }));
     expect(node.modified).toBe(0);

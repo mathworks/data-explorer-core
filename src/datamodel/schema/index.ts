@@ -243,27 +243,46 @@ export function writeSourcePath(
     path: string,
     value: unknown,
 ): boolean {
-    if (!properties) {
+    const leaf = sourceLeaf(properties, path);
+    if (!leaf) {
         return false;
+    }
+    const existing = leaf.bag[leaf.key];
+    if (isTypedScalar(existing)) {
+        existing._value = String(value);
+    } else {
+        leaf.bag[leaf.key] = value;
+    }
+    return true;
+}
+
+// Whether `value` is a typed-scalar leaf `{ _type, _value }`, the form unwrapScalar reads.
+export function isTypedScalar(value: unknown): value is { _type: unknown; _value: unknown } {
+    return !!value && typeof value === 'object' && !Array.isArray(value) && '_type' in value && '_value' in value;
+}
+
+// The bag a dotted sourcePath's leaf is (or would be) written into, and the leaf's key: the
+// place writeSourcePath writes, for a caller whose write is not a plain assignment (removing
+// the key, or choosing the leaf's form from the one already there). Null, with nothing
+// touched, when an intermediate sub-object is absent: a missing CoderInfo is never
+// synthesized, as for writeSourcePath.
+export function sourceLeaf(
+    properties: Record<string, unknown> | undefined,
+    path: string,
+): { bag: Record<string, unknown>; key: string } | null {
+    if (!properties) {
+        return null;
     }
     const parts = path.split('.');
     let current: Record<string, unknown> = properties;
     for (let i = 0; i < parts.length - 1; i++) {
         const next = propertyBag(current, parts[i])[parts[i]];
         if (next === null || next === undefined || typeof next !== 'object') {
-            return false;
+            return null;
         }
         current = next as Record<string, unknown>;
     }
-    const leafKey = parts[parts.length - 1];
-    const bag = writableBag(current);
-    const existing = bag[leafKey];
-    if (existing && typeof existing === 'object' && !Array.isArray(existing) && '_type' in (existing as Record<string, unknown>) && '_value' in (existing as Record<string, unknown>)) {
-        (existing as Record<string, unknown>)._value = String(value);
-    } else {
-        bag[leafKey] = value;
-    }
-    return true;
+    return { bag: writableBag(current), key: parts[parts.length - 1] };
 }
 
 // Read a property's value from a `_properties` bag for DISPLAY, substituting the

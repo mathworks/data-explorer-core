@@ -6,7 +6,8 @@
 // atom, and each has to write that live field back through
 // _serializeSimulinkObject or an edit is silently dropped on save. They are
 // near-identical by design, so the shared contract is tested as a table and only
-// the per-class differences get their own cases.
+// the per-class differences get their own cases. A class whose MATLAB class has no
+// such property takes no edit of it (READ_ONLY below).
 
 import { describe, it, expect } from 'vitest';
 import '../src/datamodel/node/data/NodeClassMap.js';
@@ -40,6 +41,12 @@ const LEAVES = [
   { cls: 'CustomObject', Node: CustomObjectNode, prop: 'Description', icon: 'ws3d', kind: 'CustomObject' },
 ] as const;
 
+// The classes whose one property MATLAB's class does not have, so the node shows a key a file
+// already carries but takes no edit of it: Simulink.VariantBank has no Value, and nor has
+// Simulink.VariantBankCoderInfo (R2027a; the 2026-10-16 ruling, group E, C-168 and C-169).
+// test/variantBankNoValue.test.ts covers both over the entries MATLAB wrote.
+const READ_ONLY = new Set<string>(['Simulink.VariantBank', 'Simulink.VariantBankCoderInfo']);
+
 // The `_array_class` a NEW entry is written with, where it differs from the class the node
 // reports for a parsed one. Exactly one class differs, and it differs for a reason MATLAB
 // enforced: a dictionary's config section accepts the CONTAINER class
@@ -71,13 +78,21 @@ describe('single-property leaf nodes — shared contract', () => {
         expect(parsed()[prop]).toBe('');
       });
 
-      it('writes an edit back through the array wrapper', () => {
-        // _serializeSimulinkObject rebuilds _elements[0]._properties from the live
-        // field; without it the loaded raw value is written and the edit vanishes.
-        const n = parsed({ [prop]: 'old', Untouched: 7 });
-        expect(n.setProperty(prop, 'new')).toBe(true);
-        expect(n.serializeValue()).toEqual(wrap(cls, { [prop]: 'new', Untouched: 7 }));
-      });
+      if (READ_ONLY.has(cls)) {
+        it('refuses an edit, and writes the property back as it was read', () => {
+          const n = parsed({ [prop]: 'old', Untouched: 7 });
+          expect(n.setProperty(prop, 'new')).toMatchObject({ error: true });
+          expect(n.serializeValue()).toEqual(wrap(cls, { [prop]: 'old', Untouched: 7 }));
+        });
+      } else {
+        it('writes an edit back through the array wrapper', () => {
+          // _serializeSimulinkObject rebuilds _elements[0]._properties from the live
+          // field; without it the loaded raw value is written and the edit vanishes.
+          const n = parsed({ [prop]: 'old', Untouched: 7 });
+          expect(n.setProperty(prop, 'new')).toBe(true);
+          expect(n.serializeValue()).toEqual(wrap(cls, { [prop]: 'new', Untouched: 7 }));
+        });
+      }
 
       it('createDefault produces a node that serializes to a valid wrapper', () => {
         const n = (Node as any).createDefault('n', null);
@@ -98,7 +113,9 @@ describe('single-property leaf nodes — shared contract', () => {
 });
 
 describe('per-class display differences', () => {
-  it('VariantBank and VariantBankCoderInfo quote their Value like MATLAB', () => {
+  it('VariantBank and VariantBankCoderInfo show a Value their file carries quoted', () => {
+    // Neither MATLAB class has a Value (READ_ONLY above); this is the key only this package's
+    // old writer put in a file, shown read-only.
     for (const Node of [VariantBankNode, VariantBankCoderInfoNode]) {
       const n = Node.parse(wrap('Simulink.VariantBank', { Value: 'b1' }), 'n', null) as any;
       expect(n.displayValue).toBe("'b1'");
@@ -195,10 +212,10 @@ describe('REGRESSION: a quoted display round-trips through an edit', () => {
   // edit wrapped them again ('a == 1' → ''a == 1'' → …), until the saved .sldd
   // held a condition MATLAB could no longer evaluate. Note the edit is committed
   // in the 'Value' COLUMN, which is how the table addresses these props.
+  // Simulink.VariantBank was a row here until it stopped taking a Value edit at all (READ_ONLY).
   const QUOTED = [
     { cls: 'Simulink.VariantExpression', Node: VariantExpressionNode, prop: 'Condition', raw: "strcmp(mode,'fast')" },
     { cls: 'Simulink.VariantVariable', Node: VariantVariableNode, prop: 'Specification', raw: "p('x')" },
-    { cls: 'Simulink.VariantBank', Node: VariantBankNode, prop: 'Value', raw: "bank'1" },
   ] as const;
 
   for (const { cls, Node, prop, raw } of QUOTED) {

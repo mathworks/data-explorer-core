@@ -198,7 +198,7 @@ describe('PI layout — groups and ordered keys, matching MATLAB', () => {
   it('LookupTable: General, Value Properties, Code Generation, Advanced', () => {
     const n = lut(LUT_CONFIGURED());
     expect(groupTitles(n)).toEqual(['General', 'Value Properties', 'Code Generation', 'Advanced', 'Other']);
-    expect(itemsIn(n, 'General')).toEqual(['Name', 'Value', 'DataType', 'Kind', 'Class', 'Description']);
+    expect(itemsIn(n, 'General')).toEqual(['Name', 'Value', 'DataType', 'Kind', 'Class']);
     expect(itemsIn(n, 'Value Properties')).toEqual(['breakpointsSpecification']);
     expect(itemsIn(n, 'Code Generation')).toEqual([
       'storageClass', 'structTypeName', 'structTypeDataScope', 'structTypeHeaderFile',
@@ -209,7 +209,7 @@ describe('PI layout — groups and ordered keys, matching MATLAB', () => {
   it('Breakpoint: General, Code Generation, Advanced (no Value Properties)', () => {
     const n = bp(BP_CONFIGURED());
     expect(groupTitles(n)).toEqual(['General', 'Code Generation', 'Advanced', 'Other']);
-    expect(itemsIn(n, 'General')).toEqual(['Name', 'Value', 'DataType', 'Kind', 'Class', 'Description']);
+    expect(itemsIn(n, 'General')).toEqual(['Name', 'Value', 'DataType', 'Kind', 'Class']);
     expect(itemsIn(n, 'Code Generation')).toEqual([
       'storageClass', 'structTypeName', 'structTypeDataScope', 'structTypeHeaderFile',
     ]);

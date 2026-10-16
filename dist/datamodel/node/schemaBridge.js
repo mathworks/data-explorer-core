@@ -12,7 +12,7 @@
 //   - schemaColumns / schemaColumnLabels: the schema-driven read-only table
 //     columns (Dimensions, Complexity, Storage Class, …). Column GROUPING is NOT
 //     here — it is a global table concern owned by host/rowBuilder.COLUMN_GROUPS.
-import { getSchema, getSchemaClasses, getLayout, hydrate, writeSourcePath } from '../schema/index.js';
+import { getSchema, getSchemaClasses, getLayout, hydrate, isTypedScalar, sourceLeaf, writeSourcePath } from '../schema/index.js';
 import PropName from '../prop/PropName.js';
 import PropValue from '../prop/PropValue.js';
 import PropDataType from '../prop/PropDataType.js';
@@ -69,6 +69,8 @@ function formatSchemaValue(value) {
 // for a prop the table renders editable). readValue reads the node's
 // serial._properties bag — display-only, never mutating serial. A 'select' prop
 // with an options list contributes readOptions so the cell can render a dropdown.
+// Alignment contributes editableFor: MATLAB takes no edit of it under StorageClass
+// 'Auto', so on such a node its cell is a plain string.
 function toPropClass(prop, column, editorOverride) {
     const pc = {
         key: prop.key,
@@ -88,6 +90,9 @@ function toPropClass(prop, column, editorOverride) {
     if (prop.options) {
         const opts = prop.options;
         pc.readOptions = () => opts;
+    }
+    if (isAlignment(prop)) {
+        pc.editableFor = (node) => storageClassOf(node) !== 'Auto';
     }
     return pc;
 }
@@ -160,26 +165,166 @@ export function trySetSchemaProperty(node, key, stringValue) {
     if (!prop || prop.editor === 'label') {
         return null;
     }
-    // Every writable projected prop today is an enumerated 'select' — the two
-    // other projected props (headerFile, alignment) are 'label' and returned
-    // above. A prop of some other editor would fall through here unvalidated, so
-    // adding one means adding its validation alongside; there is deliberately no
-    // speculative branch for a type we do not yet expose (notably `int`: MATLAB
-    // constrains Alignment to -1 or a power of 2, which Number.isInteger does
-    // not express, so a generic int check would accept values MATLAB rejects).
+    // The writable projected props are the enumerated 'select's (Storage Class) and
+    // Alignment, a 'text' with a rule of its own. A prop of some other editor would
+    // fall through below unvalidated, so adding one means adding its validation
+    // alongside; there is deliberately no generic branch for a type (notably `int`:
+    // Number.isInteger accepts 3, which MATLAB refuses as an Alignment).
+    if (isAlignment(prop)) {
+        return setAlignment(node, prop, stringValue);
+    }
     if (prop.editor === 'select') {
         const options = prop.options ?? [];
         if (options.length > 0 && !options.includes(stringValue)) {
             return { error: true, reason: 'Invalid value for ' + prop.label, invalidValue: stringValue, validValue: '' };
         }
     }
-    const props = node.serial?._properties;
+    const props = propertiesOf(node);
     const ok = writeSourcePath(props, prop.sourcePath, stringValue);
     if (!ok) {
         return { error: true, reason: 'Cannot set ' + prop.label + ' (target property is absent)', invalidValue: stringValue, validValue: '' };
     }
+    // MATLAB resets Alignment to -1 when StorageClass becomes 'Auto' (and warns
+    // "Alignment is ignored when StorageClass is 'Auto'.", which has no channel here).
+    // Undoing this edit restores the StorageClass and not the Alignment, as in MATLAB.
+    if (prop.key === 'storageClass' && stringValue === 'Auto') {
+        const alignment = resolved?.find(isAlignment);
+        if (alignment) {
+            writeAlignment(node, alignment, -1);
+        }
+    }
     node._markModified?.();
     return true;
+}
+function propertiesOf(node) {
+    return node.serial?._properties;
+}
+// ---- Alignment (CoderInfo.Alignment on a Simulink.Parameter or Simulink.Signal) ----
+//
+// MATLAB's rule, measured in R2027a (27.1.0.3409468; test/alignmentEdit.test.ts):
+//   - The value is converted as int32 first (round half away from zero, saturating;
+//     NaN is 0, true is 1), then must be -1 or a power of two from 1 to 2^30. MATLAB's
+//     refusal says "no more than 128", which is not what it does (256 through 2^30
+//     are accepted), so that clause is left out of the refusal here. A char value is
+//     refused with "Value must be numeric or logical."; a cell's text is read as the
+//     number it spells.
+//   - Then, under StorageClass 'Auto', every value but -1 is refused.
+//   - A text .sldd holds a non-default Alignment as {"_type":"int32","_value":"8"},
+//     the first key of CoderInfo's _properties, and leaves the key out at -1. A binary
+//     one always holds an int32. A typed int32, a typed double and a bare number all
+//     read back; a STRING "16" reads back as -1, silently, so a string is never written.
+//
+// Bus's Alignment is not this one: it is top-level, a double, PI-only and read-only.
+const ALIGNMENT_AUTO = "Cannot set Alignment when StorageClass is 'Auto'.";
+const ALIGNMENT_NOT_NUMERIC = 'Value must be numeric or logical.';
+const INT32_MIN = -2147483648;
+const INT32_MAX = 2147483647;
+const ALIGNMENT_MAX = 2 ** 30;
+function isAlignment(prop) {
+    return prop.key === 'alignment' && prop.editor === 'text';
+}
+// The StorageClass of the node's CoderInfo, as its class's storageClass prop shows it
+// (an absent one is that prop's default, 'Auto').
+function storageClassOf(node) {
+    const className = node.className;
+    const storageClass = className ? getSchema(className)?.find((p) => p.key === 'storageClass') : undefined;
+    return storageClass ? hydrate(propertiesOf(node), storageClass) : 'Auto';
+}
+// A cell's text as the number MATLAB would be given: a decimal literal, Inf, NaN, or
+// the logical true/false. Null for anything else, the empty text included.
+function alignmentNumber(text) {
+    const t = text.trim();
+    if (t === 'true' || t === 'false') {
+        return t === 'true' ? 1 : 0;
+    }
+    if (/^[+-]?(Inf|inf)$/.test(t)) {
+        return t.startsWith('-') ? -Infinity : Infinity;
+    }
+    if (/^[+-]?(NaN|nan)$/.test(t)) {
+        return NaN;
+    }
+    return /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(t) ? Number(t) : null;
+}
+// MATLAB's int32(x): round half away from zero, saturate, NaN to 0.
+function toInt32(x) {
+    if (Number.isNaN(x)) {
+        return 0;
+    }
+    const r = Math.sign(x) * Math.round(Math.abs(x));
+    return Math.min(INT32_MAX, Math.max(INT32_MIN, r));
+}
+function isAlignmentBoundary(n) {
+    return n === -1 || (n >= 1 && n <= ALIGNMENT_MAX && (n & (n - 1)) === 0);
+}
+function setAlignment(node, prop, stringValue) {
+    const shown = formatSchemaValue(hydrate(propertiesOf(node), prop));
+    const refuse = (reason) => ({ error: true, reason, invalidValue: stringValue, validValue: shown });
+    const x = alignmentNumber(stringValue);
+    if (x === null) {
+        return refuse(ALIGNMENT_NOT_NUMERIC);
+    }
+    const n = toInt32(x);
+    if (!isAlignmentBoundary(n)) {
+        return refuse(n + ' is not a valid alignment boundary. The alignment boundary must be either -1 or a power of two.');
+    }
+    if (n !== -1 && storageClassOf(node) === 'Auto') {
+        return refuse(ALIGNMENT_AUTO);
+    }
+    const leaf = sourceLeaf(propertiesOf(node), prop.sourcePath);
+    if (!leaf) {
+        return refuse('Cannot set ' + prop.label + ' (target property is absent)');
+    }
+    const before = JSON.stringify(leaf.bag[leaf.key]);
+    writeAlignment(node, prop, n);
+    // Setting the value it already holds (-1 where there is no key, or under Auto) is no
+    // edit: nothing is marked, as DataNode._isUnchangedCommit answers for the shown text.
+    if (JSON.stringify(leaf.bag[leaf.key]) !== before) {
+        node._markModified?.();
+    }
+    return true;
+}
+// Write a validated Alignment `n` in the form MATLAB writes it, keeping the form the file
+// already holds: a typed leaf keeps its _type, a bare number stays bare. -1 removes the key
+// from a text dictionary, as MATLAB leaves it out there, and an absent key at -1 stays
+// absent in any format (absence reads as -1). A new key is a typed int32, inserted where
+// MATLAB's sorted text puts it (first in CoderInfo). Never a string: MATLAB reads "16" as -1.
+function writeAlignment(node, prop, n) {
+    const leaf = sourceLeaf(propertiesOf(node), prop.sourcePath);
+    if (!leaf) {
+        return;
+    }
+    const { bag, key } = leaf;
+    const existing = bag[key];
+    const format = node._ownerFormat?.();
+    if (n === -1 && (format === 'json' || existing === undefined)) {
+        delete bag[key];
+    }
+    else if (isTypedScalar(existing)) {
+        existing._value = String(n);
+    }
+    else if (typeof existing === 'number') {
+        bag[key] = n;
+    }
+    else if (existing === undefined) {
+        insertSorted(bag, key, { _type: 'int32', _value: String(n) });
+    }
+    else {
+        bag[key] = { _type: 'int32', _value: String(n) };
+    }
+}
+// Add `key` to `bag` in place, before the first key that sorts after it, as MATLAB's text
+// writer orders a bag. The bag keeps its identity: the keys after it are re-added in order.
+function insertSorted(bag, key, value) {
+    const keys = Object.keys(bag);
+    const at = keys.findIndex((k) => k > key);
+    const tail = at < 0 ? [] : keys.slice(at).map((k) => [k, bag[k]]);
+    for (const [k] of tail) {
+        delete bag[k];
+    }
+    bag[key] = value;
+    for (const [k, v] of tail) {
+        bag[k] = v;
+    }
 }
 // Column-key → display label for every schema-driven read-only column, unioned
 // across all schema classes. The label lives once in the shared prop registry,

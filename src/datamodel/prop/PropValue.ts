@@ -57,7 +57,7 @@ export default class PropValue {
 
     // The inverse of the quoting above — see PropClass.unformat. Consulted only by
     // DataNode's generic string path, i.e. by the nodes that store a bare string
-    // and let this atom decorate it (Simulink.VariantBank and friends). The classes
+    // and let this atom decorate it (Simulink.VariantExpression and friends). The classes
     // whose Value is a real MATLAB expression (Parameter, a MATLAB variable,
     // VariantControl) override setProperty and parse the text themselves, so their
     // quotes stay meaningful and this is never reached for them.

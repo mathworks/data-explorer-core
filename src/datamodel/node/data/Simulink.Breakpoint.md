@@ -4,8 +4,10 @@
 
 **Node class:** `BreakpointNode` (`src/datamodel/node/data/BreakpointNode.ts`)
 **MATLAB class:** `Simulink.Breakpoint`
-**Editable in our UI:** Name, Description, and Storage Class (the table's Storage Class
-column, a 17-value dropdown). Everything else is a read-only projection of the source bag.
+**Editable in our UI:** Name and Storage Class (the table's Storage Class column, a
+17-value dropdown). Everything else is a read-only projection of the source bag. There is
+no Description: MATLAB's class has none, so none is offered and an edit to one is refused
+(see "Description" below).
 **Verified against:** MATLAB R2027a (probe_class('Simulink.Breakpoint'))
 
 ## Overview
@@ -15,19 +17,19 @@ table blocks. It contains a Breakpoints sub-object (with Value, DataType,
 Dimensions, Unit), CoderInfo, StructTypeInfo, and a SupportTunableSize flag. In our
 UI the Breakpoint has no scalar value: the Value column is empty and not editable
 (`valueEditable = false`). Its Property Inspector groups (from
-`schema/classes/breakpoint.json`) are General (Name, Value, Data Type, Kind, Class,
-Description), Code Generation (Storage Class and the three StructTypeInfo keys under their
+`schema/classes/breakpoint.json`) are General (Name, Value, Data Type, Kind, Class),
+Code Generation (Storage Class and the three StructTypeInfo keys under their
 MATLAB labels Name / Data Scope / Header File) and Advanced (Support Tunable Size) — plus
 the "Other" catch-all for what stays unmodelled. There is no Value Properties group,
-because a Breakpoint has no `BreakpointsSpecification`. Every PI row but Name and
-Description is a label; Storage Class is editable in the TABLE, not the PI.
+because a Breakpoint has no `BreakpointsSpecification`. Every PI row but Name is a
+label; Storage Class is editable in the TABLE, not the PI.
 
 ## Property table
 
 | Property            | MATLAB type                       | SetAccess | Editable here | Serialized key (JSON / binary) | Editor | Allowed values / constraint |
 |---------------------|-----------------------------------|-----------|---------------|--------------------------------|--------|-----------------------------|
 | Name                | char                              | (entry)   | yes           | name / name                    | text   | Valid MATLAB identifier, unique in namespace |
-| Description         | char                              | public    | yes           | (nested or top-level)          | text   | Any string |
+| Description         | — (not a property)                | —         | no (refused)  | top-level key, only as read    | —      | A key the file already has is shown read-only and kept |
 | Breakpoints         | Simulink.lookuptable.Breakpoint   | public    | no            | Breakpoints / Breakpoints      | —      | Sub-object (Value, DataType, Dimensions, Unit, FieldName) |
 | CoderInfo           | Simulink.CoderInfo                | protected | no            | CoderInfo / CoderInfo          | —      | Sub-object |
 | StructTypeInfo      | Simulink.lookuptable.StructTypeInfo | public  | no            | StructTypeInfo / StructTypeInfo | —     | Sub-object (DataScope, HeaderFileName, Name) |
@@ -55,10 +57,23 @@ parentheses where the two differ.
 
 ### Description
 
-- The Breakpoint's Description (when present) is stored at the top level or
-  within nested sub-objects. Non-string assignment in MATLAB produces "Value must be
-  a character vector or a string scalar." — unreachable from our string editor.
-  Type-guarded by the string editor.
+- `Simulink.Breakpoint` has no Description property. In MATLAB R2027a (27.1.0.3409468,
+  measured 2026-10-16) `isprop(Simulink.Breakpoint, 'Description')` is 0, and setting one
+  fails with MATLAB:noPublicFieldForClass, "Unrecognized property 'Description' for class
+  'Simulink.Breakpoint'." A dictionary MATLAB writes carries no top-level Description key,
+  in either format. The `Breakpoints` sub-object has a Description of its own; that one is
+  nested, unmodelled, and passes through as read.
+- So none is offered, as for `Simulink.FunctionElement`: Description is not in
+  `getProperties` or in the General group, `descriptionEditable` is false (the table cell
+  has no editor), and `setProperty('Description', …)` is refused in MATLAB's words and
+  leaves the entry unmodified. It used to be offered, accepted, and written as a top-level
+  key.
+- A top-level Description key the file already has (written by another tool, or by this
+  package before the change) is shown read-only, in the Description column and in the
+  Property Inspector's "Other" group, and is written back as read on both save paths.
+  MATLAB opens such a file cleanly and ignores the key: measured in both formats with a key
+  added by hand and with our former writer's output, 14 of 14 entries read and no warning.
+  Test: `test/lutBreakpointNoDescription.test.ts`.
 
 ### Sub-objects
 
@@ -127,7 +142,9 @@ unmodelled.
   identifier, unique in namespace, max 63 chars, not a keyword).
   Test: `test/parity/fidelity/typedef.fidelity.test.ts`.
 
-- No additional validation for Description (any string accepted).
+- Description: refused outright by `BreakpointNode.setProperty`, with MATLAB's message,
+  because the class has no such property.
+  Test: `test/lutBreakpointNoDescription.test.ts`.
 
 - `storageClass`: enforced by `trySetSchemaProperty` against this class's own 17-value
   `options` list — the only one of the five with a write path at all. A value outside the
@@ -146,21 +163,15 @@ unmodelled.
   Test: `test/parity/fidelity/typedef.fidelity.test.ts` (json format loop).
 - Binary sldd: same.
   Test: `test/parity/fidelity/typedef.fidelity.test.ts` (binary format loop).
-- MATLAB gate: Description edit → MATLAB reads back. PASS.
+- MATLAB gate: none for Description, which MATLAB does not have. An earlier line here read
+  "Description edit → MATLAB reads back. PASS.", but that gate asserted only the class.
+  A file carrying a top-level Description key opens in MATLAB, and the key is ignored.
 - The five flat properties, in-process only: a configured Breakpoint renders all five,
   including the two that travel through a nested sub-object, and a `storageClass` write
   lands at `CoderInfo.StorageClass`. **No MATLAB re-open gate was run for any of the five.**
   Test: `test/lookupTableFlatProps.test.ts`.
 
 ## Open questions / deferred
-
-- **Description not a MATLAB property**: MATLAB's Simulink.Breakpoint does NOT
-  expose a top-level `Description` property (attempting `obj.Description` errors:
-  "Unrecognized method, property, or field 'Description' for class
-  'Simulink.Breakpoint'"). Our node stores/restores Description via the JSON
-  `_properties` for in-process round-trip fidelity, but the MATLAB gate cannot
-  assert it via the standard property-read path. The field is preserved in the
-  serialized file but is not accessible from the MATLAB API at the top level.
 
 - **Breakpoint array editing**: The numeric data in Breakpoints.Value is a 1-D
   array that requires a dedicated editor UX. Not exposed via the scalar text

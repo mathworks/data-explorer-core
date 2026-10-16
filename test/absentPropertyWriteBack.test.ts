@@ -1,10 +1,10 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// ONE WRITE-BACK RULE, TWO SAVE PATHS, ELEVEN CLASSES.
+// ONE WRITE-BACK RULE, TWO SAVE PATHS, NINE CLASSES.
 //
-// The eleven, so the count above can be checked rather than trusted: NumericType,
-// AliasType, ValueType, Signal, Breakpoint, LookupTable and the registered CustomObject
-// are the `CASES` table below; Parameter, BusElement, ConfigSet and ConfigSetRef have
+// The nine, so the count above can be checked rather than trusted: NumericType,
+// AliasType, ValueType, Signal and the registered CustomObject are the `CASES` table
+// below; Parameter, BusElement, ConfigSet and ConfigSetRef have
 // their own blocks, because a bound and an ungated key are not the table's shape. A bus
 // is not counted separately — it appears only as the thing a BusElement is saved inside.
 //
@@ -122,8 +122,6 @@ import AliasTypeNode from '../src/datamodel/node/data/AliasTypeNode.js';
 import ValueTypeNode from '../src/datamodel/node/data/ValueTypeNode.js';
 import SignalNode from '../src/datamodel/node/data/SignalNode.js';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
-import BreakpointNode from '../src/datamodel/node/data/BreakpointNode.js';
-import LookupTableNode from '../src/datamodel/node/data/LookupTableNode.js';
 import CustomObjectNode from '../src/datamodel/node/data/CustomObjectNode.js';
 import ConfigSetNode from '../src/datamodel/node/data/ConfigSetNode.js';
 import ConfigSetRefNode from '../src/datamodel/node/data/ConfigSetRefNode.js';
@@ -213,29 +211,16 @@ const CASES: Case[] = [
     key: 'Description',
     typed: 'commanded torque',
   },
-  // The three classes below hold nothing but a Description, so today their two save
-  // paths are character-for-character the same gate. That identity is not a property of
-  // the code, though — it is still two hand-written copies — so the next person who
-  // teaches one of these classes a second property, or hoists one of its paths onto a
-  // shared helper, can change one method and leave the other behind with nothing
-  // objecting. Being trivially correct today is the reason to pin them here, not a
-  // reason to leave them out.
-  {
-    label: 'Simulink.Breakpoint',
-    className: 'Simulink.Breakpoint',
-    parse: (raw, name) => BreakpointNode.parse(raw, name, null),
-    prop: 'Description',
-    key: 'Description',
-    typed: 'engine speed breakpoints, 0:500:6000 rpm',
-  },
-  {
-    label: 'Simulink.LookupTable',
-    className: 'Simulink.LookupTable',
-    parse: (raw, name) => LookupTableNode.parse(raw, name, null),
-    prop: 'Description',
-    key: 'Description',
-    typed: 'engine torque vs. speed and throttle',
-  },
+  // The class below holds nothing but a Description, so today its two save paths are
+  // character-for-character the same gate. That identity is not a property of the code,
+  // though — it is still two hand-written copies — so the next person who teaches this
+  // class a second property, or hoists one of its paths onto a shared helper, can change
+  // one method and leave the other behind with nothing objecting. Being trivially correct
+  // today is the reason to pin it here, not a reason to leave it out.
+  //
+  // Breakpoint and LookupTable were rows here until 2026-10-16. MATLAB's two classes have
+  // no Description property, so neither node takes an edit to one any more, and each
+  // writes back the file's bag as read (test/lutBreakpointNoDescription.test.ts).
   {
     // Not a Simulink class name: `CustomObject` is the literal `_array_class` this
     // package registers a node for, and the Class column shows it verbatim.

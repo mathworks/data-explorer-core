@@ -537,15 +537,17 @@ describe('the guard is actually reading the schema tree', () => {
     });
 
     it('sweeps the number of (class, key) pairs it claims to', () => {
-        // Measured on the tree as it stands: 20 classes, 182 (class, key) pairs, 85 of them
-        // computed-and-exempt, 97 with a source location — which become 100 probe cases,
+        // Measured on the tree as it stands: 20 classes, 180 (class, key) pairs, 85 of them
+        // computed-and-exempt, 95 with a source location — which become 98 probe cases,
         // because `unit` declares two raw spellings and each is a location a real file uses.
+        // (182, 97 and 100 until 2026-10-16, when the LookupTable and Breakpoint layouts lost
+        // their `description` key: MATLAB's two classes have no Description property.)
         expect(SCHEMA_CLASSES.length).toBeGreaterThanOrEqual(20);
-        expect(allPairs.length).toBeGreaterThanOrEqual(182);
+        expect(allPairs.length).toBeGreaterThanOrEqual(180);
         expect(exemptPairs.length).toBeGreaterThanOrEqual(85);
         // The floor that matters most: this is the number of pairs actually PROBED. Every
         // other count can hold while this one collapses.
-        expect(sweepCases.length).toBeGreaterThanOrEqual(100);
+        expect(sweepCases.length).toBeGreaterThanOrEqual(98);
         // And the two halves account for the WHOLE: every pair enumerated is either exempt or
         // probed, so one cannot fall out of both. Counted through a Set because `unit`
         // contributes two cases for one pair, and compared for EQUALITY — a floor here would

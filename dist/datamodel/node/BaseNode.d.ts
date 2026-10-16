@@ -11,6 +11,7 @@ export interface PropClass {
     unformat?: (text: string) => string;
     sourceKeys?: string[];
     format: (value: unknown) => string;
+    editableFor?: (node: BaseNode) => boolean;
 }
 export interface PropInfo {
     key: string;

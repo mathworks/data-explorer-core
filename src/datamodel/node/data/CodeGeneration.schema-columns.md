@@ -11,14 +11,17 @@
 
 The Code Generation group contributes three schema-projected columns to the
 Property Inspector and data table: **Storage Class** (editable dropdown),
-**Header File** (read-only label), and **Alignment** (read-only label). These
-are properties of the `Simulink.CoderInfo` sub-object nested at
-`_properties.CoderInfo._properties.*` in the serialized entry.
+**Header File** (read-only label), and **Alignment** (editable text, except
+under StorageClass `Auto`). These are properties of the `Simulink.CoderInfo`
+sub-object nested at `_properties.CoderInfo._properties.*` in the serialized
+entry.
 
-Only **Storage Class** is editable in the UI. Edits flow through
-`trySetSchemaProperty` in `schemaBridge.ts`, which validates the value against
-the schema's `options` list and then writes directly to
-`CoderInfo._properties.StorageClass` via `writeSourcePath`.
+**Storage Class** and **Alignment** are editable in the table. The Property
+Inspector shows all three read-only: it has no edit channel for schema rows.
+Edits flow through `trySetSchemaProperty` in `schemaBridge.ts`. Storage Class is
+validated against the schema's `options` list and written to
+`CoderInfo._properties.StorageClass` via `writeSourcePath`. Alignment has its
+own rule and write form (below).
 
 ## Property table
 
@@ -26,7 +29,7 @@ the schema's `options` list and then writes directly to
 |------------|-------|------------|------|--------|----------|-------|
 | storageClass | Storage Class | CoderInfo.StorageClass | string | select | **yes** | Code Generation |
 | headerFile | Header File | CoderInfo.CustomAttributes.HeaderFile | string | label | no | Code Generation |
-| alignment | Alignment | CoderInfo.Alignment | int | label | no | Code Generation |
+| alignment | Alignment | CoderInfo.Alignment | int | text | **yes**, unless StorageClass is `Auto` | Code Generation |
 
 ## StorageClass — allowed values (via CoderInfo.StorageClass path)
 
@@ -94,24 +97,48 @@ selected. Because:
 It is rendered with `editor: 'label'` — `trySetSchemaProperty` returns `null`
 (not a writable schema prop), so the edit path is never reached.
 
-## alignment — why read-only
+## alignment — MATLAB's rule
 
-`CoderInfo.Alignment` is typed `int` in the schema but rendered with
-`editor: 'label'`. MATLAB accepts `-1` (inherit/default) and positive powers of
-2 (1, 2, 4, 8, ..., up to platform limit). The rejection:
+`CoderInfo.Alignment` is an int32. Measured in R2027a (27.1.0.3409468,
+2026-10-16), on `Simulink.Parameter`, `Simulink.Signal` and their `mpt.*`
+subclasses:
 
-> "Invalid setting for property 'Alignment'. Must be a positive integer that is a
-> power of 2, or -1."
+- The value is converted as int32 first: round half away from zero,
+  saturating, with NaN as 0 and `true` as 1. So 1.5 is stored as 2, 2.5 becomes
+  3 and is refused, and 2^31 becomes 2147483647 and is refused.
+- The value must then be -1 (the default) or a power of two from 1 to 2^30.
+  Anything else is refused with "<n> is not a valid alignment boundary. The
+  alignment boundary must be either -1 or a power of two no more than 128." We
+  leave out "no more than 128", because MATLAB does not apply it: 256 through
+  2^30 are all accepted.
+- A char value is refused with "Value must be numeric or logical." A table
+  cell's text is read as the number it spells: a decimal literal, `Inf`, `NaN`,
+  `true` or `false`. Anything else, including empty text, gets that refusal.
+- Only after the value check, under StorageClass `Auto` (the default, and most
+  entries), every value but -1 is refused: "Cannot set Alignment when
+  StorageClass is 'Auto'." So 3 under `Auto` is refused as 3. The table cell is
+  a plain string there, through the `editableFor` hook on the column's
+  PropClass, which `BaseNode.getPropInfo` honours.
+- Setting StorageClass to `Auto` resets Alignment to -1 (MATLAB also warns
+  "Alignment is ignored when StorageClass is 'Auto'.", which has no channel
+  here). Undoing that edit restores the StorageClass and not the Alignment, as
+  in MATLAB.
 
-Because of the power-of-2 constraint (which requires non-trivial validation) and
-the `-1` sentinel, it is kept read-only. The `trySetSchemaProperty` code path for
-`editor: 'label'` returns `null` immediately.
+### The written form
 
-Note that a *generic* `int` check (`Number.isInteger`) would NOT be the right
-validation if Alignment were ever made editable: it accepts 3, 5, 6, … which
-MATLAB rejects. Making it editable means writing the power-of-2 + `-1` rule
-explicitly, so no generic int branch is carried in `trySetSchemaProperty`
-speculatively — see below.
+- In a text `.sldd`, MATLAB writes a non-default value as
+  `"Alignment": {"_type": "int32", "_value": "8"}`, the first key of
+  CoderInfo's `_properties`, and leaves the key out at -1. A binary `.sldd`
+  always holds `<P Name="Alignment" Class="int32">8</P>`, or -1.
+- On read-back, a typed int32, a typed double and a bare number all load. A
+  **string** `"16"` loads as -1, silently, so the edit would be lost. An
+  invalid value, or any value under `Auto`, also loads as -1.
+- So the write keeps the form the file already holds: a typed leaf keeps its
+  `_type`, and a bare number stays bare. A new key is a typed int32, inserted
+  where MATLAB's sorted text puts it. A string leaf is replaced by a typed one,
+  and a string is never written. Setting -1 removes the key in a text
+  dictionary and writes int32 -1 in a binary one. An absent key at -1 stays
+  absent. Setting the value already held marks nothing.
 
 ## Validation mirrored in code
 
@@ -119,21 +146,29 @@ speculatively — see below.
   validates `stringValue` is in `prop.options`; rejects with
   `"Invalid value for Storage Class"`. Test:
   `test/parity/fidelity/schemaColumns.fidelity.test.ts`.
-- `headerFile` and `alignment` (editor 'label'): `trySetSchemaProperty` returns
-  `null` (not writable), so `DataNode.setProperty` falls through to field-based
-  logic which also does not handle them → effectively read-only.
-- **No dead validation code.** `trySetSchemaProperty` validates only the 'select'
-  editor, because `storageClass` is the sole prop that is both `projected: true`
-  and not `editor: 'label'` — i.e. the only writable schema prop that exists.
-  A generic `int` branch was removed for this reason (it was unreachable, and
-  would have been wrong for Alignment anyway; see above). Adding a writable prop
-  of a new editor type requires adding its validation at the same time.
+- `alignment` (editor 'text', on Parameter and Signal): `setAlignment` and
+  `writeAlignment` in `schemaBridge.ts` apply the rule and the written form
+  above, and a `storageClass` write to `Auto` resets it. Test:
+  `test/alignmentEdit.test.ts`, which runs over the MATLAB-written entries in
+  `test/fixtures/classes_r2027a_{text,binary}.sldd`.
+- `headerFile` (editor 'label'): `trySetSchemaProperty` returns `null` (not
+  writable), so `DataNode.setProperty` falls through to field-based logic,
+  which also does not handle it. It is effectively read-only.
+- **No generic validation.** `trySetSchemaProperty` validates each writable
+  prop by its own rule: the 'select' options, and Alignment's. There is no
+  generic `int` branch, because `Number.isInteger` accepts 3, which MATLAB
+  refuses as an Alignment. Adding a writable prop of a new editor type
+  requires adding its validation at the same time.
 
 ## Round-trip coverage
 
 - JSON sldd: set storageClass → serialize → re-parse → value preserved.
   Test: `test/parity/fidelity/schemaColumns.fidelity.test.ts` (format 'json').
 - Binary sldd: same. Test: same file (format 'binary').
+- Alignment, both formats: an edit saves as MATLAB wrote the same value
+  (pSC set to 8 gives pAl8's CoderInfo exactly). Set back to -1, it gives
+  pAlM1's. StorageClass set to `Auto` gives pNo's. Each re-parses. Test:
+  `test/alignmentEdit.test.ts`.
 - MATLAB re-open value-equality gate: set CoderInfo.StorageClass to
   'ExportedGlobal' → MATLAB reads it back as 'ExportedGlobal'. Set to 'Auto' →
   reads back 'Auto'. Test: same file (gated on DEX_MATLAB_CMD).

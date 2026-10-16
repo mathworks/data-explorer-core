@@ -315,13 +315,20 @@ describe('defect 58: an empty struct or cell survives the binary round trip', ()
 describe('C-199: a value saved beside a NEW entry\'s envelope can be cleared, in both formats', () => {
   // binaryWriteBackGate pins this on MATLAB's own aVariant, whose envelope only the binary
   // file carries. An entry this package creates carries one in BOTH formats (createDefault's),
-  // so the text channel lost the clear too. VariantBank's `Value` is the other shape: a field
-  // the envelope does not declare, so the sibling is its only copy and the envelope is left
-  // alone either way.
+  // so the text channel lost the clear too. VariantConfigurations' `Value` is the other shape:
+  // a field the envelope does not declare, so the sibling is its only copy and the envelope is
+  // left alone either way.
+  //
+  // That shape was first pinned on VariantBank's `Value`, which C-168 removed: MATLAB's
+  // Simulink.VariantBank has no Value, so none can be set on a new bank any more, and
+  // VariantBankCoderInfo's went the same way (C-169). VariantConfigurations' is now the only
+  // field a new entry still writes as a sibling beside an envelope that does not declare it.
+  // MATLAB's class may not have that one either (it is unmeasured); if it goes too, this row
+  // has no vehicle left among new entries, and the undeclared case below fails first.
   const FIXTURE = 'cases.sldd';
   const CLEARABLE = [
     { className: 'Simulink.VariantVariable', prop: 'Specification', declared: true },
-    { className: 'Simulink.VariantBank', prop: 'Value', declared: false },
+    { className: 'Simulink.VariantConfigurations', prop: 'Value', declared: false },
   ] as const;
 
   /** A new `className` entry in cases.sldd with `prop` set to 'x', saved and reopened. */
@@ -402,8 +409,11 @@ describe('C-199: a value saved beside a NEW entry\'s envelope can be cleared, in
   it('an undeclared field: the sibling goes, and the envelope is the same object', () => {
     // On _mergeProps directly, because only identity can say the envelope was not rebuilt.
     const uri = 'mem://c199-new-undeclared';
-    const v: any = entryByName(savedNew('binary', 'Simulink.VariantBank', 'Value', uri), uri, 'vNew');
+    const v: any = entryByName(savedNew('binary', 'Simulink.VariantConfigurations', 'Value', uri), uri, 'vNew');
     const bag = v.serial._properties as Record<string, unknown>;
+    // The premise, stated so a vehicle that stops being one fails here rather than passing
+    // vacuously: the envelope declares no Value, so the sibling is the only copy.
+    expect((bag[SAVEOBJ_KEY] as any)._fields).not.toContain('Value');
     expect(bag.Value).toBe('x');
     const merged = v._mergeProps({ Value: '' });
     expect(Object.prototype.hasOwnProperty.call(merged, 'Value')).toBe(false);
