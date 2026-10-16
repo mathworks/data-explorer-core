@@ -252,9 +252,10 @@ export default class SlddNode extends ContainerNode {
                 const section = node.getSection(sectionKey);
                 if (section) {
                     // An encoded value that is framed right and still does not decode is
-                    // shown as not decoded and saved unchanged; the node layer that finds
-                    // out records why, and this is the read that can say so (see
-                    // EncodedValue.recordDecodeFailure). Taken before too, so that nothing
+                    // shown as not decoded and saved unchanged, and a text dictionary's MAT
+                    // stream that does not decode is shown as its encoded text; the node
+                    // layer that finds out records why, and this is the read that can say so
+                    // (see EncodedValue.recordDecodeFailure). Taken before too, so that nothing
                     // recorded outside this read is reported against this entry. And one
                     // that decoded with an object in it read only in part is shown from what
                     // was read and says so, collected the same way (recordPartialDecode).
@@ -278,11 +279,11 @@ export default class SlddNode extends ContainerNode {
                     if (source && frame && source.frame === frame && frame.xml === node.rawXml) {
                         attachEntrySource(entryNode, source);
                     }
-                    for (const reason of takeDecodeFailures()) {
+                    for (const { reason, shownAs } of takeDecodeFailures()) {
                         warnings?.push({
                             code: 'part-unreadable',
                             message: `"${String(entry.name)}" holds a value stored encoded that could not be read, `
-                                + `because ${reason}; it is shown as not decoded and saved unchanged.`,
+                                + `because ${reason}; it is shown as ${shownAs} and saved unchanged.`,
                             part: String(entry.name),
                         });
                     }

@@ -64,10 +64,35 @@ export type EncodedBytes = {
  * value's, but it is still the file's, and the writer replays it.
  */
 export declare function encodedBytes(v: EncodedValue): EncodedBytes;
-/** Record why an encoded value did not decode (see `decodeFailures`). */
-export declare function recordDecodeFailure(reason: string): void;
+/**
+ * Why encoded values read while one dictionary entry was being built did not decode,
+ * for that dictionary's warnings.
+ *
+ * A stream whose BYTES are wrong is reported by the binary reader, which sees them
+ * (BinarySlddParser.warnUnreadableEncoded, from encodedStream's reason). One whose bytes
+ * are framed right and still do not decode fails only where it is decoded, in the node
+ * layer (MatlabVariableNode.parseEncoded), which has no warnings sink of its own — so it
+ * records the reason here and SlddNode.parse, which builds the entry and holds the sink,
+ * takes them after each entry, and before it, so that nothing recorded outside a
+ * dictionary's own read (a paste) is reported against one of its entries.
+ *
+ * A text dictionary's MAT stream (cdata) that does not decode is recorded here too
+ * (MatlabVariableNode.parseCdata). It is shown as its encoded text rather than as not
+ * decoded, so each failure says how its value is shown, for the message.
+ */
+export interface DecodeFailure {
+    /** Why it did not decode, a clause after "because". */
+    reason: string;
+    /** How the value is shown instead, after "it is shown as". */
+    shownAs: string;
+}
+/**
+ * Record why an encoded value did not decode (see `decodeFailures`), and how it is shown
+ * instead: `not decoded`, the placeholder a hex value gets, unless the caller says otherwise.
+ */
+export declare function recordDecodeFailure(reason: string, shownAs?: string): void;
 /** The decode failures recorded since the last call, which clears them. */
-export declare function takeDecodeFailures(): string[];
+export declare function takeDecodeFailures(): DecodeFailure[];
 /** Record one message about an encoded value decoded in part (see `partialDecodes`). */
 export declare function recordPartialDecode(message: string): void;
 /** The partial decodes recorded since the last call, which clears them. */

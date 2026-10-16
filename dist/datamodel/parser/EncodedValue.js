@@ -131,22 +131,13 @@ export function encodedBytes(v) {
     }
     return { bytes };
 }
-/**
- * Why encoded values read while one dictionary entry was being built did not decode,
- * for that dictionary's warnings.
- *
- * A stream whose BYTES are wrong is reported by the binary reader, which sees them
- * (BinarySlddParser.warnUnreadableEncoded, from encodedStream's reason). One whose bytes
- * are framed right and still do not decode fails only where it is decoded, in the node
- * layer (MatlabVariableNode.parseEncoded), which has no warnings sink of its own — so it
- * records the reason here and SlddNode.parse, which builds the entry and holds the sink,
- * takes them after each entry, and before it, so that nothing recorded outside a
- * dictionary's own read (a paste) is reported against one of its entries.
- */
 const decodeFailures = [];
-/** Record why an encoded value did not decode (see `decodeFailures`). */
-export function recordDecodeFailure(reason) {
-    decodeFailures.push(reason);
+/**
+ * Record why an encoded value did not decode (see `decodeFailures`), and how it is shown
+ * instead: `not decoded`, the placeholder a hex value gets, unless the caller says otherwise.
+ */
+export function recordDecodeFailure(reason, shownAs = 'not decoded') {
+    decodeFailures.push({ reason, shownAs });
 }
 /** The decode failures recorded since the last call, which clears them. */
 export function takeDecodeFailures() {

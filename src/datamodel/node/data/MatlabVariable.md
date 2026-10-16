@@ -185,6 +185,12 @@ A value the `.sldd` schema cannot spell is stored as `{ _type: "cdata", _value:
 
 An undecodable payload degrades to a `char` scalar rather than being dropped, and
 an untouched cdata entry writes back byte-identically by replaying `_rawInput`.
+That char is display-only like every other value read from a stream (below), and
+the dictionary warns for its entry (`part-unreadable`: "... could not be read,
+because ...; it is shown as its encoded text and saved unchanged."), through the
+per-entry harvest a hex value's decode failure goes through
+(`EncodedValue.recordDecodeFailure`, collected by `SlddNode.parse`). Pinned in
+`test/cdataDecodeFailure.test.ts`.
 
 Pinned in `test/cdataParse.test.ts` (against `truth.json` and the real
 `artifacts/text/cases.sldd`).

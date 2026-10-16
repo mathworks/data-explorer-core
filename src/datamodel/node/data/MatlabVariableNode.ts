@@ -298,9 +298,10 @@ export default class MatlabVariableNode extends DataNode {
   // and a complex array is the one shape whose elements it cannot infer (see the
   // `elementType` note on _buildArrayChildren).
   _elementType: string | null;
-  // Set on the node parseCdata builds out of a MAT stream that holds no MCOS object. In a text
-  // dictionary, everything at and under it is shown and not edited (_streamHolder). Absent on
-  // every other node.
+  // Set on the node parseCdata builds out of a MAT stream that holds no MCOS object, and on the
+  // char it shows for one that does not decode (_createUndecodableCdata). In a text dictionary,
+  // everything at and under it is shown and not edited (_streamHolder). Absent on every other
+  // node.
   _readFromStream?: true;
 
   constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>) {
@@ -4123,11 +4124,12 @@ export default class MatlabVariableNode extends DataNode {
     }
     try {
       // The six-bit text is a MAT stream (MatParser.decodeMatStream reads it, as it reads
-      // every venue's); one that is not shows as the char it is, below.
+      // every venue's); one that does not decode shows as the char it is
+      // (_createUndecodableCdata).
       const bytes = uudecode(valStr);
       const stream = decodeMatStream(bytes);
       if (!stream.ok) {
-        throw new Error('cdata is not a MAT stream: ' + stream.reason);
+        return MatlabVariableNode._createUndecodableCdata(rawVal, name, parent, stream.reason);
       }
       const variable = stream.variable;
       if (holdsMcosObject(variable)) {
@@ -4148,15 +4150,39 @@ export default class MatlabVariableNode extends DataNode {
       node._rawInput = rawVal;
       node._keepStreamElement(bytes);
       return node;
-    } catch (_e) {
-      const node = new MatlabVariableNode(name, parent, rawVal);
-      node._rawInput = rawVal;
-      node._kind = 'scalar';
-      node._dims = [1, 1];
-      node._scalarType = 'char';
-      node._scalarValue = valStr;
-      return node;
+    } catch (e) {
+      // Framed right, and the bytes say something the readers or the node builders cannot
+      // make sense of: what parseEncoded's catch says of the same bytes as hex.
+      const reason = 'its MAT stream did not decode (' + (e instanceof Error ? e.message : String(e)) + ')';
+      return MatlabVariableNode._createUndecodableCdata(rawVal, name, parent, reason);
     }
+  }
+
+  /**
+   * A text dictionary's MAT stream that does not decode (`reason`), shown as the char of its
+   * six-bit text and written back as it was read, by replaying `_rawInput`.
+   *
+   * It is still a MAT stream, so it is display-only, as every value read from one is
+   * (_readFromStream, the C-012 ruling): an edit would have saved what was typed in place of
+   * the stream. And it says so, for the dictionary's warnings, as a binary dictionary's hex of
+   * the same bytes does (EncodedValue.recordDecodeFailure, which SlddNode.parse collects for
+   * the entry). It used to be shown with no warning, and it took edits.
+   */
+  static _createUndecodableCdata(
+    rawVal: Record<string, unknown>,
+    name: string,
+    parent: BaseNode | null,
+    reason: string,
+  ): MatlabVariableNode {
+    recordDecodeFailure(reason, 'its encoded text');
+    const node = new MatlabVariableNode(name, parent, rawVal);
+    node._rawInput = rawVal;
+    node._kind = 'scalar';
+    node._dims = [1, 1];
+    node._scalarType = 'char';
+    node._scalarValue = rawVal._value as string;
+    node._readFromStream = true;
+    return node;
   }
 
   /**
