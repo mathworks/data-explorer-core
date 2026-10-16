@@ -7,7 +7,7 @@ import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import type MatlabVariableNode from './MatlabVariableNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
-import { formatMatlabNum, formatMatrixSerial, isEnumBag } from '../../parser/XmlUtils.js';
+import { formatMatlabNum, formatMatrixSerial, isEnumBag, textEnumValueOf } from '../../parser/XmlUtils.js';
 import PropName from '../../prop/PropName.js';
 import PropValue from '../../prop/PropValue.js';
 import PropDataType from '../../prop/PropDataType.js';
@@ -129,7 +129,7 @@ export default class ParameterNode extends DataNode {
     // here, as it takes none on a row of its own (ObjectNode.valueEditable). Its summary, which
     // an array of them shows, took none already.
     get valueEditable(): boolean {
-        if (this._valueNode && isEnumBag(this._valueNode.serial._rawVal)) {
+        if (this._valueIsEnum()) {
             return false;
         }
         // Nor a Value read from a MAT stream, which is shown and not edited
@@ -138,6 +138,14 @@ export default class ParameterNode extends DataNode {
             return false;
         }
         return super.valueEditable;
+    }
+
+    // Whether the Value is an enumeration value, as a binary dictionary's reader holds one or as a
+    // text dictionary spells one (XmlUtils.textEnumValueOf), which shows `DispColor(2)` and not a
+    // summary, so it would otherwise take an editor, and an edit would replace it with a double.
+    _valueIsEnum(): boolean {
+        const raw = this._valueNode?.serial._rawVal;
+        return !!this._valueNode && (isEnumBag(raw) || textEnumValueOf(raw) !== undefined);
     }
 
     // The refusal of a Value edit when the Value was read from a MAT stream, or null: what the
@@ -396,8 +404,8 @@ export default class ParameterNode extends DataNode {
             // An enumeration value refuses a value set on it, as it does on a row of its own
             // (ObjectNode.setProperty), and as it takes no editor here (valueEditable). Taken, what
             // was typed replaced the enumeral, `2` with a double, and an undo did not put it back.
-            if (this._valueNode && isEnumBag(this._valueNode.serial._rawVal)) {
-                return this._valueNode.setProperty(propName, stringValue);
+            if (this._valueIsEnum()) {
+                return this._valueNode!.setProperty(propName, stringValue);
             }
             const raw = MatlabValueParser.parse(stringValue);
             if (!raw) {

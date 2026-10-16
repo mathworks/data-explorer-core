@@ -1129,6 +1129,52 @@
       "paramValue": []
     },
     {
+      "name": "en_sl_red",
+      "group": "enum",
+      "class": "DispColor",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": true,
+      "isenum": true,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "int32",
+      "mat2str": "DispColor.Red",
+      "mat2str17": "DispColor.Red",
+      "hex": [],
+      "disp": "    Red\n",
+      "paramValue": []
+    },
+    {
+      "name": "en_sl_vec",
+      "group": "enum",
+      "class": "DispColor",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": true,
+      "isenum": true,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "int32",
+      "mat2str": "[DispColor.Red DispColor.Blue]",
+      "mat2str17": "[DispColor.Red DispColor.Blue]",
+      "hex": [],
+      "disp": "    Red     Blue\n",
+      "paramValue": []
+    },
+    {
       "name": "en_sl_empty",
       "group": "enum",
       "class": "DispColor",
@@ -1152,6 +1198,52 @@
       "paramValue": []
     },
     {
+      "name": "en_i32_high",
+      "group": "enum",
+      "class": "DispLevel",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": true,
+      "isenum": true,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "int32",
+      "mat2str": "DispLevel.High",
+      "mat2str17": "DispLevel.High",
+      "hex": [],
+      "disp": "    High\n",
+      "paramValue": []
+    },
+    {
+      "name": "en_i32_vec",
+      "group": "enum",
+      "class": "DispLevel",
+      "size": [
+        1,
+        2
+      ],
+      "numel": 2,
+      "ndims": 2,
+      "isreal": true,
+      "issparse": false,
+      "isobject": true,
+      "isenum": true,
+      "isnumeric": true,
+      "islogical": false,
+      "underlyingType": "int32",
+      "mat2str": "[DispLevel.Low DispLevel.High]",
+      "mat2str17": "[DispLevel.Low DispLevel.High]",
+      "hex": [],
+      "disp": "    Low     High\n",
+      "paramValue": []
+    },
+    {
       "name": "en_i32_empty",
       "group": "enum",
       "class": "DispLevel",
@@ -1172,6 +1264,60 @@
       "mat2str17": "DispLevel.empty(1,0)",
       "hex": [],
       "disp": "",
+      "paramValue": []
+    },
+    {
+      "name": "p_enum",
+      "group": "object",
+      "class": "Simulink.Parameter",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": true,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "Simulink.Parameter",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "  Parameter with properties:\n\n          Value: Green\n     Complexity: 'real'\n     Dimensions: [1 1]\n      CoderInfo: [1×1 Simulink.CoderInfo]\n    Description: ''\n       DataType: 'Enum: DispColor'\n            Min: []\n            Max: []\n           Unit: ''\n",
+      "paramValue": {
+        "class": "DispColor",
+        "size": [
+          1,
+          1
+        ],
+        "isreal": true,
+        "mat2str": "DispColor.Green"
+      }
+    },
+    {
+      "name": "enumdef",
+      "group": "object",
+      "class": "Simulink.data.dictionary.EnumTypeDefinition",
+      "size": [
+        1,
+        1
+      ],
+      "numel": 1,
+      "ndims": 2,
+      "isreal": false,
+      "issparse": false,
+      "isobject": true,
+      "isenum": false,
+      "isnumeric": false,
+      "islogical": false,
+      "underlyingType": "Simulink.data.dictionary.EnumTypeDefinition",
+      "mat2str": [],
+      "mat2str17": [],
+      "hex": [],
+      "disp": "   Simulink.data.dictionary.EnumTypeDefinition\n      enum1\n      Second",
       "paramValue": []
     },
     {

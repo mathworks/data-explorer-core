@@ -247,3 +247,96 @@ describe("an empty shows as MATLAB's Workspace browser shows it", () => {
     expect(chunkOf(session.serializeSource(root.name).bytes)).toBe(chunkOf(bytes('dispcat_bin.sldd')));
   });
 });
+
+// P2 of the 2026-10-16 list: a text dictionary spells an enumeration value as the numbers its
+// enumerals stand for, under `_enum_value`, in a bag that is 1x1 whatever the value's size
+// (MatWriter.enumTextForm), and that was all that was read of it. `on` and `off` both showed
+// `<1x1 matlab.lang.OnOffSwitchState>`, as did a 1x3 of them, with no rows; a DispColor.Red
+// and a [Red Blue] both `<1x1 DispColor>`. The file names no enumeral (the display study's H9),
+// so a value shows its enumeral's name where it is known and otherwise the expression that makes
+// it from its numbers; MATLAB's binary twin of the same file names each enumeral and its number,
+// which is what the numbers are checked against here.
+describe("a text dictionary's enumeration value shows its value and its size", () => {
+  /** Each enumeral of the binary twin's entry `name`: its name and its number, in MATLAB's order. */
+  const binaryEnumerals = (name: string): [string, string][] => {
+    const xml = chunkOf(bytes('dispcat_bin.sldd'));
+    const at = xml.indexOf(`<P Name="Name" Class="char">${name}</P>`);
+    const block = xml.slice(at, xml.indexOf('</Object>', at));
+    return [...block.matchAll(/EnumerationName="([^"]+)" EnumerationType="int32">([^<]+)</g)].map((m) => [m[1], m[2]]);
+  };
+  /** What a node and every row under it show: label, Value, size, editable. */
+  const shown = (n: any): unknown[] => [[n.displayName, n.toRow().Value, n.dims, n.valueEditable], ...(n.children || []).flatMap(shown)];
+
+  it("an OnOffSwitchState is on or off, as MATLAB shows it, and a row of them is its size with a row for each", () => {
+    const { root } = open('dispcat_text.sldd');
+    for (const name of ['en_on', 'en_off']) {
+      expect(shown(entry(root, name)), name).toEqual([[name, browser(name).Value, meta(name).size, false]]);
+    }
+    const vec = entry(root, 'en_onoff_vec');
+    // MATLAB's `[on    off    on]`, one row per element.
+    const each = browser('en_onoff_vec').Value.replace(/^\[|\]$/g, '').split(/\s+/);
+    expect(each).toEqual(['on', 'off', 'on']);
+    expect(shown(vec)).toEqual([
+      ['en_onoff_vec', '<1x3 matlab.lang.OnOffSwitchState>', meta('en_onoff_vec').size, false],
+      ...each.map((v, k) => [`en_onoff_vec(${k + 1})`, v, [1, 1], false]),
+    ]);
+  });
+
+  it('a value of a class the dictionary does not define is its numbers, the ones the binary twin names', () => {
+    const { root } = open('dispcat_text.sldd');
+    for (const [name, cls] of [['en_sl_red', 'DispColor'], ['en_i32_high', 'DispLevel']]) {
+      const [[, number]] = binaryEnumerals(name);
+      expect(shown(entry(root, name)), name).toEqual([[name, `${cls}(${number})`, meta(name).size, false]]);
+    }
+    for (const [name, cls] of [['en_sl_vec', 'DispColor'], ['en_i32_vec', 'DispLevel']]) {
+      const numbers = binaryEnumerals(name).map(([, n]) => n);
+      expect(numbers.length, name).toBe(2);
+      expect(shown(entry(root, name)), name).toEqual([
+        [name, `${cls}([${numbers.join(' ')}])`, meta(name).size, false],
+        ...numbers.map((n, k) => [`${name}(${k + 1})`, `${cls}(${n})`, [1, 1], false]),
+      ]);
+    }
+  });
+
+  it("a Parameter's enumeration Value shows the same, takes no editor, and refuses an edit", () => {
+    const { root } = open('dispcat_text.sldd');
+    expect(meta('p_enum').paramValue).toMatchObject({ class: 'DispColor', size: [1, 1], mat2str: 'DispColor.Green' });
+    expect(binaryEnumerals('p_enum')).toEqual([['Green', '2']]);
+    const param = entry(root, 'p_enum');
+    expect([param.toRow().Value, param.valueEditable]).toEqual(['DispColor(2)', false]);
+    const refused = param.setProperty('Value', '3');
+    expect(refused).toMatchObject({ error: true });
+    expect(param.toRow().Value).toBe('DispColor(2)');
+  });
+
+  it("one of a class an EnumTypeDefinition in the same dictionary defines shows its enumeral's name, as the binary twin does", () => {
+    // The catalog's EnumTypeDefinition `enumdef`, as MATLAB wrote it, renamed to the class and
+    // given its enumerals, which are the catalog's Simulink.defineIntEnumType('DispColor',
+    // {'Red', 'Green', 'Blue'}, [1 2 3]).
+    const text = JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8'));
+    const entries: any[] = text.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const def = entries.find((e) => e.name === 'enumdef');
+    def.name = 'DispColor';
+    def.value._elements[0]._properties.Enumerals._dimensions = [1, 3];
+    def.value._elements[0]._properties.Enumerals._elements = [['Red', '1'], ['Green', '2'], ['Blue', '3']].map(([Name, Value]) => ({ Description: '', Name, Value }));
+    const root: any = ingest(createSession(), buffer(new TextEncoder().encode(JSON.stringify(text))), { filename: 'dispcat_text.sldd' });
+    const binary = open('dispcat_bin.sldd').root;
+    for (const name of ['en_sl_red', 'en_sl_vec']) {
+      expect(shown(entry(root, name)), name).toEqual(shown(entry(binary, name)));
+    }
+    expect(shown(entry(root, 'en_sl_vec')).map((r: any) => r[1])).toEqual(['<1x2 DispColor>', 'DispColor.Red', 'DispColor.Blue']);
+    expect(entry(root, 'p_enum').toRow().Value).toBe('DispColor.Green');
+    // A class it does not define is still its numbers.
+    expect(entry(root, 'en_i32_high').toRow().Value).toBe('DispLevel(2)');
+  });
+
+  it('and each is written back as MATLAB wrote it', () => {
+    const { session, root } = open('dispcat_text.sldd');
+    const valuesOf = (json: any): Record<string, unknown> =>
+      Object.fromEntries(json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.map((e: any) => [e.name, e.value]));
+    const names = ['en_on', 'en_off', 'en_onoff_vec', 'en_sl_red', 'en_sl_vec', 'en_i32_high', 'en_i32_vec', 'p_enum'];
+    const matlab = valuesOf(JSON.parse(readFileSync(here('dispcat_text.sldd'), 'utf8')));
+    const saved = valuesOf(JSON.parse(session.serializeSource(root.name).text));
+    expect(names.map((n) => saved[n])).toEqual(names.map((n) => matlab[n]));
+  });
+});

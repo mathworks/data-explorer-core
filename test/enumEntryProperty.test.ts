@@ -342,7 +342,7 @@ describe('and is saved as MATLAB wrote it', () => {
     const again: any = ingest(createSession(), buffer(strToU8(session.serializeSource(txt.name)!.text!)), { filename: 'reopened_text.sldd' });
     const reopened = names.map((name) => tree(again.getSection('design').children.find((e: any) => e.name === name + 'Copy')));
     expect(pasted).toEqual(reopened);
-    expect(pasted[0]).toEqual([['gearValueCopy', 'GearMode', '<1x1 GearMode>', [1, 1], false]]);
+    expect(pasted[0]).toEqual([['gearValueCopy', 'GearMode', 'GearMode(-1)', [1, 1], false]]);
   });
 
   it('and one a text dictionary holds itself, copied out of it and pasted back or re-read from its text, shows and is saved as the original', () => {
@@ -428,3 +428,41 @@ function tree(node: any): unknown[] {
   walk(node);
   return out;
 }
+
+// P2 of the 2026-10-16 display list: what a text dictionary holds of an enumeration value is
+// its size and the numbers its enumerals stand for (MatWriter.enumTextForm), and it is shown:
+// a value of a class the dictionary does not define as the expression that makes it from them,
+// `GearMode(-1)`, `GearMode([0 1 -1])`, each element on its own row. It showed `<1x1 GearMode>`
+// at every size, with no rows. Each value here is written by MATLAB's binary spelling of it and
+// its text spelling read back, so the numbers and the size are checked against what MATLAB wrote.
+describe("a text dictionary's enumeration value is its size and its numbers", () => {
+  it('a row, a column and a 2x2x2, each element on its own row in MATLAB order', () => {
+    const enumeral = (cls: string, name: string, type: string, value: string) =>
+      `            <Element Class="${cls}" EnumerationName="${name}" EnumerationType="${type}">${value}</Element>`;
+    const column = ['        <P Name="Value" IsEnum="1" Dimension="3*1">', ...[['Off', '0'], ['Low', '1'], ['High', '2']].map(([n, v]) => enumeral('ShiftMode', n, 'uint8', v)), '        </P>'].join('\n');
+    const pages = [['Red', '0'], ['Blue', '2'], ['Yellow', '1'], ['Red', '0'], ['Blue', '2'], ['Red', '0'], ['BONUS', '10'], ['Yellow', '1']];
+    const nd = ['        <P Name="Value" IsEnum="1" Dimension="2*2*2">', ...pages.map(([n, v]) => enumeral('dSomeColors', n, 'int32', v)), '        </P>'].join('\n');
+    const tail = '    <Object Class="DD.Dictionary">';
+    const xml = HOST_XML.replace(tail, [entry('enumColumn', 11, column), entry('matEnum3D', 12, nd)].join('\n') + '\n' + tail);
+    const { session, txt } = pasteIntoText(['gearValue', 'gearRow', 'enumColumn', 'matEnum3D'], xml);
+    const again: any = ingest(createSession(), buffer(strToU8(session.serializeSource(txt.name)!.text!)), { filename: 'reopened_text.sldd' });
+    const rows = (name: string) => tree(entryNode(again, name + 'Copy')).map((r: any) => [r[0], r[2], r[3]]);
+    expect(rows('gearValue')).toEqual([['gearValueCopy', 'GearMode(-1)', [1, 1]]]);
+    expect(rows('gearRow')).toEqual([
+      ['gearRowCopy', 'GearMode([0 1 -1])', [1, 3]],
+      ['gearRowCopy(1)', 'GearMode(0)', [1, 1]],
+      ['gearRowCopy(2)', 'GearMode(1)', [1, 1]],
+      ['gearRowCopy(3)', 'GearMode(-1)', [1, 1]],
+    ]);
+    expect(rows('enumColumn')).toEqual([
+      ['enumColumnCopy', 'ShiftMode([0; 1; 2])', [3, 1]],
+      ...['0', '1', '2'].map((v, k) => [`enumColumnCopy(${k + 1})`, `ShiftMode(${v})`, [1, 1]]),
+    ]);
+    // Past two dimensions the value has no one-line spelling, so it shows its summary.
+    const subscripts = ['(1,1,1)', '(2,1,1)', '(1,2,1)', '(2,2,1)', '(1,1,2)', '(2,1,2)', '(1,2,2)', '(2,2,2)'];
+    expect(rows('matEnum3D')).toEqual([
+      ['matEnum3DCopy', '<2x2x2 dSomeColors>', [2, 2, 2]],
+      ...pages.map(([, v], k) => ['matEnum3DCopy' + subscripts[k], `dSomeColors(${v})`, [1, 1]]),
+    ]);
+  });
+});

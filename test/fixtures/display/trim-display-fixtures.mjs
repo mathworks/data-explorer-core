@@ -9,7 +9,7 @@
 // MATLAB's own Value/Class/Size for each into truth/browser_short.json and truth/meta.json.
 // Whole, the three files do not belong in this repo: they hold function handles, whose MAT
 // bytes carry the matlabroot MATLAB was run from (fixtureHygiene.test.ts), and every walk of
-// test/fixtures would read 283 values for the 56 these tests ask about. So this keeps, byte
+// test/fixtures would read 283 values for the 62 these tests ask about. So this keeps, byte
 // for byte as MATLAB wrote it:
 //   - dispcat_bin.sldd: the chosen `DD.ENTRY` blocks of data/chunk0.xml, and every other part;
 //   - dispcat_text.sldd: the chosen entries of the data/chunk0 part;
@@ -41,8 +41,11 @@ const EMPTY = ['dx_double_0x0', 'dx_double_1x0', 'dx_double_0x1', 'dx_double_0x3
   'dx_int8_0x3', 'e_uint64_0x0', 'dx_logical_1x0', 'e_logical_0x0', 'e_logical_0x3', 'dx_char_0x0', 'dx_char_1x0',
   'dx_char_0x2', 'dx_cell_0x0', 'dx_cell_1x0', 'dx_cell_0x3', 'dx_struct_0x0', 'dx_struct_0x0_fields', 'dx_struct_1x0'];
 const PARAM = ['dx_param_empty', 'dx_param_complex_1x0'];
+// Enumeration values of a user class, scalar and row, and a Parameter holding one, with the
+// catalog's EnumTypeDefinition beside them.
+const ENUM_VALUE = ['en_sl_red', 'en_sl_vec', 'en_i32_high', 'en_i32_vec', 'p_enum', 'enumdef'];
 
-const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM]);
+const SLDD = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...ENUM, ...STRING, ...EMPTY, ...PARAM, ...ENUM_VALUE]);
 const MAT = new Set([...COMPLEX, ...COMPLEX_EMPTY, ...SPARSE, ...EMPTY]);
 
 // --- binary: whole DD.ENTRY blocks, in MATLAB's order, between its header and its DD.Dictionary

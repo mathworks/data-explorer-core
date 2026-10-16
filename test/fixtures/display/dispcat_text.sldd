@@ -590,6 +590,60 @@
 						}
 					},
 					{
+						"name": "en_i32_high",
+						"metadata": {
+							"uuid": "d94ccd0b-4862-449c-adaa-7db0a9161af1",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.687196",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "DispLevel",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_enum_value": {
+										"_type": "int32",
+										"_value": "2"
+									},
+									"_id": "1"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "en_i32_vec",
+						"metadata": {
+							"uuid": "cc703b82-f027-4979-9eab-314704b3af33",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.687979",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "DispLevel",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_enum_value": {
+										"_type": "int32",
+										"_value": "[1, 2]"
+									},
+									"_id": "1"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
 						"name": "en_off",
 						"metadata": {
 							"uuid": "7c4b02e2-7cc0-422c-95f3-512e5aa6da5c",
@@ -676,6 +730,163 @@
 						"value": {
 							"_type": "DispColor",
 							"_value": "[]"
+						}
+					},
+					{
+						"name": "en_sl_red",
+						"metadata": {
+							"uuid": "cae164a2-1dbb-440b-b8ca-d2cfd09c5448",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.684605",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "DispColor",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_enum_value": {
+										"_type": "int32",
+										"_value": "1"
+									},
+									"_id": "1"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "en_sl_vec",
+						"metadata": {
+							"uuid": "bfb8a040-c2ba-41d8-9c7e-2d00e5ae97a7",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.685540",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "DispColor",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_enum_value": {
+										"_type": "int32",
+										"_value": "[1, 3]"
+									},
+									"_id": "1"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "enumdef",
+						"metadata": {
+							"uuid": "91e4972a-8903-4074-a4ec-caac6fe9ca37",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.703335",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.data.dictionary.EnumTypeDefinition",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Enumerals": {
+											"_array_type": "Struct",
+											"_dimensions": [
+												1,
+												2
+											],
+											"_elements": [
+												{
+													"Description": "",
+													"Name": "enum1",
+													"Value": "0"
+												},
+												{
+													"Description": "",
+													"Name": "Second",
+													"Value": "2"
+												}
+											],
+											"_fields": [
+												"Name",
+												"Value",
+												"Description"
+											]
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "p_enum",
+						"metadata": {
+							"uuid": "368b8b8a-f3e4-41b7-b018-53b0aa043e3a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261015T201408.690881",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "3",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "4",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "Enum: DispColor",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": {
+											"_enum_value": {
+												"_type": "int32",
+												"_value": "2"
+											},
+											"_id": "2",
+											"_object_class": "DispColor"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
 						}
 					},
 					{
