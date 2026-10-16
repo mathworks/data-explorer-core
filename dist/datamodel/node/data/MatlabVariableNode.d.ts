@@ -441,6 +441,7 @@ export default class MatlabVariableNode extends DataNode {
     _buildVarObject(): MatVariable;
     static parseMatVariable(variable: MatVariable, name: string, parent: BaseNode | null): DataNode;
     static _createOpaque(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
+    static _createFromMatHandle(variable: MatVariable, text: string | null, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createUndecoded(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
     static createFromMcosDecoded(variable: MatVariable, decoded: {
         value: unknown;

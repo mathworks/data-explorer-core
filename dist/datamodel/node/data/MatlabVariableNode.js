@@ -14,7 +14,7 @@ import MatlabValueParser, { controlsAsOneChar, formatMatlabChar, formatMatlabStr
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { subscriptLabel } from '../../display/Subscript.js';
-import { decodeMatStream, structElementsHeld } from '../../parser/MatParser.js';
+import { decodeMatStream, functionHandleOf, structElementsHeld } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, } from '../../parser/EncodedValue.js';
@@ -3023,6 +3023,14 @@ export default class MatlabVariableNode extends DataNode {
             }
             return MatlabVariableNode._createOpaque(variable, name, parent);
         }
+        // A function handle MatParser read (functionHandleOf) — a struct field or a cell element,
+        // since a top-level one is built by the container itself (MatNode.fromParsed) — is the
+        // node that one is. Its class is the 'unknown' of a class MatParser does not model, so
+        // it fell to the numeric arm and showed `null`, editable, of class `unknown`.
+        const handle = functionHandleOf(variable);
+        if (handle) {
+            return MatlabVariableNode._createFromMatHandle(variable, handle.text, name, parent);
+        }
         // A variable the parser RECORDED WITHOUT DECODING (MatParser's `undecoded`): a
         // pre-MCOS class-3 object, or an array declaring more elements than its bytes could
         // hold. Its value is one placeholder string standing for the whole variable rather
@@ -3066,6 +3074,21 @@ export default class MatlabVariableNode extends DataNode {
         node._opaqueClassName = variable.className;
         node._rawBytes = variable._rawBytes || null;
         node._matVar = variable;
+        return node;
+    }
+    // A function handle read out of a .mat or a MAT stream: the node a text dictionary's
+    // `{_type: 'function_handle', _value: 'sin'}` is, as MatNode.fromParsed builds a top-level
+    // one — `@sin`, class function_handle, no editor; an empty one `[ ]` of its size. It keeps
+    // the variable it was read as, whose class stays 'unknown': a text dictionary's stream of
+    // a handle alone (parseCdata) is then still pasted into a binary dictionary as its own hex
+    // (_hexValue asks needsHexInBinary of that variable), where without it the paste wrote
+    // `Class="function_handle"` XML; and a struct or a cell rebuilt around it hands MatWriter
+    // the variable it refused before.
+    static _createFromMatHandle(variable, text, name, parent) {
+        const value = text === null ? 'Matrix(' + variable.dimensions.join(',') + ')' : text;
+        const node = MatlabVariableNode.parse({ _type: 'function_handle', _value: value }, name, parent);
+        node._matVar = variable;
+        node._rawBytes = variable._rawBytes || null;
         return node;
     }
     // A recorded-but-not-decoded variable: one row, the parser's placeholder as its
