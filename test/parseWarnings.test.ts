@@ -35,6 +35,7 @@ import { parseMdl } from '../src/datamodel/parser/MdlParser.js';
 import { parseModel } from '../src/datamodel/parser/ModelParser.js';
 import { scanModelStructure } from '../src/datamodel/parser/ModelStructureScan.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
+import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import { parseBinarySldd, parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
 // Through the public entry point, which is what registers the node classes
 // SlddNode.parse builds a tree out of. A deep import of SlddNode alone leaves
@@ -776,6 +777,91 @@ describe('a model whose model-workspace part is missing or unreadable opens with
       expectWorkspaceEmptied(opened, mdlClassic(), []);
     });
   });
+});
+
+describe('a .slx whose workspace part is cut short inside a complex variable opens as one cut inside a real variable does', () => {
+  // A cut that lands after a complex variable's array flags and before its real part
+  // leaves the variable complex with no value, and that used to refuse the whole model
+  // with "Cannot read properties of null (reading 're')". The ruling of 2026-10-16 on
+  // C-232: an unreadable workspace part shows what could be read, with no refusal and
+  // no warning. What a variable cut at that point shows is already decided, by the real
+  // variable cut at the same point: the same bytes with the complex flag cleared. So
+  // each cut is measured against that sibling, not against a value chosen here.
+  const PART = 'simulink/modelWorkspace.mxarray';
+  const COMPLEX_WS = join(FIXTURES, 'mcos', 'complex_ws.slx');
+  const SPARSE_WS = join(FIXTURES, 'sparse', 'sparse_ws.slx');
+
+  interface Row {
+    name: string;
+    className: string;
+    displayValue: string;
+    valueEditable: boolean;
+    children: Row[];
+  }
+  function rowOf(node: Row): Row {
+    const { name, className, displayValue, valueEditable } = node;
+    return { name, className, displayValue, valueEditable, children: node.children.map(rowOf) };
+  }
+  function opened(file: string, part: Uint8Array) {
+    const source = createSession().addModelSource(basename(file), slxWith(file, { [PART]: part })) as unknown as {
+      children: { name: string; children: Row[] }[];
+      warnings?: ParseWarning[];
+    };
+    return {
+      sections: source.children.map((s): [string, number] => [s.name, s.children.length]),
+      workspace: source.children.find((s) => s.name === 'workspace')!.children.map(rowOf),
+      warnings: source.warnings ?? [],
+    };
+  }
+
+  // [fixture, variable, what it is]
+  const variables: [string, string, string][] = [
+    [COMPLEX_WS, 'z', 'a complex scalar, 3+4i'],
+    [SLX_MODERN, 'cplxScalar', 'a complex scalar'],
+    [SLX_MODERN, 'cplxVec', 'a complex 1x2 row'],
+    [SPARSE_WS, 'dComplex', 'a complex 3x4 matrix'],
+  ];
+
+  for (const [file, name, what] of variables) {
+    it(`${basename(file)}: ${what} (${name}), cut at every length between its flags and its real part`, () => {
+      const part = unzipSync(new Uint8Array(bytesAt(file)))[PART];
+      // The lengths at which the stream ends with this variable read as complex and
+      // holding no value: past the byte of its array flags that says complex, short of
+      // its real part's tag.
+      const window: number[] = [];
+      for (let length = 0; length < part.length; length++) {
+        const variable = parseMxArray(part.slice(0, length).buffer).find((v) => v.name === name);
+        if (variable && variable.isComplex && variable.value === null) {
+          window.push(length);
+        } else if (window.length > 0) {
+          break;
+        }
+      }
+      // The rest of the flags (6 bytes), the dimensions (8 + 8), the empty name (8), and
+      // the cut at the real part's tag itself.
+      expect(window.length).toBe(31);
+      expect(window[window.length - 1] - window[0]).toBe(30);
+      const flagsAt = window[0] - 1;
+      expect(part[flagsAt] & 0x08).toBe(0x08); // mxCOMPLEX, in the byte the window begins after
+      const real = part.slice();
+      real[flagsAt] &= ~0x08;
+
+      const intact = opened(file, part);
+      for (const length of window) {
+        const cut = opened(file, part.slice(0, length));
+        expect(cut).toEqual(opened(file, real.slice(0, length)));
+        expect(cut.warnings).toEqual([]);
+        // What was read before the cut is listed, this variable included; what the cut
+        // took is not; and nothing outside the workspace changes.
+        const names = cut.workspace.map((v) => v.name);
+        expect(names).toContain(name);
+        expect(intact.workspace.map((v) => v.name)).toEqual(expect.arrayContaining(names));
+        expect(cut.sections.filter(([s]) => s !== 'workspace')).toEqual(
+          intact.sections.filter(([s]) => s !== 'workspace'),
+        );
+      }
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
