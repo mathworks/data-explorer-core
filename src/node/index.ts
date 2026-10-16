@@ -11,7 +11,7 @@ import { constants as zlibConstants, inflateRawSync, inflateSync } from 'node:zl
 // Side-effect import: registers node classes so SectionNode.addEntry and
 // NodeRegistry value-parsing work when consumers import ONLY from this subpath.
 import '../datamodel/node/data/NodeClassMap.js';
-import { setNativeInflate } from '../datamodel/parser/Inflate.js';
+import { capOf, setNativeInflate } from '../datamodel/parser/Inflate.js';
 import { createSession as _createSession } from '../core/DataModel.js';
 import { ingest } from '../core/ingest.js';
 import type { Session } from '../core/DataModel.js';
@@ -27,7 +27,10 @@ import { isTomlProjectFile } from '../datamodel/fileKinds.js';
 // bundle by the package's `exports` conditions. Detection still covers the barrel-only
 // consumer, which is the one the extension actually is.
 setNativeInflate({
-  raw: (deflated) => inflateRawSync(deflated),
+  // The declared size of a zip member as the cap on what it inflates to, as detection
+  // passes it: without it a member that lies about its size is inflated whole before it
+  // is found to be unreadable (see `unzipEntries`).
+  raw: (deflated, maxOutputLength) => inflateRawSync(deflated, capOf(maxOutputLength)),
   zlib: (wrapped) => inflateSync(wrapped),
   // Z_SYNC_FLUSH instead of the default Z_FINISH: this one is handed a PREFIX of a
   // stream on purpose (see `inflateZlibHead`), and Z_FINISH would call the absent tail

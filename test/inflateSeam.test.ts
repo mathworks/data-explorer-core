@@ -13,13 +13,15 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { inflateRawSync, inflateSync, deflateSync } from 'node:zlib';
-import { strToU8, unzipSync, zipSync } from 'fflate';
+import { deflateRawSync, inflateRawSync, inflateSync, deflateSync } from 'node:zlib';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import {
   inflateZlib,
+  nativeInflateAvailable,
   setNativeInflate,
   unzipEntries,
   type NativeInflate,
+  type UnreadableMember,
 } from '../src/datamodel/parser/Inflate.js';
 import { parseBinarySldd, parseMat, parseSlx } from '../src/index.js';
 
@@ -219,6 +221,189 @@ describe('inflate seam — falls back rather than failing', () => {
   });
 });
 
+// A zip member's central directory entry declares how many bytes it inflates to. A member
+// whose bytes inflate to MORE than that is unreadable: what the directory says it holds and
+// what it holds disagree, and the declared size is the only bound an inflate has. It used
+// to come back cut to the declared size, on both engines and with nothing to say so: the
+// walk inflated all of it, saw the length disagree and handed the archive to fflate, whose
+// unzipSync inflates into a buffer of the declared size and drops the rest. So a part read
+// as a shorter, wrong part, and a model opened with wrong workspace values and no warning
+// (test/parseWarnings.test.ts). Now it is left out of the result and named in `unreadable`,
+// so a caller can say which part it could not read; the members around it are read as
+// before. A member SHORTER than declared still falls back, as before (the "wrong number of
+// bytes" case above).
+describe('inflate seam — a member that inflates past its declared size is unreadable, never truncated', () => {
+  const OVER_SIZE = 100_000;
+  const DECLARED = 1_000;
+  const reason = (declared: number) => `inflates to more than the ${declared} bytes its directory entry declares`;
+  // `a.txt` deflated, declaring a hundredth of what it inflates to; `b.txt` stored and
+  // intact beside it, so the test also says the rest of the archive is still read.
+  const overDeclared = (): Uint8Array =>
+    declareSize(
+      zipSync({
+        'a.txt': [new Uint8Array(OVER_SIZE).fill(65), { level: 6 }],
+        'b.txt': [strToU8('hello'), { level: 0 }],
+      }),
+      'a.txt',
+      DECLARED,
+    );
+
+  // Each engine reaches the member by a different route: node:zlib as this package finds
+  // it, with the declared size as its cap; fflate, which is what a browser has; and an
+  // engine injected before the cap existed, which inflates the whole member.
+  const ENGINES = [
+    ['node:zlib, as detected', undefined],
+    ['fflate', null],
+    ['an injected engine that ignores the cap', NATIVE],
+  ] as Array<[string, NativeInflate | null | undefined]>;
+
+  function read(engine: NativeInflate | null | undefined, bytes: Uint8Array, wanted?: (name: string) => boolean) {
+    setNativeInflate(engine);
+    // Detection is what the first row is about, so a host without it fails that row rather
+    // than passing it on fflate.
+    if (engine === undefined) expect(nativeInflateAvailable()).toBe(true);
+    const unreadable: UnreadableMember[] = [];
+    const entries = unzipEntries(bytes, wanted, unreadable);
+    return { entries, unreadable };
+  }
+
+  it.each(ENGINES)('leaves it out, names it, and reads the members around it (%s)', (_label, engine) => {
+    const { entries, unreadable } = read(engine, overDeclared());
+    expect(Object.keys(entries)).toEqual(['b.txt']);
+    expect(strFromU8(entries['b.txt'])).toBe('hello');
+    expect(unreadable).toEqual([{ name: 'a.txt', reason: reason(DECLARED) }]);
+  });
+
+  it.each(ENGINES)('leaves it out for a caller that passes no list, too (%s)', (_label, engine) => {
+    // The scans (SlddScan, ModelStructureScan) pass none: to them the member is absent.
+    setNativeInflate(engine);
+    expect(Object.keys(unzipEntries(overDeclared()))).toEqual(['b.txt']);
+  });
+
+  it.each(ENGINES)('calls one byte past its declared size over, and its declared size not (%s)', (_label, engine) => {
+    const archive = (n: number) => declareSize(zipSync({ 'a.txt': [new Uint8Array(n).fill(66), { level: 6 }] }), 'a.txt', DECLARED);
+    const exact = read(engine, archive(DECLARED));
+    expect(exact.entries['a.txt'].byteLength).toBe(DECLARED);
+    expect(exact.unreadable).toEqual([]);
+    const oneOver = read(engine, archive(DECLARED + 1));
+    expect(Object.keys(oneOver.entries)).toEqual([]);
+    expect(oneOver.unreadable).toEqual([{ name: 'a.txt', reason: reason(DECLARED) }]);
+  });
+
+  it.each(ENGINES)('calls a member that declares no bytes and inflates to one over (%s)', (_label, engine) => {
+    // node:zlib refuses a cap of 0 outright (ERR_OUT_OF_RANGE), so this is the edge the cap
+    // is raised to 1 at.
+    const { entries, unreadable } = read(engine, declareSize(zipSync({ 'a.txt': [strToU8('x'), { level: 6 }] }), 'a.txt', 0));
+    expect(Object.keys(entries)).toEqual([]);
+    expect(unreadable).toEqual([{ name: 'a.txt', reason: reason(0) }]);
+  });
+
+  it.each(ENGINES)('calls a member over when its deflate stream is stored blocks (%s)', (_label, engine) => {
+    // Incompressible bytes deflate to STORED blocks, and fflate copies a stored block with
+    // one `set`, which throws a RangeError when the block does not fit the output. So an
+    // over-size member of this kind used to refuse the whole archive on fflate.
+    const noise = new Uint8Array(5_000);
+    let x = 2463534242;
+    for (let i = 0; i < noise.length; i++) {
+      x ^= x << 13;
+      x ^= x >>> 17;
+      x ^= x << 5;
+      noise[i] = x & 0xff;
+    }
+    const archive = zipSync({ 'noise.bin': [noise, { level: 6 }], 'b.txt': [strToU8('hello'), { level: 0 }] });
+    const { entries, unreadable } = read(engine, declareSize(archive, 'noise.bin', 4_000));
+    expect(Object.keys(entries)).toEqual(['b.txt']);
+    expect(unreadable).toEqual([{ name: 'noise.bin', reason: reason(4_000) }]);
+  });
+
+  it('holds on the fallback, when the walk refuses the archive', () => {
+    // An unwanted member with an unknown method makes the walk refuse the archive (see the
+    // filtered-read cases below), so the read is fflate's framing. It is held to the same rule.
+    const archive = patchCompressionMethod(
+      declareSize(
+        zipSync({
+          'a.txt': [new Uint8Array(OVER_SIZE).fill(65), { level: 6 }],
+          'b.txt': [strToU8('hello'), { level: 0 }],
+          'c.bin': strToU8('content that deflates'),
+        }),
+        'a.txt',
+        DECLARED,
+      ),
+      99,
+      'c.bin',
+    );
+    const { entries, unreadable } = read(undefined, archive, (name) => name !== 'c.bin');
+    expect(Object.keys(entries)).toEqual(['b.txt']);
+    expect(unreadable).toEqual([{ name: 'a.txt', reason: reason(DECLARED) }]);
+  });
+
+  it.each([['node:zlib, as detected', undefined], ['fflate', null]] as Array<[string, NativeInflate | null | undefined]>)(
+    'holds for a ZIP64 archive, which only fflate frames (%s)',
+    (_label, engine) => {
+      // The walk refuses ZIP64 and hands it to fflate, whose read locates each member by its
+      // own arithmetic, ZIP64's included: here the end record points at a ZIP64 end record,
+      // and `a.txt`'s local header offset is the 0xFFFFFFFF sentinel with the real offset
+      // in its extended information extra field. The honest archive is the control that the
+      // members are located at all.
+      const over = new Uint8Array(OVER_SIZE).fill(65);
+      const honest = zip64Of([
+        { name: 'a.txt', data: deflateRawSync(over), size: OVER_SIZE, offsetInExtra: true },
+        { name: 'b.txt', data: strToU8('hello'), size: 5 },
+      ]);
+      setNativeInflate(engine);
+      expect(Object.keys(unzipSync(honest))).toEqual(['a.txt', 'b.txt']);
+      expectSameEntries(unzipSync(honest), unzipEntries(honest));
+
+      const lying = zip64Of([
+        { name: 'a.txt', data: deflateRawSync(over), size: DECLARED, offsetInExtra: true },
+        { name: 'b.txt', data: strToU8('hello'), size: 5 },
+      ]);
+      const { entries, unreadable } = read(engine, lying);
+      expect(Object.keys(entries)).toEqual(['b.txt']);
+      expect(strFromU8(entries['b.txt'])).toBe('hello');
+      expect(unreadable).toEqual([{ name: 'a.txt', reason: reason(DECLARED) }]);
+    },
+  );
+
+  it('holds on the fallback, when the native engine throws', () => {
+    const exploding: NativeInflate = {
+      raw: () => {
+        throw new Error('engine exploded');
+      },
+      zlib: () => {
+        throw new Error('engine exploded');
+      },
+    };
+    const { entries, unreadable } = read(exploding, overDeclared());
+    expect(Object.keys(entries)).toEqual(['b.txt']);
+    expect(unreadable).toEqual([{ name: 'a.txt', reason: reason(DECLARED) }]);
+  });
+
+  it('hands the engine each member’s declared size as the cap on its output', () => {
+    // What bounds the memory a lying member costs: node:zlib stops at the cap
+    // (test/inflateBomb.test.ts measures it), and it can only stop where it is told to.
+    const caps: Array<number | undefined> = [];
+    const spy: NativeInflate = {
+      raw: (deflated, maxOutputLength) => {
+        caps.push(maxOutputLength);
+        return inflateRawSync(deflated);
+      },
+      zlib: (wrapped) => inflateSync(wrapped),
+    };
+    setNativeInflate(spy);
+    const entries = unzipEntries(zipSync({ 'a.txt': strToU8('a'.repeat(5_000)), 'b.txt': strToU8('b'.repeat(300)) }));
+    expect(Object.keys(entries)).toEqual(['a.txt', 'b.txt']);
+    expect(caps).toEqual([5_000, 300]);
+  });
+
+  it.each(ENGINES)('names nothing for an archive whose members are all as declared (%s)', (_label, engine) => {
+    const bytes = fixtureBytes('compressed.sldd');
+    const { entries, unreadable } = read(engine, bytes);
+    expectSameEntries(unzipSync(bytes), entries);
+    expect(unreadable).toEqual([]);
+  });
+});
+
 describe('inflate seam — a filtered read materializes only what was asked for', () => {
   // `unzipEntries(bytes, wanted)` exists so a caller reading five parts of a 13 MB `.slx`
   // does not materialize the other 13.2 MB (`ModelStructureScan`, which holds 1.4 KB
@@ -386,6 +571,121 @@ function patchCompressionMethod(archive: Uint8Array, method: number, only?: stri
   // A misspelled name would leave the archive intact and every caller's `toThrow` would
   // then be asserting nothing at all.
   expect(patched, `patched no member for ${only ?? 'all'}`).toBeGreaterThan(0);
+  return out;
+}
+
+/**
+ * Rewrite the uncompressed size one member declares, in its central directory entry and
+ * its local header both, leaving its bytes as they are.
+ */
+function declareSize(archive: Uint8Array, name: string, size: number): Uint8Array {
+  const out = archive.slice();
+  const v = new DataView(out.buffer, out.byteOffset, out.byteLength);
+  const utf8 = new TextDecoder();
+  const eocd = findEocd(out);
+  let p = v.getUint32(eocd + 16, true);
+  const count = v.getUint16(eocd + 10, true);
+  let patched = 0;
+  for (let i = 0; i < count; i++) {
+    const nameLength = v.getUint16(p + 28, true);
+    const localOffset = v.getUint32(p + 42, true);
+    if (utf8.decode(out.subarray(p + 46, p + 46 + nameLength)) === name) {
+      v.setUint32(p + 24, size, true);
+      v.setUint32(localOffset + 22, size, true);
+      patched++;
+    }
+    p += 46 + nameLength + v.getUint16(p + 30, true) + v.getUint16(p + 32, true);
+  }
+  expect(patched, `declared no size for ${name}`).toBe(1);
+  return out;
+}
+
+/**
+ * A ZIP64 archive, written by hand because nothing in the repo writes one: a member is
+ * deflated when its `data` is not its `size` bytes long (the caller deflated it) and stored
+ * otherwise, `size` is what its directory entry declares, and `offsetInExtra` moves its
+ * local header offset into the ZIP64 extended information extra field behind the
+ * 0xFFFFFFFF sentinel. The end record's count and offset are the ZIP64 sentinels too, so
+ * the ZIP64 end record is the only place they are.
+ */
+function zip64Of(members: { name: string; data: Uint8Array; size: number; offsetInExtra?: boolean }[]): Uint8Array {
+  const parts: Uint8Array[] = [];
+  let at = 0;
+  const push = (p: Uint8Array) => {
+    parts.push(p);
+    at += p.byteLength;
+  };
+  const header = (length: number, fill: (v: DataView) => void) => {
+    const b = new Uint8Array(length);
+    fill(new DataView(b.buffer));
+    return b;
+  };
+  const central: Uint8Array[] = [];
+  for (const m of members) {
+    const name = strToU8(m.name);
+    const method = m.data.byteLength === m.size ? 0 : 8;
+    const local = at;
+    push(header(30, (v) => {
+      v.setUint32(0, 0x04034b50, true);
+      v.setUint16(4, 45, true);
+      v.setUint16(8, method, true);
+      v.setUint32(18, m.data.byteLength, true);
+      v.setUint32(22, m.size, true);
+      v.setUint16(26, name.byteLength, true);
+    }));
+    push(name);
+    push(m.data);
+    const extra = m.offsetInExtra
+      ? header(12, (v) => {
+          v.setUint16(0, 1, true); // ZIP64 extended information
+          v.setUint16(2, 8, true);
+          v.setBigUint64(4, BigInt(local), true);
+        })
+      : new Uint8Array(0);
+    central.push(header(46, (v) => {
+      v.setUint32(0, 0x02014b50, true);
+      v.setUint16(4, 45, true);
+      v.setUint16(6, 45, true);
+      v.setUint16(10, method, true);
+      v.setUint32(20, m.data.byteLength, true);
+      v.setUint32(24, m.size, true);
+      v.setUint16(28, name.byteLength, true);
+      v.setUint16(30, extra.byteLength, true);
+      v.setUint32(42, m.offsetInExtra ? 0xffffffff : local, true);
+    }), name, extra);
+  }
+  const centralAt = at;
+  for (const p of central) push(p);
+  const centralLength = at - centralAt;
+  const zip64End = at;
+  push(header(56, (v) => {
+    v.setUint32(0, 0x06064b50, true);
+    v.setBigUint64(4, 44n, true);
+    v.setUint16(12, 45, true);
+    v.setUint16(14, 45, true);
+    v.setBigUint64(24, BigInt(members.length), true);
+    v.setBigUint64(32, BigInt(members.length), true);
+    v.setBigUint64(40, BigInt(centralLength), true);
+    v.setBigUint64(48, BigInt(centralAt), true);
+  }));
+  push(header(20, (v) => {
+    v.setUint32(0, 0x07064b50, true);
+    v.setBigUint64(8, BigInt(zip64End), true);
+    v.setUint32(16, 1, true);
+  }));
+  push(header(22, (v) => {
+    v.setUint32(0, 0x06054b50, true);
+    v.setUint16(8, 0xffff, true);
+    v.setUint16(10, 0xffff, true);
+    v.setUint32(12, 0xffffffff, true);
+    v.setUint32(16, 0xffffffff, true);
+  }));
+  const out = new Uint8Array(at);
+  let p = 0;
+  for (const part of parts) {
+    out.set(part, p);
+    p += part.byteLength;
+  }
   return out;
 }
 
