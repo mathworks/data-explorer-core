@@ -12,6 +12,7 @@ import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './Mc
 import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
 import { setOwn } from './ownKeys.js';
+import { arrayClassOf, componentsBaseOf } from './objectArrayClass.js';
 import {
   complexClassTag,
   ENUM_KEY,
@@ -79,8 +80,10 @@ export interface McosObjectData {
   // Reconstructed `_properties` bag in the same shape the SLDD path produces:
   // scalars as numbers/strings/booleans, matrices as a Matrix(r,c) value object,
   // complex values as the binary dictionary's { _type: 'cdata' } text
-  // (complexPropertyValue), nested objects as { _object_class, _properties }. For an
-  // object ARRAY this mirrors elements[0] (back-compat for callers that only read a
+  // (complexPropertyValue), nested objects as { _object_class, _properties }, and a
+  // nested object ARRAY as { _array_class, _elements }, each element of another class
+  // than the array's carrying its own `_object_class` (resolveValue). For an object
+  // ARRAY variable this mirrors elements[0] (back-compat for callers that only read a
   // scalar).
   properties: Record<string, unknown>;
   // One `_properties` bag per array element, in column-major order (MATLAB's).
@@ -477,7 +480,19 @@ const isFinitePart = (x: unknown): boolean => typeof x !== 'number' || Number.is
 // data model expects. Object handles recurse into nested { _object_class,
 // _properties }; structs and cells recurse into { _array_type: 'Struct'|'Cell', … }.
 // Unresolvable values return undefined (dropped).
-function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<number>, depth: number): unknown {
+//
+// `owner` and `propName` are the class of the object whose property this is and the
+// property's name, where the value is a property's (buildProperties): the place an object
+// array sits can name its class (componentsBaseOf). A struct's field and a cell's element
+// pass neither, as the binary reader names no place for them either.
+function resolveValue(
+  cell: MatVariable | null,
+  ctx: DecodeContext,
+  path: Set<number>,
+  depth: number,
+  owner?: string,
+  propName?: string,
+): unknown {
   if (!cell) return undefined;
 
   if (isObjectHandle(cell)) {
@@ -492,7 +507,23 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
     // BusElements): expand EVERY id into its own element, producing the same
     // value-object array shape the SLDD path emits so the data model builds one
     // child node per element instead of dropping all but the first.
-    const cls = ctx.meta.classes[ctx.meta.objects[handle.ids[0]]?.classId];
+    //
+    // The array is under the class MATLAB's text format names it by, and each element
+    // of another class carries its own `_object_class`, as the binary reader reads one:
+    // both readers use objectArrayClass.ts. This used to read the first element's class
+    // for the whole array and give no element a class of its own. So a config set's
+    // Components in a .mat read as a Simulink.SolverCC array of nine SolverCCs, and a
+    // copy of the config set wrote every component as one. A dexdata.DerivedSignal
+    // beside a Simulink.Signal read as two DerivedSignals, where MATLAB says a
+    // Simulink.Signal array of the two (test/fixtures/mcos/configset.mat).
+    //
+    // A later element whose object names no class row is one of the first element's
+    // class, as the binary reader reads a classless later element: in the class the
+    // array is named by, and as the class it is marked with. Where the first names none
+    // either, the array has no class, as before.
+    const own = handle.ids.map((id) => ctx.meta.classes[ctx.meta.objects[id]?.classId]?.fullName ?? '');
+    const classes = own.map((c) => c || own[0]);
+    const arrayClass = componentsBaseOf(owner, propName) ?? (classes[0] ? arrayClassOf(classes) : '');
     // Every extent, as at the root-variable site below: a property holding a 2x3x2
     // object array (ndNested.mat's h.Kids) reported [2, 3] over twelve elements, so
     // the container printed a shape MATLAB never had and the element subscripts ran
@@ -500,11 +531,14 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
     // holds, which is why nothing here noticed.
     const dims = handle.dims.length >= 2 ? handle.dims.slice() : [1, handle.ids.length];
     return {
-      _array_class: cls ? cls.fullName : '',
+      _array_class: arrayClass,
       _array_type: 'MATLABArray',
       _dimensions: dims,
       _mw_element_type: 'MATLABArray',
-      _elements: handle.ids.map((id) => ({ _properties: buildProperties(id, ctx, path, depth + 1) })),
+      _elements: handle.ids.map((id, k) => ({
+        ...(classes[k] && classes[k] !== arrayClass ? { _object_class: classes[k] } : {}),
+        _properties: buildProperties(id, ctx, path, depth + 1),
+      })),
     };
   }
 
@@ -817,11 +851,14 @@ function buildProperties(objId: number, ctx: DecodeContext, path: Set<number>, d
   // 1) Class defaults FIRST, so every property this class declares surfaces by name
   //    (and value) even when the instance left it at its default and the instance
   //    block omits it. Then the instance block overrides those it mutated.
+  // The class whose properties these are: an object array's place is named by it
+  // (resolveValue's `owner`).
+  const owner = ctx.meta.classes[obj.classId]?.fullName;
   const dflt = ctx.defaults[obj.classId];
   if (dflt && dflt.className === 'struct' && dflt.fields) {
     for (const [fieldName, fieldVar] of Object.entries(dflt.fields)) {
       const fv = Array.isArray(fieldVar) ? fieldVar[0] : fieldVar;
-      const resolved = resolveValue(fv, ctx, path, depth);
+      const resolved = resolveValue(fv, ctx, path, depth, owner, fieldName);
       if (resolved !== undefined) {
         setOwn(props, fieldName, resolved);
       }
@@ -841,7 +878,7 @@ function buildProperties(objId: number, ctx: DecodeContext, path: Set<number>, d
     if (!name) continue;
     let resolved: unknown;
     if (flag === 1) {
-      resolved = resolveValue(ctx.cells[value + 2] || null, ctx, path, depth);
+      resolved = resolveValue(ctx.cells[value + 2] || null, ctx, path, depth, owner, name);
     } else if (flag === 0) {
       // An index past the string table names no string: drop the property, as an
       // out-of-range heap index (flag 1) and an unknown flag do, rather than invent ''.

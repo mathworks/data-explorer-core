@@ -2450,6 +2450,25 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   inside a DICTIONARY cell was never this limitation — it was defect 52, and citing this
   bullet for it is how that defect came to be pinned in `cellElementShape.test.ts` as
   expected behaviour instead of being fixed.
+- **An object array of mixed classes, held by an MCOS object's property, read under its
+  first element's class — now closed (F1-47).** `McosParser.resolveValue` named such an
+  array after its first element and gave no element a class of its own. So a config set's
+  `Components` in a `.mat` read as a `Simulink.SolverCC` array, and a copy of the config set
+  pasted into a dictionary wrote all nine components as `Simulink.SolverCC`. A
+  `dexdata.DerivedSignal` beside a `Simulink.Signal` read as two `DerivedSignal`s. The array
+  is now named, and each element of another class marked `_object_class`, as the binary
+  dictionary reader does it, by one rule both readers import (`objectArrayClass.ts`).
+  MATLAB's own `class()` of each array, read back out of `test/fixtures/mcos/configset.mat`
+  (`make_configset_fixture.m`, R2027a), is the class this names:
+  `Simulink.ConfigComponent` for both config sets' `Components` and for their RTWCC's, and
+  `Simulink.Signal` for the subclass beside its base. Pinned in
+  `mcosMixedObjectArray.test.ts`, and the rule itself in `objectArrayClass.test.ts`.
+
+  **Not closed: the same array as a top-level variable.** A `.mat` variable that is itself
+  a mixed-class object array is refused whole, by the code: `decodeMcosVariables` requires
+  every element's object to be of the declared class, and reports `its objects are of class
+  …, not …`. This was not measured on a MATLAB-written file, and no such variable is in the
+  corpus or the fixtures, so it is recorded rather than fixed.
 - **A `missing` has no dictionary spelling.** If a decoded string array carrying a
   `missing` were copied into a `.sldd`, the element would serialize as JSON `null`; what
   MATLAB reads that back as was not measured. Not reachable today (a `.mat` string is

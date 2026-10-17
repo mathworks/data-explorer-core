@@ -1,0 +1,123 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "file": "configset.mat",
+  "names": [
+    "cs",
+    "csErt",
+    "mixed"
+  ],
+  "paths": {
+    "cs": {
+      "class": "Simulink.ConfigSet",
+      "Components": {
+        "class": "Simulink.ConfigComponent",
+        "size": [
+          9,
+          1
+        ],
+        "elements": [
+          "Simulink.SolverCC",
+          "Simulink.DataIOCC",
+          "Simulink.OptimizationCC",
+          "Simulink.DebuggingCC",
+          "Simulink.HardwareCC",
+          "Simulink.ModelReferenceCC",
+          "Simulink.SFSimCC",
+          "Simulink.RTWCC",
+          "SlCovCC.ConfigComp"
+        ],
+        "names": [
+          "Solver",
+          "Data Import/Export",
+          "Optimization",
+          "Diagnostics",
+          "Hardware Implementation",
+          "Model Referencing",
+          "Simulation Target",
+          "Code Generation",
+          "Simulink Coverage"
+        ]
+      },
+      "rtwIndex": 8,
+      "RTWComponents": {
+        "class": "Simulink.ConfigComponent",
+        "size": [
+          2,
+          1
+        ],
+        "elements": [
+          "Simulink.CodeAppCC",
+          "Simulink.GRTTargetCC"
+        ],
+        "names": [
+          "Code Appearance",
+          "Target"
+        ]
+      }
+    },
+    "csErt": {
+      "class": "Simulink.ConfigSet",
+      "Components": {
+        "class": "Simulink.ConfigComponent",
+        "size": [
+          9,
+          1
+        ],
+        "elements": [
+          "Simulink.SolverCC",
+          "Simulink.DataIOCC",
+          "Simulink.OptimizationCC",
+          "Simulink.DebuggingCC",
+          "Simulink.HardwareCC",
+          "Simulink.ModelReferenceCC",
+          "Simulink.SFSimCC",
+          "Simulink.RTWCC",
+          "SlCovCC.ConfigComp"
+        ],
+        "names": [
+          "Solver",
+          "Data Import/Export",
+          "Optimization",
+          "Diagnostics",
+          "Hardware Implementation",
+          "Model Referencing",
+          "Simulation Target",
+          "Code Generation",
+          "Simulink Coverage"
+        ]
+      },
+      "rtwIndex": 8,
+      "RTWComponents": {
+        "class": "Simulink.ConfigComponent",
+        "size": [
+          2,
+          1
+        ],
+        "elements": [
+          "Simulink.CodeAppCC",
+          "Simulink.ERTTargetCC"
+        ],
+        "names": [
+          "Code Appearance",
+          "Target"
+        ]
+      }
+    },
+    "mixed": {
+      "class": "NdHolder",
+      "Tag": "mixed",
+      "Kids": {
+        "class": "Simulink.Signal",
+        "size": [
+          1,
+          2
+        ],
+        "elements": [
+          "dexdata.DerivedSignal",
+          "Simulink.Signal"
+        ]
+      }
+    }
+  }
+}
