@@ -51,6 +51,7 @@ import { DATA_PART_KEY, DATA_PART_XML, TEXT_CONTENT, TEXT_PARTS } from './SlddPa
 import { encodedStream, encodedValueOf, isEncodedValue } from './EncodedValue.js';
 import { charFromDecimal, charNeedsShape, complexClassTag, formatMatrixSerial, formatMxCharSerial, formatNumLiteral, needsExactInt, parseExactBody, parseMatlabNum, parseNumericBody, transposeFromColumnMajorND, BINARY_EMPTY_KEY, ENUM_KEY, ENUMERATION_KEY, PROPERTY_SOURCE_KEY, SAVEOBJ_KEY, } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
+import { arrayClassOf, componentsBaseOf } from './objectArrayClass.js';
 import { headerDigits } from './Size.js';
 import { recordPackageStamps, recordReadFrame, recordReadSource } from './EntrySource.js';
 /**
@@ -836,7 +837,8 @@ function cellValue(elements, dimParts) {
 // unclassed element set decodes as the struct array it is.
 //
 // `base` is the class the array's place names, where it names one (componentsBaseOf): it is
-// the array's class whatever its elements are.
+// the array's class whatever its elements are. Both rules are objectArrayClass.ts's, which the
+// MCOS reader (McosParser) names a .mat's and a model workspace's object arrays by too.
 function objectArrayValue(elements, dimParts, base) {
     const first = elements.length > 0 ? elements[0]['@_Class'] || '' : '';
     if (!first) {
@@ -899,98 +901,6 @@ function propertySources(el) {
     }
     return sources;
 }
-/**
- * The class an object array of elements of `classes` is, as MATLAB's text format names it in
- * `_array_class`: the class every element shares; for elements of several classes, the common
- * base class where it can be derived (heterogeneousBaseOf); and otherwise the first element's,
- * which is what this reader named every such array before it kept the elements' own. A config
- * set's Components does not come here: its place names its class (componentsBaseOf).
- *
- * The first element's class is still what an array of no derivable base reads as: of the 71
- * mixed arrays the binary dictionaries of the test fixtures, the parity artifacts and the local
- * corpus hold, one, a simmechanics.ConfigurationSet's Components of two simmechanics classes.
- */
-function arrayClassOf(classes) {
-    if (classes.every((c) => c === classes[0])) {
-        return classes[0];
-    }
-    return heterogeneousBaseOf(classes) ?? classes[0];
-}
-/**
- * The common base class of an array mixing `classes`, where this reader can derive one, or
- * undefined.
- *
- * A binary dictionary does not state it: its `<P Name="UserMLArray2" Dimension="1*2">` carries
- * no Class, and each element names only its own. A text dictionary does, and two rules give the
- * base it names from the classes alone:
- * - Simulink.ConfigComponent, for an array whose classes each belong to CONFIG_COMPONENTS: every
- *   Components array of a Simulink.ConfigSet and of a Simulink.RTWCC that MATLAB wrote into a
- *   text dictionary is `_array_class` Simulink.ConfigComponent (30 of 30, in five
- *   dictionaries), over classes each listed there.
- * - The one known MathWorks class (isMathWorksClass) of an array mixing it with classes that are
- *   not: a user's class can derive from a MathWorks class and a MathWorks class never from a
- *   user's, so the MathWorks class is the base the user classes extend. A text dictionary MATLAB
- *   wrote names a Simulink.Signal subclass beside a Simulink.Signal `{"_array_class":
- *   "Simulink.Signal", …}`, and this reader read the binary twin of that array, in two
- *   dictionaries, as the subclass, the first element's class.
- * Of two MathWorks classes or more beside other classes, or of none, it names no base.
- */
-function heterogeneousBaseOf(classes) {
-    if (classes.every((c) => c === CONFIG_COMPONENT || CONFIG_COMPONENTS.has(c))) {
-        return CONFIG_COMPONENT;
-    }
-    const known = new Set(classes.filter(isMathWorksClass));
-    return known.size === 1 ? [...known][0] : undefined;
-}
-/**
- * Whether `cls` is a known MathWorks class: a class of a package whose classes this package
- * already names as MathWorks' (MATHWORKS_PACKAGES). Simulink and mpt are the packages of every
- * class the node registry, the schema and the Kind column name (NodeClassMap, schema/index,
- * kindMap), and the two the test suite tells MATLAB's own objects from custom ones by; SlCovCC,
- * Sldv and hdlcoderui are the packages of the config components CONFIG_COMPONENTS names. A class
- * of any other package, MathWorks' or not (CoderTarget, SSC, simmechanics, AUTOSAR among them),
- * is not known here, and counts as one that is not MathWorks' (heterogeneousBaseOf).
- */
-function isMathWorksClass(cls) {
-    const dot = cls.indexOf('.');
-    return dot > 0 && MATHWORKS_PACKAGES.has(cls.slice(0, dot));
-}
-/** The packages of the known MathWorks classes (isMathWorksClass). */
-const MATHWORKS_PACKAGES = new Set(['Simulink', 'mpt', 'SlCovCC', 'Sldv', 'hdlcoderui']);
-/**
- * The class the place of a property named `name` of an object of `ownerClass` names for an
- * object array there, or undefined where it names none: Simulink.ConfigComponent, for the
- * Components of a Simulink.ConfigSet or a Simulink.RTWCC, whatever components it holds.
- *
- * Every such array MATLAB wrote into a text dictionary is `_array_class`
- * Simulink.ConfigComponent (30 of 30, in five dictionaries). A binary dictionary names no base
- * for it, and can hold components no text dictionary has shown, so that CONFIG_COMPONENTS does
- * not list them: a CoderTarget.SettingsController, in seven config sets of a corpus dictionary,
- * and an SSC.SimscapeCC, in one of another. Those arrays used to read under their first
- * component's class, a Simulink.SolverCC.
- */
-function componentsBaseOf(ownerClass, name) {
-    return name === 'Components' && (ownerClass === 'Simulink.ConfigSet' || ownerClass === 'Simulink.RTWCC') ? CONFIG_COMPONENT : undefined;
-}
-const CONFIG_COMPONENT = 'Simulink.ConfigComponent';
-/** Each class MATLAB's text format lists as an element of a Simulink.ConfigComponent array (see heterogeneousBaseOf). */
-const CONFIG_COMPONENTS = new Set([
-    'Simulink.SolverCC',
-    'Simulink.DataIOCC',
-    'Simulink.OptimizationCC',
-    'Simulink.DebuggingCC',
-    'Simulink.HardwareCC',
-    'Simulink.ModelReferenceCC',
-    'Simulink.SFSimCC',
-    'Simulink.RTWCC',
-    'Simulink.CodeAppCC',
-    'Simulink.GRTTargetCC',
-    'Simulink.ERTTargetCC',
-    'Simulink.STFCustomTargetCC',
-    'SlCovCC.ConfigComp',
-    'Sldv.ConfigComp',
-    'hdlcoderui.hdlcc',
-]);
 /**
  * A classed or shaped empty, as every place a value is read holds one, an entry's Value, an
  * object's property or a struct's field, and a cell's element: its class under the bare header

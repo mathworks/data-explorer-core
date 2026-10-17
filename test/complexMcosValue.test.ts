@@ -43,7 +43,9 @@ describe('formatComplexNum spells one element', () => {
     // plain .mat variable holding complex(1/3, 0.1) shows.
     [1 / 3, 0.1, '0.3333333333333333+0.1i'],
     [2 / 3, -Math.PI, '0.6666666666666666-3.141592653589793i'],
-    // A single, widened to the double it is: the plain .mat variable's digits too.
+    // The double a single widens to is spelled as any double is. MatParser no longer hands
+    // one over (a single shows MATLAB's digits for it, C-033: matSingleDigits.test.ts), so a
+    // .mat's complex(single(0.1), 0.2) is 0.1+0.2i; this is the formatter on such a double.
     [Math.fround(0.1), Math.fround(0.2), '0.10000000149011612+0.20000000298023224i'],
     // String()'s exponent form, as every other number in this package prints.
     [1e-20, 2e21, '1e-20+2e+21i'],

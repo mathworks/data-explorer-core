@@ -25,6 +25,9 @@ const MI_MATRIX = 14;
 const MI_COMPRESSED = 15;
 const MI_UTF8 = 16;
 const MI_UTF16 = 17;
+// The array class of a single (mxSINGLE_CLASS), whose elements are read as MATLAB spells them
+// (singleDigits).
+const MX_SINGLE_CLASS = 7;
 function align8(n) {
     return n + ((8 - (n % 8)) % 8);
 }
@@ -76,7 +79,12 @@ const ELEMENT_WIDTH = {
 // four UTF-16 code units share one uint64 and the rounding lands in the LOW bits — that
 // is, on the FIRST character of every group of four ("café" -> "`afé"). See
 // test/parity/matlab/STRING_MCOS.md.
-function readNumericArray(view, sub, count) {
+//
+// `single` is whether the array is of class single (C-033): each miSINGLE element is then the
+// decimal MATLAB spells that float32 with (singleDigits), and not the double getFloat32 widens
+// it to. Any other class reads an miSINGLE element as that double, which for a double stored
+// in four bytes is its value.
+function readNumericArray(view, sub, count, single = false) {
     const values = [];
     const off = sub.dataOffset;
     // `count` comes from the array's DECLARED dimensions, which a truncated or
@@ -103,9 +111,11 @@ function readNumericArray(view, sub, count) {
             case MI_DOUBLE:
                 values.push(view.getFloat64(off + i * 8, true));
                 break;
-            case MI_SINGLE:
-                values.push(view.getFloat32(off + i * 4, true));
+            case MI_SINGLE: {
+                const x = view.getFloat32(off + i * 4, true);
+                values.push(single ? singleDigits(x) : x);
                 break;
+            }
             case MI_INT8:
                 values.push(view.getInt8(off + i));
                 break;
@@ -133,6 +143,111 @@ function readNumericArray(view, sub, count) {
         }
     }
     return values;
+}
+/**
+ * A single as the decimal MATLAB spells it with, measured (R2027a): C's `%.6g` where that is
+ * the same float32, and otherwise `%.9g`, which always is — or `%.10g` for realmax('single'),
+ * whose `%.9g` is past it. Six is FLT_DIG, the digits every float32 holds, and nine
+ * FLT_DECIMAL_DIG, the digits that name any one; MATLAB writes a double by the same rule at
+ * fifteen and seventeen (a binary dictionary holds 1/3 as 0.33333333333333331).
+ *
+ * getFloat32 hands back the double of the same value, and every number here prints as the
+ * shortest text of its DOUBLE: single(3.3) is the double 3.299999952316284, and showed so,
+ * where both dictionaries hold MATLAB's own text for the same value, `3.3` (the corpus
+ * twins param_vars.mat / param_json.sldd, P30_TypeMaxUnitDesc; DESIGN.md recorded the
+ * difference as a limitation). It is not "the shortest decimal that is the same float32":
+ * MATLAB writes single(1/3) as 0.333333343, where 0.33333334 would do, and the smallest
+ * subnormal as 1.4013e-45, where 1e-45 would. make_typed_fixtures.m's sSingleSweep, 4,082
+ * float32 bit patterns from the smallest subnormal to realmax, holds MATLAB's text for each
+ * in a text dictionary (its binary format writes the same digits, measured), and this rule
+ * gives every one, where the shortest would differ on 3,520 (typedMcosFixtures.test.ts). It
+ * also gives every one of the 127,743 non-zero singles a customer text dictionary in the
+ * corpus holds.
+ *
+ * Lossless: the number is the same float32, so MatWriter's setFloat32 writes back the bits
+ * that were read, and a text dictionary's `0.333333343F` names them too. An infinity, a NaN
+ * and either zero are themselves.
+ */
+function singleDigits(x) {
+    if (!Number.isFinite(x) || x === 0) {
+        return x;
+    }
+    const ax = Math.abs(x);
+    let six = roundedDigits(ax, 6);
+    if (Number.isNaN(six)) {
+        six = Math.abs(Number(x.toPrecision(6)));
+    }
+    if (Math.fround(six) === ax) {
+        return x < 0 ? -six : six;
+    }
+    const nine = roundedDigits(ax, 9);
+    if (!Number.isNaN(nine)) {
+        return x < 0 ? -nine : nine;
+    }
+    const text = toPrecisionHalfEven(x, 9);
+    return Math.abs(text) > FLT_MAX ? toPrecisionHalfEven(x, 10) : text;
+}
+// The largest finite single, realmax('single').
+const FLT_MAX = 3.4028234663852886e38;
+const POWERS_OF_TEN = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12];
+/**
+ * The positive single `ax` to `p` significant digits, an exact tie to the even digit, by
+ * arithmetic that is exact: `ax * 10^j` is, for a float32 and 0 <= j <= 12 (24 bits of
+ * mantissa by at most 28 of 5^12 fit a double's 53), so it is rounded as the exact value is,
+ * and `n / 10^j` is the double nearest that decimal. NaN where `j` would fall outside that
+ * range — a single of 1e9 or more, or under 1e-4 for nine digits and 1e-7 for six — which
+ * toPrecisionHalfEven reads instead. The same numbers (every 31st float32 bit pattern, both
+ * signs, compared), in a fifth of the time: singleDigits runs once per element, and a million
+ * singles took 400 ms by toPrecision alone and take 75 ms so, against 8 ms for the bare read.
+ */
+function roundedDigits(ax, p) {
+    let j = p - 1 - Math.floor(Math.log10(ax));
+    if (j < 0 || j > 12) {
+        return NaN;
+    }
+    let y = ax * POWERS_OF_TEN[j];
+    // log10 can land a hair either side of an exponent: then `y` has a digit too many or too
+    // few, and the scale moves one place.
+    if (y >= POWERS_OF_TEN[p]) {
+        if (j === 0) {
+            return NaN;
+        }
+        y = ax * POWERS_OF_TEN[--j];
+    }
+    else if (y < POWERS_OF_TEN[p - 1]) {
+        if (j === 12) {
+            return NaN;
+        }
+        y = ax * POWERS_OF_TEN[++j];
+    }
+    const whole = Math.floor(y);
+    const rest = y - whole;
+    const n = rest > 0.5 || (rest === 0.5 && whole % 2 === 1) ? whole + 1 : whole;
+    return n / POWERS_OF_TEN[j];
+}
+/**
+ * `x` to `p` significant digits as C's printf rounds it: to the nearer, and an exact tie to
+ * the EVEN digit. toPrecision takes the one farther from zero at a tie, so single(1000000.125)
+ * came out 1000000.13 where MATLAB writes 1000000.12 (typed_mcos.sldd's sSingleTies). Only a
+ * value of exactly `p + 1` significant digits, the last a 5, is a tie; toPrecision's own text
+ * of it at `p + 1` digits is then that 5, which is what is looked for before the exact digits
+ * are.
+ */
+function toPrecisionHalfEven(x, p) {
+    const away = x.toPrecision(p);
+    if (!/5(?:e|$)/.test(x.toPrecision(p + 1))) {
+        return Number(away);
+    }
+    // Every significant digit of `x` up to a hundred, which a tie at ten has all of.
+    const digits = x.toPrecision(100).replace(/e.*$/, '').replace(/[-.]/g, '').replace(/^0+/, '');
+    if (digits[p] !== '5' || !/^0*$/.test(digits.slice(p + 1))) {
+        return Number(away);
+    }
+    // An exact tie, which goes to the even neighbour: the one nearer zero, `x` cut to `p`
+    // digits, when the last of those is even, and `away` when it is odd. The nearer one is
+    // read off a number just inside the tie: 2^-45 of `x` moves a double, and is far less
+    // than half a unit in a tenth digit.
+    return Number(digits[p - 1]) % 2 === 0 ? Number((x * (1 - 2 ** -45)).toPrecision(p)) : Number(away);
 }
 // Why the numeric part whose tag is at `at` holds none of the `count` elements its array
 // declares, or null when it holds what its bytes do. Either its tag is cut short by the end of
@@ -325,7 +440,9 @@ export function structElementsHeld(v) {
 // outside the declared rows is dropped, rows repeated within a column keep the LAST value
 // (as the dense scatter this replaced had it), rows out of order are sorted, and a stored
 // zero is not a non-zero.
-function readSparse(view, offset, end, dimensions, isComplex, nzmax) {
+// `single` is whether the array is of class single, whose non-zeros are read as a full
+// single array's are (readNumericArray).
+function readSparse(view, offset, end, dimensions, isComplex, nzmax, single) {
     const rows = Math.max(0, dimensions[0] || 0);
     const cols = Math.max(0, dimensions[1] || 0);
     // Each of the four reads is guarded by the END OF THIS ELEMENT, the same way the
@@ -362,13 +479,13 @@ function readSparse(view, offset, end, dimensions, isComplex, nzmax) {
     if (offset < end) {
         const prSub = readSubelement(view, offset);
         offset += prSub.totalSize;
-        pr = readNumericArray(view, prSub, nnz);
+        pr = readNumericArray(view, prSub, nnz, single);
     }
     let pi = [];
     if (isComplex && offset < end) {
         const piSub = readSubelement(view, offset);
         offset += piSub.totalSize;
-        pi = readNumericArray(view, piSub, nnz);
+        pi = readNumericArray(view, piSub, nnz, single);
     }
     // At most nnz entries, which ir's own bytes bound.
     const rowOut = new Int32Array(nnz);
@@ -795,7 +912,7 @@ export function parseMatrix(view, baseOffset, length, depth = 0) {
         // read: a host that renders values without knowing about `sparse` still shows
         // something true. A 1x1 is not unwrapped to a scalar: it has no list to unwrap.
         const nzmax = flagsSub.bytes >= 8 ? view.getUint32(flagsSub.dataOffset + 4, true) : 0;
-        result.sparse = offset < end ? readSparse(view, offset, end, dimensions, isComplex, nzmax) : emptySparse(isComplex, 0);
+        result.sparse = offset < end ? readSparse(view, offset, end, dimensions, isComplex, nzmax, arrayClass === MX_SINGLE_CLASS) : emptySparse(isComplex, 0);
         result.value = sparseValue(dimensions, className);
     }
     else if (arrayClass >= 6 && arrayClass <= 15) {
@@ -814,10 +931,10 @@ export function parseMatrix(view, baseOffset, length, depth = 0) {
                 result.undecoded = unread;
                 return result;
             }
-            const realValues = readNumericArray(view, realSub, totalElements);
+            const realValues = readNumericArray(view, realSub, totalElements, arrayClass === MX_SINGLE_CLASS);
             if (imagSub) {
                 offset += imagSub.totalSize;
-                const imagValues = readNumericArray(view, imagSub, totalElements);
+                const imagValues = readNumericArray(view, imagSub, totalElements, arrayClass === MX_SINGLE_CLASS);
                 const colMajor = realValues.map((r, i) => ({ re: r, im: imagValues[i] }));
                 result.value = transposeFromColMajor(colMajor, dimensions);
             }

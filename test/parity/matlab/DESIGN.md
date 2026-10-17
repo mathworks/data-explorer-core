@@ -2454,6 +2454,25 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   inside a DICTIONARY cell was never this limitation — it was defect 52, and citing this
   bullet for it is how that defect came to be pinned in `cellElementShape.test.ts` as
   expected behaviour instead of being fixed.
+- **An object array of mixed classes, held by an MCOS object's property, read under its
+  first element's class — now closed (F1-47).** `McosParser.resolveValue` named such an
+  array after its first element and gave no element a class of its own. So a config set's
+  `Components` in a `.mat` read as a `Simulink.SolverCC` array, and a copy of the config set
+  pasted into a dictionary wrote all nine components as `Simulink.SolverCC`. A
+  `dexdata.DerivedSignal` beside a `Simulink.Signal` read as two `DerivedSignal`s. The array
+  is now named, and each element of another class marked `_object_class`, as the binary
+  dictionary reader does it, by one rule both readers import (`objectArrayClass.ts`).
+  MATLAB's own `class()` of each array, read back out of `test/fixtures/mcos/configset.mat`
+  (`make_configset_fixture.m`, R2027a), is the class this names:
+  `Simulink.ConfigComponent` for both config sets' `Components` and for their RTWCC's, and
+  `Simulink.Signal` for the subclass beside its base. Pinned in
+  `mcosMixedObjectArray.test.ts`, and the rule itself in `objectArrayClass.test.ts`.
+
+  **Not closed: the same array as a top-level variable.** A `.mat` variable that is itself
+  a mixed-class object array is refused whole, by the code: `decodeMcosVariables` requires
+  every element's object to be of the declared class, and reports `its objects are of class
+  …, not …`. This was not measured on a MATLAB-written file, and no such variable is in the
+  corpus or the fixtures, so it is recorded rather than fixed.
 - **A `missing` has no dictionary spelling.** If a decoded string array carrying a
   `missing` were copied into a `.sldd`, the element would serialize as JSON `null`; what
   MATLAB reads that back as was not measured. Not reachable today (a `.mat` string is
@@ -2466,17 +2485,9 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   of the four channels carry no property data for it at all — defect 40. Recorded from
   the raw bags, because MATLAB does not call `Choices` a property and parity therefore
   passes.
-- **A REAL array inside an MCOS object is classed double.** `McosParser.buildMatrixValue`
-  writes `_type: 'double'` and a row goes through as a bare list, so `single([0.1 0.3])`
-  as a Parameter's Value shows Data Type double on its Value row in a `.mat`, where both
-  dictionaries say single. Defect 57 gives a COMPLEX value its class (`_class`); the real
-  arms predate it and are left as they were.
-- **A single shows the double it widens to, out of a `.mat`.** MatParser reads a float32
-  into a JavaScript number, and every `.mat` arm prints that: complex(single(0.1), 0.2)
-  is `0.10000000149011612+0.20000000298023224i` in a plain `.mat` variable, in an MCOS
-  object and in a text dictionary (whose stream is read by the same arm), where a binary
-  dictionary shows MATLAB's own text, `0.1+0.2i`, and MATLAB's display `0.1000 + 0.2000i`.
-  The shortest spelling of the float32 would change every one of those venues at once.
+- **An EMPTY numeric or logical array of a class other than double, in an MCOS object, reads
+  as a double 0x0** (left out of C-033): `McosParser.resolveValue` hands it over as `[]`, but
+  a logical of rank 3 or more keeps its typed `Matrix(2,0,2)` (`mcosEmptyLogical.test.ts`).
 - **A complex EMPTY in a binary dictionary shows as an empty quoted char.** MATLAB writes
   `<P Class="double" IsComplex="1" Dimension="1*0"/>`; the empty body fails parseCdata's
   text test and its stream decode, so the value is `''` where the same Parameter in a

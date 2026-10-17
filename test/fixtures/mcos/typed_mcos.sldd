@@ -1,0 +1,1028 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "pDouble",
+						"metadata": {
+							"uuid": "8375cae0-c8c1-4a33-98c2-698c96706d83",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.628279",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": 3.3
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pDoubleCol",
+						"metadata": {
+							"uuid": "b9d92f99-5489-4402-b870-6a42583b0dd2",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.628727",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"Dimensions": [
+											3,
+											1
+										],
+										"Value": {
+											"_type": "double",
+											"_value": "Matrix(3,1)\n[1.0, 2.0, 3.0]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pDoubleRow",
+						"metadata": {
+							"uuid": "51e278df-b158-4e38-b2a8-b90fc28e1928",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.628485",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"Dimensions": [
+											1,
+											3
+										],
+										"Value": [
+											1.1,
+											2.2,
+											3.3
+										]
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pInt16Nd",
+						"metadata": {
+							"uuid": "709b4bfa-f936-4ab7-a367-1090bf8a4601",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.623976",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "int16",
+										"Dimensions": [
+											2,
+											2,
+											2
+										],
+										"Value": {
+											"_type": "cdata",
+											"_value": "  %)30     .    2     8    (    \"@         %    #     (    \"     @         !          ,    0     0 \"  , !  %  8 !P (  \u0000\u0000\u0000"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pInt32Col",
+						"metadata": {
+							"uuid": "b082d3cc-0168-412e-b9e3-55b23e0cc2f9",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.623420",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "int32",
+										"Dimensions": [
+											3,
+											1
+										],
+										"Value": {
+											"_type": "int32",
+											"_value": "Matrix(3,1)\n[100, 200, 300]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pInt32Row",
+						"metadata": {
+							"uuid": "d778ef9d-cc7e-4709-bc96-5e12cf917a24",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.623086",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "int32",
+										"Dimensions": [
+											1,
+											4
+										],
+										"Value": {
+											"_type": "int32",
+											"_value": "[100, 200, 300, 400]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pInt64Min",
+						"metadata": {
+							"uuid": "697ac370-62a7-40ae-a834-ab8e6af3733b",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.624772",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "int64",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": {
+											"_type": "int64",
+											"_value": "-9223372036854775808"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pInt8",
+						"metadata": {
+							"uuid": "d9e7a752-e1a7-4293-9db4-edbfd70d9b90",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.620884",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "int8",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": {
+											"_type": "int8",
+											"_value": "-42"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pLogical",
+						"metadata": {
+							"uuid": "89d5a89a-7d55-488f-b916-2557dbb761d1",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.625095",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "boolean",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": true
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pLogicalCol",
+						"metadata": {
+							"uuid": "94577909-c8a4-474e-a0d3-ba79eece3e59",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.625533",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "boolean",
+										"Dimensions": [
+											3,
+											1
+										],
+										"Value": {
+											"_type": "logical",
+											"_value": "Matrix(3,1)\n[1, 0, 1]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pLogicalRow",
+						"metadata": {
+							"uuid": "17e5e125-ef54-4796-9e76-2ddb2499d351",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.625295",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "boolean",
+										"Dimensions": [
+											1,
+											3
+										],
+										"Value": {
+											"_type": "logical",
+											"_value": "[1, 0, 1]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pSingle",
+						"metadata": {
+							"uuid": "c90d46c6-b032-40d7-ab9c-da111a053643",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.626140",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "single",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": {
+											"_type": "single",
+											"_value": "3.3F"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pSingleCol",
+						"metadata": {
+							"uuid": "ea566eaa-9396-4b1a-aab4-b99eff60ed6a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.626727",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "single",
+										"Dimensions": [
+											2,
+											1
+										],
+										"Value": {
+											"_type": "single",
+											"_value": "Matrix(2,1)\n[0.1F, 0.2F]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pSingleExact",
+						"metadata": {
+							"uuid": "f019d515-5c71-4d8c-98b7-0ca3942393a3",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.628055",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "single",
+										"Dimensions": [
+											1,
+											2
+										],
+										"Value": {
+											"_type": "single",
+											"_value": "[0.5F, 16777216.0F]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pSingleRow",
+						"metadata": {
+							"uuid": "5e0dfa3d-6ecb-4281-982b-844a0789d20b",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.626415",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "single",
+										"Dimensions": [
+											1,
+											3
+										],
+										"Value": {
+											"_type": "single",
+											"_value": "[1.1F, 2.2F, 3.3F]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pSingleThird",
+						"metadata": {
+							"uuid": "11cb9878-e4f0-4b8d-957e-31714a2f070e",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.627187",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "single",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": {
+											"_type": "single",
+											"_value": "0.333333343F"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pUint16Row",
+						"metadata": {
+							"uuid": "d4de8f04-bc2d-4141-97cd-dd44c881bec8",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.624267",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "uint16",
+										"Dimensions": [
+											1,
+											2
+										],
+										"Value": {
+											"_type": "uint16",
+											"_value": "[0U, 65535U]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pUint64Max",
+						"metadata": {
+							"uuid": "b730247d-85e1-40c2-92bc-7bc052c01a26",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.624491",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "uint64",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": {
+											"_type": "uint64",
+											"_value": "18446744073709551615U"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "pUint8Mat",
+						"metadata": {
+							"uuid": "aba95cfe-111a-4ba2-a017-dea8d7744cac",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.623724",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"DataType": "uint8",
+										"Dimensions": [
+											2,
+											2
+										],
+										"Value": {
+											"_type": "uint8",
+											"_value": "Matrix(2,2)\n[[1U, 2U]; [3U, 4U]]"
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "sSingle",
+						"metadata": {
+							"uuid": "0f144800-f512-48d6-9146-40c3d6d62e3e",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.628961",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "3.3F"
+						}
+					},
+					{
+						"name": "sSingleRow",
+						"metadata": {
+							"uuid": "df13ff85-e6ee-417a-8b4c-e41ec7bb0a37",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.629459",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "[1.1F, 2.2F, 3.3F]"
+						}
+					},
+					{
+						"name": "sSingleSweep",
+						"metadata": {
+							"uuid": "63860fc0-5f97-417b-92d2-8d879c963bdf",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.630014",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "Vector(4082)\n[1.4013e-45F, 1.46937074e-39F, 2.93874e-39F, 4.40811e-39F, 5.87747876e-39F, 7.3468481e-39F, 8.81621744e-39F, \n1.02855868e-38F, 1.17549561e-38F, 1.32243255e-38F, 1.46936948e-38F, 1.61630641e-38F, 1.76324335e-38F, 1.91018028e-38F, \n2.05711722e-38F, 2.20405415e-38F, 2.35099347e-38F, 2.64486733e-38F, 2.9387412e-38F, 3.23261507e-38F, 3.52648894e-38F, \n3.82036281e-38F, 4.11423667e-38F, 4.40811054e-38F, 4.70199142e-38F, 5.28973915e-38F, 5.87748689e-38F, 6.46523462e-38F, \n7.05298236e-38F, 7.64073e-38F, 8.22847783e-38F, 8.81622557e-38F, 9.4039918e-38F, 1.05794873e-37F, 1.17549827e-37F, \n1.29304782e-37F, 1.41059737e-37F, 1.52814692e-37F, 1.64569646e-37F, 1.76324601e-37F, 1.88080015e-37F, 2.11589925e-37F, \n2.35099834e-37F, 2.58609744e-37F, 2.82119653e-37F, 3.05629563e-37F, 3.29139472e-37F, 3.52649381e-37F, 3.76160389e-37F, \n4.23180208e-37F, 4.70200027e-37F, 5.17219846e-37F, 5.64239665e-37F, 6.11259484e-37F, 6.58279303e-37F, 7.05299122e-37F, \n7.52321496e-37F, 8.46361134e-37F, 9.40400772e-37F, 1.03444041e-36F, 1.12848005e-36F, 1.22251969e-36F, 1.31655932e-36F, \n1.41059896e-36F, 1.50464443e-36F, 1.6927237e-36F, 1.88080298e-36F, 2.06888225e-36F, 2.25696153e-36F, 2.44504081e-36F, \n2.63312e-36F, 2.82119936e-36F, 3.00929173e-36F, 3.38545028e-36F, 3.76160883e-36F, 4.13776738e-36F, 4.51392593e-36F, \n4.89008448e-36F, 5.26624303e-36F, 5.64240158e-36F, 6.01858919e-36F, 6.77090629e-36F, 7.52322339e-36F, 8.2755405e-36F, \n9.0278576e-36F, 9.7801747e-36F, 1.05324918e-35F, 1.12848089e-35F, 1.20371899e-35F, 1.35418241e-35F, 1.50464583e-35F, \n1.65510925e-35F, 1.80557267e-35F, 1.95603609e-35F, 2.10649951e-35F, 2.25696293e-35F, 2.40744027e-35F, 2.70836711e-35F, \n3.00929395e-35F, 3.31022079e-35F, 3.61114763e-35F, 3.91207447e-35F, 4.21300131e-35F, 4.51392815e-35F, 4.81488513e-35F, \n5.41673881e-35F, 6.01859249e-35F, 6.62044617e-35F, 7.2223e-35F, 7.82415354e-35F, 8.42600722e-35F, 9.0278609e-35F, \n9.62978e-35F, 1.08334868e-34F, 1.20371942e-34F, 1.32409015e-34F, 1.44446089e-34F, 1.56483163e-34F, 1.68520236e-34F, \n1.8055731e-34F, 1.92595772e-34F, 2.1666992e-34F, 2.40744067e-34F, 2.64818214e-34F, 2.88892362e-34F, 3.12966509e-34F, \n3.37040656e-34F, 3.61114803e-34F, 3.85191912e-34F, 4.33340207e-34F, 4.81488501e-34F, 5.29636796e-34F, 5.7778509e-34F, \n6.25933385e-34F, 6.74081679e-34F, 7.22229974e-34F, 7.70384559e-34F, 8.66681148e-34F, 9.62977737e-34F, 1.05927433e-33F, \n1.15557092e-33F, 1.2518675e-33F, 1.34816409e-33F, 1.44446068e-33F, 1.54077059e-33F, 1.73336377e-33F, 1.92595694e-33F, \n2.11855012e-33F, 2.3111433e-33F, 2.50373648e-33F, 2.69632966e-33F, 2.88892283e-33F, 3.08154411e-33F, 3.46673047e-33F, \n3.85191683e-33F, 4.23710318e-33F, 4.62228954e-33F, 5.0074759e-33F, 5.39266225e-33F, 5.77784861e-33F, 6.16309411e-33F, \n6.93346682e-33F, 7.70383953e-33F, 8.47421224e-33F, 9.24458496e-33F, 1.00149577e-32F, 1.07853304e-32F, 1.15557031e-32F, \n1.23262e-32F, 1.38669454e-32F, 1.54076908e-32F, 1.69484362e-32F, 1.84891817e-32F, 2.00299271e-32F, 2.15706725e-32F, \n2.31114179e-32F, 2.46524234e-32F, 2.77339143e-32F, 3.08154051e-32F, 3.3896896e-32F, 3.69783868e-32F, 4.00598777e-32F, \n4.31413685e-32F, 4.62228594e-32F, 4.93048939e-32F, 5.54678756e-32F, 6.16308573e-32F, 6.7793839e-32F, 7.39568207e-32F, \n8.01198e-32F, 8.62827841e-32F, 9.24457658e-32F, 9.86098819e-32F, 1.10935845e-31F, 1.23261809e-31F, 1.35587772e-31F, \n1.47913735e-31F, 1.60239699e-31F, 1.72565662e-31F, 1.84891626e-31F, 1.97219952e-31F, 2.21871879e-31F, 2.46523805e-31F, \n2.71175732e-31F, 2.95827659e-31F, 3.20479586e-31F, 3.45131513e-31F, 3.69783439e-31F, 3.9444028e-31F, 4.43744133e-31F, \n4.93048e-31F, 5.42351841e-31F, 5.91655694e-31F, 6.40959548e-31F, 6.90263401e-31F, 7.39567255e-31F, 7.88881312e-31F, \n8.87489e-31F, 9.86096726e-31F, 1.08470443e-30F, 1.18331214e-30F, 1.28191985e-30F, 1.38052755e-30F, 1.47913526e-30F, \n1.57776413e-30F, 1.77497954e-30F, 1.97219496e-30F, 2.16941037e-30F, 2.36662579e-30F, 2.5638412e-30F, 2.76105661e-30F, \n2.95827203e-30F, 3.15553127e-30F, 3.54996209e-30F, 3.94439292e-30F, 4.33882375e-30F, 4.73325458e-30F, 5.12768541e-30F, \n5.52211624e-30F, 5.91654707e-30F, 6.31106855e-30F, 7.09993e-30F, 7.88879187e-30F, 8.67765352e-30F, 9.46651518e-30F, \n1.02553768e-29F, 1.10442385e-29F, 1.18331e-29F, 1.26221491e-29F, 1.41998725e-29F, 1.57775958e-29F, 1.73553191e-29F, \n1.89330424e-29F, 2.05107657e-29F, 2.2088489e-29F, 2.36662123e-29F, 2.52443223e-29F, 2.8399769e-29F, 3.15552156e-29F, \n3.47106622e-29F, 3.78661089e-29F, 4.10215555e-29F, 4.41770021e-29F, 4.73324488e-29F, 5.04886928e-29F, 5.67995861e-29F, \n6.31104794e-29F, 6.94213726e-29F, 7.57322659e-29F, 8.20431591e-29F, 8.83540524e-29F, 9.46649457e-29F, 1.00977482e-28F, \n1.13599269e-28F, 1.26221055e-28F, 1.38842842e-28F, 1.51464628e-28F, 1.64086415e-28F, 1.76708201e-28F, 1.89329988e-28F, \n2.01955157e-28F, 2.2719873e-28F, 2.52442303e-28F, 2.77685876e-28F, 3.02929449e-28F, 3.28173022e-28F, 3.53416595e-28F, \n3.78660168e-28F, 4.03910698e-28F, 4.54397844e-28F, 5.04885e-28F, 5.55372137e-28F, 6.05859283e-28F, 6.56346429e-28F, \n7.06833575e-28F, 7.57320721e-28F, 8.07822167e-28F, 9.08796459e-28F, 1.00977075e-27F, 1.11074504e-27F, 1.21171934e-27F, \n1.31269363e-27F, 1.41366792e-27F, 1.51464221e-27F, 1.61564587e-27F, 1.81759446e-27F, 2.01954304e-27F, 2.22149163e-27F, \n2.42344021e-27F, 2.6253888e-27F, 2.82733738e-27F, 3.02928597e-27F, 3.23129483e-27F, 3.635192e-27F, 4.03908917e-27F, \n4.44298634e-27F, 4.84688351e-27F, 5.25078067e-27F, 5.65467784e-27F, 6.05857501e-27F, 6.46259582e-27F, 7.27039e-27F, \n8.0781845e-27F, 8.88597884e-27F, 9.69377317e-27F, 1.05015675e-26F, 1.13093618e-26F, 1.21171562e-26F, 1.2925204e-26F, \n1.45407927e-26F, 1.61563813e-26F, 1.777197e-26F, 1.93875587e-26F, 2.10031473e-26F, 2.2618736e-26F, 2.42343247e-26F, \n2.58504326e-26F, 2.908161e-26F, 3.23127873e-26F, 3.55439647e-26F, 3.8775142e-26F, 4.20063194e-26F, 4.52374967e-26F, \n4.8468674e-26F, 5.17009145e-26F, 5.81632692e-26F, 6.46256239e-26F, 7.10879786e-26F, 7.75503333e-26F, 8.4012688e-26F, \n9.04750427e-26F, 9.69374e-26F, 1.03401928e-25F, 1.16326637e-25F, 1.29251346e-25F, 1.42176056e-25F, 1.55100765e-25F, \n1.68025475e-25F, 1.80950184e-25F, 1.93874893e-25F, 2.06804052e-25F, 2.32653471e-25F, 2.5850289e-25F, 2.84352309e-25F, \n3.10201728e-25F, 3.36051146e-25F, 3.61900565e-25F, 3.87749984e-25F, 4.13608499e-25F, 4.65307337e-25F, 5.17006175e-25F, \n5.68705e-25F, 6.2040385e-25F, 6.72102687e-25F, 7.23801525e-25F, 7.75500362e-25F, 8.27217788e-25F, 9.30615463e-25F, \n1.03401314e-24F, 1.13741081e-24F, 1.24080849e-24F, 1.34420616e-24F, 1.44760384e-24F, 1.55100151e-24F, 1.65443715e-24F, \n1.8612325e-24F, 2.06802785e-24F, 2.2748232e-24F, 2.48161855e-24F, 2.6884139e-24F, 2.89520926e-24F, 3.10200461e-24F, \n3.30887746e-24F, 3.72246816e-24F, 4.13605886e-24F, 4.54964956e-24F, 4.96324026e-24F, 5.37683096e-24F, 5.79042167e-24F, \n6.20401237e-24F, 6.61776123e-24F, 7.44494264e-24F, 8.27212404e-24F, 9.09930544e-24F, 9.92648684e-24F, 1.07536682e-23F, \n1.15808496e-23F, 1.2408031e-23F, 1.32355351e-23F, 1.48898979e-23F, 1.65442607e-23F, 1.81986235e-23F, 1.98529863e-23F, \n2.15073491e-23F, 2.31617119e-23F, 2.48160747e-23F, 2.64710954e-23F, 2.9779821e-23F, 3.30885466e-23F, 3.63972722e-23F, \n3.97059978e-23F, 4.30147234e-23F, 4.63234491e-23F, 4.96321747e-23F, 5.29422413e-23F, 5.95596925e-23F, 6.61771438e-23F, \n7.2794595e-23F, 7.94120462e-23F, 8.60295e-23F, 9.26469486e-23F, 9.92644e-23F, 1.05884584e-22F, 1.19119486e-22F, \n1.32354388e-22F, 1.45589291e-22F, 1.58824193e-22F, 1.72059096e-22F, 1.85294e-22F, 1.98528901e-22F, 2.11769369e-22F, \n2.38239174e-22F, 2.64708979e-22F, 2.91178784e-22F, 3.17648589e-22F, 3.44118393e-22F, 3.70588198e-22F, 3.97058e-22F, \n4.23539142e-22F, 4.76478752e-22F, 5.29418362e-22F, 5.82357971e-22F, 6.35297581e-22F, 6.88237191e-22F, 7.411768e-22F, \n7.9411641e-22F, 8.47079092e-22F, 9.52958312e-22F, 1.05883753e-21F, 1.16471675e-21F, 1.27059597e-21F, 1.37647519e-21F, \n1.48235441e-21F, 1.58823363e-21F, 1.6941598e-21F, 1.90591824e-21F, 2.11767668e-21F, 2.32943512e-21F, 2.54119356e-21F, \n2.75295199e-21F, 2.96471043e-21F, 3.17646887e-21F, 3.38832283e-21F, 3.81183971e-21F, 4.23535659e-21F, 4.65887346e-21F, \n5.08239034e-21F, 5.50590722e-21F, 5.9294241e-21F, 6.35294097e-21F, 6.77665213e-21F, 7.62368588e-21F, 8.47072e-21F, \n9.31775339e-21F, 1.01647871e-20F, 1.10118209e-20F, 1.18588547e-20F, 1.27058884e-20F, 1.35533172e-20F, 1.52473847e-20F, \n1.69414522e-20F, 1.86355197e-20F, 2.03295872e-20F, 2.20236547e-20F, 2.37177222e-20F, 2.54117897e-20F, 2.71066602e-20F, \n3.04947952e-20F, 3.38829302e-20F, 3.72710653e-20F, 4.06592e-20F, 4.40473353e-20F, 4.74354703e-20F, 5.08236053e-20F, \n5.42133721e-20F, 6.09896422e-20F, 6.77659122e-20F, 7.45421822e-20F, 8.13184523e-20F, 8.80947223e-20F, 9.48709924e-20F, \n1.01647262e-19F, 1.08426848e-19F, 1.21979388e-19F, 1.35531928e-19F, 1.49084468e-19F, 1.62637008e-19F, 1.76189548e-19F, \n1.89742088e-19F, 2.03294628e-19F, 2.16853902e-19F, 2.43958982e-19F, 2.71064062e-19F, 2.98169143e-19F, 3.25274223e-19F, \n3.52379303e-19F, 3.79484383e-19F, 4.06589463e-19F, 4.33708218e-19F, 4.87918378e-19F, 5.42128538e-19F, 5.96338699e-19F, \n6.50548859e-19F, 7.04759e-19F, 7.5896918e-19F, 8.1317934e-19F, 8.67417262e-19F, 9.75837583e-19F, 1.0842579e-18F, \n1.19267822e-18F, 1.30109855e-18F, 1.40951887e-18F, 1.51793919e-18F, 1.62635951e-18F, 1.73483618e-18F, 1.95167682e-18F, \n2.16851746e-18F, 2.3853581e-18F, 2.60219874e-18F, 2.81903939e-18F, 3.03588e-18F, 3.25272067e-18F, 3.46967567e-18F, \n3.90335695e-18F, 4.33703823e-18F, 4.77071952e-18F, 5.2044008e-18F, 5.63808208e-18F, 6.07176336e-18F, 6.50544465e-18F, \n6.93935795e-18F, 7.80672052e-18F, 8.67408308e-18F, 9.54144565e-18F, 1.04088082e-17F, 1.12761708e-17F, 1.21435333e-17F, \n1.30108959e-17F, 1.38787291e-17F, 1.56134543e-17F, 1.73481794e-17F, 1.90829045e-17F, 2.08176297e-17F, 2.25523548e-17F, \n2.42870799e-17F, 2.60218051e-17F, 2.77574847e-17F, 3.1226935e-17F, 3.46963853e-17F, 3.81658355e-17F, 4.16352858e-17F, \n4.51047361e-17F, 4.85741863e-17F, 5.20436366e-17F, 5.55150224e-17F, 6.2453923e-17F, 6.93928235e-17F, 7.6331724e-17F, \n8.32706245e-17F, 9.0209525e-17F, 9.71484256e-17F, 1.04087326e-16F, 1.11030151e-16F, 1.24907952e-16F, 1.38785753e-16F, \n1.52663554e-16F, 1.66541355e-16F, 1.80419156e-16F, 1.94296957e-16F, 2.08174758e-16F, 2.22060513e-16F, 2.49816115e-16F, \n2.77571717e-16F, 3.0532732e-16F, 3.33082922e-16F, 3.60838524e-16F, 3.88594126e-16F, 4.16349728e-16F, 4.4412145e-16F, \n4.99632654e-16F, 5.55143858e-16F, 6.10655063e-16F, 6.66166267e-16F, 7.21677471e-16F, 7.77188675e-16F, 8.32699879e-16F, \n8.88243747e-16F, 9.99266155e-16F, 1.11028856e-15F, 1.22131097e-15F, 1.33233338e-15F, 1.44335579e-15F, 1.5543782e-15F, \n1.66540061e-15F, 1.77648919e-15F, 1.998534e-15F, 2.22057882e-15F, 2.44262364e-15F, 2.66466846e-15F, 2.88671327e-15F, \n3.10875809e-15F, 3.33080291e-15F, 3.55298176e-15F, 3.9970714e-15F, 4.44116103e-15F, 4.88525066e-15F, 5.3293403e-15F, \n5.77343e-15F, 6.21751956e-15F, 6.6616092e-15F, 7.10597e-15F, 7.99414957e-15F, 8.88232884e-15F, 9.77050811e-15F, \n1.06586874e-14F, 1.15468666e-14F, 1.24350459e-14F, 1.33232252e-14F, 1.42119542e-14F, 1.59883127e-14F, 1.77646712e-14F, \n1.95410298e-14F, 2.13173883e-14F, 2.30937468e-14F, 2.48701054e-14F, 2.66464639e-14F, 2.84239354e-14F, 3.19766525e-14F, \n3.55293696e-14F, 3.90820866e-14F, 4.26348037e-14F, 4.61875208e-14F, 4.97402378e-14F, 5.32929549e-14F, 5.68479251e-14F, \n6.39533592e-14F, 7.10587933e-14F, 7.81642275e-14F, 8.52696616e-14F, 9.23750957e-14F, 9.94805299e-14F, 1.06585964e-13F, \n1.13695959e-13F, 1.27906827e-13F, 1.42117695e-13F, 1.56328563e-13F, 1.70539432e-13F, 1.847503e-13F, 1.98961168e-13F, \n2.13172036e-13F, 2.27392134e-13F, 2.55813871e-13F, 2.84235607e-13F, 3.12657344e-13F, 3.4107908e-13F, 3.69500817e-13F, \n3.97922553e-13F, 4.2634429e-13F, 4.54784702e-13F, 5.11628175e-13F, 5.68471648e-13F, 6.25315121e-13F, 6.82158594e-13F, \n7.39002067e-13F, 7.9584554e-13F, 8.52689e-13F, 9.09570271e-13F, 1.02325722e-12F, 1.13694416e-12F, 1.25063111e-12F, \n1.36431806e-12F, 1.478005e-12F, 1.59169195e-12F, 1.70537889e-12F, 1.81914228e-12F, 2.04651617e-12F, 2.27389e-12F, \n2.50126395e-12F, 2.72863785e-12F, 2.95601174e-12F, 3.18338563e-12F, 3.41075952e-12F, 3.63828802e-12F, 4.09303581e-12F, \n4.54778359e-12F, 5.00253138e-12F, 5.45727916e-12F, 5.91202694e-12F, 6.36677473e-12F, 6.82152251e-12F, 7.27658298e-12F, \n8.18607855e-12F, 9.09557412e-12F, 1.00050697e-11F, 1.09145653e-11F, 1.18240608e-11F, 1.27335564e-11F, 1.3643052e-11F, \n1.45531798e-11F, 1.6372171e-11F, 1.81911621e-11F, 2.00101533e-11F, 2.18291444e-11F, 2.36481355e-11F, 2.54671267e-11F, \n2.72861178e-11F, 2.91063874e-11F, 3.27443697e-11F, 3.6382352e-11F, 4.00203343e-11F, 4.36583165e-11F, 4.72963e-11F, \n5.09342811e-11F, 5.45722634e-11F, 5.82128304e-11F, 6.54887949e-11F, 7.27647595e-11F, 8.0040724e-11F, 8.73166886e-11F, \n9.45926532e-11F, 1.01868618e-10F, 1.09144582e-10F, 1.16425772e-10F, 1.30977701e-10F, 1.4552963e-10F, 1.60081559e-10F, \n1.74633488e-10F, 1.89185417e-10F, 2.03737346e-10F, 2.18289276e-10F, 2.32851766e-10F, 2.61955624e-10F, 2.91059482e-10F, \n3.2016334e-10F, 3.49267198e-10F, 3.78371057e-10F, 4.07474915e-10F, 4.36578773e-10F, 4.65704e-10F, 5.23911692e-10F, \n5.82119408e-10F, 6.40327125e-10F, 6.98534841e-10F, 7.56742558e-10F, 8.14950274e-10F, 8.73158e-10F, 9.31408839e-10F, \n1.04782427e-9F, 1.1642397e-9F, 1.28065514e-9F, 1.39707057e-9F, 1.513486e-9F, 1.62990144e-9F, 1.74631687e-9F, \n1.86281945e-9F, 2.09565032e-9F, 2.32848119e-9F, 2.56131205e-9F, 2.79414292e-9F, 3.02697378e-9F, 3.25980465e-9F, \n3.49263551e-9F, 3.72564246e-9F, 4.19130419e-9F, 4.65696592e-9F, 5.12262766e-9F, 5.58828939e-9F, 6.05395112e-9F, \n6.51961285e-9F, 6.98527458e-9F, 7.45129203e-9F, 8.38261549e-9F, 9.31393895e-9F, 1.02452624e-8F, 1.11765859e-8F, \n1.21079093e-8F, 1.30392328e-8F, 1.39705563e-8F, 1.49025983e-8F, 1.67652452e-8F, 1.86278921e-8F, 2.0490539e-8F, \n2.2353186e-8F, 2.42158329e-8F, 2.60784798e-8F, 2.79411267e-8F, 2.9805225e-8F, 3.35305188e-8F, 3.72558127e-8F, \n4.09811065e-8F, 4.47064e-8F, 4.84316942e-8F, 5.21569881e-8F, 5.58822819e-8F, 5.96105068e-8F, 6.70610945e-8F, \n7.45116822e-8F, 8.19622699e-8F, 8.94128576e-8F, 9.68634453e-8F, 1.04314033e-7F, 1.11764621e-7F, 1.19221127e-7F, \n1.34122303e-7F, 1.49023478e-7F, 1.63924653e-7F, 1.78825829e-7F, 1.93727e-7F, 2.0862818e-7F, 2.23529355e-7F, \n2.38442482e-7F, 2.68244833e-7F, 2.98047183e-7F, 3.27849534e-7F, 3.57651885e-7F, 3.87454236e-7F, 4.17256587e-7F, \n4.47058937e-7F, 4.76885418e-7F, 5.3649012e-7F, 5.96094822e-7F, 6.55699523e-7F, 7.15304225e-7F, 7.74908926e-7F, \n8.34513628e-7F, 8.9411833e-7F, 9.53771746e-7F, 1.07298115e-6F, 1.19219055e-6F, 1.3114e-6F, 1.43060936e-6F, \n1.54981876e-6F, 1.66902817e-6F, 1.78823757e-6F, 1.90754531e-6F, 2.14596412e-6F, 2.38438292e-6F, 2.62280173e-6F, \n2.86122054e-6F, 3.09963934e-6F, 3.33805815e-6F, 3.57647696e-6F, 3.81509426e-6F, 4.29193187e-6F, 4.76876949e-6F, \n5.2456071e-6F, 5.72244471e-6F, 6.19928232e-6F, 6.67612e-6F, 7.15295755e-6F, 7.6301958e-6F, 8.58387102e-6F, \n9.53754625e-6F, 1.04912215e-5F, 1.14448967e-5F, 1.23985719e-5F, 1.33522472e-5F, 1.43059224e-5F, 1.52604061e-5F, \n1.71677566e-5F, 1.9075107e-5F, 2.09824575e-5F, 2.2889808e-5F, 2.47971584e-5F, 2.67045089e-5F, 2.86118593e-5F, \n3.05208414e-5F, 3.43355423e-5F, 3.81502432e-5F, 4.19649441e-5F, 4.5779645e-5F, 4.95943459e-5F, 5.34090468e-5F, \n5.72237477e-5F, 6.1041741e-5F, 6.86711428e-5F, 7.63005446e-5F, 8.39299464e-5F, 9.15593482e-5F, 9.918875e-5F, \n0.000106818152F, 0.000114447554F, 0.000122083598F, 0.000137342402F, 0.000152601206F, 0.000167860009F, 0.000183118813F, \n0.000198377616F, 0.00021363642F, 0.000228895224F, 0.00024416743F, 0.000274685037F, 0.000305202644F, 0.000335720251F, \n0.000366237859F, 0.000396755466F, 0.000427273073F, 0.00045779068F, 0.000488335325F, 0.000549370539F, 0.000610405754F, \n0.000671440968F, 0.000732476183F, 0.000793511397F, 0.000854546612F, 0.000915581826F, 0.000976671581F, 0.00109874201F, \n0.00122081244F, 0.00134288287F, 0.0014649533F, 0.00158702373F, 0.00170909415F, 0.00183116458F, 0.00195334502F, \n0.00219748588F, 0.00244162674F, 0.0026857676F, 0.00292990846F, 0.00317404931F, 0.00341819017F, 0.00366233103F, \n0.00390669378F, 0.00439497549F, 0.00488325721F, 0.00537153892F, 0.00585982064F, 0.00634810235F, 0.00683638407F, \n0.00732466578F, 0.007813395F, 0.00878995843F, 0.00976652186F, 0.0107430853F, 0.0117196487F, 0.0126962122F, \n0.0136727756F, 0.014649339F, 0.0156268049F, 0.0175799318F, 0.0195330586F, 0.0214861855F, 0.0234393124F, 0.0253924392F, \n0.0273455661F, 0.0292986929F, 0.0312536396F, 0.0351598933F, 0.0390661471F, 0.0429724F, 0.0468786545F, 0.0507849082F, \n0.054691162F, 0.0585974157F, 0.0625073388F, 0.0703198463F, 0.0781323537F, 0.0859448612F, 0.0937573686F, 0.101569876F, \n0.109382384F, 0.117194891F, 0.125014797F, 0.140639812F, 0.156264827F, 0.171889842F, 0.187514856F, 0.203139871F, \n0.218764886F, 0.234389901F, 0.250029832F, 0.281279862F, 0.312529892F, 0.343779922F, 0.375029951F, 0.406279981F, \n0.43753F, 0.468780041F, 0.500060141F, 0.562560201F, 0.62506026F, 0.68756032F, 0.75006038F, 0.812560439F, 0.875060499F, \n0.937560558F, 1.00012124F, 1.12512136F, 1.25012147F, 1.37512159F, 1.50012171F, 1.62512183F, 1.75012195F, 1.87512207F, \n2.00024438F, 2.25024462F, 2.50024486F, 2.75024509F, 3.00024533F, 3.25024557F, 3.50024581F, 3.75024605F, 4.00049257F, \n4.50049305F, 5.00049353F, 5.500494F, 6.00049448F, 6.50049496F, 7.00049543F, 7.50049591F, 8.00099277F, 9.00099373F, \n10.0009947F, 11.0009956F, 12.0009966F, 13.0009975F, 14.0009985F, 15.0009995F, 16.002F, 18.0020027F, 20.0020046F, \n22.0020065F, 24.0020084F, 26.0020103F, 28.0020123F, 30.0020142F, 32.0040321F, 36.0040359F, 40.0040398F, 44.0040436F, \n48.0040474F, 52.0040512F, 56.004055F, 60.0040588F, 64.0081253F, 72.0081329F, 80.0081406F, 88.0081482F, 96.0081558F, \n104.008163F, 112.008171F, 120.008179F, 128.016373F, 144.016388F, 160.016403F, 176.016418F, 192.016434F, 208.016449F, \n224.016464F, 240.016479F, 256.033F, 288.03302F, 320.033051F, 352.033081F, 384.033112F, 416.033142F, 448.033173F, \n480.033203F, 512.066467F, 576.066528F, 640.066589F, 704.06665F, 768.066711F, 832.066772F, 896.066833F, 960.066895F, \n1024.13391F, 1152.13403F, 1280.13416F, 1408.13428F, 1536.1344F, 1664.13452F, 1792.13464F, 1920.13477F, 2048.26978F, \n2304.27F, 2560.27026F, 2816.27051F, 3072.27075F, 3328.271F, 3584.27124F, 3840.27148F, 4096.54346F, 4608.54395F, \n5120.54443F, 5632.54492F, 6144.54541F, 6656.5459F, 7168.54639F, 7680.54688F, 8193.09473F, 9217.0957F, 10241.0967F, \n11265.0977F, 12289.0986F, 13313.1F, 14337.1006F, 15361.1016F, 16386.2051F, 18434.207F, 20482.209F, 22530.2109F, \n24578.2129F, 26626.2148F, 28674.2168F, 30722.2188F, 32772.4414F, 36868.4453F, 40964.4492F, 45060.4531F, 49156.457F, \n53252.4609F, 57348.4648F, 61444.4688F, 65544.9453F, 73736.9531F, 81928.9609F, 90120.9688F, 98312.9766F, 106504.984F, \n114696.992F, 122889.0F, 131090.016F, 147474.031F, 163858.047F, 180242.062F, 196626.078F, 213010.094F, 229394.109F, \n245778.125F, 262180.281F, 294948.312F, 327716.344F, 360484.375F, 393252.406F, 426020.438F, 458788.469F, 491556.5F, \n524361.062F, 589897.125F, 655433.188F, 720969.25F, 786505.312F, 852041.375F, 917577.438F, 983113.5F, 1048723.12F, \n1179795.25F, 1310867.38F, 1441939.5F, 1573011.62F, 1704083.75F, 1835155.88F, 1966228.0F, 2097448.25F, 2359592.5F, \n2621736.75F, 2883881.0F, 3146025.25F, 3408169.5F, 3670313.75F, 3932458.0F, 4194900.5F, 4719189.0F, 5243477.5F, \n5767766.0F, 6292054.5F, 6816343.0F, 7340631.5F, 7.86492e+6F, 8389809.0F, 9438386.0F, 10486963.0F, 11535540.0F, \n12584117.0F, 13632694.0F, 14681271.0F, 15729848.0F, 16779634.0F, 18876788.0F, 20973942.0F, 23071096.0F, 25168250.0F, \n27265404.0F, 29362558.0F, 31459712.0F, 3.35593e+7F, 37753608.0F, 41947916.0F, 46142224.0F, 50336532.0F, 54530840.0F, \n58725148.0F, 62919456.0F, 67118664.0F, 75507280.0F, 83895896.0F, 92284512.0F, 100673128.0F, 109061744.0F, \n117450360.0F, 125838976.0F, 134237456.0F, 151014688.0F, 167791920.0F, 184569152.0F, 201346384.0F, 218123616.0F, \n234900848.0F, 251678080.0F, 268475168.0F, 302029632.0F, 335584096.0F, 369138560.0F, 402693024.0F, 436247488.0F, \n469801952.0F, 503356416.0F, 536950848.0F, 604059776.0F, 671168704.0F, 738277632.0F, 805386560.0F, 872495488.0F, \n939604416.0F, 1.00671334e+9F, 1.07390272e+9F, 1.20812058e+9F, 1.34233843e+9F, 1.47655629e+9F, 1.61077414e+9F, \n1.744992e+9F, 1.87920986e+9F, 2.01342771e+9F, 2.14780749e+9F, 2.4162432e+9F, 2.68467891e+9F, 2.95311462e+9F, \n3.22155034e+9F, 3.48998605e+9F, 3.75842176e+9F, 4.02685747e+9F, 4.29561907e+9F, 4.8324905e+9F, 5.36936192e+9F, \n5.90623334e+9F, 6.44310477e+9F, 6.97997619e+9F, 7.51684762e+9F, 8.05371904e+9F, 8.59124634e+9F, 9.66498918e+9F, \n1.0738732e+10F, 1.18124749e+10F, 1.28862177e+10F, 1.39599606e+10F, 1.50337034e+10F, 1.61074463e+10F, 1.71825091e+10F, \n1.93299948e+10F, 2.14774804e+10F, 2.36249661e+10F, 2.57724518e+10F, 2.79199375e+10F, 3.00674232e+10F, 3.22149089e+10F, \n3.43650509e+10F, 3.86600223e+10F, 4.29549937e+10F, 4.72499651e+10F, 5.15449364e+10F, 5.58399078e+10F, 6.01348792e+10F, \n6.44298506e+10F, 6.87301673e+10F, 7.73201101e+10F, 8.59100529e+10F, 9.44999956e+10F, 1.03089938e+11F, 1.11679881e+11F, \n1.20269824e+11F, 1.28859767e+11F, 1.37460466e+11F, 1.54640351e+11F, 1.71820237e+11F, 1.89000122e+11F, 2.0618e+11F, \n2.23359894e+11F, 2.40539779e+11F, 2.57719665e+11F, 2.74921193e+11F, 3.09280965e+11F, 3.43640736e+11F, 3.78000507e+11F, \n4.12360278e+11F, 4.46720049e+11F, 4.8107982e+11F, 5.15439591e+11F, 5.49842911e+11F, 6.18562454e+11F, 6.87282e+11F, \n7.56001538e+11F, 8.2472108e+11F, 8.93440623e+11F, 9.62160165e+11F, 1.03087971e+12F, 1.09968687e+12F, 1.23712596e+12F, \n1.37456504e+12F, 1.51200412e+12F, 1.64944321e+12F, 1.78688229e+12F, 1.92432138e+12F, 2.06176046e+12F, 2.19937584e+12F, \n2.47425401e+12F, 2.74913218e+12F, 3.02401035e+12F, 3.29888852e+12F, 3.57376668e+12F, 3.84864485e+12F, 4.12352302e+12F, \n4.39875587e+12F, 4.94851221e+12F, 5.49826855e+12F, 6.04802489e+12F, 6.59778123e+12F, 7.14753756e+12F, 7.6972939e+12F, \n8.24705e+12F, 8.79752e+12F, 9.89703281e+12F, 1.09965455e+13F, 1.20960582e+13F, 1.31955708e+13F, 1.42950835e+13F, \n1.53945962e+13F, 1.64941089e+13F, 1.7595057e+13F, 1.97940824e+13F, 2.19931078e+13F, 2.41921331e+13F, 2.63911585e+13F, \n2.85901838e+13F, 3.07892092e+13F, 3.29882345e+13F, 3.51901476e+13F, 3.95882e+13F, 4.39862491e+13F, 4.83843e+13F, \n5.27823505e+13F, 5.71804e+13F, 6.15784519e+13F, 6.59765026e+13F, 7.03803624e+13F, 7.91764638e+13F, 8.79725652e+13F, \n9.67686666e+13F, 1.05564768e+14F, 1.14360869e+14F, 1.23156971e+14F, 1.31953072e+14F, 1.40760859e+14F, 1.58353062e+14F, \n1.75945265e+14F, 1.93537467e+14F, 2.1112967e+14F, 2.28721873e+14F, 2.46314076e+14F, 2.63906279e+14F, 2.81522e+14F, \n3.16706392e+14F, 3.51890798e+14F, 3.87075203e+14F, 4.22259609e+14F, 4.57444e+14F, 4.9262842e+14F, 5.27812826e+14F, \n5.6304451e+14F, 6.33413321e+14F, 7.03782132e+14F, 7.74150944e+14F, 8.44519755e+14F, 9.14888566e+14F, 9.85257378e+14F, \n1.05562619e+15F, 1.12609009e+15F, 1.26682772e+15F, 1.40756534e+15F, 1.54830296e+15F, 1.68904058e+15F, 1.82977821e+15F, \n1.97051583e+15F, 2.11125345e+15F, 2.25218233e+15F, 2.53365758e+15F, 2.81513282e+15F, 3.09660807e+15F, 3.37808331e+15F, \n3.65955856e+15F, 3.94103381e+15F, 4.22250905e+15F, 4.50436896e+15F, 5.06731945e+15F, 5.63027e+15F, 6.19322043e+15F, \n6.75617092e+15F, 7.31912141e+15F, 7.88207191e+15F, 8.4450224e+15F, 9.00874652e+15F, 1.01346475e+16F, 1.12605485e+16F, \n1.23864495e+16F, 1.35123504e+16F, 1.46382514e+16F, 1.57641524e+16F, 1.68900534e+16F, 1.80175102e+16F, 2.02693122e+16F, \n2.25211141e+16F, 2.47729161e+16F, 2.70247181e+16F, 2.927652e+16F, 3.1528322e+16F, 3.37801239e+16F, 3.60350548e+16F, \n4.05386587e+16F, 4.50422626e+16F, 4.95458666e+16F, 5.40494705e+16F, 5.85530744e+16F, 6.30566783e+16F, 6.75602822e+16F, \n7.20701783e+16F, 8.10773861e+16F, 9.0084594e+16F, 9.90918e+16F, 1.0809901e+17F, 1.17106218e+17F, 1.26113425e+17F, \n1.35120633e+17F, 1.44140494e+17F, 1.6215491e+17F, 1.80169325e+17F, 1.98183741e+17F, 2.16198157e+17F, 2.34212572e+17F, \n2.52226988e+17F, 2.70241404e+17F, 2.88281263e+17F, 3.24310094e+17F, 3.60338926e+17F, 3.96367757e+17F, 4.32396588e+17F, \n4.6842542e+17F, 5.04454251e+17F, 5.40483083e+17F, 5.76563076e+17F, 6.48620738e+17F, 7.20678401e+17F, 7.92736064e+17F, \n8.64793727e+17F, 9.36851389e+17F, 1.00890905e+18F, 1.08096671e+18F, 1.15312725e+18F, 1.29724258e+18F, 1.4413579e+18F, \n1.58547323e+18F, 1.72958855e+18F, 1.87370388e+18F, 2.0178192e+18F, 2.16193453e+18F, 2.3062567e+18F, 2.59448735e+18F, \n2.882718e+18F, 3.17094865e+18F, 3.4591793e+18F, 3.74741e+18F, 4.03564061e+18F, 4.32387126e+18F, 4.6125178e+18F, \n5.1889791e+18F, 5.7654404e+18F, 6.34190171e+18F, 6.91836301e+18F, 7.49482431e+18F, 8.07128561e+18F, 8.64774691e+18F, \n9.22504439e+18F, 1.0377967e+19F, 1.15308896e+19F, 1.26838122e+19F, 1.38367348e+19F, 1.49896574e+19F, 1.614258e+19F, \n1.72955026e+19F, 1.84501064e+19F, 2.07559516e+19F, 2.30617968e+19F, 2.5367642e+19F, 2.76734872e+19F, 2.99793324e+19F, \n3.22851776e+19F, 3.45910228e+19F, 3.69002479e+19F, 4.15119384e+19F, 4.61236288e+19F, 5.07353192e+19F, 5.53470096e+19F, \n5.99587e+19F, 6.45703904e+19F, 6.91820809e+19F, 7.38005663e+19F, 8.30239471e+19F, 9.22473279e+19F, 1.01470709e+20F, \n1.1069409e+20F, 1.1991747e+20F, 1.29140851e+20F, 1.38364232e+20F, 1.47601273e+20F, 1.66048035e+20F, 1.84494797e+20F, \n2.02941558e+20F, 2.2138832e+20F, 2.39835082e+20F, 2.58281843e+20F, 2.76728605e+20F, 2.95202828e+20F, 3.32096351e+20F, \n3.68989875e+20F, 4.05883398e+20F, 4.42776921e+20F, 4.79670445e+20F, 5.16563968e+20F, 5.53457491e+20F, 5.90406219e+20F, \n6.64193266e+20F, 7.37980312e+20F, 8.11767359e+20F, 8.85554406e+20F, 9.59341452e+20F, 1.0331285e+21F, 1.10691555e+21F, \n1.18081356e+21F, 1.32838766e+21F, 1.47596175e+21F, 1.62353584e+21F, 1.77111e+21F, 1.91868403e+21F, 2.06625812e+21F, \n2.21383222e+21F, 2.36162938e+21F, 2.65677757e+21F, 2.95192575e+21F, 3.24707394e+21F, 3.54222213e+21F, 3.83737031e+21F, \n4.1325185e+21F, 4.42766669e+21F, 4.72326326e+21F, 5.31355964e+21F, 5.90385601e+21F, 6.49415238e+21F, 7.08444876e+21F, \n7.67474513e+21F, 8.2650415e+21F, 8.85533788e+21F, 9.44653553e+21F, 1.06271283e+22F, 1.1807721e+22F, 1.29883138e+22F, \n1.41689065e+22F, 1.53494993e+22F, 1.6530092e+22F, 1.77106848e+22F, 1.88930891e+22F, 2.12542746e+22F, 2.36154601e+22F, \n2.59766456e+22F, 2.83378311e+22F, 3.06990165e+22F, 3.3060202e+22F, 3.54213875e+22F, 3.77862142e+22F, 4.25085852e+22F, \n4.72309562e+22F, 5.19533271e+22F, 5.66757e+22F, 6.13980691e+22F, 6.61204401e+22F, 7.08428111e+22F, 7.55725e+22F, \n8.50172424e+22F, 9.44619844e+22F, 1.03906726e+23F, 1.13351468e+23F, 1.2279621e+23F, 1.32240952e+23F, 1.41685694e+23F, \n1.51145145e+23F, 1.70034629e+23F, 1.88924113e+23F, 2.07813597e+23F, 2.26703081e+23F, 2.45592565e+23F, 2.64482049e+23F, \n2.83371533e+23F, 3.02290578e+23F, 3.40069546e+23F, 3.77848514e+23F, 4.15627482e+23F, 4.5340645e+23F, 4.91185418e+23F, \n5.28964386e+23F, 5.66743353e+23F, 6.04581733e+23F, 6.80139669e+23F, 7.55697604e+23F, 8.3125554e+23F, 9.06813476e+23F, \n9.82371412e+23F, 1.05792935e+24F, 1.13348728e+24F, 1.20916462e+24F, 1.36028049e+24F, 1.51139636e+24F, 1.66251223e+24F, \n1.8136281e+24F, 1.96474398e+24F, 2.11585985e+24F, 2.26697572e+24F, 2.41833154e+24F, 2.72056329e+24F, 3.02279503e+24F, \n3.32502677e+24F, 3.62725852e+24F, 3.92949026e+24F, 4.231722e+24F, 4.53395374e+24F, 4.8366677e+24F, 5.44113118e+24F, \n6.04559467e+24F, 6.65005816e+24F, 7.25452164e+24F, 7.85898513e+24F, 8.46344861e+24F, 9.0679121e+24F, 9.67334462e+24F, \n1.08822716e+25F, 1.20911986e+25F, 1.33001255e+25F, 1.45090525e+25F, 1.57179795e+25F, 1.69269065e+25F, 1.81358334e+25F, \n1.93467077e+25F, 2.17645616e+25F, 2.41824156e+25F, 2.66002695e+25F, 2.90181235e+25F, 3.14359774e+25F, 3.38538314e+25F, \n3.62716853e+25F, 3.86934523e+25F, 4.35291601e+25F, 4.8364868e+25F, 5.32005759e+25F, 5.80362838e+25F, 6.28719917e+25F, \n6.77077e+25F, 7.25434075e+25F, 7.73869783e+25F, 8.70583941e+25F, 9.67298099e+25F, 1.06401226e+26F, 1.16072641e+26F, \n1.25744057e+26F, 1.35415473e+26F, 1.45086889e+26F, 1.54774104e+26F, 1.74116936e+26F, 1.93459767e+26F, 2.12802599e+26F, \n2.3214543e+26F, 2.51488262e+26F, 2.70831094e+26F, 2.90173925e+26F, 3.09548504e+26F, 3.48234167e+26F, 3.8691983e+26F, \n4.25605493e+26F, 4.64291156e+26F, 5.02976819e+26F, 5.41662482e+26F, 5.80348145e+26F, 6.19097597e+26F, 6.96468924e+26F, \n7.7384025e+26F, 8.51211576e+26F, 9.28582902e+26F, 1.00595423e+27F, 1.08332555e+27F, 1.16069688e+27F, 1.23819638e+27F, \n1.39293903e+27F, 1.54768168e+27F, 1.70242433e+27F, 1.85716699e+27F, 2.01190964e+27F, 2.16665229e+27F, 2.32139494e+27F, \n2.47639511e+27F, 2.78588042e+27F, 3.09536572e+27F, 3.40485103e+27F, 3.71433633e+27F, 4.02382164e+27F, 4.33330694e+27F, \n4.64279225e+27F, 4.95279495e+27F, 5.57176556e+27F, 6.19073617e+27F, 6.80970678e+27F, 7.42867739e+27F, 8.047648e+27F, \n8.66661861e+27F, 9.28558922e+27F, 9.90559934e+27F, 1.11435406e+28F, 1.23814818e+28F, 1.3619423e+28F, 1.48573642e+28F, \n1.60953054e+28F, 1.73332467e+28F, 1.85711879e+28F, 1.98112176e+28F, 2.22871e+28F, 2.47629824e+28F, 2.72388649e+28F, \n2.97147473e+28F, 3.21906298e+28F, 3.46665122e+28F, 3.71423946e+28F, 3.96224729e+28F, 4.45742378e+28F, 4.95260027e+28F, \n5.44777675e+28F, 5.94295324e+28F, 6.43812973e+28F, 6.93330622e+28F, 7.42848271e+28F, 7.92450214e+28F, 8.91485511e+28F, \n9.90520809e+28F, 1.08955611e+29F, 1.1885914e+29F, 1.2876267e+29F, 1.386662e+29F, 1.4856973e+29F, 1.58490194e+29F, \n1.78297253e+29F, 1.98104313e+29F, 2.17911372e+29F, 2.37718432e+29F, 2.57525491e+29F, 2.77332551e+29F, 2.9713961e+29F, \n3.1698069e+29F, 3.56594809e+29F, 3.96208928e+29F, 4.35823047e+29F, 4.75437166e+29F, 5.15051285e+29F, 5.54665404e+29F, \n5.94279523e+29F, 6.33962e+29F, 7.13190222e+29F, 7.9241846e+29F, 8.71646699e+29F, 9.50874937e+29F, 1.03010317e+30F, \n1.10933141e+30F, 1.18855965e+30F, 1.26792518e+30F, 1.42638165e+30F, 1.58483813e+30F, 1.74329461e+30F, 1.90175108e+30F, \n2.06020756e+30F, 2.21866403e+30F, 2.37712051e+30F, 2.53585277e+30F, 2.85276573e+30F, 3.16967868e+30F, 3.48659163e+30F, \n3.80350458e+30F, 4.12041753e+30F, 4.43733049e+30F, 4.75424344e+30F, 5.07171038e+30F, 5.70553629e+30F, 6.33936219e+30F, \n6.9731881e+30F, 7.607014e+30F, 8.24084e+30F, 8.87466581e+30F, 9.50849171e+30F, 1.01434304e+31F, 1.14110822e+31F, \n1.26787341e+31F, 1.39463859e+31F, 1.52140377e+31F, 1.64816895e+31F, 1.77493413e+31F, 1.90169931e+31F, 2.02868802e+31F, \n2.28221838e+31F, 2.53574874e+31F, 2.78927911e+31F, 3.04280947e+31F, 3.29633983e+31F, 3.54987019e+31F, 3.80340055e+31F, \n4.05738e+31F, 4.56444063e+31F, 5.07150136e+31F, 5.57856208e+31F, 6.08562281e+31F, 6.59268353e+31F, 7.09974425e+31F, \n7.60680498e+31F, 8.11476756e+31F, 9.12888901e+31F, 1.01430105e+32F, 1.11571319e+32F, 1.21712533e+32F, 1.31853748e+32F, \n1.41994962e+32F, 1.52136177e+32F, 1.62295506e+32F, 1.82577935e+32F, 2.02860364e+32F, 2.23142793e+32F, 2.43425222e+32F, \n2.63707651e+32F, 2.8399008e+32F, 3.04272509e+32F, 3.24591321e+32F, 3.65156179e+32F, 4.05721037e+32F, 4.46285895e+32F, \n4.86850753e+32F, 5.27415611e+32F, 5.67980469e+32F, 6.08545327e+32F, 6.49183262e+32F, 7.30313e+32F, 8.11442693e+32F, \n8.92572409e+32F, 9.73702125e+32F, 1.05483184e+33F, 1.13596156e+33F, 1.21709127e+33F, 1.29836776e+33F, 1.46062719e+33F, \n1.62288662e+33F, 1.78514606e+33F, 1.94740549e+33F, 2.10966492e+33F, 2.27192435e+33F, 2.43418378e+33F, 2.596738e+33F, \n2.92125686e+33F, 3.24577572e+33F, 3.57029459e+33F, 3.89481345e+33F, 4.21933231e+33F, 4.54385118e+33F, 4.86837e+33F, \n5.19348095e+33F, 5.84251867e+33F, 6.4915564e+33F, 7.14059413e+33F, 7.78963185e+33F, 8.43866958e+33F, 9.08770731e+33F, \n9.73674503e+33F, 1.03869718e+34F, 1.16850473e+34F, 1.29831227e+34F, 1.42811982e+34F, 1.55792736e+34F, 1.68773491e+34F, \n1.81754245e+34F, 1.94735e+34F, 2.07739634e+34F, 2.33701143e+34F, 2.59662652e+34F, 2.85624161e+34F, 3.1158567e+34F, \n3.37547179e+34F, 3.63508688e+34F, 3.89470197e+34F, 4.15479664e+34F, 4.67402682e+34F, 5.193257e+34F, 5.71248719e+34F, \n6.23171737e+34F, 6.75094755e+34F, 7.27017773e+34F, 7.78940791e+34F, 8.30960121e+34F, 9.34806157e+34F, 1.03865219e+35F, \n1.14249823e+35F, 1.24634427e+35F, 1.3501903e+35F, 1.45403634e+35F, 1.55788237e+35F, 1.66192183e+35F, 1.8696139e+35F, \n2.07730597e+35F, 2.28499804e+35F, 2.49269012e+35F, 2.70038219e+35F, 2.90807426e+35F, 3.11576633e+35F, 3.32384682e+35F, \n3.73923097e+35F, 4.15461511e+35F, 4.56999926e+35F, 4.9853834e+35F, 5.40076755e+35F, 5.81615169e+35F, 6.23153584e+35F, \n6.6477e+35F, 7.47846827e+35F, 8.30923656e+35F, 9.14000485e+35F, 9.97077314e+35F, 1.08015414e+36F, 1.16323097e+36F, \n1.2463078e+36F, 1.32954126e+36F, 1.49569492e+36F, 1.66184858e+36F, 1.82800224e+36F, 1.9941559e+36F, 2.16030955e+36F, \n2.32646321e+36F, 2.49261687e+36F, 2.65908506e+36F, 2.99139238e+36F, 3.32369969e+36F, 3.65600701e+36F, 3.98831433e+36F, \n4.32062164e+36F, 4.65292896e+36F, 4.98523627e+36F, 5.3181752e+36F, 5.98279e+36F, 6.64740446e+36F, 7.31201909e+36F, \n7.97663372e+36F, 8.64124836e+36F, 9.30586299e+36F, 9.97047762e+36F, 1.06363605e+37F, 1.19655898e+37F, 1.32948191e+37F, \n1.46240483e+37F, 1.59532776e+37F, 1.72825069e+37F, 1.86117361e+37F, 1.99409654e+37F, 2.12727414e+37F, 2.39312e+37F, \n2.65896584e+37F, 2.92481169e+37F, 3.19065755e+37F, 3.4565034e+37F, 3.72234925e+37F, 3.9881951e+37F, 4.25455233e+37F, \n4.78624403e+37F, 5.31793574e+37F, 5.84962744e+37F, 6.38131915e+37F, 6.91301085e+37F, 7.44470256e+37F, 7.97639426e+37F, \n8.50911277e+37F, 9.57249618e+37F, 1.06358796e+38F, 1.1699263e+38F, 1.27626464e+38F, 1.38260298e+38F, 1.48894132e+38F, \n1.59527966e+38F, 1.70182418e+38F, 1.91450086e+38F, 2.12717754e+38F, 2.33985422e+38F, 2.5525309e+38F, 2.76520759e+38F, \n2.97788427e+38F, 3.19056095e+38F, -1.4013e-45F, -1.46937074e-39F, -2.93874e-39F, -4.40811e-39F, -5.87747876e-39F, \n-7.3468481e-39F, -8.81621744e-39F, -1.02855868e-38F, -1.17549561e-38F, -1.32243255e-38F, -1.46936948e-38F, \n-1.61630641e-38F, -1.76324335e-38F, -1.91018028e-38F, -2.05711722e-38F, -2.20405415e-38F, -2.35099347e-38F, \n-2.64486733e-38F, -2.9387412e-38F, -3.23261507e-38F, -3.52648894e-38F, -3.82036281e-38F, -4.11423667e-38F, \n-4.40811054e-38F, -4.70199142e-38F, -5.28973915e-38F, -5.87748689e-38F, -6.46523462e-38F, -7.05298236e-38F, \n-7.64073e-38F, -8.22847783e-38F, -8.81622557e-38F, -9.4039918e-38F, -1.05794873e-37F, -1.17549827e-37F, \n-1.29304782e-37F, -1.41059737e-37F, -1.52814692e-37F, -1.64569646e-37F, -1.76324601e-37F, -1.88080015e-37F, \n-2.11589925e-37F, -2.35099834e-37F, -2.58609744e-37F, -2.82119653e-37F, -3.05629563e-37F, -3.29139472e-37F, \n-3.52649381e-37F, -3.76160389e-37F, -4.23180208e-37F, -4.70200027e-37F, -5.17219846e-37F, -5.64239665e-37F, \n-6.11259484e-37F, -6.58279303e-37F, -7.05299122e-37F, -7.52321496e-37F, -8.46361134e-37F, -9.40400772e-37F, \n-1.03444041e-36F, -1.12848005e-36F, -1.22251969e-36F, -1.31655932e-36F, -1.41059896e-36F, -1.50464443e-36F, \n-1.6927237e-36F, -1.88080298e-36F, -2.06888225e-36F, -2.25696153e-36F, -2.44504081e-36F, -2.63312e-36F, \n-2.82119936e-36F, -3.00929173e-36F, -3.38545028e-36F, -3.76160883e-36F, -4.13776738e-36F, -4.51392593e-36F, \n-4.89008448e-36F, -5.26624303e-36F, -5.64240158e-36F, -6.01858919e-36F, -6.77090629e-36F, -7.52322339e-36F, \n-8.2755405e-36F, -9.0278576e-36F, -9.7801747e-36F, -1.05324918e-35F, -1.12848089e-35F, -1.20371899e-35F, \n-1.35418241e-35F, -1.50464583e-35F, -1.65510925e-35F, -1.80557267e-35F, -1.95603609e-35F, -2.10649951e-35F, \n-2.25696293e-35F, -2.40744027e-35F, -2.70836711e-35F, -3.00929395e-35F, -3.31022079e-35F, -3.61114763e-35F, \n-3.91207447e-35F, -4.21300131e-35F, -4.51392815e-35F, -4.81488513e-35F, -5.41673881e-35F, -6.01859249e-35F, \n-6.62044617e-35F, -7.2223e-35F, -7.82415354e-35F, -8.42600722e-35F, -9.0278609e-35F, -9.62978e-35F, -1.08334868e-34F, \n-1.20371942e-34F, -1.32409015e-34F, -1.44446089e-34F, -1.56483163e-34F, -1.68520236e-34F, -1.8055731e-34F, \n-1.92595772e-34F, -2.1666992e-34F, -2.40744067e-34F, -2.64818214e-34F, -2.88892362e-34F, -3.12966509e-34F, \n-3.37040656e-34F, -3.61114803e-34F, -3.85191912e-34F, -4.33340207e-34F, -4.81488501e-34F, -5.29636796e-34F, \n-5.7778509e-34F, -6.25933385e-34F, -6.74081679e-34F, -7.22229974e-34F, -7.70384559e-34F, -8.66681148e-34F, \n-9.62977737e-34F, -1.05927433e-33F, -1.15557092e-33F, -1.2518675e-33F, -1.34816409e-33F, -1.44446068e-33F, \n-1.54077059e-33F, -1.73336377e-33F, -1.92595694e-33F, -2.11855012e-33F, -2.3111433e-33F, -2.50373648e-33F, \n-2.69632966e-33F, -2.88892283e-33F, -3.08154411e-33F, -3.46673047e-33F, -3.85191683e-33F, -4.23710318e-33F, \n-4.62228954e-33F, -5.0074759e-33F, -5.39266225e-33F, -5.77784861e-33F, -6.16309411e-33F, -6.93346682e-33F, \n-7.70383953e-33F, -8.47421224e-33F, -9.24458496e-33F, -1.00149577e-32F, -1.07853304e-32F, -1.15557031e-32F, \n-1.23262e-32F, -1.38669454e-32F, -1.54076908e-32F, -1.69484362e-32F, -1.84891817e-32F, -2.00299271e-32F, \n-2.15706725e-32F, -2.31114179e-32F, -2.46524234e-32F, -2.77339143e-32F, -3.08154051e-32F, -3.3896896e-32F, \n-3.69783868e-32F, -4.00598777e-32F, -4.31413685e-32F, -4.62228594e-32F, -4.93048939e-32F, -5.54678756e-32F, \n-6.16308573e-32F, -6.7793839e-32F, -7.39568207e-32F, -8.01198e-32F, -8.62827841e-32F, -9.24457658e-32F, \n-9.86098819e-32F, -1.10935845e-31F, -1.23261809e-31F, -1.35587772e-31F, -1.47913735e-31F, -1.60239699e-31F, \n-1.72565662e-31F, -1.84891626e-31F, -1.97219952e-31F, -2.21871879e-31F, -2.46523805e-31F, -2.71175732e-31F, \n-2.95827659e-31F, -3.20479586e-31F, -3.45131513e-31F, -3.69783439e-31F, -3.9444028e-31F, -4.43744133e-31F, \n-4.93048e-31F, -5.42351841e-31F, -5.91655694e-31F, -6.40959548e-31F, -6.90263401e-31F, -7.39567255e-31F, \n-7.88881312e-31F, -8.87489e-31F, -9.86096726e-31F, -1.08470443e-30F, -1.18331214e-30F, -1.28191985e-30F, \n-1.38052755e-30F, -1.47913526e-30F, -1.57776413e-30F, -1.77497954e-30F, -1.97219496e-30F, -2.16941037e-30F, \n-2.36662579e-30F, -2.5638412e-30F, -2.76105661e-30F, -2.95827203e-30F, -3.15553127e-30F, -3.54996209e-30F, \n-3.94439292e-30F, -4.33882375e-30F, -4.73325458e-30F, -5.12768541e-30F, -5.52211624e-30F, -5.91654707e-30F, \n-6.31106855e-30F, -7.09993e-30F, -7.88879187e-30F, -8.67765352e-30F, -9.46651518e-30F, -1.02553768e-29F, \n-1.10442385e-29F, -1.18331e-29F, -1.26221491e-29F, -1.41998725e-29F, -1.57775958e-29F, -1.73553191e-29F, \n-1.89330424e-29F, -2.05107657e-29F, -2.2088489e-29F, -2.36662123e-29F, -2.52443223e-29F, -2.8399769e-29F, \n-3.15552156e-29F, -3.47106622e-29F, -3.78661089e-29F, -4.10215555e-29F, -4.41770021e-29F, -4.73324488e-29F, \n-5.04886928e-29F, -5.67995861e-29F, -6.31104794e-29F, -6.94213726e-29F, -7.57322659e-29F, -8.20431591e-29F, \n-8.83540524e-29F, -9.46649457e-29F, -1.00977482e-28F, -1.13599269e-28F, -1.26221055e-28F, -1.38842842e-28F, \n-1.51464628e-28F, -1.64086415e-28F, -1.76708201e-28F, -1.89329988e-28F, -2.01955157e-28F, -2.2719873e-28F, \n-2.52442303e-28F, -2.77685876e-28F, -3.02929449e-28F, -3.28173022e-28F, -3.53416595e-28F, -3.78660168e-28F, \n-4.03910698e-28F, -4.54397844e-28F, -5.04885e-28F, -5.55372137e-28F, -6.05859283e-28F, -6.56346429e-28F, \n-7.06833575e-28F, -7.57320721e-28F, -8.07822167e-28F, -9.08796459e-28F, -1.00977075e-27F, -1.11074504e-27F, \n-1.21171934e-27F, -1.31269363e-27F, -1.41366792e-27F, -1.51464221e-27F, -1.61564587e-27F, -1.81759446e-27F, \n-2.01954304e-27F, -2.22149163e-27F, -2.42344021e-27F, -2.6253888e-27F, -2.82733738e-27F, -3.02928597e-27F, \n-3.23129483e-27F, -3.635192e-27F, -4.03908917e-27F, -4.44298634e-27F, -4.84688351e-27F, -5.25078067e-27F, \n-5.65467784e-27F, -6.05857501e-27F, -6.46259582e-27F, -7.27039e-27F, -8.0781845e-27F, -8.88597884e-27F, \n-9.69377317e-27F, -1.05015675e-26F, -1.13093618e-26F, -1.21171562e-26F, -1.2925204e-26F, -1.45407927e-26F, \n-1.61563813e-26F, -1.777197e-26F, -1.93875587e-26F, -2.10031473e-26F, -2.2618736e-26F, -2.42343247e-26F, \n-2.58504326e-26F, -2.908161e-26F, -3.23127873e-26F, -3.55439647e-26F, -3.8775142e-26F, -4.20063194e-26F, \n-4.52374967e-26F, -4.8468674e-26F, -5.17009145e-26F, -5.81632692e-26F, -6.46256239e-26F, -7.10879786e-26F, \n-7.75503333e-26F, -8.4012688e-26F, -9.04750427e-26F, -9.69374e-26F, -1.03401928e-25F, -1.16326637e-25F, \n-1.29251346e-25F, -1.42176056e-25F, -1.55100765e-25F, -1.68025475e-25F, -1.80950184e-25F, -1.93874893e-25F, \n-2.06804052e-25F, -2.32653471e-25F, -2.5850289e-25F, -2.84352309e-25F, -3.10201728e-25F, -3.36051146e-25F, \n-3.61900565e-25F, -3.87749984e-25F, -4.13608499e-25F, -4.65307337e-25F, -5.17006175e-25F, -5.68705e-25F, \n-6.2040385e-25F, -6.72102687e-25F, -7.23801525e-25F, -7.75500362e-25F, -8.27217788e-25F, -9.30615463e-25F, \n-1.03401314e-24F, -1.13741081e-24F, -1.24080849e-24F, -1.34420616e-24F, -1.44760384e-24F, -1.55100151e-24F, \n-1.65443715e-24F, -1.8612325e-24F, -2.06802785e-24F, -2.2748232e-24F, -2.48161855e-24F, -2.6884139e-24F, \n-2.89520926e-24F, -3.10200461e-24F, -3.30887746e-24F, -3.72246816e-24F, -4.13605886e-24F, -4.54964956e-24F, \n-4.96324026e-24F, -5.37683096e-24F, -5.79042167e-24F, -6.20401237e-24F, -6.61776123e-24F, -7.44494264e-24F, \n-8.27212404e-24F, -9.09930544e-24F, -9.92648684e-24F, -1.07536682e-23F, -1.15808496e-23F, -1.2408031e-23F, \n-1.32355351e-23F, -1.48898979e-23F, -1.65442607e-23F, -1.81986235e-23F, -1.98529863e-23F, -2.15073491e-23F, \n-2.31617119e-23F, -2.48160747e-23F, -2.64710954e-23F, -2.9779821e-23F, -3.30885466e-23F, -3.63972722e-23F, \n-3.97059978e-23F, -4.30147234e-23F, -4.63234491e-23F, -4.96321747e-23F, -5.29422413e-23F, -5.95596925e-23F, \n-6.61771438e-23F, -7.2794595e-23F, -7.94120462e-23F, -8.60295e-23F, -9.26469486e-23F, -9.92644e-23F, -1.05884584e-22F, \n-1.19119486e-22F, -1.32354388e-22F, -1.45589291e-22F, -1.58824193e-22F, -1.72059096e-22F, -1.85294e-22F, \n-1.98528901e-22F, -2.11769369e-22F, -2.38239174e-22F, -2.64708979e-22F, -2.91178784e-22F, -3.17648589e-22F, \n-3.44118393e-22F, -3.70588198e-22F, -3.97058e-22F, -4.23539142e-22F, -4.76478752e-22F, -5.29418362e-22F, \n-5.82357971e-22F, -6.35297581e-22F, -6.88237191e-22F, -7.411768e-22F, -7.9411641e-22F, -8.47079092e-22F, \n-9.52958312e-22F, -1.05883753e-21F, -1.16471675e-21F, -1.27059597e-21F, -1.37647519e-21F, -1.48235441e-21F, \n-1.58823363e-21F, -1.6941598e-21F, -1.90591824e-21F, -2.11767668e-21F, -2.32943512e-21F, -2.54119356e-21F, \n-2.75295199e-21F, -2.96471043e-21F, -3.17646887e-21F, -3.38832283e-21F, -3.81183971e-21F, -4.23535659e-21F, \n-4.65887346e-21F, -5.08239034e-21F, -5.50590722e-21F, -5.9294241e-21F, -6.35294097e-21F, -6.77665213e-21F, \n-7.62368588e-21F, -8.47072e-21F, -9.31775339e-21F, -1.01647871e-20F, -1.10118209e-20F, -1.18588547e-20F, \n-1.27058884e-20F, -1.35533172e-20F, -1.52473847e-20F, -1.69414522e-20F, -1.86355197e-20F, -2.03295872e-20F, \n-2.20236547e-20F, -2.37177222e-20F, -2.54117897e-20F, -2.71066602e-20F, -3.04947952e-20F, -3.38829302e-20F, \n-3.72710653e-20F, -4.06592e-20F, -4.40473353e-20F, -4.74354703e-20F, -5.08236053e-20F, -5.42133721e-20F, \n-6.09896422e-20F, -6.77659122e-20F, -7.45421822e-20F, -8.13184523e-20F, -8.80947223e-20F, -9.48709924e-20F, \n-1.01647262e-19F, -1.08426848e-19F, -1.21979388e-19F, -1.35531928e-19F, -1.49084468e-19F, -1.62637008e-19F, \n-1.76189548e-19F, -1.89742088e-19F, -2.03294628e-19F, -2.16853902e-19F, -2.43958982e-19F, -2.71064062e-19F, \n-2.98169143e-19F, -3.25274223e-19F, -3.52379303e-19F, -3.79484383e-19F, -4.06589463e-19F, -4.33708218e-19F, \n-4.87918378e-19F, -5.42128538e-19F, -5.96338699e-19F, -6.50548859e-19F, -7.04759e-19F, -7.5896918e-19F, \n-8.1317934e-19F, -8.67417262e-19F, -9.75837583e-19F, -1.0842579e-18F, -1.19267822e-18F, -1.30109855e-18F, \n-1.40951887e-18F, -1.51793919e-18F, -1.62635951e-18F, -1.73483618e-18F, -1.95167682e-18F, -2.16851746e-18F, \n-2.3853581e-18F, -2.60219874e-18F, -2.81903939e-18F, -3.03588e-18F, -3.25272067e-18F, -3.46967567e-18F, \n-3.90335695e-18F, -4.33703823e-18F, -4.77071952e-18F, -5.2044008e-18F, -5.63808208e-18F, -6.07176336e-18F, \n-6.50544465e-18F, -6.93935795e-18F, -7.80672052e-18F, -8.67408308e-18F, -9.54144565e-18F, -1.04088082e-17F, \n-1.12761708e-17F, -1.21435333e-17F, -1.30108959e-17F, -1.38787291e-17F, -1.56134543e-17F, -1.73481794e-17F, \n-1.90829045e-17F, -2.08176297e-17F, -2.25523548e-17F, -2.42870799e-17F, -2.60218051e-17F, -2.77574847e-17F, \n-3.1226935e-17F, -3.46963853e-17F, -3.81658355e-17F, -4.16352858e-17F, -4.51047361e-17F, -4.85741863e-17F, \n-5.20436366e-17F, -5.55150224e-17F, -6.2453923e-17F, -6.93928235e-17F, -7.6331724e-17F, -8.32706245e-17F, \n-9.0209525e-17F, -9.71484256e-17F, -1.04087326e-16F, -1.11030151e-16F, -1.24907952e-16F, -1.38785753e-16F, \n-1.52663554e-16F, -1.66541355e-16F, -1.80419156e-16F, -1.94296957e-16F, -2.08174758e-16F, -2.22060513e-16F, \n-2.49816115e-16F, -2.77571717e-16F, -3.0532732e-16F, -3.33082922e-16F, -3.60838524e-16F, -3.88594126e-16F, \n-4.16349728e-16F, -4.4412145e-16F, -4.99632654e-16F, -5.55143858e-16F, -6.10655063e-16F, -6.66166267e-16F, \n-7.21677471e-16F, -7.77188675e-16F, -8.32699879e-16F, -8.88243747e-16F, -9.99266155e-16F, -1.11028856e-15F, \n-1.22131097e-15F, -1.33233338e-15F, -1.44335579e-15F, -1.5543782e-15F, -1.66540061e-15F, -1.77648919e-15F, \n-1.998534e-15F, -2.22057882e-15F, -2.44262364e-15F, -2.66466846e-15F, -2.88671327e-15F, -3.10875809e-15F, \n-3.33080291e-15F, -3.55298176e-15F, -3.9970714e-15F, -4.44116103e-15F, -4.88525066e-15F, -5.3293403e-15F, \n-5.77343e-15F, -6.21751956e-15F, -6.6616092e-15F, -7.10597e-15F, -7.99414957e-15F, -8.88232884e-15F, -9.77050811e-15F, \n-1.06586874e-14F, -1.15468666e-14F, -1.24350459e-14F, -1.33232252e-14F, -1.42119542e-14F, -1.59883127e-14F, \n-1.77646712e-14F, -1.95410298e-14F, -2.13173883e-14F, -2.30937468e-14F, -2.48701054e-14F, -2.66464639e-14F, \n-2.84239354e-14F, -3.19766525e-14F, -3.55293696e-14F, -3.90820866e-14F, -4.26348037e-14F, -4.61875208e-14F, \n-4.97402378e-14F, -5.32929549e-14F, -5.68479251e-14F, -6.39533592e-14F, -7.10587933e-14F, -7.81642275e-14F, \n-8.52696616e-14F, -9.23750957e-14F, -9.94805299e-14F, -1.06585964e-13F, -1.13695959e-13F, -1.27906827e-13F, \n-1.42117695e-13F, -1.56328563e-13F, -1.70539432e-13F, -1.847503e-13F, -1.98961168e-13F, -2.13172036e-13F, \n-2.27392134e-13F, -2.55813871e-13F, -2.84235607e-13F, -3.12657344e-13F, -3.4107908e-13F, -3.69500817e-13F, \n-3.97922553e-13F, -4.2634429e-13F, -4.54784702e-13F, -5.11628175e-13F, -5.68471648e-13F, -6.25315121e-13F, \n-6.82158594e-13F, -7.39002067e-13F, -7.9584554e-13F, -8.52689e-13F, -9.09570271e-13F, -1.02325722e-12F, \n-1.13694416e-12F, -1.25063111e-12F, -1.36431806e-12F, -1.478005e-12F, -1.59169195e-12F, -1.70537889e-12F, \n-1.81914228e-12F, -2.04651617e-12F, -2.27389e-12F, -2.50126395e-12F, -2.72863785e-12F, -2.95601174e-12F, \n-3.18338563e-12F, -3.41075952e-12F, -3.63828802e-12F, -4.09303581e-12F, -4.54778359e-12F, -5.00253138e-12F, \n-5.45727916e-12F, -5.91202694e-12F, -6.36677473e-12F, -6.82152251e-12F, -7.27658298e-12F, -8.18607855e-12F, \n-9.09557412e-12F, -1.00050697e-11F, -1.09145653e-11F, -1.18240608e-11F, -1.27335564e-11F, -1.3643052e-11F, \n-1.45531798e-11F, -1.6372171e-11F, -1.81911621e-11F, -2.00101533e-11F, -2.18291444e-11F, -2.36481355e-11F, \n-2.54671267e-11F, -2.72861178e-11F, -2.91063874e-11F, -3.27443697e-11F, -3.6382352e-11F, -4.00203343e-11F, \n-4.36583165e-11F, -4.72963e-11F, -5.09342811e-11F, -5.45722634e-11F, -5.82128304e-11F, -6.54887949e-11F, \n-7.27647595e-11F, -8.0040724e-11F, -8.73166886e-11F, -9.45926532e-11F, -1.01868618e-10F, -1.09144582e-10F, \n-1.16425772e-10F, -1.30977701e-10F, -1.4552963e-10F, -1.60081559e-10F, -1.74633488e-10F, -1.89185417e-10F, \n-2.03737346e-10F, -2.18289276e-10F, -2.32851766e-10F, -2.61955624e-10F, -2.91059482e-10F, -3.2016334e-10F, \n-3.49267198e-10F, -3.78371057e-10F, -4.07474915e-10F, -4.36578773e-10F, -4.65704e-10F, -5.23911692e-10F, \n-5.82119408e-10F, -6.40327125e-10F, -6.98534841e-10F, -7.56742558e-10F, -8.14950274e-10F, -8.73158e-10F, \n-9.31408839e-10F, -1.04782427e-9F, -1.1642397e-9F, -1.28065514e-9F, -1.39707057e-9F, -1.513486e-9F, -1.62990144e-9F, \n-1.74631687e-9F, -1.86281945e-9F, -2.09565032e-9F, -2.32848119e-9F, -2.56131205e-9F, -2.79414292e-9F, -3.02697378e-9F, \n-3.25980465e-9F, -3.49263551e-9F, -3.72564246e-9F, -4.19130419e-9F, -4.65696592e-9F, -5.12262766e-9F, -5.58828939e-9F, \n-6.05395112e-9F, -6.51961285e-9F, -6.98527458e-9F, -7.45129203e-9F, -8.38261549e-9F, -9.31393895e-9F, -1.02452624e-8F, \n-1.11765859e-8F, -1.21079093e-8F, -1.30392328e-8F, -1.39705563e-8F, -1.49025983e-8F, -1.67652452e-8F, -1.86278921e-8F, \n-2.0490539e-8F, -2.2353186e-8F, -2.42158329e-8F, -2.60784798e-8F, -2.79411267e-8F, -2.9805225e-8F, -3.35305188e-8F, \n-3.72558127e-8F, -4.09811065e-8F, -4.47064e-8F, -4.84316942e-8F, -5.21569881e-8F, -5.58822819e-8F, -5.96105068e-8F, \n-6.70610945e-8F, -7.45116822e-8F, -8.19622699e-8F, -8.94128576e-8F, -9.68634453e-8F, -1.04314033e-7F, -1.11764621e-7F, \n-1.19221127e-7F, -1.34122303e-7F, -1.49023478e-7F, -1.63924653e-7F, -1.78825829e-7F, -1.93727e-7F, -2.0862818e-7F, \n-2.23529355e-7F, -2.38442482e-7F, -2.68244833e-7F, -2.98047183e-7F, -3.27849534e-7F, -3.57651885e-7F, -3.87454236e-7F, \n-4.17256587e-7F, -4.47058937e-7F, -4.76885418e-7F, -5.3649012e-7F, -5.96094822e-7F, -6.55699523e-7F, -7.15304225e-7F, \n-7.74908926e-7F, -8.34513628e-7F, -8.9411833e-7F, -9.53771746e-7F, -1.07298115e-6F, -1.19219055e-6F, -1.3114e-6F, \n-1.43060936e-6F, -1.54981876e-6F, -1.66902817e-6F, -1.78823757e-6F, -1.90754531e-6F, -2.14596412e-6F, -2.38438292e-6F, \n-2.62280173e-6F, -2.86122054e-6F, -3.09963934e-6F, -3.33805815e-6F, -3.57647696e-6F, -3.81509426e-6F, -4.29193187e-6F, \n-4.76876949e-6F, -5.2456071e-6F, -5.72244471e-6F, -6.19928232e-6F, -6.67612e-6F, -7.15295755e-6F, -7.6301958e-6F, \n-8.58387102e-6F, -9.53754625e-6F, -1.04912215e-5F, -1.14448967e-5F, -1.23985719e-5F, -1.33522472e-5F, -1.43059224e-5F, \n-1.52604061e-5F, -1.71677566e-5F, -1.9075107e-5F, -2.09824575e-5F, -2.2889808e-5F, -2.47971584e-5F, -2.67045089e-5F, \n-2.86118593e-5F, -3.05208414e-5F, -3.43355423e-5F, -3.81502432e-5F, -4.19649441e-5F, -4.5779645e-5F, -4.95943459e-5F, \n-5.34090468e-5F, -5.72237477e-5F, -6.1041741e-5F, -6.86711428e-5F, -7.63005446e-5F, -8.39299464e-5F, -9.15593482e-5F, \n-9.918875e-5F, -0.000106818152F, -0.000114447554F, -0.000122083598F, -0.000137342402F, -0.000152601206F, \n-0.000167860009F, -0.000183118813F, -0.000198377616F, -0.00021363642F, -0.000228895224F, -0.00024416743F, \n-0.000274685037F, -0.000305202644F, -0.000335720251F, -0.000366237859F, -0.000396755466F, -0.000427273073F, \n-0.00045779068F, -0.000488335325F, -0.000549370539F, -0.000610405754F, -0.000671440968F, -0.000732476183F, \n-0.000793511397F, -0.000854546612F, -0.000915581826F, -0.000976671581F, -0.00109874201F, -0.00122081244F, \n-0.00134288287F, -0.0014649533F, -0.00158702373F, -0.00170909415F, -0.00183116458F, -0.00195334502F, -0.00219748588F, \n-0.00244162674F, -0.0026857676F, -0.00292990846F, -0.00317404931F, -0.00341819017F, -0.00366233103F, -0.00390669378F, \n-0.00439497549F, -0.00488325721F, -0.00537153892F, -0.00585982064F, -0.00634810235F, -0.00683638407F, -0.00732466578F, \n-0.007813395F, -0.00878995843F, -0.00976652186F, -0.0107430853F, -0.0117196487F, -0.0126962122F, -0.0136727756F, \n-0.014649339F, -0.0156268049F, -0.0175799318F, -0.0195330586F, -0.0214861855F, -0.0234393124F, -0.0253924392F, \n-0.0273455661F, -0.0292986929F, -0.0312536396F, -0.0351598933F, -0.0390661471F, -0.0429724F, -0.0468786545F, \n-0.0507849082F, -0.054691162F, -0.0585974157F, -0.0625073388F, -0.0703198463F, -0.0781323537F, -0.0859448612F, \n-0.0937573686F, -0.101569876F, -0.109382384F, -0.117194891F, -0.125014797F, -0.140639812F, -0.156264827F, \n-0.171889842F, -0.187514856F, -0.203139871F, -0.218764886F, -0.234389901F, -0.250029832F, -0.281279862F, \n-0.312529892F, -0.343779922F, -0.375029951F, -0.406279981F, -0.43753F, -0.468780041F, -0.500060141F, -0.562560201F, \n-0.62506026F, -0.68756032F, -0.75006038F, -0.812560439F, -0.875060499F, -0.937560558F, -1.00012124F, -1.12512136F, \n-1.25012147F, -1.37512159F, -1.50012171F, -1.62512183F, -1.75012195F, -1.87512207F, -2.00024438F, -2.25024462F, \n-2.50024486F, -2.75024509F, -3.00024533F, -3.25024557F, -3.50024581F, -3.75024605F, -4.00049257F, -4.50049305F, \n-5.00049353F, -5.500494F, -6.00049448F, -6.50049496F, -7.00049543F, -7.50049591F, -8.00099277F, -9.00099373F, \n-10.0009947F, -11.0009956F, -12.0009966F, -13.0009975F, -14.0009985F, -15.0009995F, -16.002F, -18.0020027F, \n-20.0020046F, -22.0020065F, -24.0020084F, -26.0020103F, -28.0020123F, -30.0020142F, -32.0040321F, -36.0040359F, \n-40.0040398F, -44.0040436F, -48.0040474F, -52.0040512F, -56.004055F, -60.0040588F, -64.0081253F, -72.0081329F, \n-80.0081406F, -88.0081482F, -96.0081558F, -104.008163F, -112.008171F, -120.008179F, -128.016373F, -144.016388F, \n-160.016403F, -176.016418F, -192.016434F, -208.016449F, -224.016464F, -240.016479F, -256.033F, -288.03302F, \n-320.033051F, -352.033081F, -384.033112F, -416.033142F, -448.033173F, -480.033203F, -512.066467F, -576.066528F, \n-640.066589F, -704.06665F, -768.066711F, -832.066772F, -896.066833F, -960.066895F, -1024.13391F, -1152.13403F, \n-1280.13416F, -1408.13428F, -1536.1344F, -1664.13452F, -1792.13464F, -1920.13477F, -2048.26978F, -2304.27F, \n-2560.27026F, -2816.27051F, -3072.27075F, -3328.271F, -3584.27124F, -3840.27148F, -4096.54346F, -4608.54395F, \n-5120.54443F, -5632.54492F, -6144.54541F, -6656.5459F, -7168.54639F, -7680.54688F, -8193.09473F, -9217.0957F, \n-10241.0967F, -11265.0977F, -12289.0986F, -13313.1F, -14337.1006F, -15361.1016F, -16386.2051F, -18434.207F, \n-20482.209F, -22530.2109F, -24578.2129F, -26626.2148F, -28674.2168F, -30722.2188F, -32772.4414F, -36868.4453F, \n-40964.4492F, -45060.4531F, -49156.457F, -53252.4609F, -57348.4648F, -61444.4688F, -65544.9453F, -73736.9531F, \n-81928.9609F, -90120.9688F, -98312.9766F, -106504.984F, -114696.992F, -122889.0F, -131090.016F, -147474.031F, \n-163858.047F, -180242.062F, -196626.078F, -213010.094F, -229394.109F, -245778.125F, -262180.281F, -294948.312F, \n-327716.344F, -360484.375F, -393252.406F, -426020.438F, -458788.469F, -491556.5F, -524361.062F, -589897.125F, \n-655433.188F, -720969.25F, -786505.312F, -852041.375F, -917577.438F, -983113.5F, -1048723.12F, -1179795.25F, \n-1310867.38F, -1441939.5F, -1573011.62F, -1704083.75F, -1835155.88F, -1966228.0F, -2097448.25F, -2359592.5F, \n-2621736.75F, -2883881.0F, -3146025.25F, -3408169.5F, -3670313.75F, -3932458.0F, -4194900.5F, -4719189.0F, \n-5243477.5F, -5767766.0F, -6292054.5F, -6816343.0F, -7340631.5F, -7.86492e+6F, -8389809.0F, -9438386.0F, -10486963.0F, \n-11535540.0F, -12584117.0F, -13632694.0F, -14681271.0F, -15729848.0F, -16779634.0F, -18876788.0F, -20973942.0F, \n-23071096.0F, -25168250.0F, -27265404.0F, -29362558.0F, -31459712.0F, -3.35593e+7F, -37753608.0F, -41947916.0F, \n-46142224.0F, -50336532.0F, -54530840.0F, -58725148.0F, -62919456.0F, -67118664.0F, -75507280.0F, -83895896.0F, \n-92284512.0F, -100673128.0F, -109061744.0F, -117450360.0F, -125838976.0F, -134237456.0F, -151014688.0F, -167791920.0F, \n-184569152.0F, -201346384.0F, -218123616.0F, -234900848.0F, -251678080.0F, -268475168.0F, -302029632.0F, \n-335584096.0F, -369138560.0F, -402693024.0F, -436247488.0F, -469801952.0F, -503356416.0F, -536950848.0F, \n-604059776.0F, -671168704.0F, -738277632.0F, -805386560.0F, -872495488.0F, -939604416.0F, -1.00671334e+9F, \n-1.07390272e+9F, -1.20812058e+9F, -1.34233843e+9F, -1.47655629e+9F, -1.61077414e+9F, -1.744992e+9F, -1.87920986e+9F, \n-2.01342771e+9F, -2.14780749e+9F, -2.4162432e+9F, -2.68467891e+9F, -2.95311462e+9F, -3.22155034e+9F, -3.48998605e+9F, \n-3.75842176e+9F, -4.02685747e+9F, -4.29561907e+9F, -4.8324905e+9F, -5.36936192e+9F, -5.90623334e+9F, -6.44310477e+9F, \n-6.97997619e+9F, -7.51684762e+9F, -8.05371904e+9F, -8.59124634e+9F, -9.66498918e+9F, -1.0738732e+10F, \n-1.18124749e+10F, -1.28862177e+10F, -1.39599606e+10F, -1.50337034e+10F, -1.61074463e+10F, -1.71825091e+10F, \n-1.93299948e+10F, -2.14774804e+10F, -2.36249661e+10F, -2.57724518e+10F, -2.79199375e+10F, -3.00674232e+10F, \n-3.22149089e+10F, -3.43650509e+10F, -3.86600223e+10F, -4.29549937e+10F, -4.72499651e+10F, -5.15449364e+10F, \n-5.58399078e+10F, -6.01348792e+10F, -6.44298506e+10F, -6.87301673e+10F, -7.73201101e+10F, -8.59100529e+10F, \n-9.44999956e+10F, -1.03089938e+11F, -1.11679881e+11F, -1.20269824e+11F, -1.28859767e+11F, -1.37460466e+11F, \n-1.54640351e+11F, -1.71820237e+11F, -1.89000122e+11F, -2.0618e+11F, -2.23359894e+11F, -2.40539779e+11F, \n-2.57719665e+11F, -2.74921193e+11F, -3.09280965e+11F, -3.43640736e+11F, -3.78000507e+11F, -4.12360278e+11F, \n-4.46720049e+11F, -4.8107982e+11F, -5.15439591e+11F, -5.49842911e+11F, -6.18562454e+11F, -6.87282e+11F, \n-7.56001538e+11F, -8.2472108e+11F, -8.93440623e+11F, -9.62160165e+11F, -1.03087971e+12F, -1.09968687e+12F, \n-1.23712596e+12F, -1.37456504e+12F, -1.51200412e+12F, -1.64944321e+12F, -1.78688229e+12F, -1.92432138e+12F, \n-2.06176046e+12F, -2.19937584e+12F, -2.47425401e+12F, -2.74913218e+12F, -3.02401035e+12F, -3.29888852e+12F, \n-3.57376668e+12F, -3.84864485e+12F, -4.12352302e+12F, -4.39875587e+12F, -4.94851221e+12F, -5.49826855e+12F, \n-6.04802489e+12F, -6.59778123e+12F, -7.14753756e+12F, -7.6972939e+12F, -8.24705e+12F, -8.79752e+12F, -9.89703281e+12F, \n-1.09965455e+13F, -1.20960582e+13F, -1.31955708e+13F, -1.42950835e+13F, -1.53945962e+13F, -1.64941089e+13F, \n-1.7595057e+13F, -1.97940824e+13F, -2.19931078e+13F, -2.41921331e+13F, -2.63911585e+13F, -2.85901838e+13F, \n-3.07892092e+13F, -3.29882345e+13F, -3.51901476e+13F, -3.95882e+13F, -4.39862491e+13F, -4.83843e+13F, \n-5.27823505e+13F, -5.71804e+13F, -6.15784519e+13F, -6.59765026e+13F, -7.03803624e+13F, -7.91764638e+13F, \n-8.79725652e+13F, -9.67686666e+13F, -1.05564768e+14F, -1.14360869e+14F, -1.23156971e+14F, -1.31953072e+14F, \n-1.40760859e+14F, -1.58353062e+14F, -1.75945265e+14F, -1.93537467e+14F, -2.1112967e+14F, -2.28721873e+14F, \n-2.46314076e+14F, -2.63906279e+14F, -2.81522e+14F, -3.16706392e+14F, -3.51890798e+14F, -3.87075203e+14F, \n-4.22259609e+14F, -4.57444e+14F, -4.9262842e+14F, -5.27812826e+14F, -5.6304451e+14F, -6.33413321e+14F, \n-7.03782132e+14F, -7.74150944e+14F, -8.44519755e+14F, -9.14888566e+14F, -9.85257378e+14F, -1.05562619e+15F, \n-1.12609009e+15F, -1.26682772e+15F, -1.40756534e+15F, -1.54830296e+15F, -1.68904058e+15F, -1.82977821e+15F, \n-1.97051583e+15F, -2.11125345e+15F, -2.25218233e+15F, -2.53365758e+15F, -2.81513282e+15F, -3.09660807e+15F, \n-3.37808331e+15F, -3.65955856e+15F, -3.94103381e+15F, -4.22250905e+15F, -4.50436896e+15F, -5.06731945e+15F, \n-5.63027e+15F, -6.19322043e+15F, -6.75617092e+15F, -7.31912141e+15F, -7.88207191e+15F, -8.4450224e+15F, \n-9.00874652e+15F, -1.01346475e+16F, -1.12605485e+16F, -1.23864495e+16F, -1.35123504e+16F, -1.46382514e+16F, \n-1.57641524e+16F, -1.68900534e+16F, -1.80175102e+16F, -2.02693122e+16F, -2.25211141e+16F, -2.47729161e+16F, \n-2.70247181e+16F, -2.927652e+16F, -3.1528322e+16F, -3.37801239e+16F, -3.60350548e+16F, -4.05386587e+16F, \n-4.50422626e+16F, -4.95458666e+16F, -5.40494705e+16F, -5.85530744e+16F, -6.30566783e+16F, -6.75602822e+16F, \n-7.20701783e+16F, -8.10773861e+16F, -9.0084594e+16F, -9.90918e+16F, -1.0809901e+17F, -1.17106218e+17F, \n-1.26113425e+17F, -1.35120633e+17F, -1.44140494e+17F, -1.6215491e+17F, -1.80169325e+17F, -1.98183741e+17F, \n-2.16198157e+17F, -2.34212572e+17F, -2.52226988e+17F, -2.70241404e+17F, -2.88281263e+17F, -3.24310094e+17F, \n-3.60338926e+17F, -3.96367757e+17F, -4.32396588e+17F, -4.6842542e+17F, -5.04454251e+17F, -5.40483083e+17F, \n-5.76563076e+17F, -6.48620738e+17F, -7.20678401e+17F, -7.92736064e+17F, -8.64793727e+17F, -9.36851389e+17F, \n-1.00890905e+18F, -1.08096671e+18F, -1.15312725e+18F, -1.29724258e+18F, -1.4413579e+18F, -1.58547323e+18F, \n-1.72958855e+18F, -1.87370388e+18F, -2.0178192e+18F, -2.16193453e+18F, -2.3062567e+18F, -2.59448735e+18F, \n-2.882718e+18F, -3.17094865e+18F, -3.4591793e+18F, -3.74741e+18F, -4.03564061e+18F, -4.32387126e+18F, -4.6125178e+18F, \n-5.1889791e+18F, -5.7654404e+18F, -6.34190171e+18F, -6.91836301e+18F, -7.49482431e+18F, -8.07128561e+18F, \n-8.64774691e+18F, -9.22504439e+18F, -1.0377967e+19F, -1.15308896e+19F, -1.26838122e+19F, -1.38367348e+19F, \n-1.49896574e+19F, -1.614258e+19F, -1.72955026e+19F, -1.84501064e+19F, -2.07559516e+19F, -2.30617968e+19F, \n-2.5367642e+19F, -2.76734872e+19F, -2.99793324e+19F, -3.22851776e+19F, -3.45910228e+19F, -3.69002479e+19F, \n-4.15119384e+19F, -4.61236288e+19F, -5.07353192e+19F, -5.53470096e+19F, -5.99587e+19F, -6.45703904e+19F, \n-6.91820809e+19F, -7.38005663e+19F, -8.30239471e+19F, -9.22473279e+19F, -1.01470709e+20F, -1.1069409e+20F, \n-1.1991747e+20F, -1.29140851e+20F, -1.38364232e+20F, -1.47601273e+20F, -1.66048035e+20F, -1.84494797e+20F, \n-2.02941558e+20F, -2.2138832e+20F, -2.39835082e+20F, -2.58281843e+20F, -2.76728605e+20F, -2.95202828e+20F, \n-3.32096351e+20F, -3.68989875e+20F, -4.05883398e+20F, -4.42776921e+20F, -4.79670445e+20F, -5.16563968e+20F, \n-5.53457491e+20F, -5.90406219e+20F, -6.64193266e+20F, -7.37980312e+20F, -8.11767359e+20F, -8.85554406e+20F, \n-9.59341452e+20F, -1.0331285e+21F, -1.10691555e+21F, -1.18081356e+21F, -1.32838766e+21F, -1.47596175e+21F, \n-1.62353584e+21F, -1.77111e+21F, -1.91868403e+21F, -2.06625812e+21F, -2.21383222e+21F, -2.36162938e+21F, \n-2.65677757e+21F, -2.95192575e+21F, -3.24707394e+21F, -3.54222213e+21F, -3.83737031e+21F, -4.1325185e+21F, \n-4.42766669e+21F, -4.72326326e+21F, -5.31355964e+21F, -5.90385601e+21F, -6.49415238e+21F, -7.08444876e+21F, \n-7.67474513e+21F, -8.2650415e+21F, -8.85533788e+21F, -9.44653553e+21F, -1.06271283e+22F, -1.1807721e+22F, \n-1.29883138e+22F, -1.41689065e+22F, -1.53494993e+22F, -1.6530092e+22F, -1.77106848e+22F, -1.88930891e+22F, \n-2.12542746e+22F, -2.36154601e+22F, -2.59766456e+22F, -2.83378311e+22F, -3.06990165e+22F, -3.3060202e+22F, \n-3.54213875e+22F, -3.77862142e+22F, -4.25085852e+22F, -4.72309562e+22F, -5.19533271e+22F, -5.66757e+22F, \n-6.13980691e+22F, -6.61204401e+22F, -7.08428111e+22F, -7.55725e+22F, -8.50172424e+22F, -9.44619844e+22F, \n-1.03906726e+23F, -1.13351468e+23F, -1.2279621e+23F, -1.32240952e+23F, -1.41685694e+23F, -1.51145145e+23F, \n-1.70034629e+23F, -1.88924113e+23F, -2.07813597e+23F, -2.26703081e+23F, -2.45592565e+23F, -2.64482049e+23F, \n-2.83371533e+23F, -3.02290578e+23F, -3.40069546e+23F, -3.77848514e+23F, -4.15627482e+23F, -4.5340645e+23F, \n-4.91185418e+23F, -5.28964386e+23F, -5.66743353e+23F, -6.04581733e+23F, -6.80139669e+23F, -7.55697604e+23F, \n-8.3125554e+23F, -9.06813476e+23F, -9.82371412e+23F, -1.05792935e+24F, -1.13348728e+24F, -1.20916462e+24F, \n-1.36028049e+24F, -1.51139636e+24F, -1.66251223e+24F, -1.8136281e+24F, -1.96474398e+24F, -2.11585985e+24F, \n-2.26697572e+24F, -2.41833154e+24F, -2.72056329e+24F, -3.02279503e+24F, -3.32502677e+24F, -3.62725852e+24F, \n-3.92949026e+24F, -4.231722e+24F, -4.53395374e+24F, -4.8366677e+24F, -5.44113118e+24F, -6.04559467e+24F, \n-6.65005816e+24F, -7.25452164e+24F, -7.85898513e+24F, -8.46344861e+24F, -9.0679121e+24F, -9.67334462e+24F, \n-1.08822716e+25F, -1.20911986e+25F, -1.33001255e+25F, -1.45090525e+25F, -1.57179795e+25F, -1.69269065e+25F, \n-1.81358334e+25F, -1.93467077e+25F, -2.17645616e+25F, -2.41824156e+25F, -2.66002695e+25F, -2.90181235e+25F, \n-3.14359774e+25F, -3.38538314e+25F, -3.62716853e+25F, -3.86934523e+25F, -4.35291601e+25F, -4.8364868e+25F, \n-5.32005759e+25F, -5.80362838e+25F, -6.28719917e+25F, -6.77077e+25F, -7.25434075e+25F, -7.73869783e+25F, \n-8.70583941e+25F, -9.67298099e+25F, -1.06401226e+26F, -1.16072641e+26F, -1.25744057e+26F, -1.35415473e+26F, \n-1.45086889e+26F, -1.54774104e+26F, -1.74116936e+26F, -1.93459767e+26F, -2.12802599e+26F, -2.3214543e+26F, \n-2.51488262e+26F, -2.70831094e+26F, -2.90173925e+26F, -3.09548504e+26F, -3.48234167e+26F, -3.8691983e+26F, \n-4.25605493e+26F, -4.64291156e+26F, -5.02976819e+26F, -5.41662482e+26F, -5.80348145e+26F, -6.19097597e+26F, \n-6.96468924e+26F, -7.7384025e+26F, -8.51211576e+26F, -9.28582902e+26F, -1.00595423e+27F, -1.08332555e+27F, \n-1.16069688e+27F, -1.23819638e+27F, -1.39293903e+27F, -1.54768168e+27F, -1.70242433e+27F, -1.85716699e+27F, \n-2.01190964e+27F, -2.16665229e+27F, -2.32139494e+27F, -2.47639511e+27F, -2.78588042e+27F, -3.09536572e+27F, \n-3.40485103e+27F, -3.71433633e+27F, -4.02382164e+27F, -4.33330694e+27F, -4.64279225e+27F, -4.95279495e+27F, \n-5.57176556e+27F, -6.19073617e+27F, -6.80970678e+27F, -7.42867739e+27F, -8.047648e+27F, -8.66661861e+27F, \n-9.28558922e+27F, -9.90559934e+27F, -1.11435406e+28F, -1.23814818e+28F, -1.3619423e+28F, -1.48573642e+28F, \n-1.60953054e+28F, -1.73332467e+28F, -1.85711879e+28F, -1.98112176e+28F, -2.22871e+28F, -2.47629824e+28F, \n-2.72388649e+28F, -2.97147473e+28F, -3.21906298e+28F, -3.46665122e+28F, -3.71423946e+28F, -3.96224729e+28F, \n-4.45742378e+28F, -4.95260027e+28F, -5.44777675e+28F, -5.94295324e+28F, -6.43812973e+28F, -6.93330622e+28F, \n-7.42848271e+28F, -7.92450214e+28F, -8.91485511e+28F, -9.90520809e+28F, -1.08955611e+29F, -1.1885914e+29F, \n-1.2876267e+29F, -1.386662e+29F, -1.4856973e+29F, -1.58490194e+29F, -1.78297253e+29F, -1.98104313e+29F, \n-2.17911372e+29F, -2.37718432e+29F, -2.57525491e+29F, -2.77332551e+29F, -2.9713961e+29F, -3.1698069e+29F, \n-3.56594809e+29F, -3.96208928e+29F, -4.35823047e+29F, -4.75437166e+29F, -5.15051285e+29F, -5.54665404e+29F, \n-5.94279523e+29F, -6.33962e+29F, -7.13190222e+29F, -7.9241846e+29F, -8.71646699e+29F, -9.50874937e+29F, \n-1.03010317e+30F, -1.10933141e+30F, -1.18855965e+30F, -1.26792518e+30F, -1.42638165e+30F, -1.58483813e+30F, \n-1.74329461e+30F, -1.90175108e+30F, -2.06020756e+30F, -2.21866403e+30F, -2.37712051e+30F, -2.53585277e+30F, \n-2.85276573e+30F, -3.16967868e+30F, -3.48659163e+30F, -3.80350458e+30F, -4.12041753e+30F, -4.43733049e+30F, \n-4.75424344e+30F, -5.07171038e+30F, -5.70553629e+30F, -6.33936219e+30F, -6.9731881e+30F, -7.607014e+30F, \n-8.24084e+30F, -8.87466581e+30F, -9.50849171e+30F, -1.01434304e+31F, -1.14110822e+31F, -1.26787341e+31F, \n-1.39463859e+31F, -1.52140377e+31F, -1.64816895e+31F, -1.77493413e+31F, -1.90169931e+31F, -2.02868802e+31F, \n-2.28221838e+31F, -2.53574874e+31F, -2.78927911e+31F, -3.04280947e+31F, -3.29633983e+31F, -3.54987019e+31F, \n-3.80340055e+31F, -4.05738e+31F, -4.56444063e+31F, -5.07150136e+31F, -5.57856208e+31F, -6.08562281e+31F, \n-6.59268353e+31F, -7.09974425e+31F, -7.60680498e+31F, -8.11476756e+31F, -9.12888901e+31F, -1.01430105e+32F, \n-1.11571319e+32F, -1.21712533e+32F, -1.31853748e+32F, -1.41994962e+32F, -1.52136177e+32F, -1.62295506e+32F, \n-1.82577935e+32F, -2.02860364e+32F, -2.23142793e+32F, -2.43425222e+32F, -2.63707651e+32F, -2.8399008e+32F, \n-3.04272509e+32F, -3.24591321e+32F, -3.65156179e+32F, -4.05721037e+32F, -4.46285895e+32F, -4.86850753e+32F, \n-5.27415611e+32F, -5.67980469e+32F, -6.08545327e+32F, -6.49183262e+32F, -7.30313e+32F, -8.11442693e+32F, \n-8.92572409e+32F, -9.73702125e+32F, -1.05483184e+33F, -1.13596156e+33F, -1.21709127e+33F, -1.29836776e+33F, \n-1.46062719e+33F, -1.62288662e+33F, -1.78514606e+33F, -1.94740549e+33F, -2.10966492e+33F, -2.27192435e+33F, \n-2.43418378e+33F, -2.596738e+33F, -2.92125686e+33F, -3.24577572e+33F, -3.57029459e+33F, -3.89481345e+33F, \n-4.21933231e+33F, -4.54385118e+33F, -4.86837e+33F, -5.19348095e+33F, -5.84251867e+33F, -6.4915564e+33F, \n-7.14059413e+33F, -7.78963185e+33F, -8.43866958e+33F, -9.08770731e+33F, -9.73674503e+33F, -1.03869718e+34F, \n-1.16850473e+34F, -1.29831227e+34F, -1.42811982e+34F, -1.55792736e+34F, -1.68773491e+34F, -1.81754245e+34F, \n-1.94735e+34F, -2.07739634e+34F, -2.33701143e+34F, -2.59662652e+34F, -2.85624161e+34F, -3.1158567e+34F, \n-3.37547179e+34F, -3.63508688e+34F, -3.89470197e+34F, -4.15479664e+34F, -4.67402682e+34F, -5.193257e+34F, \n-5.71248719e+34F, -6.23171737e+34F, -6.75094755e+34F, -7.27017773e+34F, -7.78940791e+34F, -8.30960121e+34F, \n-9.34806157e+34F, -1.03865219e+35F, -1.14249823e+35F, -1.24634427e+35F, -1.3501903e+35F, -1.45403634e+35F, \n-1.55788237e+35F, -1.66192183e+35F, -1.8696139e+35F, -2.07730597e+35F, -2.28499804e+35F, -2.49269012e+35F, \n-2.70038219e+35F, -2.90807426e+35F, -3.11576633e+35F, -3.32384682e+35F, -3.73923097e+35F, -4.15461511e+35F, \n-4.56999926e+35F, -4.9853834e+35F, -5.40076755e+35F, -5.81615169e+35F, -6.23153584e+35F, -6.6477e+35F, \n-7.47846827e+35F, -8.30923656e+35F, -9.14000485e+35F, -9.97077314e+35F, -1.08015414e+36F, -1.16323097e+36F, \n-1.2463078e+36F, -1.32954126e+36F, -1.49569492e+36F, -1.66184858e+36F, -1.82800224e+36F, -1.9941559e+36F, \n-2.16030955e+36F, -2.32646321e+36F, -2.49261687e+36F, -2.65908506e+36F, -2.99139238e+36F, -3.32369969e+36F, \n-3.65600701e+36F, -3.98831433e+36F, -4.32062164e+36F, -4.65292896e+36F, -4.98523627e+36F, -5.3181752e+36F, \n-5.98279e+36F, -6.64740446e+36F, -7.31201909e+36F, -7.97663372e+36F, -8.64124836e+36F, -9.30586299e+36F, \n-9.97047762e+36F, -1.06363605e+37F, -1.19655898e+37F, -1.32948191e+37F, -1.46240483e+37F, -1.59532776e+37F, \n-1.72825069e+37F, -1.86117361e+37F, -1.99409654e+37F, -2.12727414e+37F, -2.39312e+37F, -2.65896584e+37F, \n-2.92481169e+37F, -3.19065755e+37F, -3.4565034e+37F, -3.72234925e+37F, -3.9881951e+37F, -4.25455233e+37F, \n-4.78624403e+37F, -5.31793574e+37F, -5.84962744e+37F, -6.38131915e+37F, -6.91301085e+37F, -7.44470256e+37F, \n-7.97639426e+37F, -8.50911277e+37F, -9.57249618e+37F, -1.06358796e+38F, -1.1699263e+38F, -1.27626464e+38F, \n-1.38260298e+38F, -1.48894132e+38F, -1.59527966e+38F, -1.70182418e+38F, -1.91450086e+38F, -2.12717754e+38F, \n-2.33985422e+38F, -2.5525309e+38F, -2.76520759e+38F, -2.97788427e+38F, -3.19056095e+38F, 3.402823466e+38F, \n1.17549435e-38F]"
+						}
+					},
+					{
+						"name": "sSingleThird",
+						"metadata": {
+							"uuid": "3f379542-e299-4c20-a797-75c72242f7f8",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.629808",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "0.333333343F"
+						}
+					},
+					{
+						"name": "sSingleTies",
+						"metadata": {
+							"uuid": "2c3cde07-1512-48df-8643-9dce817bf019",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261016T235609.630254",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "[1000000.12F, 1000000.38F, 1000000.62F, -1000000.12F, 2097151.88F]"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

@@ -12,6 +12,7 @@ import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './Mc
 import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
 import { setOwn } from './ownKeys.js';
+import { arrayClassOf, componentsBaseOf } from './objectArrayClass.js';
 import {
   complexClassTag,
   ENUM_KEY,
@@ -20,6 +21,7 @@ import {
   formatComplexNum,
   formatMatlabNum,
   formatMatrixSerial,
+  formatNumLiteral,
   isExactToken,
   transposeToColumnMajorND,
 } from './XmlUtils.js';
@@ -78,8 +80,10 @@ export interface McosObjectData {
   // Reconstructed `_properties` bag in the same shape the SLDD path produces:
   // scalars as numbers/strings/booleans, matrices as a Matrix(r,c) value object,
   // complex values as the binary dictionary's { _type: 'cdata' } text
-  // (complexPropertyValue), nested objects as { _object_class, _properties }. For an
-  // object ARRAY this mirrors elements[0] (back-compat for callers that only read a
+  // (complexPropertyValue), nested objects as { _object_class, _properties }, and a
+  // nested object ARRAY as { _array_class, _elements }, each element of another class
+  // than the array's carrying its own `_object_class` (resolveValue). For an object
+  // ARRAY variable this mirrors elements[0] (back-compat for callers that only read a
   // scalar).
   properties: Record<string, unknown>;
   // One `_properties` bag per array element, in column-major order (MATLAB's).
@@ -386,9 +390,21 @@ function parseMetaTable(cells: (MatVariable | null)[]): MetaTable | null {
 // joined by newlines, the form MATLAB reads as an empty [] — so a Simulink.Parameter's
 // matrix Value copied out of a .mat, a workspace or a binary dictionary's hex into a text
 // dictionary came back empty. Inf and NaN are spelled as MATLAB spells them.
-function buildMatrixValue(dims: number[], elements: (number | string)[]): unknown {
-  return { _type: 'double', _value: formatMatrixSerial(elements, dims, 'double') };
+//
+// Of the array's own class (C-033): `double` for a double, and for any other numeric class
+// the class itself, as BinarySlddParser.formatMatrix gives a binary dictionary's matrix of
+// that class. A 1xN row of such a class takes formatMatrixSerial's bare `[a, b, c]`, which
+// is BinarySlddParser.formatTypedVector's spelling of it.
+function buildMatrixValue(dims: number[], elements: (number | string)[], cls = 'double'): unknown {
+  return { _type: cls, _value: formatMatrixSerial(elements, dims, cls) };
 }
+
+// The real numeric classes other than double, each of which a binary dictionary's reader
+// hands the node layer typed (BinarySlddParser.formatTypedScalar, formatTypedVector,
+// formatMatrix) and this decoder used to hand over bare, which the node layer reads as a
+// double (MatlabVariableNode.parseFlatArray serves a text dictionary's bare JSON list too,
+// where double is right, so the class cannot be recovered there).
+const NON_DOUBLE_NUMERIC = new Set(['single', 'int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64']);
 
 interface ComplexPair {
   re: unknown;
@@ -464,7 +480,19 @@ const isFinitePart = (x: unknown): boolean => typeof x !== 'number' || Number.is
 // data model expects. Object handles recurse into nested { _object_class,
 // _properties }; structs and cells recurse into { _array_type: 'Struct'|'Cell', … }.
 // Unresolvable values return undefined (dropped).
-function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<number>, depth: number): unknown {
+//
+// `owner` and `propName` are the class of the object whose property this is and the
+// property's name, where the value is a property's (buildProperties): the place an object
+// array sits can name its class (componentsBaseOf). A struct's field and a cell's element
+// pass neither, as the binary reader names no place for them either.
+function resolveValue(
+  cell: MatVariable | null,
+  ctx: DecodeContext,
+  path: Set<number>,
+  depth: number,
+  owner?: string,
+  propName?: string,
+): unknown {
   if (!cell) return undefined;
 
   if (isObjectHandle(cell)) {
@@ -479,7 +507,23 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
     // BusElements): expand EVERY id into its own element, producing the same
     // value-object array shape the SLDD path emits so the data model builds one
     // child node per element instead of dropping all but the first.
-    const cls = ctx.meta.classes[ctx.meta.objects[handle.ids[0]]?.classId];
+    //
+    // The array is under the class MATLAB's text format names it by, and each element
+    // of another class carries its own `_object_class`, as the binary reader reads one:
+    // both readers use objectArrayClass.ts. This used to read the first element's class
+    // for the whole array and give no element a class of its own. So a config set's
+    // Components in a .mat read as a Simulink.SolverCC array of nine SolverCCs, and a
+    // copy of the config set wrote every component as one. A dexdata.DerivedSignal
+    // beside a Simulink.Signal read as two DerivedSignals, where MATLAB says a
+    // Simulink.Signal array of the two (test/fixtures/mcos/configset.mat).
+    //
+    // A later element whose object names no class row is one of the first element's
+    // class, as the binary reader reads a classless later element: in the class the
+    // array is named by, and as the class it is marked with. Where the first names none
+    // either, the array has no class, as before.
+    const own = handle.ids.map((id) => ctx.meta.classes[ctx.meta.objects[id]?.classId]?.fullName ?? '');
+    const classes = own.map((c) => c || own[0]);
+    const arrayClass = componentsBaseOf(owner, propName) ?? (classes[0] ? arrayClassOf(classes) : '');
     // Every extent, as at the root-variable site below: a property holding a 2x3x2
     // object array (ndNested.mat's h.Kids) reported [2, 3] over twelve elements, so
     // the container printed a shape MATLAB never had and the element subscripts ran
@@ -487,11 +531,14 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
     // holds, which is why nothing here noticed.
     const dims = handle.dims.length >= 2 ? handle.dims.slice() : [1, handle.ids.length];
     return {
-      _array_class: cls ? cls.fullName : '',
+      _array_class: arrayClass,
       _array_type: 'MATLABArray',
       _dimensions: dims,
       _mw_element_type: 'MATLABArray',
-      _elements: handle.ids.map((id) => ({ _properties: buildProperties(id, ctx, path, depth + 1) })),
+      _elements: handle.ids.map((id, k) => ({
+        ...(classes[k] && classes[k] !== arrayClass ? { _object_class: classes[k] } : {}),
+        _properties: buildProperties(id, ctx, path, depth + 1),
+      })),
     };
   }
 
@@ -517,7 +564,7 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
   if (cls === 'cell') {
     const elems = Array.isArray(val) ? (val as (MatVariable | null)[]) : [];
     const resolved = elems.map((e) => resolveValue(e, ctx, path, depth));
-    const handle = functionHandleText(resolved);
+    const handle = functionHandleText(elems[0] ?? null, resolved);
     if (handle !== null) {
       return { _type: 'function_handle', _value: handle };
     }
@@ -556,18 +603,25 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
   }
   if (cell.isLogical) {
     if (Array.isArray(val)) {
-      // A logical MATRIX states its shape, in the typed literal BinarySlddParser reads a
-      // binary dictionary's own logical matrix into (logicalValue): a bare list of
+      // In the typed literal BinarySlddParser reads a binary dictionary's own logical array
+      // into (logicalValue), at every shape. A MATRIX states its shape: a bare list of
       // booleans is a row, so a 2x2 logical Value came back a 1x4 — MATLAB's
       // sparse([2;1], [1;2], [true;true], 2, 2) in a Simulink.Parameter showed
       // `[false true true false]`, where the text dictionary's twin of it showed
       // `[false true; true false]`. A rank-2 COLUMN states its shape for the same reason
-      // (an Nx1 came back 1xN); a row is still the bare list it always was.
+      // (an Nx1 came back 1xN). And a ROW states its class (C-033): the node layer reads a
+      // bare list of booleans as a DOUBLE row, so a logical([1 0 1]) Value showed class
+      // double, where both dictionaries show logical. formatMatrixSerial spells a 1xN
+      // logical `[1, 0, 1]`, as typed_binary.sldd's lglVec is held.
+      //
+      // An EMPTY logical is the `[]` it was before C-033 (a double 0x0: DESIGN.md records it),
+      // except where it was typed then too, which is wherever its shape alone says so: at rank
+      // 3 or more, a 2x0x2 is `Matrix(2,0,2)` and shows as a <2x0x2 logical>
+      // (mcosEmptyLogical.test.ts).
       const dims = cell.dimensions && cell.dimensions.length >= 2 ? cell.dimensions : [1, val.length];
-      if (dims.length > 2 || (dims[0] > 1 && dims[1] > 1) || (dims.length === 2 && dims[0] > 1 && dims[1] === 1)) {
-        return { _type: 'logical', _value: formatMatrixSerial(val.map((x) => (x ? '1' : '0')), dims, 'logical') };
-      }
-      return val.map((x) => !!x);
+      const shaped = dims.length > 2 || (dims[0] > 1 && dims[1] > 1) || (dims.length === 2 && dims[0] > 1 && dims[1] === 1);
+      if (val.length === 0 && !shaped) return [];
+      return { _type: 'logical', _value: formatMatrixSerial(val.map((x) => (x ? '1' : '0')), dims, 'logical') };
     }
     return !!val;
   }
@@ -575,20 +629,43 @@ function resolveValue(cell: MatVariable | null, ctx: DecodeContext, path: Set<nu
   // double cannot hold arrives as its own decimal TEXT (MatParser via XmlUtils.exactInt),
   // so a scalar one is a string here — accepting only `typeof 'number'` would drop such a
   // property out of the object entirely rather than merely rounding it.
+  //
+  // A class other than double keeps its class (C-033), in the binary dictionary's typed
+  // spelling of the same value: a Simulink.Parameter whose Value is int8(-42) is
+  // `{_type: 'int8', _value: '-42'}`, as BinarySlddParser.formatTypedScalar gives it, and
+  // not the bare -42, which the node layer reads as a double. A double is bare, as it was.
+  const typed = NON_DOUBLE_NUMERIC.has(cls) ? cls : null;
   if (typeof val === 'number' || isExactToken(val)) {
-    return val;
+    return typed ? { _type: typed, _value: formatNumLiteral(val, typed) } : val;
   }
   if (Array.isArray(val)) {
     if (val.length === 0) return [];
     const dims = cell.dimensions || [1, val.length];
+    // Of a class other than double, every shape is typed, a row as
+    // BinarySlddParser.formatTypedVector spells one (formatMatrixSerial's bare `[a, b]`)
+    // and anything else in the Matrix() literal of that class.
+    if (typed) {
+      return buildMatrixValue(dims, val as (number | string)[], typed);
+    }
     // A rank-2 column goes out typed as well: a bare list is a row, so a Value of
-    // [10; 20; 30] showed, and copied out, as [10 20 30]. A row stays bare.
+    // [10; 20; 30] showed, and copied out, as [10 20 30]. A double row stays bare.
     if (dims.length >= 2 && dims[0] > 1 && (dims[1] > 1 || (dims.length === 2 && dims[1] === 1))) {
       return buildMatrixValue(dims, val as (number | string)[]);
     }
     return val;
   }
   return undefined;
+}
+
+// The number a non-double numeric SCALAR stands for, as text, when `v` is resolveValue's
+// typed spelling of one (`{_type: 'int32', _value: '2'}`, `'2U'`, `'3.3F'`), or null.
+function typedScalarText(v: unknown): string | null {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
+  const { _type: type, _value: text } = v as Record<string, unknown>;
+  if (typeof type !== 'string' || !NON_DOUBLE_NUMERIC.has(type) || typeof text !== 'string' || /^(\[|Matrix\()/.test(text)) {
+    return null;
+  }
+  return text.replace(/[FU]$/, '');
 }
 
 // The tag MATLAB writes at the head of an enumeration instance struct (MatParser.enumerationInstanceOf).
@@ -646,6 +723,12 @@ function enumerationValue(instance: MatVariable, ctx: DecodeContext, className: 
       if (m && (typeof v === 'number' || typeof v === 'boolean' || isExactToken(v))) {
         return { name: names[k], type: m[1], value: typeof v === 'boolean' ? (v ? '1' : '0') : typeof v === 'number' ? formatMatlabNum(v) : v };
       }
+      // The `int32.Data` of an enumeration derived from int32 (Simulink.IntEnumType): its
+      // number, which resolveValue spells typed, as every non-double numeric (C-033).
+      const typedText = m ? typedScalarText(v) : null;
+      if (m && typedText !== null) {
+        return { name: names[k], type: m[1], value: typedText };
+      }
     }
     return { name: names[k], value: '' };
   });
@@ -698,9 +781,14 @@ const FUNCTION_HANDLE_MARKER = 0xdd000000;
  * text one and a .mat). Shown as it stood, it read `@sf%0@(y)y*2`. The prefix goes, and
  * the `@` that opens the anonymous function's own text stays; nothing else is rewritten
  * (MatParser.functionHandleText, which a .mat's own function handle is read with too).
+ *
+ * The marker is read off the cell's own first element (`marker`), not off what it resolves
+ * to: the word is a uint32, which resolves to its typed spelling, `{_type: 'uint32', _value:
+ * '3707764736U'}` (C-033). A number of any class whose value is the word is the marker, as it
+ * was when this compared the resolved number.
  */
-function functionHandleText(elements: unknown[]): string | null {
-  if (elements.length !== 2 || elements[0] !== FUNCTION_HANDLE_MARKER) {
+function functionHandleText(marker: MatVariable | null, elements: unknown[]): string | null {
+  if (elements.length !== 2 || !marker || marker.isLogical || marker.value !== FUNCTION_HANDLE_MARKER) {
     return null;
   }
   const outer = elements[1] as Record<string, unknown> | null;
@@ -769,11 +857,14 @@ function buildProperties(objId: number, ctx: DecodeContext, path: Set<number>, d
   // 1) Class defaults FIRST, so every property this class declares surfaces by name
   //    (and value) even when the instance left it at its default and the instance
   //    block omits it. Then the instance block overrides those it mutated.
+  // The class whose properties these are: an object array's place is named by it
+  // (resolveValue's `owner`).
+  const owner = ctx.meta.classes[obj.classId]?.fullName;
   const dflt = ctx.defaults[obj.classId];
   if (dflt && dflt.className === 'struct' && dflt.fields) {
     for (const [fieldName, fieldVar] of Object.entries(dflt.fields)) {
       const fv = Array.isArray(fieldVar) ? fieldVar[0] : fieldVar;
-      const resolved = resolveValue(fv, ctx, path, depth);
+      const resolved = resolveValue(fv, ctx, path, depth, owner, fieldName);
       if (resolved !== undefined) {
         setOwn(props, fieldName, resolved);
       }
@@ -793,7 +884,7 @@ function buildProperties(objId: number, ctx: DecodeContext, path: Set<number>, d
     if (!name) continue;
     let resolved: unknown;
     if (flag === 1) {
-      resolved = resolveValue(ctx.cells[value + 2] || null, ctx, path, depth);
+      resolved = resolveValue(ctx.cells[value + 2] || null, ctx, path, depth, owner, name);
     } else if (flag === 0) {
       // An index past the string table names no string: drop the property, as an
       // out-of-range heap index (flag 1) and an unknown flag do, rather than invent ''.
