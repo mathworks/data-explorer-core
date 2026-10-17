@@ -690,9 +690,11 @@ describe('decodeMcosBlob — logical-flagged heap cells resolve as booleans', ()
     expect(typeof bpProps.TunableSizeValue).toBe('boolean');
   });
 
-  it('array of logicals resolves as boolean[], not number[] (Dimensions)', () => {
+  it('array of logicals resolves as a typed logical row, not number[] (Dimensions)', () => {
     // cells[4] in Bp.mat is a double array [0, 0] used as Dimensions. Setting
-    // isLogical should resolve it to [false, false].
+    // isLogical should resolve it to a logical [false false]: the typed literal a binary
+    // dictionary gives a logical row (C-033), since a bare list of booleans is read by the
+    // node layer as a DOUBLE row.
     const { raw, vars } = blobParts('Bp.mat');
     const patched = raw.slice();
     // Flags byte for cells[4] is at raw offset 1481 (class = 0x06 at 1480).
@@ -702,8 +704,9 @@ describe('decodeMcosBlob — logical-flagged heap cells resolve as booleans', ()
     const bp = decodeMcosBlob(patched, vars).get('Bp')!;
     const breakpoints = bp.properties.Breakpoints as Record<string, unknown>;
     const bpProps = (breakpoints._properties as Record<string, unknown>);
-    // Before fix: [0, 0] (number[]). After fix: [false, false] (boolean[]).
-    expect(bpProps.Dimensions).toEqual([false, false]);
+    // Before the first fix: [0, 0] (number[]). Then [false, false] (boolean[]), which
+    // showed as a double row. Now the logical row.
+    expect(bpProps.Dimensions).toEqual({ _type: 'logical', _value: '[0, 0]' });
   });
 });
 

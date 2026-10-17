@@ -2462,17 +2462,6 @@ Two findings from that hardening, measured and deliberately NOT acted on:
   of the four channels carry no property data for it at all — defect 40. Recorded from
   the raw bags, because MATLAB does not call `Choices` a property and parity therefore
   passes.
-- **A REAL array inside an MCOS object is classed double.** `McosParser.buildMatrixValue`
-  writes `_type: 'double'` and a row goes through as a bare list, so `single([0.1 0.3])`
-  as a Parameter's Value shows Data Type double on its Value row in a `.mat`, where both
-  dictionaries say single. Defect 57 gives a COMPLEX value its class (`_class`); the real
-  arms predate it and are left as they were.
-- **A single shows the double it widens to, out of a `.mat`.** MatParser reads a float32
-  into a JavaScript number, and every `.mat` arm prints that: complex(single(0.1), 0.2)
-  is `0.10000000149011612+0.20000000298023224i` in a plain `.mat` variable, in an MCOS
-  object and in a text dictionary (whose stream is read by the same arm), where a binary
-  dictionary shows MATLAB's own text, `0.1+0.2i`, and MATLAB's display `0.1000 + 0.2000i`.
-  The shortest spelling of the float32 would change every one of those venues at once.
 - **A complex EMPTY in a binary dictionary shows as an empty quoted char.** MATLAB writes
   `<P Class="double" IsComplex="1" Dimension="1*0"/>`; the empty body fails parseCdata's
   text test and its stream decode, so the value is `''` where the same Parameter in a

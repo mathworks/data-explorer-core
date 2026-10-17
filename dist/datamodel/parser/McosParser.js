@@ -4,7 +4,7 @@ import { isObjectHandle, objectHandleFromRaw, objectHandleFromValue } from './Mc
 import { matStreamOfElement } from './MatWriter.js';
 import { uuencode } from './CdataCodec.js';
 import { setOwn } from './ownKeys.js';
-import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, formatComplexNum, formatMatlabNum, formatMatrixSerial, isExactToken, transposeToColumnMajorND, } from './XmlUtils.js';
+import { complexClassTag, ENUM_KEY, ENUMERATION_KEY, formatComplexNum, formatMatlabNum, formatMatrixSerial, formatNumLiteral, isExactToken, transposeToColumnMajorND, } from './XmlUtils.js';
 const MI_MATRIX = 14;
 const MAX_RECURSION_DEPTH = 32;
 // A MATLAB `string`-typed value is stored as its own MCOS object whose text lives in
@@ -205,9 +205,20 @@ function parseMetaTable(cells) {
 // joined by newlines, the form MATLAB reads as an empty [] — so a Simulink.Parameter's
 // matrix Value copied out of a .mat, a workspace or a binary dictionary's hex into a text
 // dictionary came back empty. Inf and NaN are spelled as MATLAB spells them.
-function buildMatrixValue(dims, elements) {
-    return { _type: 'double', _value: formatMatrixSerial(elements, dims, 'double') };
+//
+// Of the array's own class (C-033): `double` for a double, and for any other numeric class
+// the class itself, as BinarySlddParser.formatMatrix gives a binary dictionary's matrix of
+// that class. A 1xN row of such a class takes formatMatrixSerial's bare `[a, b, c]`, which
+// is BinarySlddParser.formatTypedVector's spelling of it.
+function buildMatrixValue(dims, elements, cls = 'double') {
+    return { _type: cls, _value: formatMatrixSerial(elements, dims, cls) };
 }
+// The real numeric classes other than double, each of which a binary dictionary's reader
+// hands the node layer typed (BinarySlddParser.formatTypedScalar, formatTypedVector,
+// formatMatrix) and this decoder used to hand over bare, which the node layer reads as a
+// double (MatlabVariableNode.parseFlatArray serves a text dictionary's bare JSON list too,
+// where double is right, so the class cannot be recovered there).
+const NON_DOUBLE_NUMERIC = new Set(['single', 'int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64']);
 const isComplexPair = (x) => x !== null && typeof x === 'object' && 're' in x && 'im' in x;
 /**
  * A complex numeric property in the form a compressed-binary dictionary gives the same
@@ -326,7 +337,7 @@ function resolveValue(cell, ctx, path, depth) {
     if (cls === 'cell') {
         const elems = Array.isArray(val) ? val : [];
         const resolved = elems.map((e) => resolveValue(e, ctx, path, depth));
-        const handle = functionHandleText(resolved);
+        const handle = functionHandleText(elems[0] ?? null, resolved);
         if (handle !== null) {
             return { _type: 'function_handle', _value: handle };
         }
@@ -365,18 +376,20 @@ function resolveValue(cell, ctx, path, depth) {
     }
     if (cell.isLogical) {
         if (Array.isArray(val)) {
-            // A logical MATRIX states its shape, in the typed literal BinarySlddParser reads a
-            // binary dictionary's own logical matrix into (logicalValue): a bare list of
+            // In the typed literal BinarySlddParser reads a binary dictionary's own logical array
+            // into (logicalValue), at every shape. A MATRIX states its shape: a bare list of
             // booleans is a row, so a 2x2 logical Value came back a 1x4 — MATLAB's
             // sparse([2;1], [1;2], [true;true], 2, 2) in a Simulink.Parameter showed
             // `[false true true false]`, where the text dictionary's twin of it showed
             // `[false true; true false]`. A rank-2 COLUMN states its shape for the same reason
-            // (an Nx1 came back 1xN); a row is still the bare list it always was.
+            // (an Nx1 came back 1xN). And a ROW states its class (C-033): the node layer reads a
+            // bare list of booleans as a DOUBLE row, so a logical([1 0 1]) Value showed class
+            // double, where both dictionaries show logical. formatMatrixSerial spells a 1xN
+            // logical `[1, 0, 1]`, as typed_binary.sldd's lglVec is held.
+            if (val.length === 0)
+                return [];
             const dims = cell.dimensions && cell.dimensions.length >= 2 ? cell.dimensions : [1, val.length];
-            if (dims.length > 2 || (dims[0] > 1 && dims[1] > 1) || (dims.length === 2 && dims[0] > 1 && dims[1] === 1)) {
-                return { _type: 'logical', _value: formatMatrixSerial(val.map((x) => (x ? '1' : '0')), dims, 'logical') };
-            }
-            return val.map((x) => !!x);
+            return { _type: 'logical', _value: formatMatrixSerial(val.map((x) => (x ? '1' : '0')), dims, 'logical') };
         }
         return !!val;
     }
@@ -384,21 +397,44 @@ function resolveValue(cell, ctx, path, depth) {
     // double cannot hold arrives as its own decimal TEXT (MatParser via XmlUtils.exactInt),
     // so a scalar one is a string here — accepting only `typeof 'number'` would drop such a
     // property out of the object entirely rather than merely rounding it.
+    //
+    // A class other than double keeps its class (C-033), in the binary dictionary's typed
+    // spelling of the same value: a Simulink.Parameter whose Value is int8(-42) is
+    // `{_type: 'int8', _value: '-42'}`, as BinarySlddParser.formatTypedScalar gives it, and
+    // not the bare -42, which the node layer reads as a double. A double is bare, as it was.
+    const typed = NON_DOUBLE_NUMERIC.has(cls) ? cls : null;
     if (typeof val === 'number' || isExactToken(val)) {
-        return val;
+        return typed ? { _type: typed, _value: formatNumLiteral(val, typed) } : val;
     }
     if (Array.isArray(val)) {
         if (val.length === 0)
             return [];
         const dims = cell.dimensions || [1, val.length];
+        // Of a class other than double, every shape is typed, a row as
+        // BinarySlddParser.formatTypedVector spells one (formatMatrixSerial's bare `[a, b]`)
+        // and anything else in the Matrix() literal of that class.
+        if (typed) {
+            return buildMatrixValue(dims, val, typed);
+        }
         // A rank-2 column goes out typed as well: a bare list is a row, so a Value of
-        // [10; 20; 30] showed, and copied out, as [10 20 30]. A row stays bare.
+        // [10; 20; 30] showed, and copied out, as [10 20 30]. A double row stays bare.
         if (dims.length >= 2 && dims[0] > 1 && (dims[1] > 1 || (dims.length === 2 && dims[1] === 1))) {
             return buildMatrixValue(dims, val);
         }
         return val;
     }
     return undefined;
+}
+// The number a non-double numeric SCALAR stands for, as text, when `v` is resolveValue's
+// typed spelling of one (`{_type: 'int32', _value: '2'}`, `'2U'`, `'3.3F'`), or null.
+function typedScalarText(v) {
+    if (v === null || typeof v !== 'object' || Array.isArray(v))
+        return null;
+    const { _type: type, _value: text } = v;
+    if (typeof type !== 'string' || !NON_DOUBLE_NUMERIC.has(type) || typeof text !== 'string' || /^(\[|Matrix\()/.test(text)) {
+        return null;
+    }
+    return text.replace(/[FU]$/, '');
 }
 // The tag MATLAB writes at the head of an enumeration instance struct (MatParser.enumerationInstanceOf).
 const ENUMERATION_INSTANCE_TAG = 0xdd000000;
@@ -454,6 +490,12 @@ function enumerationValue(instance, ctx, className) {
             if (m && (typeof v === 'number' || typeof v === 'boolean' || isExactToken(v))) {
                 return { name: names[k], type: m[1], value: typeof v === 'boolean' ? (v ? '1' : '0') : typeof v === 'number' ? formatMatlabNum(v) : v };
             }
+            // The `int32.Data` of an enumeration derived from int32 (Simulink.IntEnumType): its
+            // number, which resolveValue spells typed, as every non-double numeric (C-033).
+            const typedText = m ? typedScalarText(v) : null;
+            if (m && typedText !== null) {
+                return { name: names[k], type: m[1], value: typedText };
+            }
         }
         return { name: names[k], value: '' };
     });
@@ -503,9 +545,14 @@ const FUNCTION_HANDLE_MARKER = 0xdd000000;
  * text one and a .mat). Shown as it stood, it read `@sf%0@(y)y*2`. The prefix goes, and
  * the `@` that opens the anonymous function's own text stays; nothing else is rewritten
  * (MatParser.functionHandleText, which a .mat's own function handle is read with too).
+ *
+ * The marker is read off the cell's own first element (`marker`), not off what it resolves
+ * to: the word is a uint32, which resolves to its typed spelling, `{_type: 'uint32', _value:
+ * '3707764736U'}` (C-033). A number of any class whose value is the word is the marker, as it
+ * was when this compared the resolved number.
  */
-function functionHandleText(elements) {
-    if (elements.length !== 2 || elements[0] !== FUNCTION_HANDLE_MARKER) {
+function functionHandleText(marker, elements) {
+    if (elements.length !== 2 || !marker || marker.isLogical || marker.value !== FUNCTION_HANDLE_MARKER) {
         return null;
     }
     const outer = elements[1];
