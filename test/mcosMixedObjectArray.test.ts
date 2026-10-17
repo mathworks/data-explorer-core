@@ -23,6 +23,7 @@ import { strFromU8, unzipSync } from 'fflate';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { decodeMcosBlob, type OpaqueVarRef } from '../src/datamodel/parser/McosParser.js';
+import { arrayClassOf } from '../src/datamodel/parser/objectArrayClass.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { SECTION_NAMESPACE } from '../src/datamodel/SectionConstants.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
@@ -240,6 +241,84 @@ describe('busArray.mat re-pointed: an object array property of two classes', () 
     expect(ei._elements.map((e: any) => e._object_class)).toEqual(['BusElement', undefined, 'BusElement']);
     // Its own properties are still read.
     expect(ei._elements[2]._properties.Name).toBe(elementsOf(raw, 2)._elements[2]._properties.Name);
+  });
+});
+
+// A config set's Components is a Simulink.ConfigComponent array whatever components it holds:
+// its place names its class (componentsBaseOf), and the shared element rule (arrayClassOf) is
+// not asked. On configset.mat as MATLAB wrote it the two agree, because every component there
+// is one CONFIG_COMPONENTS lists; a binary dictionary of the corpus holds components it does
+// not list (a CoderTarget.SettingsController, an SSC.SimscapeCC), whose array the shared rule
+// names after its first element. configset.mat's class table re-pointed, one word at a time,
+// to hold such a component, in a config set's Components and in its RTWCC's.
+describe('configset.mat re-pointed: a Components array the shared element rule would name otherwise', () => {
+  // The blob offset of configset.mat's metadata table, which is busArray.mat's too.
+  const META = 304;
+  const { raw, vars } = blobParts('mcos/configset.mat');
+  const u32 = (b: Uint8Array, at: number): number => new DataView(b.buffer, b.byteOffset, b.byteLength).getUint32(at, true);
+  const header = Array.from({ length: 10 }, (_, i) => u32(raw, META + i * 4));
+  const classRow = (k: number): number => META + header[2] + k * 16;
+  const objectRow = (k: number): number => META + header[4] + k * 24;
+  const patched = (words: [number, number][]): Uint8Array => {
+    const copy = raw.slice();
+    const view = new DataView(copy.buffer, copy.byteOffset, copy.byteLength);
+    for (const [at, value] of words) view.setUint32(at, value, true);
+    return copy;
+  };
+  // Class row 12 is SlCovCC.ConfigComp, the last component of both config sets (objects 12 and
+  // 24). Its package word set to the empty string makes it `ConfigComp`, a class of no package:
+  // one CONFIG_COMPONENTS does not list, and one the shared rule counts as not MathWorks', as it
+  // counts a CoderTarget or an SSC class (objectArrayClass.ts isMathWorksClass).
+  const UNLISTED = [classRow(12), 0] as [number, number];
+  // Object 11 is cs's Simulink.GRTTargetCC, the second of its RTWCC's two components.
+  const RTW_TARGET_UNLISTED = [objectRow(11), 12] as [number, number];
+  const decoded = decodeMcosBlob(patched([UNLISTED, RTW_TARGET_UNLISTED]), vars);
+  // Each config set's components, as MATLAB wrote them but the last, now `ConfigComp`.
+  const repointed = [...truth.paths.cs.Components.elements.slice(0, -1), 'ConfigComp'];
+
+  it('the tables are where, and what, these cases assume, and the shared rule names these arrays otherwise', () => {
+    const strings = new TextDecoder().decode(raw.slice(META + 40, META + header[2])).split('\0');
+    const nameOf = (row: number): string => [strings[u32(raw, row) - 1], strings[u32(raw, row + 4) - 1]].join('.');
+    expect([nameOf(classRow(12)), nameOf(classRow(9))]).toEqual(['SlCovCC.ConfigComp', 'Simulink.GRTTargetCC']);
+    expect([12, 24, 11].map((k) => u32(raw, objectRow(k)))).toEqual([12, 12, 9]);
+    // Unpatched, both readings agree: MATLAB's components, each listed.
+    expect(decodeMcosBlob(raw, vars).get('cs')!.properties.Components).toMatchObject({ _array_class: 'Simulink.ConfigComponent' });
+    // Patched, the shared rule alone would name the config set's Components after its first
+    // component (no derivable base among eight MathWorks classes and one other), and the
+    // RTWCC's after its one MathWorks class beside one that is not.
+    expect(truth.paths.csErt.Components.elements).toEqual(truth.paths.cs.Components.elements);
+    expect(arrayClassOf(repointed)).toBe('Simulink.SolverCC');
+    expect(arrayClassOf(['Simulink.CodeAppCC', 'ConfigComp'])).toBe('Simulink.CodeAppCC');
+  });
+
+  it('a config set\'s Components holding an unlisted component is still a Simulink.ConfigComponent array, each element its own class', () => {
+    for (const name of ['cs', 'csErt'] as const) {
+      const components: any = decoded.get(name)!.properties.Components;
+      expect(components._array_class, name).toBe('Simulink.ConfigComponent');
+      expect(components._elements.map((e: any) => e._object_class), name).toEqual(repointed);
+    }
+  });
+
+  it('an RTWCC\'s Components holding an unlisted component is still a Simulink.ConfigComponent array', () => {
+    const rtw = (decoded.get('cs')!.properties.Components as any)._elements[truth.paths.cs.rtwIndex - 1];
+    expect(rtw._object_class).toBe('Simulink.RTWCC');
+    const inner = rtw._properties.Components;
+    expect(inner._array_class).toBe('Simulink.ConfigComponent');
+    expect(inner._elements.map((e: any) => e._object_class)).toEqual(['Simulink.CodeAppCC', 'ConfigComp']);
+    // csErt's RTWCC was not re-pointed, and reads as MATLAB wrote it.
+    const ert = (decoded.get('csErt')!.properties.Components as any)._elements[truth.paths.csErt.rtwIndex - 1];
+    expect(ert._properties.Components._elements.map((e: any) => e._object_class)).toEqual(truth.paths.csErt.RTWComponents.elements);
+  });
+
+  it('control: the same classes in a place that names none are read by the shared rule', () => {
+    // mixed's Kids, a property of an NdHolder, re-pointed at the two classes the RTWCC's
+    // Components holds above: the shared rule, so the one MathWorks class.
+    const kidsIds = [26, 30];
+    expect(kidsIds.map((k) => u32(raw, objectRow(k)))).toEqual([18, 19]);
+    const blob = patched([UNLISTED, [objectRow(26), 8], [objectRow(30), 12]]);
+    const kids: any = decodeMcosBlob(blob, vars).get('mixed')!.properties.Kids;
+    expect(kids._array_class).toBe('Simulink.CodeAppCC');
+    expect(kids._elements.map((e: any) => e._object_class)).toEqual([undefined, 'ConfigComp']);
   });
 });
 
