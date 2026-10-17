@@ -613,8 +613,14 @@ function resolveValue(
       // bare list of booleans as a DOUBLE row, so a logical([1 0 1]) Value showed class
       // double, where both dictionaries show logical. formatMatrixSerial spells a 1xN
       // logical `[1, 0, 1]`, as typed_binary.sldd's lglVec is held.
-      if (val.length === 0) return [];
+      //
+      // An EMPTY logical is the `[]` it was before C-033 (a double 0x0: DESIGN.md records it),
+      // except where it was typed then too, which is wherever its shape alone says so: at rank
+      // 3 or more, a 2x0x2 is `Matrix(2,0,2)` and shows as a <2x0x2 logical>
+      // (mcosEmptyLogical.test.ts).
       const dims = cell.dimensions && cell.dimensions.length >= 2 ? cell.dimensions : [1, val.length];
+      const shaped = dims.length > 2 || (dims[0] > 1 && dims[1] > 1) || (dims.length === 2 && dims[0] > 1 && dims[1] === 1);
+      if (val.length === 0 && !shaped) return [];
       return { _type: 'logical', _value: formatMatrixSerial(val.map((x) => (x ? '1' : '0')), dims, 'logical') };
     }
     return !!val;
