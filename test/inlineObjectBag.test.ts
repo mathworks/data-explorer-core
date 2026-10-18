@@ -279,6 +279,13 @@ const OTHER_CASES: [name: string, value: Record<string, unknown>, node: string, 
   ['NullBagAliasType', { _array_class: 'Simulink.AliasType', _array_type: 'object', BaseType: 'int16', Description: 'An alias', _elements: null }, 'AliasTypeNode', [['BaseType', 'int8']]],
   ['NullBagVariantControl', { _array_class: 'Simulink.VariantControl', _array_type: 'object', Value: 1, _elements: null }, 'VariantControlNode', [['Value', '2']]],
   ['NullBagCustomObject', { _array_class: 'CustomObject', _array_type: 'object', Description: 'A custom object', _elements: null }, 'CustomObjectNode', [['Value', '1']]],
+  // These classes ask for the refusal in their own setProperty, ahead of SimulinkObjectNode's, so
+  // each of those call sites needs the null spelling too.
+  ['NullBagValueType', { _array_class: 'Simulink.ValueType', _array_type: 'object', DataType: 'single', Description: 'A value type', _elements: null }, 'ValueTypeNode', [['Min', '0'], ['Max', '1']]],
+  ['NullBagVariantBank', { _array_class: 'Simulink.VariantBank', _array_type: 'object', BankName: 'Bank', _elements: null }, 'VariantBankNode', [['BankName', 'Other'], ['Value', '1'], ['DataType', 'int8']]],
+  ['NullBagVariantBankCoderInfo', { _array_class: 'Simulink.VariantBankCoderInfo', _array_type: 'object', HeaderFile: 'bank.h', _elements: null }, 'VariantBankCoderInfoNode', [['HeaderFile', 'other.h'], ['Value', '1'], ['DataType', 'int8']]],
+  ['NullBagBreakpoint', { _array_class: 'Simulink.Breakpoint', _array_type: 'object', SupportTunableSize: false, Description: 'A breakpoint', _elements: null }, 'BreakpointNode', [['DataType', 'int8']]],
+  ['NullBagLookupTable', { _array_class: 'Simulink.LookupTable', _array_type: 'object', SupportTunableSize: false, Description: 'A table', _elements: null }, 'LookupTableNode', [['DataType', 'int8']]],
 ];
 
 /** sparse_text.sldd with each of OTHER_CASES appended as an entry, in the file's own tab-indented layout. */
