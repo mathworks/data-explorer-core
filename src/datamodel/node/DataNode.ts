@@ -1248,7 +1248,7 @@ export default class DataNode extends BaseNode {
     }
     return {
       error: true,
-      reason: `'${this.displayName}' holds its properties in a form MATLAB does not write, which this editor shows as read but cannot change.`,
+      reason: `'${this.displayName}' holds its properties in a form MATLAB does not write. This editor cannot show or change them, and a save keeps them as written.`,
       invalidValue: stringValue,
       validValue: this.displayValue,
     };

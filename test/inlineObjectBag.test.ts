@@ -99,7 +99,7 @@ const savedValue = (text: string, name: string): unknown =>
   JSON.parse(text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: Any) => e.name === name)?.value;
 
 const editRefusal = (name: string) =>
-  `'${name}' holds its properties in a form MATLAB does not write, which this editor shows as read but cannot change.`;
+  `'${name}' holds its properties in a form MATLAB does not write. This editor cannot show or change them, and a save keeps them as written.`;
 const xmlRefusal = (name: string) =>
   `Cannot write "${name}": ${name} holds its properties in a form MATLAB does not write, which a binary dictionary has no spelling for. Nothing was written.`;
 
