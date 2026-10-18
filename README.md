@@ -89,8 +89,11 @@ the contract:
 
 A host that keeps a binary dictionary's `data/chunk0.xml` as text and splices
 each edit into it has three functions for it. `spliceEntryObject(chunkXml,
-entry, nameBefore)` replaces one entry's `<Object>` with what a save writes for
-it now, laid out as the chunk is, every byte around it untouched.
+entry, selectorBefore?)` replaces one entry's `<Object>` with what a save writes
+for it now, laid out as the chunk is, every byte around it untouched; the entry
+is found by `selectorBefore`, the name it has in the chunk before a rename (or
+an `EntrySelector`, its name and UUID, where two entries share the name), and by
+its own selector by default.
 `keptPartsViolations(entry, objectText)` lists, by path, where the text a host
 is about to save for an entry changes a part nobody edited; it reads the text
 with a structure-aware scan, not with the reader, and an empty list means the
