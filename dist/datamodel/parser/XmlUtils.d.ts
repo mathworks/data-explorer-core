@@ -150,6 +150,16 @@ export declare function parseComplexNum(text: string, type?: string): {
     im: number | string;
 } | null;
 /**
+ * One complex element's text as it is shown: the text, but for an imaginary part of -0, which
+ * shows with a `+`, as formatComplexNum spells it. complex(1, -0), which a binary dictionary
+ * holds as `1.0-0.0i` (MATLAB spells a -0 `-0.0`), showed `1-0i`, which reads as a negative
+ * imaginary part; it shows `1+0i`, as the same value read out of MAT bytes does, and MATLAB
+ * shows `1.0000 + 0.0000i` (the maintainer's ruling of 2026-10-18, group G). Display only: the
+ * text is the value, and keeps its sign, because an edit of one element writes the others from
+ * it. A real part of -0 is shown as it is. Text that is not one element is returned as it is.
+ */
+export declare function shownComplexText(text: string): string;
+/**
  * The `_class` a complex value's `{ _type: 'cdata' }` envelope carries: its MATLAB class
  * when that is single or an integer class, and undefined for double — and for anything
  * that is not a numeric class at all, a sparse array's 'sparse' included, which MATLAB

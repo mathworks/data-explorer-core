@@ -31,6 +31,7 @@ import {
     formatComplexNum,
     formatMatlabNum,
     parseComplexNum,
+    shownComplexText,
     transposeFromColumnMajorND,
 } from '../parser/XmlUtils.js';
 
@@ -132,7 +133,8 @@ function formatCdata(v: Record<string, unknown>): string {
         if (!colMajor.every((t) => parseComplexNum(t) !== null) || colMajor.length !== dims.reduce((a, b) => a * b, 1)) {
             return text;
         }
-        return layOut(transposeFromColumnMajorND(colMajor, dims), dims, complexClassTag(v._class) ?? 'double');
+        // An imaginary part of -0 shows with a `+`, as the element's own row shows it.
+        return layOut(transposeFromColumnMajorND(colMajor.map(shownComplexText), dims), dims, complexClassTag(v._class) ?? 'double');
     }
     return formatStream(uudecode(text));
 }

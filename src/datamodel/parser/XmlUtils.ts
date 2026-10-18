@@ -273,6 +273,30 @@ export function parseComplexNum(text: string, type?: string): { re: number | str
     return { re: part(m[1]), im: part(m[2]) };
 }
 
+// A part of an element that is a zero, unsigned: `0`, `0.0`, `.0`, `0e3`.
+const ZERO_PART = /^(?:0+(?:\.0*)?|\.0+)(?:[eE][+-]?\d+)?$/;
+
+/**
+ * One complex element's text as it is shown: the text, but for an imaginary part of -0, which
+ * shows with a `+`, as formatComplexNum spells it. complex(1, -0), which a binary dictionary
+ * holds as `1.0-0.0i` (MATLAB spells a -0 `-0.0`), showed `1-0i`, which reads as a negative
+ * imaginary part; it shows `1+0i`, as the same value read out of MAT bytes does, and MATLAB
+ * shows `1.0000 + 0.0000i` (the maintainer's ruling of 2026-10-18, group G). Display only: the
+ * text is the value, and keeps its sign, because an edit of one element writes the others from
+ * it. A real part of -0 is shown as it is. Text that is not one element is returned as it is.
+ */
+export function shownComplexText(text: string): string {
+    // Most text has no `-0` or `-.` in it at all, and needs no match.
+    if (text.indexOf('-0') < 0 && text.indexOf('-.') < 0) {
+        return text;
+    }
+    const m = COMPLEX_ELEMENT.exec(text);
+    if (!m || m[2][0] !== '-' || !ZERO_PART.test(m[2].slice(1))) {
+        return text;
+    }
+    return m[1] + '+' + m[2].slice(1) + 'i';
+}
+
 // The numeric classes besides double, which is the class a complex value has when its
 // envelope says nothing.
 const NON_DOUBLE_NUMERIC_CLASS = /^(?:single|u?int(?:8|16|32|64))$/;
