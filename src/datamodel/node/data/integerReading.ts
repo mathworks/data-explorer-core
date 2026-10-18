@@ -53,13 +53,18 @@ export function integerReader(type: string): (read: number | string) => number |
     // `read === shown` is every number a dictionary MATLAB wrote holds, -0 included. Past it,
     // a value is held if it is the same integer: a double past 2^53 that an int64 holds comes
     // back as its exact text.
-    if (read !== shown && !sameInteger(read, shown)) {
+    if (!heldAsRead(read, shown)) {
       if (count++ === 0) {
         first = { type, read, shown };
       }
     }
     return shown;
   };
+}
+
+/** Was `read` held by its class as it was read, `shown` being what integerReader made of it? */
+export function heldAsRead(read: number | string, shown: number | string): boolean {
+  return read === shown || sameInteger(read, shown);
 }
 
 function sameInteger(read: number | string, shown: number | string): boolean {

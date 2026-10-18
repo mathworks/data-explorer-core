@@ -195,8 +195,16 @@ describe('a binary dictionary holding a number its integer class cannot hold', (
     expect(entryOf(root, 'i16row').displayValue).toBe('[32767 -3 1]');
     expect(entryOf(root, 'i8ok').displayValue).toBe('7');
     // Not "as MATLAB reads it": MATLAB's reader of a binary dictionary takes this text its own
-    // way (int8 300 as 44, measured), which is not this change's to follow.
+    // way (int8 300 as 44, measured), which is not this change's to follow. i16row's -2.5 is
+    // text MATLAB does not write, which the binary reader warns about itself (LENIENT,
+    // unwrittenSpelling.test.ts) and hands on as the -3 shown; its 70000 is spelled as MATLAB
+    // writes a number, and is this warning's.
     expect(root.warnings).toEqual([
+      {
+        code: 'part-unreadable',
+        message: '"i16row" holds the int16 text \'-2.5\', which MATLAB does not write; it is shown as -3.',
+        part: 'i16row',
+      },
       {
         code: 'part-unreadable',
         message: '"i8sc" holds the int8 value 300, which an int8 cannot hold; it is shown as MATLAB converts a number to its class, 127.',
@@ -204,9 +212,7 @@ describe('a binary dictionary holding a number its integer class cannot hold', (
       },
       {
         code: 'part-unreadable',
-        message:
-          '"i16row" holds 2 values its integer class cannot hold, each shown as MATLAB converts a number to its class; '
-          + 'the first is the int16 value 70000, shown as 32767.',
+        message: '"i16row" holds the int16 value 70000, which an int16 cannot hold; it is shown as MATLAB converts a number to its class, 32767.',
         part: 'i16row',
       },
     ]);

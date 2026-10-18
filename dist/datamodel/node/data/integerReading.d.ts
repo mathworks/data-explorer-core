@@ -19,6 +19,8 @@ export interface UnheldIntegers {
  * did not hold is recorded.
  */
 export declare function integerReader(type: string): (read: number | string) => number | string;
+/** Was `read` held by its class as it was read, `shown` being what integerReader made of it? */
+export declare function heldAsRead(read: number | string, shown: number | string): boolean;
 /** The numbers recorded since the last call, which clears them, or null if there were none. */
 export declare function takeUnheldIntegers(): UnheldIntegers | null;
 /**

@@ -13,7 +13,8 @@ import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { controlsAsOneChar, formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
-import { integerReader } from './integerReading.js';
+import { heldAsRead, integerReader } from './integerReading.js';
+import { isWrittenSpelling, matrixHoldsUnwritten, recordUnwrittenSpelling, rowHoldsUnwritten } from '../../parser/writtenSpelling.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
@@ -115,6 +116,59 @@ function holdsMcosObject(variable) {
  */
 function matlabClassOf(variable) {
     return variable.isLogical ? 'logical' : variable.className;
+}
+/**
+ * One token of a typed literal, as written, recorded if MATLAB does not write it (writtenSpelling,
+ * asked without its `F` or `U`), with `shown`, the value the node holds for it, for a text dictionary's
+ * warnings (LENIENT; SlddNode.parse takes the record). A text dictionary's int16 `1e2` is shown
+ * as 100 and its logical `[2, 0]` as [false false], where MATLAB reads [1 0] (measured).
+ *
+ * Not a number its integer class cannot hold, which F1-17 records and warns about (`2.5` under
+ * int8): one warning for one token. `read` is the text the number was read from, which in a
+ * matrix's body is the number the reader found in the token. `shown` null: no one value is read.
+ */
+function noteTextSpelling(type, token, shown, read = token.replace(/[FU]$/, '')) {
+    if (isWrittenSpelling(type, token.replace(/[FU]$/, ''))) {
+        return;
+    }
+    if (shown !== null && isIntegerClass(type)) {
+        const number = needsExactInt(type) ? parseExactNum(read) : parseMatlabNum(read);
+        if (!heldAsRead(number, shown)) {
+            return;
+        }
+    }
+    const spelled = shown === null ? null : type === 'logical' ? String(Boolean(shown)) : formatMatlabNum(shown);
+    recordUnwrittenSpelling(type, token, spelled);
+}
+// A number, as parseMatrixValue finds one in a matrix's body.
+const MATRIX_NUMBER = /-?(?:[\d.]+(?:[eE][+-]?\d+)?|Inf|NaN)/g;
+/**
+ * noteTextSpelling for each token of a `Matrix(...)` or `Vector(N)` literal's body, whose
+ * `elements` parseMatrixValue read as the numbers it found in the body: a token holding one
+ * number is the element at its place, as long as every token before it held one. One holding
+ * none or two is not one value.
+ */
+function noteMatrixSpellings(rawVal, type, elements) {
+    const value = String(rawVal._value);
+    const header = value.indexOf('\n');
+    if (header < 0 || !matrixHoldsUnwritten(type, value.slice(header + 1))) {
+        return;
+    }
+    // The body as parseMatrixValue reads it, its lines joined up.
+    const body = value.split('\n').slice(1).join('');
+    let at = 0;
+    let aligned = true;
+    for (const token of body.split(/[\s,;[\]]+/)) {
+        if (token === '') {
+            continue;
+        }
+        if (!isWrittenSpelling(type, token.replace(/[FU]$/, ''))) {
+            const numbers = token.match(MATRIX_NUMBER);
+            aligned = aligned && numbers?.length === 1;
+            noteTextSpelling(type, token, aligned ? elements[at] : null, aligned ? numbers[0] : undefined);
+        }
+        at++;
+    }
 }
 export default class MatlabVariableNode extends DataNode {
     constructor(name, parent, serial) {
@@ -3560,6 +3614,7 @@ export default class MatlabVariableNode extends DataNode {
         else {
             node._scalarValue = parseMatlabNum(bare);
         }
+        noteTextSpelling(node._scalarType, rawVal._value, node._scalarValue);
         return node;
     }
     /**
@@ -4072,6 +4127,13 @@ export default class MatlabVariableNode extends DataNode {
         else {
             node._elements = parts.map(parseMatlabNum);
         }
+        // Each part as written, split again only for a literal that holds one MATLAB does not write.
+        if (rowHoldsUnwritten(node._scalarType, inner)) {
+            const written = inner.split(',');
+            for (let i = 0; i < parts.length; i++) {
+                noteTextSpelling(node._scalarType, written[i].trim(), node._elements[i]);
+            }
+        }
         node._dims = [1, node._elements.length];
         node._buildArrayChildren();
         return node;
@@ -4156,6 +4218,7 @@ export default class MatlabVariableNode extends DataNode {
                 elements[i] = read(elements[i]);
             }
         }
+        noteMatrixSpellings(rawVal, parsed.type, parsed.elements);
         // This package's own spelling of an edited sparse double (_serializeArray), read back:
         // a sparse double, as MATLAB reads it — its non-zeros, as every sparse array is held.
         if (parsed.type === 'sparse') {
