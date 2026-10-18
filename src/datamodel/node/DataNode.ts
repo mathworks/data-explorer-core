@@ -1409,7 +1409,38 @@ export default class DataNode extends BaseNode {
         );
       }
     }
-    return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(String(value)) + '</P>';
+    throw DataNode._unspellable(value, name, at);
+  }
+
+  /**
+   * The refusal of a raw value that no arm of the property or cell-element writer has a
+   * spelling for (serializePropertyXml, _serializeCellElementXml), naming the entry and the path
+   * from `at`, or, for a caller that gives none, the property `name`.
+   *
+   * Both writers used to end in `Class="char"` around String() of what was left: an object of
+   * no recognised shape went into the .sldd as the text `[object Object]`, a null or undefined
+   * cell element as `null` or `undefined`, a bigint as its digits, a function as its source.
+   * MATLAB reads each back as a char, which is not the value, and nothing said so. A save that
+   * holds one is refused rather than written wrong (C-205; the maintainer's group F ruling,
+   * 2026-10-18). A MatWriteError and not a MatBudgetError: this writer has no spelling for the
+   * value, which is not a budget.
+   */
+  static _unspellable(value: unknown, name: string, at: PropertyAt | undefined): MatWriteError {
+    let what: string;
+    if (value === null || value === undefined) {
+      what = String(value);
+    } else if (typeof value === 'object') {
+      const keys = Object.keys(value);
+      what = keys.length === 0
+        ? 'an object holding no key'
+        : 'an object holding ' + keys.slice(0, 5).map((k) => '"' + k + '"').join(', ') + (keys.length > 5 ? ' and ' + (keys.length - 5) + ' more' : '');
+    } else {
+      what = 'a ' + typeof value;
+    }
+    return new MatWriteError(
+      'Cannot write "' + (at ? at.entry : name) + '": ' + (at ? at.path : name) + ' is ' + what +
+        ', which a binary dictionary has no spelling for. Nothing was written.',
+    );
   }
 
   /**
@@ -2103,7 +2134,7 @@ export default class DataNode extends BaseNode {
         return DataNode._stringXml('Element', '', elements, (obj._dimensions as number[]) || [1, elements.length], indent);
       }
     }
-    return p + '<Element Class="char">' + escapeXml(String(elem)) + '</Element>';
+    throw DataNode._unspellable(elem, 'a cell element', at);
   }
 
   /**

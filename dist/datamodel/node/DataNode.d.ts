@@ -376,6 +376,20 @@ export default class DataNode extends BaseNode {
     static _elementPropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at: PropertyAt | undefined, sources: Record<string, PropertySource> | null): string;
     static serializePropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string;
     /**
+     * The refusal of a raw value that no arm of the property or cell-element writer has a
+     * spelling for (serializePropertyXml, _serializeCellElementXml), naming the entry and the path
+     * from `at`, or, for a caller that gives none, the property `name`.
+     *
+     * Both writers used to end in `Class="char"` around String() of what was left: an object of
+     * no recognised shape went into the .sldd as the text `[object Object]`, a null or undefined
+     * cell element as `null` or `undefined`, a bigint as its digits, a function as its source.
+     * MATLAB reads each back as a char, which is not the value, and nothing said so. A save that
+     * holds one is refused rather than written wrong (C-205; the maintainer's group F ruling,
+     * 2026-10-18). A MatWriteError and not a MatBudgetError: this writer has no spelling for the
+     * value, which is not a budget.
+     */
+    static _unspellable(value: unknown, name: string, at: PropertyAt | undefined): MatWriteError;
+    /**
      * The `Class="char" Dimension="r*c"` attributes and body of an mxchar literal, or
      * null for anything else — shared by the property and cell-element writers below.
      *

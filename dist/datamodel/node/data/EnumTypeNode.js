@@ -84,7 +84,19 @@ export class EnumTypeNode extends DataNode {
             props.Description = this.Description;
         }
         const rawEnumerals = this.serial._rawEnumerals || {};
-        const enumWrapper = { ...rawEnumerals, _elements: enumerals };
+        // An enum read with no Enumerals, and given no enumeral since, is written as it was
+        // read, with none. The wrapper made up for it had no `_array_type`, so no writer had a
+        // spelling for it: a paste into a binary dictionary wrote it as the char `[object
+        // Object]`, and a text save added the key to the file (typeLink.sldd's avtEngSt; C-205).
+        if (enumerals.length === 0 && rawEnumerals._array_type === undefined && rawEnumerals._elements === undefined) {
+            return props;
+        }
+        // One given an enumeral since, or whose wrapper says no `_array_type`, is a struct
+        // array of them, as MATLAB writes Enumerals (createDefault), in MATLAB's key order.
+        const spelled = rawEnumerals._array_type === undefined
+            ? { _array_type: 'Struct', _dimensions: [], _elements: [], _fields: ['Name', 'Value', 'Description'], ...rawEnumerals }
+            : rawEnumerals;
+        const enumWrapper = { ...spelled, _elements: enumerals };
         // Keep _dimensions in sync with the enumeral count so adding or removing
         // one stays consistent. Enumerals are stored as a row-vector struct array.
         enumWrapper._dimensions = [1, enumerals.length];
