@@ -808,6 +808,12 @@ export default class DataNode extends BaseNode {
      * unconditionally, empty or not — that path is unchanged.
      */
     _serializeSimulinkObject(propOverrides) {
+        // Properties held beside the class, with no element, are written as they were read
+        // (_inlineObjectBag): an element was made up here, holding the overrides, beside them. This
+        // is the text writer of SimulinkObjectNode and SignalNode, every class it serves alike.
+        if (this._inlineObjectBag()) {
+            return { ...this.serial._rawVal };
+        }
         const props = this._mergeProps(propOverrides);
         const result = { ...this.serial._rawVal };
         const rawElements = result._elements || [];
@@ -1134,7 +1140,9 @@ export default class DataNode extends BaseNode {
      * save after a rename.
      *
      * Under the maintainer's ruling (group F, 2026-10-18, option (a)) the value is written back as
-     * it was read, by ParameterNode, the buses and EnumTypeNode, whose serializeValue threw on it.
+     * it was read, by ParameterNode, the buses and EnumTypeNode, whose serializeValue threw on it,
+     * and by _serializeSimulinkObject, the text writer of SimulinkObjectNode's classes and
+     * SignalNode's, which wrote a made-up element beside them (the ruling's follow-up 2).
      * An edit the replay would drop is refused (_refuseInlineBagEdit), and so is its XML
      * (_serializeSimulinkObjectXml), which has no spelling for it.
      */

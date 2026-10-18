@@ -212,8 +212,8 @@ describe.each(CASES)('the entry %s, holding its properties beside its class', (n
   });
 });
 
-// Two classes whose text save did not throw on this shape, and is left as it was; their XML, an
-// `<Element>` of the class with no property, is refused by the same writer.
+// Two classes whose text save did not throw on this shape (a Signal's is covered further down);
+// their XML, an `<Element>` of the class with no property, is refused by the same writer.
 describe.each([
   ['InlineSignal', { _array_class: 'Simulink.Signal', _array_type: 'object', DataType: 'single', Description: 'd' }, 'SignalNode'],
   ['InlineWidget', { _array_class: 'Widget', _array_type: 'object', DataType: 'single', Description: 'd' }, 'ObjectNode'],
@@ -243,5 +243,95 @@ describe('an object whose properties are in its element, in the same dictionary'
     const xml = serializeEntryToXml(parameter);
     expect(xml).toContain('<Element Class="Simulink.Parameter">');
     expect(xml).toContain('<P Name="Description" Class="char">edited</P>');
+  });
+});
+
+// The same shape in every other class whose text writer is DataNode._serializeSimulinkObject:
+// SimulinkObjectNode's (AliasType, NumericType, LookupTable, ValueType, Breakpoint, ConfigSet,
+// the variant classes, ConfigSetRef and CustomObject) and SignalNode's (a Signal, an mpt.Signal).
+// None of these threw. Each wrote a made-up `_elements` beside the properties as read, holding
+// what the node overrides (an AliasType's `BaseType: ""`, a ConfigSet's `Name`), so no save of
+// the file was the file. Each also took an edit into that element and offered an editor for it.
+// The ruling is the one above: written as read, an edit but a rename refused, and no editor offered.
+const OTHER_CASES: [name: string, value: Record<string, unknown>, node: string, edits: [prop: string, text: string][]][] = [
+  ['BagSignal', { _array_class: 'Simulink.Signal', _array_type: 'object', DataType: 'single', Dimensions: [1, 3], Unit: 'V', Description: 'A signal' }, 'SignalNode',
+    [['DataType', 'int8'], ['Min', '0'], ['Max', '1'], ['Complexity', 'complex'], ['DimensionsMode', 'Fixed'], ['StorageClass', 'ExportedGlobal']]],
+  ['BagMptSignal', { _array_class: 'mpt.Signal', _array_type: 'object', DataType: 'int16', Description: 'An mpt signal' }, 'SignalNode', [['Min', '0'], ['StorageClass', 'ExportedGlobal']]],
+  ['BagAliasType', { _array_class: 'Simulink.AliasType', _array_type: 'object', BaseType: 'int16', DataScope: 'Auto', Description: 'An alias', HeaderFile: '' }, 'AliasTypeNode', [['BaseType', 'int8']]],
+  ['BagNumericType', { _array_class: 'Simulink.NumericType', _array_type: 'object', DataTypeMode: 'Fixed-point: binary point scaling', WordLength: 16, FixedExponent: -4, Description: 'A numeric type' }, 'NumericTypeNode', [['DataType', 'int8']]],
+  ['BagLookupTable', { _array_class: 'Simulink.LookupTable', _array_type: 'object', SupportTunableSize: false, Description: 'A table' }, 'LookupTableNode', [['DataType', 'int8']]],
+  ['BagValueType', { _array_class: 'Simulink.ValueType', _array_type: 'object', DataType: 'single', Dimensions: [1, 2], Complexity: 'real', Description: 'A value type' }, 'ValueTypeNode',
+    [['DataType', 'int8'], ['Min', '0'], ['Max', '1'], ['Complexity', 'complex'], ['DimensionsMode', 'Fixed']]],
+  ['BagBreakpoint', { _array_class: 'Simulink.Breakpoint', _array_type: 'object', SupportTunableSize: false, Description: 'A breakpoint' }, 'BreakpointNode', [['DataType', 'int8']]],
+  ['BagConfigSet', { _array_class: 'Simulink.ConfigSet', _array_type: 'object', Name: 'BagConfigSet', Description: 'A configuration' }, 'ConfigSetNode', []],
+  ['BagVariantExpression', { _array_class: 'Simulink.VariantExpression', _array_type: 'object', Condition: 'Mode == 1' }, 'VariantExpressionNode', [['Condition', 'Mode == 2']]],
+  ['BagVariantControl', { _array_class: 'Simulink.VariantControl', _array_type: 'object', Value: 1, ActivationTime: 'update diagram' }, 'VariantControlNode', [['Value', '2']]],
+  ['BagVariantVariable', { _array_class: 'Simulink.VariantVariable', _array_type: 'object', Specification: 'Choice' }, 'VariantVariableNode', [['Specification', 'Other']]],
+  ['BagVariantBank', { _array_class: 'Simulink.VariantBank', _array_type: 'object', BankName: 'Bank' }, 'VariantBankNode', [['BankName', 'Other'], ['Value', '1'], ['DataType', 'int8']]],
+  ['BagVariantBankCoderInfo', { _array_class: 'Simulink.VariantBankCoderInfo', _array_type: 'object', HeaderFile: 'bank.h' }, 'VariantBankCoderInfoNode', [['HeaderFile', 'other.h'], ['Value', '1'], ['DataType', 'int8']]],
+  ['BagConfigSetRef', { _array_class: 'Simulink.ConfigSetRef', _array_type: 'object', SourceName: 'cs', Description: 'A reference' }, 'ConfigSetRefNode', [['SourceName', 'other']]],
+  ['BagVariantConfigurationData', { _array_class: 'Simulink.VariantConfigurationData', _array_type: 'object', DefaultConfigurationName: 'Cfg' }, 'VariantConfigurationDataNode', []],
+  ['BagVariantConfigurations', { _array_class: 'Simulink.VariantConfigurations', _array_type: 'object', DefaultConfigurationName: 'Cfg' }, 'VariantConfigurationDataNode', []],
+  ['BagCustomObject', { _array_class: 'CustomObject', _array_type: 'object', Description: 'A custom object' }, 'CustomObjectNode', [['Value', '1']]],
+];
+
+/** sparse_text.sldd with each of OTHER_CASES appended as an entry, in the file's own tab-indented layout. */
+const OTHER_DICTIONARY = (() => {
+  const json = JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/sparse/sparse_text.sldd', import.meta.url)), 'utf8'));
+  const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+  OTHER_CASES.forEach(([name, value], k) => entries.push({ name, metadata: metadataOf(CASES.length + k), value }));
+  return JSON.stringify(json, null, '\t');
+})();
+const openOther = (): { session: Any; root: Any } => {
+  const session = createSession();
+  return { session, root: ingest(session, OTHER_DICTIONARY, { filename: 'inline-other.sldd' }) };
+};
+
+describe('a text dictionary holding objects of the other classes, their properties beside their class', () => {
+  it('is saved, untouched, as the bytes it was read from', () => {
+    const { session, root } = openOther();
+    const out = session.serializeSource(root.name)!;
+    expect(out.kind).toBe('text');
+    expect(out.text).toBe(OTHER_DICTIONARY);
+  });
+
+  it('offers an editor for no property of any of them but its name', () => {
+    const { root } = openOther();
+    for (const [name] of OTHER_CASES) {
+      const entry = entryOf(root, name);
+      expect(entry.getPropInfo(entry.getProperties().find((p: Any) => p.key === 'Name')).editable, name).toBe(true);
+      for (const key of shownKeys(entry)) {
+        expect(entry.getPropInfo(entry.getProperties().find((p: Any) => p.key === key)).editable, `${name} ${key}`).toBe(false);
+      }
+      expect([entry.valueEditable, entry.descriptionEditable, entry.toRow()._descriptionEditable], name).toEqual([false, false, false]);
+    }
+  });
+});
+
+describe.each(OTHER_CASES)('the entry %s, holding its properties beside its class', (name, value, node, edits) => {
+  it('is copied as it was read', () => {
+    const { root } = openOther();
+    // Opened as its class, with no rows, as it opened before.
+    expect([entryOf(root, name).constructor.name, entryOf(root, name).children.length]).toEqual([node, 0]);
+    expect(entryOf(root, name).serialize().value).toEqual(value);
+    expect(copyOf(entryOf(root, name))).toEqual(JSON.parse(JSON.stringify(value)));
+  });
+
+  it('is renamed, and saved under its new name with its value as it was read', () => {
+    const { session, root } = openOther();
+    expect(entryOf(root, name).setProperty('Name', name + 'R')).toBe(true);
+    const out = session.serializeSource(root.name)!;
+    expect(savedValue(out.text, name)).toBeUndefined();
+    expect(savedValue(out.text, name + 'R')).toEqual(value);
+    expect(entryOf(root, name + 'R').serialize().value).toEqual(value);
+  });
+
+  it('refuses an edit to any property but its name, which the save would drop, and the save is unchanged', () => {
+    const { session, root } = openOther();
+    const entry = entryOf(root, name);
+    for (const [prop, text] of [['Description', 'x'], ...edits] as [string, string][]) {
+      expect(entry.setProperty(prop, text), prop).toMatchObject({ error: true, reason: editRefusal(name), invalidValue: text });
+    }
+    expect(session.serializeSource(root.name)!.text).toBe(OTHER_DICTIONARY);
   });
 });

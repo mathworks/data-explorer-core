@@ -70,6 +70,22 @@ export default class SimulinkObjectNode extends DataNode {
         }
         return this._serializeSimulinkObject(this._serializedOverrides());
     }
+    // An object whose properties are held beside its class is written as it was read
+    // (DataNode._inlineObjectBag, _serializeSimulinkObject), so it is shown as read: it takes an
+    // edit of its name alone, and offers no editor for anything else. A subclass whose own
+    // setProperty answers before this one asks _refuseInlineBagEdit first itself.
+    get valueEditable() {
+        return !this._inlineObjectBag() && super.valueEditable;
+    }
+    get descriptionEditable() {
+        return !this._inlineObjectBag() && super.descriptionEditable;
+    }
+    getPropInfo(PropClassRef) {
+        return this._inlineBagPropInfo(super.getPropInfo(PropClassRef));
+    }
+    setProperty(propName, stringValue) {
+        return this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
+    }
     /**
      * The write-back gate for properties whose absence from the file is meaningful: keep a
      * candidate when the FILE already carried its key, or when the node now holds a value for

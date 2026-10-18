@@ -18,6 +18,8 @@ export default class SignalNode extends DataNode {
     get dataType(): string;
     getProperties(): PropClass[];
     getPILayout(): PIGroupDef[] | null;
+    get descriptionEditable(): boolean;
+    getPropInfo(PropClassRef: PropClass): ReturnType<DataNode['getPropInfo']>;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     _getSerializedProperties(): Record<string, unknown>;
     serializeValue(): unknown;

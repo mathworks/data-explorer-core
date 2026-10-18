@@ -1,4 +1,6 @@
 import DataNode from './DataNode.js';
+import type { SetPropertyResult } from './DataNode.js';
+import type { PropClass } from './BaseNode.js';
 /**
  * A dictionary entry that saves as a Simulink object: its live values are written back over
  * the property bag the FILE held.
@@ -54,6 +56,10 @@ export default class SimulinkObjectNode extends DataNode {
     _serializedOverrides(): Record<string, unknown>;
     _getSerializedProperties(): Record<string, unknown>;
     serializeValue(): unknown;
+    get valueEditable(): boolean;
+    get descriptionEditable(): boolean;
+    getPropInfo(PropClassRef: PropClass): ReturnType<DataNode['getPropInfo']>;
+    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     /**
      * The write-back gate for properties whose absence from the file is meaningful: keep a
      * candidate when the FILE already carried its key, or when the node now holds a value for

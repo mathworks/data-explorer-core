@@ -17,6 +17,12 @@ export default class BreakpointNode extends SimulinkObjectNode {
     // An edit is refused in MATLAB's words, rather than accepted and saved as a key MATLAB
     // ignores on load, which is what an edit here used to do.
     setProperty(propName, stringValue) {
+        // One whose properties are held beside its class, which the save writes back as read, refuses
+        // every edit but a rename in one message (DataNode._refuseInlineBagEdit).
+        const inlineRefusal = this._refuseInlineBagEdit(propName, stringValue);
+        if (inlineRefusal) {
+            return inlineRefusal;
+        }
         if (propName === 'Description') {
             return { error: true, reason: `Unrecognized property 'Description' for class '${CLASS_NAME}'.`, invalidValue: stringValue, validValue: this.Description };
         }
