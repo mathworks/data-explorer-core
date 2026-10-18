@@ -278,6 +278,31 @@ describe('an empty bus or connection bus', () => {
     expect([elementsOf(saved, 'MyBus'), elementsOf(saved, 'MyConnBus'), elementsOf(saved, 'NewBus')]).toEqual([EMPTY_BUS, EMPTY_CONN, EMPTY_BUS]);
   });
 
+  it('and one pasted into a text dictionary is written `[]`, as MATLAB writes an empty bus there, and so reopened', () => {
+    // MATLAB's own text dictionaries hold `[]` for an empty bus, and MATLAB reads core's `[]`
+    // back as an empty BusElement array (D8-READBACKS M3, save_readbacks.truth.json). Before
+    // 1A-TEXT the bus read out of a binary dictionary was written `''`, a char 0x0, there.
+    const { session, root } = open(emptied(), PARAMS);
+    const txt: any = ingest(session, buffer(bytesAt('./parity/artifacts/text/params.sldd')), { filename: 'params_text.sldd' });
+    const design = txt.getSection('design');
+    ['MyBus', 'MyConnBus'].forEach((name, k) => {
+      const payload: any = JSON.parse(JSON.stringify(entryNode(root, name).serialize()));
+      payload.name = name + 'Copy';
+      payload.metadata = { ...design.children[0].metadata, uuid: '00000000-0000-4000-a400-' + String(k + 1).padStart(12, '0') };
+      design.parseEntry(payload);
+    });
+    const text = session.serializeSource(txt.name)!.text!;
+    const entries: any[] = JSON.parse(text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const elementsOfText = (name: string) => entries.find((e) => e.name === name).value._elements[0]._properties.Elements_internal;
+    expect([elementsOfText('MyBusCopy'), elementsOfText('MyConnBusCopy')]).toEqual([[], []]);
+    expect(text).not.toContain('_binary_empty');
+    const again: any = ingest(createSession(), buffer(strToU8(text)), { filename: 'reopened_text.sldd' });
+    for (const name of ['MyBusCopy', 'MyConnBusCopy']) {
+      const bus = entryNode(again, name);
+      expect([bus.className, bus.children], name).toEqual([name === 'MyBusCopy' ? 'Simulink.Bus' : 'Simulink.ConnectionBus', []]);
+    }
+  });
+
   it('an object array holding no element is written so too, where its size says it holds none', () => {
     const empty = { _array_class: 'WidgetPart', _dimensions: [0, 3], _mw_element_type: 'MATLABArray', _elements: [] };
     expect(DataNode.serializePropertyXml('Parts', empty, 0, null)).toBe('<P Name="Parts" Class="WidgetPart" Dimension="0*3"/>');
