@@ -1524,7 +1524,8 @@ export function createSession(opts = {}) {
     // What puts `propertyName` back on `node` as it stands now, from the node itself, or null
     // where the text readPropertyValue reads is what restores it. A node offers one where that
     // text is not the value: a MATLAB value's `[ ]`, which every empty shows whatever its size
-    // and class (MatlabVariableNode._restorerFor).
+    // and class (MatlabVariableNode._restorerFor), and a Parameter's Value, whose text does not
+    // read back as a complex array, an integer or single class or a struct (ParameterNode._restorerFor).
     function propertyRestorer(node, propertyName) {
         const restorerFor = node._restorerFor;
         return typeof restorerFor === 'function' ? restorerFor.call(node, propertyName) : null;

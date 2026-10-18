@@ -1088,6 +1088,21 @@ exactly `formatNumLiteral`'s rule, which the ARRAY path already used, so the sam
 spelled itself two ways depending on whether it had siblings. Churn rather than loss —
 the `_type` tag carries the class — and now consistent, from one helper.
 
+**A -0: kept in a typed literal, dropped as a bare number, both as MATLAB does.** Measured
+(R2027a, `test/numbers/make_negative_zero.m`, `negzero.truth.json`): MATLAB's text writer
+spells a typed -0 with its sign (single(-0) `-0.0F`, [-0;1] `Matrix(2,1)\n[-0.0, 1.0]`,
+[-0 Inf] `[-0.0, Inf]`) and reads each back as -0, and `-0F` and `[-0F, 1F]` too. A BARE
+double it writes as a JSON number without the sign: -0, [-0 1], {-0}, struct('a',-0) and a
+Parameter's Value of -0 go down as `0`, `[0, 1]`, `[0]`, `"a": 0` and `"Value": 0`, and come
+back +0. `formatNumLiteral` spelled a typed -0 as `0F` and `0.0` (String(-0) is `0`), and
+the binary reader holds a single, a column, a matrix and a row beside a non-finite as that
+literal, so a binary dictionary's -0 there lost its sign at the read: in the value, in a
+paste into a text dictionary, and in its own save. A text dictionary's lost it at the first
+edit of another element of the same array. It writes `-0F` and `-0.0` now. A bare double
+stays `0`, which is `JSON.stringify`'s spelling and MATLAB's own, so the text save has no
+replacer. The display stays sign-blind (`formatMatlabNum`), as MATLAB shows a -0 as 0.
+Pinned by `test/negativeZero.test.ts`.
+
 ### The binary channel: asking MATLAB to read the XML we write
 
 Everything above was measured on the TEXT dictionary, whose `_value` is a JSON literal.

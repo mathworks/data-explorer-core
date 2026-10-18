@@ -8,6 +8,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { emptyHeaderDims } from '../../parser/XmlUtils.js';
+import { isElement, reportNotElements } from './notAnElement.js';
 // An empty as the binary reader holds one: a class under the bare `Matrix(…)` header of a size
 // with a 0 in it (BinarySlddParser.emptyOf).
 function isTypedEmpty(v) {
@@ -237,6 +238,11 @@ export class BaseBusNode extends DataNode {
         const busElements = props.Elements_internal;
         if (busElements && busElements._elements) {
             busElements._elements.forEach(function (busElem) {
+                // An element that is not one (a hand-edited `null`, number or string) gets no
+                // row, as one holding no properties gets none below; reported after the loop.
+                if (!isElement(busElem)) {
+                    return;
+                }
                 const childProps = busElem._properties || {};
                 const elemName = childProps.Name || '';
                 // Skip phantom elements with empty properties — these arise when a
@@ -249,6 +255,11 @@ export class BaseBusNode extends DataNode {
                 const childNode = new ElementNodeClass(elemName, node, childProps, childSerial);
                 node.addChild(childNode);
             });
+            // Said once for the entry, and the value kept as read, so an untouched save writes
+            // it back whole; the rows are all an edit writes (C-190).
+            if (reportNotElements(busElements._elements, name, 'bus element', 'bus')) {
+                node._keepNullElement(rawVal);
+            }
         }
         else if (busElements && busElements._properties) {
             const childProps = busElements._properties;

@@ -1,0 +1,86 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "seed": 2.0261018E+7,
+  "dictionary": "battery_binary.sldd",
+  "entries": [
+    {
+      "name": "battery_d",
+      "class": "double",
+      "isComplex": false,
+      "size": [
+        1,
+        2109
+      ],
+      "bin": "battery_d.bin",
+      "bitsEqual": true
+    },
+    {
+      "name": "battery_s",
+      "class": "single",
+      "isComplex": false,
+      "size": [
+        1,
+        1807
+      ],
+      "bin": "battery_s.bin",
+      "bitsEqual": true
+    },
+    {
+      "name": "edge_d",
+      "class": "double",
+      "isComplex": false,
+      "size": [
+        1,
+        50
+      ],
+      "bin": "edge_d.bin",
+      "bitsEqual": true
+    },
+    {
+      "name": "edge_s",
+      "class": "single",
+      "isComplex": false,
+      "size": [
+        1,
+        28
+      ],
+      "bin": "edge_s.bin",
+      "bitsEqual": true
+    },
+    {
+      "name": "edge_c",
+      "class": "double",
+      "isComplex": true,
+      "size": [
+        1,
+        6
+      ],
+      "bin": "edge_c.bin",
+      "bitsEqual": true
+    },
+    {
+      "name": "edge_cs",
+      "class": "single",
+      "isComplex": true,
+      "size": [
+        1,
+        5
+      ],
+      "bin": "edge_cs.bin",
+      "bitsEqual": true
+    }
+  ],
+  "edgeP": {
+    "name": "edge_p",
+    "class": "Simulink.Parameter",
+    "isComplex": false,
+    "size": [
+      1,
+      1
+    ],
+    "bin": "",
+    "bitsEqual": true,
+    "minSignbit": true
+  }
+}

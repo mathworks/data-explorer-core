@@ -13,6 +13,7 @@ import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
+import { isElement, reportNotElements } from './notAnElement.js';
 
 const CLASS_NAME = 'Simulink.data.dictionary.EnumTypeDefinition';
 
@@ -173,10 +174,18 @@ export class EnumTypeNode extends DataNode {
         const node = new EnumTypeNode(name, parent, props, serial as Record<string, unknown>);
         if (enumerals._elements) {
             (enumerals._elements as Record<string, unknown>[]).forEach(function (en) {
+                // An enumeral that is not one (a hand-edited `null`, number or string) gets no
+                // row; reported after the loop.
+                if (!isElement(en)) { return; }
                 const enumName = (en.Name as string) || '';
                 const childNode = new EnumValueNode(enumName, node, en);
                 node.addChild(childNode);
             });
+            // Said once for the entry, and the value kept as read, so an untouched save writes
+            // it back whole; the rows are all an edit writes (C-190).
+            if (reportNotElements(enumerals._elements as unknown[], name, 'enumeral', 'enumeration')) {
+                node._keepNullElement(rawVal);
+            }
         }
         return node;
     }

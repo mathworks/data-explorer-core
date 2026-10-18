@@ -40,8 +40,10 @@ export declare function readDictionaryXml(text: string, entries?: ReadEntrySpans
  */
 export declare function readDictionaryXmlGeneric(text: string): unknown;
 /**
- * One part of a `.slx` or `.mdl` package. Engine defaults: text is trimmed, and a lone
- * child stays an object, so a walker over one of these has to coerce to an array itself.
+ * One part of a `.slx` or `.mdl` package. Text is the text the part holds, entity-decoded
+ * and never converted, so `false` and `10.0` arrive as those characters. Otherwise the
+ * engine's defaults: text is trimmed, and a lone child stays an object, so a walker over
+ * one of these has to coerce to an array itself.
  */
 export declare function readModelXml(text: string): unknown;
 /** One `<Info>` sidecar of a `.prj` store. Same options as a model part. */

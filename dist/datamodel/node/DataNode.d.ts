@@ -140,6 +140,16 @@ export default class DataNode extends BaseNode {
     _renameField(from: string, to: string): void;
     _markModified(): void;
     _stampLastModified(): void;
+    /**
+     * What puts this node back as it stands now: every own field but those in `leaves`, and its
+     * list of children, held now and put back when it is called. For a node's `_restorerFor`
+     * (DataModel.editProperty), for the undo of a Value edit about to be made, by a node whose
+     * Value edit assigns every field it changes and changes nothing it found in place, so that
+     * what it holds now is still the value it was: MatlabVariableNode's (_applyParsed) and
+     * ParameterNode's. `_rawInput` comes back with the rest, so a value undone is written as it
+     * was read.
+     */
+    _ownStateRestorer(leaves: ReadonlySet<string>): () => void;
     serialize(): unknown;
     /**
      * The format of the file this node is in, as the nearest container above it states it
@@ -572,6 +582,24 @@ export default class DataNode extends BaseNode {
     /** Whether each extent of a `Matrix(…)` header parses to the count its digits say, or there is no header. */
     static _headerExact(text: string): boolean;
     /**
+     * The extents an mxchar literal's `Matrix(…)` header declares and the number of codes its body
+     * holds, when the two disagree, or null: `Matrix(1,5)\n[97, 98, 99]` is [1,5] over 3 codes. No
+     * Dimension spells such a char: written with the header it is XML whose body does not fill its
+     * Dimension, and with the text's own size a row, which is another value (_mxCharRefusal).
+     */
+    static _mxCharDisagreement(text: string): {
+        dims: number[];
+        count: number;
+    } | null;
+    /**
+     * The refusal of such a char (_mxCharDisagreement) at `path` in entry `entry`. Not a budget
+     * refusal: it is a char no Dimension spells, and nothing is written in its place.
+     */
+    static _mxCharRefusal(odd: {
+        dims: number[];
+        count: number;
+    }, entry: string, path: string): MatWriteError;
+    /**
      * A refusal of a write that began at this node, restated for a user: the entry — the one
      * above, or, for a node a writer built on its own to write a raw property value
      * (_detachedXml), the one it was built for — and the path to it.
@@ -585,9 +613,9 @@ export default class DataNode extends BaseNode {
     _spellableOrRefuse(dims: unknown, cls: string, header?: string): void;
     /**
      * Refuses to write this node's value as a text dictionary's JSON, or copy it there, when its
-     * dims hold NaN, an infinity or a bigint, which JSON writes as null or cannot write
-     * (parser/Size, isTextExtent), naming the entry and the path, as _spellableOrRefuse does for
-     * a Dimension.
+     * dims hold NaN, an infinity, a bigint, undefined, a function, a symbol or a hole, which JSON
+     * writes as null or cannot write (parser/Size, isTextExtent), naming the entry and the path,
+     * as _spellableOrRefuse does for a Dimension.
      */
     _textSpellableOrRefuse(dims: unknown, cls: string): void;
     /**
