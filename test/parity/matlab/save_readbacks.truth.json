@@ -1,0 +1,471 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-10-17",
+  "cases": [
+    {
+      "check": "M1",
+      "file": "m1_binary.sldd",
+      "section": "config",
+      "entry": "slConfigSetHDLCoderR",
+      "kind": "configset",
+      "fragment": {
+        "length": 61882,
+        "sha256": "8dc45c6d8c37c6a41daed6654bdf5ff1549c31d9755c04435c7765da4f7a4b5b"
+      },
+      "matlab": {
+        "class": "Simulink.ConfigSet",
+        "size": [
+          1,
+          1
+        ],
+        "components": {
+          "size": [
+            10,
+            1
+          ],
+          "classes": [
+            "Simulink.SolverCC",
+            "Simulink.DataIOCC",
+            "Simulink.OptimizationCC",
+            "Simulink.DebuggingCC",
+            "Simulink.HardwareCC",
+            "Simulink.ModelReferenceCC",
+            "Simulink.SFSimCC",
+            "Simulink.RTWCC",
+            "SlCovCC.ConfigComp",
+            "hdlcoderui.hdlcc"
+          ],
+          "DefaultParameterBehavior": "Tunable",
+          "StopTime": "10.0"
+        }
+      }
+    },
+    {
+      "check": "M1",
+      "file": "m1_text.sldd",
+      "section": "config",
+      "entry": "slConfigSetHDLCoderPasted",
+      "kind": "configset",
+      "fragment": {
+        "length": 24440,
+        "sha256": "3d42b9dd89bedb4251b0518e6b1cf3ab0e809565d2fbe6ebc38361d1c6a93bfe"
+      },
+      "matlab": {
+        "class": "Simulink.ConfigSet",
+        "size": [
+          1,
+          1
+        ],
+        "components": {
+          "size": [
+            10,
+            1
+          ],
+          "classes": [
+            "Simulink.SolverCC",
+            "Simulink.DataIOCC",
+            "Simulink.OptimizationCC",
+            "Simulink.DebuggingCC",
+            "Simulink.HardwareCC",
+            "Simulink.ModelReferenceCC",
+            "Simulink.SFSimCC",
+            "Simulink.RTWCC",
+            "SlCovCC.ConfigComp",
+            "hdlcoderui.hdlcc"
+          ],
+          "DefaultParameterBehavior": "Tunable",
+          "StopTime": "10.0"
+        }
+      }
+    },
+    {
+      "check": "M1",
+      "file": "dNJSON_SLDDApi_opc.sldd",
+      "section": "config",
+      "entry": "slConfigSetHDLCoder",
+      "kind": "configset",
+      "fragment": "",
+      "control": "MATLAB's own file",
+      "matlab": {
+        "class": "Simulink.ConfigSet",
+        "size": [
+          1,
+          1
+        ],
+        "components": {
+          "size": [
+            10,
+            1
+          ],
+          "classes": [
+            "Simulink.SolverCC",
+            "Simulink.DataIOCC",
+            "Simulink.OptimizationCC",
+            "Simulink.DebuggingCC",
+            "Simulink.HardwareCC",
+            "Simulink.ModelReferenceCC",
+            "Simulink.SFSimCC",
+            "Simulink.RTWCC",
+            "SlCovCC.ConfigComp",
+            "hdlcoderui.hdlcc"
+          ],
+          "DefaultParameterBehavior": "Tunable",
+          "StopTime": "10.0"
+        }
+      }
+    },
+    {
+      "check": "M2",
+      "file": "m2_binary_custom.sldd",
+      "section": "design",
+      "entry": "gearValueR",
+      "kind": "enum",
+      "fragment": "<P Name=\"Value\" IsEnum=\"1\">\n            <Element Class=\"GearMode\" EnumerationName=\"Reverse\" EnumerationType=\"int32\">-1</Element>\n        </P>",
+      "matlab": {
+        "class": "GearMode",
+        "size": [
+          1,
+          1
+        ],
+        "enumerals": [
+          "Reverse"
+        ]
+      }
+    },
+    {
+      "check": "M2",
+      "file": "m2_text_custom.sldd",
+      "section": "design",
+      "entry": "gearValueP",
+      "kind": "enum",
+      "fragment": "{\"_array_class\":\"GearMode\",\"_dimensions\":[1,1],\"_elements\":[{\"_enum_value\":{\"_type\":\"int32\",\"_value\":\"-1\"}}],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "GearMode",
+        "size": [
+          1,
+          1
+        ],
+        "enumerals": [
+          "Reverse"
+        ]
+      }
+    },
+    {
+      "check": "M2",
+      "file": "m2_binary_custom.sldd",
+      "section": "design",
+      "entry": "gearRowR",
+      "kind": "enum",
+      "fragment": "<P Name=\"Value\" IsEnum=\"1\" Dimension=\"1*3\">\n            <Element Class=\"GearMode\" EnumerationName=\"Park\" EnumerationType=\"int32\">0</Element>\n            <Element Class=\"GearMode\" EnumerationName=\"Drive\" EnumerationType=\"int32\">1</Element>\n            <Element Class=\"GearMode\" EnumerationName=\"Reverse\" EnumerationType=\"int32\">-1</Element>\n        </P>",
+      "matlab": {
+        "class": "GearMode",
+        "size": [
+          1,
+          3
+        ],
+        "enumerals": [
+          "Park",
+          "Drive",
+          "Reverse"
+        ]
+      }
+    },
+    {
+      "check": "M2",
+      "file": "m2_text_custom.sldd",
+      "section": "design",
+      "entry": "gearRowP",
+      "kind": "enum",
+      "fragment": "{\"_array_class\":\"GearMode\",\"_dimensions\":[1,1],\"_elements\":[{\"_enum_value\":{\"_type\":\"int32\",\"_value\":\"[0, 1, -1]\"}}],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "GearMode",
+        "size": [
+          1,
+          3
+        ],
+        "enumerals": [
+          "Park",
+          "Drive",
+          "Reverse"
+        ]
+      }
+    },
+    {
+      "check": "M2",
+      "file": "m2_binary_custom.sldd",
+      "section": "other",
+      "entry": "widgetR",
+      "kind": "enumProperty",
+      "fragment": "<P Name=\"Mode\" IsEnum=\"1\">\n                    <Element Class=\"GearMode\" EnumerationName=\"Reverse\" EnumerationType=\"int32\">-1</Element>\n                </P>",
+      "matlab": {
+        "class": "GearMode",
+        "size": [
+          1,
+          1
+        ],
+        "enumerals": [
+          "Reverse"
+        ]
+      }
+    },
+    {
+      "check": "M2",
+      "file": "m2_text_custom.sldd",
+      "section": "other",
+      "entry": "widgetP",
+      "kind": "enumProperty",
+      "fragment": "{\"_array_class\":\"GearMode\",\"_dimensions\":[1,1],\"_elements\":[{\"_enum_value\":{\"_type\":\"int32\",\"_value\":\"-1\"}}],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "GearMode",
+        "size": [
+          1,
+          1
+        ],
+        "enumerals": [
+          "Reverse"
+        ]
+      }
+    },
+    {
+      "check": "M2",
+      "file": "m2_binary_empty.sldd",
+      "section": "design",
+      "entry": "e_En2R",
+      "kind": "enum",
+      "fragment": "<P Name=\"Value\" IsEnum=\"1\" Class=\"dProbeColors\" Dimension=\"0*2\"/>",
+      "matlab": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ],
+        "enumerals": []
+      }
+    },
+    {
+      "check": "M2",
+      "file": "m2_text_empty.sldd",
+      "section": "design",
+      "entry": "e_En2P",
+      "kind": "enum",
+      "fragment": "{\"_type\":\"dProbeColors\",\"_value\":\"Matrix(0,2)\"}",
+      "matlab": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ],
+        "enumerals": []
+      }
+    },
+    {
+      "check": "M2",
+      "file": "m2_binary_empty.sldd",
+      "section": "design",
+      "entry": "e_En0R",
+      "kind": "enum",
+      "fragment": "<P Name=\"Value\" IsEnum=\"1\" Class=\"dProbeColors\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ],
+        "enumerals": []
+      }
+    },
+    {
+      "check": "M2",
+      "file": "m2_text_empty.sldd",
+      "section": "design",
+      "entry": "e_En0P",
+      "kind": "enum",
+      "fragment": "{\"_type\":\"dProbeColors\",\"_value\":\"[]\"}",
+      "matlab": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ],
+        "enumerals": []
+      }
+    },
+    {
+      "check": "M3",
+      "file": "m3_bus_binary.sldd",
+      "section": "design",
+      "entry": "btBus",
+      "kind": "bus",
+      "fragment": "<P Name=\"Elements_internal\" Class=\"Simulink.BusElement\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "Simulink.Bus",
+        "size": [
+          1,
+          1
+        ],
+        "elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "check": "M3",
+      "file": "m3_bus_binary.sldd",
+      "section": "design",
+      "entry": "busNew",
+      "kind": "bus",
+      "fragment": "<P Name=\"Elements_internal\" Class=\"Simulink.BusElement\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "Simulink.Bus",
+        "size": [
+          1,
+          1
+        ],
+        "elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "check": "M3",
+      "file": "m3_old_char.sldd",
+      "section": "design",
+      "entry": "btBus",
+      "kind": "bus",
+      "fragment": "<P Name=\"Elements_internal\" Class=\"char\"/>",
+      "matlab": {
+        "class": "Simulink.Bus",
+        "size": [
+          1,
+          1
+        ],
+        "elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "check": "M3",
+      "file": "m3_old_char.sldd",
+      "section": "design",
+      "entry": "busNew",
+      "kind": "bus",
+      "fragment": "<P Name=\"Elements_internal\" Class=\"char\"/>",
+      "matlab": {
+        "class": "Simulink.Bus",
+        "size": [
+          1,
+          1
+        ],
+        "elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "check": "M3",
+      "file": "m3_old_double.sldd",
+      "section": "design",
+      "entry": "btBus",
+      "kind": "bus",
+      "fragment": "<P Name=\"Elements_internal\" Class=\"double\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "Simulink.Bus",
+        "size": [
+          1,
+          1
+        ],
+        "elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "check": "M3",
+      "file": "m3_old_double.sldd",
+      "section": "design",
+      "entry": "busNew",
+      "kind": "bus",
+      "fragment": "<P Name=\"Elements_internal\" Class=\"double\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "Simulink.Bus",
+        "size": [
+          1,
+          1
+        ],
+        "elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "check": "M3",
+      "file": "m3_bus_text.sldd",
+      "section": "design",
+      "entry": "btBus",
+      "kind": "bus",
+      "fragment": "[]",
+      "matlab": {
+        "class": "Simulink.Bus",
+        "size": [
+          1,
+          1
+        ],
+        "elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "check": "M3",
+      "file": "m3_bus_text.sldd",
+      "section": "design",
+      "entry": "busNew",
+      "kind": "bus",
+      "fragment": "[]",
+      "matlab": {
+        "class": "Simulink.Bus",
+        "size": [
+          1,
+          1
+        ],
+        "elements": {
+          "class": "Simulink.BusElement",
+          "size": [
+            0,
+            0
+          ]
+        }
+      }
+    }
+  ]
+}
