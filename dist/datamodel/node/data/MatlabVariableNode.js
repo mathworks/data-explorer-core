@@ -22,7 +22,7 @@ import { dimsText, isSize, isStreamSize } from '../../parser/Size.js';
 import { classPhrase, classRefusal, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
-import { charNeedsShape, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
+import { charNeedsShape, charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
 // The pure rules about a MATLAB VALUE — what class an edit leaves behind, when a
@@ -2612,7 +2612,8 @@ export default class MatlabVariableNode extends DataNode {
             // this body wants: its own 2x2 ['ab'; 'cd'] is `Dimension="2*2">acbd`. Only the
             // Dimension was missing, so every char BUT a row went out claiming 1xN — a 3x1
             // came back transposed and a 2x3x2 came back flat (defect 25). A row and an
-            // empty char carry no attribute, exactly as MATLAB leaves them.
+            // empty char carry no attribute, exactly as MATLAB leaves them, except a row over
+            // 512 characters, which MATLAB gives its `Dimension="1*N"` (charRowDimension).
             const text = String(val);
             const dims = this._textDims(text);
             // Except a char MATLAB writes as its CODES (XmlUtils.WRITTEN_AS_CODES), which states
@@ -2622,7 +2623,7 @@ export default class MatlabVariableNode extends DataNode {
             if (codes) {
                 return p + '<' + tagName + attrStr + ' Class="char"' + codes.attrs + '>' + codes.body + '</' + tagName + '>';
             }
-            const dimAttr = charNeedsShape(dims) ? ' Dimension="' + dims.join('*') + '"' : '';
+            const dimAttr = charNeedsShape(dims) ? ' Dimension="' + dims.join('*') + '"' : charRowDimension(text, dims);
             return p + '<' + tagName + attrStr + ' Class="char"' + dimAttr + '>' + escapeXml(text) + '</' + tagName + '>';
         }
         if (type === 'logical') {

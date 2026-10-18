@@ -299,6 +299,25 @@ export declare function formatMatrixSerial(values: unknown[], dims: number[], ty
  */
 export declare function charNeedsShape(dims: number[]): boolean;
 /**
+ * The longest 1xN char row MATLAB writes into a binary dictionary with no Dimension.
+ *
+ * Measured on R2027a (test/fixtures/make_char_rowdim.m, char_rowdim_binary.sldd): a row
+ * of 512 has none, and one of 513 is `Class="char" Dimension="1*513"`. That holds at an
+ * entry's Value, a cell element, a struct field, a Parameter's Description, a string's
+ * element and an object's property. N counts MATLAB char elements (UTF-16 code units), not
+ * bytes: `é` x512 has none, and 256 `&<` pairs, 2,560 bytes once escaped, have none. A
+ * newline or a CRLF in the row changes nothing. MATLAB reads a row back the same either way,
+ * so this is byte fidelity only.
+ */
+export declare const MATLAB_CHAR_ROW_DIM_THRESHOLD = 512;
+/**
+ * The Dimension MATLAB states on a char ROW written as text: `' Dimension="1*N"'` when
+ * the row is longer than MATLAB_CHAR_ROW_DIM_THRESHOLD, and `''` otherwise. A shape that
+ * is not a row is charNeedsShape's to state, and this says nothing of it. `text.length` is
+ * the count of UTF-16 code units, which is what MATLAB counts.
+ */
+export declare function charRowDimension(text: string, dims: number[]): string;
+/**
  * The char codes of a stored (column-major) string, in the row-major order the
  * `Matrix()` literal lays out — the same order parseMatrixValue and
  * DataNode._parseMatrixNums read back.

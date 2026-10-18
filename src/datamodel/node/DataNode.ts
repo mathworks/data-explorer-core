@@ -14,6 +14,7 @@ import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } 
 import { validateMatlabName } from '../matlabName.js';
 import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
 import {
+  charRowDimension,
   charTextFromCodes,
   decimalCharXml,
   escapeXml,
@@ -1330,7 +1331,7 @@ export default class DataNode extends BaseNode {
       if (codes) {
         return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + codes.attrs + '>' + codes.body + '</P>';
       }
-      return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(value) + '</P>';
+      return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + charRowDimension(value, [1, value.length]) + '>' + escapeXml(value) + '</P>';
     }
     if (Array.isArray(value)) {
       if (value.length === 0) {
@@ -1409,7 +1410,8 @@ export default class DataNode extends BaseNode {
         );
       }
     }
-    return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(String(value)) + '</P>';
+    const text = String(value);
+    return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + charRowDimension(text, [1, text.length]) + '>' + escapeXml(text) + '</P>';
   }
 
   /**
@@ -1432,7 +1434,7 @@ export default class DataNode extends BaseNode {
       // No header: nothing to state, and the body is already the text (see
       // MatlabVariableNode.parseMxChar, which reads the same shape back as a row).
       const text = String(value._value);
-      return decimalCharXml(text, [1, text.length]) ?? { attrs: '', body: escapeXml(text) };
+      return decimalCharXml(text, [1, text.length]) ?? { attrs: charRowDimension(text, [1, text.length]), body: escapeXml(text) };
     }
     const dims = m[1].split(',').map(function (s: string) {
       return parseInt(s, 10);
@@ -1472,7 +1474,8 @@ export default class DataNode extends BaseNode {
     xml += ip2 + '<P Source="saveobj" PropertyType="any" Class="cell"' + dimAttr + '>\n';
     for (const el of elements) {
       // `|| ''`: a `missing` element is null in the model, and has no text to write.
-      xml += ip3 + '<Element Class="char">' + escapeXml((el as string) || '') + '</Element>\n';
+      const text = (el as string) || '';
+      xml += ip3 + '<Element Class="char"' + charRowDimension(text, [1, text.length]) + '>' + escapeXml(text) + '</Element>\n';
     }
     xml += ip2 + '</P>\n';
     xml += ip + '</Element>\n';
@@ -1997,7 +2000,7 @@ export default class DataNode extends BaseNode {
       if (codes) {
         return p + '<Element Class="char"' + codes.attrs + '>' + codes.body + '</Element>';
       }
-      return p + '<Element Class="char">' + escapeXml(elem) + '</Element>';
+      return p + '<Element Class="char"' + charRowDimension(elem, [1, elem.length]) + '>' + escapeXml(elem) + '</Element>';
     }
     if (Array.isArray(elem)) {
       if (elem.length === 0) {
@@ -2103,7 +2106,8 @@ export default class DataNode extends BaseNode {
         return DataNode._stringXml('Element', '', elements, (obj._dimensions as number[]) || [1, elements.length], indent);
       }
     }
-    return p + '<Element Class="char">' + escapeXml(String(elem)) + '</Element>';
+    const text = String(elem);
+    return p + '<Element Class="char"' + charRowDimension(text, [1, text.length]) + '>' + escapeXml(text) + '</Element>';
   }
 
   /**

@@ -10,7 +10,7 @@ import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import { validateMatlabName } from '../matlabName.js';
 import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
-import { charTextFromCodes, decimalCharXml, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
+import { charRowDimension, charTextFromCodes, decimalCharXml, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -1193,7 +1193,7 @@ export default class DataNode extends BaseNode {
             if (codes) {
                 return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + codes.attrs + '>' + codes.body + '</P>';
             }
-            return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(value) + '</P>';
+            return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + charRowDimension(value, [1, value.length]) + '>' + escapeXml(value) + '</P>';
         }
         if (Array.isArray(value)) {
             if (value.length === 0) {
@@ -1266,7 +1266,8 @@ export default class DataNode extends BaseNode {
                 return DataNode._serializeStringPropertyXml(name, elements, obj._dimensions || [1, elements.length], indent);
             }
         }
-        return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(String(value)) + '</P>';
+        const text = String(value);
+        return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + charRowDimension(text, [1, text.length]) + '>' + escapeXml(text) + '</P>';
     }
     /**
      * The `Class="char" Dimension="r*c"` attributes and body of an mxchar literal, or
@@ -1288,7 +1289,7 @@ export default class DataNode extends BaseNode {
             // No header: nothing to state, and the body is already the text (see
             // MatlabVariableNode.parseMxChar, which reads the same shape back as a row).
             const text = String(value._value);
-            return decimalCharXml(text, [1, text.length]) ?? { attrs: '', body: escapeXml(text) };
+            return decimalCharXml(text, [1, text.length]) ?? { attrs: charRowDimension(text, [1, text.length]), body: escapeXml(text) };
         }
         const dims = m[1].split(',').map(function (s) {
             return parseInt(s, 10);
@@ -1325,7 +1326,8 @@ export default class DataNode extends BaseNode {
         xml += ip2 + '<P Source="saveobj" PropertyType="any" Class="cell"' + dimAttr + '>\n';
         for (const el of elements) {
             // `|| ''`: a `missing` element is null in the model, and has no text to write.
-            xml += ip3 + '<Element Class="char">' + escapeXml(el || '') + '</Element>\n';
+            const text = el || '';
+            xml += ip3 + '<Element Class="char"' + charRowDimension(text, [1, text.length]) + '>' + escapeXml(text) + '</Element>\n';
         }
         xml += ip2 + '</P>\n';
         xml += ip + '</Element>\n';
@@ -1768,7 +1770,7 @@ export default class DataNode extends BaseNode {
             if (codes) {
                 return p + '<Element Class="char"' + codes.attrs + '>' + codes.body + '</Element>';
             }
-            return p + '<Element Class="char">' + escapeXml(elem) + '</Element>';
+            return p + '<Element Class="char"' + charRowDimension(elem, [1, elem.length]) + '>' + escapeXml(elem) + '</Element>';
         }
         if (Array.isArray(elem)) {
             if (elem.length === 0) {
@@ -1873,7 +1875,8 @@ export default class DataNode extends BaseNode {
                 return DataNode._stringXml('Element', '', elements, obj._dimensions || [1, elements.length], indent);
             }
         }
-        return p + '<Element Class="char">' + escapeXml(String(elem)) + '</Element>';
+        const text = String(elem);
+        return p + '<Element Class="char"' + charRowDimension(text, [1, text.length]) + '>' + escapeXml(text) + '</Element>';
     }
     /**
      * One number out of a typed literal: '3.14159274F', '18446744073709551615U', '-1'.
