@@ -1,0 +1,1 @@
+{"version":3,"file":"PropBankName.d.ts","sourceRoot":"","sources":["../../../src/datamodel/prop/PropBankName.ts"],"names":[],"mappings":"AAGA,OAAO,EAAE,UAAU,EAAE,MAAM,iBAAiB,CAAC;AAM7C,MAAM,CAAC,OAAO,OAAO,YAAY;IAC7B,MAAM,CAAC,GAAG,SAAc;IACxB,MAAM,CAAC,WAAW,SAAe;IACjC,MAAM,CAAC,MAAM,SAAU;IACvB,MAAM,CAAC,MAAM,SAAc;IAE3B,MAAM,CAAC,UAAU,WAAiB;IAElC,MAAM,CAAC,MAAM,oBAAc;CAC9B"}

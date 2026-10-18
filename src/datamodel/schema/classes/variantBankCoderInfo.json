@@ -2,7 +2,8 @@
   "Simulink.VariantBankCoderInfo": {
     "props": [],
     "layout": [
-      { "group": "General", "items": ["name", "value", "dataType", "kind", "class"] }
+      { "group": "General", "items": ["name", "value", "dataType", "kind", "class"] },
+      { "group": "Code Generation", "items": ["coderInfoHeaderFile", "coderInfoDefinitionFile", "preStatement", "postStatement", "qualifier"] }
     ]
   }
 }
