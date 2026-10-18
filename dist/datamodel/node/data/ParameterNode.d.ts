@@ -22,6 +22,8 @@ export default class ParameterNode extends DataNode {
     get dataType(): string;
     get displayValue(): string;
     get valueEditable(): boolean;
+    get descriptionEditable(): boolean;
+    getPropInfo(PropClassRef: PropClass): ReturnType<DataNode['getPropInfo']>;
     _valueIsEnum(): boolean;
     _refuseStreamValue(stringValue: string): SetPropertyResult | null;
     _refuseValueBelow(node: MatlabVariableNode, parsed: ParsedValue, stringValue: string): SetPropertyResult | null;

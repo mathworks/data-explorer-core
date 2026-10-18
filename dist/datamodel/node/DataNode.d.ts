@@ -341,6 +341,34 @@ export default class DataNode extends BaseNode {
      */
     get _encodedReadOnly(): boolean;
     _refuseEncodedEdit(propName: string, stringValue: string): SetPropertyResult | null;
+    /**
+     * Does this object's value hold its properties beside its class, with no element (SER-TE)?
+     *
+     * MATLAB writes an object's properties inside its one element, `{_array_class, _elements:
+     * [{_properties: {…}}]}`, and so does every reader and writer in this package. A text
+     * dictionary is JSON anyone, or any generator, can write, and one can hold them inline
+     * instead, `{_array_class: 'Simulink.Parameter', Value: 0.001, …}`, with no `_elements` (or a
+     * `null` one): three in the local corpus do (complex/base, plant and shared.sldd). A typed
+     * node reads its properties from the element only, so such an entry opens with each at its
+     * default. Its class's serializeValue rebuilt the element from `_elements[0]`, and threw a
+     * TypeError, which failed an untouched save of the whole file, a copy of the entry and the
+     * save after a rename.
+     *
+     * Under the maintainer's ruling (group F, 2026-10-18, option (a)) the value is written back as
+     * it was read, by ParameterNode, the buses and EnumTypeNode, whose serializeValue threw on it.
+     * An edit the replay would drop is refused (_refuseInlineBagEdit), and so is its XML
+     * (_serializeSimulinkObjectXml), which has no spelling for it.
+     */
+    _inlineObjectBag(): boolean;
+    /**
+     * The refusal of an edit to an object holding its properties beside its class
+     * (_inlineObjectBag), or null when the edit may go ahead. Its value is written back as it was
+     * read, so an edit the node took would be dropped by the save; a rename is let through, as
+     * the name lives outside the value. Asked by the setProperty of each class that replays it.
+     */
+    _refuseInlineBagEdit(propName: string, stringValue: string): SetPropertyResult | null;
+    /** `info`, with no editor for any property but the name of an object holding its properties beside its class (_inlineObjectBag). */
+    _inlineBagPropInfo(info: ReturnType<BaseNode['getPropInfo']>): ReturnType<BaseNode['getPropInfo']>;
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _serializeSimulinkObjectXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _getSerializedProperties(): Record<string, unknown>;
@@ -385,6 +413,36 @@ export default class DataNode extends BaseNode {
      */
     static _elementPropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at: PropertyAt | undefined, sources: Record<string, PropertySource> | null): string;
     static serializePropertyXml(name: string, value: unknown, indent: number, ownerNode: DataNode | null, at?: PropertyAt): string;
+    /**
+     * The refusal of a raw value that no arm of the property or cell-element writer has a
+     * spelling for (serializePropertyXml, _serializeCellElementXml), naming the entry and the path
+     * from `at`, or, for a caller that gives none, the property `name`.
+     *
+     * Both writers used to end in `Class="char"` around String() of what was left: an object of
+     * no recognised shape went into the .sldd as the text `[object Object]`, a null or undefined
+     * cell element as `null` or `undefined`, a bigint as its digits, a function as its source.
+     * MATLAB reads each back as a char, which is not the value, and nothing said so. A save that
+     * holds one is refused rather than written wrong (C-205; the maintainer's group F ruling,
+     * 2026-10-18). A MatWriteError and not a MatBudgetError: this writer has no spelling for the
+     * value, which is not a budget.
+     */
+    static _unspellable(value: unknown, name: string, at: PropertyAt | undefined): MatWriteError;
+    /**
+     * The refusal of a function handle by an XML writer, naming the entry and the path (FH-PASTE).
+     * `text` is the handle as this package holds one: `sin`, `@(x) x + 1`, or the bare header of an
+     * empty one's size, `Matrix(0,0)`.
+     *
+     * MATLAB holds a handle in a binary dictionary only inside the hex element of a MAT stream,
+     * which this package cannot write. The writers spelled one through their numeric tails, as
+     * `Class="function_handle">0` or `>NaN<`, and an empty one as `Class="function_handle"
+     * Dimension="0*0"/>`; MATLAB R2027a reads none of those ("Class 'function_handle' is not
+     * supported."). A save that holds one is refused rather than written wrong (the maintainer's
+     * group F ruling, 2026-10-18). A value that holds its own stream is still written as that
+     * hex, at an entry, before any of these writers is asked (_binaryEncoded).
+     */
+    static _handleRefusal(text: string, entry: string, path: string): MatWriteError;
+    /** The same refusal for a handle this node holds, naming the entry and the path as _budgetFailure does. */
+    _handleRefusalHere(text: string): MatWriteError;
     /**
      * The `Class="char" Dimension="r*c"` attributes and body of an mxchar literal, or
      * null for anything else — shared by the property and cell-element writers below.
@@ -479,6 +537,34 @@ export default class DataNode extends BaseNode {
      * and value gone.
      */
     static _enumXml(tag: string, attrs: string, name: string, value: Record<string, unknown>, indent: number, at: PropertyAt | undefined): string;
+    /**
+     * The class `cls` an object is written under, `Class="…"`, where it is a class name, a string
+     * and not the empty one; anything else is refused, naming the entry and the path from `at` (or
+     * from what it answers, asked only then), or, for a caller that gives none, `name`
+     * (OBJCLASS-NONSTRING).
+     *
+     * MATLAB names every class by a string, and a binary dictionary's reader reads every one from
+     * an attribute, but a text dictionary is JSON anyone can edit: `{"_object_class": 5}` or
+     * `"_array_class": ["a"]` opens and shows as read (`<1x1 5>`), and a text save writes it back
+     * as read. Every XML writer of an object handed such a class to escapeXml, which threw a
+     * TypeError, "str.replace is not a function", and a host showed that as the reason the paste or
+     * the save failed. The writer has no spelling for it, and a save that holds one is refused
+     * rather than written wrong (the maintainer's group F ruling, 2026-10-18), with a MatWriteError,
+     * as _unspellable refuses a value of no shape.
+     */
+    static _classOrRefuse(cls: unknown, name: string, at: PropertyAt | undefined | (() => PropertyAt)): string;
+    /**
+     * Refuses `element`, one of an object array's `_elements`, where it names its own class
+     * (`_object_class`) by something that is not a string, as _classOrRefuse refuses an array's.
+     * The reader takes such an element for one of the array's class (elementClassOf), and the
+     * writers wrote it so, the class the file gave it gone. An empty string is the array's, as
+     * elementClassOf has it.
+     */
+    static _ownClassOrRefuse(element: unknown, name: string, at: PropertyAt | undefined | (() => PropertyAt)): void;
+    /** The refusal of `cls` as the class of what stands at `path` of the entry `entry`, quoted as JSON gives it, so far. */
+    static _classRefusal(cls: unknown, entry: string, path: string): MatWriteError;
+    /** Where this node is written, for a refusal: the entry, found as _budgetFailure finds it, and the path to the node. */
+    _whereWritten(): PropertyAt;
     /**
      * Refuses to write a raw property value whose dims no Dimension can spell (parser/Size): a
      * raw cell, struct, object or string bag, an mxchar's or a typed literal's `Matrix(…)`

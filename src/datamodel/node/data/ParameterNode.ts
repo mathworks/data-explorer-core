@@ -138,12 +138,26 @@ export default class ParameterNode extends DataNode {
         if (this._valueIsEnum()) {
             return false;
         }
+        // Nor one whose properties are held beside its class, which is shown as read (DataNode._inlineObjectBag).
+        if (this._inlineObjectBag()) {
+            return false;
+        }
         // Nor a Value read from a MAT stream, which is shown and not edited
         // (MatlabVariableNode._streamHolder). A complex scalar displays whole, so it offered one.
         if (this._refuseStreamValue('')) {
             return false;
         }
         return super.valueEditable;
+    }
+
+    // An object whose properties are held beside its class is shown as read, and takes an edit of
+    // its name alone (DataNode._inlineObjectBag, _refuseInlineBagEdit).
+    get descriptionEditable(): boolean {
+        return !this._inlineObjectBag() && super.descriptionEditable;
+    }
+
+    getPropInfo(PropClassRef: PropClass): ReturnType<DataNode['getPropInfo']> {
+        return this._inlineBagPropInfo(super.getPropInfo(PropClassRef));
     }
 
     // Whether the Value is an enumeration value, as a binary dictionary's reader holds one or as a
@@ -402,6 +416,11 @@ export default class ParameterNode extends DataNode {
         if (encodedRefusal) {
             return encodedRefusal;
         }
+        // Nor one whose properties are held beside its class, which the save writes back as read (DataNode._refuseInlineBagEdit).
+        const inlineRefusal = this._refuseInlineBagEdit(propName, stringValue);
+        if (inlineRefusal) {
+            return inlineRefusal;
+        }
         if (propName === 'Value') {
             const streamRefusal = this._refuseStreamValue(stringValue);
             if (streamRefusal) {
@@ -613,6 +632,11 @@ export default class ParameterNode extends DataNode {
     serializeValue(): unknown {
         if (!writeUnderWay()) {
             return oneWrite(() => this.serializeValue());
+        }
+        // Properties held beside the class, with no element to rebuild, are written as they were
+        // read (DataNode._inlineObjectBag): `_elements[0]` threw a TypeError here.
+        if (this._inlineObjectBag()) {
+            return { ...(this.serial._rawVal as Record<string, unknown>) };
         }
         const props = this._getSerializedProperties();
         const result = { ...(this.serial._rawVal as Record<string, unknown>) };
