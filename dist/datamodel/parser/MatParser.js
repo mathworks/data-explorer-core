@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import { inflateZlib } from './Inflate.js';
+import { InflateCeilingError, inflateZlib } from './Inflate.js';
 import { exactInt } from './XmlUtils.js';
 import { reasonOf } from './ParseWarning.js';
 import { isObjectHandle, objectHandleFromValue } from './McosHandle.js';
@@ -98,8 +98,8 @@ function readNumericArray(view, sub, count, single = false) {
     // Its `default` arm used to push a 0 for each DECLARED element, the one count here no
     // byte bounded: a 64-byte variable read as a million zeros, and a 4 KB file of 60 ran a
     // 512 MB heap out. The full-array arm of parseMatrix records such a payload as not
-    // decoded (unreadablePart). A sparse array's pr of such a type holds no non-zero, as
-    // before: readSparse's `keep` reads a value that is not there as 0, and drops a 0.
+    // decoded (unreadablePart), and so does the sparse arm a pr or a pi of such a type that
+    // non-zeros are placed in (readSparse's `unread`).
     const width = ELEMENT_WIDTH[sub.type];
     if (!width) {
         return values;
@@ -442,15 +442,22 @@ export function structElementsHeld(v) {
 // zero is not a non-zero.
 // `single` is whether the array is of class single, whose non-zeros are read as a full
 // single array's are (readNumericArray).
+//
+// `unread` is why the values of the non-zeros its indices place cannot be read, or null: its
+// real part, or a complex array's imaginary part, is absent, cut short inside its tag, of a
+// type with no width (unreadablePart), or holds fewer values than there are non-zeros. Each
+// value that is not there used to be read as 0 and dropped as one, so such an array showed as
+// a matrix of zeros, or of some of its non-zeros, that the file never held; its caller records
+// it as not decoded instead, as the full-array arm does a part it cannot read.
 function readSparse(view, offset, end, dimensions, isComplex, nzmax, single) {
     const rows = Math.max(0, dimensions[0] || 0);
     const cols = Math.max(0, dimensions[1] || 0);
     // Each of the four reads is guarded by the END OF THIS ELEMENT, the same way the
     // full-array branch guards its real and imaginary payloads. A variable truncated
-    // after its indices — or after its dimensions — leaves the arrays below empty
-    // rather than reading the next variable's tag as this one's data, and every empty
-    // one degrades cleanly: no ir means no non-zeros, so the matrix comes back all
-    // zeros, which is the honest reading of a sparse array whose non-zeros are absent.
+    // after its dimensions leaves the arrays below empty rather than reading the next
+    // variable's tag as this one's data: no ir means no non-zero is placed, so there is
+    // no value to lose, and the matrix comes back all zeros. One truncated after its
+    // indices places non-zeros whose values are not there, which is `unread`.
     let ir = [];
     if (offset < end) {
         const irSub = readSubelement(view, offset);
@@ -475,18 +482,33 @@ function readSparse(view, offset, end, dimensions, isComplex, nzmax, single) {
     // truncated, so its last entry is not the total and ir's own length is the better
     // answer.
     const nnz = Math.max(0, Math.min(jc.length === cols + 1 ? jc[cols] : ir.length, ir.length));
+    // Why the values of a part cannot be read: it is absent, unreadable (unreadablePart), or
+    // holds fewer values than there are non-zeros. An array placing none holds all of them.
+    const partUnread = (at, sub, values, part) => {
+        if (!(nnz > 0)) {
+            return null;
+        }
+        if (!sub) {
+            return 'its indices place ' + nnz + ' non-zero(s) and its bytes end before their ' + part;
+        }
+        return unreadablePart(view, at, sub, nnz, part)
+            ?? (values.length < nnz ? 'its ' + part + ' holds ' + values.length + ' of the ' + nnz + ' values its indices place' : null);
+    };
     let pr = [];
-    if (offset < end) {
-        const prSub = readSubelement(view, offset);
+    const prAt = offset;
+    const prSub = offset < end ? readSubelement(view, offset) : null;
+    if (prSub) {
         offset += prSub.totalSize;
         pr = readNumericArray(view, prSub, nnz, single);
     }
     let pi = [];
-    if (isComplex && offset < end) {
-        const piSub = readSubelement(view, offset);
+    const piAt = offset;
+    const piSub = isComplex && offset < end ? readSubelement(view, offset) : null;
+    if (piSub) {
         offset += piSub.totalSize;
         pi = readNumericArray(view, piSub, nnz, single);
     }
+    const unread = partUnread(prAt, prSub, pr, 'real part') ?? (isComplex ? partUnread(piAt, piSub, pi, 'imaginary part') : null);
     // At most nnz entries, which ir's own bytes bound.
     const rowOut = new Int32Array(nnz);
     const colOut = new Int32Array(nnz);
@@ -540,7 +562,7 @@ function readSparse(view, offset, end, dimensions, isComplex, nzmax, single) {
             keep(row, col, lastEntry.get(row));
         }
     }
-    return {
+    const data = {
         row: rowOut.slice(0, n),
         col: colOut.slice(0, n),
         re: reOut.slice(0, n),
@@ -549,6 +571,7 @@ function readSparse(view, offset, end, dimensions, isComplex, nzmax, single) {
         // dims word that declares more is damaged (SparseData.backedColumns).
         backedColumns: walked,
     };
+    return { data, unread };
 }
 // A class-17 (MCOS opaque) element is four parts after its array flags: the variable
 // name, the type-system marker ("MCOS"), the class name, and the object handle — a
@@ -911,8 +934,18 @@ export function parseMatrix(view, baseOffset, length, depth = 0) {
         // `value` is the summary, as `undecoded`'s placeholder is the value of what was not
         // read: a host that renders values without knowing about `sparse` still shows
         // something true. A 1x1 is not unwrapped to a scalar: it has no list to unwrap.
+        //
+        // One whose indices place non-zeros the bytes hold no values for is recorded, not read
+        // (readSparse's `unread`): `<3x4 sparse double, not decoded>`, with no non-zeros. Read,
+        // each missing value was a zero, and the array a matrix of zeros the file never held.
         const nzmax = flagsSub.bytes >= 8 ? view.getUint32(flagsSub.dataOffset + 4, true) : 0;
-        result.sparse = offset < end ? readSparse(view, offset, end, dimensions, isComplex, nzmax, arrayClass === MX_SINGLE_CLASS) : emptySparse(isComplex, 0);
+        const read = offset < end ? readSparse(view, offset, end, dimensions, isComplex, nzmax, arrayClass === MX_SINGLE_CLASS) : null;
+        if (read?.unread) {
+            result.value = undecodedValue(dimensions, 'sparse ' + className);
+            result.undecoded = read.unread;
+            return result;
+        }
+        result.sparse = read ? read.data : emptySparse(isComplex, 0);
         result.value = sparseValue(dimensions, className);
     }
     else if (arrayClass >= 6 && arrayClass <= 15) {
@@ -1251,11 +1284,16 @@ export function parseMat(arrayBuffer) {
                 // inflate, so this file cannot say what was lost and naming a
                 // neighbour would be worse than saying nothing. The byte offset is
                 // what a caller can act on. Reading continues at the next record —
-                // one unreadable record is one variable, not the file.
+                // one unreadable record is one variable, not the file. A record that would
+                // inflate past the ceiling for one record (MAT_RECORD_INFLATE_CEILING) is
+                // unreadable the same way, and is never read cut to the ceiling.
                 warnings.push({
                     code: 'part-unreadable',
-                    message: `A compressed record at byte ${offset} could not be decompressed `
-                        + `(${reasonOf(err)}), so the variable it holds was not read.`,
+                    message: err instanceof InflateCeilingError
+                        ? `A compressed record at byte ${offset} inflates to more than the ${err.ceiling}-byte ceiling `
+                            + 'for one MAT-file record, so the variable it holds was not read.'
+                        : `A compressed record at byte ${offset} could not be decompressed `
+                            + `(${reasonOf(err)}), so the variable it holds was not read.`,
                 });
                 offset += 8 + numBytes;
                 continue;
@@ -1357,6 +1395,15 @@ export function parseMat(arrayBuffer) {
     return { header, variables, warnings };
 }
 /**
+ * What this reader says of an array holding fewer elements than it declares, a struct
+ * array's (`element`) or a cell's (`cell`): here for a value outside any object, and in
+ * mcosTypedNode.reportUndecoded for one under a decoded object, so the two say it in the
+ * same words.
+ */
+export function shortArrayMessage(path, declared, read, unit) {
+    return `"${path}" declares ${declared} ${unit}(s) and only ${read} could be read.`;
+}
+/**
  * One warning per piece of a variable that was not decoded, named the way MATLAB
  * names that piece: `s.inner`, `s(2).inner`, `c{3}`.
  *
@@ -1434,7 +1481,7 @@ function collectUndecoded(variable, path, warnings, readShort) {
         if (declared > read) {
             warnings.push({
                 code: 'part-unreadable',
-                message: `"${path}" declares ${declared} element(s) and only ${read} could be read.`,
+                message: shortArrayMessage(path, declared, read, 'element'),
                 part: path,
             });
         }
@@ -1462,7 +1509,7 @@ function collectUndecoded(variable, path, warnings, readShort) {
         if (declared > read) {
             warnings.push({
                 code: 'part-unreadable',
-                message: `"${path}" declares ${declared} cell(s) and only ${read} could be read.`,
+                message: shortArrayMessage(path, declared, read, 'cell'),
                 part: path,
             });
         }

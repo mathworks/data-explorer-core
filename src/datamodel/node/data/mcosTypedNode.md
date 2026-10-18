@@ -38,6 +38,15 @@ bytes it was read from), as it does for a class with no typed node. Nothing to d
 against (no blob) and a handle that is only the null object (ids `[0]`, as MATLAB
 writes a handle that saved no state) are not refusals: those still get the shell.
 
+When the caller passes `warnings` (both containers do), the node built is walked for
+what it holds that the reader could not read in full, and each such value is one
+`part-unreadable` warning named by its MATLAB path (`p.Value`, `h.M{2}`,
+`arr(3).Value`): a value recorded without decoding, a sparse array whose column
+index holds fewer columns than it declares, and a struct array or a cell that holds
+fewer elements than it declares, in the words `MatParser.collectUndecoded` uses for
+the same value outside an object (`shortArrayMessage`). What is shown is a row for
+each element held.
+
 ## Nested objects
 
 An MCOS object held in a struct field (of a scalar struct or of any element of a
@@ -50,7 +59,11 @@ same object gets at top level, apart from its name. Three pieces carry it:
   has no name), and records each result. What the decoder could not read of one —
   the confidence gate refused it, or an object it reaches addresses a property block
   the block reader stopped before — is one `part-unreadable` warning, named by its
-  MATLAB path (`s.f`, `s(2).f`, `c{3}`). A refusal is also recorded, for
+  MATLAB path (`s.f`, `s(2).f`, `c{3}`). So is what it did not lay out: one variable
+  lays out an object again each time it reaches it by another path, and past 10,000
+  of those repeats a repeat is shown without its properties. MATLAB saves a handle
+  once however many places hold it, so a 1 KB file can reach its objects millions of
+  times. A refusal is also recorded, for
   `modelOpaqueMcosVariable`, and cleared for every other variable, so a detach
   (`blob` null) clears it too. Both containers pass their file's warnings;
   a dictionary's encoded value passes its own, under the entry's name (`rootPath`),

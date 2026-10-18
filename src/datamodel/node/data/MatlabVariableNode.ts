@@ -2207,6 +2207,12 @@ export default class MatlabVariableNode extends DataNode {
       return this._rawInput;
     }
     this._refuseNoSize();
+    // A value the reader did not decode and that has no form of its own to replay (above, or
+    // a binary dictionary's hex, _adoptEncoded) has nothing to be written as but its
+    // placeholder's text, which is another value: refused (_undecodedRefusal).
+    if (this._undecoded) {
+      throw this._undecodedRefusal();
+    }
     // Rank >= 3 leaves the literal grammar behind entirely: there is no spelling
     // for it. Every `Matrix(d1,d2,d3)` candidate reads back as an empty 1x0 and
     // the two constructor expressions read back as the scalar 0, while MATLAB's
@@ -2344,8 +2350,8 @@ export default class MatlabVariableNode extends DataNode {
    *     cdata, untouched or only renamed);
    *   - for a value the reader recorded without decoding (`_undecoded`), the element it was
    *     read from, re-framed as a stream (MatWriter.matStreamOfElement) — nothing else holds
-   *     its values, and without this a copy of one out of a .mat wrote the text of its
-   *     placeholder;
+   *     its values. A copy or a save of such a value itself never asks: it is refused
+   *     (serializeValue, _undecodedRefusal);
    *   - for a sparse array no element row has edited, the element it was read from, the same
    *     way: its own bytes, which for every array MATLAB wrote are the bytes MatWriter would
    *     write, and for one MatWriter refuses — a dims word damaged, a class MATLAB never
@@ -2917,14 +2923,12 @@ export default class MatlabVariableNode extends DataNode {
       attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
     }
 
-    // A value the reader did not decode, with no stream of its own to write it as (see
-    // serializeXml and _matStream, which every one this package reads from a file has):
-    // all there is to write is its placeholder. Escaped, whatever the class beside it says
-    // — the numeric arms below write their text as it stands, and `<10000000x2 double, not
-    // decoded>` unescaped inside a Class="double" element made the whole dictionary
-    // something MATLAB would not open.
+    // A value the reader did not decode, with no hex of its own to write it as (_adoptEncoded):
+    // all there is to write is its placeholder, which is another value — written escaped
+    // inside `Class="double"`, a binary dictionary read it back as 0 — so it is refused, as
+    // its JSON is (_undecodedRefusal).
     if (this._undecoded) {
-      return p + '<' + tagName + attrStr + ' Class="' + escapeXml(type) + '">' + escapeXml(String(val)) + '</' + tagName + '>';
+      throw this._undecodedRefusal();
     }
 
     if (type === 'string') {
@@ -3225,6 +3229,30 @@ export default class MatlabVariableNode extends DataNode {
     }
     const what = classPhrase(this._scalarType) + ' declaring dimensions ' + dimsText(dims);
     throw this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-a-count'));
+  }
+
+  /**
+   * The refusal of a write of a value the reader recorded without decoding (`_undecoded`) that
+   * has no form of its own to be written as: one out of a .mat or a model workspace, a member of
+   * a stream, a text dictionary's own pasted into a binary one. Nothing this package holds is
+   * its value. Written as the text of its placeholder, `<2x3 double, not decoded>`, it was
+   * another value: a char in a text or a binary dictionary, a double 0 as XML, and a struct
+   * whose field names lie past its end a valid struct of no elements. The maintainer's group F
+   * ruling of 2026-10-18 (F1-10) refuses it rather than write it wrong: final, as a budget
+   * refusal is, so nothing is written in its place, and named the same way (_budgetFailure),
+   * with why it was not decoded — the reader's reason (MatVariable.undecoded), or what its
+   * warning says of a value with no data or of a class the reader does not model.
+   */
+  _undecodedRefusal(): MatBudgetError {
+    const v = this._matVar;
+    let why: string | undefined = v?.undecoded;
+    if (!why && v && v.className === 'unknown') {
+      why = 'its MAT array class is not one this reader models';
+    } else if (!why && v && v.value === null && !v.fields && !v.isSparse && !v.isOpaque) {
+      why = 'it declares ' + v.dimensions.reduce((a, b) => a * b, 1) + ' element(s) and holds no data';
+    }
+    const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + this._scalarType + ' that was not decoded' + (why ? ' (' + why + ')' : '');
+    return this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-decoded'));
   }
 
   /**
@@ -3600,7 +3628,7 @@ export default class MatlabVariableNode extends DataNode {
     // theme 1: warn and show what was read) makes it what every value the reader did not
     // decode is (_createUndecoded): one row, with no editor and no element rows, its class and
     // size, which are what was read, spelled as MatParser spells its own placeholder. Its
-    // copy is the element it was read from, where it has one (_matStream). A .mat file says
+    // copy is refused (_undecodedRefusal): there is no value to copy. A .mat file says
     // why (MatParser's collectUndecoded); a model workspace does not (the C-232 ruling).
     //
     // A class MatParser does not model ('unknown': a flags word overwritten, say) is not this,

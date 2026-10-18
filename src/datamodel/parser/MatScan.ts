@@ -55,7 +55,7 @@
 // name. That was 13 of 31 corpus files wrong, all with the same symptom, and it was fixed
 // by reading `parseOpaque` rather than by inferring the layout.
 
-import { inflateZlibHead } from './Inflate.js';
+import { inflateZlibHead, matRecordInflateCeiling } from './Inflate.js';
 import { parseMat } from './MatParser.js';
 
 /** The variable names of a `.mat`, in file order. */
@@ -254,7 +254,18 @@ function scanNames(bytes: Uint8Array): string[] {
       if (headView.getUint32(0, true) !== MI_MATRIX) {
         throw new UnscannableMat(`compressed record at byte ${offset} does not hold a matrix`);
       }
-      names.push(nameAt(headView, 8, headView.getUint32(4, true)));
+      // `parseMat` inflates the whole record under the ceiling for one MAT record, and a
+      // record past it is unreadable there: a warning, and no variable. The head names the
+      // variable all the same, so a record whose matrix declares more than the ceiling goes
+      // to `parseMat`, which decides, whatever it really inflates to. One that declares less
+      // and passes the ceiling anyway, on bytes after its matrix, is not seen here, as no
+      // damage past the head is: a stream that ends early is named here and not read there,
+      // as it was before the ceiling.
+      const declared = headView.getUint32(4, true);
+      if (8 + declared > matRecordInflateCeiling()) {
+        throw new UnscannableMat(`compressed record at byte ${offset} declares more than the inflate ceiling`);
+      }
+      names.push(nameAt(headView, 8, declared));
     } else if (dataType === MI_MATRIX) {
       names.push(nameAt(view, offset + 8, numBytes));
     } else {
