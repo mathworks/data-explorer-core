@@ -11,7 +11,7 @@ import * as NodeRegistry from '../NodeRegistry.js';
 import { matlabTimestampNow } from '../../parser/XmlUtils.js';
 import { validateMatlabName } from '../../matlabName.js';
 import { registeredSubclasses, superclassOf } from '../registeredSubclasses.js';
-import { MatBudgetError, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
+import { MatBudgetError, heldByTextDictionary, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 import {
   classificationOf as _classificationOf,
@@ -319,7 +319,17 @@ export default class SectionNode extends ContainerNode {
   // holding a string, unedited or edited before the copy. The refusal is worded as the save's
   // refusal of such a stream (MatlabVariableNode._unwritableStream), and every paste and drop a
   // host makes builds its entry here.
-  parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode {
+  //
+  // A host that re-reads an entry from the text dictionary's own text, as a view of the file's
+  // JSON re-reads the element the user edited there, says so with `{ asRead: true }`. The entry
+  // is then recorded as the file's read records it (MatWriter.heldByTextDictionary): dims
+  // holding the infinity that JSON.parse makes of a hand-typed 1e400, and complex text with no
+  // MAT stream to be instead, both of which a save writes back as read. Without the option, the
+  // text that was accepted when the file was opened was refused once re-read, and so was the
+  // entry's copy (F1-22). It is for that re-read alone, never for a paste, a drop or an undo
+  // record, whose value is not the file's text. In a binary dictionary it records nothing, as
+  // that dictionary's read records nothing.
+  parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null, options?: { asRead?: boolean }): DataNode {
     const text = (this.parent as { sourceFormat?: unknown } | null)?.sourceFormat === 'json';
     // An entry handed in with metadata that names no namespace — core's own API takes
     // `{ name, metadata: { uuid }, value }` — was written with an empty Namespace into a binary
@@ -367,6 +377,11 @@ export default class SectionNode extends ContainerNode {
         }
         rawEntry = { ...rawEntry, metadata };
       }
+    }
+    // Before textDictionaryForm, which asks the record, as SlddNode.parse records each entry
+    // before it is read.
+    if (options?.asRead && text && rawEntry.value !== undefined) {
+      heldByTextDictionary(rawEntry.value);
     }
     if (text && rawEntry.value !== undefined) {
       let value: unknown = rawEntry.value;
