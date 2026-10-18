@@ -21,11 +21,14 @@
 // every legacy file a user opens — which teaches a host, and its user, to ignore
 // the count. Warn when the bytes claim something is there and it could not be read.
 //
-// ONE KIND IS NOT A LOSS. `duplicate-id` is a file that read in full but holds two
+// TWO KINDS ARE NOT A LOSS. `duplicate-id` is a file that read in full but holds two
 // entries (or two fields, two elements) with one name in one place, which MATLAB never
 // writes. Both are kept as read; the session cannot tell them apart by id, so it refuses
-// to edit or delete either by id, and this is how the user hears why. A host that counts
-// losses counts the other codes.
+// to edit or delete either by id, and this is how the user hears why. `part-not-expanded`
+// is a .mat file that read in full but holds more values than its tree is built with
+// (DisplayConvention.MAT_NODE_CEILING): some are shown without their rows, each as its
+// summary or its literal, and copied whole. A host that counts losses counts the other
+// codes.
 
 /**
  * Stable, machine-readable warning kinds. Hosts group, filter and localize on
@@ -34,7 +37,8 @@
  * Deliberately about CONTAINERS AND PARTS rather than about any one format, so a
  * `.slx` part, a `.prj` store document and a `.mat` variable all report through
  * the same three shapes as their readers gain the channel. The fourth, `duplicate-id`,
- * is about what the session can do with a read that lost nothing; see above.
+ * is about what the session can do with a read that lost nothing, and the fifth,
+ * `part-not-expanded`, about what a tree shows of one; see above.
  */
 export type ParseWarningCode =
   /** One named piece of the source could not be read; the rest of it was. */
@@ -49,7 +53,15 @@ export type ParseWarningCode =
    * `part` is the entry's name, or the MATLAB path of a field or element. Added by the
    * session when a source is registered, not by a reader.
    */
-  | 'duplicate-id';
+  | 'duplicate-id'
+  /**
+   * Nothing is missing: the file holds more values than its tree is built with, so some
+   * are shown without their contents, as their summary or their literal with no rows under
+   * them, and are copied whole. `part` is the MATLAB path of the first of them, and the
+   * message says how many others there are. One per source, added when a `.mat` file's tree
+   * is built (MatNode.fromParsed), not by its reader.
+   */
+  | 'part-not-expanded';
 
 /** One thing that could not be read (or, for `duplicate-id`, addressed), in a source that otherwise opened. */
 export interface ParseWarning {

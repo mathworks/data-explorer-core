@@ -56,6 +56,26 @@ export const SUMMARY_MAX_ELEMENTS = 10;
 // the first N elements as the whole value. See test/largeArrayNotExpanded.test.ts.
 export const MAX_EXPANDED_ELEMENTS = 10000;
 
+// How many nodes a .mat file's tree is built with, all of its variables together: the cap
+// above is one container's, and nothing capped the file's. allMidi.mat, a customer's 8 MB
+// file of 1x1024 arrays in nested struct arrays, opened as 2,016,325 nodes and 2.5 GB of
+// heap, with every container in it under the cap above (MEM-CEIL; the maintainer's group F
+// ruling of 2026-10-18, group 3: a node-count ceiling with a source warning now, lazy
+// expansion later, as its own item).
+//
+// Measured on allMidi.mat in node 24, as heap in use after a collection: 2,016,325 nodes and
+// 2,535 MiB uncut, 499,999 nodes and 1,280 MiB under this ceiling. The 1,516,326 nodes it no
+// longer builds were 1,255 MiB, some 0.85 KiB each, so about 870 MiB of what is left is the
+// parse's own, which the ceiling does not touch. No other .mat file in the corpus reaches it:
+// the next, allMidiSeq.mat, opens as 208,074 nodes, and every one opens as it did.
+//
+// Past it, a container is built with ALL its rows or with NONE, as the cap above is and for
+// its reason, and one warning on the file says so ('part-not-expanded'). Unlike the cap
+// above it is not silent: what it declines to build depends on what came before it in the
+// file, not on the value, so the same struct is whole in one file and has no rows in
+// another. See matNodeCeiling.ts.
+export const MAT_NODE_CEILING = 500_000;
+
 // Every numeric empty, of any class, shape and complexity: MATLAB's Workspace browser's own
 // text, space inside (its ValueCol, getWorkspaceDisplay's Value; the 2026-10-15 display ruling
 // makes the browser the authority). mat2str([]) says '[]' and formattedDisplayText([]) says

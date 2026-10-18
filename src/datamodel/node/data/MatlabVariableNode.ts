@@ -75,6 +75,7 @@ import {
   sparseSummaryForm,
   summaryForm,
 } from '../../display/DisplayConvention.js';
+import { admitRows, buildApart, buildUncut } from './matNodeCeiling.js';
 import {
   charNeedsShape,
   charRowDimension,
@@ -363,6 +364,12 @@ export default class MatlabVariableNode extends DataNode {
   // everything at and under it is shown and not edited (_streamHolder). Absent on every other
   // node.
   _readFromStream?: true;
+  // Set on a container read out of a .mat file that the file's node ceiling built without its
+  // rows (matNodeCeiling.admitRows): how many direct rows it has none of. It keeps the variable it
+  // was read from (`_matVar`), and what it shows and what a copy of it is are answered from the
+  // subtree rebuilt from that for the asking (_withCeilingTwin). Cleared by a Value typed over it
+  // (_applyParsed), which gives it rows of its own. Absent on every other node.
+  _cutByCeiling?: number;
 
   constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>) {
     super(name, parent, serial);
@@ -643,6 +650,11 @@ export default class MatlabVariableNode extends DataNode {
     if (this._scalarValue === NOT_AVAILABLE) {
       return false;
     }
+    // A cell the node ceiling built without its rows that shows its summary takes none, by
+    // BaseNode's rule below: asked first, so that its elements are not rebuilt to say so.
+    if (this._cutByCeiling && this._kind === 'cell' && needsSummary(this._dims)) {
+      return false;
+    }
     // A cell whose literal shows an element as a summary (_literalRoundTrips): the
     // literal is not the cell's value, so it is not an editor's seed.
     if (this._kind === 'cell' && !this._literalRoundTrips()) {
@@ -883,6 +895,18 @@ export default class MatlabVariableNode extends DataNode {
 
   /** `asMeasured`: the text the length guard measures (_guardText), not the one shown. */
   _formatCell(asMeasured = false): string {
+    // A cell the node ceiling built without its rows (_cutByCeiling) shows what it showed with
+    // them: past the element budget its summary, which needs no element, and otherwise the
+    // literal its elements make, rebuilt alone with no rows of their own (_withCeilingTwin).
+    // The one difference is a damaged cell past the budget, whose elements are not rebuilt to
+    // find that one cannot be: it shows `<1x20 cell>` where, built, it was `<1x20 cell, not
+    // decoded>`. Its copy is refused either way, and the reader's warning names the element.
+    if (this._cutByCeiling && this._matVar) {
+      if (needsSummary(this._dims)) {
+        return summaryForm(this._dims, 'cell');
+      }
+      return this._withCeilingTwin(true, (t) => (asMeasured ? t._guardText() : t.displayValue));
+    }
     if (this.children.length === 0) {
       // MATLAB's browser shows a 0x0 cell as `{}`, and an empty cell of any other shape as its
       // size-and-class summary, `{0×3 cell}`, here `<0x3 cell>`. A cell that holds no element
@@ -975,6 +999,10 @@ export default class MatlabVariableNode extends DataNode {
    * GearMode.Reverse}` reads back as a cell holding that char.
    */
   _literalRoundTrips(): boolean {
+    // Of a cell the node ceiling built without its rows, as of its elements rebuilt alone.
+    if (this._cutByCeiling && this._matVar) {
+      return this._withCeilingTwin(true, (t) => t._literalRoundTrips());
+    }
     return this.children.every((c) => {
       const token = this._cellLiteralElement(c);
       if (token.charAt(0) === '<' && token.charAt(token.length - 1) === '>') {
@@ -1568,6 +1596,8 @@ export default class MatlabVariableNode extends DataNode {
   _applyParsed(parsed: { type: string; value: unknown; dims?: number[] }): void {
     this.children = [];
     this._matVar = null;
+    // A value typed in whole is built with all its rows, whatever the file's node ceiling did.
+    delete this._cutByCeiling;
     this._rawInput = undefined;
     // Nor is it what a removal left of a complex array any more (_complexClass).
     this._collapsedClass = null;
@@ -1704,6 +1734,11 @@ export default class MatlabVariableNode extends DataNode {
     if (this._elements.length <= 1 || this._elements.length > MAX_EXPANDED_ELEMENTS) {
       return;
     }
+    // Nor, read out of a .mat file, past the file's node ceiling (matNodeCeiling): all or
+    // nothing, as the cap is, and `_elements` is the value either way.
+    if (this._matVar && !admitRows(this, this._elements.length)) {
+      return;
+    }
     for (let i = 0; i < this._elements.length; i++) {
       const child = MatlabVariableNode._createScalar(this._elements[i], type, String(i + 1), this);
       this.addChild(child);
@@ -1725,6 +1760,10 @@ export default class MatlabVariableNode extends DataNode {
   private _buildSparseChildren(type: string): void {
     const s = this._sparse!;
     if (s.row.length > MAX_EXPANDED_ELEMENTS) {
+      return;
+    }
+    // Nor past a .mat file's node ceiling (matNodeCeiling), as _buildArrayChildren.
+    if (this._matVar && !admitRows(this, s.row.length)) {
       return;
     }
     for (let k = 0; k < s.row.length; k++) {
@@ -1762,6 +1801,10 @@ export default class MatlabVariableNode extends DataNode {
     if (this._elements.length <= 1 || this._elements.length > MAX_EXPANDED_ELEMENTS) {
       return;
     }
+    // Nor past a .mat file's node ceiling (matNodeCeiling), as _buildArrayChildren.
+    if (this._matVar && !admitRows(this, this._elements.length)) {
+      return;
+    }
     for (let i = 0; i < this._elements.length; i++) {
       this.addChild(this._makeStringElement(String(i + 1), this._elements[i]));
     }
@@ -1789,6 +1832,12 @@ export default class MatlabVariableNode extends DataNode {
     // then dropped the added element on save. A value still in the encoded stream it was
     // read from is read-only the same way, for the same reason (DataNode._encodedReadOnly).
     if (this._isOpaque || this._encodedReadOnly) {
+      return false;
+    }
+    // Nor a container the node ceiling built without its rows (_cutByCeiling): the row Add
+    // makes would be its only one, and its value is not in its rows but in what it was read
+    // from, which is what it is copied as, so the row would go nowhere.
+    if (this._cutByCeiling) {
       return false;
     }
     // Nor at or under a value read from a MAT stream, which is shown and not edited (_streamHolder).
@@ -2186,6 +2235,11 @@ export default class MatlabVariableNode extends DataNode {
   serializeValue(): unknown {
     if (!writeUnderWay()) {
       return oneWrite(() => this.serializeValue());
+    }
+    // A container the node ceiling built without its rows (_cutByCeiling) is written as it was
+    // with them, from them: rebuilt for the write, with no ceiling, and dropped after.
+    if (this._cutByCeiling && this._matVar) {
+      return this._withCeilingTwin(false, (t) => t.serializeValue());
     }
     // `_rawInput` alone says the value is untouched: every edit drops it (_markModified)
     // except a rename, which leaves the value as it was (DataNode.setProperty). The entry's
@@ -2844,6 +2898,10 @@ export default class MatlabVariableNode extends DataNode {
     if (!writeUnderWay()) {
       return oneWrite(() => this.serializeXml(tagName, attrs, indent));
     }
+    // As serializeValue: a container the node ceiling built without its rows, from them.
+    if (this._cutByCeiling && this._matVar) {
+      return this._withCeilingTwin(false, (t) => t.serializeXml(tagName, attrs, indent));
+    }
     // A function handle has no XML spelling (DataNode._handleRefusal). One at an entry that holds
     // its own MAT stream was written as that hex before this was asked (_binaryEncoded).
     if (this._scalarType === 'function_handle') {
@@ -3198,6 +3256,11 @@ export default class MatlabVariableNode extends DataNode {
   // and we rebuild from the live tree. `_rawBytes` stays on the rebuilt variable
   // for the parts of the write path that still replay bytes for untouched values.
   get _var(): MatVariable {
+    // A container the node ceiling built without its rows has none to rebuild from, and none
+    // to edit: what is stale of it is its name (a rename), and its value is what it was read as.
+    if (this._cutByCeiling && this._matVar && this._varStale) {
+      return { ...this._matVar, name: this.name };
+    }
     if (this._matVar && !this._varStale) {
       // A sparse array read out of a stream holds the element it was read from on the node
       // (_keepStreamElement), not on the variable the reader made of it.
@@ -3431,9 +3494,12 @@ export default class MatlabVariableNode extends DataNode {
       // the node the same object gets at top level, under the field name or cell index
       // it was given. Without a decode, or if that builds nothing, it is the opaque
       // summary it always was.
+      //
+      // Built whole, whatever is left of a .mat file's node ceiling, and counted against it
+      // (matNodeCeiling.buildUncut): its rows are built from the decode, not from the variable.
       const decoded = mcosDecodedFor(variable);
       if (decoded) {
-        const node = NodeRegistry.modelMcosVariable(variable, decoded, name, parent);
+        const node = buildUncut(() => NodeRegistry.modelMcosVariable(variable, decoded, name, parent));
         if (node) {
           return node;
         }
@@ -3730,6 +3796,11 @@ export default class MatlabVariableNode extends DataNode {
     const fieldNames = Object.keys(variable.fields);
     const count = elementCount(node._dims);
     if (count <= 1) {
+      // Its fields are its rows, all of them or none past a .mat file's node ceiling
+      // (matNodeCeiling).
+      if (!admitRows(node, fieldNames.length)) {
+        return node;
+      }
       for (const fieldName of fieldNames) {
         const fieldVar = variable.fields[fieldName];
         // A 1x1 struct stores the field directly, but tolerate the array form.
@@ -3763,6 +3834,11 @@ export default class MatlabVariableNode extends DataNode {
     // declaring a 1x999,999 struct with one field and one element's bytes ran a 512 MB heap
     // out building 999,998 empty rows. For an array MATLAB wrote the two are the same.
     const rows = fieldNames.length > 0 ? Math.min(count, structElementsHeld(variable)) : count;
+    // Past a .mat file's node ceiling, no element row or all of them, each with its fields
+    // (matNodeCeiling): an element row holds no value of its own, so it is not cut alone.
+    if (!admitRows(node, rows * (1 + fieldNames.length))) {
+      return node;
+    }
     for (let ei = 0; ei < rows; ei++) {
       const elemNode = new MatlabVariableNode(String(ei + 1), node, {});
       elemNode._kind = 'scalar';
@@ -3792,6 +3868,11 @@ export default class MatlabVariableNode extends DataNode {
     node._dims = variable.dimensions.slice();
 
     const cells = Array.isArray(variable.value) ? variable.value : [];
+    // Its elements are its rows, all of them or none past a .mat file's node ceiling
+    // (matNodeCeiling).
+    if (!admitRows(node, cells.length)) {
+      return node;
+    }
     (cells as (MatVariable | null)[]).forEach(function (cell, i) {
       // MatParser records a slot it could not read as a MATRIX — a truncated or
       // otherwise malformed cell — as null. Skipping those used to COMPACT the
@@ -3804,6 +3885,38 @@ export default class MatlabVariableNode extends DataNode {
       node.addChild(child);
     });
     return node;
+  }
+
+  /**
+   * `ask` of this container as it is with its rows, for one the node ceiling built without them
+   * (_cutByCeiling): rebuilt from the variable it was read from, with no ceiling, or, `shallow`,
+   * with its own rows and none under them, which is all its literal needs (_formatCell). It
+   * stands in this node's place under its parent while it answers, so that what it says of
+   * where it is (matlabPath, a refusal naming it) is said of this node, and it is dropped after.
+   * One whose rows could not be built, which the ceiling kept from failing in the file, is the
+   * not-decoded value the file shows in its place uncut (MatNode.fromParsed), refused as one.
+   */
+  _withCeilingTwin<T>(shallow: boolean, ask: (twin: MatlabVariableNode) => T): T {
+    const variable = this._matVar!;
+    const twin = buildApart(shallow ? this._cutByCeiling! : null, () => {
+      try {
+        return MatlabVariableNode.parseMatVariable(variable, this.name, this.parent) as MatlabVariableNode;
+      } catch (_e) {
+        return MatlabVariableNode.createNotDecoded(variable, this.name, this.parent);
+      }
+    });
+    const siblings = this.parent ? this.parent.children : [];
+    const at = siblings.indexOf(this);
+    if (at >= 0) {
+      siblings[at] = twin;
+    }
+    try {
+      return ask(twin);
+    } finally {
+      if (at >= 0) {
+        siblings[at] = this;
+      }
+    }
   }
 
   // ---- Static factories: JSON value -> node ----
