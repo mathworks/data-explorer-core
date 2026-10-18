@@ -261,13 +261,13 @@ describe('an element of a complex array takes each form, as the complex number i
   }
 });
 
-// A value is set back to the text it shows: by a commit of that text unchanged, and by the
-// undo of a later edit, which for a Parameter's Value types the text it showed back in. So
-// every complex value the parser takes has to be read again from the text it is shown in.
+// A value is set back to the text it shows by a commit of that text unchanged. So every
+// complex value the parser takes has to be read again from the text it is shown in. (The undo
+// of a later edit typed that text back in for a Parameter's Value too, until F1-16: it puts the
+// Value back from the Parameter's own state now, as an entry's undo does, _restorerFor.)
 // Read as the forms in FORMS alone, `NaNi` and `1+NaNi` are taken and shown as `0NaNi` and
 // `1NaNi`, which are not among them: a commit of either as it shows fails with "Invalid
-// MATLAB expression", and the undo of a later edit is dropped, so the save writes the edit
-// that was undone. A text dictionary holds the value as its MAT stream, which shows an
+// MATLAB expression". A text dictionary holds the value as its MAT stream, which shows an
 // infinite part as `Infinity` once the file is opened again (`1+Infinityi`), and that is
 // refused the same way.
 const NON_FINITE_TYPED: [typed: string, re: number, im: number][] = [

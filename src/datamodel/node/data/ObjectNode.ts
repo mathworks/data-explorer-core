@@ -27,6 +27,7 @@ import { effectiveDims, elementCount, MAX_EXPANDED_ELEMENTS, needsSummary, overC
 import { decodeMatStream } from '../../parser/MatParser.js';
 import { uudecode } from '../../parser/CdataCodec.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
+import { dimensionText, extentDigits } from '../../parser/Size.js';
 import { setOwn } from '../../parser/ownKeys.js';
 
 // The class of `child`, one of the element nodes of an object array of class `arrayClass`: the
@@ -538,7 +539,7 @@ export default class ObjectNode extends DataNode {
         // reader segfaults on "2*3" carrying twelve elements. Its struct-array
         // spelling — every extent named, one <Element> each — is the only form
         // known to be accepted for an N-D array of things.
-        const dimAttr = ' Dimension="' + (dims.length > 1 ? dims.join('*') : dims[0] + '*1') + '"';
+        const dimAttr = ' Dimension="' + (dims.length > 1 ? dimensionText(dims) : extentDigits(dims[0]) + '*1') + '"';
         let xml = p + '<' + tagName + attrStr + dimAttr + '>\n';
         // Each element under its own class, which its node is of (see parse): every one was
         // written as the array's, so a subclass element beside a Simulink.Signal was saved as a
