@@ -23,7 +23,6 @@ import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { regenerateChunkXml, regenerateEntryXml, serializeEntryToXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
-import { parseComplexNum } from '../src/datamodel/parser/XmlUtils.js';
 import * as NodeRegistry from '../src/datamodel/node/NodeRegistry.js';
 import DataNode from '../src/datamodel/node/DataNode.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
@@ -131,10 +130,6 @@ describe('a Parameter from a .mat is written into a binary dictionary as MATLAB 
   const design = root.getSection('design');
   const shared = mat.children.filter((v: any) => /Parameter$/.test(v.className) && WITH_COMPLEX.includes(v.name));
 
-  // Where the decoder's spelling is not MATLAB's binary text for the same number: it is
-  // the shortest decimal that is the double, and MATLAB writes seventeen digits.
-  const DIGITS_DIFFER = new Set(['pThird']);
-
   it('covers every Parameter both files hold', () => {
     expect(shared.map((v: any) => v.name)).toEqual(expect.arrayContaining(['pRow', 'pMat', 'pNd', 'pInt64', 'pInt16Row', 'pNonFinite']));
     expect(shared.length).toBeGreaterThanOrEqual(20);
@@ -147,19 +142,11 @@ describe('a Parameter from a .mat is written into a binary dictionary as MATLAB 
       payload.name = variable.name + '_fromMat';
       payload.metadata = { uuid: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}` };
       const node = design.parseEntry(payload);
+      // pThird too, whose parts the decoder holds as the shortest decimal of each double and
+      // MATLAB writes to seventeen digits: the writer spells each part as MATLAB does.
       const ours = complexTags(serializeEntryToXml(node));
       const matlab = asWritten(complexTags(entryBlock(MATLAB_CHUNK, variable.name)));
-      if (!DIGITS_DIFFER.has(variable.name)) {
-        expect(ours).toEqual(matlab);
-        return;
-      }
-      // The same tags around the same numbers.
-      const body = (t: string) => t.replace(/^.*?>|<\/\w+>$/g, '');
-      expect(ours.map((t) => t.replace(body(t), ''))).toEqual(matlab.map((t) => t.replace(body(t), '')));
-      ours.forEach((t, k) => {
-        expect(body(t)).not.toBe(body(matlab[k]));
-        expect(parseComplexNum(body(t))).toEqual(parseComplexNum(body(matlab[k])));
-      });
+      expect(ours).toEqual(matlab);
     });
   }
 });

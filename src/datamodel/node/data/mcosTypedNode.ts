@@ -6,7 +6,7 @@ import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME, type McosDecode
 import { mcosRefused, setMcosDecoded, setMcosRefused } from './mcosDecodedTable.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
-import type { MatVariable } from '../../parser/MatParser.js';
+import { shortArrayMessage, type MatVariable } from '../../parser/MatParser.js';
 import { reasonOf, type ParseWarning } from '../../parser/ParseWarning.js';
 import { unbackedColumns } from '../../parser/SparseData.js';
 
@@ -133,6 +133,10 @@ export function buildTypedNodeFromMcos(
  * (`p.Value`, `h.M{2}`), with the reader's reason, as MatParser reports the same value at
  * the top of a .mat or in a struct field. A property is decoded with the object, after the file's own walk, so
  * nothing else reports it, and the row alone said only `not decoded`.
+ *
+ * Read short includes a struct array or a cell holding fewer elements than it declares
+ * (shortArrayOf), which MatParser.collectUndecoded reports outside an object: its rows are the
+ * elements held, and a `<1x3 struct>` with one row said nothing of the other two.
  */
 function reportUndecoded(node: BaseNode, path: string, warnings: ParseWarning[]): void {
   const reason = node instanceof MatlabVariableNode && node._undecoded ? node._matVar?.undecoded : undefined;
@@ -145,15 +149,41 @@ function reportUndecoded(node: BaseNode, path: string, warnings: ParseWarning[])
   if (unbacked) {
     warnings.push({ code: 'part-unreadable', message: `"${path}" ${unbacked}.`, part: path });
   }
+  const short = shortArrayOf(node);
+  if (short) {
+    warnings.push({ code: 'part-unreadable', message: shortArrayMessage(path, short.declared, short.read, short.unit), part: path });
+  }
   // A Simulink.Parameter keeps its value node out of its children when it has no rows.
   const valueNode = (node as unknown as { _valueNode?: BaseNode | null })._valueNode;
   const children = valueNode && !node.children.includes(valueNode) ? [...node.children, valueNode] : node.children;
   for (const child of children) {
-    const own = child.displayName;
-    const outer = node.displayName;
-    const step = child.isIndexedName && own.startsWith(outer) ? own.slice(outer.length) : '.' + child.name;
-    reportUndecoded(child, path + step, warnings);
+    // An element by its subscript under `path` (BaseNode._labelUnder, which is displayName's rule
+    // and matlabPath's), a field or a property by its name. Read off isIndexedName, an element of
+    // an object or struct array was a field called `3`: "arr.3.Value", for arr(3).Value.
+    reportUndecoded(child, child._labelUnder(() => path) ?? path + '.' + child.name, warnings);
   }
+}
+
+/**
+ * The counts of a struct array or a cell under a decoded object that holds fewer elements than
+ * it declares, off the bag its node was built from (StructNode.parse, MatlabVariableNode.parseCell):
+ * the product of its extents, and the elements it holds. McosParser lays out a bag for each
+ * element held (buildStructValue, structElementsHeld) and a cell's elements read, and the node
+ * has a row for each. Null for any other node, for one holding every element it declares, and
+ * for one whose extents are not all numbers, which StructNode does not count either. A struct
+ * array with no element rows by design (MatlabVariableNode._unexpandedStruct) is none of these:
+ * it is read from its stream, and holds no such bag.
+ */
+function shortArrayOf(node: BaseNode): { declared: number; read: number; unit: 'element' | 'cell' } | null {
+  const raw = (node as DataNode)._rawInput as Record<string, unknown> | null | undefined;
+  const unit = raw?._array_type === 'Struct' ? 'element' : raw?._array_type === 'Cell' ? 'cell' : null;
+  const dims = raw?._dimensions;
+  const held = raw?._elements;
+  if (!unit || !Array.isArray(dims) || !dims.every((x) => typeof x === 'number') || !Array.isArray(held)) {
+    return null;
+  }
+  const declared = (dims as number[]).reduce((a, b) => a * b, 1);
+  return declared > held.length ? { declared, read: held.length, unit } : null;
 }
 
 // One decoded object. `elements`/`dimensions` are populated for an object ARRAY; a

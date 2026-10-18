@@ -372,7 +372,8 @@ describe('a host\'s value pasted with numbers its class cannot hold is written c
   // writer), and a binary dictionary's complex text into a text one (the MAT stream) and
   // into a binary one (the XML writer again). A literal pasted into a text dictionary is
   // written back as the literal it was, as every value a text dictionary did not edit is,
-  // so no writer converts it there.
+  // so no writer converts it there. It is shown converted all the same, in either format and
+  // before any save, because that is how MATLAB reads the literal (F1-17).
   const pasted = (cls: string) => [
     { name: cls + 'Lit', value: { _type: cls, _value: '[' + ['70000', '-70000', '2.5', '-2.5', 'NaN'].map((n) => lit(cls, n)).join(', ') + ']' } },
     { name: cls + 'Cplx', value: { _type: 'cdata', _value: '70000+3.7i -2.5-70000i', _dimensions: [1, 2], _class: cls } },
@@ -385,9 +386,6 @@ describe('a host\'s value pasted with numbers its class cannot hold is written c
       let seq = 100;
       for (const { cls } of CLASSES) {
         for (const { name, value } of pasted(cls)) {
-          if (format === 'text' && name.endsWith('Lit')) {
-            continue;
-          }
           section.parseEntry({
             name,
             metadata: { uuid: uuid(seq++), namespace: 'dacaf35e-55a5-454d-a7c1-93db038a210e', lastmod: '20261012T000000.000000', modifiedby: 'host', isderived: '0' },
@@ -395,13 +393,22 @@ describe('a host\'s value pasted with numbers its class cannot hold is written c
           });
         }
       }
+      const converted = (lo: bigint, hi: bigint) => '[' + ['70000', '-70000', '2.5', '-2.5', 'NaN'].map((t) => matlabInt(t, lo, hi)).join(' ') + ']';
+      for (const { cls, lo, hi } of CLASSES) {
+        const pastedEntry = section.children.find((e: any) => e.name === cls + 'Lit');
+        expect(pastedEntry.displayValue, cls).toBe(converted(lo, hi));
+      }
+      if (format === 'text') {
+        const saved = session.serializeSource(root.name);
+        for (const { cls } of CLASSES) {
+          expect(writtenValue(saved, cls + 'Lit'), cls).toBe(JSON.stringify(pasted(cls)[0].value));
+        }
+      }
       const reopened = saveAndReopen(session, root);
       const entry = (name: string) => reopened.getSection('design').children.find((e: any) => e.name === name);
       for (const { cls, lo, hi } of CLASSES) {
         const m = (t: string) => matlabInt(t, lo, hi);
-        if (format === 'binary') {
-          expect(entry(cls + 'Lit').displayValue, cls).toBe('[' + ['70000', '-70000', '2.5', '-2.5', 'NaN'].map(m).join(' ') + ']');
-        }
+        expect(entry(cls + 'Lit').displayValue, cls).toBe(converted(lo, hi));
         const cplx = entry(cls + 'Cplx');
         expect(cplx.className, cls).toBe(cls);
         expect(cplx.children.map((c: any) => c.displayValue), cls).toEqual([

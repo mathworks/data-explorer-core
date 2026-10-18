@@ -17,7 +17,7 @@
 // Parser-layer, so it imports nothing from the display or the node layer: MatParser
 // produces one of these, MatWriter consumes one, and the node layer edits one.
 
-import { parseComplexNum, parseMatlabNum } from './XmlUtils.js';
+import { formatComplexNum, parseComplexNum, parseMatlabNum } from './XmlUtils.js';
 
 /**
  * The non-zeros of a sparse array: entry k is at 0-based (row[k], col[k]) and holds re[k]
@@ -103,13 +103,17 @@ export function unbackedColumns(s: SparseData, dims: number[]): string | null {
 }
 
 /**
- * One complex element as the node layer holds it, `1+2i`, `3-4i`, `1NaNi`: each part
- * String()'d, and between them the imaginary part's own sign, or '+' when it is >= 0. The one
- * spelling of an element of a complex array read out of MAT bytes, full or sparse
- * (MatlabVariableNode._createFromMatNumeric), so the two show a value the same way.
+ * One complex element as the node layer holds it, `1+2i`, `3-4i`, `1NaNi`, `1+Infi`:
+ * XmlUtils.formatComplexNum's spelling. The one spelling of an element of a complex array
+ * read out of MAT bytes, full or sparse (MatlabVariableNode._createFromMatNumeric), so the
+ * two show a value the same way, and the same way a binary dictionary's text shows it.
+ * Through 1.40.0 each part was String()'d, so an infinite part read `Infinity`, which MATLAB
+ * neither writes nor reads (`{1+Infinityi}` is "Unrecognized function or variable
+ * 'Infinityi'", R2027a): a text dictionary's complex(1, Inf) showed `1+Infinityi` beside
+ * its binary twin's `1+Infi`. parseComplexNum still reads that spelling back.
  */
 export function complexElement(re: number | string, im: number | string): string {
-  return String(re) + (Number(im) >= 0 ? '+' : '') + String(im) + 'i';
+  return formatComplexNum(re, im);
 }
 
 /** Entry k as the node layer holds an element: a number, or complexElement's text. */

@@ -157,9 +157,15 @@ describe('a MAT value nested deeper than the reader reads', () => {
       const [levels, cut] = bottom(d);
       expect([levels, cut.displayValue, cut.valueEditable]).toEqual([CAP + 1, `<1x1 ${kind}, not decoded>`, false]);
       expect(mat.warnings).toEqual([capWarning('deep', kind)]);
-      // What a host asks of a row, and a copy, of every level.
+      // What a host asks of a row, and a copy, of every level: the copy is refused at the value
+      // not decoded, naming it, as there is no value of it to write (the maintainer's group F
+      // ruling of 2026-10-18, F1-10). It held the text of its placeholder.
       expect(() => d.toRow()).not.toThrow();
-      expect(() => JSON.stringify(d.serializeValue())).not.toThrow();
+      const path = 'deep' + (kind === 'cell' ? '{1}' : '.f').repeat(CAP);
+      expect(cut.matlabPath).toBe(path);
+      expect(() => d.serializeValue()).toThrow(
+        `Cannot write "deep": ${path} is a 1x1 ${kind} that was not decoded (${REASON}), so there is no value of it to write. Nothing was written.`,
+      );
     });
   }
 

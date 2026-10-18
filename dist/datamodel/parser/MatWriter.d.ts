@@ -14,7 +14,9 @@ export declare class MatWriteError extends Error {
  *   - 'not-a-count': its dims are not a size (parser/Size), so there is nothing to count;
  *   - 'past-int32': an extent past MAT_MAX_EXTENT, which no MAT stream's dims word can say;
  *   - 'not-an-index': a sparse array's non-zero whose row or column is not a whole number,
- *     which no index can hold, and without which the array is not the one it is.
+ *     which no index can hold, and without which the array is not the one it is;
+ *   - 'not-decoded': a value the reader recorded without decoding, with no stream of its own
+ *     to be written as, so nothing holds its value but the text of its placeholder.
  * Final: nothing may be written in the value's place — not the value laid out full, not its
  * summary, not its elements one by one — so it reaches whoever asked for the write, and a
  * copy or a save that holds the value fails. Every other MatWriteError says this writer has
@@ -29,7 +31,7 @@ export declare class MatBudgetError extends MatWriteError {
     readonly at: string;
     readonly what: string;
     readonly entry: string | undefined;
-    readonly reason: 'budget' | 'not-a-count' | 'past-int32' | 'not-an-index';
+    readonly reason: 'budget' | 'not-a-count' | 'past-int32' | 'not-an-index' | 'not-decoded';
     /** False when what stands at `at` declares a size that is no count at all (NaN, Inf). */
     readonly counted: boolean;
     constructor(message: string, at: string, what: string, entry?: string, reason?: MatBudgetError['reason']);
@@ -119,9 +121,9 @@ export declare function encodeMatStream(v: MatVariable): Uint8Array;
  * The MAT stream of a value whose miMATRIX element is at hand AS READ (MatVariable's
  * `_rawBytes`), or null when the bytes are not a whole one this can re-frame.
  *
- * For the value nothing here can re-encode because the reader never decoded it — one
- * MatParser recorded as `undecoded` — and which a copy out of a .mat or a model workspace
- * into a dictionary would otherwise write as the text of its placeholder. Its bytes are
+ * For a value nothing here can re-encode because the reader never decoded it — one
+ * MatParser recorded as `undecoded` — though a copy of such a value itself, out of a .mat or
+ * a model workspace, is refused (MatlabVariableNode._undecodedRefusal). Its bytes are
  * the value; the one thing in them a stream does not carry is the variable's NAME, which a
  * .mat writes into the element and a stream leaves empty, so the name subelement is
  * replaced by the empty one and the element's size restated. Everything else is copied byte for byte. An MCOS opaque (class 17) is not framed this

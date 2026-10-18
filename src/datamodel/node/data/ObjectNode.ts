@@ -61,14 +61,21 @@ function elementBody(element: unknown): Record<string, unknown> {
 // keys in order and `_object_class` sorts before `_properties`.
 function elementWritten(written: Record<string, unknown>, read: unknown, own: string, arrayClass: string): Record<string, unknown> {
     const body = elementBody(written);
-    if (own === arrayClass) {
+    // An element read naming its own class by something that is not a string, which only a
+    // hand-edited text dictionary holds, is of the array's class to its node
+    // (DataNode.elementClassOf), and goes back naming it as it was read. It went back naming
+    // none, its class the array's (OBJCLASS-NONSTRING), and a copy of it pasted into a binary
+    // dictionary was written so.
+    const readOwn = read && typeof read === 'object' ? (read as Record<string, unknown>)._object_class : undefined;
+    const keep = own === arrayClass && readOwn !== undefined && typeof readOwn !== 'string';
+    if (own === arrayClass && !keep) {
         return body;
     }
     const order = read && typeof read === 'object' && '_object_class' in read ? Object.keys(read) : ['_object_class'];
     const out: Record<string, unknown> = {};
     for (const key of order) {
         if (key === '_object_class') {
-            out._object_class = own;
+            out._object_class = keep ? readOwn : own;
         } else if (Object.prototype.hasOwnProperty.call(body, key)) {
             setOwn(out, key, body[key]);
         }
@@ -541,10 +548,15 @@ export default class ObjectNode extends DataNode {
         // known to be accepted for an N-D array of things.
         const dimAttr = ' Dimension="' + (dims.length > 1 ? dimensionText(dims) : extentDigits(dims[0]) + '*1') + '"';
         let xml = p + '<' + tagName + attrStr + dimAttr + '>\n';
+        // A class that is not a class name, refused (DataNode._classOrRefuse): the array's, and
+        // each element's own as it was read, which its node is of the array's class for.
+        DataNode._classOrRefuse(this.arrayClass, '', () => this._whereWritten());
+        const read = (rawVal._elements as unknown[]) || [];
         // Each element under its own class, which its node is of (see parse): every one was
         // written as the array's, so a subclass element beside a Simulink.Signal was saved as a
         // second subclass element.
-        for (const child of this.children) {
+        for (const [k, child] of this.children.entries()) {
+            DataNode._ownClassOrRefuse(read[k], '', () => (child as DataNode)._whereWritten());
             xml += ip + '<Element Class="' + escapeXml(elementNodeClass(child as DataNode, this.arrayClass)) + '">\n';
             const props = (child as ObjectNode)._xmlProperties();
             // The Source and PropertyType MATLAB wrote on a property of the element, which its

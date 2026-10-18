@@ -13,6 +13,8 @@ import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { controlsAsOneChar, formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
+import { heldAsRead, integerReader } from './integerReading.js';
+import { isWrittenSpelling, matrixHoldsUnwritten, recordUnwrittenSpelling, rowHoldsUnwritten } from '../../parser/writtenSpelling.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
@@ -22,7 +24,7 @@ import { dimensionText, dimsText, isSize, isStreamSize } from '../../parser/Size
 import { classPhrase, classRefusal, emptyDimsHeldForm, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
-import { charNeedsShape, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
+import { charNeedsShape, charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
 // The pure rules about a MATLAB VALUE — what class an edit leaves behind, when a
@@ -114,6 +116,59 @@ function holdsMcosObject(variable) {
  */
 function matlabClassOf(variable) {
     return variable.isLogical ? 'logical' : variable.className;
+}
+/**
+ * One token of a typed literal, as written, recorded if MATLAB does not write it (writtenSpelling,
+ * asked without its `F` or `U`), with `shown`, the value the node holds for it, for a text dictionary's
+ * warnings (LENIENT; SlddNode.parse takes the record). A text dictionary's int16 `1e2` is shown
+ * as 100 and its logical `[2, 0]` as [false false], where MATLAB reads [1 0] (measured).
+ *
+ * Not a number its integer class cannot hold, which F1-17 records and warns about (`2.5` under
+ * int8): one warning for one token. `read` is the text the number was read from, which in a
+ * matrix's body is the number the reader found in the token. `shown` null: no one value is read.
+ */
+function noteTextSpelling(type, token, shown, read = token.replace(/[FU]$/, '')) {
+    if (isWrittenSpelling(type, token.replace(/[FU]$/, ''))) {
+        return;
+    }
+    if (shown !== null && isIntegerClass(type)) {
+        const number = needsExactInt(type) ? parseExactNum(read) : parseMatlabNum(read);
+        if (!heldAsRead(number, shown)) {
+            return;
+        }
+    }
+    const spelled = shown === null ? null : type === 'logical' ? String(Boolean(shown)) : formatMatlabNum(shown);
+    recordUnwrittenSpelling(type, token, spelled);
+}
+// A number, as parseMatrixValue finds one in a matrix's body.
+const MATRIX_NUMBER = /-?(?:[\d.]+(?:[eE][+-]?\d+)?|Inf|NaN)/g;
+/**
+ * noteTextSpelling for each token of a `Matrix(...)` or `Vector(N)` literal's body, whose
+ * `elements` parseMatrixValue read as the numbers it found in the body: a token holding one
+ * number is the element at its place, as long as every token before it held one. One holding
+ * none or two is not one value.
+ */
+function noteMatrixSpellings(rawVal, type, elements) {
+    const value = String(rawVal._value);
+    const header = value.indexOf('\n');
+    if (header < 0 || !matrixHoldsUnwritten(type, value.slice(header + 1))) {
+        return;
+    }
+    // The body as parseMatrixValue reads it, its lines joined up.
+    const body = value.split('\n').slice(1).join('');
+    let at = 0;
+    let aligned = true;
+    for (const token of body.split(/[\s,;[\]]+/)) {
+        if (token === '') {
+            continue;
+        }
+        if (!isWrittenSpelling(type, token.replace(/[FU]$/, ''))) {
+            const numbers = token.match(MATRIX_NUMBER);
+            aligned = aligned && numbers?.length === 1;
+            noteTextSpelling(type, token, aligned ? elements[at] : null, aligned ? numbers[0] : undefined);
+        }
+        at++;
+    }
 }
 export default class MatlabVariableNode extends DataNode {
     constructor(name, parent, serial) {
@@ -1904,6 +1959,12 @@ export default class MatlabVariableNode extends DataNode {
             return this._rawInput;
         }
         this._refuseNoSize();
+        // A value the reader did not decode and that has no form of its own to replay (above, or
+        // a binary dictionary's hex, _adoptEncoded) has nothing to be written as but its
+        // placeholder's text, which is another value: refused (_undecodedRefusal).
+        if (this._undecoded) {
+            throw this._undecodedRefusal();
+        }
         // Rank >= 3 leaves the literal grammar behind entirely: there is no spelling
         // for it. Every `Matrix(d1,d2,d3)` candidate reads back as an empty 1x0 and
         // the two constructor expressions read back as the scalar 0, while MATLAB's
@@ -2035,8 +2096,8 @@ export default class MatlabVariableNode extends DataNode {
      *     cdata, untouched or only renamed);
      *   - for a value the reader recorded without decoding (`_undecoded`), the element it was
      *     read from, re-framed as a stream (MatWriter.matStreamOfElement) — nothing else holds
-     *     its values, and without this a copy of one out of a .mat wrote the text of its
-     *     placeholder;
+     *     its values. A copy or a save of such a value itself never asks: it is refused
+     *     (serializeValue, _undecodedRefusal);
      *   - for a sparse array no element row has edited, the element it was read from, the same
      *     way: its own bytes, which for every array MATLAB wrote are the bytes MatWriter would
      *     write, and for one MatWriter refuses — a dims word damaged, a class MATLAB never
@@ -2505,6 +2566,11 @@ export default class MatlabVariableNode extends DataNode {
         if (!writeUnderWay()) {
             return oneWrite(() => this.serializeXml(tagName, attrs, indent));
         }
+        // A function handle has no XML spelling (DataNode._handleRefusal). One at an entry that holds
+        // its own MAT stream was written as that hex before this was asked (_binaryEncoded).
+        if (this._scalarType === 'function_handle') {
+            throw this._handleRefusalHere(this._kind === 'scalar' ? String(this._scalarValue) : 'Matrix(' + this._dims.join(',') + ')');
+        }
         // Dims no Dimension can spell — a text dictionary's [1, "x"] or a host's NaN pasted
         // into a binary one — are refused, finally, naming the value, and never written as
         // `Dimension="1*x"` (parser/Size). What a binary dictionary read is spelled as read.
@@ -2586,14 +2652,12 @@ export default class MatlabVariableNode extends DataNode {
         if (attrs && attrs.Name) {
             attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
         }
-        // A value the reader did not decode, with no stream of its own to write it as (see
-        // serializeXml and _matStream, which every one this package reads from a file has):
-        // all there is to write is its placeholder. Escaped, whatever the class beside it says
-        // — the numeric arms below write their text as it stands, and `<10000000x2 double, not
-        // decoded>` unescaped inside a Class="double" element made the whole dictionary
-        // something MATLAB would not open.
+        // A value the reader did not decode, with no hex of its own to write it as (_adoptEncoded):
+        // all there is to write is its placeholder, which is another value — written escaped
+        // inside `Class="double"`, a binary dictionary read it back as 0 — so it is refused, as
+        // its JSON is (_undecodedRefusal).
         if (this._undecoded) {
-            return p + '<' + tagName + attrStr + ' Class="' + escapeXml(type) + '">' + escapeXml(String(val)) + '</' + tagName + '>';
+            throw this._undecodedRefusal();
         }
         if (type === 'string') {
             this._kind = 'string';
@@ -2635,7 +2699,8 @@ export default class MatlabVariableNode extends DataNode {
             // this body wants: its own 2x2 ['ab'; 'cd'] is `Dimension="2*2">acbd`. Only the
             // Dimension was missing, so every char BUT a row went out claiming 1xN — a 3x1
             // came back transposed and a 2x3x2 came back flat (defect 25). A row and an
-            // empty char carry no attribute, exactly as MATLAB leaves them.
+            // empty char carry no attribute, exactly as MATLAB leaves them, except a row over
+            // 512 characters, which MATLAB gives its `Dimension="1*N"` (charRowDimension).
             const text = String(val);
             const dims = this._textDims(text);
             // Except a char MATLAB writes as its CODES (XmlUtils.WRITTEN_AS_CODES), which states
@@ -2645,7 +2710,7 @@ export default class MatlabVariableNode extends DataNode {
             if (codes) {
                 return p + '<' + tagName + attrStr + ' Class="char"' + codes.attrs + '>' + codes.body + '</' + tagName + '>';
             }
-            const dimAttr = charNeedsShape(dims) ? ' Dimension="' + dimensionText(dims) + '"' : '';
+            const dimAttr = charNeedsShape(dims) ? ' Dimension="' + dimensionText(dims) + '"' : charRowDimension(text, dims);
             return p + '<' + tagName + attrStr + ' Class="char"' + dimAttr + '>' + escapeXml(text) + '</' + tagName + '>';
         }
         if (type === 'logical') {
@@ -2666,7 +2731,7 @@ export default class MatlabVariableNode extends DataNode {
                 '>');
         }
         if (type === 'double') {
-            return p + '<' + tagName + attrStr + ' Class="double">' + formatDoubleXml(val) + '</' + tagName + '>';
+            return p + '<' + tagName + attrStr + ' Class="double">' + formatFloatXml(val, 'double') + '</' + tagName + '>';
         }
         // No `as number`: an int64/uint64 scalar holds exact decimal TEXT (parseTypedScalar),
         // and formatNumericXml writes one verbatim instead of rounding it through a double.
@@ -2865,6 +2930,30 @@ export default class MatlabVariableNode extends DataNode {
         }
         const what = classPhrase(this._scalarType) + ' declaring dimensions ' + dimsText(dims);
         throw this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-a-count'));
+    }
+    /**
+     * The refusal of a write of a value the reader recorded without decoding (`_undecoded`) that
+     * has no form of its own to be written as: one out of a .mat or a model workspace, a member of
+     * a stream, a text dictionary's own pasted into a binary one. Nothing this package holds is
+     * its value. Written as the text of its placeholder, `<2x3 double, not decoded>`, it was
+     * another value: a char in a text or a binary dictionary, a double 0 as XML, and a struct
+     * whose field names lie past its end a valid struct of no elements. The maintainer's group F
+     * ruling of 2026-10-18 (F1-10) refuses it rather than write it wrong: final, as a budget
+     * refusal is, so nothing is written in its place, and named the same way (_budgetFailure),
+     * with why it was not decoded — the reader's reason (MatVariable.undecoded), or what its
+     * warning says of a value with no data or of a class the reader does not model.
+     */
+    _undecodedRefusal() {
+        const v = this._matVar;
+        let why = v?.undecoded;
+        if (!why && v && v.className === 'unknown') {
+            why = 'its MAT array class is not one this reader models';
+        }
+        else if (!why && v && v.value === null && !v.fields && !v.isSparse && !v.isOpaque) {
+            why = 'it declares ' + v.dimensions.reduce((a, b) => a * b, 1) + ' element(s) and holds no data';
+        }
+        const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + this._scalarType + ' that was not decoded' + (why ? ' (' + why + ')' : '');
+        return this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-decoded'));
     }
     /**
      * The variable a member of a cell or a struct is written from. A member of another class
@@ -3220,7 +3309,7 @@ export default class MatlabVariableNode extends DataNode {
         // theme 1: warn and show what was read) makes it what every value the reader did not
         // decode is (_createUndecoded): one row, with no editor and no element rows, its class and
         // size, which are what was read, spelled as MatParser spells its own placeholder. Its
-        // copy is the element it was read from, where it has one (_matStream). A .mat file says
+        // copy is refused (_undecodedRefusal): there is no value to copy. A .mat file says
         // why (MatParser's collectUndecoded); a model workspace does not (the C-232 ruling).
         //
         // A class MatParser does not model ('unknown': a flags word overwritten, say) is not this,
@@ -3570,11 +3659,19 @@ export default class MatlabVariableNode extends DataNode {
             // range, which MATLAB refuses on read (defect 29). _scalarValue is `unknown` and
             // needsTypedLiteral keys off the CLASS, so the writer still spells it
             // `Class="uint64"` with the 'U' suffix, from the digits MATLAB itself wrote.
-            node._scalarValue = parseExactNum(bare);
+            // Held as MATLAB reads it, as every integer class's number is (below).
+            node._scalarValue = integerReader(node._scalarType)(parseExactNum(bare));
+        }
+        else if (isIntegerClass(node._scalarType)) {
+            // As MATLAB reads a text dictionary's literal: converted to the class, so int8 300 is
+            // 127 and 2.5 is 3 (integerReading, F1-17). Read as the double it spells, it showed 300,
+            // which no int8 is. The literal itself stays `_rawInput`, which an untouched save writes.
+            node._scalarValue = integerReader(node._scalarType)(parseMatlabNum(bare));
         }
         else {
             node._scalarValue = parseMatlabNum(bare);
         }
+        noteTextSpelling(node._scalarType, rawVal._value, node._scalarValue);
         return node;
     }
     /**
@@ -4075,10 +4172,24 @@ export default class MatlabVariableNode extends DataNode {
             // typed_text.sldd's u64Vec2 takes, and rounding it here cost more than the one
             // element — MATLAB abandons the REST of an array's body at the first out-of-range
             // token, so a perfectly representable neighbour came back zero too (defect 30).
-            node._elements = parts.map(parseExactNum);
+            // Each held as MATLAB reads it, as below.
+            const read = integerReader(node._scalarType);
+            node._elements = parts.map((t) => read(parseExactNum(t)));
+        }
+        else if (isIntegerClass(node._scalarType)) {
+            // See parseTypedScalar: each element as MATLAB reads it, converted to the class.
+            const read = integerReader(node._scalarType);
+            node._elements = parts.map((t) => read(parseMatlabNum(t)));
         }
         else {
             node._elements = parts.map(parseMatlabNum);
+        }
+        // Each part as written, split again only for a literal that holds one MATLAB does not write.
+        if (rowHoldsUnwritten(node._scalarType, inner)) {
+            const written = inner.split(',');
+            for (let i = 0; i < parts.length; i++) {
+                noteTextSpelling(node._scalarType, written[i].trim(), node._elements[i]);
+            }
         }
         node._dims = [1, node._elements.length];
         node._buildArrayChildren();
@@ -4155,6 +4266,16 @@ export default class MatlabVariableNode extends DataNode {
         node._elements = parsed.elements;
         node._dims = parsed.dims.slice();
         node._scalarType = parsed.type;
+        // See parseTypedScalar: each element as MATLAB reads it, converted to the class. In place:
+        // parseMatrixValue made the array for this node alone.
+        if (isIntegerClass(parsed.type)) {
+            const read = integerReader(parsed.type);
+            const elements = parsed.elements;
+            for (let i = 0; i < elements.length; i++) {
+                elements[i] = read(elements[i]);
+            }
+        }
+        noteMatrixSpellings(rawVal, parsed.type, parsed.elements);
         // This package's own spelling of an edited sparse double (_serializeArray), read back:
         // a sparse double, as MATLAB reads it — its non-zeros, as every sparse array is held.
         if (parsed.type === 'sparse') {

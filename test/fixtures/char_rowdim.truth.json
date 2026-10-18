@@ -1,0 +1,449 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "patchedRemoved": 24,
+  "files": [
+    {
+      "file": "char_rowdim_binary.sldd",
+      "entries": [
+        {
+          "name": "rd_1",
+          "class": "char",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_100",
+          "class": "char",
+          "size": [
+            1,
+            100
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_511",
+          "class": "char",
+          "size": [
+            1,
+            511
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_512",
+          "class": "char",
+          "size": [
+            1,
+            512
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_513",
+          "class": "char",
+          "size": [
+            1,
+            513
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_600",
+          "class": "char",
+          "size": [
+            1,
+            600
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_4096",
+          "class": "char",
+          "size": [
+            1,
+            4096
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_e512",
+          "class": "char",
+          "size": [
+            1,
+            512
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_e513",
+          "class": "char",
+          "size": [
+            1,
+            513
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_nl100",
+          "class": "char",
+          "size": [
+            1,
+            100
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_nl600",
+          "class": "char",
+          "size": [
+            1,
+            600
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_amp512",
+          "class": "char",
+          "size": [
+            1,
+            512
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_amp513",
+          "class": "char",
+          "size": [
+            1,
+            513
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_crlf513",
+          "class": "char",
+          "size": [
+            1,
+            513
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_cell",
+          "class": "cell",
+          "size": [
+            1,
+            5
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_struct",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_cellOfStruct",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_structOfCell",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_p512",
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_p513",
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_pnl600",
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_str513",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_strArr",
+          "class": "string",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_widget",
+          "class": "Widget",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        }
+      ]
+    },
+    {
+      "file": "char_rowdim_patched.sldd",
+      "entries": [
+        {
+          "name": "rd_1",
+          "class": "char",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_100",
+          "class": "char",
+          "size": [
+            1,
+            100
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_511",
+          "class": "char",
+          "size": [
+            1,
+            511
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_512",
+          "class": "char",
+          "size": [
+            1,
+            512
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_513",
+          "class": "char",
+          "size": [
+            1,
+            513
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_600",
+          "class": "char",
+          "size": [
+            1,
+            600
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_4096",
+          "class": "char",
+          "size": [
+            1,
+            4096
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_e512",
+          "class": "char",
+          "size": [
+            1,
+            512
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_e513",
+          "class": "char",
+          "size": [
+            1,
+            513
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_nl100",
+          "class": "char",
+          "size": [
+            1,
+            100
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_nl600",
+          "class": "char",
+          "size": [
+            1,
+            600
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_amp512",
+          "class": "char",
+          "size": [
+            1,
+            512
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_amp513",
+          "class": "char",
+          "size": [
+            1,
+            513
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_crlf513",
+          "class": "char",
+          "size": [
+            1,
+            513
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_cell",
+          "class": "cell",
+          "size": [
+            1,
+            5
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_struct",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_cellOfStruct",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_structOfCell",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_p512",
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_p513",
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_pnl600",
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_str513",
+          "class": "string",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_strArr",
+          "class": "string",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "rd_widget",
+          "class": "Widget",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        }
+      ]
+    }
+  ]
+}

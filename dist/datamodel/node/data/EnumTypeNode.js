@@ -72,6 +72,17 @@ export class EnumTypeNode extends DataNode {
         return (this.children[0] && this.children[0].name) || '';
     }
     getProperties() { return [PropName, PropEnumValue, PropDataType, PropDescription]; }
+    // An enumeration type whose properties are held beside its class is shown as read, and takes
+    // an edit of its name alone, which the save writes back as read (DataNode._inlineObjectBag,
+    // _refuseInlineBagEdit).
+    get valueEditable() { return !this._inlineObjectBag() && super.valueEditable; }
+    get descriptionEditable() { return !this._inlineObjectBag() && super.descriptionEditable; }
+    setProperty(propName, stringValue) {
+        if (this._isUnchangedCommit(propName, stringValue)) {
+            return true;
+        }
+        return this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
+    }
     // PI layout is schema-driven (schema/classes/enumType.json). NOTE: EnumValueNode
     // shares this className but keeps its own getPILayout override (a value row, not
     // the enum type), so it never resolves the schema layout.
@@ -85,7 +96,19 @@ export class EnumTypeNode extends DataNode {
             props.Description = this.Description;
         }
         const rawEnumerals = this.serial._rawEnumerals || {};
-        const enumWrapper = { ...rawEnumerals, _elements: enumerals };
+        // An enum read with no Enumerals, and given no enumeral since, is written as it was
+        // read, with none. The wrapper made up for it had no `_array_type`, so no writer had a
+        // spelling for it: a paste into a binary dictionary wrote it as the char `[object
+        // Object]`, and a text save added the key to the file (typeLink.sldd's avtEngSt; C-205).
+        if (enumerals.length === 0 && rawEnumerals._array_type === undefined && rawEnumerals._elements === undefined) {
+            return props;
+        }
+        // One given an enumeral since, or whose wrapper says no `_array_type`, is a struct
+        // array of them, as MATLAB writes Enumerals (createDefault), in MATLAB's key order.
+        const spelled = rawEnumerals._array_type === undefined
+            ? { _array_type: 'Struct', _dimensions: [], _elements: [], _fields: ['Name', 'Value', 'Description'], ...rawEnumerals }
+            : rawEnumerals;
+        const enumWrapper = { ...spelled, _elements: enumerals };
         // Keep _dimensions in sync with the enumeral count so adding or removing
         // one stays consistent. Enumerals are stored as a row-vector struct array.
         enumWrapper._dimensions = [1, enumerals.length];
@@ -93,16 +116,22 @@ export class EnumTypeNode extends DataNode {
         return props;
     }
     serializeValue() {
+        // Properties held beside the class, with no element to rebuild, are written as they were
+        // read (DataNode._inlineObjectBag): `_elements[0]` threw a TypeError here.
+        if (this._inlineObjectBag()) {
+            return { ...this.serial._rawVal };
+        }
         const props = this._getSerializedProperties();
         const result = { ...this.serial._rawVal };
         result._elements = [{ ...result._elements[0], _properties: props }];
         return result;
     }
-    // Not inside a value still in its encoded stream (DataNode._encodedReadOnly).
-    canRemoveChild() { return !this._encodedReadOnly && this.children.length > 0; }
+    // Not inside a value still in its encoded stream (DataNode._encodedReadOnly), nor one whose
+    // properties are held beside its class, which the save writes back as read.
+    canRemoveChild() { return !this._encodedReadOnly && !this._inlineObjectBag() && this.children.length > 0; }
     removeChildNode(child) { this.removeChild(child); this._markModified(); }
     restoreChildNode(child, index) { this.children.splice(index, 0, child); child.parent = this; this._markModified(); }
-    canAddChild() { return !this._encodedReadOnly; }
+    canAddChild() { return !this._encodedReadOnly && !this._inlineObjectBag(); }
     addChildNode() {
         const existing = new Set(this.children.map(function (c) { return c.name; }));
         let i = 1;

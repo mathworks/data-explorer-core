@@ -53,6 +53,14 @@ const withWord = (bytes: Uint8Array, at: number, word: number): Uint8Array => {
 const row = (n: any): unknown => [n.name, n.displayValue, n.className, n.valueEditable, n.children.map(row)];
 const notDecoded = (name: string, shape: string, cls: string) => [name, `<${shape} ${cls}, not decoded>`, cls, false, []];
 
+/**
+ * The refusal a copy of such a variable meets: nothing holds its value, and the text of its
+ * placeholder is another value (the maintainer's group F ruling of 2026-10-18, F1-10).
+ */
+const refusedCopy = (name: string, shape: string) =>
+  `Cannot write "${name}": ${name} is a ${shape} unknown that was not decoded (its MAT array class is not one this reader models), `
+  + 'so there is no value of it to write. Nothing was written.';
+
 // ---- A model workspace -------------------------------------------------------------
 
 /**
@@ -117,7 +125,8 @@ describe('a model workspace variable whose flags word is overwritten is shown as
 
         const node = damaged.model.children.find((s: any) => s.name === 'workspace').children[index];
         expect(() => node.toRow()).not.toThrow();
-        expect(() => JSON.stringify(node.serializeValue())).not.toThrow();
+        // Its copy is refused, naming it. It was the text of its placeholder.
+        expect(() => node.serializeValue()).toThrow(refusedCopy(name, shape));
       });
     }
   }
@@ -180,8 +189,13 @@ describe('a .mat variable whose flags word is overwritten is shown as not decode
       expect(mat.warnings).toEqual([notModelled('z')]);
       for (const n of mat.children) {
         expect(() => n.toRow()).not.toThrow();
+      }
+      // The copy of each variable beside it is as it was; its own is refused, naming it. It was
+      // the text of its placeholder.
+      for (const n of [mat.children[0], mat.children[2]]) {
         expect(() => JSON.stringify(n.serializeValue())).not.toThrow();
       }
+      expect(() => mat.children[1].serializeValue()).toThrow(refusedCopy('z', '1x1'));
     });
   }
 
