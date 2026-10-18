@@ -1390,6 +1390,15 @@ export function parseMat(arrayBuffer) {
     return { header, variables, warnings };
 }
 /**
+ * What this reader says of an array holding fewer elements than it declares, a struct
+ * array's (`element`) or a cell's (`cell`): here for a value outside any object, and in
+ * mcosTypedNode.reportUndecoded for one under a decoded object, so the two say it in the
+ * same words.
+ */
+export function shortArrayMessage(path, declared, read, unit) {
+    return `"${path}" declares ${declared} ${unit}(s) and only ${read} could be read.`;
+}
+/**
  * One warning per piece of a variable that was not decoded, named the way MATLAB
  * names that piece: `s.inner`, `s(2).inner`, `c{3}`.
  *
@@ -1467,7 +1476,7 @@ function collectUndecoded(variable, path, warnings, readShort) {
         if (declared > read) {
             warnings.push({
                 code: 'part-unreadable',
-                message: `"${path}" declares ${declared} element(s) and only ${read} could be read.`,
+                message: shortArrayMessage(path, declared, read, 'element'),
                 part: path,
             });
         }
@@ -1495,7 +1504,7 @@ function collectUndecoded(variable, path, warnings, readShort) {
         if (declared > read) {
             warnings.push({
                 code: 'part-unreadable',
-                message: `"${path}" declares ${declared} cell(s) and only ${read} could be read.`,
+                message: shortArrayMessage(path, declared, read, 'cell'),
                 part: path,
             });
         }

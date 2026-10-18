@@ -38,6 +38,15 @@ bytes it was read from), as it does for a class with no typed node. Nothing to d
 against (no blob) and a handle that is only the null object (ids `[0]`, as MATLAB
 writes a handle that saved no state) are not refusals: those still get the shell.
 
+When the caller passes `warnings` (both containers do), the node built is walked for
+what it holds that the reader could not read in full, and each such value is one
+`part-unreadable` warning named by its MATLAB path (`p.Value`, `h.M{2}`,
+`arr(3).Value`): a value recorded without decoding, a sparse array whose column
+index holds fewer columns than it declares, and a struct array or a cell that holds
+fewer elements than it declares, in the words `MatParser.collectUndecoded` uses for
+the same value outside an object (`shortArrayMessage`). What is shown is a row for
+each element held.
+
 ## Nested objects
 
 An MCOS object held in a struct field (of a scalar struct or of any element of a
