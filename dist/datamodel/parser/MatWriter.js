@@ -1391,7 +1391,7 @@ function heldTextSpelling(o, place, at) {
         }
         const dims = o._dimensions;
         if (typeof o._array_class === 'string' && Array.isArray(dims) && dims.length >= 2 && dims.every(isCount)) {
-            const spelled = textEmptySpelling(o._array_class, dims, place, true);
+            const spelled = textEmptySpelling(o._array_class, dims, place, at, true);
             if (spelled !== undefined) {
                 return spelled;
             }
@@ -1402,14 +1402,14 @@ function heldTextSpelling(o, place, at) {
     delete header[BINARY_EMPTY_KEY];
     if (o._type === 'mxchar') {
         const charDims = mxcharEmptyDims(o._value);
-        const spelled = charDims ? textEmptySpelling('mxchar', charDims, place) : undefined;
+        const spelled = charDims ? textEmptySpelling('mxchar', charDims, place, at) : undefined;
         return spelled === undefined ? '' : spelled;
     }
     const dims = bareEmptyDims(o);
     if (!dims) {
         return header;
     }
-    const spelled = textEmptySpelling(o._type, dims, place, false, o._value);
+    const spelled = textEmptySpelling(o._type, dims, place, at, false, o._value);
     if (spelled !== undefined) {
         return spelled;
     }
@@ -1431,11 +1431,22 @@ function heldTextSpelling(o, place, at) {
  * MATLAB writes it, which it reads back right in no spelling. Undefined for one of rank >= 3, for
  * an extent that is no count, for a class MATLAB gives no object of its own
  * (NOT_AN_OBJECT_CLASS), and for an object array's at an object array's element.
+ *
+ * Refused, finally, said where it stands (`at`), for one whose spelling states an extent past
+ * MAT_MAX_EXTENT: MATLAB reads `Matrix(0,2147483648)` back as a 0x18446744071562067968, the
+ * extent wrapped, where it reads `Matrix(0,2147483647)` as what it is (R2027a, a text
+ * dictionary's entry), and no MAT stream can say the extent either, so a text dictionary has no
+ * spelling for it, as for an N-D one past it (entryEmptyText).
  */
-function textEmptySpelling(cls, dims, place, enumeration = false, header) {
+function textEmptySpelling(cls, dims, place, at, enumeration = false, header) {
     const d = effectiveDims(dims);
     if (d.length !== 2 || !d.every(isCount)) {
         return undefined;
+    }
+    const char = cls === 'mxchar' || cls === 'char';
+    if ((char || enumeration || cls === 'logical' || NUMERIC_CLASS.test(cls)) && d.some((x) => x > MAT_MAX_EXTENT)) {
+        const what = 'a ' + d.join('x') + ' ' + (char ? 'char' : cls);
+        throw new MatBudgetError((at || 'the value') + ', ' + what + ', has an extent past ' + MAT_MAX_EXTENT, at, what, undefined, 'past-int32');
     }
     const zero = d[0] === 0 && d[1] === 0;
     if (cls === 'mxchar' || cls === 'char') {

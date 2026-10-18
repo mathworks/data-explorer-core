@@ -556,6 +556,73 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
     expect(shown(childOf(entryNode(txt, 'widget'), 'OwnI8'))).toEqual(['int8', '[ ]', [0, 3]]);
     expect(text).not.toContain('_binary_empty');
   });
+
+  it('but one with an extent past 2147483647, which MATLAB reads back wrapped, is refused there, at each place', () => {
+    // MATLAB reads `{"_type": "double", "_value": "Matrix(0,2147483648)"}` back as a
+    // 0x18446744071562067968 double, and an int8 `Matrix(2147483648,0)` as an
+    // 18446744071562067968x0 (R2027a, a text dictionary's entry); `Matrix(0,2147483647)` as the
+    // 0x2147483647 it is. No MAT stream can say the extent either, so a text dictionary has no
+    // spelling for one, and the save is refused, as an N-D one's is, rather than written as an
+    // extent the header wraps to. It was written so, as its header, at an entry, a property, a
+    // struct field and a cell's element.
+    const WIDE: [string, string, string][] = [
+      ['double', '0*2147483648', 'a 0x2147483648 double'],
+      ['int8', '2147483648*0', 'a 2147483648x0 int8'],
+      ['logical', '0*2147483648', 'a 0x2147483648 logical'],
+      ['char', '0*2147483648', 'a 0x2147483648 char'],
+    ];
+    const PAST = ', an extent past 2147483647, the most a MAT stream\'s dimensions can say, and it has no other spelling here. Nothing was written.';
+    const places = (cls: string, dim: string) => ({
+      entry: `        <P Name="Value" Class="${cls}" Dimension="${dim}"/>`,
+      field: ['        <P Name="Value" Class="struct">', '            <Element>', `                <P Name="f" Class="${cls}" Dimension="${dim}"/>`, '            </Element>', '        </P>'].join('\n'),
+      cell: ['        <P Name="Value" Class="cell" Dimension="1*1">', `            <Element Class="${cls}" Dimension="${dim}"/>`, '        </P>'].join('\n'),
+    });
+    /** What a paste of `copy` into a fresh text dictionary, and its save, throw: its name and message, or null. */
+    const refusalOf = (copy: any, name: string): [string, string] | null => {
+      const session = createSession();
+      const txt: any = ingest(session, buffer(bytesAt(TEXT_HOST)), { filename: 'custom_object_text.sldd' });
+      const design = txt.getSection('design');
+      try {
+        design.parseEntry({ ...copy, name, metadata: { ...design.children[0].metadata, uuid: '00000000-0000-4000-a600-000000000001' } });
+        session.serializeSource(txt.name);
+        return null;
+      } catch (e) {
+        return [(e as Error).name, (e as Error).message];
+      }
+    };
+    const copyOf = (root: any, name: string) => JSON.parse(JSON.stringify(entryNode(root, name).serialize()));
+    const got: unknown[] = [];
+    const want: unknown[] = [];
+    for (const [cls, dim, what] of WIDE) {
+      const at = places(cls, dim);
+      const tail = '    <Object Class="DD.Dictionary">';
+      const chunk = HOST_XML.replace(NOTHING, NOTHING + '\n' + `                <P Name="Wide" Class="${cls}" Dimension="${dim}"/>`)
+        .replace(tail, [entry('wEntry', 1, at.entry), entry('wField', 2, at.field), entry('wCell', 3, at.cell)].join('\n') + '\n' + tail);
+      const { root } = open(chunk);
+      for (const [name, where] of [['wEntry', ''], ['wField', '.f'], ['wCell', '{1}']]) {
+        got.push([cls, name, refusalOf(copyOf(root, name), 'pasted')]);
+        want.push([cls, name, ['MatBudgetError', `Cannot write "pasted": pasted${where} is ${what}${PAST}`]]);
+      }
+      const refused = refusalOf(copyOf(root, 'widget'), 'pasted');
+      got.push([cls, 'widget', refused?.[0], refused?.[1].endsWith(`.Wide is ${what}${PAST}`)]);
+      want.push([cls, 'widget', 'MatBudgetError', true]);
+    }
+    expect(got).toEqual(want);
+    // An extent of 2147483647 is the header of its extents, at every place, as MATLAB reads it.
+    const at = places('double', '0*2147483647');
+    const tail = '    <Object Class="DD.Dictionary">';
+    const { root } = open(HOST_XML.replace(tail, [entry('wEntry', 1, at.entry), entry('wField', 2, at.field), entry('wCell', 3, at.cell)].join('\n') + '\n' + tail));
+    const session = createSession();
+    const txt: any = ingest(session, buffer(bytesAt(TEXT_HOST)), { filename: 'custom_object_text.sldd' });
+    const design = txt.getSection('design');
+    ['wEntry', 'wField', 'wCell'].forEach((name, k) => {
+      design.parseEntry({ ...copyOf(root, name), metadata: { ...design.children[0].metadata, uuid: '00000000-0000-4000-a600-' + String(k + 2).padStart(12, '0') } });
+    });
+    const entries: any[] = JSON.parse(session.serializeSource(txt.name)!.text!).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const valueOf = (name: string) => entries.find((e) => e.name === name).value;
+    const header = { _type: 'double', _value: 'Matrix(0,2147483647)' };
+    expect([valueOf('wEntry'), valueOf('wField')._elements[0].f, valueOf('wCell')._elements[0]]).toEqual([header, header, header]);
+  });
 });
 
 describe('an empty of a class that XML must escape, or a function handle', () => {
