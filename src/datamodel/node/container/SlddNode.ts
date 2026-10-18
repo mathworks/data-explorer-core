@@ -18,7 +18,8 @@ import { takeDecodeFailures, takePartialDecodes } from '../../parser/EncodedValu
 import { takeUnheldIntegers, unheldIntegerWarning } from '../data/integerReading.js';
 import { takeUnwrittenSpellings, unwrittenSpellingWarning } from '../../parser/writtenSpelling.js';
 import { heldByTextDictionary } from '../../parser/MatWriter.js';
-import { attachChunkFrame, attachEntrySource, readFrameOf, readSourceOf } from '../../parser/EntrySource.js';
+import { attachChunkFrame, attachEntrySource, entrySourceOf, readFrameOf, readSourceOf } from '../../parser/EntrySource.js';
+import { setEntryFragmentReader, type ReadEntryOptions } from '../../parser/EntryMerge.js';
 
 const SECTION_DEFS = [
     { key: 'design', label: 'Design Data', icon: 'databaseFolderDesign' },
@@ -432,3 +433,36 @@ export default class SlddNode extends ContainerNode {
         };
     }
 }
+
+// The node layer's half of EntryMerge.readEntryFragment: the entry the binary reader read one
+// fragment as, built as the file's own entries are (SlddNode.parse), into a dictionary of its own
+// or into `options.section`, and there given the place, with the fragment as its bytes, of the
+// entry `options.inheritPlaceFrom` names. Registered here because a parser may not reach the
+// node classes, and this module is loaded wherever a dictionary is read.
+//
+// Only a fragment the reader pairs with the one entry it reads from it is read (its whole text is
+// that entry's verified span): a lenient read of something else, an unclosed `<Object>` read as an
+// entry with no name, is no entry of the fragment's.
+setEntryFragmentReader((content: Record<string, unknown>, fragment: string, options: ReadEntryOptions): DataNode | null => {
+    const raws = (slddChunkContent(content)?.entries as Record<string, unknown>[] | undefined) ?? [];
+    const source = raws.length === 1 ? readSourceOf(raws[0]) : undefined;
+    if (!source || source.fragment !== fragment) {
+        return null;
+    }
+    const section = options.section;
+    const dictionary = section?.parent as { systemComposer?: SystemComposerCatalog | null } | null | undefined;
+    const catalog = options.systemComposer !== undefined ? options.systemComposer : dictionary?.systemComposer ?? null;
+    if (!section) {
+        if (catalog) {
+            content.__scCatalog = catalog;
+        }
+        const read = SlddNode.parse(content, 'entry.sldd').children.flatMap((s) => s.children);
+        return read.length === 1 ? (read[0] as unknown as DataNode) : null;
+    }
+    const node = (section as SectionNode)._readEntry(raws[0], catalog);
+    const place = options.inheritPlaceFrom ? entrySourceOf(options.inheritPlaceFrom) : undefined;
+    if (place) {
+        attachEntrySource(node, { frame: place.frame, index: place.index, fragment });
+    }
+    return node;
+});

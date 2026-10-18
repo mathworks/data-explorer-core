@@ -4,9 +4,11 @@
 // decisions, run for group F on 2026-10-18): the saves MATLAB is asked to reopen, made through
 // core's own API, and the part of each that the question is about.
 //
-//   M1  a config set's Components, regenerated in a binary dictionary (the entry renamed) and
-//       pasted from it into its text twin: does MATLAB read 10 components, each of its own class
-//       (decision D15)? Needs dNJSON_SLDDApi_opc.sldd and its text twin dNJSON_SLDDApi.sldd, which
+//   M1  a config set's Components, regenerated in a binary dictionary (the entry renamed, and
+//       written from the model through the writers' own entry point, regenerateEntryXml, which is
+//       what a save of a renamed entry wrote before S2 kept the bytes of the parts a rename does
+//       not touch) and pasted from it into its text twin: does MATLAB read 10 components, each of
+//       its own class (decision D15)? Needs dNJSON_SLDDApi_opc.sldd and its text twin dNJSON_SLDDApi.sldd, which
 //       are corpus files, not in this repository: `corpus` names the directory holding them, and
 //       without it M1 is not made.
 //   M2  enumeration values regenerated in a binary dictionary and pasted into a text one: a
@@ -14,7 +16,8 @@
 //   M3  a bus emptied of its elements and a new bus, in each dictionary; and the two spellings of
 //       an empty bus older core saves wrote, `Class="char"/>` and `Class="double" Dimension="0*0"/>`.
 //
-// saveReadbacks(core, fixtures, corpus) returns { files, cases }: `files` the saved dictionaries
+// saveReadbacks(core, fixtures, corpus) returns { files, cases } (core also holding
+// regenerateEntryXml, for M1): `files` the saved dictionaries
 // by name, `cases` one row per question, its `fragment` the part of the save the question is
 // about, exactly as written (a config set's, too long to hold, as its length and SHA-256).
 // test/parity/readbacks.truth.test.ts calls it with the package's source and compares each
@@ -60,6 +63,22 @@ function spanOf(xml, open) {
 }
 
 /**
+ * A binary save with one entry's object replaced by the writers' text for it (regenerateEntryXml),
+ * in the object's place: what a save wrote for an edited entry before S2.
+ */
+function regenerated(bytes, entry, regenerateEntryXml) {
+  if (!regenerateEntryXml) {
+    throw new Error('M1 needs core.regenerateEntryXml');
+  }
+  const members = unzipSync(bytes);
+  const xml = strFromU8(members['data/chunk0.xml']);
+  const object = entryXml(xml, entry.name);
+  const at = xml.indexOf(object);
+  members['data/chunk0.xml'] = strToU8(xml.slice(0, at) + regenerateEntryXml(entry).slice(4, -1) + xml.slice(at + object.length));
+  return zipSync(members);
+}
+
+/**
  * The saves and their questions. `core` is { createSession, ingest }; `read(rel)` the bytes of a
  * test fixture; `corpus(name)`, the bytes of a corpus file, or null without one.
  */
@@ -87,7 +106,7 @@ export function saveReadbacks(core, read, corpus = () => null) {
     const cs = named(bin, 'slConfigSetHDLCoder');
     const rec = record(cs);
     cs.setProperty('Name', 'slConfigSetHDLCoderR');
-    const binBytes = bytesOf(s.serializeSource(bin.name));
+    const binBytes = regenerated(bytesOf(s.serializeSource(bin.name)), cs, core.regenerateEntryXml);
     const txt = open(s, twin, 'dNJSON_SLDDApi.sldd');
     paste(txt.getSection('config'), rec, 'slConfigSetHDLCoderPasted');
     const text = bytesOf(s.serializeSource(txt.name));
@@ -173,7 +192,7 @@ if (process.argv[1] && import.meta.url === new URL('file://' + process.argv[1]).
   }
   const here = fileURLToPath(new URL('.', import.meta.url));
   const dist = join(here, '..', '..', '..', 'dist', 'index.js');
-  const core = await import(dist);
+  const core = { ...(await import(dist)), regenerateEntryXml: (await import(join(here, '..', '..', '..', 'dist', 'datamodel', 'parser', 'BinarySlddSerializer.js'))).regenerateEntryXml };
   const read = (rel) => new Uint8Array(readFileSync(join(here, '..', '..', 'fixtures', rel)));
   const corpus = (name) => (corpusDir && existsSync(join(corpusDir, name)) ? new Uint8Array(readFileSync(join(corpusDir, name))) : null);
   const { files, cases } = saveReadbacks(core, read, corpus);

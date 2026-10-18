@@ -25,6 +25,7 @@ import { subscriptLabel } from '../../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../../display/Subscript.js';
 import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue, type MatVariable } from '../../parser/MatParser.js';
 import { setOwn } from '../../parser/ownKeys.js';
+import { elementOriginAt, originOf, recordElementOrigins, recordOrigin, taggingOrigins, withOrigin } from '../../parser/EntrySource.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import {
   encodedClass,
@@ -1820,6 +1821,8 @@ export default class MatlabVariableNode extends DataNode {
   _buildCellChildren(elements: unknown[]): void {
     for (let i = 0; i < elements.length; i++) {
       const child = NodeRegistry.parseValue(elements[i], String(i + 1), this);
+      // Which <Element> of the file it was read from, if it was (EntrySource).
+      recordOrigin(child, elementOriginAt(elements, i));
       this.addChild(child);
     }
   }
@@ -2858,6 +2861,10 @@ export default class MatlabVariableNode extends DataNode {
     const elements = this.children.map(function (child) {
       return (child as MatlabVariableNode).serializeValue();
     });
+    // Each element's origin in the file, for the save that merges an edited entry (EntrySource).
+    if (taggingOrigins()) {
+      recordElementOrigins(elements, this.children.map(originOf));
+    }
     return {
       _array_type: 'Cell',
       _dimensions: this._dims,
@@ -3192,8 +3199,9 @@ export default class MatlabVariableNode extends DataNode {
     // dims.join, so a 2x3x2 cell keeps its third extent here as it does in
     // _serializeCellPropertyXml and in what MATLAB itself writes.
     let xml = p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + dimensionText(dims) + '">\n';
+    // Each element with its origin in the file while a merge asks for it (EntrySource).
     for (const child of this.children) {
-      xml += (child as MatlabVariableNode).serializeXml('Element', {}, indent + 1) + '\n';
+      xml += withOrigin((child as MatlabVariableNode).serializeXml('Element', {}, indent + 1), originOf(child)) + '\n';
     }
     xml += p + '</' + tagName + '>';
     return xml;

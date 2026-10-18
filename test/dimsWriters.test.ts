@@ -730,9 +730,10 @@ describe('a binary dictionary\'s raw property is written back as read, Dimension
           const from = xml.indexOf('<P Name="Value"', xml.indexOf('<Element Class="Simulink.Parameter">', xml.indexOf('<P Name="Name" Class="char">pDense</P>')));
           return xml.slice(from, xml.indexOf('<P Name="Complexity"', from)).trimEnd();
         };
-        // Unedited, a save writes the entry's own bytes, so the writer is asked directly.
-        expect(valueIn(edit ? saved : regenerateChunkXml(root)), edit ? 'edited' : 'no-op').toBe(written || read);
-        if (!edit) expect(valueIn(saved), 'saved untouched').toBe(read);
+        // A save writes what nobody edited as the bytes it was read from, the Value of an entry
+        // whose Description was edited included (S2), so the writer is asked directly.
+        expect(valueIn(regenerateChunkXml(root)), edit ? 'edited' : 'no-op').toBe(written || read);
+        expect(valueIn(saved), edit ? 'saved edited' : 'saved untouched').toBe(read);
       }
     });
   }

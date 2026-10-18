@@ -112,16 +112,19 @@ describe('the binary writers escape every metadata field they write', () => {
     expect([back.metadata.uuid, back.metadata.namespace]).toEqual(['u&1<2', 'ns&x<y']);
   });
 
-  it('an IsDerived whose CDATA section holds `</P>`, written from the model when the entry is renamed', () => {
+  it('an IsDerived whose CDATA section holds `</P>`, escaped when written from the model, kept as read by a rename', () => {
     const xml = chunk(entryXml('a', { isDerived: '<![CDATA[</P>]]>' }) + entryXml('b'));
     expect(malformed(xml)).toEqual([]);
     const { session, root } = fromChunk(xml);
     const [a] = entries(root);
     expect(a.metadata.isderived).toBe('</P>');
     expect(a.setProperty('Name', 'aRenamed')).toBe(true);
+    // The writers escape it.
+    expect(regenerateEntryXml(a)).toContain('<P Name="IsDerived" Class="char">&lt;/P&gt;</P>');
+    // A rename does not touch it, so the save keeps the line the file has, CDATA and all (S2).
     const out = savedChunk(session, root);
     expect(malformed(out)).toEqual([]);
-    expect(out).toContain('<P Name="IsDerived" Class="char">&lt;/P&gt;</P>');
+    expect(out).toContain('<P Name="IsDerived" Class="char"><![CDATA[</P>]]></P>');
     expect(entries(fromChunk(out).root).find((e: any) => e.name === 'aRenamed').metadata.isderived).toBe('</P>');
   });
 

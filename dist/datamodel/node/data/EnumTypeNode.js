@@ -10,6 +10,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { isElement, reportNotElements } from './notAnElement.js';
+import { elementOriginAt, originOf, recordElementOrigins, recordOrigin, taggingOrigins } from '../../parser/EntrySource.js';
 const CLASS_NAME = 'Simulink.data.dictionary.EnumTypeDefinition';
 export class EnumValueNode extends DataNode {
     constructor(name, parent, props) {
@@ -88,6 +89,10 @@ export class EnumTypeNode extends DataNode {
     // the enum type), so it never resolves the schema layout.
     _getSerializedProperties() {
         const enumerals = this.children.map(function (child) { return child.serializeValue(); });
+        // Each enumeral's origin in the file, for the save that merges an edited entry (EntrySource).
+        if (taggingOrigins()) {
+            recordElementOrigins(enumerals, this.children.map(originOf));
+        }
         const props = { ...this.serial._properties };
         if ('DefaultValue' in this.serial._properties || this.DefaultValue) {
             props.DefaultValue = this.DefaultValue;
@@ -124,6 +129,9 @@ export class EnumTypeNode extends DataNode {
         const props = this._getSerializedProperties();
         const result = { ...this.serial._rawVal };
         result._elements = [{ ...result._elements[0], _properties: props }];
+        if (taggingOrigins()) {
+            recordElementOrigins(result._elements, [elementOriginAt(this.serial._rawVal._elements, 0)]);
+        }
         return result;
     }
     // Not inside a value still in its encoded stream (DataNode._encodedReadOnly), nor one whose
@@ -170,7 +178,7 @@ export class EnumTypeNode extends DataNode {
         const serial = { _rawVal: rawVal, _properties: props, _rawEnumerals: enumerals };
         const node = new EnumTypeNode(name, parent, props, serial);
         if (enumerals._elements) {
-            enumerals._elements.forEach(function (en) {
+            enumerals._elements.forEach(function (en, index) {
                 // An enumeral that is not one (a hand-edited `null`, number or string) gets no
                 // row; reported after the loop.
                 if (!isElement(en)) {
@@ -178,6 +186,8 @@ export class EnumTypeNode extends DataNode {
                 }
                 const enumName = en.Name || '';
                 const childNode = new EnumValueNode(enumName, node, en);
+                // Which <Element> of the file it was read from, if it was (EntrySource).
+                recordOrigin(childNode, elementOriginAt(enumerals._elements, index));
                 node.addChild(childNode);
             });
             // Said once for the entry, and the value kept as read, so an untouched save writes

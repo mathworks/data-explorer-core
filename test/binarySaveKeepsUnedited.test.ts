@@ -316,13 +316,20 @@ describe('what the model writes is laid out as the file it goes into is', () => 
     const { session, root } = fromChunk(xml);
     const [first, second] = entries(root);
     expect(first.setProperty('Name', 'aRenamed')).toBe(true);
+    expect(first.setProperty('Value', '3')).toBe(true);
     const added = root.addEntry('Simulink.Parameter', 'pAdded', 'design');
     root.allowAccessBWS = true;
 
     const out = savedChunk(session, root);
     const spans = spansOf(xml);
+    // The edited entry is its bytes with its edited lines, Name, LastMod and Value, the writers'
+    // laid out CRLF by two (S2): line for line, the file's but for those three.
+    const edited = xml.slice(spans[0][0], spans[0][1]).split('\r\n');
+    const written = relaid(objectOf(first), '\r\n', '  ').split('\r\n');
+    const changed = edited.map((line, i) => (/Name="(Name|LastMod|Value)"/.test(line) ? written[i] : line));
+    expect(changed.filter((line, i) => line !== edited[i]).length).toBe(3);
     expect(out).toBe(
-      xml.slice(0, spans[0][0]) + relaid(objectOf(first), '\r\n', '  ')
+      xml.slice(0, spans[0][0]) + changed.join('\r\n')
       + xml.slice(spans[0][1], spans[1][1])
       + '\r\n  ' + relaid(objectOf(added), '\r\n', '  ')
       + '\r\n  <Object Class="DD.Dictionary">\r\n    <P Name="AccessBaseWorkspace" Class="logical">1</P>\r\n  </Object>\r\n</DataSource>',
@@ -342,11 +349,18 @@ describe('what the model writes is laid out as the file it goes into is', () => 
     expect(xml.includes('\n')).toBe(false);
     const spans = spansOf(xml);
     const first = entries(root).find((e: any) => e.name === nameOf(xml.slice(spans[0][0], spans[0][1])));
+    const oldName = first.name;
     expect(first.setProperty('Name', 'renamedOnOneLine')).toBe(true);
     const added = root.addEntry('Simulink.Parameter', 'pAdded', 'design');
     const out = savedChunk(session, root);
+    // The renamed entry is its bytes with the new Name, and, since it was read with none, the
+    // writers' LastMod after its Namespace, on the one line (S2).
+    const before = xml.slice(spans[0][0], spans[0][1]);
+    const namespace = /<P Name="Namespace" Class="char">[^<]*<\/P>/.exec(before)![0];
+    const lastMod = /<P Name="LastMod" Class="char">[^<]*<\/P>/.exec(objectOf(first))![0];
+    const renamed = before.replace(`>${oldName}</P>`, '>renamedOnOneLine</P>').replace(namespace, namespace + lastMod);
     expect(out).toBe(
-      xml.slice(0, spans[0][0]) + relaid(objectOf(first), '', '')
+      xml.slice(0, spans[0][0]) + renamed
       + xml.slice(spans[0][1], spans.at(-1)![1]) + relaid(objectOf(added), '', '') + xml.slice(spans.at(-1)![1]),
     );
     expect(out.includes('\n')).toBe(false);
@@ -435,11 +449,17 @@ describe('an edit changes its own entry and nothing else', () => {
 
     const objectOf = (line: string): string => line.slice(4, -1);
     const lead = (i: number): string => (i === 0 ? '\n    ' : xml.slice(spans[i - 1][1], spans[i][0]));
+    // The renamed one is its bytes with its Name and LastMod lines new (S2).
+    const stamp = /<P Name="LastMod" Class="char">[^<]*<\/P>/.exec(serializer.regenerateEntryXml(renamed))![0];
+    const renamedBytes = xml.slice(spans[2][0], spans[2][1])
+      .replace(/<P Name="Name" Class="char">[^<]*<\/P>/, `<P Name="Name" Class="char">${renamed.name}</P>`)
+      .replace(/<P Name="LastMod" Class="char">[^<]*<\/P>/, stamp);
+    expect(renamedBytes).not.toBe(objectOf(serializer.regenerateEntryXml(renamed)));
     // The expected chunk, cut out of the file: the first entry and the whitespace before
-    // it gone, the renamed one regenerated, the added one after the last, then the tail.
+    // it gone, the renamed one in its place, the added one after the last, then the tail.
     let expected = xml.slice(0, spans[0][0] - lead(0).length);
     for (let i = 1; i < spans.length; i++) {
-      expected += lead(i) + (i === 2 ? objectOf(serializer.regenerateEntryXml(renamed)) : xml.slice(spans[i][0], spans[i][1]));
+      expected += lead(i) + (i === 2 ? renamedBytes : xml.slice(spans[i][0], spans[i][1]));
     }
     expected += lead(spans.length - 1) + objectOf(serializer.regenerateEntryXml(added));
     expected += xml.slice(spans[spans.length - 1][1]);
@@ -466,16 +486,19 @@ describe('an edit changes its own entry and nothing else', () => {
     expect(savedChunk(session, root)).toBe(xml);
   });
 
-  it('an edited entry is regenerated in its own place', () => {
+  it('an edited entry is written in its own place, its bytes with only its edited lines new', () => {
     const { session, root, bytes } = open(PATH);
     const xml = text(unzipSync(bytes)[CHUNK]);
     const spans = spansOf(xml);
     const target = entries(root)[4];
     expect(target.setProperty('Name', 'renamedInPlace')).toBe(true);
     const out = savedChunk(session, root);
-    expect(out).toBe(
-      xml.slice(0, spans[4][0]) + serializer.regenerateEntryXml(target).slice(4, -1) + xml.slice(spans[4][1]),
-    );
+    const stamp = /<P Name="LastMod" Class="char">[^<]*<\/P>/.exec(serializer.regenerateEntryXml(target))![0];
+    const renamed = xml.slice(spans[4][0], spans[4][1])
+      .replace(/<P Name="Name" Class="char">[^<]*<\/P>/, '<P Name="Name" Class="char">renamedInPlace</P>')
+      .replace(/<P Name="LastMod" Class="char">[^<]*<\/P>/, stamp);
+    expect(renamed).not.toBe(serializer.regenerateEntryXml(target).slice(4, -1));
+    expect(out).toBe(xml.slice(0, spans[4][0]) + renamed + xml.slice(spans[4][1]));
   });
 });
 
@@ -753,10 +776,17 @@ describe('only bytes the reader paired are claimed', () => {
 // and which section holds it without the API that marks it. The save asks, as it is about to
 // write an entry's bytes, whether the node still says what it said when they were attached,
 // and writes it from the model where it does not: in its own place, as an edit is.
-describe('a node changed around the API is written from the model, not as the bytes it was read from', () => {
+describe('a node changed around the API is written from the model where it changed, not as the bytes it was read from', () => {
   const XML = chunk(entryXml('a', 'u-a', NS_DESIGN, '1.0E+6') + entryXml('b', 'u-b', NS_DESIGN, '2.0E+6') + DICTIONARY);
   const SPANS = spansOf(XML);
-  const inPlace = (changed: any): string => XML.slice(0, SPANS[0][0]) + objectOf(changed) + XML.slice(SPANS[0][1]);
+  // Its bytes, line for line, with each line but its Value as the model writes it now: what the
+  // change reached is written from the model, and the Value, `1.0E+6`, which the writers spell
+  // `1000000.0`, is the file's (S2).
+  const merged = (changed: any): string => {
+    const written = objectOf(changed).split('\n');
+    return XML.slice(SPANS[0][0], SPANS[0][1]).split('\n').map((line, i) => (line.includes('<P Name="Value"') ? line : written[i])).join('\n');
+  };
+  const inPlace = (changed: any): string => XML.slice(0, SPANS[0][0]) + merged(changed) + XML.slice(SPANS[0][1]);
 
   const bypasses: [string, (entry: any, root: any) => void, (reread: any) => void][] = [
     ['renamed by assignment to its name', (e) => { e.name = 'aAssigned'; },
@@ -778,7 +808,8 @@ describe('a node changed around the API is written from the model, not as the by
       const [a, b] = entries(root);
       act(a, root);
       expect(a.status, 'the API was not used').toBe('');
-      expect(serializer.serializeEntryToXml(a)).toBe(serializer.regenerateEntryXml(a));
+      expect(serializer.serializeEntryToXml(a)).toBe('    ' + merged(a) + '\n');
+      expect(merged(a)).toContain('<P Name="Value" Class="double">1.0E+6</P>');
       expect(serializer.serializeEntryToXml(b)).toBe('    ' + XML.slice(SPANS[1][0], SPANS[1][1]) + '\n');
       const out = savedChunk(session, root);
       expect(out).toBe(inPlace(a));
@@ -798,8 +829,8 @@ describe('a node changed around the API is written from the model, not as the by
     const [a] = entries(from.root);
     from.root.getSection('design').removeChild(a);
     to.root.getSection('design').addChild(a);
-    expect(serializer.serializeEntryToXml(a)).toBe(serializer.regenerateEntryXml(a));
-    expect(savedChunk(to.session, to.root)).toContain(objectOf(a));
+    expect(serializer.serializeEntryToXml(a)).toBe('    ' + merged(a) + '\n');
+    expect(savedChunk(to.session, to.root)).toContain(merged(a));
   });
 
   // What the check asks is what the node says, not which objects say it.

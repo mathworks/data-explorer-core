@@ -29,6 +29,7 @@ import { uudecode } from '../../parser/CdataCodec.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 import { dimensionText, extentDigits } from '../../parser/Size.js';
 import { setOwn } from '../../parser/ownKeys.js';
+import { elementOriginAt, originAttr, originOf, recordElementOrigins, recordOrigin, taggingOrigins } from '../../parser/EntrySource.js';
 
 // The class of `child`, one of the element nodes of an object array of class `arrayClass`: the
 // class ObjectNode.parse built it as, which its value's wrapper names, and otherwise the array's.
@@ -493,6 +494,10 @@ export default class ObjectNode extends DataNode {
                 }
                 return elementWritten(first ?? { _properties: {} }, read[k], elementNodeClass(child as DataNode, this.arrayClass), this.arrayClass);
             });
+            // Each element's origin in the file, for the save that merges an edited entry (EntrySource).
+            if (taggingOrigins()) {
+                recordElementOrigins(elements, this.children.map(originOf));
+            }
             return { ...rawVal, _elements: elements };
         }
         // In a binary dictionary this JSON is what the XML is spelled from wherever a parent
@@ -508,7 +513,11 @@ export default class ObjectNode extends DataNode {
         // keep the wrapper and the element's identity keys, replace only _properties.
         const rawElements = (rawVal._elements as Record<string, unknown>[]) || [{}];
         const firstElem = { ...rawElements[0], _properties: props };
-        return { ...rawVal, _elements: [firstElem] };
+        const written = [firstElem];
+        if (taggingOrigins()) {
+            recordElementOrigins(written, [elementOriginAt(rawVal._elements, 0)]);
+        }
+        return { ...rawVal, _elements: written };
     }
 
     // XML write-back. An object ARRAY emits one <Element Class="..."> per element
@@ -557,7 +566,8 @@ export default class ObjectNode extends DataNode {
         // second subclass element.
         for (const [k, child] of this.children.entries()) {
             DataNode._ownClassOrRefuse(read[k], '', () => (child as DataNode)._whereWritten());
-            xml += ip + '<Element Class="' + escapeXml(elementNodeClass(child as DataNode, this.arrayClass)) + '">\n';
+            // With its origin in the file while a merge asks for it (EntrySource.originAttr).
+            xml += ip + '<Element' + originAttr(originOf(child)) + ' Class="' + escapeXml(elementNodeClass(child as DataNode, this.arrayClass)) + '">\n';
             const props = (child as ObjectNode)._xmlProperties();
             // The Source and PropertyType MATLAB wrote on a property of the element, which its
             // node holds on the element it was handed (see parse).
@@ -730,6 +740,8 @@ export default class ObjectNode extends DataNode {
                 // this spec on demand (BaseNode.displayName), so it follows a
                 // rename of the array.
                 elemNode._subscript = { index: ei, dims, order: 'column-major', bracket: '()' };
+                // Which <Element> of the file it was read from, if it was (EntrySource).
+                recordOrigin(elemNode, elementOriginAt(elements, ei));
                 node.addChild(elemNode);
             });
         } else if (elements.length === 1) {

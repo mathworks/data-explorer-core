@@ -84,4 +84,39 @@ export declare function keptFragmentOf(entry: EntryIdentity & object): string | 
 export declare function recordPackageStamps(zipMetadata: object, stamps: readonly ZipMemberStamp[]): void;
 /** How the archive this member bag was read from listed its members, if it is known. */
 export declare function packageStampsOf(zipMetadata: object | null | undefined): readonly ZipMemberStamp[] | undefined;
+/** Record, on an `_elements` array the binary reader built, that its element k is the k-th `<Element>` it read. */
+export declare function recordReadElements(elements: readonly unknown[]): void;
+/** Record, on an `_elements` array built to be written, the origin of each element (undefined for one with none). */
+export declare function recordElementOrigins(elements: readonly unknown[], origins: readonly (number | undefined)[]): void;
+/**
+ * The origin of element `k` of an `_elements` array, if one was recorded on it. An array whose
+ * length is not what it was when its origins were recorded has none: an element spliced in or
+ * out since would shift every origin after it.
+ */
+export declare function elementOriginAt(elements: unknown, k: number): number | undefined;
+/** Record the origin of an element node (or of whatever object stands for one element); undefined records none. */
+export declare function recordOrigin(holder: object, origin: number | undefined): void;
+/** The origin recorded on an element node, if any. */
+export declare function originOf(holder: unknown): number | undefined;
+/** Record the origin of the one element a scalar value's node writes for itself. */
+export declare function recordOwnElementOrigin(node: object, origin: number | undefined): void;
+/** The origin of the one element a scalar value's node writes for itself, if one was recorded. */
+export declare function ownElementOriginOf(node: object): number | undefined;
+/**
+ * The attribute an element's open tag carries its origin in while a merge asks for one. Not a
+ * name MATLAB writes, and a name EntryMerge refuses to find in what it writes.
+ */
+export declare const ORIGIN_ATTR = "dex-core-origin";
+/** Whether the writers are to spell origins now (inside withOriginTags). */
+export declare function taggingOrigins(): boolean;
+/** Run `write` with the writers spelling each element's origin, where it has one. */
+export declare function withOriginTags<T>(write: () => T): T;
+/** The origin attribute, with its leading space, for an open tag: '' unless origins are being spelled and there is one. */
+export declare function originAttr(origin: number | undefined): string;
+/**
+ * `xml`, one element a writer wrote (`<Element …`, after its indentation), with its origin
+ * spelled on its open tag; `xml` itself when origins are not being spelled, there is none, or
+ * the text is not an element's.
+ */
+export declare function withOrigin(xml: string, origin: number | undefined): string;
 //# sourceMappingURL=EntrySource.d.ts.map

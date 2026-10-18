@@ -10,6 +10,7 @@ import { budgetFailure, classPhrase, MatBudgetError, MatWriteError, oneWrite, te
 import { dimensionText, dimsText, everyExtent, isExactDigits, isSpellableExtent, isTextExtent } from '../parser/Size.js';
 import { encodedXml, isEncodedValue, type EncodedValue } from '../parser/EncodedValue.js';
 import { setOwn } from '../parser/ownKeys.js';
+import { elementOriginAt, originAttr, recordElementOrigins, taggingOrigins, withOrigin } from '../parser/EntrySource.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import { validateMatlabName } from '../matlabName.js';
 import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
@@ -928,6 +929,10 @@ export default class DataNode extends BaseNode {
       element._properties = props;
     }
     result._elements = [element];
+    // The element's origin in the file, for the save that merges an edited entry (EntrySource).
+    if (taggingOrigins()) {
+      recordElementOrigins(result._elements as unknown[], [elementOriginAt(rawElements, 0)]);
+    }
     return result;
   }
 
@@ -1342,7 +1347,8 @@ export default class DataNode extends BaseNode {
     }
 
     let xml = p + '<' + tagName + attrStr + '>\n';
-    xml += ip + '<Element Class="' + escapeXml(className) + '">\n';
+    // With its origin in the file while a merge asks for it (EntrySource.originAttr).
+    xml += ip + '<Element' + originAttr(nested ? undefined : elementOriginAt(rawVal._elements, 0)) + ' Class="' + escapeXml(className) + '">\n';
     const sources = propertySourcesOf(nested ? rawVal : ((rawVal._elements as unknown[]) || [])[0]);
     for (const [propName, propVal] of Object.entries(props)) {
       xml += DataNode._elementPropertyXml(propName, propVal, indent + 2, this, this._propertyAt(propName), sources) + '\n';
@@ -1926,7 +1932,7 @@ export default class DataNode extends BaseNode {
     }
     if (elements.length === 0 || (elements.length === 1 && Object.keys(propsOf(elements[0])).length === 0)) {
       DataNode._ownClassOrRefuse(elements[0], name, at);
-      return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(elementClassOf(elements[0], className)) + '"/>\n' + p + close;
+      return p + '<' + tag + attrs + '>\n' + ip + '<Element' + originAttr(elementOriginAt(value._elements, 0)) + ' Class="' + escapeXml(elementClassOf(elements[0], className)) + '"/>\n' + p + close;
     }
 
     // Every extent, exactly as the struct sibling below does and for the same
@@ -1946,7 +1952,8 @@ export default class DataNode extends BaseNode {
       const props = propsOf(elem);
       const sources = propertySourcesOf(elem);
       DataNode._ownClassOrRefuse(elem, name, DataNode._within(at, elements.length, k, ''));
-      xml += ip + '<Element Class="' + escapeXml(elementClassOf(elem, className)) + '">\n';
+      // Each with its origin in the file while a merge asks for it (EntrySource.originAttr).
+      xml += ip + '<Element' + originAttr(elementOriginAt(value._elements, k)) + ' Class="' + escapeXml(elementClassOf(elem, className)) + '">\n';
       for (const [propName, propVal] of Object.entries(props)) {
         xml += DataNode._elementPropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName), sources) + '\n';
       }
@@ -2218,7 +2225,8 @@ export default class DataNode extends BaseNode {
     // StructNode reads it: Object.entries threw on a null one, and failed the whole write, and
     // wrote a string's or an array's indices as its fields.
     elements.forEach((elem, k) => {
-      xml += ip + '<Element>\n';
+      // With its origin in the file while a merge asks for it (EntrySource.originAttr).
+      xml += ip + '<Element' + originAttr(elementOriginAt(value._elements, k)) + '>\n';
       for (const [field, fieldVal] of Object.entries(isFieldBag(elem) ? elem : {})) {
         xml += DataNode.serializePropertyXml(field, fieldVal, indent + 2, null, DataNode._within(at, elements.length, k, '.' + field)) + '\n';
       }
@@ -2262,7 +2270,9 @@ export default class DataNode extends BaseNode {
 
     let xml = p + '<' + tag + attrs + ' Class="cell"' + dimAttr + '>\n';
     elements.forEach((elem, k) => {
-      xml += DataNode._serializeCellElementXml(elem, indent + 1, at && { entry: at.entry, path: at.path + '{' + (k + 1) + '}' }) + '\n';
+      // With its origin in the file while a merge asks for it (EntrySource.withOrigin).
+      const written = DataNode._serializeCellElementXml(elem, indent + 1, at && { entry: at.entry, path: at.path + '{' + (k + 1) + '}' });
+      xml += withOrigin(written, elementOriginAt(value._elements, k)) + '\n';
     });
     xml += p + '</' + tag + '>';
     return xml;

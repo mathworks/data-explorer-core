@@ -118,7 +118,8 @@ describe('editing another property of an entry leaves its complex Value as MATLA
       expect(entry.setProperty('Description', 'edited')).toBe(true);
       const xml = serializeEntryToXml(entry);
       expect(xml).toContain('<P Name="Description" Class="char">edited</P>');
-      expect(complexTags(xml)).toEqual(asWritten(complexTags(entryBlock(MATLAB_CHUNK, entry.name))));
+      // The Value nobody edited is MATLAB's own bytes, `1.0NaNi` included (S2, the maintainer's D3).
+      expect(complexTags(xml)).toEqual(complexTags(entryBlock(MATLAB_CHUNK, entry.name)));
     });
   }
 });
@@ -229,9 +230,9 @@ describe('the writers state what the value is', () => {
     expect(complexTags(regenerateEntryXml(entry))).toEqual([saved]);
     // Saved untouched, it is the bytes it was read from.
     expect(complexTags(serializeEntryToXml(entry))).toEqual([tag]);
-    // And a rename, which leaves the value as it was.
+    // And a rename, which leaves the value as it was: the text it was read from (S2, D3).
     expect(entry.setProperty('Name', 'zNonFiniteRenamed')).toBe(true);
-    expect(complexTags(serializeEntryToXml(entry))).toEqual([saved]);
+    expect(complexTags(serializeEntryToXml(entry))).toEqual([tag]);
   });
 
   it('a complex element of a cell inside an object\'s property is written as one, not as `Class="cdata"`', () => {
