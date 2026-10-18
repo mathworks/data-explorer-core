@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import { inflateZlib } from './Inflate.js';
+import { InflateCeilingError, inflateZlib } from './Inflate.js';
 import { exactInt } from './XmlUtils.js';
 import { reasonOf } from './ParseWarning.js';
 import type { ParseWarning } from './ParseWarning.js';
@@ -1387,11 +1387,16 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
                 // inflate, so this file cannot say what was lost and naming a
                 // neighbour would be worse than saying nothing. The byte offset is
                 // what a caller can act on. Reading continues at the next record —
-                // one unreadable record is one variable, not the file.
+                // one unreadable record is one variable, not the file. A record that would
+                // inflate past the ceiling for one record (MAT_RECORD_INFLATE_CEILING) is
+                // unreadable the same way, and is never read cut to the ceiling.
                 warnings.push({
                     code: 'part-unreadable',
-                    message: `A compressed record at byte ${offset} could not be decompressed `
-                        + `(${reasonOf(err)}), so the variable it holds was not read.`,
+                    message: err instanceof InflateCeilingError
+                        ? `A compressed record at byte ${offset} inflates to more than the ${err.ceiling}-byte ceiling `
+                            + 'for one MAT-file record, so the variable it holds was not read.'
+                        : `A compressed record at byte ${offset} could not be decompressed `
+                            + `(${reasonOf(err)}), so the variable it holds was not read.`,
                 });
                 offset += 8 + numBytes;
                 continue;

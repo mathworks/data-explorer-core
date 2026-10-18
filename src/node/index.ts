@@ -31,7 +31,9 @@ setNativeInflate({
   // passes it: without it a member that lies about its size is inflated whole before it
   // is found to be unreadable (see `unzipEntries`).
   raw: (deflated, maxOutputLength) => inflateRawSync(deflated, capOf(maxOutputLength)),
-  zlib: (wrapped) => inflateSync(wrapped),
+  // And the ceiling for one MAT record, for the same reason: without it a record past the
+  // ceiling is inflated whole before it is found to be unreadable (see `inflateZlib`).
+  zlib: (wrapped, maxOutputLength) => inflateSync(wrapped, capOf(maxOutputLength)),
   // Z_SYNC_FLUSH instead of the default Z_FINISH: this one is handed a PREFIX of a
   // stream on purpose (see `inflateZlibHead`), and Z_FINISH would call the absent tail
   // an unexpected end of file. Omitting it here would not break anything — the seam
