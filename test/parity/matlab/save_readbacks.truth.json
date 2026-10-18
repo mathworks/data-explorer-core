@@ -1,7 +1,7 @@
 {
   "version": "27.1.0.3409468 (R2027a) Prerelease",
   "release": "2027a",
-  "date": "2026-10-17",
+  "date": "2026-10-18",
   "cases": [
     {
       "check": "M1",
@@ -10,8 +10,8 @@
       "entry": "slConfigSetHDLCoderR",
       "kind": "configset",
       "fragment": {
-        "length": 61882,
-        "sha256": "8dc45c6d8c37c6a41daed6654bdf5ff1549c31d9755c04435c7765da4f7a4b5b"
+        "length": 61881,
+        "sha256": "3e3eb2189720ef212bc2da154fcfbc4eeb1f27841ff04cb69dad90c1118f9846"
       },
       "matlab": {
         "class": "Simulink.ConfigSet",
