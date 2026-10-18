@@ -244,7 +244,13 @@ describe('a size holding NaN, an infinity or a bigint, which a text dictionary\'
       }));
     });
 
-    it(`${label} in the dims of a cell or a struct pasted into a binary dictionary: its save is refused the same`, () => {
+    // Two of these four rows are controls: before C-203 the binary XML refusers already refused
+    // [1,undefined] and [1,Symbol(s)], with this message (`every(isSpellableExtent)` is false
+    // for both, and dimsText spelled both as here). They pin that the fix keeps that refusal.
+    // The function row (refused, but its message printed `[1,() => 1]`) and the hole row
+    // (written as `Dimension="1*"`, or as no Dimension) are the two the fix changes.
+    const control = label === 'undefined' || label === 'a symbol' ? ' (a control: refused so before C-203 too)' : '';
+    it(`${label} in the dims of a cell or a struct pasted into a binary dictionary: its save is refused the same${control}`, () => {
       const forms = [[cell, 'cell'], [struct, 'struct']] as const;
       expect(forms.map(([make, cls]) => [cls, refusal(pasteInto(BINARY, make(d())).save)]), label).toEqual(
         forms.map(([, cls]) => [cls, ['MatBudgetError', 'not-a-count', `Cannot write "pasted": pasted is a ${cls} declaring dimensions ${said}${NOT_A_COUNT}`]]),
