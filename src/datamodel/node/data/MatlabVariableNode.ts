@@ -74,11 +74,12 @@ import {
 } from '../../display/DisplayConvention.js';
 import {
   charNeedsShape,
+  charRowDimension,
   charTextFromCodes,
   decimalCharXml,
   emptyHeaderDims,
   escapeXml,
-  formatDoubleXml,
+  formatFloatXml,
   formatNumericXml,
   formatComplexBodyXml,
   formatComplexNum,
@@ -2903,7 +2904,8 @@ export default class MatlabVariableNode extends DataNode {
       // this body wants: its own 2x2 ['ab'; 'cd'] is `Dimension="2*2">acbd`. Only the
       // Dimension was missing, so every char BUT a row went out claiming 1xN — a 3x1
       // came back transposed and a 2x3x2 came back flat (defect 25). A row and an
-      // empty char carry no attribute, exactly as MATLAB leaves them.
+      // empty char carry no attribute, exactly as MATLAB leaves them, except a row over
+      // 512 characters, which MATLAB gives its `Dimension="1*N"` (charRowDimension).
       const text = String(val);
       const dims = this._textDims(text);
       // Except a char MATLAB writes as its CODES (XmlUtils.WRITTEN_AS_CODES), which states
@@ -2913,7 +2915,7 @@ export default class MatlabVariableNode extends DataNode {
       if (codes) {
         return p + '<' + tagName + attrStr + ' Class="char"' + codes.attrs + '>' + codes.body + '</' + tagName + '>';
       }
-      const dimAttr = charNeedsShape(dims) ? ' Dimension="' + dimensionText(dims) + '"' : '';
+      const dimAttr = charNeedsShape(dims) ? ' Dimension="' + dimensionText(dims) + '"' : charRowDimension(text, dims);
       return p + '<' + tagName + attrStr + ' Class="char"' + dimAttr + '>' + escapeXml(text) + '</' + tagName + '>';
     }
     if (type === 'logical') {
@@ -2936,7 +2938,7 @@ export default class MatlabVariableNode extends DataNode {
       );
     }
     if (type === 'double') {
-      return p + '<' + tagName + attrStr + ' Class="double">' + formatDoubleXml(val as number) + '</' + tagName + '>';
+      return p + '<' + tagName + attrStr + ' Class="double">' + formatFloatXml(val, 'double') + '</' + tagName + '>';
     }
     // No `as number`: an int64/uint64 scalar holds exact decimal TEXT (parseTypedScalar),
     // and formatNumericXml writes one verbatim instead of rounding it through a double.
