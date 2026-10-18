@@ -160,7 +160,7 @@ held, and `StructNode` reads one bag of an array as that array's element, not as
 
 ### A .mat file's tree is built up to a node ceiling
 `MAX_EXPANDED_ELEMENTS` caps one container's rows; `MAT_NODE_CEILING` (500,000, in
-`DisplayConvention`) caps a `.mat` file's whole tree. A customer's 8 MB `allMidi.mat`, every
+`DisplayConvention`) caps a `.mat` file's whole tree. An 8 MB corpus `.mat` file, every
 container in it under the first cap, opened as 2,016,325 nodes and 2.5 GB of heap. The
 maintainer's group F ruling of 2026-10-18 (group 3): a node-count ceiling with a source
 warning now, lazy expansion later, as its own item. `matNodeCeiling.ts` holds the rules:

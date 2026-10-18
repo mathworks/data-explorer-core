@@ -57,17 +57,17 @@ export const SUMMARY_MAX_ELEMENTS = 10;
 export const MAX_EXPANDED_ELEMENTS = 10000;
 
 // How many nodes a .mat file's tree is built with, all of its variables together: the cap
-// above is one container's, and nothing capped the file's. allMidi.mat, a customer's 8 MB
+// above is one container's, and nothing capped the file's. An 8 MB corpus .mat
 // file of 1x1024 arrays in nested struct arrays, opened as 2,016,325 nodes and 2.5 GB of
 // heap, with every container in it under the cap above (MEM-CEIL; the maintainer's group F
 // ruling of 2026-10-18, group 3: a node-count ceiling with a source warning now, lazy
 // expansion later, as its own item).
 //
-// Measured on allMidi.mat in node 24, as heap in use after a collection: 2,016,325 nodes and
+// Measured on that file in node 24, as heap in use after a collection: 2,016,325 nodes and
 // 2,535 MiB uncut, 499,999 nodes and 1,280 MiB under this ceiling. The 1,516,326 nodes it no
 // longer builds were 1,255 MiB, some 0.85 KiB each, so about 870 MiB of what is left is the
 // parse's own, which the ceiling does not touch. No other .mat file in the corpus reaches it:
-// the next, allMidiSeq.mat, opens as 208,074 nodes, and every one opens as it did.
+// the next largest opens as 208,074 nodes, and every one opens as it did.
 //
 // Past it, a container is built with ALL its rows or with NONE, as the cap above is and for
 // its reason, and one warning on the file says so ('part-not-expanded'). Unlike the cap

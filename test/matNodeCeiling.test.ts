@@ -2,7 +2,7 @@
 //
 // The node-count ceiling of a .mat file's tree (MEM-CEIL; the maintainer's group F ruling of
 // 2026-10-18, group 3: "a node-count ceiling with a source warning now, lazy expansion later,
-// as its own item"). allMidi.mat, a customer's 8 MB file, opened as 2,016,325 nodes and 2.5 GB
+// as its own item"). An 8 MB corpus .mat file opened as 2,016,325 nodes and 2.5 GB
 // of heap with no word about it: MAX_EXPANDED_ELEMENTS caps one container's rows, and nothing
 // capped the file's. Past MAT_NODE_CEILING a container is built with all its rows or with none,
 // one warning on the file names the first one shown without its contents, and nothing it shows
