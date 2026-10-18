@@ -251,11 +251,12 @@ describe('an entry nobody has edited: what each writer does', () => {
     expect([sayable, pasteSaveReopen(BINARY, sayable).written, text.entry.dims, text.entry._scalarType]).toEqual([{ _type: 'int8', _value: 'Matrix(0,3,2)', _binary_empty: true }, SAYABLE, [0, 3, 2], 'int8']);
     expect(isMatCdata(textDictionaryForm(sayable) as any)).toBe(true);
     // A 0x2147483648 is copied as read too, its class and size with it, and a text dictionary
-    // is given `[]` for it, as it was.
+    // is given the header of its extents, as every empty of rank 2 is (MatWriter.heldTextSpelling),
+    // where `[]` said a 0x0.
     const flatPast = copy('flatPast');
     expect([flatPast, textDictionaryForm(flatPast), pasteSaveReopen(BINARY, flatPast).written]).toEqual([
       { _type: 'double', _value: 'Matrix(0,2147483648)', _binary_empty: true },
-      [],
+      { _type: 'double', _value: 'Matrix(0,2147483648)' },
       '<P Name="Value" Class="double" Dimension="0*2147483648"/>',
     ]);
   });

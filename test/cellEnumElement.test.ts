@@ -262,8 +262,10 @@ describe('and is saved as MATLAB wrote it', () => {
   it('and pasted into a text dictionary, it is written as MATLAB writes one there, with no key a text dictionary has no reader for', () => {
     // A text dictionary spells an enumeration value as one element holding the numbers its
     // enumerals stand for, under `_enum_value`, in a 1x1 bag (MatWriter.enumTextForm), as
-    // custom_object_text.sldd holds gearValue and gearRow. An empty one is the bag it was
-    // written as before, how a text dictionary spells one waiting on MATLAB reading one back.
+    // custom_object_text.sldd holds gearValue and gearRow. An empty one is its class under the
+    // header of its extents, which MATLAB reads back in a cell as the 0x2 it is, where the bag it
+    // was written as before was not a spelling MATLAB was asked about (MatWriter.heldTextSpelling,
+    // test/textEmptyReadback.test.ts).
     const session = createSession();
     const bin: any = ingest(session, buffer(zipSync({ ...unzipSync(bytesAt(HOST)), 'data/chunk0.xml': strToU8(VENUES[0].build(HOST_XML, CELL)) })), { filename: 'custom_object_binary.sldd' });
     const txt: any = ingest(session, buffer(bytesAt(TEXT_HOST)), { filename: 'custom_object_text.sldd' });
@@ -276,7 +278,7 @@ describe('and is saved as MATLAB wrote it', () => {
     const entries: any[] = JSON.parse(text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
     const cells = entries.find((e) => e.name === 'widgetCopy').value._elements[0]._properties.Cells;
     const enumValue = (value: string) => ({ _array_class: 'GearMode', _dimensions: [1, 1], _elements: [{ _enum_value: { _type: 'int32', _value: value } }], _mw_element_type: 'MATLABArray' });
-    expect(cells._elements.slice(1)).toEqual([enumValue('-1'), enumValue('[0, 1, -1]'), { _array_class: 'GearMode', _dimensions: [0, 2], _mw_element_type: 'MATLABArray', _elements: [] }]);
+    expect(cells._elements.slice(1)).toEqual([enumValue('-1'), enumValue('[0, 1, -1]'), { _type: 'GearMode', _value: 'Matrix(0,2)' }]);
     expect(JSON.stringify(cells)).not.toMatch(/_is_enum|_enumeration/);
   });
 });

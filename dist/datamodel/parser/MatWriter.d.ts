@@ -161,5 +161,16 @@ export declare function heldByTextDictionary(value: unknown): void;
  * because the replay is whole bags too — a struct's, a cell's, a LookupTable's Table.
  */
 export declare function textDictionaryForm(x: unknown, at?: string): unknown;
+/**
+ * `{_type, _emptyDims}`, the form an entry's classed or shaped empty took before the binary reader
+ * held one under its header, and the form a host still hands in, as that reader holds it now
+ * (BinarySlddParser.emptyOf, XmlUtils.BINARY_EMPTY_KEY): of rank 2, so that a text dictionary is
+ * given the one spelling of it (heldTextSpelling), and a copy carries its class and size; a double
+ * 0x0 `[]`, as both dictionaries hold one. Null for one of rank >= 3, which has a MAT stream of
+ * its own, for an extent that is no safe count, and for a class whose name this package's own
+ * values give another meaning under `_type` (BinarySlddParser.RESERVED_TYPE), or a char, which no
+ * reader holds so.
+ */
+export declare function emptyDimsHeldForm(o: Record<string, unknown>): Record<string, unknown> | [] | null;
 export {};
 //# sourceMappingURL=MatWriter.d.ts.map

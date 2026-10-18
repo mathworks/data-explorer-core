@@ -1,0 +1,2942 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-10-17",
+  "self": [
+    {
+      "id": "I16",
+      "expr": "int16([])",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"int16\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "I16",
+      "expr": "int16([])",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"int16\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "I16",
+      "expr": "int16([])",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"int16\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "I16",
+      "expr": "int16([])",
+      "place": "param",
+      "text": "?ABSENT",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "I16",
+      "expr": "int16([])",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"int16\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "I8",
+      "expr": "int8(zeros(0,3))",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "I8",
+      "expr": "int8(zeros(0,3))",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "I8",
+      "expr": "int8(zeros(0,3))",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "I8",
+      "expr": "int8(zeros(0,3))",
+      "place": "param",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "I8",
+      "expr": "int8(zeros(0,3))",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Lg",
+      "expr": "false(1,0)",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Lg",
+      "expr": "false(1,0)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Lg",
+      "expr": "false(1,0)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Lg",
+      "expr": "false(1,0)",
+      "place": "param",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Lg",
+      "expr": "false(1,0)",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Lg03",
+      "expr": "false(0,3)",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Lg03",
+      "expr": "false(0,3)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Lg03",
+      "expr": "false(0,3)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Lg03",
+      "expr": "false(0,3)",
+      "place": "param",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Lg03",
+      "expr": "false(0,3)",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Lg0",
+      "expr": "logical([])",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Lg0",
+      "expr": "logical([])",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Lg0",
+      "expr": "logical([])",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Lg0",
+      "expr": "logical([])",
+      "place": "param",
+      "text": "?ABSENT",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Lg0",
+      "expr": "logical([])",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D2",
+      "expr": "zeros(0,2)",
+      "place": "entry",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "D2",
+      "expr": "zeros(0,2)",
+      "place": "cell",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "D2",
+      "expr": "zeros(0,2)",
+      "place": "field",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "D2",
+      "expr": "zeros(0,2)",
+      "place": "param",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "D2",
+      "expr": "zeros(0,2)",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "D20",
+      "expr": "zeros(2,0)",
+      "place": "entry",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D20",
+      "expr": "zeros(2,0)",
+      "place": "cell",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D20",
+      "expr": "zeros(2,0)",
+      "place": "field",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D20",
+      "expr": "zeros(2,0)",
+      "place": "param",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D20",
+      "expr": "zeros(2,0)",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D10",
+      "expr": "zeros(1,0)",
+      "place": "entry",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D10",
+      "expr": "zeros(1,0)",
+      "place": "cell",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D10",
+      "expr": "zeros(1,0)",
+      "place": "field",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D10",
+      "expr": "zeros(1,0)",
+      "place": "param",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D10",
+      "expr": "zeros(1,0)",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D0",
+      "expr": "[]",
+      "place": "entry",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D0",
+      "expr": "[]",
+      "place": "cell",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D0",
+      "expr": "[]",
+      "place": "field",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D0",
+      "expr": "[]",
+      "place": "param",
+      "text": "?ABSENT",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "D0",
+      "expr": "[]",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "En2",
+      "expr": "dProbeColors.empty(0,2)",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"dProbeColors\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "En2",
+      "expr": "dProbeColors.empty(0,2)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"dProbeColors\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "En2",
+      "expr": "dProbeColors.empty(0,2)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"dProbeColors\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "En2",
+      "expr": "dProbeColors.empty(0,2)",
+      "place": "param",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "En2",
+      "expr": "dProbeColors.empty(0,2)",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "En0",
+      "expr": "dProbeColors.empty",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"dProbeColors\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "En0",
+      "expr": "dProbeColors.empty",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"dProbeColors\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "En0",
+      "expr": "dProbeColors.empty",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"dProbeColors\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "En0",
+      "expr": "dProbeColors.empty",
+      "place": "param",
+      "text": "?ABSENT",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "En0",
+      "expr": "dProbeColors.empty",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Ch",
+      "expr": "char(zeros(0,2))",
+      "place": "entry",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ch",
+      "expr": "char(zeros(0,2))",
+      "place": "cell",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ch",
+      "expr": "char(zeros(0,2))",
+      "place": "field",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ch",
+      "expr": "char(zeros(0,2))",
+      "place": "param",
+      "text": "[\n\t\t\t\t\t\t\t\t\t\t\t\"\"\n\t\t\t\t\t\t\t\t\t\t]",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Ch",
+      "expr": "char(zeros(0,2))",
+      "place": "prop",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ch20",
+      "expr": "char(zeros(2,0))",
+      "place": "entry",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Ch20",
+      "expr": "char(zeros(2,0))",
+      "place": "cell",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Ch20",
+      "expr": "char(zeros(2,0))",
+      "place": "field",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Ch20",
+      "expr": "char(zeros(2,0))",
+      "place": "param",
+      "text": "[\n\t\t\t\t\t\t\t\t\t\t\t\"\"\n\t\t\t\t\t\t\t\t\t\t]",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Ch20",
+      "expr": "char(zeros(2,0))",
+      "place": "prop",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Ch3",
+      "expr": "char(zeros(0,0,2))",
+      "place": "entry",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ch3",
+      "expr": "char(zeros(0,0,2))",
+      "place": "cell",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ch3",
+      "expr": "char(zeros(0,0,2))",
+      "place": "field",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ch3",
+      "expr": "char(zeros(0,0,2))",
+      "place": "param",
+      "text": "[\n\t\t\t\t\t\t\t\t\t\t\t\"\"\n\t\t\t\t\t\t\t\t\t\t]",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Ch3",
+      "expr": "char(zeros(0,0,2))",
+      "place": "prop",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Parts0",
+      "expr": "WidgetPart.empty",
+      "place": "entry",
+      "text": "",
+      "refused": "Values of class 'WidgetPart' are not supported in the 'Design_Data' section of the dictionary.",
+      "textReads": [],
+      "binaryReads": []
+    },
+    {
+      "id": "Parts0",
+      "expr": "WidgetPart.empty",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"WidgetPart\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "WidgetPart",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Parts0",
+      "expr": "WidgetPart.empty",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"WidgetPart\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "error": "Unrecognized field name \"f\"."
+      },
+      "binaryReads": {
+        "class": "WidgetPart",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Parts0",
+      "expr": "WidgetPart.empty",
+      "place": "param",
+      "text": "",
+      "refused": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "textReads": [],
+      "binaryReads": []
+    },
+    {
+      "id": "Parts0",
+      "expr": "WidgetPart.empty",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "WidgetPart",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Parts10",
+      "expr": "WidgetPart.empty(1,0)",
+      "place": "entry",
+      "text": "",
+      "refused": "Values of class 'WidgetPart' are not supported in the 'Design_Data' section of the dictionary.",
+      "textReads": [],
+      "binaryReads": []
+    },
+    {
+      "id": "Parts10",
+      "expr": "WidgetPart.empty(1,0)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"WidgetPart\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "WidgetPart",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Parts10",
+      "expr": "WidgetPart.empty(1,0)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"WidgetPart\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "error": "Unrecognized field name \"f\"."
+      },
+      "binaryReads": {
+        "class": "WidgetPart",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Parts10",
+      "expr": "WidgetPart.empty(1,0)",
+      "place": "param",
+      "text": "",
+      "refused": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "textReads": [],
+      "binaryReads": []
+    },
+    {
+      "id": "Parts10",
+      "expr": "WidgetPart.empty(1,0)",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "WidgetPart",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Params0",
+      "expr": "Simulink.Parameter.empty(1,0)",
+      "place": "entry",
+      "text": "",
+      "refused": "Arrays of class 'Simulink.Parameter' are not supported in the dictionary.",
+      "textReads": [],
+      "binaryReads": []
+    },
+    {
+      "id": "Params0",
+      "expr": "Simulink.Parameter.empty(1,0)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"Simulink.Parameter\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Params0",
+      "expr": "Simulink.Parameter.empty(1,0)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"Simulink.Parameter\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Params0",
+      "expr": "Simulink.Parameter.empty(1,0)",
+      "place": "param",
+      "text": "",
+      "refused": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "textReads": [],
+      "binaryReads": []
+    },
+    {
+      "id": "Params0",
+      "expr": "Simulink.Parameter.empty(1,0)",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Params00",
+      "expr": "Simulink.Parameter.empty",
+      "place": "entry",
+      "text": "",
+      "refused": "Arrays of class 'Simulink.Parameter' are not supported in the dictionary.",
+      "textReads": [],
+      "binaryReads": []
+    },
+    {
+      "id": "Params00",
+      "expr": "Simulink.Parameter.empty",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"Simulink.Parameter\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Params00",
+      "expr": "Simulink.Parameter.empty",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"Simulink.Parameter\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Params00",
+      "expr": "Simulink.Parameter.empty",
+      "place": "param",
+      "text": "",
+      "refused": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "textReads": [],
+      "binaryReads": []
+    },
+    {
+      "id": "Params00",
+      "expr": "Simulink.Parameter.empty",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          0,
+          0
+        ]
+      }
+    }
+  ],
+  "candidates": [
+    {
+      "spelling": "{\"_type\":\"int8\",\"_value\":\"Matrix(0,3)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "int8",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int8\",\"_value\":\"Matrix(0,3)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "int8",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int8\",\"_value\":\"Matrix(0,3)\"}",
+      "place": "param",
+      "reads": {
+        "class": "int8",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int8\",\"_value\":\"Matrix(0,3)\"}",
+      "place": "field",
+      "reads": {
+        "class": "int8",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int8\",\"_value\":\"Matrix(0,3)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "int8",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2)\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2)\"}",
+      "place": "field",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(2,0)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(2,0)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "double",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(2,0)\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(2,0)\"}",
+      "place": "field",
+      "reads": {
+        "class": "double",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(2,0)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "field",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,3)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,3)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,3)\"}",
+      "place": "param",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,3)\"}",
+      "place": "field",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,3)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "logical",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "logical",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "param",
+      "reads": {
+        "class": "logical",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "field",
+      "reads": {
+        "class": "logical",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "logical",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"dProbeColors\",\"_value\":\"Matrix(0,2)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"dProbeColors\",\"_value\":\"Matrix(0,2)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"dProbeColors\",\"_value\":\"Matrix(0,2)\"}",
+      "place": "param",
+      "reads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"dProbeColors\",\"_value\":\"Matrix(0,2)\"}",
+      "place": "field",
+      "reads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"dProbeColors\",\"_value\":\"Matrix(0,2)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int16\",\"_value\":\"[]\"}",
+      "place": "entry",
+      "reads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int16\",\"_value\":\"[]\"}",
+      "place": "cell",
+      "reads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int16\",\"_value\":\"[]\"}",
+      "place": "param",
+      "reads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int16\",\"_value\":\"[]\"}",
+      "place": "field",
+      "reads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int16\",\"_value\":\"[]\"}",
+      "place": "prop",
+      "reads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"[]\"}",
+      "place": "entry",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"[]\"}",
+      "place": "cell",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"[]\"}",
+      "place": "param",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"[]\"}",
+      "place": "field",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"[]\"}",
+      "place": "prop",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"dProbeColors\",\"_value\":\"[]\"}",
+      "place": "entry",
+      "reads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"dProbeColors\",\"_value\":\"[]\"}",
+      "place": "cell",
+      "reads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"dProbeColors\",\"_value\":\"[]\"}",
+      "place": "param",
+      "reads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"dProbeColors\",\"_value\":\"[]\"}",
+      "place": "field",
+      "reads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"dProbeColors\",\"_value\":\"[]\"}",
+      "place": "prop",
+      "reads": {
+        "class": "dProbeColors",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "[]",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "[]",
+      "place": "cell",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "[]",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "[]",
+      "place": "field",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "[]",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"mxchar\",\"_value\":\"Matrix(0,2)\\n[]\"}",
+      "place": "entry",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"mxchar\",\"_value\":\"Matrix(0,2)\\n[]\"}",
+      "place": "cell",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"mxchar\",\"_value\":\"Matrix(0,2)\\n[]\"}",
+      "place": "param",
+      "reads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"mxchar\",\"_value\":\"Matrix(0,2)\\n[]\"}",
+      "place": "field",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"mxchar\",\"_value\":\"Matrix(0,2)\\n[]\"}",
+      "place": "prop",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"mxchar\",\"_value\":\"Matrix(2,0)\\n[[]; []]\"}",
+      "place": "entry",
+      "reads": {
+        "class": "char",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"mxchar\",\"_value\":\"Matrix(2,0)\\n[[]; []]\"}",
+      "place": "cell",
+      "reads": {
+        "class": "char",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"mxchar\",\"_value\":\"Matrix(2,0)\\n[[]; []]\"}",
+      "place": "param",
+      "reads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"mxchar\",\"_value\":\"Matrix(2,0)\\n[[]; []]\"}",
+      "place": "field",
+      "reads": {
+        "class": "char",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"mxchar\",\"_value\":\"Matrix(2,0)\\n[[]; []]\"}",
+      "place": "prop",
+      "reads": {
+        "class": "char",
+        "size": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "\"\"",
+      "place": "entry",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "\"\"",
+      "place": "cell",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "\"\"",
+      "place": "param",
+      "reads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "\"\"",
+      "place": "field",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "\"\"",
+      "place": "prop",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int16\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int16\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int16\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "param",
+      "reads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int16\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "field",
+      "reads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"int16\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "int16",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "param",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "field",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"[]\"}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"[]\"}",
+      "place": "cell",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"[]\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"[]\"}",
+      "place": "field",
+      "reads": {
+        "error": "Unrecognized field name \"f\"."
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"[]\"}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "field",
+      "reads": {
+        "error": "Unrecognized field name \"f\"."
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"Matrix(0,0)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "field",
+      "reads": {
+        "error": "Unrecognized field name \"f\"."
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"WidgetPart\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"Simulink.Parameter\",\"_value\":\"[]\"}",
+      "place": "entry",
+      "reads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"Simulink.Parameter\",\"_value\":\"[]\"}",
+      "place": "cell",
+      "reads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"Simulink.Parameter\",\"_value\":\"[]\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"Simulink.Parameter\",\"_value\":\"[]\"}",
+      "place": "field",
+      "reads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"Simulink.Parameter\",\"_value\":\"[]\"}",
+      "place": "prop",
+      "reads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"Simulink.Parameter\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"Simulink.Parameter\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"Simulink.Parameter\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"Simulink.Parameter\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "field",
+      "reads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "spelling": "{\"_type\":\"Simulink.Parameter\",\"_value\":\"Matrix(1,0)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ]
+      }
+    }
+  ]
+}

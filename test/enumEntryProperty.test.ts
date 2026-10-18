@@ -280,13 +280,15 @@ describe('and is saved as MATLAB wrote it', () => {
     expect(spanOf(entryOf(saved, 'gearParamCopy'), '                <P Name="Value"')).toBe(PARAM_VALUE);
   });
 
-  it('and pasted into a text dictionary, it is written as MATLAB writes it there, an empty one as before', () => {
+  it('and pasted into a text dictionary, it is written as MATLAB writes it there, an empty one as MATLAB reads it back', () => {
     // A text dictionary spells an enumeration value as one element holding the numbers its
     // enumerals stand for, in their class, under `_enum_value`, in a bag that is 1x1 whatever
     // the value's size (MatWriter.enumTextForm): custom_object_text.sldd, this fixture's twin,
     // holds gearValue, gearRow and widget.Mode so, with an `_id` on each element, which this
-    // package writes on no object. How it spells an empty one waits on MATLAB reading one back,
-    // so that is what it was before: `[]` at an entry and '' at a property.
+    // package writes on no object. An empty one is its class under the header of its extents,
+    // which MATLAB reads back as the 0x2 GearMode it is at an entry and at a property, where `[]`
+    // and '' read back as a double and a char (MatWriter.heldTextSpelling,
+    // test/textEmptyReadback.test.ts).
     const { session, txt } = pasteIntoText(['gearValue', 'gearRow', 'gearEmpty', 'gearParam', 'widget']);
     const text = session.serializeSource(txt.name)!.text!;
     const valueOf = (name: string) => textEntries(text).find((e) => e.name === name).value;
@@ -297,10 +299,10 @@ describe('and is saved as MATLAB wrote it', () => {
     expect(valueOf('gearRowCopy')).toEqual(row);
     expect([twin('gearValue'), twin('gearRow')]).toEqual([scalar, row]);
     expect(JSON.stringify(valueOf('gearValueCopy'))).toBe(JSON.stringify(twin('gearValue')));
-    expect(valueOf('gearEmptyCopy')).toEqual([]);
+    expect(valueOf('gearEmptyCopy')).toEqual({ _type: 'GearMode', _value: 'Matrix(0,2)' });
     expect(valueOf('gearParamCopy')._elements[0]._properties.Value).toEqual(scalar);
     const widget = valueOf('widgetCopy')._elements[0]._properties;
-    expect([widget.Mode, widget.ModeRow, widget.Modes]).toEqual([scalar, row, '']);
+    expect([widget.Mode, widget.ModeRow, widget.Modes]).toEqual([scalar, row, { _type: 'GearMode', _value: 'Matrix(0,2)' }]);
     // MATLAB writes the element alone at a property, which names the same value.
     expect(twin('widget')._elements[0]._properties.Mode).toEqual({ _enum_value: scalar._elements[0]._enum_value, _object_class: 'GearMode' });
     expect(text).not.toMatch(/_is_enum|_enumeration/);

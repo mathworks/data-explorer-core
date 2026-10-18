@@ -926,8 +926,8 @@ function propertySources(el) {
  * MAT stream), which no MATLAB class is called and whose empty this form would misstate; the
  * place then holds it as it did before (parseEntryValue, parseTypedValue, parseCellElement).
  *
- * What a text dictionary is given for one is held where it was until MATLAB reads one back
- * (MatWriter.heldTextSpelling): that spelling, not this form, is the open question. A text
+ * What a text dictionary is given for one is the spelling MATLAB reads back there
+ * (MatWriter.heldTextSpelling), which is not always this form. A text
  * dictionary can hold this form itself, and what it holds is written as it holds it, so the form
  * says it was read here (XmlUtils.BINARY_EMPTY_KEY). The `[]` says nothing, being the same value
  * spelled the same in both dictionaries.
