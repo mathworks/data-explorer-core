@@ -11,6 +11,8 @@ import type { ParseWarning } from '../../parser/ParseWarning.js';
 import { reasonOf } from '../../parser/ParseWarning.js';
 import { functionHandleOf } from '../../parser/MatParser.js';
 import PropName from '../../prop/PropName.js';
+import { MAT_NODE_CEILING } from '../../display/DisplayConvention.js';
+import { buildUnderCeiling, buildUncut, chargeNodes } from '../data/matNodeCeiling.js';
 
 export default class MatNode extends ContainerNode {
   header: string;
@@ -135,9 +137,19 @@ export default class MatNode extends ContainerNode {
   // `result.warnings` defensively. When it IS there it is the array addMatSource passes
   // to registerSource after this returns, so a degrade appended during construction
   // reaches the source node.
+  //
+  // The tree is built under the file's node ceiling (matNodeCeiling; DisplayConvention's
+  // MAT_NODE_CEILING unless `options.nodeCeiling` says otherwise, which tests do): every
+  // variable is listed and counted, each container under one is built with all its rows or
+  // none, depth first, so the first values in the file are the whole ones, and an MCOS
+  // object's typed node is built whole and counted (buildUncut). One warning says how many
+  // containers have no rows and names the first ('part-not-expanded'). A parse handed over with
+  // no warnings array (an older host's) is given one for it, which is the array addMatSource
+  // and addMatSourceParsed pass on: both read it after this returns.
   static fromParsed(
     parsed: { header: string; variables: MatVariable[]; warnings?: ParseWarning[] },
     filename: string,
+    options: { nodeCeiling?: number } = {},
   ): MatNode {
     const node = new MatNode(filename);
     node.header = parsed.header;
@@ -148,13 +160,28 @@ export default class MatNode extends ContainerNode {
     const anonElement = parsed.variables.find((v) => v._anonymous);
     attachMcosDecoded(anonElement?._rawBytes, parsed.variables, parsed.warnings);
 
+    const ceiling = options.nodeCeiling ?? MAT_NODE_CEILING;
+    const { cut, firstCut } = buildUnderCeiling<void, MatlabVariableNode>(ceiling, () => MatNode._addVariables(node, parsed));
+    if (cut > 0 && firstCut) {
+      const warnings = parsed.warnings ?? (parsed.warnings = []);
+      warnings.push(notExpandedWarning(firstCut.matlabPath, cut, ceiling));
+    }
+    return node;
+  }
+
+  // Every variable as a row of `node`, in the file's order, under the ceiling fromParsed arms:
+  // all of them counted first, and none refused (matNodeCeiling.chargeNodes), so that the rows
+  // under them are what is left, and a tree is never more nodes than the ceiling or the
+  // variables, whichever is more.
+  static _addVariables(node: MatNode, parsed: { variables: MatVariable[]; warnings?: ParseWarning[] }): void {
+    chargeNodes(parsed.variables.filter((v) => !v._anonymous).length);
     for (const variable of parsed.variables) {
       if ((variable as unknown as { _anonymous?: boolean })._anonymous) {
         node._anonymousElements.push(variable);
         continue;
       }
       if (variable.isOpaque) {
-        const mcosNode = modelOpaqueMcosVariable(variable, mcosDecodedFor(variable), node, parsed.warnings);
+        const mcosNode = buildUncut(() => modelOpaqueMcosVariable(variable, mcosDecodedFor(variable), node, parsed.warnings));
         if (mcosNode) {
           node.addChild(mcosNode);
           continue;
@@ -172,9 +199,28 @@ export default class MatNode extends ContainerNode {
       }
       node.addChild(variableNodeOf(variable, node, parsed.warnings));
     }
-
-    return node;
   }
+}
+
+// The file's one word about its node ceiling, which is not a loss, as `duplicate-id` is not
+// (ParseWarning): every value in it is read, and copied whole. `part` is the first container
+// built without its rows, in the order the tree is built, and the count is of the others.
+function notExpandedWarning(part: string, cut: number, ceiling: number): ParseWarning {
+  const others = cut - 1;
+  const what =
+    others === 0
+      ? `"${part}" is shown without its contents`
+      : `"${part}" and ${withCommas(others)} other ${others === 1 ? 'value' : 'values'} are shown without their contents`;
+  const copy = others === 0 ? 'Copying it copies it whole.' : 'Copying one copies it whole.';
+  return {
+    code: 'part-not-expanded',
+    message: `${what}: this file holds more than ${withCommas(ceiling)} values to show. ${copy}`,
+    part,
+  };
+}
+
+function withCommas(n: number): string {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 // One variable the node builders cannot make a node of refused the whole file: a complex one

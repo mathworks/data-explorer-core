@@ -11,7 +11,7 @@ import * as NodeRegistry from '../NodeRegistry.js';
 import { matlabTimestampNow } from '../../parser/XmlUtils.js';
 import { validateMatlabName } from '../../matlabName.js';
 import { registeredSubclasses, superclassOf } from '../registeredSubclasses.js';
-import { MatBudgetError, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
+import { MatBudgetError, heldByTextDictionary, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 import {
   classificationOf as _classificationOf,
@@ -21,6 +21,14 @@ import {
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 import { setOwn } from '../../parser/ownKeys.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
+
+// A namespace's entry-name counts, as a dictionary keeps them (SectionNode._namespaceHolds): how
+// many entries hold each name, and the sections, and their versions, they were counted from.
+interface NamespaceCounts {
+  sections: SectionNode[];
+  versions: number[];
+  counts: Map<string, number>;
+}
 
 const ALLOWED_TYPES: Record<string, string[]> = {
   design: [
@@ -108,6 +116,9 @@ export function generateUuid(): string {
 export default class SectionNode extends ContainerNode {
   label: string;
   iconId: string;
+  // Moved by every change to which entries this section holds, so that the counts of its
+  // namespace's names are known to be out of date unless they moved with it (_namespaceHolds).
+  _entriesVersion = 0;
 
   constructor(name: string, parent: BaseNode | null, label: string, iconId: string) {
     super(name, parent);
@@ -185,6 +196,130 @@ export default class SectionNode extends ContainerNode {
     return names;
   }
 
+  // How many entries named `name` share this section's namespace: how many times
+  // _namespaceEntryNames would list it, and the question an entry rename asks
+  // (DataNode.setProperty). A lookup rather than that scan (F1-23): renaming every entry of a
+  // 140,000-entry dictionary scanned 140,000 names a rename, more than 300 s for all of them.
+  //
+  // The counts are kept per namespace on the dictionary, for every section of the namespace to
+  // share. They are made when first asked for, and kept as long as they can be shown to hold:
+  // each section of the namespace is the one they were counted from, at the version they were
+  // counted at (`_entriesVersion`). An entry added, removed or renamed moves the counts with it
+  // (_entriesMoved), and anything else that changes which entries a section holds moves only
+  // the version (BaseNode._replaceWith), so the counts are made again when next asked for.
+  // Detached, or with no namespace, a section counts its own entries, as _namespaceEntryNames
+  // lists them.
+  _namespaceHolds(name: string): number {
+    const counts = this._namespaceCounts();
+    if (counts) {
+      return counts.get(name) ?? 0;
+    }
+    let held = 0;
+    for (const c of this.children) {
+      if (c.name === name) {
+        held++;
+      }
+    }
+    return held;
+  }
+
+  addChild(child: BaseNode, index?: number): BaseNode {
+    super.addChild(child, index);
+    this._entriesMoved(null, child.name);
+    return child;
+  }
+
+  removeChild(child: BaseNode): void {
+    const before = this.children.length;
+    super.removeChild(child);
+    if (this.children.length < before) {
+      this._entriesMoved(child.name, null);
+    }
+  }
+
+  // One of my entries stopped being called `gone`, and one started being called `came` (either
+  // null): an entry removed, added or renamed. The version moves, and the namespace's counts, when
+  // they hold, move with it and go on holding.
+  _entriesMoved(gone: string | null, came: string | null): void {
+    const held = this._heldCounts();
+    this._entriesVersion++;
+    const at = held ? held.sections.indexOf(this) : -1;
+    if (!held || at < 0) {
+      return;
+    }
+    held.versions[at] = this._entriesVersion;
+    if (gone !== null) {
+      const left = (held.counts.get(gone) ?? 0) - 1;
+      if (left > 0) {
+        held.counts.set(gone, left);
+      } else {
+        held.counts.delete(gone);
+      }
+    }
+    if (came !== null) {
+      held.counts.set(came, (held.counts.get(came) ?? 0) + 1);
+    }
+  }
+
+  // The sections of the dictionary that share this section's namespace, in the dictionary's
+  // order, or null when this section has no dictionary or no namespace.
+  _namespaceSections(): SectionNode[] | null {
+    const myNs = SECTION_NAMESPACE[this.name];
+    if (!myNs || !this.parent) {
+      return null;
+    }
+    const sections: SectionNode[] = [];
+    for (const s of this.parent.children) {
+      if (SECTION_NAMESPACE[(s as SectionNode).name] === myNs) {
+        sections.push(s as SectionNode);
+      }
+    }
+    return sections;
+  }
+
+  // The counts the dictionary keeps for this section's namespace, when they still hold, else null.
+  _heldCounts(): NamespaceCounts | null {
+    const index = (this.parent as unknown as { _namespaceIndex?: Map<string, NamespaceCounts> } | null)?._namespaceIndex;
+    const held = index ? index.get(SECTION_NAMESPACE[this.name]) : undefined;
+    if (!held) {
+      return null;
+    }
+    const sections = this._namespaceSections();
+    if (
+      sections &&
+      held.sections.length === sections.length &&
+      sections.every((s, i) => held.sections[i] === s && held.versions[i] === s._entriesVersion)
+    ) {
+      return held;
+    }
+    return null;
+  }
+
+  // The entry-name counts of this section's namespace (_namespaceHolds): the dictionary's, made
+  // now when they do not hold. Null for a section with no dictionary or no namespace.
+  _namespaceCounts(): Map<string, number> | null {
+    const held = this._heldCounts();
+    if (held) {
+      return held.counts;
+    }
+    const sections = this._namespaceSections();
+    if (!sections) {
+      return null;
+    }
+    const counts = new Map<string, number>();
+    for (const s of sections) {
+      for (const c of s.children) {
+        counts.set(c.name, (counts.get(c.name) ?? 0) + 1);
+      }
+    }
+    const dictionary = this.parent as unknown as { _namespaceIndex?: Map<string, NamespaceCounts> };
+    if (!dictionary._namespaceIndex) {
+      dictionary._namespaceIndex = new Map();
+    }
+    dictionary._namespaceIndex.set(SECTION_NAMESPACE[this.name], { sections, versions: sections.map((s) => s._entriesVersion), counts });
+    return counts;
+  }
+
   // One of MY entries was renamed — follow it wherever else the dictionary spells that
   // name. Today that is the System Composer catalog, which keys its definitions by
   // entry name and so decides an architectural entry's Kind by it: a catalog left
@@ -199,6 +334,8 @@ export default class SectionNode extends ContainerNode {
   _entryRenamed(oldName: string, newName: string): void {
     const dictionary = this.parent as unknown as { systemComposer?: SystemComposerCatalog | null } | null;
     _renameInCatalog(dictionary?.systemComposer, oldName, newName);
+    // And the namespace's name counts (_namespaceHolds).
+    this._entriesMoved(oldName, newName);
   }
 
   // A new entry of `className`, named `entryName` (or the class's default name),
@@ -319,7 +456,17 @@ export default class SectionNode extends ContainerNode {
   // holding a string, unedited or edited before the copy. The refusal is worded as the save's
   // refusal of such a stream (MatlabVariableNode._unwritableStream), and every paste and drop a
   // host makes builds its entry here.
-  parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode {
+  //
+  // A host that re-reads an entry from the text dictionary's own text, as a view of the file's
+  // JSON re-reads the element the user edited there, says so with `{ asRead: true }`. The entry
+  // is then recorded as the file's read records it (MatWriter.heldByTextDictionary): dims
+  // holding the infinity that JSON.parse makes of a hand-typed 1e400, and complex text with no
+  // MAT stream to be instead, both of which a save writes back as read. Without the option, the
+  // text that was accepted when the file was opened was refused once re-read, and so was the
+  // entry's copy (F1-22). It is for that re-read alone, never for a paste, a drop or an undo
+  // record, whose value is not the file's text. In a binary dictionary it records nothing, as
+  // that dictionary's read records nothing.
+  parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null, options?: { asRead?: boolean }): DataNode {
     const text = (this.parent as { sourceFormat?: unknown } | null)?.sourceFormat === 'json';
     // An entry handed in with metadata that names no namespace — core's own API takes
     // `{ name, metadata: { uuid }, value }` — was written with an empty Namespace into a binary
@@ -367,6 +514,11 @@ export default class SectionNode extends ContainerNode {
         }
         rawEntry = { ...rawEntry, metadata };
       }
+    }
+    // Before textDictionaryForm, which asks the record, as SlddNode.parse records each entry
+    // before it is read.
+    if (options?.asRead && text && rawEntry.value !== undefined) {
+      heldByTextDictionary(rawEntry.value);
     }
     if (text && rawEntry.value !== undefined) {
       let value: unknown = rawEntry.value;

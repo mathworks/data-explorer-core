@@ -75,7 +75,7 @@ function formatMatlabTimestamp(raw: string): string {
  * parse state shared with `_rawVal`. Writing through it would make serializing a model
  * change the model.
  */
-function writeIntoSaveobj(envelope: unknown, key: string, val: unknown): unknown {
+export function writeIntoSaveobj(envelope: unknown, key: string, val: unknown): unknown {
   if (!envelope || typeof envelope !== 'object') {
     return envelope;
   }
@@ -93,6 +93,29 @@ function writeIntoSaveobj(envelope: unknown, key: string, val: unknown): unknown
     return envelope;
   }
   return { ...env, _elements: [{ ...(el as Record<string, unknown>), [key]: val }] };
+}
+
+/**
+ * One field of the saveobj envelope in a node's property bag (`props[SAVEOBJ_KEY]`), as read:
+ * the inverse of `writeIntoSaveobj`, and on the same terms, so a field this returns is one an
+ * edit can be written back into. Undefined when it is not: no envelope, one that is not 1x1, or
+ * one whose `_fields` do not declare `key` (a hand edit can leave any of those). Own keys only.
+ */
+export function readSaveobjField(props: Record<string, unknown> | undefined, key: string): unknown {
+  const env = props?.[SAVEOBJ_KEY] as Record<string, unknown> | undefined;
+  if (!env || typeof env !== 'object') {
+    return undefined;
+  }
+  const fields = env._fields;
+  const elements = env._elements;
+  if (!Array.isArray(fields) || !fields.includes(key) || !Array.isArray(elements) || elements.length !== 1) {
+    return undefined;
+  }
+  const el = elements[0];
+  if (!el || typeof el !== 'object' || !Object.prototype.hasOwnProperty.call(el, key)) {
+    return undefined;
+  }
+  return (el as Record<string, unknown>)[key];
 }
 
 /**
@@ -483,15 +506,18 @@ export default class DataNode extends BaseNode {
         return { error: true, reason: error, invalidValue: stringValue, validValue: this.name };
       }
       if (this.parent && this.parent.children) {
-        // For a top-level entry the parent is a section, which exposes the names
+        // For a top-level entry the parent is a section, which counts the names
         // across its WHOLE namespace — Design and Architectural Data share one,
         // so a rename must be unique across both, not just the entry's own
         // section. Nested children (bus elements, struct fields) have no such
-        // method and fall back to the local sibling check.
-        const nsNames = (this.parent as unknown as { _namespaceEntryNames?: () => string[] })._namespaceEntryNames;
+        // method and fall back to the local sibling check. A count, and not a
+        // scan of the namespace's names: renaming every entry of a large dictionary
+        // was quadratic (F1-23). This entry's own name is held by this entry, and a
+        // twin's by the twin, so another name held at all is held by another entry.
+        const nsHolds = (this.parent as unknown as { _namespaceHolds?: (name: string) => number })._namespaceHolds;
         const duplicate =
-          typeof nsNames === 'function'
-            ? nsNames.call(this.parent).some((n: string) => n !== this.name && n === stringValue)
+          typeof nsHolds === 'function'
+            ? stringValue !== this.name && nsHolds.call(this.parent, stringValue) > 0
             : this.parent.children.some((sibling) => sibling !== this && sibling.name === stringValue);
         if (duplicate) {
           return {
