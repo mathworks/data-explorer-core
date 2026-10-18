@@ -72,6 +72,11 @@ import PropBankName from '../src/datamodel/prop/PropBankName.js';
 import PropVariantConditions from '../src/datamodel/prop/PropVariantConditions.js';
 import PropAllChoicesCoderInfo from '../src/datamodel/prop/PropAllChoicesCoderInfo.js';
 import PropActiveChoiceCoderInfo from '../src/datamodel/prop/PropActiveChoiceCoderInfo.js';
+import PropCoderInfoHeaderFile from '../src/datamodel/prop/PropCoderInfoHeaderFile.js';
+import PropCoderInfoDefinitionFile from '../src/datamodel/prop/PropCoderInfoDefinitionFile.js';
+import PropPreStatement from '../src/datamodel/prop/PropPreStatement.js';
+import PropPostStatement from '../src/datamodel/prop/PropPostStatement.js';
+import PropQualifier from '../src/datamodel/prop/PropQualifier.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -110,6 +115,11 @@ const LAYOUT_ATOMS: Record<string, PropClass> = {
     variantConditions: PropVariantConditions as unknown as PropClass,
     allChoicesCoderInfo: PropAllChoicesCoderInfo as unknown as PropClass,
     activeChoiceCoderInfo: PropActiveChoiceCoderInfo as unknown as PropClass,
+    coderInfoHeaderFile: PropCoderInfoHeaderFile as unknown as PropClass,
+    coderInfoDefinitionFile: PropCoderInfoDefinitionFile as unknown as PropClass,
+    preStatement: PropPreStatement as unknown as PropClass,
+    postStatement: PropPostStatement as unknown as PropClass,
+    qualifier: PropQualifier as unknown as PropClass,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -242,6 +252,11 @@ const ATOM_PROBE_KIND: Record<string, ProbeKind> = {
     variantConditions: 'string',
     allChoicesCoderInfo: 'string',
     activeChoiceCoderInfo: 'string',
+    coderInfoHeaderFile: 'string',
+    coderInfoDefinitionFile: 'string',
+    preStatement: 'string',
+    postStatement: 'string',
+    qualifier: 'string',
 };
 
 // A field-backed atom whose raw key is the saveobj envelope (SAVEOBJ_KEY) reads one FIELD of it,
@@ -254,6 +269,11 @@ const ENVELOPE_FIELD: Record<string, string> = {
     variantConditions: 'VariantConditions',
     allChoicesCoderInfo: 'AllChoicesCoderInfo',
     activeChoiceCoderInfo: 'ActiveChoiceCoderInfo',
+    coderInfoHeaderFile: 'HeaderFile',
+    coderInfoDefinitionFile: 'DefinitionFile',
+    preStatement: 'PreStatement',
+    postStatement: 'PostStatement',
+    qualifier: 'Qualifier',
 };
 // And a shared atom that a class reads out of its envelope as well as from its own raw key: a
 // further location for that class, probed as its own case (Simulink.VariantBank keeps its

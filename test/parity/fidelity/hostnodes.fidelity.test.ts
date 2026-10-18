@@ -44,10 +44,10 @@ describe('Tier-4 contract-lock: VariantBankCoderInfoNode', () => {
     expect(node.className).toBe('Simulink.VariantBankCoderInfo');
   });
 
-  it('exposes [PropName, PropValue, PropDataType] properties', () => {
+  it('exposes Name, Value, DataType and its five own properties', () => {
     const node = VariantBankCoderInfoNode.createDefault('vbci1', null);
     const keys = node.getProperties().map((p) => p.key);
-    expect(keys).toEqual(['Name', 'Value', 'DataType']);
+    expect(keys).toEqual(['Name', 'Value', 'DataType', 'HeaderFile', 'DefinitionFile', 'PreStatement', 'PostStatement', 'Qualifier']);
   });
 
   it('has empty-string Value by default', () => {

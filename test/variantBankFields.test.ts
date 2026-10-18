@@ -34,6 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { createSession, ingest, type SerializedSource } from '../src/index.js';
 import VariantBankNode from '../src/datamodel/node/data/VariantBankNode.js';
+import VariantBankCoderInfoNode from '../src/datamodel/node/data/VariantBankCoderInfoNode.js';
 import type DataNode from '../src/datamodel/node/DataNode.js';
 import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
@@ -523,5 +524,491 @@ describe('VariantBank fields: a hand-edited bank is shown as read, never refused
       reason: "'vbN' was read with no Description in its saved form, so a Description edit has nowhere to be saved.",
     });
     expect(textEntries(saved(session, source) as string)).toEqual(textEntries(text));
+  });
+});
+
+// ═══ Simulink.VariantBankCoderInfo ═══════════════════════════════════════════════════════════
+//
+// The coder info a bank names, and the other class C-169 option (b) is about. MATLAB's class has
+// HeaderFile, DefinitionFile, PreStatement, PostStatement and Qualifier, all char, all '' but
+// Qualifier, which defaults to 'None'; and no Description. The node used to show none of the five
+// (its Property Inspector a stray `Other._saveobj` row), and its Description cell took an edit,
+// answered `true`, and both save paths dropped it.
+//
+// What MATLAB does, measured by the coder info SET and LOAD lines of make_variantbank_r2027a.m
+// (R2027a 27.1.0.3409468), which also wrote ciA and ciB:
+//   - HeaderFile and DefinitionFile: '' or a name whose first '.'-separated part, after any
+//     leading spaces, is a C identifier that does not start with "rt"; a HeaderFile's extension
+//     must be exactly h or hpp. PreStatement and PostStatement take any text.
+//   - Qualifier: None, Const, Volatile or ConstVolatile, typed in any case, stored in that one.
+//   - A dictionary holding a HeaderFile or DefinitionFile the setter refuses loads the WHOLE coder
+//     info as defaults, with no warning; a Qualifier that is not one of the four as MATLAB spells
+//     them (even 'const', which the setter takes) loads as 'None'; a field that is not text as ''.
+
+const CI_FIELDS = ['HeaderFile', 'DefinitionFile', 'PreStatement', 'PostStatement', 'Qualifier'];
+const CI_COLUMNS = ['headerFile', 'definitionFile', 'preStatement', 'postStatement', 'qualifier'];
+const QUALIFIERS = ['None', 'Const', 'Volatile', 'ConstVolatile'];
+const CI_WROTE: Record<string, Record<string, unknown>> = {
+  ciA: { HeaderFile: 'h.h', DefinitionFile: 'd.c', PreStatement: 'pre', PostStatement: 'post', Qualifier: 'Const' },
+  ciB: { HeaderFile: '', DefinitionFile: '', PreStatement: '', PostStatement: '', Qualifier: 'None' },
+};
+const MSG_FILE_NAME = (field: string) =>
+  `'${field}' property for Simulink.VariantBankCoderInfo must be a valid C identifier that does not start with "rt".`;
+const MSG_EXTENSION = (ext: string) => `Change file extension '${ext}' to header file extension '.h' or '.hpp'.`;
+const MSG_QUALIFIER = (v: string) =>
+  `Error setting property 'Qualifier' of class 'VariantBankCoderInfo': There is no enumerated value named '${v}'.`;
+const NOT_CHECKED = (what: string) => expect.stringContaining(`is not a ${what} this editor can check`);
+
+// The `<Element Class="Simulink.VariantBankCoderInfo">` of one entry, as the binary file spells it.
+function coderInfoXml(xml: string, entry: string): string {
+  const at = xml.indexOf(`<P Name="Name" Class="char">${entry}</P>`);
+  expect(at, `no entry ${entry} in the chunk`).toBeGreaterThan(-1);
+  const open = xml.indexOf('<Element Class="Simulink.VariantBankCoderInfo">', at);
+  const close = xml.indexOf('</Object>', at);
+  expect(open > at && open < close, `${entry} is not a coder info`).toBe(true);
+  return xml.slice(open, close);
+}
+// What a save wrote for a coder info, as savedBank reads a bank.
+function savedCoderInfo(content: Uint8Array | string, entry: string) {
+  const node = entryIn(open(content).source, entry) as any;
+  const bag = node.serial._properties as Record<string, any>;
+  const fields = bag._saveobj._elements[0] as Record<string, unknown>;
+  const spelled = typeof content === 'string'
+    ? JSON.stringify(textEntries(content).find((e) => e.name === entry).value)
+    : coderInfoXml(chunkXml(content), entry);
+  return { node, keys: Object.keys(bag), fields, spelled };
+}
+const ciFieldsOf = (ci: Record<string, unknown>) => Object.fromEntries(CI_FIELDS.map((f) => [f, ci[f]]));
+
+describe.each(FORMATS)('VariantBankCoderInfo fields (%s): a MATLAB-written coder info shows its own properties', (format) => {
+  it('in the row, each in its own editable cell, HeaderFile in the Header File column, and no Description', () => {
+    const { source } = open(fixture(format));
+    expect(source.warnings).toBeUndefined();
+    const shown = (entry: string) => Object.fromEntries(CI_COLUMNS.map((c) => [c, cellText(rowOf(entryIn(source, entry)), c)]));
+    expect(shown('ciA')).toEqual({ headerFile: 'h.h', definitionFile: 'd.c', preStatement: 'pre', postStatement: 'post', qualifier: 'Const' });
+    expect(shown('ciB')).toEqual({ headerFile: '', definitionFile: '', preStatement: '', postStatement: '', qualifier: 'None' });
+    const row = rowOf(entryIn(source, 'ciA'));
+    expect(row.headerFile).toMatchObject({ editable: true, editor: 'text' });
+    expect(row.definitionFile).toMatchObject({ editable: true, editor: 'text' });
+    expect(row.preStatement).toMatchObject({ editable: true, editor: 'textArea' });
+    expect(row.postStatement).toMatchObject({ editable: true, editor: 'textArea' });
+    expect(row.qualifier).toMatchObject({ editable: true, editor: 'select', options: QUALIFIERS });
+    // MATLAB's class has no Description, so the cell offers none.
+    expect(row.Description).toBe('');
+    expect(row._descriptionEditable).toBe(false);
+    // Value stays as C-169(a) left it: the class has none.
+    expect(row.Value).toBe('');
+    expect(row._valueEditable).toBe(false);
+  });
+
+  it('in the Property Inspector, under Code Generation, with no Description and no Other row', () => {
+    const { groups, values, props } = pi(entryIn(open(fixture(format)).source, 'ciA'));
+    expect(groups).toEqual([
+      { name: 'General', items: ['Name', 'Value', 'DataType', 'Kind', 'Class'] },
+      { name: 'Code Generation', items: CI_FIELDS },
+    ]);
+    expect(values).toMatchObject(CI_WROTE.ciA);
+    expect(values).not.toHaveProperty('Description');
+    expect(Object.keys(values).filter((k) => k.startsWith('Other.'))).toEqual([]);
+    const label = (name: string) => props.find((p) => p.name === name)?.displayName;
+    expect(CI_FIELDS.map(label)).toEqual(['Header File', 'Definition File', 'Pre Statement', 'Post Statement', 'Qualifier']);
+  });
+
+  it('and a save with no edit writes every coder info as it was read', () => {
+    const { session, source } = open(fixture(format));
+    const out = saved(session, source);
+    for (const entry of Object.keys(CI_WROTE)) {
+      const after = savedCoderInfo(out, entry);
+      expect(ciFieldsOf(after.fields), entry).toEqual(CI_WROTE[entry]);
+      expect(after.keys, entry).toEqual(['_saveobj']);
+    }
+    if (format === 'text') {
+      expect(out).toBe(fixtureText());
+    } else {
+      expect(chunkXml(out as Uint8Array)).toBe(chunkXml(fixture('binary')));
+    }
+  });
+});
+
+// Each edit, by the column id the table sends: what it is typed as, the field it writes, and
+// what is written there (and shown after). The odd-looking ones are MATLAB's own edges: it keeps
+// a leading space, takes any '.'-separated parts after the first, and takes a definition file of
+// any extension or none.
+const CI_EDITS = [
+  { column: 'headerFile', typed: 'x.h', field: 'HeaderFile', written: 'x.h' },
+  { column: 'headerFile', typed: 'x.hpp', field: 'HeaderFile', written: 'x.hpp' },
+  { column: 'headerFile', typed: '', field: 'HeaderFile', written: '' },
+  { column: 'headerFile', typed: '_a.h', field: 'HeaderFile', written: '_a.h' },
+  { column: 'headerFile', typed: 'RTa.h', field: 'HeaderFile', written: 'RTa.h' },
+  { column: 'headerFile', typed: 'xrt.h', field: 'HeaderFile', written: 'xrt.h' },
+  { column: 'headerFile', typed: 'a.c.h', field: 'HeaderFile', written: 'a.c.h' },
+  { column: 'headerFile', typed: 'a.1b.h', field: 'HeaderFile', written: 'a.1b.h' },
+  { column: 'headerFile', typed: 'a..hpp', field: 'HeaderFile', written: 'a..hpp' },
+  { column: 'headerFile', typed: ' a.h', field: 'HeaderFile', written: ' a.h' },
+  { column: 'headerFile', typed: '\ta.h', field: 'HeaderFile', written: '\ta.h' },
+  { column: 'headerFile', typed: 'a'.repeat(300) + '.h', field: 'HeaderFile', written: 'a'.repeat(300) + '.h' },
+  { column: 'definitionFile', typed: 'x.cpp', field: 'DefinitionFile', written: 'x.cpp' },
+  { column: 'definitionFile', typed: 'a.h', field: 'DefinitionFile', written: 'a.h' },
+  { column: 'definitionFile', typed: 'a.txt', field: 'DefinitionFile', written: 'a.txt' },
+  { column: 'definitionFile', typed: 'a', field: 'DefinitionFile', written: 'a' },
+  { column: 'definitionFile', typed: 'a.', field: 'DefinitionFile', written: 'a.' },
+  { column: 'definitionFile', typed: 'a.1', field: 'DefinitionFile', written: 'a.1' },
+  { column: 'definitionFile', typed: 'int', field: 'DefinitionFile', written: 'int' },
+  { column: 'definitionFile', typed: '', field: 'DefinitionFile', written: '' },
+  { column: 'preStatement', typed: '#pragma x', field: 'PreStatement', written: '#pragma x' },
+  { column: 'preStatement', typed: 'a\nb', field: 'PreStatement', written: 'a\nb' },
+  { column: 'preStatement', typed: '  x  ', field: 'PreStatement', written: '  x  ' },
+  { column: 'preStatement', typed: '', field: 'PreStatement', written: '' },
+  { column: 'postStatement', typed: "#pragma y // it's", field: 'PostStatement', written: "#pragma y // it's" },
+  { column: 'postStatement', typed: 'é', field: 'PostStatement', written: 'é' },
+  { column: 'qualifier', typed: 'Volatile', field: 'Qualifier', written: 'Volatile' },
+  { column: 'qualifier', typed: 'ConstVolatile', field: 'Qualifier', written: 'ConstVolatile' },
+  { column: 'qualifier', typed: 'None', field: 'Qualifier', written: 'None' },
+  // Typed in any case, and stored in MATLAB's: a file holding 'const' loads as 'None'.
+  { column: 'qualifier', typed: 'volatile', field: 'Qualifier', written: 'Volatile' },
+  { column: 'qualifier', typed: 'CONSTVOLATILE', field: 'Qualifier', written: 'ConstVolatile' },
+  { column: 'qualifier', typed: 'none', field: 'Qualifier', written: 'None' },
+  // The property's own key reaches the same field as its column id.
+  { column: 'HeaderFile', typed: 'byKey.h', field: 'HeaderFile', written: 'byKey.h' },
+  { column: 'Qualifier', typed: 'volatile', field: 'Qualifier', written: 'Volatile' },
+] as const;
+
+describe.each(FORMATS)('VariantBankCoderInfo fields (%s): an edit is saved into the envelope, and nowhere else', (format) => {
+  it.each(CI_EDITS)('$column = $typed', ({ column, typed, field, written }) => {
+    const { session, source } = open(fixture(format));
+    const node = entryIn(source, 'ciA');
+    expect(node.setProperty(column, typed)).toBe(true);
+    expect(node.status).toBe('Modified');
+    const after = savedCoderInfo(saved(session, source), 'ciA');
+    expect(ciFieldsOf(after.fields)).toEqual({ ...CI_WROTE.ciA, [field]: written });
+    expect(after.keys).toEqual(['_saveobj']);
+    if (format === 'text') {
+      expect(JSON.parse(after.spelled)._elements[0]).not.toHaveProperty('_properties');
+    } else {
+      expect(after.spelled.split('<P Name="').length - 1, 'one P per envelope field').toBe(CI_FIELDS.length);
+    }
+    const shownColumn = CI_COLUMNS[CI_FIELDS.indexOf(field)];
+    expect(cellText(rowOf(after.node), shownColumn)).toBe(written);
+    // And nothing else in the dictionary moved.
+    expect(ciFieldsOf(savedCoderInfo(saved(session, source), 'ciB').fields)).toEqual(CI_WROTE.ciB);
+  });
+
+  it('an edited default coder info is spelled as MATLAB spells the same coder info', () => {
+    const { session, source } = open(fixture(format));
+    const node = entryIn(source, 'ciB');
+    for (const [column, typed] of [
+      ['headerFile', 'h.h'], ['definitionFile', 'd.c'], ['preStatement', 'pre'], ['postStatement', 'post'], ['qualifier', 'const'],
+    ]) {
+      expect(node.setProperty(column, typed), column).toBe(true);
+    }
+    const ours = savedCoderInfo(saved(session, source), 'ciB').spelled;
+    const matlab = savedCoderInfo(format === 'text' ? fixtureText() : fixture('binary'), 'ciA').spelled;
+    expect(ours).toBe(matlab);
+  });
+
+  it('the text a cell shows, committed back, is no edit', () => {
+    const { session, source } = open(fixture(format));
+    const node = entryIn(source, 'ciA');
+    const row = rowOf(node);
+    for (const column of CI_COLUMNS) {
+      expect(node.setProperty(column, row[column].text), column).toBe(true);
+    }
+    expect(node.status).not.toBe('Modified');
+    expect(ciFieldsOf(savedCoderInfo(saved(session, source), 'ciA').fields)).toEqual(CI_WROTE.ciA);
+  });
+});
+
+// One case per rule MATLAB's setter enforces (the coder info SET lines), with MATLAB's own
+// message, and the names MATLAB takes that this editor does not check.
+const CI_REFUSED = [
+  // The extension, after the last '.' of the last part of a path: exactly h or hpp.
+  { column: 'headerFile', typed: 'a.c', reason: MSG_EXTENSION('c') },
+  { column: 'headerFile', typed: 'a.cpp', reason: MSG_EXTENSION('cpp') },
+  { column: 'headerFile', typed: 'a.H', reason: MSG_EXTENSION('H') },
+  { column: 'headerFile', typed: 'a.HPP', reason: MSG_EXTENSION('HPP') },
+  { column: 'headerFile', typed: 'a.hh', reason: MSG_EXTENSION('hh') },
+  { column: 'headerFile', typed: 'a', reason: MSG_EXTENSION('') },
+  { column: 'headerFile', typed: 'a.', reason: MSG_EXTENSION('') },
+  { column: 'headerFile', typed: 'a.h.c', reason: MSG_EXTENSION('c') },
+  { column: 'headerFile', typed: 'a.h ', reason: MSG_EXTENSION('h ') },
+  { column: 'headerFile', typed: 'a. h', reason: MSG_EXTENSION(' h') },
+  { column: 'headerFile', typed: 'a.c/', reason: MSG_EXTENSION('c') },
+  { column: 'headerFile', typed: 'a.h/x', reason: MSG_EXTENSION('') },
+  // The first part, checked first: a C identifier that does not start with "rt".
+  { column: 'headerFile', typed: 'a b.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: 'inc/a.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: 'inc\\a.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: '1a.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: '1a.c', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: 'rta.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: 'rt.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: ' rta.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: '.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: ' ', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: 'a-b.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: 'é.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: 'inc/', reason: MSG_FILE_NAME('HeaderFile') },
+  // MATLAB takes these (or, for '$.', refuses them for a token rule not measured here); this
+  // editor does not check them, so they are not written.
+  ...['a.b/c.h', 'a.c/x.h', 'a.h/', 'a.hpp/', 'a. .h', 'a.-.h', 'a.c d.h', 'a.c$.h'].map((typed) => ({ column: 'headerFile', typed, reason: NOT_CHECKED('header file name') })),
+  { column: 'definitionFile', typed: 'a b.c', reason: MSG_FILE_NAME('DefinitionFile') },
+  { column: 'definitionFile', typed: '1a.c', reason: MSG_FILE_NAME('DefinitionFile') },
+  { column: 'definitionFile', typed: 'rta.c', reason: MSG_FILE_NAME('DefinitionFile') },
+  { column: 'definitionFile', typed: 'rt', reason: MSG_FILE_NAME('DefinitionFile') },
+  { column: 'definitionFile', typed: '.c', reason: MSG_FILE_NAME('DefinitionFile') },
+  { column: 'definitionFile', typed: 'x/a.c', reason: MSG_FILE_NAME('DefinitionFile') },
+  { column: 'definitionFile', typed: 'a/', reason: MSG_FILE_NAME('DefinitionFile') },
+  { column: 'definitionFile', typed: 'a .c', reason: MSG_FILE_NAME('DefinitionFile') },
+  { column: 'definitionFile', typed: 'a\nb', reason: MSG_FILE_NAME('DefinitionFile') },
+  ...['a.c ', 'a.c/', 'a.$', 'a. b', 'a.c/x', 'a.c d'].map((typed) => ({ column: 'definitionFile', typed, reason: NOT_CHECKED('definition file name') })),
+  ...['foo', '', ' const', 'const ', 'Const Volatile', 'const volatile', 'VolatileConst', 'Con', 'c', 'None ', 'Const_Volatile', 'Restrict']
+    .map((typed) => ({ column: 'qualifier', typed, reason: MSG_QUALIFIER(typed) })),
+];
+
+describe.each(FORMATS)('VariantBankCoderInfo fields (%s): a value MATLAB would refuse is refused', (format) => {
+  it.each(CI_REFUSED)('$column = $typed', ({ column, typed, reason }) => {
+    const { session, source } = open(fixture(format));
+    const node = entryIn(source, 'ciA');
+    const before = cellText(rowOf(node), column);
+    const result = node.setProperty(column, typed) as any;
+    expect(result).toMatchObject({ error: true, reason, invalidValue: typed, validValue: before });
+    expect(node.status).not.toBe('Modified');
+    expect(cellText(rowOf(node), column)).toBe(before);
+    expect(ciFieldsOf(savedCoderInfo(saved(session, source), 'ciA').fields)).toEqual(CI_WROTE.ciA);
+  });
+
+  it('a Description, which the class does not have, is refused rather than taken and dropped', () => {
+    const { session, source } = open(fixture(format));
+    const node = entryIn(source, 'ciA');
+    expect(node.setProperty('Description', 'kept?')).toMatchObject({
+      error: true,
+      reason: "A Variant Bank Coder Info has no Description in a dictionary, so one cannot be saved for 'ciA'.",
+      invalidValue: 'kept?',
+    });
+    expect(node.status).not.toBe('Modified');
+    expect(rowOf(node).Description).toBe('');
+    const out = saved(session, source);
+    if (format === 'text') {
+      expect(out).toBe(fixtureText());
+    } else {
+      expect(chunkXml(out as Uint8Array)).toBe(chunkXml(fixture('binary')));
+    }
+  });
+});
+
+describe('VariantBankCoderInfo fields: a new coder info', () => {
+  it('starts as the envelope MATLAB writes, showing its defaults, and takes an edit into it', () => {
+    const node = VariantBankCoderInfoNode.createDefault('ciNew', null) as any;
+    const before = node.serializeValue();
+    expect(before._elements[0]).toEqual({
+      _custom_save: { _array_type: 'Struct', _dimensions: [1, 1], _fields: CI_FIELDS, _elements: [CI_WROTE.ciB] },
+    });
+    const row = rowOf(node);
+    expect(CI_COLUMNS.map((c) => row[c].text)).toEqual(['', '', '', '', 'None']);
+    expect(node.setProperty('headerFile', 'n.h')).toBe(true);
+    expect(node.setProperty('qualifier', 'volatile')).toBe(true);
+    const after = node.serializeValue()._elements[0];
+    expect(after).not.toHaveProperty('_properties');
+    expect(after._custom_save._elements[0]).toEqual({ ...CI_WROTE.ciB, HeaderFile: 'n.h', Qualifier: 'Volatile' });
+    expect(node._getSerializedProperties()).toEqual({ _saveobj: after._custom_save });
+  });
+});
+
+describe.each(FORMATS)('VariantBankCoderInfo fields (%s): an edit through the session is undone exactly', (format) => {
+  it('to the value as read, which a save then writes as read', () => {
+    const { session, source } = open(fixture(format));
+    const node = entryIn(source, 'ciA');
+    session.setActiveContext(source);
+    session.setActive(source, node);
+    expect(session.editProperty(node.id, 'qualifier', 'volatile')).toBe(true);
+    expect(session.editProperty(node.id, 'headerFile', 'other.h')).toBe(true);
+    session.undo();
+    session.undo();
+    expect(cellText(rowOf(node), 'qualifier')).toBe('Const');
+    expect(cellText(rowOf(node), 'headerFile')).toBe('h.h');
+    expect(ciFieldsOf(savedCoderInfo(saved(session, source), 'ciA').fields)).toEqual(CI_WROTE.ciA);
+  });
+});
+
+// ciA in the text dictionary with one field edited by hand, as the coder info LOAD lines edited
+// it, with what MATLAB read (in the comment), what is shown here, and the clause the warning
+// carries (null: MATLAB reads it as written, so there is none).
+const WHOLE_CODER_INFO = 'which MATLAB reads as a coder info with every property at its default';
+const CI_HAND_EDITS = [
+  // MATLAB: Qualifier 'None', the rest as written.
+  { what: 'Qualifier const', from: '"Qualifier": "Const"', to: '"Qualifier": "const"', column: 'qualifier', shown: 'const', says: "its Qualifier 'const' is not None, Const, Volatile or ConstVolatile as MATLAB spells them, which MATLAB reads as 'None'" },
+  { what: 'Qualifier CONST', from: '"Qualifier": "Const"', to: '"Qualifier": "CONST"', column: 'qualifier', shown: 'CONST', says: "its Qualifier 'CONST' is not None" },
+  { what: 'Qualifier volatile', from: '"Qualifier": "Const"', to: '"Qualifier": "volatile"', column: 'qualifier', shown: 'volatile', says: "its Qualifier 'volatile' is not None" },
+  { what: 'Qualifier foo', from: '"Qualifier": "Const"', to: '"Qualifier": "foo"', column: 'qualifier', shown: 'foo', says: "its Qualifier 'foo' is not None" },
+  { what: 'Qualifier empty', from: '"Qualifier": "Const"', to: '"Qualifier": ""', column: 'qualifier', shown: '', says: "its Qualifier '' is not None" },
+  { what: 'Qualifier a number', from: '"Qualifier": "Const"', to: '"Qualifier": 5', column: 'qualifier', shown: '5', says: "its Qualifier is not text, which MATLAB reads as 'None'" },
+  // MATLAB: as written.
+  { what: 'Qualifier Volatile', from: '"Qualifier": "Const"', to: '"Qualifier": "Volatile"', column: 'qualifier', shown: 'Volatile', says: null },
+  { what: 'Qualifier ConstVolatile', from: '"Qualifier": "Const"', to: '"Qualifier": "ConstVolatile"', column: 'qualifier', shown: 'ConstVolatile', says: null },
+  // MATLAB: the whole coder info as defaults.
+  { what: 'HeaderFile a.c', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "a.c"', column: 'headerFile', shown: 'a.c', says: `its HeaderFile 'a.c' is not a header file name MATLAB takes, ${WHOLE_CODER_INFO}` },
+  { what: 'HeaderFile a b.h', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "a b.h"', column: 'headerFile', shown: 'a b.h', says: "its HeaderFile 'a b.h' is not a header file name MATLAB takes" },
+  { what: 'HeaderFile inc/a.h', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "inc/a.h"', column: 'headerFile', shown: 'inc/a.h', says: "its HeaderFile 'inc/a.h' is not a header file name MATLAB takes" },
+  { what: 'HeaderFile rta.h', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "rta.h"', column: 'headerFile', shown: 'rta.h', says: "its HeaderFile 'rta.h' is not a header file name MATLAB takes" },
+  // MATLAB: HeaderFile '', the rest as written.
+  { what: 'HeaderFile a number', from: '"HeaderFile": "h.h"', to: '"HeaderFile": 5', column: 'headerFile', shown: '5', says: "its HeaderFile is not text, which MATLAB reads as ''" },
+  // MATLAB: as written, though an edit would not write the last three.
+  { what: 'HeaderFile empty', from: '"HeaderFile": "h.h"', to: '"HeaderFile": ""', column: 'headerFile', shown: '', says: null },
+  { what: 'HeaderFile a.hpp', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "a.hpp"', column: 'headerFile', shown: 'a.hpp', says: null },
+  { what: 'HeaderFile with a leading space', from: '"HeaderFile": "h.h"', to: '"HeaderFile": " h.h"', column: 'headerFile', shown: ' h.h', says: null },
+  { what: 'HeaderFile a.c.h', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "a.c.h"', column: 'headerFile', shown: 'a.c.h', says: null },
+  { what: 'HeaderFile a.h/', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "a.h/"', column: 'headerFile', shown: 'a.h/', says: null },
+  // MATLAB: the whole coder info as defaults.
+  { what: 'DefinitionFile a b.c', from: '"DefinitionFile": "d.c"', to: '"DefinitionFile": "a b.c"', column: 'definitionFile', shown: 'a b.c', says: `its DefinitionFile 'a b.c' is not a definition file name MATLAB takes, ${WHOLE_CODER_INFO}` },
+  { what: 'DefinitionFile 1a.c', from: '"DefinitionFile": "d.c"', to: '"DefinitionFile": "1a.c"', column: 'definitionFile', shown: '1a.c', says: "its DefinitionFile '1a.c' is not a definition file name MATLAB takes" },
+  // MATLAB: DefinitionFile '', the rest as written.
+  { what: 'DefinitionFile a number', from: '"DefinitionFile": "d.c"', to: '"DefinitionFile": 5', column: 'definitionFile', shown: '5', says: "its DefinitionFile is not text, which MATLAB reads as ''" },
+  // MATLAB: as written.
+  { what: 'DefinitionFile a.txt', from: '"DefinitionFile": "d.c"', to: '"DefinitionFile": "a.txt"', column: 'definitionFile', shown: 'a.txt', says: null },
+  { what: 'DefinitionFile with a trailing space', from: '"DefinitionFile": "d.c"', to: '"DefinitionFile": "d.c "', column: 'definitionFile', shown: 'd.c ', says: null },
+  // MATLAB: that statement '', the rest as written.
+  { what: 'PreStatement a number', from: '"PreStatement": "pre"', to: '"PreStatement": 5', column: 'preStatement', shown: '5', says: "its PreStatement is not text, which MATLAB reads as ''" },
+  { what: 'PostStatement a number', from: '"PostStatement": "post"', to: '"PostStatement": 5', column: 'postStatement', shown: '5', says: "its PostStatement is not text, which MATLAB reads as ''" },
+  // MATLAB: as written.
+  { what: 'PostStatement two lines', from: '"PostStatement": "post"', to: '"PostStatement": "a\\nb"', column: 'postStatement', shown: 'a\nb', says: null },
+];
+
+describe('VariantBankCoderInfo fields: a hand-edited coder info is shown as read, never refused, and saved as read', () => {
+  it.each(CI_HAND_EDITS)('$what', ({ from, to, column, shown, says }) => {
+    const text = handEdited(from, to);
+    const { session, source } = open(text);
+    expect(cellText(rowOf(entryIn(source, 'ciA')), column)).toBe(shown);
+    const warnings: ParseWarning[] = source.warnings ?? [];
+    if (says === null) {
+      expect(warnings).toEqual([]);
+    } else {
+      expect(warnings.map((w) => w.part)).toEqual(['ciA']);
+      expect(warnings[0].code).toBe('part-unreadable');
+      expect(warnings[0].message).toContain('"ciA" holds a Simulink.VariantBankCoderInfo MATLAB does not read as written: ');
+      expect(warnings[0].message).toContain(says);
+    }
+    expect(saved(session, source)).toBe(text);
+  });
+
+  it('in a binary dictionary too', () => {
+    const bytes = withXml((xml) => xml.replace('<P Name="Qualifier" Class="char">Const</P>', '<P Name="Qualifier" Class="char">const</P>'));
+    const { session, source } = open(bytes);
+    expect(cellText(rowOf(entryIn(source, 'ciA')), 'qualifier')).toBe('const');
+    expect((source.warnings ?? []).map((w: ParseWarning) => w.part)).toEqual(['ciA']);
+    expect(coderInfoXml(chunkXml(saved(session, source) as Uint8Array), 'ciA')).toContain('<P Name="Qualifier" Class="char">const</P>');
+  });
+
+  it('an edit repairs it, in MATLAB\'s spelling, and the rest is written as read', () => {
+    const { session, source } = open(handEdited('"Qualifier": "Const"', '"Qualifier": "const"'));
+    expect(entryIn(source, 'ciA').setProperty('qualifier', 'Const')).toBe(true);
+    expect(ciFieldsOf(savedCoderInfo(saved(session, source), 'ciA').fields)).toEqual(CI_WROTE.ciA);
+  });
+
+  it('a field that is not text is undone to itself, which its own text could not do', () => {
+    const text = handEdited('"HeaderFile": "h.h"', '"HeaderFile": 5');
+    const { session, source } = open(text);
+    const node = entryIn(source, 'ciA');
+    session.setActiveContext(source);
+    session.setActive(source, node);
+    expect(session.editProperty(node.id, 'headerFile', 'x.h')).toBe(true);
+    session.undo();
+    expect(cellText(rowOf(node), 'headerFile')).toBe('5');
+    expect(savedCoderInfo(saved(session, source), 'ciA').fields).toEqual({ ...CI_WROTE.ciA, HeaderFile: 5 });
+  });
+
+  it('a field the envelope does not have takes no edit, which would have nowhere to go', () => {
+    const json = JSON.parse(fixtureText());
+    const entry = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'ciA');
+    const envelope = entry.value._elements[0]._custom_save;
+    envelope._fields = envelope._fields.filter((f: string) => f !== 'Qualifier');
+    delete envelope._elements[0].Qualifier;
+    const text = JSON.stringify(json, null, '\t');
+    const { session, source } = open(text);
+    const node = entryIn(source, 'ciA');
+    expect(cellText(rowOf(node), 'qualifier')).toBe('');
+    expect(node.setProperty('qualifier', 'Volatile')).toMatchObject({
+      error: true,
+      reason: "'ciA' was read with no Qualifier in its saved form, so a Qualifier edit has nowhere to be saved.",
+    });
+    expect(textEntries(saved(session, source) as string)).toEqual(textEntries(text));
+  });
+});
+
+// ─── R2026b's spelling ────────────────────────────────────────────────────────────────────────
+
+// A text dictionary R2026b wrote holds a coder info as plain properties, with no envelope
+// (~/delite/textsldd/dd.sldd and mix/dd_json.sldd): `"_elements": [{"_id": "1", "_properties":
+// {"DefinitionFile": "", "HeaderFile": "", "PostStatement": "", "PreStatement": "", "Qualifier":
+// "None"}}]`. R2027a reads it property by property, through the setters (the r2026b LOAD lines of
+// make_variantbank_r2027a.m, which respell ciA so, and a copy of ~/delite/textsldd/dd.sldd edited
+// by hand): HeaderFile 'x.h' and Qualifier 'Const' as written, a Qualifier 'const' as 'Const' and
+// 'foo' as 'None', and a HeaderFile 'a.c', a DefinitionFile 'a b.c' or a HeaderFile 5 as '' with
+// every other property as written. This is the committed R2027a text fixture with ciA and ciB
+// spelled that way.
+function r2026b(text: string = fixtureText()): string {
+  const json = JSON.parse(text);
+  for (const entry of json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries) {
+    if (entry.value?._array_class !== 'Simulink.VariantBankCoderInfo') {
+      continue;
+    }
+    const fields = entry.value._elements[0]._custom_save._elements[0];
+    entry.value._elements[0] = { _id: '1', _properties: Object.fromEntries(Object.keys(fields).sort().map((k) => [k, fields[k]])) };
+  }
+  return JSON.stringify(json, null, '\t');
+}
+const plainOf = (text: string, entry: string) => textEntries(text).find((e) => e.name === entry).value._elements[0];
+
+describe('VariantBankCoderInfo fields: a coder info R2026b wrote, as plain properties', () => {
+  it('is shown from them, with no Other row and no warning', () => {
+    const { source } = open(r2026b());
+    expect(source.warnings).toBeUndefined();
+    const node = entryIn(source, 'ciA');
+    expect(Object.fromEntries(CI_COLUMNS.map((c) => [c, cellText(rowOf(node), c)]))).toEqual({
+      headerFile: 'h.h', definitionFile: 'd.c', preStatement: 'pre', postStatement: 'post', qualifier: 'Const',
+    });
+    const { values } = pi(node);
+    expect(values).toMatchObject(CI_WROTE.ciA);
+    expect(Object.keys(values).filter((k) => k.startsWith('Other.'))).toEqual([]);
+    expect(cellText(rowOf(entryIn(source, 'ciB')), 'qualifier')).toBe('None');
+  });
+
+  it('takes an edit into the plain property, in MATLAB\'s spelling, and invents no envelope', () => {
+    const text = r2026b();
+    const { session, source } = open(text);
+    expect(saved(session, source)).toBe(text);
+    const node = entryIn(source, 'ciA');
+    expect(node.setProperty('qualifier', 'volatile')).toBe(true);
+    expect(node.setProperty('headerFile', 'x.h')).toBe(true);
+    expect(node.setProperty('headerFile', 'a.c')).toMatchObject({ error: true, reason: MSG_EXTENSION('c') });
+    const out = saved(session, source) as string;
+    const element = plainOf(out, 'ciA');
+    expect(element).not.toHaveProperty('_custom_save');
+    expect(element._properties).toEqual({ ...CI_WROTE.ciA, Qualifier: 'Volatile', HeaderFile: 'x.h' });
+    expect(cellText(rowOf(entryIn(open(out).source, 'ciA')), 'qualifier')).toBe('Volatile');
+    expect(plainOf(out, 'ciB')).toEqual(plainOf(text, 'ciB'));
+  });
+
+  it.each([
+    { what: 'HeaderFile a.c', field: 'HeaderFile', value: 'a.c', column: 'headerFile', shown: 'a.c', says: "its HeaderFile 'a.c' is not a header file name MATLAB takes, which MATLAB reads as ''" },
+    { what: 'DefinitionFile a b.c', field: 'DefinitionFile', value: 'a b.c', column: 'definitionFile', shown: 'a b.c', says: "its DefinitionFile 'a b.c' is not a definition file name MATLAB takes, which MATLAB reads as ''" },
+    { what: 'HeaderFile a number', field: 'HeaderFile', value: 5, column: 'headerFile', shown: '5', says: "its HeaderFile is not text, which MATLAB reads as ''" },
+    { what: 'Qualifier foo', field: 'Qualifier', value: 'foo', column: 'qualifier', shown: 'foo', says: "its Qualifier 'foo' is not None, Const, Volatile or ConstVolatile, which MATLAB reads as 'None'" },
+    // MATLAB: 'Const', read through the setter; so not reported.
+    { what: 'Qualifier const', field: 'Qualifier', value: 'const', column: 'qualifier', shown: 'const', says: null },
+  ])('hand-edited, $what, is shown as read and saved as read, warned as MATLAB reads it', ({ field, value, column, shown, says }) => {
+    const json = JSON.parse(r2026b());
+    json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'ciA').value._elements[0]._properties[field] = value;
+    const text = JSON.stringify(json, null, '\t');
+    const { session, source } = open(text);
+    expect(cellText(rowOf(entryIn(source, 'ciA')), column)).toBe(shown);
+    const warnings: ParseWarning[] = source.warnings ?? [];
+    if (says === null) {
+      expect(warnings).toEqual([]);
+    } else {
+      expect(warnings.map((w) => w.part)).toEqual(['ciA']);
+      expect(warnings[0].message).toContain(says);
+      expect(warnings[0].message).not.toContain(WHOLE_CODER_INFO);
+    }
+    expect(saved(session, source)).toBe(text);
   });
 });

@@ -30,6 +30,11 @@ import PropBankName from '../prop/PropBankName.js';
 import PropVariantConditions from '../prop/PropVariantConditions.js';
 import PropAllChoicesCoderInfo from '../prop/PropAllChoicesCoderInfo.js';
 import PropActiveChoiceCoderInfo from '../prop/PropActiveChoiceCoderInfo.js';
+import PropCoderInfoHeaderFile from '../prop/PropCoderInfoHeaderFile.js';
+import PropCoderInfoDefinitionFile from '../prop/PropCoderInfoDefinitionFile.js';
+import PropPreStatement from '../prop/PropPreStatement.js';
+import PropPostStatement from '../prop/PropPostStatement.js';
+import PropQualifier from '../prop/PropQualifier.js';
 // Curated atom keys a schema `layout` may reference. These are the node-owned,
 // often COMPUTED properties (Name→displayName, Value→displayValue formatting,
 // Data Type→computed getter) that a static sourcePath cannot express — the schema
@@ -55,6 +60,14 @@ const ATOM_BY_KEY = {
     variantConditions: PropVariantConditions,
     allChoicesCoderInfo: PropAllChoicesCoderInfo,
     activeChoiceCoderInfo: PropActiveChoiceCoderInfo,
+    // Simulink.VariantBankCoderInfo's own properties, read out of its saveobj envelope
+    // (VariantBankCoderInfoNode). Not `headerFile` and `definitionFile`: those are the schema
+    // properties other classes' layouts name, and an atom key here would take their rows over.
+    coderInfoHeaderFile: PropCoderInfoHeaderFile,
+    coderInfoDefinitionFile: PropCoderInfoDefinitionFile,
+    preStatement: PropPreStatement,
+    postStatement: PropPostStatement,
+    qualifier: PropQualifier,
 };
 // Format a hydrated raw value for display. Arrays render the way MATLAB's own
 // mat2str spells a row — `[1 1]`, space-separated — because that is the spelling

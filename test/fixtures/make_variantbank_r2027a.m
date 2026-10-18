@@ -5,15 +5,18 @@ function make_variantbank_r2027a(outDir)
   % entries whose fields are NOT the defaults, so a test can read what MATLAB itself stores for
   % them (test/variantBankFields.test.ts). It then prints, for the record, every setter rule
   % those tests copy (SET lines) and what MATLAB makes of a text dictionary hand-edited to break
-  % each rule (LOAD lines). Run (one line: mw splits -batch on newlines):
+  % each rule (LOAD lines), for the bank and then for the coder info. Run (one line: mw splits
+  % -batch on newlines):
   %
   %   mw -using Bmain matlab -nodesktop -batch "cd('<this folder>'); make_variantbank_r2027a"
   %
   % `outDir` defaults to this folder. The committed files were written by R2027a
   % (27.1.0.3409468) on 2026-10-18; a re-run gives new UUIDs and timestamps, and the same values.
+  % The coder info SET and LOAD lines were added later the same day and run with `outDir` a
+  % scratch folder, which wrote the same values again, so the committed files were not replaced.
   % The hand-edited copies go to tempdir and are deleted; the tests make the same edits to the
   % committed text file. What the SET and LOAD lines said is recorded in
-  % src/datamodel/node/data/Simulink.VariantBank.md.
+  % src/datamodel/node/data/Simulink.VariantBank.md and Simulink.VariantBankCoderInfo.md.
   %
   % THE ENTRIES (Design Data):
   %   vbN    Simulink.VariantBank: Name 'bankA', Description 'desc A', VariantConditions
@@ -166,6 +169,91 @@ function make_variantbank_r2027a(outDir)
   loadcheck(src, 'vb1 Bank cleared', '__VB1BANK__', '"BankCoderInfo": ""');
   loadcheck(src, 'vb1 Bank ciB', '__VB1BANK__', '"BankCoderInfo": "ciB"');
   loadcheck(src, 'vb1 Bank 1bad', '__VB1BANK__', '"BankCoderInfo": "1bad"');
+
+  % THE CODER INFO SETTER RULES (C-169B): Simulink.VariantBankCoderInfo's five char properties.
+  C = @Simulink.VariantBankCoderInfo;
+  hf = {'', 'h.h', 'a.hpp', 'a.H', 'a.HPP', 'a.Hpp', 'a.hh', 'a.hxx', 'a.c', 'a.cpp', 'a', 'a.', ...
+    '.h', 'a.h.c', 'a.c.h', 'a.b.h', 'inc/a.h', 'inc\a.h', '../a.h', './a.h', '/abs/a.h', ...
+    'C:\x\a.h', 'a b.h', ' a.h', 'a.h ', '1a.h', 'rta.h', 'rt.h', 'RTa.h', 'Rta.h', 'xrt.h', ...
+    '_a.h', 'a-b.h', 'a$.h', '<a.h>', '"a.h"', 'int.h', 'end.h', [repmat('a', 1, 63) '.h'], ...
+    [repmat('a', 1, 64) '.h'], [repmat('a', 1, 300) '.h'], sprintf('a.h\n'), [char(233) '.h'], ...
+    'inc/1a.h', 'rt/a.h', '1inc/a.h', 'a b/c.h', 'inc/rta.h', 'inc//a.h', 'inc/', 'a.h/', ...
+    '1a.c', 'a b.c', 'rt.c', '.c', 'a b', '1a', 'rta', 'inc/a', '1a.H', 'a.c/', 'a.hpp/', 'ab/', ...
+    'a/', 'a.c/x.h', 'x/a.h', 'a.h/x', 'a.1b.h', 'a. .h', 'a.-.h', 'a..h', 'a.rt.h', 'a.c d.h', ...
+    '  a.h', sprintf('\ta.h'), ' 1a.h', ' rta.h', 'a .h', 'a.h.h', 'a.hpp.h', 'a.c$.h', 'a$b.c.h', ...
+    'a.b/c.h', 'a. h', sprintf('a.h\t'), 'rT.h', 'Rt.h', 'a.c.H', 'a..hpp', ' ', ' .h', '.', '..', ...
+    'a.b.c.d.h', 'a_1.v2.hpp', 'A.h', 'a1.h'};
+  for k = 1:numel(hf), tryset(C(), 'HeaderFile', hf{k}); end
+  tryset(C(), 'HeaderFile', "s.h");
+  tryset(C(), 'HeaderFile', 5);
+  df = {'', 'd.c', 'a.h', 'a.cpp', 'a.C', 'a', 'a.', '.c', 'a.txt', 'a b.c', ' a.c', 'a.c ', '1a.c', ...
+    'rta.c', '_a.c', 'a-b.c', 'a.b.c', 'inc/a.c', 'inc\a.c', '<a.c>', sprintf('a\nb'), ...
+    [repmat('a', 1, 300) '.c'], [char(233) '.c'], 'a. b', 'a.1', 'a.c/', 'a/', 'a.$', 'a. c', ...
+    'a.c d', 'a b', '1a', 'rt', 'rta', ' rta.c', '  a.c', sprintf('\ta.c'), 'a .c', 'a.c/x', 'x/a.c', ...
+    'a..c', 'a.rt', '.', '..', ' ', ' .c', 'RTa.c', 'int', 'a.c.h'};
+  for k = 1:numel(df), tryset(C(), 'DefinitionFile', df{k}); end
+  tryset(C(), 'DefinitionFile', "s.c");
+  tryset(C(), 'DefinitionFile', 5);
+  st = {'', 'pre', sprintf('a\nb'), '  x  ', '#pragma x', repmat('x', 1, 1000), char(233)};
+  for k = 1:numel(st), tryset(C(), 'PreStatement', st{k}); tryset(C(), 'PostStatement', st{k}); end
+  tryset(C(), 'PreStatement', "s");
+  tryset(C(), 'PreStatement', 5);
+  tryset(C(), 'PostStatement', "s");
+  tryset(C(), 'PostStatement', 5);
+  q = {'None', 'none', 'NONE', 'Const', 'const', 'CONST', 'cOnSt', 'Volatile', 'volatile', 'VOLATILE', ...
+    '', 'foo', ' const', 'const ', 'Const Volatile', 'const volatile', 'ConstVolatile', 'c', 'Con', ...
+    'vol', 'n', 'Const,Volatile', 'constvolatile', 'CONSTVOLATILE', 'Constvolatile', 'constVolatile', ...
+    'VolatileConst', 'Restrict', 'restrict', 'Static', 'Extern', 'Register', 'Auto', 'ConstRestrict', ...
+    'None ', 'Const_Volatile'};
+  for k = 1:numel(q), tryset(C(), 'Qualifier', q{k}); end
+  tryset(C(), 'Qualifier', "const");
+  tryset(C(), 'Qualifier', 5);
+  tryset(C(), 'Qualifier', {'Const'});
+  mq = findprop(C(), 'Qualifier');
+  fprintf('QUALIFIER META class=%s\n', class(mq));
+  try, fprintf('QUALIFIER META validation=%s\n', strrep(evalc('disp(mq.Validation)'), newline, ' ')); catch e, fprintf('QUALIFIER META validation ERR %s\n', e.message); end
+  % THE CODER INFO LOAD CHECKS: ciA in the committed text file with one field edited by hand.
+  loadcheckCi(src, 'ci as written', '"Qualifier": "Const"', '"Qualifier": "Const"');
+  loadcheckCi(src, 'ci Qualifier const', '"Qualifier": "Const"', '"Qualifier": "const"');
+  loadcheckCi(src, 'ci Qualifier CONST', '"Qualifier": "Const"', '"Qualifier": "CONST"');
+  loadcheckCi(src, 'ci Qualifier Volatile', '"Qualifier": "Const"', '"Qualifier": "Volatile"');
+  loadcheckCi(src, 'ci Qualifier foo', '"Qualifier": "Const"', '"Qualifier": "foo"');
+  loadcheckCi(src, 'ci Qualifier empty', '"Qualifier": "Const"', '"Qualifier": ""');
+  loadcheckCi(src, 'ci Qualifier number', '"Qualifier": "Const"', '"Qualifier": 5');
+  loadcheckCi(src, 'ci Qualifier ConstVolatile', '"Qualifier": "Const"', '"Qualifier": "ConstVolatile"');
+  loadcheckCi(src, 'ci Qualifier volatile', '"Qualifier": "Const"', '"Qualifier": "volatile"');
+  loadcheckCi(src, 'ci HeaderFile leading space', '"HeaderFile": "h.h"', '"HeaderFile": " h.h"');
+  loadcheckCi(src, 'ci HeaderFile a.h/', '"HeaderFile": "h.h"', '"HeaderFile": "a.h/"');
+  loadcheckCi(src, 'ci HeaderFile a.c.h', '"HeaderFile": "h.h"', '"HeaderFile": "a.c.h"');
+  loadcheckCi(src, 'ci HeaderFile rta.h', '"HeaderFile": "h.h"', '"HeaderFile": "rta.h"');
+  loadcheckCi(src, 'ci DefinitionFile trailing space', '"DefinitionFile": "d.c"', '"DefinitionFile": "d.c "');
+  loadcheckCi(src, 'ci DefinitionFile 1a.c', '"DefinitionFile": "d.c"', '"DefinitionFile": "1a.c"');
+  loadcheckCi(src, 'ci HeaderFile a.c', '"HeaderFile": "h.h"', '"HeaderFile": "a.c"');
+  loadcheckCi(src, 'ci HeaderFile a b.h', '"HeaderFile": "h.h"', '"HeaderFile": "a b.h"');
+  loadcheckCi(src, 'ci HeaderFile empty', '"HeaderFile": "h.h"', '"HeaderFile": ""');
+  loadcheckCi(src, 'ci HeaderFile inc/a.h', '"HeaderFile": "h.h"', '"HeaderFile": "inc/a.h"');
+  loadcheckCi(src, 'ci HeaderFile a.hpp', '"HeaderFile": "h.h"', '"HeaderFile": "a.hpp"');
+  loadcheckCi(src, 'ci HeaderFile number', '"HeaderFile": "h.h"', '"HeaderFile": 5');
+  loadcheckCi(src, 'ci DefinitionFile a b.c', '"DefinitionFile": "d.c"', '"DefinitionFile": "a b.c"');
+  loadcheckCi(src, 'ci DefinitionFile a.txt', '"DefinitionFile": "d.c"', '"DefinitionFile": "a.txt"');
+  loadcheckCi(src, 'ci DefinitionFile number', '"DefinitionFile": "d.c"', '"DefinitionFile": 5');
+  loadcheckCi(src, 'ci PreStatement number', '"PreStatement": "pre"', '"PreStatement": 5');
+  loadcheckCi(src, 'ci PostStatement LF', '"PostStatement": "post"', '"PostStatement": "a\nb"');
+  loadcheckCi(src, 'ci PostStatement number', '"PostStatement": "post"', '"PostStatement": 5');
+  % R2026b's spelling: a text dictionary that release wrote holds a coder info as plain
+  % properties, with no envelope (~/delite/textsldd/dd.sldd: "_elements": [{"_id": "1",
+  % "_properties": {...}}]). ciA respelled so, then edited by hand the same way.
+  plain = regexprep(src, ['"_custom_save": \{\s*"_array_type": "Struct",\s*"_dimensions": \[\s*1,\s*1\s*\],\s*' ...
+    '"_elements": \[\s*(\{[^{}]*"HeaderFile": "h\.h"[^{}]*\})\s*\],\s*"_fields": \[[^\]]*\]\s*\},\s*"_id": "1"'], ...
+    '"_id": "1", "_properties": $1', 'once');
+  if strcmp(plain, src), fprintf('LOAD r2026b: RESPELL DID NOT APPLY\n'); end
+  loadcheckCi(plain, 'r2026b as written', '"Qualifier": "Const"', '"Qualifier": "Const"');
+  loadcheckCi(plain, 'r2026b HeaderFile x.h', '"HeaderFile": "h.h"', '"HeaderFile": "x.h"');
+  loadcheckCi(plain, 'r2026b Qualifier const', '"Qualifier": "Const"', '"Qualifier": "const"');
+  loadcheckCi(plain, 'r2026b Qualifier foo', '"Qualifier": "Const"', '"Qualifier": "foo"');
+  loadcheckCi(plain, 'r2026b HeaderFile a.c', '"HeaderFile": "h.h"', '"HeaderFile": "a.c"');
+  loadcheckCi(plain, 'r2026b HeaderFile number', '"HeaderFile": "h.h"', '"HeaderFile": 5');
+  loadcheckCi(plain, 'r2026b DefinitionFile a b.c', '"DefinitionFile": "d.c"', '"DefinitionFile": "a b.c"');
   fprintf('MAKE_VARIANTBANK_R2027A_DONE\n');
 end
 
@@ -238,6 +326,41 @@ function loadcheck(src, label, from, to)
       showBank(['LOAD ' label ' vb1'], ds.getEntry('vb1').getValue);
     catch e
       fprintf('LOAD %s vbN ERR %s\n', label, strrep(e.message, newline, ' '));
+    end
+    [w, wid] = lastwarn;
+    if ~isempty(w), fprintf('LOAD %s WARN %s %s\n', label, wid, strrep(w, newline, ' ')); end
+    clear ds
+    dd.close();
+  catch e
+    fprintf('LOAD %s OPEN ERR %s\n', label, strrep(e.message, newline, ' '));
+  end
+  Simulink.data.dictionary.closeAll('-discard');
+  delete(fn);
+end
+
+function showCi(label, c)
+  fprintf('%s HeaderFile=''%s'' DefinitionFile=''%s'' Pre=''%s'' Post=''%s'' Qualifier=''%s''\n', label, ...
+    strrep(c.HeaderFile, newline, '\n'), strrep(c.DefinitionFile, newline, '\n'), ...
+    strrep(c.PreStatement, newline, '\n'), strrep(c.PostStatement, newline, '\n'), c.Qualifier);
+end
+
+function loadcheckCi(src, label, from, to)
+  edited = strrep(src, from, to);
+  if strcmp(edited, src) && ~strcmp(from, to)
+    fprintf('LOAD %s: EDIT DID NOT APPLY\n', label);
+    return;
+  end
+  Simulink.data.dictionary.closeAll('-discard');
+  fn = [tempname '.sldd'];
+  fid = fopen(fn, 'w'); fwrite(fid, edited, 'char'); fclose(fid);
+  lastwarn('');
+  try
+    dd = Simulink.data.dictionary.open(fn); ds = dd.getSection('Design Data');
+    try
+      showCi(['LOAD ' label ' ciA'], ds.getEntry('ciA').getValue);
+      showCi(['LOAD ' label ' ciB'], ds.getEntry('ciB').getValue);
+    catch e
+      fprintf('LOAD %s ciA ERR %s\n', label, strrep(e.message, newline, ' '));
     end
     [w, wid] = lastwarn;
     if ~isempty(w), fprintf('LOAD %s WARN %s %s\n', label, wid, strrep(w, newline, ' ')); end

@@ -4,10 +4,14 @@
 
 **Node class:** `VariantBankCoderInfoNode` (`src/datamodel/node/data/VariantBankCoderInfoNode.ts`)
 **MATLAB class:** `Simulink.VariantBankCoderInfo`
-**Editable in our UI:** no. The Value column is read-only, and a Value edit is refused: the
-MATLAB class has no Value.
-**Verified against:** MATLAB R2027a (27.1.0.3409468), 2026-10-16, and the entry `vbciD` MATLAB
-wrote into `test/fixtures/classes_r2027a_{text,binary}.sldd` (`make_classes_r2027a.m`)
+**Editable in our UI:** the class's own five properties, by MATLAB's rules; the Value column is
+read-only, and a Value edit is refused: the MATLAB class has no Value. Nor has it a Description,
+so none is offered and an edit of one is refused.
+**Verified against:** MATLAB R2027a (27.1.0.3409468), 2026-10-16 and 2026-10-18: the entry `vbciD`
+MATLAB wrote into `test/fixtures/classes_r2027a_{text,binary}.sldd` (`make_classes_r2027a.m`), and
+the entries `ciA` and `ciB` in `test/fixtures/variantbank_r2027a_{text,binary}.sldd`
+(`make_variantbank_r2027a.m`, whose coder info SET and LOAD lines are every rule and load result
+below)
 
 ## Overview
 
@@ -15,21 +19,122 @@ A Simulink.VariantBankCoderInfo stores code-generation settings for variant bank
 class has five properties: HeaderFile, DefinitionFile, PreStatement, PostStatement and
 Qualifier. All five are char, and all default to `''` except Qualifier, which defaults to
 `'None'`. A dictionary holds the object as a saveobj envelope of those five, in both formats,
-with nothing beside it. None of the five is modelled as a property of the node yet; the
-envelope is written back as it was read.
+with nothing beside it.
 
-The node lists PropName, PropValue and PropDataType. PropValue stays as a read-only column, for
-a Value key a file already carries (see below). `createDefault` makes the envelope MATLAB writes
-for a new entry, with its fields, order and defaults measured from a MATLAB-written dictionary,
-and nothing beside it.
+The node reads the five out of the envelope (`readSaveobjField`), shows them, and takes an edit
+of each by MATLAB's own rules, as `VariantBankNode` does a bank's. An edit is written into the
+envelope only (`_mergeProps`), a Qualifier in MATLAB's spelling, and a field no edit has set is
+written as it was read, so a save with no edit writes the file as it was read. `createDefault`
+makes the envelope MATLAB writes for a new entry, with its fields, order and defaults measured
+from a MATLAB-written dictionary, and nothing beside it.
 
 ## Property table
 
-| Property   | Editor | Serialized key           | Notes                         |
-|------------|--------|--------------------------|-------------------------------|
-| Name       | text   | entry name               | MATLAB identifier             |
-| Value      | none   | written back as read     | Not a property of the class; shown only where the file carries one |
-| DataType   | label  | (className display)      | Read-only label               |
+| Property        | Editor   | Column           | Serialized key            | Notes |
+|-----------------|----------|------------------|---------------------------|-------|
+| Name            | text     | Name             | entry name                | MATLAB identifier |
+| Value           | none     | Value            | written back as read      | Not a property of the class; shown only where the file carries one |
+| DataType        | label    | Data Type        | (className display)       | Read-only label |
+| Header File     | text     | `headerFile`     | envelope `HeaderFile`     | '' or a file name ending .h or .hpp |
+| Definition File | text     | `definitionFile` | envelope `DefinitionFile` | '' or a file name |
+| Pre Statement   | textArea | `preStatement`   | envelope `PreStatement`   | Any text |
+| Post Statement  | textArea | `postStatement`  | envelope `PostStatement`  | Any text |
+| Qualifier       | select   | `qualifier`      | envelope `Qualifier`      | None, Const, Volatile or ConstVolatile |
+
+The Header File column is the one a Parameter's or Signal's `CustomAttributes.HeaderFile` renders
+into. The Property Inspector shows the five under "Code Generation"
+(`classes/variantBankCoderInfo.json`), whose layout keys are `coderInfoHeaderFile`,
+`coderInfoDefinitionFile`, `preStatement`, `postStatement` and `qualifier`: not `headerFile` and
+`definitionFile`, which are the schema properties other classes' layouts name, and which an atom
+key of the same name would take over (`schemaBridge` resolves an atom key first). The five declare
+the envelope, and their plain property (R2026b's spelling, below), as their source keys, so the PI
+no longer lists either as a stray `Other` row.
+
+## The rules, measured
+
+MATLAB's setters, each refusal quoted verbatim by `setProperty`:
+
+- **HeaderFile**: '' or a name whose first `.`-separated part, after any leading spaces or tabs,
+  is a C identifier that does not start with `rt` (case sensitive: `RTa.h` is taken). That is
+  checked first; refused: "'HeaderFile' property for Simulink.VariantBankCoderInfo must be a valid
+  C identifier that does not start with "rt"." (`a b.h`, `1a.h`, `rta.h`, `.h`, `inc/a.h`, `a-b.h`).
+  Then the extension, what follows the last `.` of the last part of the path (one trailing `/`
+  dropped), must be exactly `h` or `hpp`; refused: "Change file extension 'c' to header file
+  extension '.h' or '.hpp'." (`a.c`, `a.H`, `a`, `a.h `, `a.h/x`). Any length is taken.
+- **DefinitionFile**: the same first-part rule, with its own name in the message, and no
+  extension rule: `a`, `a.`, `a.txt`, `a.h` and `a.cpp` are all taken.
+- **PreStatement, PostStatement**: any text, a line break included.
+- **Qualifier**: the enumeration None, Const, Volatile and ConstVolatile, typed in any case
+  (`const`, `CONSTVOLATILE`) and stored in that one. Refused: "Error setting property 'Qualifier'
+  of class 'VariantBankCoderInfo': There is no enumerated value named 'foo'." (`''`,
+  `const volatile`, `Const Volatile`, ` const`, `Con`, `Restrict`).
+- A value that is not text is refused by each: "Value must be a character vector or a string
+  scalar." An edit always arrives as text, so this one is not reached here.
+
+MATLAB takes some file names beyond these that an edit does not write: a space, `/` or `-` after
+the first part (`a.b/c.h`, `a.h/`, `a. .h`, `a.-.h`, `a.c d.h`), and a definition file name with a
+trailing space or a `$` (`d.c `, `a.$`). They are refused with "'…' is not a header file name
+this editor can check, so it is not written" (or a definition file name), stating the shape it
+takes: a C identifier, then any `.`-separated parts of letters, digits and underscores, ending .h
+or .hpp for a header file. Every name of that shape was measured to be taken. `$` starts a token MATLAB checks by a rule not measured here (`a.c$.h` is refused with
+"'$.' is not a supported token for property 'HeaderFile'."), and refusing a name costs an edit,
+where writing one MATLAB refuses costs the whole coder info (below).
+
+## A hand-edited file
+
+What MATLAB loads, measured with the text fixture's `ciA` edited one field at a time:
+
+- A HeaderFile or DefinitionFile the setter refuses (`a.c`, `a b.h`, `inc/a.h`, `rta.h`, `a b.c`,
+  `1a.c`) makes MATLAB load the **whole coder info as defaults**, its Qualifier `'Const'` lost too,
+  with no warning.
+- A Qualifier that is not one of the four **as MATLAB spells them** loads as `'None'`, the rest as
+  written: `const`, `CONST` and `volatile` too, though the setter takes them, and `foo`, `''` and a
+  number.
+- A field that is not text loads as `''` (a Qualifier as `'None'`), the rest as written.
+- Read as written: `ConstVolatile`, a HeaderFile `''`, `a.hpp`, ` h.h`, `a.c.h` or `a.h/`, a
+  DefinitionFile `a.txt` or `d.c `, and a two-line PostStatement.
+
+Following theme 1 (warn and show what was read; never refuse the file, never crash), such a coder
+info is shown as read and saved as read, and the dictionary's warnings carry one
+`part-unreadable` for it, naming each field MATLAB would not read as written and what MATLAB does
+with it. A file name MATLAB takes that an edit would not write is not reported. A field the
+envelope does not have takes no edit, because the edit would have nowhere to be written. An edit
+of a hand-edited field is undone to the value as read (`_restorerFor`), which its shown text
+could not always do: a number shows as `5`, and a Qualifier `const` set back would be `Const`.
+
+MATLAB was also given this package's own saves (2026-10-18, both formats: every field of `ciB`
+edited, among them a header file ` x_1.v2.hpp` with its leading space, a two-line PreStatement and
+the Qualifier typed `constvolatile`, and `ciA`'s HeaderFile and PreStatement cleared) and read
+each field back as written.
+
+## R2026b's spelling: plain properties
+
+A text dictionary R2026b wrote holds a coder info as the five plain properties, with no
+envelope: `"_elements": [{"_id": "1", "_properties": {"DefinitionFile": "", "HeaderFile": "",
+"PostStatement": "", "PreStatement": "", "Qualifier": "None"}}]` (`~/delite/textsldd/dd.sldd` and
+`~/delite/mix/dd_json.sldd`; its binary dictionaries already hold the envelope). R2027a reads that
+spelling property by property, through the setters (the `r2026b` LOAD lines, which respell `ciA`
+so, and a copy of `~/delite/textsldd/dd.sldd` edited by hand): a Qualifier `const` is read as `Const` and
+`foo` as `None`, and a HeaderFile `a.c`, a DefinitionFile `a b.c` or a HeaderFile `5` as `''`,
+with every other property as written. So where a bag has no envelope the node reads the five
+from, and writes an edit into, the plain properties, in MATLAB's spelling, and invents no
+envelope; and the warnings say what MATLAB does there, which is one property's default, not the
+whole coder info's. MATLAB read this package's edit of `ciA` so spelled back as written (2026-10-18:
+a Qualifier typed `constvolatile`, a header file `p.hpp`, a two-line PreStatement and a cleared
+DefinitionFile). (A `Simulink.VariantBank` in the same files has the same spelling, which
+`VariantBankNode` does not read yet: its fields show their defaults there, beside `Other` rows
+holding the file's values.)
+
+Locked by `test/variantBankFields.test.ts` (both formats).
+
+## Description: the class has none
+
+`properties(Simulink.VariantBankCoderInfo)` lists the five above and no Description. The row used
+to offer one anyway (`descriptionEditable` was inherited, and true), `setProperty('Description', …)`
+returned true and marked the entry Modified, and both save paths dropped the text, so the edit was
+silently lost. Now, as for a Variant Control (decision D11), `descriptionEditable` is false and the
+edit is refused: "A Variant Bank Coder Info has no Description in a dictionary, so one cannot be
+saved for '<name>'." The General group keeps the identity five, with no Description.
 
 ## Value: the class has none
 
@@ -63,6 +168,6 @@ Locked by `test/variantBankNoValue.test.ts` (both formats, and `createDefault`) 
 
 ## Open questions / deferred
 
-- **The class's own fields** (C-169 option (b)): show and edit HeaderFile, DefinitionFile,
-  PreStatement, PostStatement and Qualifier out of the envelope. The MATLAB-written fixtures
-  this was waiting for now exist (`vbciD` above).
+- None for the class's own properties (C-169 option (b) is done). The vscode table needs four
+  columns for them (`definitionFile`, `preStatement`, `postStatement`, `qualifier`) before they
+  can be edited there; Header File already has one.
