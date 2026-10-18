@@ -18,7 +18,7 @@ import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue }
 import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, recordPartialDecode, } from '../../parser/EncodedValue.js';
-import { dimsText, isSize, isStreamSize } from '../../parser/Size.js';
+import { dimensionText, dimsText, isSize, isStreamSize } from '../../parser/Size.js';
 import { classPhrase, classRefusal, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
@@ -2511,6 +2511,17 @@ export default class MatlabVariableNode extends DataNode {
         const read = this._rawInput;
         if (read && typeof read._value === 'string') {
             this._spellableOrRefuse(DataNode._headerDims(read._value), cls, read._value);
+            // An mxchar whose header declares another number of characters than it has codes was
+            // written with the text's own size, a row (_textDims), which is another value. Refused,
+            // as the raw arms refuse it (DataNode._mxCharDisagreement), after the digit check.
+            const odd = read._type === 'mxchar' ? DataNode._mxCharDisagreement(read._value) : null;
+            if (odd) {
+                let root = this;
+                while (root.parent) {
+                    root = root.parent;
+                }
+                throw DataNode._mxCharRefusal(odd, root._writtenAt ? root._writtenAt.entry : this.owningEntry?.name ?? this.matlabPath, this.matlabPath);
+            }
         }
         this._refuseNoSize();
         // Complex text nobody edited goes back as the text it was read from, through the
@@ -2524,6 +2535,11 @@ export default class MatlabVariableNode extends DataNode {
         const raw = this._rawInput;
         const attrStr = attrs && attrs.Name ? ' Name="' + escapeXml(attrs.Name) + '"' : '';
         if (raw && raw._type === 'cdata' && !isMatCdata(raw)) {
+            // That writer spells the text's own _dimensions, not the node's dims, which come from
+            // the text ([1,1] for 1+2i): held to a Dimension's spelling as the raw property and
+            // cell-element arms hold them (DataNode._sizeOrRefuse), so a pasted [NaN,1] is refused,
+            // not written as `Dimension="NaN*1"`.
+            this._spellableOrRefuse(raw._dimensions, complexClassTag(raw._class) ?? 'double');
             return DataNode._complexTextXml(tagName, attrStr, raw, indent);
         }
         // A sparse array has no XML spelling: `Class="sparse"` makes MATLAB's reader segfault,
@@ -2604,7 +2620,7 @@ export default class MatlabVariableNode extends DataNode {
                 // `Class="char" Dimension="0*2"/>`, `"2*0"`, `"0*0*2"` (dSLDD_JSONApi.sldd's
                 // matEmptyString entries). Those went out as the 0x0.
                 const empty = this._textDims('');
-                const dimAttr = charNeedsShape(empty) && !(empty.length === 2 && empty[0] === 0 && empty[1] === 0) ? ' Dimension="' + empty.join('*') + '"' : '';
+                const dimAttr = charNeedsShape(empty) && !(empty.length === 2 && empty[0] === 0 && empty[1] === 0) ? ' Dimension="' + dimensionText(empty) + '"' : '';
                 return p + '<' + tagName + attrStr + ' Class="char"' + dimAttr + '/>';
             }
             // The text is already MATLAB's column-major storage order, which is the order
@@ -2621,7 +2637,7 @@ export default class MatlabVariableNode extends DataNode {
             if (codes) {
                 return p + '<' + tagName + attrStr + ' Class="char"' + codes.attrs + '>' + codes.body + '</' + tagName + '>';
             }
-            const dimAttr = charNeedsShape(dims) ? ' Dimension="' + dims.join('*') + '"' : '';
+            const dimAttr = charNeedsShape(dims) ? ' Dimension="' + dimensionText(dims) + '"' : '';
             return p + '<' + tagName + attrStr + ' Class="char"' + dimAttr + '>' + escapeXml(text) + '</' + tagName + '>';
         }
         if (type === 'logical') {
@@ -2668,7 +2684,7 @@ export default class MatlabVariableNode extends DataNode {
         // claimed a shape it does not have AND, because the rank-2 transpose fills only
         // rows x cols slots of its result, emitted the remaining pages as empty text —
         // half a 2x3x2 gone from the .slx on save.
-        const dimAttr = dims.join('*');
+        const dimAttr = dimensionText(dims);
         let attrStr = '';
         if (attrs && attrs.Name) {
             attrStr += ' Name="' + escapeXml(attrs.Name) + '"';
@@ -2741,11 +2757,11 @@ export default class MatlabVariableNode extends DataNode {
         // are not an empty's (a bag with none, a damaged 1x3 holding nothing) stay `0*0`.
         if (this.children.length === 0) {
             const empty = dims.length >= 2 && dims.some((d) => d === 0);
-            return p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + (empty ? dims.join('*') : '0*0') + '"/>';
+            return p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + (empty ? dimensionText(dims) : '0*0') + '"/>';
         }
         // dims.join, so a 2x3x2 cell keeps its third extent here as it does in
         // _serializeCellPropertyXml and in what MATLAB itself writes.
-        let xml = p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + dims.join('*') + '">\n';
+        let xml = p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + dimensionText(dims) + '">\n';
         for (const child of this.children) {
             xml += child.serializeXml('Element', {}, indent + 1) + '\n';
         }

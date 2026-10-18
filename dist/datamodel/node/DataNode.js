@@ -3,8 +3,8 @@ import BaseNode, { encodedHolderOf } from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
-import { budgetFailure, classPhrase, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
-import { dimsText, isExactDigits, isSpellableExtent, isTextExtent } from '../parser/Size.js';
+import { budgetFailure, classPhrase, MatBudgetError, MatWriteError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
+import { dimensionText, dimsText, everyExtent, isExactDigits, isSpellableExtent, isTextExtent } from '../parser/Size.js';
 import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
 import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
@@ -1114,6 +1114,12 @@ export default class DataNode extends BaseNode {
         // element, and names its own class.
         const nested = !rawVal._array_class;
         const className = nested ? rawVal._object_class : objectValueClassOf(rawVal);
+        // An array's dims no Dimension can spell, refused, finally, naming the array's class as
+        // ObjectNode does: its one element was written as a scalar object, [NaN,1] or [1,"x"]
+        // gone. A nested object's spelling carries no _dimensions.
+        if (!nested) {
+            this._spellableOrRefuse(rawVal._dimensions, rawVal._array_class);
+        }
         const props = this._xmlProperties();
         let attrStr = '';
         if (attrs && attrs.Name) {
@@ -1330,7 +1336,7 @@ export default class DataNode extends BaseNode {
         // Number() rather than a cast: _parseMatrixNums is typed for the 64-bit case now,
         // and a char code is never one — mxchar is not an integer class.
         const text = charTextFromCodes(DataNode._parseMatrixNums(m[2]).map(Number), dims);
-        return decimalCharXml(text, dims) ?? { attrs: ' Dimension="' + dims.join('*') + '"', body: escapeXml(text) };
+        return decimalCharXml(text, dims) ?? { attrs: ' Dimension="' + dimensionText(dims) + '"', body: escapeXml(text) };
     }
     /**
      * MATLAB's spelling of a string value, from the `<Element Class="string">` down: a
@@ -1354,7 +1360,7 @@ export default class DataNode extends BaseNode {
         const ip3 = xmlPad(indent + 3);
         // 1x1 alone goes bare, and the rank has to be tested with it: dims[0] === 1 &&
         // dims[1] === 1 is also true of a 1x1x3, whose extents must be stated.
-        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims.join('*') + '"';
+        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dimensionText(dims) + '"';
         let xml = ip + '<Element Class="string">\n';
         xml += ip2 + '<P Source="saveobj" PropertyType="any" Class="cell"' + dimAttr + '>\n';
         for (const el of elements) {
@@ -1383,6 +1389,10 @@ export default class DataNode extends BaseNode {
         const raw = String(value._value);
         if (type === 'mxchar') {
             DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', name, at, raw);
+            const odd = DataNode._mxCharDisagreement(raw);
+            if (odd) {
+                throw DataNode._mxCharRefusal(odd, at ? at.entry : name, at ? at.path : name);
+            }
         }
         const mxChar = DataNode._mxCharXml(value);
         if (mxChar) {
@@ -1479,7 +1489,7 @@ export default class DataNode extends BaseNode {
         const dims = m[1].split(',').map(function (s) {
             return parseInt(s, 10);
         });
-        const open = xmlPad(indent) + '<' + tag + attrs + ' Class="' + escapeXml(type) + '" Dimension="' + dims.join('*') + '"';
+        const open = xmlPad(indent) + '<' + tag + attrs + ' Class="' + escapeXml(type) + '" Dimension="' + dimensionText(dims) + '"';
         if (m[2] === undefined) {
             if (!dims.some((d) => d === 0)) {
                 return null;
@@ -1514,7 +1524,7 @@ export default class DataNode extends BaseNode {
     static _complexTextXml(tag, attrs, value, indent) {
         const cls = complexClassTag(value._class) ?? 'double';
         const dims = Array.isArray(value._dimensions) ? value._dimensions : null;
-        const dimAttr = dims && !(dims.length <= 2 && dims[0] === 1 && dims[1] === 1) ? ' Dimension="' + dims.join('*') + '"' : '';
+        const dimAttr = dims && !(dims.length <= 2 && dims[0] === 1 && dims[1] === 1) ? ' Dimension="' + dimensionText(dims) + '"' : '';
         const open = xmlPad(indent) + '<' + tag + attrs + ' Class="' + cls + '" IsComplex="1"' + dimAttr;
         const body = formatComplexBodyXml(String(value._value ?? ''), cls);
         // An empty body is MATLAB's complex empty, `<P … Dimension="1*0"/>`.
@@ -1558,7 +1568,7 @@ export default class DataNode extends BaseNode {
         // no elements, which BaseBusNode writes as this, is the commonest. A bag whose size says
         // 1x1 is one object with no properties, and is still written as one.
         if (elements.length === 0 && dims.some((d) => d === 0)) {
-            return p + '<' + tag + attrs + ' Class="' + escapeXml(className) + '" Dimension="' + dims.join('*') + '"/>';
+            return p + '<' + tag + attrs + ' Class="' + escapeXml(className) + '" Dimension="' + dimensionText(dims) + '"/>';
         }
         if (elements.length === 0 || (elements.length === 1 && Object.keys(propsOf(elements[0])).length === 0)) {
             return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(elementClassOf(elements[0], className)) + '"/>\n' + p + close;
@@ -1571,7 +1581,7 @@ export default class DataNode extends BaseNode {
         // extents would drop that shape's attribute entirely.
         const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1
             ? ''
-            : ' Dimension="' + dims.join('*') + '"';
+            : ' Dimension="' + dimensionText(dims) + '"';
         let xml = p + '<' + tag + attrs + dimAttr + '>\n';
         // Each element under its own class: a config set's Components holds nine or more, and
         // every one was written as the array's.
@@ -1608,10 +1618,10 @@ export default class DataNode extends BaseNode {
         const elements = value._elements || [];
         const open = p + '<' + tag + attrs + ' IsEnum="' + escapeXml(String(value[ENUM_KEY])) + '"';
         if (elements.length === 0) {
-            return open + ' Class="' + className + '" Dimension="' + dims.join('*') + '"/>';
+            return open + ' Class="' + className + '" Dimension="' + dimensionText(dims) + '"/>';
         }
         const scalar = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1;
-        let xml = open + (scalar ? '' : ' Dimension="' + dims.join('*') + '"') + '>\n';
+        let xml = open + (scalar ? '' : ' Dimension="' + dimensionText(dims) + '"') + '>\n';
         for (const element of elements) {
             const e = enumeralOf(element);
             xml += ip + '<Element Class="' + className + '"';
@@ -1637,7 +1647,7 @@ export default class DataNode extends BaseNode {
      * isExactDigits).
      */
     static _sizeOrRefuse(dims, cls, name, at, header) {
-        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : Array.isArray(dims) && dims.every(isSpellableExtent))) {
+        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : everyExtent(dims, isSpellableExtent))) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
@@ -1652,6 +1662,29 @@ export default class DataNode extends BaseNode {
     static _headerExact(text) {
         const m = /^Matrix\((\d+(?:,\d+)*)\)/.exec(text);
         return !m || m[1].split(',').every(isExactDigits);
+    }
+    /**
+     * The extents an mxchar literal's `Matrix(…)` header declares and the number of codes its body
+     * holds, when the two disagree, or null: `Matrix(1,5)\n[97, 98, 99]` is [1,5] over 3 codes. No
+     * Dimension spells such a char: written with the header it is XML whose body does not fill its
+     * Dimension, and with the text's own size a row, which is another value (_mxCharRefusal).
+     */
+    static _mxCharDisagreement(text) {
+        const m = /^Matrix\((\d+(?:,\d+)*)\)\n(.+)$/s.exec(text);
+        if (!m) {
+            return null;
+        }
+        const dims = m[1].split(',').map(Number);
+        const count = DataNode._parseMatrixNums(m[2]).length;
+        return dims.reduce((a, b) => a * b, 1) === count ? null : { dims, count };
+    }
+    /**
+     * The refusal of such a char (_mxCharDisagreement) at `path` in entry `entry`. Not a budget
+     * refusal: it is a char no Dimension spells, and nothing is written in its place.
+     */
+    static _mxCharRefusal(odd, entry, path) {
+        return new MatWriteError('Cannot write "' + entry + '": ' + path + ' is a char declaring dimensions ' + dimsText(odd.dims) + ' and holding ' +
+            odd.count + (odd.count === 1 ? ' character' : ' characters') + ', which no Dimension spells. Nothing was written.');
     }
     /**
      * A refusal of a write that began at this node, restated for a user: the entry — the one
@@ -1672,7 +1705,7 @@ export default class DataNode extends BaseNode {
      * its digits as there — naming the entry and the path.
      */
     _spellableOrRefuse(dims, cls, header) {
-        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : Array.isArray(dims) && dims.every(isSpellableExtent))) {
+        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : everyExtent(dims, isSpellableExtent))) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
@@ -1680,12 +1713,12 @@ export default class DataNode extends BaseNode {
     }
     /**
      * Refuses to write this node's value as a text dictionary's JSON, or copy it there, when its
-     * dims hold NaN, an infinity or a bigint, which JSON writes as null or cannot write
-     * (parser/Size, isTextExtent), naming the entry and the path, as _spellableOrRefuse does for
-     * a Dimension.
+     * dims hold NaN, an infinity, a bigint, undefined, a function, a symbol or a hole, which JSON
+     * writes as null or cannot write (parser/Size, isTextExtent), naming the entry and the path,
+     * as _spellableOrRefuse does for a Dimension.
      */
     _textSpellableOrRefuse(dims, cls) {
-        if (!Array.isArray(dims) || dims.every(isTextExtent)) {
+        if (!Array.isArray(dims) || everyExtent(dims, isTextExtent)) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
@@ -1716,7 +1749,7 @@ export default class DataNode extends BaseNode {
         // Every extent, not the first two: MATLAB's own binary dictionary writes
         // `Class="struct" Dimension="2*3*2"` for a 2x3x2 struct array, and twelve
         // <Element>s under a `2*3` would read back as a six-element array.
-        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims.join('*') + '"';
+        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dimensionText(dims) + '"';
         let xml = p + '<' + tag + attrs + ' Class="struct"' + dimAttr + '>\n';
         // An EMPTY struct declares its field names with `<Field Name="…"/>`, and only an empty one
         // does: MATLAB writes them on every struct property of its own with no `<Element>` and on
@@ -1765,7 +1798,7 @@ export default class DataNode extends BaseNode {
         const elements = value._elements || [];
         const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1
             ? ''
-            : ' Dimension="' + dims.join('*') + '"';
+            : ' Dimension="' + dimensionText(dims) + '"';
         let xml = p + '<' + tag + attrs + ' Class="cell"' + dimAttr + '>\n';
         elements.forEach((elem, k) => {
             xml += DataNode._serializeCellElementXml(elem, indent + 1, at && { entry: at.entry, path: at.path + '{' + (k + 1) + '}' }) + '\n';
@@ -1841,6 +1874,10 @@ export default class DataNode extends BaseNode {
             }
             if (type === 'mxchar') {
                 DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', '', at, raw);
+                const odd = DataNode._mxCharDisagreement(raw);
+                if (odd) {
+                    throw DataNode._mxCharRefusal(odd, at ? at.entry : '', at ? at.path : '');
+                }
             }
             const mxChar = DataNode._mxCharXml(obj);
             if (mxChar) {
