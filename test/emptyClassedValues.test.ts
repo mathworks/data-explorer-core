@@ -473,6 +473,77 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
     expect(got).toEqual(want);
   });
 
+  it("and a host's string or function handle `{_type, _emptyDims}` is written there as before, at each place", () => {
+    // No MAT stream holds an empty of either class, and MATLAB gives neither an object of its own
+    // (NOT_AN_OBJECT_CLASS), so a text dictionary was given one as the host handed it in at a
+    // struct field and a cell, which reopens as the string or function handle it is, and `[]` as
+    // an entry and at an object's property, a double 0x0. Taken for the binary reader's empty
+    // under its header, it was given that reader's spelling instead: '' at a field and a property,
+    // which reopens as a char 0x0, and the header in a cell; and a text dictionary holding one at
+    // a field or a cell, as it was written there, was rewritten by a save that edited nothing.
+    const host: { _type: string; _emptyDims: number[] }[] = [
+      { _type: 'string', _emptyDims: [0, 3] },
+      { _type: 'function_handle', _emptyDims: [1, 0] },
+    ];
+    const inField = (v: unknown) => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: v }], _fields: ['f'], _mw_element_type: 'MATLABArray' });
+    const inCell = (v: unknown) => ({ _array_type: 'Cell', _dimensions: [1, 1], _elements: [v], _mw_element_type: 'MATLABArray' });
+    const json = JSON.parse(strFromU8(bytesAt(TEXT_HOST)));
+    const held: any[] = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const inProperty = (v: unknown) => {
+      const widget = JSON.parse(JSON.stringify(held.find((e) => e.name === 'widget').value));
+      widget._elements[0]._properties.Nothing = v;
+      return widget;
+    };
+    const session = createSession();
+    const txt: any = ingest(session, buffer(bytesAt(TEXT_HOST)), { filename: 'custom_object_text.sldd' });
+    const design = txt.getSection('design');
+    const paste = (name: string, n: number, value: unknown) =>
+      design.parseEntry({ name, metadata: { ...design.children[0].metadata, uuid: '00000000-0000-4000-a500-' + String(n).padStart(12, '0') }, value: JSON.parse(JSON.stringify(value)) });
+    host.forEach((value, k) => {
+      paste('s' + k, 4 * k + 1, value);
+      paste('f' + k, 4 * k + 2, inField(value));
+      paste('p' + k, 4 * k + 3, inProperty(value));
+      paste('c' + k, 4 * k + 4, inCell(value));
+    });
+    const text = session.serializeSource(txt.name)!.text!;
+    const entries: any[] = JSON.parse(text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const valueOf = (name: string) => entries.find((e) => e.name === name).value;
+    const again: any = ingest(createSession(), buffer(strToU8(text)), { filename: 'reopened_text.sldd' });
+    const of = (n: any) => [n.className, n.dims];
+    // Each place's written value, then the class and size it reopens as.
+    const got = host.map((value, k) => [
+      JSON.stringify(value),
+      valueOf('s' + k),
+      valueOf('f' + k)?._elements?.[0]?.f,
+      valueOf('p' + k)?._elements?.[0]?._properties?.Nothing,
+      valueOf('c' + k)?._elements?.[0],
+      of(entryNode(again, 's' + k)),
+      of(childOf(entryNode(again, 'f' + k), 'f')),
+      of(childOf(entryNode(again, 'p' + k), 'Nothing')),
+      of(entryNode(again, 'c' + k).children[0]),
+    ]);
+    const want = host.map((value) => {
+      const opened = [value._type, value._emptyDims];
+      const double0 = ['double', [0, 0]];
+      return [JSON.stringify(value), [], value, [], value, double0, opened, double0, opened];
+    });
+    // And a text dictionary holding one at a field and in a cell, as it was written there, is
+    // saved unedited as the same file. Each is the last entry of the last section, as a save lists it.
+    const proto = held[held.length - 1];
+    host.forEach((value, k) => {
+      [inField(value), inCell(value)].forEach((v, j) =>
+        held.push({ ...proto, name: ['zf', 'zc'][j] + k, metadata: { ...proto.metadata, uuid: '00000000-0000-4000-a500-' + String(100 + 2 * k + j).padStart(12, '0') }, value: v }),
+      );
+    });
+    const file = JSON.stringify(json, null, '\t');
+    const resave = createSession();
+    const reopened: any = ingest(resave, buffer(strToU8(file)), { filename: 'held_text.sldd' });
+    const saved = resave.serializeSource(reopened.name)!.text!;
+    const zValues = (t: string) =>
+      JSON.parse(t).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.filter((e: any) => e.name.startsWith('z')).map((e: any) => [e.name, e.value]);
+    expect({ pasted: got, unedited: [zValues(saved), saved === file] }).toEqual({ pasted: want, unedited: [zValues(file), true] });
+  });
+
   it('and shows there what the save writes and a reopen reads', () => {
     // Held as the binary reader holds it, a pasted 0x0x2 char showed `<0x0x2 char>` and an int8
     // 0x3 property `[ ]` at 0x3, and the save wrote '' and `[]`, which reopened as a 0x0.
@@ -570,12 +641,15 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
       ['int8', '2147483648*0', 'a 2147483648x0 int8'],
       ['logical', '0*2147483648', 'a 0x2147483648 logical'],
       ['char', '0*2147483648', 'a 0x2147483648 char'],
+      ['GearMode', '0*2147483648', 'a 0x2147483648 GearMode'],
     ];
+    // An enumeration's empty is its class with IsEnum, as MATLAB writes one.
+    const classOf = (cls: string) => (cls === 'GearMode' ? 'IsEnum="1" ' : '') + `Class="${cls}"`;
     const PAST = ', an extent past 2147483647, the most a MAT stream\'s dimensions can say, and it has no other spelling here. Nothing was written.';
     const places = (cls: string, dim: string) => ({
-      entry: `        <P Name="Value" Class="${cls}" Dimension="${dim}"/>`,
-      field: ['        <P Name="Value" Class="struct">', '            <Element>', `                <P Name="f" Class="${cls}" Dimension="${dim}"/>`, '            </Element>', '        </P>'].join('\n'),
-      cell: ['        <P Name="Value" Class="cell" Dimension="1*1">', `            <Element Class="${cls}" Dimension="${dim}"/>`, '        </P>'].join('\n'),
+      entry: `        <P Name="Value" ${classOf(cls)} Dimension="${dim}"/>`,
+      field: ['        <P Name="Value" Class="struct">', '            <Element>', `                <P Name="f" ${classOf(cls)} Dimension="${dim}"/>`, '            </Element>', '        </P>'].join('\n'),
+      cell: ['        <P Name="Value" Class="cell" Dimension="1*1">', `            <Element ${classOf(cls)} Dimension="${dim}"/>`, '        </P>'].join('\n'),
     });
     /** What a paste of `copy` into a fresh text dictionary, and its save, throw: its name and message, or null. */
     const refusalOf = (copy: any, name: string): [string, string] | null => {
@@ -596,7 +670,7 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
     for (const [cls, dim, what] of WIDE) {
       const at = places(cls, dim);
       const tail = '    <Object Class="DD.Dictionary">';
-      const chunk = HOST_XML.replace(NOTHING, NOTHING + '\n' + `                <P Name="Wide" Class="${cls}" Dimension="${dim}"/>`)
+      const chunk = HOST_XML.replace(NOTHING, NOTHING + '\n' + `                <P Name="Wide" ${classOf(cls)} Dimension="${dim}"/>`)
         .replace(tail, [entry('wEntry', 1, at.entry), entry('wField', 2, at.field), entry('wCell', 3, at.cell)].join('\n') + '\n' + tail);
       const { root } = open(chunk);
       for (const [name, where] of [['wEntry', ''], ['wField', '.f'], ['wCell', '{1}']]) {

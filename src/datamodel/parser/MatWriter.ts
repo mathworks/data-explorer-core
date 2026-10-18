@@ -1609,13 +1609,16 @@ function mxcharEmptyDims(text: unknown): number[] | null {
  * values give another meaning under `_type` (BinarySlddParser.RESERVED_TYPE), or a char, a struct
  * or a cell, which no reader holds so: the binary one holds a struct's or a cell's empty as its
  * array (BinarySlddParser.structValue, cellValue), and the header's text spelling, `[]` or '',
- * would reopen one as a double or a char 0x0, where its MAT stream reopens as what it is.
+ * would reopen one as a double or a char 0x0, where its MAT stream reopens as what it is. Null
+ * too for a string or a function handle, which no MAT stream holds: a text dictionary was given
+ * one as the host handed it in, which reopens as what it is at a field and in a cell, where the
+ * header's spelling at a field, '', reopens as a char 0x0.
  */
 export function emptyDimsHeldForm(o: Record<string, unknown>): Record<string, unknown> | [] | null {
   const cls = o._type;
   const dims = o._emptyDims;
   if (
-    typeof cls !== 'string' || RESERVED_EMPTY_TYPE.has(cls) || cls === 'char' || cls === 'struct' || cls === 'cell'
+    typeof cls !== 'string' || RESERVED_EMPTY_TYPE.has(cls) || cls === 'char' || cls === 'struct' || cls === 'cell' || cls === 'string' || cls === 'function_handle'
     || !Array.isArray(dims) || dims.length < 2 || !dims.every((x) => Number.isSafeInteger(x) && (x as number) >= 0) || !dims.includes(0)
   ) {
     return null;
