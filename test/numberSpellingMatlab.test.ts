@@ -189,23 +189,15 @@ describe('an entry the writer rebuilds is written with MATLAB\'s spelling of eve
   const design = root.getSection('design');
   const entryNamed = (name: string): any => design.children.find((c: any) => c.name === name);
 
-  // regenerateEntryXml is what a save writes for an entry it does not keep the bytes of.
-  //
-  // But for one number: a -0 ELEMENT of a real vector. The reader holds a vector as its text
-  // literal (BinarySlddParser, formatNumLiteral), which spells -0 as 0, so the writer is handed
-  // a 0; a scalar, a property and a complex part keep -0. That is F2-9's (the -0 of a model
-  // literal), not the writer's spelling, and these are the only numbers it reaches here.
-  const NEGATIVE_ZERO_ELEMENTS: Record<string, number[]> = { edge_d: [1], edge_s: [1] };
-
+  // regenerateEntryXml is what a save writes for an entry it does not keep the bytes of. A -0
+  // element of edge_d and edge_s included: the reader holds a vector with a non-finite, and any
+  // single vector, as its typed literal (BinarySlddParser, formatNumLiteral), which keeps the
+  // sign now (test/negativeZero.test.ts).
   for (const e of REAL) {
     it(e.name, () => {
       const matlab = tokensOf(propTag(entryBlock(MATLAB_CHUNK, e.name), 'Value'));
       const ours = tokensOf(propTag(regenerateEntryXml(entryNamed(e.name)), 'Value'));
-      const lost = NEGATIVE_ZERO_ELEMENTS[e.name] ?? [];
-      expect(mismatches(matlab, ours)).toEqual({
-        count: lost.length,
-        first: lost.map((i) => `#${i}: MATLAB -0.0, written 0.0`),
-      });
+      expect(mismatches(matlab, ours)).toEqual({ count: 0, first: [] });
     });
   }
 

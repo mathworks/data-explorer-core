@@ -1,0 +1,549 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "files": [
+    {
+      "file": "negzero_binary.sldd",
+      "entries": [
+        {
+          "name": "negz",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            true
+          ],
+          "same": true
+        },
+        {
+          "name": "negzRow",
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzCol",
+          "class": "double",
+          "size": [
+            2,
+            1
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzMat",
+          "class": "double",
+          "size": [
+            2,
+            2
+          ],
+          "negative": [
+            true,
+            false,
+            false,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzInfRow",
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzCell",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            true
+          ],
+          "same": true
+        },
+        {
+          "name": "negzStruct",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            true
+          ],
+          "same": true
+        },
+        {
+          "name": "negzP",
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            true
+          ],
+          "same": true
+        },
+        {
+          "name": "negzS",
+          "class": "single",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            true
+          ],
+          "same": true
+        },
+        {
+          "name": "negzSRow",
+          "class": "single",
+          "size": [
+            1,
+            2
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzSCol",
+          "class": "single",
+          "size": [
+            2,
+            1
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzSCell",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            true
+          ],
+          "same": true
+        },
+        {
+          "name": "posz",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "poszS",
+          "class": "single",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        }
+      ]
+    },
+    {
+      "file": "negzero_text.sldd",
+      "entries": [
+        {
+          "name": "negz",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzRow",
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "negative": [
+            false,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzCol",
+          "class": "double",
+          "size": [
+            2,
+            1
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzMat",
+          "class": "double",
+          "size": [
+            2,
+            2
+          ],
+          "negative": [
+            true,
+            false,
+            false,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzInfRow",
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzCell",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzStruct",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzP",
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzS",
+          "class": "single",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            true
+          ],
+          "same": true
+        },
+        {
+          "name": "negzSRow",
+          "class": "single",
+          "size": [
+            1,
+            2
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzSCol",
+          "class": "single",
+          "size": [
+            2,
+            1
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzSCell",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            true
+          ],
+          "same": true
+        },
+        {
+          "name": "posz",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "poszS",
+          "class": "single",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        }
+      ]
+    },
+    {
+      "file": "negzero_spelled.sldd",
+      "entries": [
+        {
+          "name": "negz",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzRow",
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "negative": [
+            false,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzCol",
+          "class": "double",
+          "size": [
+            2,
+            1
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzMat",
+          "class": "double",
+          "size": [
+            2,
+            2
+          ],
+          "negative": [
+            true,
+            false,
+            false,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzInfRow",
+          "class": "double",
+          "size": [
+            1,
+            2
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzCell",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzStruct",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzP",
+          "class": "Simulink.Parameter",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzS",
+          "class": "single",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            true
+          ],
+          "same": true
+        },
+        {
+          "name": "negzSRow",
+          "class": "single",
+          "size": [
+            1,
+            2
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzSCol",
+          "class": "single",
+          "size": [
+            2,
+            1
+          ],
+          "negative": [
+            true,
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "negzSCell",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            true
+          ],
+          "same": true
+        },
+        {
+          "name": "posz",
+          "class": "double",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        },
+        {
+          "name": "poszS",
+          "class": "single",
+          "size": [
+            1,
+            1
+          ],
+          "negative": [
+            false
+          ],
+          "same": true
+        }
+      ]
+    }
+  ]
+}

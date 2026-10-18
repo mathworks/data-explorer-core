@@ -559,7 +559,9 @@ export function formatDoubleXml(num: unknown): string {
     if (!isFinite(num)) {
         return formatMatlabNum(num);
     }
-    const s = String(num);
+    // String(-0) is '0': a -0 is `-0.0`, as MATLAB writes it in a typed literal and reads it
+    // back (see formatNumLiteral).
+    const s = Object.is(num, -0) ? '-0' : String(num);
     if (!s.includes('.') && !s.includes('e') && !s.includes('E')) {
         return s + '.0';
     }
@@ -619,9 +621,17 @@ export function formatNumericXml(num: unknown, type: string): string {
 // exact decimal STRING (see parseExactNum). formatMatlabNum is String(), so the three
 // integer arms below carry it through untouched; only the float arms convert, and no
 // 64-bit token ever reaches them.
+//
+// A -0 keeps its sign: `-0F`, and `-0.0` for a double (formatDoubleXml). MATLAB's text
+// writer spells single(-0) `-0.0F` and [-0;1] `Matrix(2,1)\n[-0.0, 1.0]`, and reads each
+// back as -0, `-0F` and `[-0F, 1F]` too (R2027a, test/numbers/negzero.truth.json). String()
+// spells -0 `0`, so a binary dictionary's single or column -0, held as this literal, lost its
+// sign at the read. formatMatlabNum stays sign-blind: it is also the display, and MATLAB shows
+// a -0 as 0. A BARE double, a JSON number, is written 0 by JSON.stringify, which is what
+// MATLAB's own text writer gives a -0 there.
 export function formatNumLiteral(num: unknown, type: string): string {
     if (type === 'single') {
-        return formatMatlabNum(num) + 'F';
+        return (Object.is(num, -0) ? '-0' : formatMatlabNum(num)) + 'F';
     }
     if (type === 'uint8' || type === 'uint16' || type === 'uint32' || type === 'uint64') {
         return formatMatlabNum(num) + 'U';
