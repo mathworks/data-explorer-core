@@ -140,6 +140,16 @@ export default class DataNode extends BaseNode {
     _renameField(from: string, to: string): void;
     _markModified(): void;
     _stampLastModified(): void;
+    /**
+     * What puts this node back as it stands now: every own field but those in `leaves`, and its
+     * list of children, held now and put back when it is called. For a node's `_restorerFor`
+     * (DataModel.editProperty), for the undo of a Value edit about to be made, by a node whose
+     * Value edit assigns every field it changes and changes nothing it found in place, so that
+     * what it holds now is still the value it was: MatlabVariableNode's (_applyParsed) and
+     * ParameterNode's. `_rawInput` comes back with the rest, so a value undone is written as it
+     * was read.
+     */
+    _ownStateRestorer(leaves: ReadonlySet<string>): () => void;
     serialize(): unknown;
     /**
      * The format of the file this node is in, as the nearest container above it states it

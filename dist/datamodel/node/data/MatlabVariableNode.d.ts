@@ -308,7 +308,8 @@ export default class MatlabVariableNode extends DataNode {
      *     re-encodes it;
      *   - otherwise what MatWriter writes for the live value, which is MATLAB's own bytes for
      *     a sparse array, written from its non-zeros (MatWriter.encodeSparse); null for what
-     *     MatWriter has no spelling for, which a caller writes its own way.
+     *     MatWriter has no spelling for, or writes as what it is not (_matWritable: a string
+     *     read from a file, as its char), which a caller writes its own way.
      *
      * Except past the unbacked-bytes budget: that refusal is final, and it is thrown, restated
      * with the entry and the path (_budgetFailure), so the copy or the save asking fails and
