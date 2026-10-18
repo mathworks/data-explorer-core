@@ -33,6 +33,7 @@ export default class MatlabVariableNode extends DataNode {
     _collapsedClass: string | null;
     _elementType: string | null;
     _readFromStream?: true;
+    _cutByCeiling?: number;
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
     get Value(): unknown;
     set Value(v: unknown);
@@ -469,6 +470,16 @@ export default class MatlabVariableNode extends DataNode {
     static _createFromMatChar(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createFromMatStruct(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createFromMatCell(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
+    /**
+     * `ask` of this container as it is with its rows, for one the node ceiling built without them
+     * (_cutByCeiling): rebuilt from the variable it was read from, with no ceiling, or, `shallow`,
+     * with its own rows and none under them, which is all its literal needs (_formatCell). It
+     * stands in this node's place under its parent while it answers, so that what it says of
+     * where it is (matlabPath, a refusal naming it) is said of this node, and it is dropped after.
+     * One whose rows could not be built, which the ceiling kept from failing in the file, is the
+     * not-decoded value the file shows in its place uncut (MatNode.fromParsed), refused as one.
+     */
+    _withCeilingTwin<T>(shallow: boolean, ask: (twin: MatlabVariableNode) => T): T;
     static get defaultName(): string;
     static createDefault(name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createScalar(value: unknown, type: string, name: string, parent: BaseNode | null): MatlabVariableNode;

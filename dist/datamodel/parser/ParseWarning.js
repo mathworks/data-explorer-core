@@ -21,11 +21,14 @@
 // every legacy file a user opens — which teaches a host, and its user, to ignore
 // the count. Warn when the bytes claim something is there and it could not be read.
 //
-// ONE KIND IS NOT A LOSS. `duplicate-id` is a file that read in full but holds two
+// TWO KINDS ARE NOT A LOSS. `duplicate-id` is a file that read in full but holds two
 // entries (or two fields, two elements) with one name in one place, which MATLAB never
 // writes. Both are kept as read; the session cannot tell them apart by id, so it refuses
-// to edit or delete either by id, and this is how the user hears why. A host that counts
-// losses counts the other codes.
+// to edit or delete either by id, and this is how the user hears why. `part-not-expanded`
+// is a .mat file that read in full but holds more values than its tree is built with
+// (DisplayConvention.MAT_NODE_CEILING): some are shown without their rows, each as its
+// summary or its literal, and copied whole. A host that counts losses counts the other
+// codes.
 /**
  * The reason an unknown throw carried, reduced to a string.
  *

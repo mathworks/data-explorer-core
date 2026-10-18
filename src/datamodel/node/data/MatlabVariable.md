@@ -158,6 +158,38 @@ a 512 MB heap out while it opened. A copy holds the same elements at the declare
 as a short cell's does. `McosParser` lays an object's struct value out a bag per element
 held, and `StructNode` reads one bag of an array as that array's element, not as a 1x1.
 
+### A .mat file's tree is built up to a node ceiling
+`MAX_EXPANDED_ELEMENTS` caps one container's rows; `MAT_NODE_CEILING` (500,000, in
+`DisplayConvention`) caps a `.mat` file's whole tree. An 8 MB corpus `.mat` file, every
+container in it under the first cap, opened as 2,016,325 nodes and 2.5 GB of heap. The
+maintainer's group F ruling of 2026-10-18 (group 3): a node-count ceiling with a source
+warning now, lazy expansion later, as its own item. `matNodeCeiling.ts` holds the rules:
+
+- Armed only while `MatNode.fromParsed` builds the tree. A dictionary's value read out of a
+  MAT stream and a model's workspace are built in full, as before.
+- Every variable at the top of the file is built and counted first, so every name is
+  listed. Below them, depth first, a container is built with ALL its direct rows or NONE:
+  a 1x1 struct's fields, a struct array's element rows with their fields (an element row
+  holds no value of its own, so it is never cut alone), a cell's elements, an array's,
+  a sparse array's non-zeros, a string array's elements. The file's first values are whole,
+  and the later ones have no rows.
+- An MCOS object's typed node (a `Simulink.Parameter`, an object array, a decoded
+  `string`) is built whole and counted, never cut: its rows come from the decode.
+- A container without its rows (`_cutByCeiling`) keeps `_dims` and `_matVar`, so it shows
+  what it showed with them: a struct's summary, an array's literal off `_elements`, and a
+  cell's literal, which is made of its elements rebuilt alone for the asking, as is whether
+  it takes an editor. Its copy and its XML are those of the subtree rebuilt from `_matVar`
+  with no ceiling (`_withCeilingTwin`), which stands in its place for the asking and is
+  dropped after, so a copy is byte for byte what it was. It takes no Add (`canAddChild`); a Value typed over it
+  gives it rows of its own. One whose rows cannot be built (a damaged element) is shown and
+  refused as the not-decoded value it is uncut, except past the element budget, where it
+  shows its summary without `not decoded`.
+- One `part-not-expanded` warning per file names the first such container and counts the
+  others. It is not a loss, as `duplicate-id` is not (`ParseWarning`).
+
+Pinned in `test/matNodeCeiling.test.ts`, which grades every cut tree, at every ceiling of
+each small fixture, against the same file opened with no ceiling.
+
 ### Opaque objects are read-only
 An opaque MCOS object (e.g. a `Simulink.Parameter` stored as a raw variable rather
 than as a recognized catalog entry) has `valueEditable = false` and
