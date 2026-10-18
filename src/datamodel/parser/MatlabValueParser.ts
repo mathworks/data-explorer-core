@@ -324,7 +324,8 @@ function complexPart(sign: string, part: string | undefined): number {
 // undo of a later edit, which for a Parameter's Value types the text it showed back in. Two
 // of them are not among the forms above: an imaginary NaN with no sign, formatComplexNum's
 // (`NaNi` is shown as `0NaNi`, `1+NaNi` as `1NaNi`), and an infinite part spelled
-// `Infinity`, a text dictionary's MAT stream's (SparseData.complexElement: `1+Infinityi`).
+// `Infinity`, which a text dictionary's MAT stream and a plain .mat variable showed through
+// 1.40.0 (SparseData.complexElement: `1+Infinityi`), and which a host may still hand back.
 // Refused, the commit of a value as it showed failed with "Invalid MATLAB expression", and
 // the undo was dropped, so the save wrote the edit that was undone. Either reads as the
 // value it shows, which is then spelled as every other one is: `1+Infinityi` is `1+Infi`.

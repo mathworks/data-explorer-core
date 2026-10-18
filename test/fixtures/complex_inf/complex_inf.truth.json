@@ -1,0 +1,82 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "values": {
+    "zInf": {
+      "class": "double",
+      "size": [
+        1,
+        1
+      ],
+      "disp": "1.0000 +    Infi",
+      "mat2str": "1+1i*Inf"
+    },
+    "zInfRow": {
+      "class": "double",
+      "size": [
+        1,
+        4
+      ],
+      "disp": "Inf -    Infi      NaN + 1.0000i   1.0000 +    NaNi     -Inf + 2.0000i",
+      "mat2str": "[Inf-1i*Inf NaN+1i 1+1i*NaN -Inf+2i]"
+    },
+    "zInfCell": {
+      "class": "cell",
+      "size": [
+        1,
+        1
+      ],
+      "disp": "{[1.0000 +  Infi]}",
+      "elementMat2str": "1+1i*Inf"
+    },
+    "zInfSparse": {
+      "class": "double",
+      "size": [
+        2,
+        2
+      ],
+      "disp": "(2,1)        -Inf + 2.0000i\n   (1,2)      1.0000 +    Infi",
+      "mat2str": "[0 1+1i*Inf;-Inf+2i 0]"
+    }
+  },
+  "readBack": {
+    "mat": {
+      "zInf": true,
+      "zInfRow": true,
+      "zInfCell": true,
+      "zInfSparse": true
+    },
+    "text": {
+      "zInf": true,
+      "zInfRow": true,
+      "zInfCell": true,
+      "zInfSparse": true
+    },
+    "binary": {
+      "zInf": true,
+      "zInfRow": false,
+      "zInfCell": true,
+      "zInfSparse": true
+    }
+  },
+  "readBackMat2str": {
+    "mat": {
+      "zInf": "1+1i*Inf",
+      "zInfRow": "[Inf-1i*Inf NaN+1i 1+1i*NaN -Inf+2i]",
+      "zInfCell": "{1+1i*Inf}",
+      "zInfSparse": "[0 1+1i*Inf;-Inf+2i 0]"
+    },
+    "text": {
+      "zInf": "1+1i*Inf",
+      "zInfRow": "[Inf-1i*Inf NaN+1i 1+1i*NaN -Inf+2i]",
+      "zInfCell": "{1+1i*Inf}",
+      "zInfSparse": "[0 1+1i*Inf;-Inf+2i 0]"
+    },
+    "binary": {
+      "zInf": "1+1i*Inf",
+      "zInfRow": "[Inf-1i*Inf NaN+1i 1 NaN]",
+      "zInfCell": "{1+1i*Inf}",
+      "zInfSparse": "[0 1+1i*Inf;-Inf+2i 0]"
+    }
+  }
+}

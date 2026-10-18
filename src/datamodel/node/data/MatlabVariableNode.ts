@@ -19,6 +19,8 @@ import MatlabValueParser, { controlsAsOneChar, formatMatlabChar, formatMatlabStr
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
+import { heldAsRead, integerReader } from './integerReading.js';
+import { isWrittenSpelling, matrixHoldsUnwritten, recordUnwrittenSpelling, rowHoldsUnwritten } from '../../parser/writtenSpelling.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../../display/Subscript.js';
 import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue, type MatVariable } from '../../parser/MatParser.js';
@@ -226,6 +228,62 @@ function holdsMcosObject(variable: MatVariable): boolean {
  */
 function matlabClassOf(variable: MatVariable): string {
   return variable.isLogical ? 'logical' : variable.className;
+}
+
+/**
+ * One token of a typed literal, as written, recorded if MATLAB does not write it (writtenSpelling,
+ * asked without its `F` or `U`), with `shown`, the value the node holds for it, for a text dictionary's
+ * warnings (LENIENT; SlddNode.parse takes the record). A text dictionary's int16 `1e2` is shown
+ * as 100 and its logical `[2, 0]` as [false false], where MATLAB reads [1 0] (measured).
+ *
+ * Not a number its integer class cannot hold, which F1-17 records and warns about (`2.5` under
+ * int8): one warning for one token. `read` is the text the number was read from, which in a
+ * matrix's body is the number the reader found in the token. `shown` null: no one value is read.
+ */
+function noteTextSpelling(type: string, token: string, shown: unknown, read = token.replace(/[FU]$/, '')): void {
+  if (isWrittenSpelling(type, token.replace(/[FU]$/, ''))) {
+    return;
+  }
+  if (shown !== null && isIntegerClass(type)) {
+    const number = needsExactInt(type) ? parseExactNum(read) : parseMatlabNum(read);
+    if (!heldAsRead(number, shown as number | string)) {
+      return;
+    }
+  }
+  const spelled = shown === null ? null : type === 'logical' ? String(Boolean(shown)) : formatMatlabNum(shown);
+  recordUnwrittenSpelling(type, token, spelled);
+}
+
+// A number, as parseMatrixValue finds one in a matrix's body.
+const MATRIX_NUMBER = /-?(?:[\d.]+(?:[eE][+-]?\d+)?|Inf|NaN)/g;
+
+/**
+ * noteTextSpelling for each token of a `Matrix(...)` or `Vector(N)` literal's body, whose
+ * `elements` parseMatrixValue read as the numbers it found in the body: a token holding one
+ * number is the element at its place, as long as every token before it held one. One holding
+ * none or two is not one value.
+ */
+function noteMatrixSpellings(rawVal: Record<string, unknown>, type: string, elements: unknown[]): void {
+  const value = String(rawVal._value);
+  const header = value.indexOf('\n');
+  if (header < 0 || !matrixHoldsUnwritten(type, value.slice(header + 1))) {
+    return;
+  }
+  // The body as parseMatrixValue reads it, its lines joined up.
+  const body = value.split('\n').slice(1).join('');
+  let at = 0;
+  let aligned = true;
+  for (const token of body.split(/[\s,;[\]]+/)) {
+    if (token === '') {
+      continue;
+    }
+    if (!isWrittenSpelling(type, token.replace(/[FU]$/, ''))) {
+      const numbers = token.match(MATRIX_NUMBER);
+      aligned = aligned && numbers?.length === 1;
+      noteTextSpelling(type, token, aligned ? elements[at] : null, aligned ? numbers![0] : undefined);
+    }
+    at++;
+  }
 }
 
 /** A node that rules on a Value edit made below it (MatlabVariableNode._valueHolderRefusal). */
@@ -3941,10 +3999,17 @@ export default class MatlabVariableNode extends DataNode {
       // range, which MATLAB refuses on read (defect 29). _scalarValue is `unknown` and
       // needsTypedLiteral keys off the CLASS, so the writer still spells it
       // `Class="uint64"` with the 'U' suffix, from the digits MATLAB itself wrote.
-      node._scalarValue = parseExactNum(bare);
+      // Held as MATLAB reads it, as every integer class's number is (below).
+      node._scalarValue = integerReader(node._scalarType)(parseExactNum(bare));
+    } else if (isIntegerClass(node._scalarType)) {
+      // As MATLAB reads a text dictionary's literal: converted to the class, so int8 300 is
+      // 127 and 2.5 is 3 (integerReading, F1-17). Read as the double it spells, it showed 300,
+      // which no int8 is. The literal itself stays `_rawInput`, which an untouched save writes.
+      node._scalarValue = integerReader(node._scalarType)(parseMatlabNum(bare));
     } else {
       node._scalarValue = parseMatlabNum(bare);
     }
+    noteTextSpelling(node._scalarType, rawVal._value as string, node._scalarValue);
     return node;
   }
 
@@ -4480,9 +4545,22 @@ export default class MatlabVariableNode extends DataNode {
       // typed_text.sldd's u64Vec2 takes, and rounding it here cost more than the one
       // element — MATLAB abandons the REST of an array's body at the first out-of-range
       // token, so a perfectly representable neighbour came back zero too (defect 30).
-      node._elements = parts.map(parseExactNum);
+      // Each held as MATLAB reads it, as below.
+      const read = integerReader(node._scalarType);
+      node._elements = parts.map((t) => read(parseExactNum(t)));
+    } else if (isIntegerClass(node._scalarType)) {
+      // See parseTypedScalar: each element as MATLAB reads it, converted to the class.
+      const read = integerReader(node._scalarType);
+      node._elements = parts.map((t) => read(parseMatlabNum(t)));
     } else {
       node._elements = parts.map(parseMatlabNum);
+    }
+    // Each part as written, split again only for a literal that holds one MATLAB does not write.
+    if (rowHoldsUnwritten(node._scalarType, inner)) {
+      const written = inner.split(',');
+      for (let i = 0; i < parts.length; i++) {
+        noteTextSpelling(node._scalarType, written[i].trim(), node._elements[i]);
+      }
     }
     node._dims = [1, node._elements.length];
     node._buildArrayChildren();
@@ -4563,6 +4641,16 @@ export default class MatlabVariableNode extends DataNode {
     node._elements = parsed.elements;
     node._dims = parsed.dims.slice();
     node._scalarType = parsed.type;
+    // See parseTypedScalar: each element as MATLAB reads it, converted to the class. In place:
+    // parseMatrixValue made the array for this node alone.
+    if (isIntegerClass(parsed.type)) {
+      const read = integerReader(parsed.type);
+      const elements = parsed.elements;
+      for (let i = 0; i < elements.length; i++) {
+        elements[i] = read(elements[i]);
+      }
+    }
+    noteMatrixSpellings(rawVal, parsed.type, parsed.elements);
     // This package's own spelling of an edited sparse double (_serializeArray), read back:
     // a sparse double, as MATLAB reads it — its non-zeros, as every sparse array is held.
     if (parsed.type === 'sparse') {

@@ -60,10 +60,13 @@ import {
   formatMatrixSerial,
   formatMxCharSerial,
   formatNumLiteral,
+  isIntegerClass,
   needsExactInt,
   parseExactBody,
+  parseExactNum,
   parseMatlabNum,
   parseNumericBody,
+  toIntegerClass,
   transposeFromColumnMajorND,
   BINARY_EMPTY_KEY,
   ENUM_KEY,
@@ -74,6 +77,13 @@ import {
   type PropertySource,
 } from './XmlUtils.js';
 import { setOwn } from './ownKeys.js';
+import {
+  bodyHoldsUnwritten,
+  isWrittenSpelling,
+  recordUnwrittenSpelling,
+  takeUnwrittenSpellings,
+  unwrittenSpellingWarning,
+} from './writtenSpelling.js';
 import { arrayClassOf, componentsBaseOf } from './objectArrayClass.js';
 import { headerDigits } from './Size.js';
 import { recordPackageStamps, recordReadFrame, recordReadSource, type ChunkFrame, type Span } from './EntrySource.js';
@@ -321,8 +331,16 @@ export function parseBinarySlddParts(
     if (objClass === 'DD.ENTRY') {
       encodedInEntry = false;
       const span = spans[entryIdx];
+      // A spelling MATLAB does not write, read as it always was and shown as read: recorded by
+      // the value readers below (writtenSpelling), one warning for the entry. Taken before too, so
+      // that nothing another read recorded is reported against this entry.
+      takeUnwrittenSpellings();
       const entry = parseEntry(obj, span ? xmlString.substring(span[0], span[1]) : '');
       ddEntries.push(entry);
+      const unwritten = takeUnwrittenSpellings();
+      if (unwritten) {
+        warnings?.push(unwrittenSpellingWarning(entry.name as string, unwritten));
+      }
       // Only an entry that HAS an encoded value is walked for unreadable ones — the walk
       // visits every value, and nearly every entry of every dictionary has none.
       if (encodedInEntry && warnings) {
@@ -1103,8 +1121,7 @@ function parseEntryValue(prop: XmlNode): unknown {
 
   // Logical scalar (no dimension)
   if (className === 'logical' && !dimension) {
-    const text = getTextContent(prop);
-    return text === '1' || text === 'true';
+    return logicalScalar(getTextContent(prop));
   }
 
   // Numeric scalar or array
@@ -1207,7 +1224,7 @@ function parseCellElement(el: XmlNode): unknown {
       }
       return logicalValue(text, dimParts);
     }
-    return text === '1' || text === 'true';
+    return logicalScalar(text);
   }
   if (elClass === 'char') {
     return charValue(text, dimension, el['@_Format']);
@@ -1378,21 +1395,53 @@ export function transposeColumnMajor<T>(values: T[], dims: number[]): T[] {
   return transposeFromColumnMajorND(values, dims);
 }
 
+// A text MATLAB does not write (writtenSpelling) is read as it always was, and recorded with the
+// value it is shown as; and an integer's is handed on as that value, so that what a paste or a
+// copy is given is what the table shows (LENIENT).
 function formatTypedScalar(text: string, type: string): unknown {
+  const written = isWrittenSpelling(type, text.trim());
   if (type === 'double') {
-    return parseMatlabNum(text);
+    const value = parseMatlabNum(text);
+    if (!written) {
+      recordUnwrittenSpelling(type, text, formatMatlabNum(value));
+    }
+    return value;
   }
   if (type === 'single') {
-    return { _type: 'single', _value: formatNumLiteral(parseMatlabNum(text), 'single') };
+    const value = parseMatlabNum(text);
+    if (!written) {
+      recordUnwrittenSpelling(type, text, formatMatlabNum(value));
+    }
+    return { _type: 'single', _value: formatNumLiteral(value, 'single') };
   }
   if (type === 'uint8' || type === 'uint16' || type === 'uint32') {
-    return { _type: type, _value: formatNumLiteral(parseInt(text, 10), type) };
+    const value = parseInt(text, 10);
+    if (written) {
+      return { _type: type, _value: formatNumLiteral(value, type) };
+    }
+    // As the node shows it: converted to the class (integerReading), `1e2` read as 1 and `abc`
+    // (NaN) as 0.
+    const shown = toIntegerClass(value, type);
+    recordUnwrittenSpelling(type, text, formatMatlabNum(shown));
+    return { _type: type, _value: formatNumLiteral(shown, type) };
   }
   // uint64 lands here rather than in the unsigned arm above deliberately: parseInt
   // would put maxU64 through a double and write 18446744073709552000U back. The stored
-  // text is already MATLAB's own exact decimal, so it is kept verbatim — and a uint64
-  // scalar keeps its 'U' from the body it came with rather than from formatNumLiteral.
-  return { _type: type, _value: text.trim() };
+  // text is already MATLAB's own exact decimal, so it is kept, as its canonical digits:
+  // an int16 `007` is shown as 7, and handed on as `'007'` it was a value that was not the
+  // one shown. A number its class cannot hold keeps its digits, which the node shows
+  // converted, with F1-17's warning.
+  const t = text.trim();
+  if (written) {
+    const digits = t.replace(/^(-?)0+(?=\d)/, '$1');
+    return { _type: type, _value: digits === '-0' ? '0' : digits };
+  }
+  // Anything else, `1e2`, `2.5`, `+7`, as the node reads the text (parseTypedScalar): handed on
+  // as that value, which the class holds.
+  const bare = t.replace(/[FU]$/, '');
+  const shown = formatMatlabNum(toIntegerClass(needsExactInt(type) ? parseExactNum(bare) : parseMatlabNum(bare), type));
+  recordUnwrittenSpelling(type, text, shown);
+  return { _type: type, _value: shown };
 }
 
 function formatTypedVector(values: (number | string)[], type: string): unknown {
@@ -1485,15 +1534,53 @@ function formatMatrix(values: (number | string)[], dims: number[], type: string)
  * The tokens are kept as the TEXT the body carried rather than converted to numbers:
  * the transpose is a permutation that never looks at a value, formatNumLiteral passes
  * a string through verbatim, and a spelling MATLAB chose is one we can write back.
+ *
+ * A token MATLAB does not write (`1.0`, `2`, `true`; writtenSpelling) is recorded with the value
+ * it is shown as, and becomes that value's 1 or 0, so that what a paste or a copy is given is what
+ * the table shows (LENIENT). The node reads a row's token as `'1'` or `'true'` and a matrix's as
+ * its number, so `1.0` is false in a row and true in a matrix, as it always was. A matrix's token
+ * that is not one number (`true`, `1-2`) is kept: the node reads no value from it, or two. An
+ * empty body splits to one empty token, which is no spelling at all: it is kept as it always was
+ * (a row of it shows 0x0), and not recorded.
  */
 function logicalValue(text: string, dimParts: number[]): unknown {
-  const rowMajor = transposeColumnMajor(text.trim().split(/\s+/), dimParts);
+  const tokens = text.trim().split(/\s+/);
+  const row = dimParts.length <= 2 && dimParts[0] === 1;
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token !== '' && !isWrittenSpelling('logical', token)) {
+      const numbers = row ? null : token.match(MATRIX_NUMBER);
+      if (row || numbers?.length === 1) {
+        const value = row ? token === 'true' : Boolean(parseMatlabNum(numbers![0]));
+        recordUnwrittenSpelling('logical', token, String(value));
+        tokens[i] = value ? '1' : '0';
+      } else {
+        recordUnwrittenSpelling('logical', token, null);
+      }
+    }
+  }
+  const rowMajor = transposeColumnMajor(tokens, dimParts);
   // Same split as the numeric branch, for the same reason: only a true rank-2 row
   // vector may go out shapeless, because a bare bracketed list reads back as a row.
-  if (dimParts.length <= 2 && dimParts[0] === 1) {
+  if (row) {
     return formatTypedVector(rowMajor, 'logical');
   }
   return formatMatrix(rowMajor, dimParts, 'logical');
+}
+
+// A number, as the node reads one out of a matrix's body (matlabValueRules.parseMatrixValue).
+const MATRIX_NUMBER = /-?(?:[\d.]+(?:[eE][+-]?\d+)?|Inf|NaN)/g;
+
+/**
+ * A logical scalar's text: `1` is true and `0` false, and so is any other text, as it always was:
+ * `true` is true and every other text false. One MATLAB does not write is recorded (LENIENT).
+ */
+function logicalScalar(text: string): boolean {
+  const value = text === '1' || text === 'true';
+  if (!isWrittenSpelling('logical', text)) {
+    recordUnwrittenSpelling('logical', text, String(value));
+  }
+  return value;
 }
 
 // `base` is the class the property's place names for an object array there (componentsBaseOf).
@@ -1698,7 +1785,7 @@ function parseTypedValue(text: string, className: string | null, dimension: stri
       // and is recognized there, by the same predicate the shaped arm above used.
       return parseMatlabNum(text);
     case 'logical':
-      return text === '1' || text === 'true';
+      return logicalScalar(text);
     case 'char':
       // The property twin of the entry-value and cell-element arms: a `Class="char"
       // Dimension="2*2"` PROPERTY (a struct field, an object property) states its
@@ -1778,8 +1865,28 @@ function complexCdata(text: string, dimension: string | null, className: string 
 // integer cannot round-trip through a double, plain numbers for everything else. The
 // three call sites below (entry value, cell element, property) each used to call
 // parseNumericBody directly, so a 64-bit value was rounded before any writer saw it.
+//
+// A token MATLAB does not write (writtenSpelling) is read as it always was and recorded with the
+// value it is shown as; an integer's becomes that value, converted to the class as the node
+// converts it (integerReading), so that what a paste or a copy is given is what the table shows,
+// and F1-17's warning, about a number spelled as MATLAB writes one, is not given for it too
+// (LENIENT). An empty body's one empty token is no spelling at all, and is read as it always was,
+// unrecorded.
 function numericBody(text: string, type: string | null): (number | string)[] {
-  return needsExactInt(type) ? parseExactBody(text) : parseNumericBody(text);
+  const parts = needsExactInt(type) ? parseExactBody(text) : parseNumericBody(text);
+  if (type && bodyHoldsUnwritten(type, text)) {
+    // The same split as the two readers', so the tokens and the parts are in step.
+    const tokens = text.trim().split(/\s+/);
+    const integer = isIntegerClass(type);
+    for (let i = 0; i < tokens.length; i++) {
+      if (tokens[i] !== '' && !isWrittenSpelling(type, tokens[i])) {
+        const shown = integer ? toIntegerClass(parts[i], type) : parts[i];
+        parts[i] = shown;
+        recordUnwrittenSpelling(type, tokens[i], formatMatlabNum(shown));
+      }
+    }
+  }
+  return parts;
 }
 
 /**

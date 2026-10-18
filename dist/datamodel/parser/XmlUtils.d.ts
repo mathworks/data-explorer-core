@@ -136,9 +136,10 @@ export declare function formatComplexNum(re: unknown, im: unknown): string;
  * formatComplexNum's inverse: one complex element's text back into its two parts, or null
  * for text that is not one. It reads every spelling this package holds an element in —
  * its own (`3+4i`, `1NaNi`, `-Inf+2i`), a binary dictionary's (`3.0+4.0i`,
- * `1.0E-20+2.0E+21i`), a plain .mat variable's (`1+Infinityi`) — so the writers can
- * rebuild the value from any of them. Under a 64-bit integer class a part keeps its
- * exact decimal text (parseExactNum), as every other read of such a value does.
+ * `1.0E-20+2.0E+21i`), and the `1+Infinityi` an element read out of MAT bytes was shown
+ * as through 1.40.0 — so the writers can rebuild the value from any of them. Under a
+ * 64-bit integer class a part keeps its exact decimal text (parseExactNum), as every
+ * other read of such a value does.
  *
  * The NaN and Inf parts are why this exists. The pattern the writers used before,
  * `^([-\d.eE+]+)([+-][\d.eE+]+)i$`, matched neither, and the element it did not match
@@ -361,8 +362,8 @@ export declare function formatComplexXml(complexStr: string, cls?: 'double' | 's
  * integer class's parts as the integers they are. MATLAB writes `Class="int8"
  * IsComplex="1">3-4i` and `Class="int64" IsComplex="1">9223372036854775807+1i`, and the
  * `.0` form, `9223372036854775807.0+1.0i`, is not that value. An infinity is `Inf`, the
- * only word MATLAB writes for one, whichever reader's text it came from (a plain .mat
- * variable's element says `Infinity`).
+ * only word MATLAB writes for one, whichever text it came from (an element read out of
+ * MAT bytes said `Infinity` through 1.40.0).
  *
  * And a NaN imaginary part is `+NaNi`, signed. Unsigned is how formatComplexNum spells
  * one, and how MATLAB itself writes complex(1, NaN) into a binary dictionary, `1.0NaNi` —

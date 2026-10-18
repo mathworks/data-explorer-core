@@ -1,0 +1,81 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "zInf",
+						"metadata": {
+							"uuid": "d88c4ab2-1aad-4204-8b66-69cd2b2c1a30",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T021523.939514",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    2     8    (    !@@        %    \"     $    !     0         )    \"            / _\"0    @           #P?P\u0000\u0000\u0000"
+						}
+					},
+					{
+						"name": "zInfCell",
+						"metadata": {
+							"uuid": "19ba91e9-6883-46a7-a682-cd313ef98129",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T021523.940713",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_type": "cdata",
+									"_value": "  %)30     .    2     8    (    !@@        %    \"     $    !     0         )    \"            / _\"0    @           #P?P\u0000\u0000\u0000"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "zInfRow",
+						"metadata": {
+							"uuid": "fd146981-0248-404b-8a9f-d2660dc98540",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T021523.940402",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    >     8    (    !@@        %    \"     $    $     0         )    (            /!_        ^/\\       #P/P       /#_\"0   \"            #P_P       / _        ^/\\         0 \u0000\u0000\u0000"
+						}
+					},
+					{
+						"name": "zInfSparse",
+						"metadata": {
+							"uuid": "636efc5d-5ffc-4f2e-b9c0-b84c26ccebe5",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T021523.940830",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "cdata",
+							"_value": "  %)30     .    @     8    (    !1@   (    %    \"     (    \"     0         %    \"     $         !0    P          0    (         \"0   !            #P_P       / _\"0   !              0        /!_\u0000"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}
