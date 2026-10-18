@@ -360,6 +360,12 @@ export default class BaseNode {
     }
     newNode.parent = this.parent;
     this.parent.children[idx] = newNode;
+    // A section counts the names of its entries (SectionNode._namespaceHolds), and a slot that
+    // changes hands changes which names it holds: its version moves, so they are counted again.
+    const holder = this.parent as unknown as { _entriesVersion?: number };
+    if (typeof holder._entriesVersion === 'number') {
+      holder._entriesVersion++;
+    }
     this.parent = null;
     return true;
   }

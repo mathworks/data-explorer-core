@@ -1609,7 +1609,17 @@ function resolveDictionaryReferences(srcId: string): DictionaryReference[] {
   return dictionaryRefNamesOf(srcId).map((name) => ({ name, resolution: resolveLink(name) }));
 }
 
+// Set for the one 'node/children-changed' editProperty publishes after it has already brought the
+// index up to date at the edit's own scope (editInEntry), so that the first rebuild that publish
+// reaches is skipped and every other publisher of the three topics still rebuilds. Cleared once
+// the publish returns, whether or not the skip was taken.
+let indexCurrent = false;
+
 function reindexAll(): void {
+  if (indexCurrent) {
+    indexCurrent = false;
+    return;
+  }
   nodeIndex.clear();
   // Rebuilt whole, so the filter is too: an id two nodes shared before the edit that
   // triggered this and no longer do drops out of it here.
@@ -1656,6 +1666,48 @@ function propertyRestorer(node: INode, propertyName: string): (() => void) | nul
   return typeof restorerFor === 'function' ? restorerFor.call(node, propertyName) : null;
 }
 
+// Run `edit`, an edit of `node`'s properties, inside mutateSubtree at the scope such an edit can
+// move ids in: the entry `node` belongs to. Returns `edit`'s result and whether it ran so, in
+// which case the index already describes the tree as the edit left it.
+//
+// The entry, and not `node`'s own subtree. An id is a path of names, so what moves ids is a
+// rename, and a value edit that rebuilds children; most stay inside `node`, but a struct field
+// renamed under one element of a struct array is renamed under every element of it
+// (StructNode._renameField), outside the field's subtree and inside the entry. Nothing an edit of
+// a node does reaches another entry's ids. With no entry above `node`, or none in a tree the
+// session has open (a host that detached it itself, leaving it selected), `edit` runs as it is and
+// the caller's publish rebuilds the index whole, as every edit's did before (F1-23: 68 ms an edit
+// for the 150,004 nodes of a 140,000-entry dictionary). mutateSubtree would index a detached
+// entry's nodes, which findNodeById must never hand out.
+function editInEntry<T>(node: INode, edit: () => T): { result: T; indexed: boolean } {
+  let entry: INode | null = node;
+  while (entry && !entry.isEntry) {
+    entry = entry.parent as INode | null;
+  }
+  const root = entry ? ownerSourceOf(entry) : null;
+  let open = false;
+  dataSources.forEach((source) => {
+    if ((source as unknown as INode) === root) {
+      open = true;
+    }
+  });
+  if (!entry || !open) {
+    return { result: edit(), indexed: false };
+  }
+  return { result: mutateSubtree(entry, edit), indexed: true };
+}
+
+// Announce an edit of `node`, as 'node/children-changed', without the rebuild of the whole index
+// that topic otherwise asks for, when editInEntry has already brought it up to date (`indexed`).
+function publishEdited(node: INode, indexed: boolean): void {
+  indexCurrent = indexed;
+  try {
+    publish('node/children-changed', { parent: node });
+  } finally {
+    indexCurrent = false;
+  }
+}
+
 function editProperty(
   nodeId: string,
   propertyName: string,
@@ -1700,7 +1752,7 @@ function editProperty(
   // it shows is not always its value (an empty's `[ ]` is a 0x0 double, whatever it was).
   const restore = propertyRestorer(node, propertyName);
 
-  const result = node.setProperty(propertyName, newValue);
+  const { result, indexed } = editInEntry(node, () => node.setProperty!(propertyName, newValue));
   if (result !== true) {
     return (result as { error: boolean; reason: string; invalidValue: string; validValue: string }) || false;
   }
@@ -1710,24 +1762,26 @@ function editProperty(
   if (slddNode) {
     const cmd = {
       execute() {
-        node.setProperty!(propertyName, newValue);
+        const redone = editInEntry(node, () => node.setProperty!(propertyName, newValue));
         publish('node/edited', { source: 'undo', nodeId: node.id, kind });
         if (kind === 'rename') {
           publishActiveChanged();
         }
-        publish('node/children-changed', { parent: node });
+        publishEdited(node, redone.indexed);
       },
       undo() {
-        if (restore) {
-          restore();
-        } else {
-          node.setProperty!(propertyName, priorValue);
-        }
+        const undone = editInEntry(node, () => {
+          if (restore) {
+            restore();
+          } else {
+            node.setProperty!(propertyName, priorValue);
+          }
+        });
         publish('node/edited', { source: 'undo', nodeId: node.id, kind });
         if (kind === 'rename') {
           publishActiveChanged();
         }
-        publish('node/children-changed', { parent: node });
+        publishEdited(node, undone.indexed);
       },
     };
     UndoManager.pushExecuted(slddNode.name, cmd);
@@ -1737,7 +1791,7 @@ function editProperty(
   if (kind === 'rename') {
     publishActiveChanged();
   }
-  publish('node/children-changed', { parent: node });
+  publishEdited(node, indexed);
   return true;
 }
 
