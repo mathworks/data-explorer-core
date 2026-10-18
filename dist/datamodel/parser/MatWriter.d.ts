@@ -185,6 +185,14 @@ export declare function textDictionaryForm(x: unknown, at?: string): unknown;
  * and at an object's property, a double 0x0. But one the text dictionary holds itself, as it was
  * written there (heldByTextDictionary), is itself: a save that edits nothing writes the file it
  * read.
+ *
+ * A string's of rank 2 is that String bag here already, not the binary reader's empty: the binary
+ * writers build an object's property and a Parameter's Value from this (serializeValue), and spell
+ * the bag as MATLAB's own saveobj envelope, which MATLAB reads back as the string it is at a
+ * property, where the reader's empty, `Class="string" Dimension="0*3"/>`, reads back as a double
+ * 1x1 (test/parity/matlab/host_string_empties_binary.truth.json, R2027a). At a Parameter's Value,
+ * where MATLAB holds no empty string, it reads every spelling back as a double 0x0. A copy carries
+ * the bag, which a paste into a binary dictionary writes as that envelope too.
  */
 export declare function emptyDimsHeldForm(o: Record<string, unknown>): Record<string, unknown> | [] | null;
 export {};
