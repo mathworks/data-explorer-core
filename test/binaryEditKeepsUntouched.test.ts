@@ -12,7 +12,7 @@
 //
 // What it pins:
 //   * a rename changes the Name and LastMod lines of the entry and nothing else, a value MATLAB
-//     spelled `1.0NaNi` included (D3);
+//     spelled `1.0NaNi` included (D3), and a property the reader does not read is kept (D13);
 //   * an edit of one property, one struct field or the elements of a bus or a cell changes that
 //     part alone: its siblings, the elements that survive and the open tags around them are the
 //     file's bytes, and the elements are paired by where they were read from, never by position
@@ -156,6 +156,20 @@ describe('a rename changes only the Name and LastMod lines', () => {
     const out = savedChunk(session, root);
     expect(objectOf(out, 'pNonFiniteRenamed')).toBe(renamedAndStamped(before, 'pNonFiniteRenamed'));
     expect(serializer.serializeEntryToXml(entry)).toBe('    ' + renamedAndStamped(before, 'pNonFiniteRenamed') + '\n');
+  });
+
+  it('and a property the reader does not read, which no model writes, is kept as it is (D13)', () => {
+    const unread = '<P Name="Unread" Class="char">kept as read</P>';
+    const xml = chunk(entryXml('a', 'u-a', '<P Name="Value" Class="double">1.0E+6</P>')
+      .replace('        <P Name="IsDerived"', `        ${unread}\n        <P Name="IsDerived"`));
+    const { session, root } = fromChunk(xml);
+    const entry = entryNamed(root, 'a');
+    expect(entry.setProperty('Name', 'aRenamed')).toBe(true);
+    // The entry is merged property by property, and the writers write none of it.
+    expect(regenerated(entry)).not.toContain('Unread');
+    expect(regenerated(entry)).toContain('<P Name="Value" Class="double">1000000.0</P>');
+    expect(objectOf(xml, 'a')).toContain(unread);
+    expect(objectOf(savedChunk(session, root), 'aRenamed')).toBe(renamedAndStamped(objectOf(xml, 'a'), 'aRenamed'));
   });
 });
 
