@@ -1477,13 +1477,15 @@ function mxcharEmptyDims(text) {
  * given the one spelling of it (heldTextSpelling), and a copy carries its class and size; a double
  * 0x0 `[]`, as both dictionaries hold one. Null for one of rank >= 3, which has a MAT stream of
  * its own, for an extent that is no safe count, and for a class whose name this package's own
- * values give another meaning under `_type` (BinarySlddParser.RESERVED_TYPE), or a char, which no
- * reader holds so.
+ * values give another meaning under `_type` (BinarySlddParser.RESERVED_TYPE), or a char, a struct
+ * or a cell, which no reader holds so: the binary one holds a struct's or a cell's empty as its
+ * array (BinarySlddParser.structValue, cellValue), and the header's text spelling, `[]` or '',
+ * would reopen one as a double or a char 0x0, where its MAT stream reopens as what it is.
  */
 export function emptyDimsHeldForm(o) {
     const cls = o._type;
     const dims = o._emptyDims;
-    if (typeof cls !== 'string' || RESERVED_EMPTY_TYPE.has(cls) || cls === 'char'
+    if (typeof cls !== 'string' || RESERVED_EMPTY_TYPE.has(cls) || cls === 'char' || cls === 'struct' || cls === 'cell'
         || !Array.isArray(dims) || dims.length < 2 || !dims.every((x) => Number.isSafeInteger(x) && x >= 0) || !dims.includes(0)) {
         return null;
     }

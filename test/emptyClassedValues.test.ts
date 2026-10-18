@@ -427,6 +427,52 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
     });
   });
 
+  it("but a host's struct or cell `{_type, _emptyDims}` keeps its MAT stream there, and reopens as the struct or cell it is", () => {
+    // No reader holds a struct's or a cell's empty under the header of its extents: the binary
+    // one holds it as its array (BinarySlddParser.structValue, cellValue). Taken for that
+    // reader's empty, a host's struct 0x3 or cell 0x2 pasted into a text dictionary was saved
+    // `[]` as an entry and reopened as a double 0x0, and '' at a field; its MAT stream, which a
+    // text dictionary was given for one before, reopens as the struct or cell it is.
+    const host: { _type: string; _emptyDims: number[] }[] = [
+      { _type: 'struct', _emptyDims: [0, 3] },
+      { _type: 'cell', _emptyDims: [0, 2] },
+      { _type: 'struct', _emptyDims: [2, 0] },
+      { _type: 'cell', _emptyDims: [0, 0] },
+    ];
+    const inField = (v: unknown) => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: v }], _fields: ['f'], _mw_element_type: 'MATLABArray' });
+    const inCell = (v: unknown) => ({ _array_type: 'Cell', _dimensions: [1, 1], _elements: [v], _mw_element_type: 'MATLABArray' });
+    const session = createSession();
+    const txt: any = ingest(session, buffer(bytesAt(TEXT_HOST)), { filename: 'custom_object_text.sldd' });
+    const design = txt.getSection('design');
+    const paste = (name: string, n: number, value: unknown) =>
+      design.parseEntry({ name, metadata: { ...design.children[0].metadata, uuid: '00000000-0000-4000-a400-' + String(n).padStart(12, '0') }, value: JSON.parse(JSON.stringify(value)) });
+    host.forEach((value, k) => {
+      paste('s' + k, 3 * k + 1, value);
+      paste('f' + k, 3 * k + 2, inField(value));
+      paste('c' + k, 3 * k + 3, inCell(value));
+    });
+    const text = session.serializeSource(txt.name)!.text!;
+    const entries: any[] = JSON.parse(text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    const valueOf = (name: string) => entries.find((e) => e.name === name).value;
+    const again: any = ingest(createSession(), buffer(strToU8(text)), { filename: 'reopened_text.sldd' });
+    const of = (n: any) => [n.className, n.dims];
+    // Each place's written `_type`, then the class and size it reopens as.
+    const got = host.map((value, k) => [
+      JSON.stringify(value),
+      valueOf('s' + k)?._type,
+      valueOf('f' + k)?._elements?.[0]?.f?._type,
+      valueOf('c' + k)?._elements?.[0]?._type,
+      of(entryNode(again, 's' + k)),
+      of(childOf(entryNode(again, 'f' + k), 'f')),
+      of(entryNode(again, 'c' + k).children[0]),
+    ]);
+    const want = host.map((value) => {
+      const opened = [value._type, value._emptyDims];
+      return [JSON.stringify(value), 'cdata', 'cdata', 'cdata', opened, opened, opened];
+    });
+    expect(got).toEqual(want);
+  });
+
   it('and shows there what the save writes and a reopen reads', () => {
     // Held as the binary reader holds it, a pasted 0x0x2 char showed `<0x0x2 char>` and an int8
     // 0x3 property `[ ]` at 0x3, and the save wrote '' and `[]`, which reopened as a 0x0.
