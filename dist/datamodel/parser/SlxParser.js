@@ -238,7 +238,7 @@ function findAll(obj, tagName) {
 function findText(obj, tagName) {
     for (const val of findAll(obj, tagName)) {
         // A tag with attributes parses to an object whose text is under '#text'; a
-        // plain tag parses to the string (or, for a bare number, to a number) itself.
+        // plain tag parses to the string itself.
         const text = val && typeof val === 'object'
             ? String(val['#text'] ?? '')
             : String(val ?? '');
@@ -482,10 +482,11 @@ const NON_PARAM_PROPS = new Set([
     'CopyOfModelName',
 ]);
 // Simulink stores a block's line breaks as the numeric char reference `&#xA;`
-// (Simulink wraps long block labels across lines). fast-xml-parser decodes NAMED
-// entities but not numeric ones (no htmlEntities option), so the raw name keeps
-// the literal `&#xA;`. Decode CR/LF numeric refs and collapse any run of
-// whitespace to a single space so a multi-line label reads as one flat cell
+// (Simulink wraps long block labels across lines). The model reader decodes it to
+// the line break it is (XmlReader); a name that still holds the literal `&#xA;` —
+// one written `&amp;#xA;` — is decoded here as it always was. Decode CR/LF numeric
+// refs and collapse any run of whitespace to a single space so a multi-line label
+// reads as one flat cell
 // (e.g. "Alpha-sensor&#xA;Low-pass Filter" -> "Alpha-sensor Low-pass Filter").
 export function normalizeBlockName(name) {
     return name
@@ -699,8 +700,7 @@ function extractBlockParamUsages(entries, legacy, warnings) {
                     if (String(mp['@_Evaluate'] ?? 'on') === 'off')
                         continue;
                     // `<Value>` has no attributes, so it arrives as the text itself rather than as
-                    // an object with a '#text' — and as a NUMBER when it looks like one, this
-                    // parser leaving tag values converted. Both are the same string to the gate.
+                    // an object with a '#text'.
                     const raw = mp['Value'];
                     if (raw === undefined || raw === null)
                         continue;

@@ -14,6 +14,11 @@ import MatlabValueParser, { collapseExact } from '../../parser/MatlabValueParser
 import { schemaColumns } from '../schemaBridge.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 const CLASS_NAME = 'Simulink.Parameter';
+// The own fields an undo of a Value edit leaves as they are (_restorerFor): where the node
+// stands, which it restores apart (its children, the Value row) or not at all (its name and
+// parent), and the entry's own bookkeeping, which an undone edit leaves as every edit does:
+// Modified, and stamped.
+const RESTORE_LEAVES = new Set(['name', 'parent', 'children', 'status', 'metadata']);
 // What MATLAB refuses as a Simulink.Parameter's Value, and the message it gives, measured by
 // test/parity/matlab/probe_parameter_value.m (truth: test/fixtures/parameter_value_truth.json).
 // The 2026-10-15 ruling on C-160 and C-042 is to mirror MATLAB's check at edit time, and to hold
@@ -500,6 +505,27 @@ export default class ParameterNode extends DataNode {
             return this._setMinMax(propName, stringValue);
         }
         return DataNode.prototype.setProperty.call(this, propName, stringValue);
+    }
+    // For DataModel.editProperty: what puts the Value back exactly as it is now, for the undo of
+    // a Value edit about to be made, or null for any other property, which the text it shows
+    // puts back (F1-16).
+    //
+    // The session undid a Value edit by setting the Value back to the text it showed, and a
+    // Value's text is often not the Value. A complex array shows `[1+2i 3+4i 5+6i]`, which
+    // MatlabValueParser does not read, so the undo was refused and dropped, and the edit stayed:
+    // MATLAB's pRow (complex_binary.sldd), set to 5 and undone, was written as a double 5. An
+    // int8 or single Value shows numbers that read back as a double, and a uint64 one as the
+    // nearest double; a struct shows `<1x1 struct>`, which reads back as nothing, and a 1x0
+    // complex empty `[ ]`, which reads back as a 0x0 double. The
+    // Parameter's own state does say the Value, and it is what a Value edit replaces: setProperty
+    // assigns Value, _valueNode and children and changes nothing it found in place (the old value
+    // node is left as it was, its `_rawInput` with it). So the undo is that state, held and put
+    // back (DataNode._ownStateRestorer), and the Value undone is written as it was read.
+    //
+    // A Value the edit refuses (read from a stream, an encoded one or an enumeration value)
+    // records no undo, so the restorer goes unused.
+    _restorerFor(propName) {
+        return propName === 'Value' ? this._ownStateRestorer(RESTORE_LEAVES) : null;
     }
     _getSerializedProperties() {
         let innerValue;
