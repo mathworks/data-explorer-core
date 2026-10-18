@@ -126,6 +126,14 @@ Locked by `test/variantBankNoValue.test.ts` (both formats, and `createDefault`) 
 
 ## Open questions / deferred
 
-- None for the bank's own properties (C-168 option (b) is done). The vscode table needs four
-  columns for them (`bankName`, `variantConditions`, `allChoicesCoderInfo`,
+- C-168 option (b) is done for the saveobj envelope R2027a writes. The vscode table needs four
+  columns for the bank's own properties (`bankName`, `variantConditions`, `allChoicesCoderInfo`,
   `activeChoiceCoderInfo`) before they can be edited there.
+- R2026b's spelling is not read yet. A text dictionary R2026b wrote holds a bank as plain
+  properties with no envelope (`~/delite/textsldd/dd.sldd`, `textsldd/ddCopy.sldd` and
+  `mix/dd_json.sldd`, all three at the defaults). There the four Variant Bank cells show their
+  defaults (`''` and `{}`), the file's own values show only as `Other` rows (its Name in none),
+  and an edit of any of them, the Description's included, is refused, as having nowhere to be
+  saved; the bank is saved as read. `VariantBankCoderInfoNode` reads the same spelling
+  (`Simulink.VariantBankCoderInfo.md`), and the bank should too, after measuring how R2027a reads
+  a bank so spelled, which was not measured here. A follow-up item.
