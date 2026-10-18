@@ -49,6 +49,15 @@ const holdsNoData = (part: string, count: number) => ({
 const row = (n: any): unknown => [n.name, n.displayValue, n.className, n.valueEditable, n.children.map(row)];
 const notDecoded = (name: string, shape: string, cls: string) => [name, `<${shape} ${cls}, not decoded>`, cls, false, []];
 
+/**
+ * The refusal a copy of `entry` meets for the value at `path` holding none of its `count`
+ * elements: nothing holds its value, and the text of its placeholder is another value (the
+ * maintainer's group F ruling of 2026-10-18, F1-10).
+ */
+const refusedCopy = (entry: string, path: string, shape: string, cls: string, count: number) =>
+  `Cannot write "${entry}": ${path} is a ${shape} ${cls} that was not decoded (it declares ${count} element(s) and holds no data), `
+  + 'so there is no value of it to write. Nothing was written.';
+
 const opened = (name: string, variables: Uint8Array[]): any => createSession().addMatSource(name, matFile(variables));
 
 describe('a numeric MAT value with no data is shown as not decoded, with no editor and no rows', () => {
@@ -90,11 +99,21 @@ describe('a numeric MAT value with no data is shown as not decoded, with no edit
       holdsNoData('i32', 6),
     ]);
     expect(control.warnings).toBeUndefined();
-    // What a host asks of every row, and a copy of each.
+    // What a host asks of every row, and a copy of each: of a value beside them as it was, and of
+    // one of them refused, naming it. It was the text of its placeholder.
     for (const n of mat.children) {
       expect(() => n.toRow()).not.toThrow();
+    }
+    for (const n of [mat.children[0], ...mat.children.slice(7)]) {
       expect(() => JSON.stringify(n.serializeValue())).not.toThrow();
     }
+    const [, r1, r23, c1, c12, b1, i32] = mat.children;
+    expect(() => r1.serializeValue()).toThrow(refusedCopy('r1', 'r1', '1x1', 'double', 1));
+    expect(() => r23.serializeValue()).toThrow(refusedCopy('r23', 'r23', '2x3', 'double', 6));
+    expect(() => c1.serializeValue()).toThrow(refusedCopy('c1', 'c1', '1x1', 'double', 1));
+    expect(() => c12.serializeValue()).toThrow(refusedCopy('c12', 'c12', '1x2', 'double', 2));
+    expect(() => b1.serializeValue()).toThrow(refusedCopy('b1', 'b1', '1x1', 'logical', 1));
+    expect(() => i32.serializeValue()).toThrow(refusedCopy('i32', 'i32', '3x2', 'int16', 6));
   });
 
   it('a .mat: one in a struct field or a cell element is a not-decoded row there, named as MATLAB names it', () => {
@@ -108,8 +127,10 @@ describe('a numeric MAT value with no data is shown as not decoded, with no edit
     expect(mat.warnings).toEqual([holdsNoData('s.a', 3), holdsNoData('c{1}', 1)]);
     for (const n of [sNode, cNode]) {
       expect(() => n.toRow()).not.toThrow();
-      expect(() => JSON.stringify(n.serializeValue())).not.toThrow();
     }
+    // A copy of what holds one is refused, naming it. It held the text of its placeholder.
+    expect(() => sNode.serializeValue()).toThrow(refusedCopy('s', 's.a', '1x3', 'double', 3));
+    expect(() => cNode.serializeValue()).toThrow(refusedCopy('c', 'c{1}', '1x1', 'int8', 1));
   });
 
   it('a .mat whose last record is cut where its data begins: not decoded, and the file says so once', () => {

@@ -56,7 +56,8 @@ export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/Bin
 // budget, declaring dims that are not a size, or an extent past what a MAT stream can say —
 // final, with `entry`, `at` (the MATLAB path to what was refused), `what` (what stands
 // there, in words), `reason` ('budget', 'not-a-count', 'past-int32', 'not-an-index' for a
-// sparse array's non-zero at no row and column), `counted` (false when
+// sparse array's non-zero at no row and column, 'not-decoded' for a value the reader did not
+// decode, which has no value to write), `counted` (false when
 // its size is no count at all), and a message naming all of them for a user.
 export { MatWriteError, MatBudgetError } from './datamodel/parser/MatWriter.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';

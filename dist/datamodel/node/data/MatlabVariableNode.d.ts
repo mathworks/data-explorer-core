@@ -8,7 +8,7 @@ import PropKind from '../../prop/PropKind.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { type MatVariable } from '../../parser/MatParser.js';
 import { type EncodedValue } from '../../parser/EncodedValue.js';
-import { MatWriteError } from '../../parser/MatWriter.js';
+import { MatBudgetError, MatWriteError } from '../../parser/MatWriter.js';
 import { type SparseData } from '../../parser/SparseData.js';
 export type { MatVariable };
 export default class MatlabVariableNode extends DataNode {
@@ -299,8 +299,8 @@ export default class MatlabVariableNode extends DataNode {
      *     cdata, untouched or only renamed);
      *   - for a value the reader recorded without decoding (`_undecoded`), the element it was
      *     read from, re-framed as a stream (MatWriter.matStreamOfElement) — nothing else holds
-     *     its values, and without this a copy of one out of a .mat wrote the text of its
-     *     placeholder;
+     *     its values. A copy or a save of such a value itself never asks: it is refused
+     *     (serializeValue, _undecodedRefusal);
      *   - for a sparse array no element row has edited, the element it was read from, the same
      *     way: its own bytes, which for every array MATLAB wrote are the bytes MatWriter would
      *     write, and for one MatWriter refuses — a dims word damaged, a class MATLAB never
@@ -430,6 +430,19 @@ export default class MatlabVariableNode extends DataNode {
      * never as the text of its placeholder.
      */
     _refuseNoSize(): void;
+    /**
+     * The refusal of a write of a value the reader recorded without decoding (`_undecoded`) that
+     * has no form of its own to be written as: one out of a .mat or a model workspace, a member of
+     * a stream, a text dictionary's own pasted into a binary one. Nothing this package holds is
+     * its value. Written as the text of its placeholder, `<2x3 double, not decoded>`, it was
+     * another value: a char in a text or a binary dictionary, a double 0 as XML, and a struct
+     * whose field names lie past its end a valid struct of no elements. The maintainer's group F
+     * ruling of 2026-10-18 (F1-10) refuses it rather than write it wrong: final, as a budget
+     * refusal is, so nothing is written in its place, and named the same way (_budgetFailure),
+     * with why it was not decoded — the reader's reason (MatVariable.undecoded), or what its
+     * warning says of a value with no data or of a class the reader does not model.
+     */
+    _undecodedRefusal(): MatBudgetError;
     /**
      * The variable a member of a cell or a struct is written from. A member of another class
      * — a struct a text dictionary read as a StructNode, a Simulink object — has none here: it
