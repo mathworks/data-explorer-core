@@ -239,6 +239,44 @@ describe("the text writers keep MATLAB's `_dimensions` [1, 1] (control)", () => 
   });
 });
 
+describe('a cell that is not a 1x1 of one element keeps its Dimension (control)', () => {
+  // Only a hand edit leaves a text dictionary's cell whose `_dimensions` and elements disagree, or
+  // a 1x1 stated at rank 3. Each part of the writer's test stands for one of these: a [1, 1] of two
+  // elements, which with no Dimension would reopen as the 1x2 of its elements in a cell or a
+  // struct; a [1, 1, 1]; a [2, 1] and a [0, 1] of one element. Each is written with the dims it was
+  // read with, as before, and only the true 1x1 of one element states none.
+  const C = (dims: number[], elements: unknown[]) => ({ _array_type: 'Cell', _dimensions: dims, _elements: elements, _mw_element_type: 'MATLABArray' });
+  const HAND_EDITED: [name: string, value: unknown, tag: string][] = [
+    ['twoInOne', C([1, 1], [1, 2]), '<P Name="Value" Class="cell" Dimension="1*1">'],
+    ['rankThree', C([1, 1, 1], [7]), '<P Name="Value" Class="cell" Dimension="1*1*1">'],
+    ['column', C([2, 1], [7]), '<P Name="Value" Class="cell" Dimension="2*1">'],
+    ['noRows', C([0, 1], [7]), '<P Name="Value" Class="cell" Dimension="0*1">'],
+    ['oneByOne', C([1, 1], [7]), '<P Name="Value" Class="cell">'],
+  ];
+  const handEdited = (): Uint8Array => {
+    const json = JSON.parse(new TextDecoder().decode(bytesOf('rt_text.sldd')));
+    const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    HAND_EDITED.forEach(([name, value], k) => entries.push({ name, metadata: { ...entries[0].metadata, uuid: uuidFor(300 + k) }, value }));
+    return new TextEncoder().encode(JSON.stringify(json, null, '\t'));
+  };
+
+  it('written from the model of the text dictionary', () => {
+    const { entry } = open(handEdited(), 'handEdited.sldd');
+    for (const [name, , tag] of HAND_EDITED) expect(cellTags(regenerateEntryXml(entry(name))), name).toEqual([tag]);
+  });
+
+  it('pasted into a binary dictionary and saved', () => {
+    const text = open(handEdited(), 'handEdited.sldd');
+    const { session, root } = open(BINARY, 'cell1x1_binary.sldd');
+    HAND_EDITED.forEach(([name], k) => {
+      const raw = text.entry(name).serialize() as Record<string, any>;
+      expect(root.getSection('design').parseEntry({ ...raw, name: 'p_' + name, metadata: { ...raw.metadata, uuid: uuidFor(400 + k) } }), name).toBeTruthy();
+    });
+    const saved = savedChunk(session, root);
+    for (const [name, , tag] of HAND_EDITED) expect(cellTags(entryBlock(saved, 'p_' + name)), name).toEqual([tag]);
+  });
+});
+
 describe("MATLAB's reading of each spelling (cell1x1.truth.json)", () => {
   it('reads every entry back as the value written, from its own file, the old spelling and core\'s', () => {
     expect(TRUTH.release).toBe('2027a');
