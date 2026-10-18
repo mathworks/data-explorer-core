@@ -1201,6 +1201,12 @@ export default class DataNode extends BaseNode {
     // element, and names its own class.
     const nested = !rawVal._array_class;
     const className = nested ? (rawVal._object_class as string) : objectValueClassOf(rawVal);
+    // An array's dims no Dimension can spell, refused, finally, naming the array's class as
+    // ObjectNode does: its one element was written as a scalar object, [NaN,1] or [1,"x"]
+    // gone. A nested object's spelling carries no _dimensions.
+    if (!nested) {
+      this._spellableOrRefuse(rawVal._dimensions, rawVal._array_class as string);
+    }
     const props = this._xmlProperties();
 
     let attrStr = '';

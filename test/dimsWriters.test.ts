@@ -349,6 +349,42 @@ describe('a value whose XML is its only spelling in a binary dictionary', () => 
     expect(thrownBy(() => session.serializeSource(root.name))[0]?.message).toBe(`Cannot write "pasted": pasted is a dexsparse.Unmodelled declaring dimensions [1,"x"]${NOT_A_COUNT}`);
   });
 
+  it('a one-element array of a typed class (Parameter, Signal, AliasType) is refused the same, where it was written as one object with no Dimension', () => {
+    // A class with a node of its own (ParameterNode, SignalNode, AliasTypeNode) writes through
+    // DataNode._serializeSimulinkObjectXml, which wrote the one element as a scalar object and
+    // never read the array's _dimensions; a class with none (ObjectNode) refused them.
+    const one = (cls: string, d: unknown) => ({ _array_class: cls, _dimensions: d, _elements: [{ _properties: cls === 'Simulink.Parameter' ? { Value: 1 } : { Description: 'd' } }] });
+    const places: [string, (v: unknown) => unknown][] = [
+      ['pasted', (v) => v],
+      ['pasted{1}', (v) => ({ _array_type: 'Cell', _dimensions: [1, 1], _elements: [v], _mw_element_type: 'MATLABArray' })],
+      ['pasted.f', (v) => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: v }], _fields: ['f'] })],
+    ];
+    // The save's refusal, or else the typed objects' tags the pasted entry was written with.
+    const save = (value: unknown): unknown => {
+      const session = createSession();
+      const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
+      root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef20-000000000009' }, value });
+      const [e] = thrownBy(() => session.serializeSource(root.name));
+      if (e) return [e.name, (e as any).reason, e.message];
+      const xml = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+      const entry = xml.slice(xml.indexOf('<P Name="Name" Class="char">pasted</P>'));
+      return entry.slice(0, entry.indexOf('</Object>')).match(/<Element Class="Simulink\.[^"]*"[^<>]*>/g);
+    };
+    for (const cls of ['Simulink.Parameter', 'Simulink.Signal', 'Simulink.AliasType']) {
+      for (const [at, wrap] of places) {
+        for (const [d, said] of [[[NaN, 1], '[NaN,1]'], [[1, 'x'], '[1,"x"]'], [[1, Infinity], '[1,Infinity]']] as const) {
+          expect(save(wrap(one(cls, d))), `${cls} ${at} ${said}`).toEqual([
+            'MatBudgetError',
+            'not-a-count',
+            `Cannot write "pasted": ${at} is a ${cls} declaring dimensions ${said}${NOT_A_COUNT}`,
+          ]);
+        }
+        // The control: one element at [1,1] is still written as one object, under no Dimension.
+        expect(save(wrap(one(cls, [1, 1]))), `${cls} ${at} [1,1]`).toEqual([`<Element Class="${cls}">`]);
+      }
+    }
+  });
+
   it('complex text pasted as an entry, a cell entry\'s element or a struct entry\'s field, with dims no Dimension can spell, is refused, not written as `Dimension="NaN*1"`', () => {
     // The node that writes these held its own dims, which it reads from the text — [1,1] for
     // 1+2i — to a Dimension's spelling, and then wrote the bag's _dimensions unchecked
