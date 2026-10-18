@@ -5,10 +5,16 @@ import type DataNode from '../DataNode.js';
 import type { SystemComposerCatalog } from '../../parser/ScCatalog.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
+interface NamespaceCounts {
+    sections: SectionNode[];
+    versions: number[];
+    counts: Map<string, number>;
+}
 export declare function generateUuid(): string;
 export default class SectionNode extends ContainerNode {
     label: string;
     iconId: string;
+    _entriesVersion: number;
     constructor(name: string, parent: BaseNode | null, label: string, iconId: string);
     get icon(): string;
     get displayName(): string;
@@ -17,6 +23,13 @@ export default class SectionNode extends ContainerNode {
     getAdmittedTypes(): string[];
     allowsType(className: string): boolean;
     _namespaceEntryNames(): string[];
+    _namespaceHolds(name: string): number;
+    addChild(child: BaseNode, index?: number): BaseNode;
+    removeChild(child: BaseNode): void;
+    _entriesMoved(gone: string | null, came: string | null): void;
+    _namespaceSections(): SectionNode[] | null;
+    _heldCounts(): NamespaceCounts | null;
+    _namespaceCounts(): Map<string, number> | null;
     _entryRenamed(oldName: string, newName: string): void;
     addEntry(className: string, entryName?: string): DataNode | null;
     execAddEntry(className: string, entryName?: string): {
@@ -29,7 +42,9 @@ export default class SectionNode extends ContainerNode {
         redo: () => void;
     } | null;
     _uniqueName(baseName: string): string;
-    parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode;
+    parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null, options?: {
+        asRead?: boolean;
+    }): DataNode;
     _readEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null): DataNode;
 }
 //# sourceMappingURL=SectionNode.d.ts.map

@@ -505,15 +505,18 @@ export default class DataNode extends BaseNode {
         return { error: true, reason: error, invalidValue: stringValue, validValue: this.name };
       }
       if (this.parent && this.parent.children) {
-        // For a top-level entry the parent is a section, which exposes the names
+        // For a top-level entry the parent is a section, which counts the names
         // across its WHOLE namespace — Design and Architectural Data share one,
         // so a rename must be unique across both, not just the entry's own
         // section. Nested children (bus elements, struct fields) have no such
-        // method and fall back to the local sibling check.
-        const nsNames = (this.parent as unknown as { _namespaceEntryNames?: () => string[] })._namespaceEntryNames;
+        // method and fall back to the local sibling check. A count, and not a
+        // scan of the namespace's names: renaming every entry of a large dictionary
+        // was quadratic (F1-23). This entry's own name is held by this entry, and a
+        // twin's by the twin, so another name held at all is held by another entry.
+        const nsHolds = (this.parent as unknown as { _namespaceHolds?: (name: string) => number })._namespaceHolds;
         const duplicate =
-          typeof nsNames === 'function'
-            ? nsNames.call(this.parent).some((n: string) => n !== this.name && n === stringValue)
+          typeof nsHolds === 'function'
+            ? stringValue !== this.name && nsHolds.call(this.parent, stringValue) > 0
             : this.parent.children.some((sibling) => sibling !== this && sibling.name === stringValue);
         if (duplicate) {
           return {

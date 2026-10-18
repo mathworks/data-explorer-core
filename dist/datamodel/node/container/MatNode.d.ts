@@ -31,6 +31,12 @@ export default class MatNode extends ContainerNode {
         header: string;
         variables: MatVariable[];
         warnings?: ParseWarning[];
-    }, filename: string): MatNode;
+    }, filename: string, options?: {
+        nodeCeiling?: number;
+    }): MatNode;
+    static _addVariables(node: MatNode, parsed: {
+        variables: MatVariable[];
+        warnings?: ParseWarning[];
+    }): void;
 }
 //# sourceMappingURL=MatNode.d.ts.map
