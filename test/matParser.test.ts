@@ -1025,9 +1025,14 @@ describe('parseMat — sparse arrays (class 5)', () => {
       expect(() => parseMat(buffer), `truncated to ${cut}`).not.toThrow();
     }
     // Truncated right after the indices, with no pr at all: no values to place, and
-    // the reader must not fabricate any.
+    // the reader must not fabricate any. Read as zeros, it was a matrix the file never held,
+    // so it is not decoded (the maintainer's group F ruling of 2026-10-18, F1-5).
     const noData = only(matFile([sparseVar({ ...worked, omitData: true })]));
-    expect(denseOf(noData)).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect([noData.value, noData.undecoded, noData.sparse]).toEqual([
+      '<3x4 sparse double, not decoded>',
+      'its indices place 4 non-zero(s) and its bytes end before their real part',
+      undefined,
+    ]);
   });
 
   it('reaches the node layer as the matrix it is, one child row per non-zero', () => {
