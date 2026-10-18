@@ -28,7 +28,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { unzipSync } from 'fflate';
+import { strToU8, unzipSync, zipSync } from 'fflate';
 import * as core from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
@@ -61,6 +61,24 @@ function open(path: string): { session: any; root: any; xml: string } {
   const root: any = ingest(session, buffer(bytes), { filename: path.split('/').pop()! });
   session.setActiveContext(root);
   return { session, root, xml: text(unzipSync(bytes)[CHUNK]) };
+}
+
+/**
+ * A binary fixture as an earlier core save left it: every cell MATLAB wrote with no Dimension, a
+ * string's saveobj cell aside, given `Dimension="1*1"`, the spelling the writers gave a 1x1 cell
+ * until they wrote it as MATLAB does (cellOneByOneDimension.test.ts). MATLAB reads it as the same
+ * value (cell1x1.truth.json). The writers now spell those tags otherwise than the file does, which
+ * is what lets a test see a part written from the model where the file's bytes belong.
+ */
+function openOlderSave(path: string): { session: any; root: any; xml: string } {
+  const parts = unzipSync(new Uint8Array(readFileSync(path)));
+  const xml = text(parts[CHUNK]).replace(/(<(?:P Name="[^"]*"|Element) Class="cell")>/g, '$1 Dimension="1*1">');
+  expect(xml).not.toBe(text(parts[CHUNK]));
+  parts[CHUNK] = strToU8(xml);
+  const session = core.createSession();
+  const root: any = ingest(session, buffer(zipSync(parts)), { filename: path.split('/').pop()! });
+  session.setActiveContext(root);
+  return { session, root, xml };
 }
 
 /** A dictionary read from a chunk, with no package around it. */
@@ -130,13 +148,13 @@ const DICTIONARY = '    <Object Class="DD.Dictionary">\n        <P Name="AccessB
 const chunk = (body: string): string => `${DECL}\n<DataSource FormatVersion="1" MinRelease="R2014a">\n${body}${DICTIONARY}</DataSource>\n`;
 
 describe('a rename changes only the Name and LastMod lines', () => {
-  it('of every entry of cellarr_binary.sldd, eleven of whose fourteen the writers spell otherwise', () => {
-    const { xml, root: probe } = open(fixture('cellarr_binary.sldd'));
+  it('of every entry of cellarr_binary.sldd as an earlier save left it, eleven of whose fourteen the writers spell otherwise', () => {
+    const { xml, root: probe } = openOlderSave(fixture('cellarr_binary.sldd'));
     const names = entries(probe).map((e: any) => e.name);
     expect(names.length).toBe(14);
     let respelled = 0;
     for (const name of names) {
-      const { session, root } = open(fixture('cellarr_binary.sldd'));
+      const { session, root } = openOlderSave(fixture('cellarr_binary.sldd'));
       const entry = entryNamed(root, name);
       expect(entry.setProperty('Name', name + 'Renamed')).toBe(true);
       const expected = renamedAndStamped(objectOf(xml, name), name + 'Renamed');
@@ -223,7 +241,7 @@ describe('an edit of one property keeps the bytes of every other', () => {
 
 describe('a struct field edit changes only that field', () => {
   it('cellarr_binary.sldd\'s cStructArr{1}(2).a, inside a cell whose open tag the writers respell', () => {
-    const { session, root, xml } = open(fixture('cellarr_binary.sldd'));
+    const { session, root, xml } = openOlderSave(fixture('cellarr_binary.sldd'));
     const entry = entryNamed(root, 'cStructArr');
     const field = entry.children[0].children[1].children[0];
     expect(field.name).toBe('a');
@@ -232,7 +250,8 @@ describe('a struct field edit changes only that field', () => {
     const before = objectOf(xml, 'cStructArr');
     const second = before.lastIndexOf('<P Name="a" Class="double">2.0</P>');
     const expected = renamedAndStamped(before.slice(0, second) + '<P Name="a" Class="double">5.0</P>' + before.slice(second + '<P Name="a" Class="double">2.0</P>'.length), null);
-    expect(regenerated(entry)).toContain('<P Name="Value" Class="cell" Dimension="1*1">');
+    expect(before).toContain('<P Name="Value" Class="cell" Dimension="1*1">');
+    expect(regenerated(entry)).toContain('<P Name="Value" Class="cell">');
     expect(savedChunk(session, root)).toBe(withObject(xml, 'cStructArr', expected));
   });
 });
@@ -329,34 +348,34 @@ describe('a bus\'s elements are paired by where they were read from, never by po
 });
 
 describe('a cell\'s elements are paired by where they were read from, never by position (D1)', () => {
-  // The parity artifact cases.sldd's cellNest, {1.0, {2.0, {3.0}}} as MATLAB wrote it, whose
-  // innermost cell, 1x1, has no Dimension, where the writers spell one. Removing the 1.0 moves the
-  // nested cell from the second place to the first: it keeps its bytes only if it is merged with
-  // the element it was read as, not with the 1.0 that was read first.
+  // The parity artifact cases.sldd's cellNest, {1.0, {2.0, {3.0}}}, as an earlier save left it:
+  // its innermost cell, 1x1, says `Dimension="1*1"`, where the writers spell none, as MATLAB does.
+  // Removing the 1.0 moves the nested cell from the second place to the first: it keeps its bytes
+  // only if it is merged with the element it was read as, not with the 1.0 that was read first.
   const CASES = join(HERE, 'parity', 'artifacts', 'binary', 'cases.sldd');
   const FIRST = '\n            <Element Class="double">1.0</Element>';
 
   it('removing the first: the nested cell that survives is its bytes, under the model\'s Dimension', () => {
-    const { session, root, xml } = open(CASES);
+    const { session, root, xml } = openOlderSave(CASES);
     const entry = entryNamed(root, 'cellNest');
     const before = objectOf(xml, 'cellNest');
     expect(before.split(FIRST).length).toBe(2);
-    expect(before).toContain('<Element Class="cell">');
-    expect(before).not.toContain('Dimension="1*1"');
+    expect(before).toContain('<Element Class="cell" Dimension="1*1">');
     expect(entry.children.length).toBe(2);
     expect(session.deleteNodeById(entry.children[0].id)).toBe(true);
     expect(entry.children.length).toBe(1);
-    // The writers spell the survivor's innermost cell otherwise than MATLAB did.
-    expect(regenerated(entry)).toContain('<Element Class="cell" Dimension="1*1">');
+    // The writers spell the survivor's innermost cell otherwise than the file does.
+    expect(regenerated(entry)).toContain('<Element Class="cell">');
+    expect(regenerated(entry)).not.toContain('Dimension="1*1"');
     const expected = renamedAndStamped(before.replace(FIRST, ''), null)
-      .replace('<P Name="Value" Class="cell" Dimension="1*2">', '<P Name="Value" Class="cell" Dimension="1*1">');
+      .replace('<P Name="Value" Class="cell" Dimension="1*2">', '<P Name="Value" Class="cell">');
     expect(savedChunk(session, root)).toBe(withObject(xml, 'cellNest', expected));
   });
 });
 
 describe('an edit and its undo give back the bytes, the LastMod line new (D2)', () => {
   it('a struct field in a cell, edited and undone', () => {
-    const { session, root, xml } = open(fixture('cellarr_binary.sldd'));
+    const { session, root, xml } = openOlderSave(fixture('cellarr_binary.sldd'));
     const entry = entryNamed(root, 'cStructArr');
     const field = entry.children[0].children[1].children[0];
     session.setActive(root, field);
@@ -452,10 +471,16 @@ describe('no origin reaches a saved file', () => {
   it('of any binary fixture, every entry renamed, and every entry with children losing its first', () => {
     const files = binaryDictionaries();
     expect(files.length).toBeGreaterThanOrEqual(22);
+    // And the cell fixtures as an earlier save left them, since the writers now spell their 1x1
+    // cells as MATLAB does: without them, few entries' merge differs from their regeneration.
+    const opens: [string, () => { session: any; root: any }][] = [
+      ...files.map((path): [string, () => { session: any; root: any }] => [path, () => open(path)]),
+      ...['cellarr_binary.sldd', 'cellstr_binary.sldd', 'typed_binary.sldd'].map((name): [string, () => { session: any; root: any }] => [`${name} as an earlier save left it`, () => openOlderSave(fixture(name))]),
+    ];
     let merged = 0;
-    for (const path of files) {
+    for (const [path, opened] of opens) {
       for (const edit of ['rename', 'remove'] as const) {
-        const { session, root } = open(path);
+        const { session, root } = opened();
         for (const entry of entries(root)) {
           if (edit === 'rename') entry.setProperty('Name', entry.name + 'S2');
           else if (entry.children?.length > 1 && entry.canRemoveChild?.()) session.deleteNodeById(entry.children[0].id);
@@ -529,9 +554,9 @@ describe('for a host that splices chunk text (D12)', () => {
   // with LF and four spaces, one written on one line, and one with CRLF and two spaces.
   const crlf = (xml: string): string => xml.replace(/\n( *)/g, (_m, s: string) => '\r\n' + ' '.repeat(s.length / 2));
   const layouts: [string, () => { session: any; root: any; xml: string }][] = [
-    ['LF, four spaces', () => open(fixture('cellarr_binary.sldd'))],
+    ['LF, four spaces', () => openOlderSave(fixture('cellarr_binary.sldd'))],
     ['one line', () => open(fixture('object_array_binary.sldd'))],
-    ['CRLF, two spaces', () => fromChunk(crlf(open(fixture('cellarr_binary.sldd')).xml))],
+    ['CRLF, two spaces', () => fromChunk(crlf(openOlderSave(fixture('cellarr_binary.sldd')).xml))],
   ];
   for (const [label, make] of layouts) {
     it(`spliceEntryObject keeps every byte around the entry, ${label}`, () => {
@@ -567,7 +592,7 @@ describe('for a host that splices chunk text (D12)', () => {
   });
 
   it('keptPartsViolations: none for what the save writes, and the path of an untouched part changed', () => {
-    const { session, root, xml } = open(fixture('cellarr_binary.sldd'));
+    const { session, root, xml } = openOlderSave(fixture('cellarr_binary.sldd'));
     const unedited = entryNamed(root, 'cStruct');
     expect(core.keptPartsViolations(unedited, objectOf(xml, 'cStruct'))).toEqual([]);
     expect(core.keptPartsViolations(unedited, objectOf(xml, 'cStruct').replace('IsDerived" Class="char">0', 'IsDerived" Class="char">1'))).toEqual([
@@ -585,12 +610,12 @@ describe('for a host that splices chunk text (D12)', () => {
       'P[Value]/Element[0]/Element[0]',
     ]);
     expect(core.keptPartsViolations(entry, written.replace('<P Name="UUID" Class="char">', '<P Name="UUID" Class="char">x'))).toEqual(['P[UUID]']);
-    // The regenerated entry, whose cell open tag the writers respell, changes an untouched part.
+    // The regenerated entry, whose cell open tag the writers spell otherwise than the file, changes an untouched part.
     expect(core.keptPartsViolations(entry, regenerated(entry))).toEqual(['P[Value] (open tag)']);
   });
 
   it('readEntryFragment rebuilds an entry with the bytes it came from, as an undo that rebuilds from text does', () => {
-    const { session, root, xml } = open(fixture('cellarr_binary.sldd'));
+    const { session, root, xml } = openOlderSave(fixture('cellarr_binary.sldd'));
     const old = entryNamed(root, 'cObjArr');
     const section = old.parent;
     const fragment = objectOf(xml, 'cObjArr');

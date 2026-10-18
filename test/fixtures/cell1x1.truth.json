@@ -1,0 +1,643 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "patchedAdded": 17,
+  "files": [
+    {
+      "file": "cell1x1_binary.sldd",
+      "cellTags": [
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"0*0\"/>",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<Element Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*2\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"2*1\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*2\">",
+        "<Element Class=\"cell\" Dimension=\"1*2\">",
+        "<Element Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<Element Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<P Name=\"Cells\" Class=\"cell\">"
+      ],
+      "entries": [
+        {
+          "name": "c11",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11char",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11str",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11obj",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11empty",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11cell",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "cNest",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "c12",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "c21",
+          "class": "cell",
+          "size": [
+            2,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c0",
+          "class": "cell",
+          "size": [
+            0,
+            0
+          ],
+          "same": true
+        },
+        {
+          "name": "s11",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "sNest",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "sArr",
+          "class": "struct",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "cOfS",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "widget",
+          "class": "Widget",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        }
+      ]
+    },
+    {
+      "file": "cell1x1_text.sldd",
+      "cellTags": [],
+      "entries": [
+        {
+          "name": "c11",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11char",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11str",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11obj",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11empty",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11cell",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "cNest",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "c12",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "c21",
+          "class": "cell",
+          "size": [
+            2,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c0",
+          "class": "cell",
+          "size": [
+            0,
+            0
+          ],
+          "same": true
+        },
+        {
+          "name": "s11",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "sNest",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "sArr",
+          "class": "struct",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "cOfS",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "widget",
+          "class": "Widget",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        }
+      ]
+    },
+    {
+      "file": "cell1x1_patched.sldd",
+      "cellTags": [
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"0*0\"/>",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*1\">",
+        "<Element Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*2\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"2*1\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*2\">",
+        "<Element Class=\"cell\" Dimension=\"1*2\">",
+        "<Element Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"c\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"c\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"c\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"c\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"c\" Class=\"cell\" Dimension=\"1*1\">",
+        "<Element Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"c\" Class=\"cell\" Dimension=\"1*1\">",
+        "<P Name=\"Cells\" Class=\"cell\" Dimension=\"1*1\">"
+      ],
+      "entries": [
+        {
+          "name": "c11",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11char",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11str",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11obj",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11empty",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11cell",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "cNest",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "c12",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "c21",
+          "class": "cell",
+          "size": [
+            2,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c0",
+          "class": "cell",
+          "size": [
+            0,
+            0
+          ],
+          "same": true
+        },
+        {
+          "name": "s11",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "sNest",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "sArr",
+          "class": "struct",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "cOfS",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "widget",
+          "class": "Widget",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        }
+      ]
+    },
+    {
+      "file": "cell1x1_core.sldd",
+      "cellTags": [
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"0*0\"/>",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<Element Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*2\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"2*1\">",
+        "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*2\">",
+        "<Element Class=\"cell\" Dimension=\"1*2\">",
+        "<Element Class=\"cell\">",
+        "<P Name=\"Value\" Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<Element Class=\"cell\">",
+        "<P Name=\"c\" Class=\"cell\">",
+        "<P Name=\"Cells\" Class=\"cell\">"
+      ],
+      "entries": [
+        {
+          "name": "c11",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11char",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11str",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11obj",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11empty",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c11cell",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "cNest",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "c12",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "c21",
+          "class": "cell",
+          "size": [
+            2,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "c0",
+          "class": "cell",
+          "size": [
+            0,
+            0
+          ],
+          "same": true
+        },
+        {
+          "name": "s11",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "sNest",
+          "class": "struct",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "sArr",
+          "class": "struct",
+          "size": [
+            1,
+            2
+          ],
+          "same": true
+        },
+        {
+          "name": "cOfS",
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        },
+        {
+          "name": "widget",
+          "class": "Widget",
+          "size": [
+            1,
+            1
+          ],
+          "same": true
+        }
+      ]
+    }
+  ]
+}

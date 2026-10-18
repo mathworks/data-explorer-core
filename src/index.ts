@@ -95,7 +95,8 @@ export type { ReadEntryOptions } from './datamodel/parser/EntryMerge.js';
 // final, with `entry`, `at` (the MATLAB path to what was refused), `what` (what stands
 // there, in words), `reason` ('budget', 'not-a-count', 'past-int32', 'not-an-index' for a
 // sparse array's non-zero at no row and column, 'not-decoded' for a value the reader did not
-// decode, which has no value to write), `counted` (false when
+// decode, which has no value to write, 'no-spelling' for an empty a text dictionary has no
+// spelling of that MATLAB reads back as what it is), `counted` (false when
 // its size is no count at all), and a message naming all of them for a user.
 export { MatWriteError, MatBudgetError } from './datamodel/parser/MatWriter.js';
 export { parseSlx } from './datamodel/parser/SlxParser.js';

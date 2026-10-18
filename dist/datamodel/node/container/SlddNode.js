@@ -12,6 +12,7 @@ import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.
 import { takeDecodeFailures, takePartialDecodes } from '../../parser/EncodedValue.js';
 import { takeUnheldIntegers, unheldIntegerWarning } from '../data/integerReading.js';
 import { takeUnwrittenSpellings, unwrittenSpellingWarning } from '../../parser/writtenSpelling.js';
+import { takeUnshapedValues, unshapedValueWarning } from '../data/unshapedValue.js';
 import { heldByTextDictionary } from '../../parser/MatWriter.js';
 import { attachChunkFrame, attachEntrySource, entrySourceOf, readFrameOf, readSourceOf } from '../../parser/EntrySource.js';
 import { setEntryFragmentReader } from '../../parser/EntryMerge.js';
@@ -230,6 +231,9 @@ export default class SlddNode extends ContainerNode {
                     // A binary dictionary's reader warned about its own text already, and hands
                     // the node the value it shows, so this is a text dictionary's alone.
                     takeUnwrittenSpellings();
+                    // And a JSON object of no shape MATLAB writes, which a hand edit left where a
+                    // value is (unshapedValue).
+                    takeUnshapedValues();
                     // A text dictionary's complex text is this file's own, which a save writes
                     // back as read where it has no stream to be instead
                     // (MatWriter.heldByTextDictionary). A binary dictionary's is not: the record
@@ -266,6 +270,10 @@ export default class SlddNode extends ContainerNode {
                     const unwritten = takeUnwrittenSpellings();
                     if (unwritten && node.sourceFormat !== 'xml') {
                         warnings?.push(unwrittenSpellingWarning(String(entry.name), unwritten));
+                    }
+                    const unshaped = takeUnshapedValues();
+                    if (unshaped) {
+                        warnings?.push(unshapedValueWarning(String(entry.name), unshaped));
                     }
                 }
             });

@@ -332,14 +332,14 @@ describe('a typed `[]` is the 0x0 of its class', () => {
   });
 
   it("and a binary dictionary's 0x0 logical in a cell, which its reader holds as one", () => {
-    const xml = hostXml().replace('<P Name="Value" Class="cell" Dimension="2*2">', '<P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>\n        <P Name="Was" Class="cell" Dimension="2*2">');
+    const xml = hostXml().replace('<P Name="Value" Class="cell" Dimension="2*2">', '<P Name="Value" Class="cell">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>\n        <P Name="Was" Class="cell" Dimension="2*2">');
     const { session, root } = open(xml);
     const member = entryNode(root, 'partCell').children[0];
     expect(shown(member)).toEqual(['logical', '<0x0 logical>', [0, 0]]);
     const saved = entryOf(chunkOf(session.serializeSource(root.name)!.bytes!), 'partCell');
-    expect(saved).toContain('        <P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
+    expect(saved).toContain('        <P Name="Value" Class="cell">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
     // The save keeps the unedited entry's bytes; the writer writes the same from the model.
-    expect(entryOf(regenerateChunkXml(root), 'partCell'), 'written from the model').toContain('        <P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
+    expect(entryOf(regenerateChunkXml(root), 'partCell'), 'written from the model').toContain('        <P Name="Value" Class="cell">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
   });
 });
 
@@ -349,7 +349,9 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
   // reads back as the class and size it is at an entry, a property, a field and a cell, and so
   // does a char's shaped literal; a 0x0 is MATLAB's own spelling of one. An object array's empty
   // reads back right in no spelling, so it is MATLAB's own: `[]` at a property and as an entry's
-  // value, `{"_type": cls, "_value": "[]"}` in a field and a cell. An N-D one is as it was. What
+  // value, `{"_type": cls, "_value": "[]"}` in a field and a cell. An N-D one is its MAT stream,
+  // which MATLAB reads back as what it is (test/parity/matlab/probe_lossy_empties_readback.m,
+  // graded by test/lossyEmptiesReadback.test.ts), where an N-D char was '' at every place. What
   // was written before was `[]` at a property and an entry for a numeric class and '' for any
   // other, a char '' at every place, and in a cell the header, an object array's too: an int8
   // 0x3 reopened in MATLAB as a double 0x0, a logical 1x0 as a char.
@@ -361,7 +363,7 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
       return at === 'field' || at === 'cell' ? { _type: s.cls, _value: '[]' } : [];
     }
     if (s.dims.length > 2) {
-      return '';
+      return expect.objectContaining({ _type: 'cdata' });
     }
     if (zero(s)) {
       return s.cls === 'double' ? [] : { _type: s.cls, _value: '[]' };
@@ -370,7 +372,7 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
   };
   /** What a reopen holds for it: its class and size, an object array's class where its spelling states one. */
   const reopened = (s: Shape, at: At): unknown[] =>
-    object(s) ? (at === 'field' || at === 'cell' ? [s.cls, [0, 0]] : ['double', [0, 0]]) : s.dims.length > 2 ? ['char', [0, 0]] : [s.cls, s.dims];
+    object(s) ? (at === 'field' || at === 'cell' ? [s.cls, [0, 0]] : ['double', [0, 0]]) : [s.cls, s.dims];
   /** hostXml, with each shape a field of the struct property `Fields` too. */
   const withFields = (): string =>
     hostXml().replace(
@@ -498,14 +500,15 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
     expect(got).toEqual(want);
   });
 
-  it("and a host's string or function handle `{_type, _emptyDims}` is written there as before, at each place", () => {
-    // No MAT stream holds an empty of either class, and MATLAB gives neither an object of its own
-    // (NOT_AN_OBJECT_CLASS), so a text dictionary was given one as the host handed it in at a
-    // struct field and a cell, which reopens as the string or function handle it is, and `[]` as
-    // an entry and at an object's property, a double 0x0. Taken for the binary reader's empty
-    // under its header, it was given that reader's spelling instead: '' at a field and a property,
-    // which reopens as a char 0x0, and the header in a cell; and a text dictionary holding one at
-    // a field or a cell, as it was written there, was rewritten by a save that edited nothing.
+  it("and a host's string `{_type, _emptyDims}` is written there as the String bag, at each place, and a function handle's is refused", () => {
+    // A text dictionary was given a host's string or function-handle empty as the host handed it
+    // in at a struct field and a cell, and `[]` as an entry and at an object's property, a double
+    // 0x0. MATLAB reads none of those back as what it is: the form as handed in reopens there as a
+    // char 0x0 in a cell, a double 1x0 as an entry, a double 1x1 as a property, and as a struct
+    // without the field (test/parity/matlab/lossy_empties_readback.truth.json). A string's is
+    // MATLAB's own spelling of one now, the String bag, which MATLAB reads back as the string it
+    // is at each place; a function handle's has no spelling MATLAB reads back as what it is, and
+    // the save is refused, naming where it stands (graded by test/lossyEmptiesReadback.test.ts).
     const host: { _type: string; _emptyDims: number[] }[] = [
       { _type: 'string', _emptyDims: [0, 3] },
       { _type: 'function_handle', _emptyDims: [1, 0] },
@@ -519,45 +522,63 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
       widget._elements[0]._properties.Nothing = v;
       return widget;
     };
+    const PLACES: [string, (v: unknown) => unknown, string][] = [
+      ['s', (v) => v, ''],
+      ['f', inField, '.f'],
+      ['p', inProperty, '.Nothing'],
+      ['c', inCell, '{1}'],
+    ];
+    const pasteInto = (session: any, txt: any, name: string, n: number, value: unknown) => {
+      const design = txt.getSection('design');
+      design.parseEntry({ name, metadata: { ...design.children[0].metadata, uuid: '00000000-0000-4000-a500-' + String(n).padStart(12, '0') }, value: JSON.parse(JSON.stringify(value)) });
+    };
     const session = createSession();
     const txt: any = ingest(session, buffer(bytesAt(TEXT_HOST)), { filename: 'custom_object_text.sldd' });
-    const design = txt.getSection('design');
-    const paste = (name: string, n: number, value: unknown) =>
-      design.parseEntry({ name, metadata: { ...design.children[0].metadata, uuid: '00000000-0000-4000-a500-' + String(n).padStart(12, '0') }, value: JSON.parse(JSON.stringify(value)) });
-    host.forEach((value, k) => {
-      paste('s' + k, 4 * k + 1, value);
-      paste('f' + k, 4 * k + 2, inField(value));
-      paste('p' + k, 4 * k + 3, inProperty(value));
-      paste('c' + k, 4 * k + 4, inCell(value));
-    });
+    PLACES.forEach(([name, wrap], k) => pasteInto(session, txt, name, k + 1, wrap(host[0])));
     const text = session.serializeSource(txt.name)!.text!;
     const entries: any[] = JSON.parse(text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
     const valueOf = (name: string) => entries.find((e) => e.name === name).value;
     const again: any = ingest(createSession(), buffer(strToU8(text)), { filename: 'reopened_text.sldd' });
     const of = (n: any) => [n.className, n.dims];
     // Each place's written value, then the class and size it reopens as.
-    const got = host.map((value, k) => [
-      JSON.stringify(value),
-      valueOf('s' + k),
-      valueOf('f' + k)?._elements?.[0]?.f,
-      valueOf('p' + k)?._elements?.[0]?._properties?.Nothing,
-      valueOf('c' + k)?._elements?.[0],
-      of(entryNode(again, 's' + k)),
-      of(childOf(entryNode(again, 'f' + k), 'f')),
-      of(childOf(entryNode(again, 'p' + k), 'Nothing')),
-      of(entryNode(again, 'c' + k).children[0]),
-    ]);
-    const want = host.map((value) => {
-      const opened = [value._type, value._emptyDims];
-      const double0 = ['double', [0, 0]];
-      return [JSON.stringify(value), [], value, [], value, double0, opened, double0, opened];
+    const got = [
+      valueOf('s'),
+      valueOf('f')?._elements?.[0]?.f,
+      valueOf('p')?._elements?.[0]?._properties?.Nothing,
+      valueOf('c')?._elements?.[0],
+      of(entryNode(again, 's')),
+      of(childOf(entryNode(again, 'f'), 'f')),
+      of(childOf(entryNode(again, 'p'), 'Nothing')),
+      of(entryNode(again, 'c').children[0]),
+    ];
+    const bag = { _array_type: 'String', _dimensions: [0, 3], _elements: [], _mw_element_type: 'MATLABArray' };
+    const string03 = ['string', [0, 3]];
+    // A function handle's, pasted alone at each place: the save is refused, and so is a copy.
+    const refused = PLACES.map(([name, wrap, path], k) => {
+      const s = createSession();
+      const t: any = ingest(s, buffer(bytesAt(TEXT_HOST)), { filename: 'custom_object_text.sldd' });
+      pasteInto(s, t, name, 10 + k, wrap(host[1]));
+      const messages: string[] = [];
+      for (const write of [() => s.serializeSource(t.name), () => entryNode(t, name).serialize()]) {
+        try {
+          write();
+          messages.push('written');
+        } catch (e) {
+          messages.push((e as Error).name + ': ' + (e as Error).message);
+        }
+      }
+      return [name + path, ...messages];
     });
-    // And a text dictionary holding one at a field and in a cell, as it was written there, is
-    // saved unedited as the same file. Each is the last entry of the last section, as a save lists it.
+    const refusal = (name: string, path: string) =>
+      `MatBudgetError: Cannot write "${name}": ${name}${path} is an empty function handle (1x0), and a text dictionary has no spelling of it that MATLAB reads back as it is. Nothing was written.`;
+    // And a text dictionary holding either as a host handed it in, at each place, is saved unedited
+    // as the same file: at a field and in a cell, as it was written there before; as an entry and
+    // at an object's property, where a save that edited nothing wrote `[]`. Each is the last entry
+    // of the last section, as a save lists it.
     const proto = held[held.length - 1];
     host.forEach((value, k) => {
-      [inField(value), inCell(value)].forEach((v, j) =>
-        held.push({ ...proto, name: ['zf', 'zc'][j] + k, metadata: { ...proto.metadata, uuid: '00000000-0000-4000-a500-' + String(100 + 2 * k + j).padStart(12, '0') }, value: v }),
+      PLACES.forEach(([name, wrap], j) =>
+        held.push({ ...proto, name: 'z' + name + k, metadata: { ...proto.metadata, uuid: '00000000-0000-4000-a500-' + String(100 + 4 * k + j).padStart(12, '0') }, value: wrap(value) }),
       );
     });
     const file = JSON.stringify(json, null, '\t');
@@ -566,12 +587,17 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
     const saved = resave.serializeSource(reopened.name)!.text!;
     const zValues = (t: string) =>
       JSON.parse(t).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.filter((e: any) => e.name.startsWith('z')).map((e: any) => [e.name, e.value]);
-    expect({ pasted: got, unedited: [zValues(saved), saved === file] }).toEqual({ pasted: want, unedited: [zValues(file), true] });
+    expect({ pasted: got, refused, unedited: [zValues(saved), saved === file] }).toEqual({
+      pasted: [bag, bag, bag, bag, string03, string03, string03, string03],
+      refused: PLACES.map(([name, , path]) => [name + path, refusal(name, path), refusal(name, path)]),
+      unedited: [zValues(file), true],
+    });
   });
 
   it('and shows there what the save writes and a reopen reads', () => {
     // Held as the binary reader holds it, a pasted 0x0x2 char showed `<0x0x2 char>` and an int8
-    // 0x3 property `[ ]` at 0x3, and the save wrote '' and `[]`, which reopened as a 0x0.
+    // 0x3 property `[ ]` at 0x3, and the save wrote '' and `[]`, which reopened as a 0x0. The
+    // 0x0x2 char is its MAT stream now, and shows and reopens as what it is.
     const session = createSession();
     const bin: any = ingest(session, buffer(zipSync({ ...unzipSync(bytesAt(HOST)), 'data/chunk0.xml': strToU8(hostXml()) })), { filename: 'custom_object_binary.sldd' });
     const txt: any = ingest(session, buffer(bytesAt(TEXT_HOST)), { filename: 'custom_object_text.sldd' });
@@ -585,7 +611,7 @@ describe('a text dictionary is given the spelling MATLAB reads back', () => {
     });
     const again: any = ingest(createSession(), buffer(strToU8(session.serializeSource(txt.name)!.text!)), { filename: 'reopened_text.sldd' });
     expect(names.map((name) => tree(entryNode(again, name + 'Copy')))).toEqual(pasted);
-    expect(pasted[names.indexOf('eCh3')]).toEqual([['eCh3Copy', 'char', "''", [0, 0], true]]);
+    expect(pasted[names.indexOf('eCh3')]).toEqual([['eCh3Copy', 'char', '<0x0x2 char>', [0, 0, 2], false]]);
   });
 
   it('and one the text dictionary holds itself is written as it holds it', () => {

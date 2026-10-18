@@ -28,7 +28,9 @@
 //     `{"_type": cls, "_value": "[]"}` in a cell or a struct field. MATLAB reads its own file back
 //     as a char 0x0 in a cell, a default 1x1 Simulink.Parameter, or with the field gone, and this
 //     reads it back with its class (at 0x0).
-//   - an N-D one: as it was (a char's `""`, MATLAB's own spelling of one).
+//   - an N-D one: its MAT stream, which MATLAB reads back as what it is at every place, where its
+//     own writer writes `""` for a char (asked by probe_lossy_empties_readback.m, whose answers in
+//     lossy_empties_readback.truth.json this reads too).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -45,6 +47,8 @@ const at = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 const TRUTH: { version: string; release: string; self: SelfRow[]; candidates: Candidate[] } = JSON.parse(
   readFileSync(at('./parity/matlab/text_empty_readback.truth.json'), 'utf8'),
 );
+/** MATLAB's answers about N-D empties, empty strings and empty function handles (test/lossyEmptiesReadback.test.ts). */
+const LOSSY: { self: SelfRow[]; candidates: Candidate[] } = JSON.parse(readFileSync(at('./parity/matlab/lossy_empties_readback.truth.json'), 'utf8'));
 const buffer = (u8: Uint8Array) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
 const bytesAt = (rel: string) => new Uint8Array(readFileSync(at(rel)));
 
@@ -71,11 +75,17 @@ function valueAt(value: any, place: Place): unknown {
 
 /** What MATLAB read back of `spelling` at `place`: a candidate's, or its own spelling's; undefined if it was never asked. */
 function matlabRead(spelling: string, place: Place): Reads | undefined {
-  const candidate = TRUTH.candidates.find((c) => c.place === place && canonical(c.spelling) === spelling);
-  if (candidate) {
-    return candidate.reads;
+  for (const truth of [TRUTH, LOSSY]) {
+    const candidate = truth.candidates.find((c) => c.place === place && canonical(c.spelling) === spelling);
+    if (candidate) {
+      return candidate.reads;
+    }
+    const own = truth.self.find((s) => s.place === place && s.text !== '' && !s.text.startsWith('?') && canonical(s.text) === spelling);
+    if (own) {
+      return own.textReads;
+    }
   }
-  return TRUTH.self.find((s) => s.place === place && s.text !== '' && !s.text.startsWith('?') && canonical(s.text) === spelling)?.textReads;
+  return undefined;
 }
 
 /** Every value MATLAB put in its binary dictionary, pasted into a text dictionary, saved and reopened. */
@@ -145,8 +155,8 @@ describe('a text dictionary is given the spelling MATLAB reads back for an empty
     for (const s of rows) {
       const original = s.binaryReads as { class: string; size: number[] };
       // An object array's empty has no spelling MATLAB reads back (the next case); a char at a
-      // Parameter's Value is a string in MATLAB, whatever its spelling; an N-D one is as it was.
-      if (OBJECT_CLASSES.has(original.class) || (s.place === 'param' && original.class === 'char') || original.size.length > 2) {
+      // Parameter's Value is a string in MATLAB, whatever its spelling.
+      if (OBJECT_CLASSES.has(original.class) || (s.place === 'param' && original.class === 'char')) {
         continue;
       }
       const reads = matlabRead(spelled(s), s.place);
@@ -171,7 +181,7 @@ describe('a text dictionary is given the spelling MATLAB reads back for an empty
     const wrong: string[] = [];
     for (const s of rows) {
       const original = s.binaryReads as { class: string; size: number[] };
-      if ((s.place === 'param' && original.class === 'char') || original.size.length > 2) {
+      if (s.place === 'param' && original.class === 'char') {
         continue;
       }
       const node = nodeAt(reopened, PREFIX[s.place] + s.id, s.place);

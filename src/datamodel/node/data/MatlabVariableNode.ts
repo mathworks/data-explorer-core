@@ -21,6 +21,7 @@ import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { heldAsRead, integerReader } from './integerReading.js';
 import { isWrittenSpelling, matrixHoldsUnwritten, recordUnwrittenSpelling, rowHoldsUnwritten } from '../../parser/writtenSpelling.js';
+import { recordUnshapedValue, unshapedText } from './unshapedValue.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../../display/Subscript.js';
 import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue, type MatVariable } from '../../parser/MatParser.js';
@@ -759,6 +760,11 @@ export default class MatlabVariableNode extends DataNode {
     }
     if (this._undecoded) {
       return String(this._scalarValue);
+    }
+    // A JSON object of no shape MATLAB writes (_unshapedObject): the JSON it holds, as a summary,
+    // which takes no editor. String() of it, `[object Object]`, showed nothing that was read.
+    if (this._unshapedObject()) {
+      return '<' + unshapedText(this._scalarValue as object) + '>';
     }
     // char and a scalar string have no child rows, so the cell is the only place
     // the value is ever visible and the char budget is the only rule that applies:
@@ -2922,6 +2928,12 @@ export default class MatlabVariableNode extends DataNode {
     if (this._scalarType === 'function_handle') {
       throw this._handleRefusalHere(this._kind === 'scalar' ? String(this._scalarValue) : 'Matrix(' + this._dims.join(',') + ')');
     }
+    // Nor a JSON object of no shape MATLAB writes (_unshapedObject), at an entry, a struct field or
+    // a cell element: the double's arm wrote it as `Class="double">[object Object]`. Refused, as the
+    // property writer refuses the same object (DataNode._unspellable), naming the entry and the path.
+    if (this._unshapedObject()) {
+      throw DataNode._unspellable(this._scalarValue, this.name, this._whereWritten());
+    }
     // Dims no Dimension can spell — a text dictionary's [1, "x"] or a host's NaN pasted
     // into a binary one — are refused, finally, naming the value, and never written as
     // `Dimension="1*x"` (parser/Size). What a binary dictionary read is spelled as read.
@@ -3205,8 +3217,16 @@ export default class MatlabVariableNode extends DataNode {
     }
 
     // dims.join, so a 2x3x2 cell keeps its third extent here as it does in
-    // _serializeCellPropertyXml and in what MATLAB itself writes.
-    let xml = p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + dimensionText(dims) + '">\n';
+    // _serializeCellPropertyXml and in what MATLAB itself writes. A 1x1 cell of one element
+    // states none, at an entry, a cell element or a struct field, as MATLAB writes it there
+    // and as DataNode._cellXml writes a property's: no cell MATLAB writes says
+    // `Dimension="1*1"` (cell1x1_binary.sldd). The binary reader takes the absence as 1x1 at
+    // an entry and as 1xN for N elements in a cell or a struct.
+    const dimAttr =
+      dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && this.children.length === 1
+        ? ''
+        : ' Dimension="' + dimensionText(dims) + '"';
+    let xml = p + '<' + tagName + attrStr + ' Class="cell"' + dimAttr + '>\n';
     // Each element with its origin in the file while a merge asks for it (EntrySource).
     for (const child of this.children) {
       xml += withOrigin((child as MatlabVariableNode).serializeXml('Element', {}, indent + 1), originOf(child)) + '\n';
@@ -3431,6 +3451,14 @@ export default class MatlabVariableNode extends DataNode {
       v.fields = fields;
     } else if (this._kind === 'scalar') {
       v.value = this._scalarValue;
+      // A JSON object of no shape MATLAB writes (_unshapedObject) is no double, and MatWriter wrote
+      // it as 0: in the stream of an N-D cell holding one, edited at a sibling, and in the hex of a
+      // cell holding one and a sparse array. It stands in as one MatWriter refuses, as a member of
+      // another class does (_memberVar), so the save that needs the stream is refused and the hex
+      // falls back to the XML, which refuses it there.
+      if (this._unshapedObject()) {
+        v._unwritable = 'an object of no shape MATLAB writes, ' + unshapedText(this._scalarValue as object) + ', which MatWriter has no variable for';
+      }
       if (this._scalarType === 'char') {
         v.className = 'char';
         // A char array's shape is NOT its text length. `[1, len]` flattened every
@@ -4081,8 +4109,26 @@ export default class MatlabVariableNode extends DataNode {
     } else {
       node._scalarType = 'double';
       node._scalarValue = rawVal === undefined ? 0 : rawVal;
+      // A JSON object of no shape MATLAB writes, held as it came (_unshapedObject), for the
+      // dictionary's warnings (unshapedValue).
+      if (node._unshapedObject()) {
+        recordUnshapedValue(node, rawVal as object);
+      }
     }
     return node;
+  }
+
+  /**
+   * Does this scalar hold, untouched, the JSON object of no shape MATLAB writes that it was read
+   * as (parseScalar's last arm)? `{"foo": 1}`, `{}`, or a class marker left with no class,
+   * `{"_array_class": null, ...}`, which only a hand edit leaves in a text dictionary (see
+   * unshapedValue). It is shown as the JSON it holds (_formatScalar), written back to a text
+   * dictionary as read (serializeValue replays `_rawInput`), and refused by the XML writers
+   * (serializeXml), where it was the text `[object Object]` in a double's spelling.
+   */
+  _unshapedObject(): boolean {
+    const v = this._scalarValue;
+    return this._kind === 'scalar' && v !== null && typeof v === 'object' && v === this._rawInput;
   }
 
   /**
