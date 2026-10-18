@@ -486,6 +486,15 @@ export default class MatlabVariableNode extends DataNode {
     static parse(rawVal: unknown, name: string, parent: BaseNode | null): MatlabVariableNode;
     static parseScalar(rawVal: unknown, name: string, parent: BaseNode | null): MatlabVariableNode;
     /**
+     * Does this scalar hold, untouched, the JSON object of no shape MATLAB writes that it was read
+     * as (parseScalar's last arm)? `{"foo": 1}`, `{}`, or a class marker left with no class,
+     * `{"_array_class": null, ...}`, which only a hand edit leaves in a text dictionary (see
+     * unshapedValue). It is shown as the JSON it holds (_formatScalar), written back to a text
+     * dictionary as read (serializeValue replays `_rawInput`), and refused by the XML writers
+     * (serializeXml), where it was the text `[object Object]` in a double's spelling.
+     */
+    _unshapedObject(): boolean;
+    /**
      * struct([]) out of a text dictionary. Deliberately the same node
      * `_createFromMatStruct` builds for the same value — scalar kind, 'struct' class,
      * a null scalar value and the real extents — so `<0x0 struct>` is what all four

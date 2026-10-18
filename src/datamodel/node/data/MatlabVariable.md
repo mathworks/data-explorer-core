@@ -195,6 +195,19 @@ An opaque MCOS object (e.g. a `Simulink.Parameter` stored as a raw variable rath
 than as a recognized catalog entry) has `valueEditable = false` and
 `canAddChild() = false`.
 
+### A JSON object of no MATLAB shape is shown as its JSON, and not written as XML
+A hand edit can leave a text dictionary holding, at an entry, a struct field or a cell
+element, a JSON object that is no value MATLAB writes: `{"foo": 1}`, `{}`, or a class marker
+with no class, `{"_array_class": null, ...}`. `parseScalar` holds it as it came
+(`_unshapedObject`). Its row shows the JSON it holds, cut at 60 characters, as a summary with
+no editor (`<{"foo":1}>`), and one part-unreadable warning per entry says so. A text save and
+a copy write it back as read. Every XML writer refuses it with a `MatWriteError` naming the
+entry and the path, as the property writer refuses the same object (`DataNode._unspellable`),
+and MatWriter refuses it as a member of a stream. It was shown, and written into a double's
+XML, as `[object Object]`. MATLAB R2027a opens such a file and reads no value from it: a 1x0
+double at an entry, the struct without the field, a 0x0 char in a cell. Pinned in
+`test/unshapedObjectValue.test.ts` (G1-OBJTAIL).
+
 ### cdata is the format's escape hatch, not "the complex encoding"
 A value the `.sldd` schema cannot spell is stored as `{ _type: "cdata", _value:
 <encoded> }`, in one of two encodings:
