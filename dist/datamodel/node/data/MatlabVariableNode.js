@@ -2536,6 +2536,11 @@ export default class MatlabVariableNode extends DataNode {
         const raw = this._rawInput;
         const attrStr = attrs && attrs.Name ? ' Name="' + escapeXml(attrs.Name) + '"' : '';
         if (raw && raw._type === 'cdata' && !isMatCdata(raw)) {
+            // That writer spells the text's own _dimensions, not the node's dims, which come from
+            // the text ([1,1] for 1+2i): held to a Dimension's spelling as the raw property and
+            // cell-element arms hold them (DataNode._sizeOrRefuse), so a pasted [NaN,1] is refused,
+            // not written as `Dimension="NaN*1"`.
+            this._spellableOrRefuse(raw._dimensions, complexClassTag(raw._class) ?? 'double');
             return DataNode._complexTextXml(tagName, attrStr, raw, indent);
         }
         // A sparse array has no XML spelling: `Class="sparse"` makes MATLAB's reader segfault,

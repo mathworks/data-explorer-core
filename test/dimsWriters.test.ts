@@ -348,6 +348,55 @@ describe('a value whose XML is its only spelling in a binary dictionary', () => 
     root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef20-000000000007' }, value: { _array_class: 'dexsparse.Unmodelled', _dimensions: [1, 'x'], _elements: [element('1'), element('2')] } });
     expect(thrownBy(() => session.serializeSource(root.name))[0]?.message).toBe(`Cannot write "pasted": pasted is a dexsparse.Unmodelled declaring dimensions [1,"x"]${NOT_A_COUNT}`);
   });
+
+  it('complex text pasted as an entry, a cell entry\'s element or a struct entry\'s field, with dims no Dimension can spell, is refused, not written as `Dimension="NaN*1"`', () => {
+    // The node that writes these held its own dims, which it reads from the text — [1,1] for
+    // 1+2i — to a Dimension's spelling, and then wrote the bag's _dimensions unchecked
+    // (DataNode._complexTextXml). The raw property and cell-element arms refuse them first.
+    const complex = (d: unknown, cls = 'double') => ({ _type: 'cdata', _class: cls, _value: '1+2i', _dimensions: d });
+    const places: [string, string, string, (v: unknown) => unknown][] = [
+      ['pasted', 'P Name="Value"', 'P', (v) => v],
+      ['pasted{1}', 'Element', 'Element', (v) => ({ _array_type: 'Cell', _dimensions: [1, 1], _elements: [v], _mw_element_type: 'MATLABArray' })],
+      ['pasted.f', 'P Name="f"', 'P', (v) => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: v }], _fields: ['f'] })],
+    ];
+    // The save's refusal, or else the complex text the pasted entry was written with.
+    const save = (value: unknown): unknown => {
+      const session = createSession();
+      const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
+      root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef20-000000000008' }, value });
+      const [e] = thrownBy(() => session.serializeSource(root.name));
+      if (e) return [e.name, (e as any).reason, e.message];
+      const xml = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+      const entry = xml.slice(xml.indexOf('<P Name="Name" Class="char">pasted</P>'));
+      return entry.slice(0, entry.indexOf('</Object>')).match(/<[^<>]*IsComplex="1"[^<>]*(?:\/>|>[^<]*<\/\w+>)/g);
+    };
+    const hole: unknown[] = [1];
+    hole.length = 2;
+    const refused: [unknown, string, string?][] = [
+      [[NaN, 1], '[NaN,1]'],
+      [[1, Infinity], '[1,Infinity]'],
+      [[1, -Infinity], '[1,-Infinity]'],
+      [[1, 'x'], '[1,"x"]'],
+      [[1, {}], '[1,{}]'],
+      [[1, -1], '[1,-1]'],
+      [[1, -1], '[1,-1]', 'int16'],
+      [[1, Symbol('s')], '[1,Symbol(s)]'],
+      [[1, undefined], '[1,undefined]'],
+      [hole, '[1,undefined]'],
+    ];
+    for (const [at, open, close, wrap] of places) {
+      for (const [d, said, cls] of refused) {
+        expect(save(wrap(complex(d, cls))), `${at} ${d === hole ? 'a hole' : said} ${cls ?? 'double'}`).toEqual([
+          'MatBudgetError',
+          'not-a-count',
+          `Cannot write "pasted": ${at} is ${cls ? 'an ' + cls : 'a double'} declaring dimensions ${said}${NOT_A_COUNT}`,
+        ]);
+      }
+      // The controls: a size is written as one, and a scalar under no Dimension.
+      expect(save(wrap(complex([1, 2]))), at).toEqual([`<${open} Class="double" IsComplex="1" Dimension="1*2">1.0+2.0i</${close}>`]);
+      expect(save(wrap(complex([1, 1]))), at).toEqual([`<${open} Class="double" IsComplex="1">1.0+2.0i</${close}>`]);
+    }
+  });
 });
 
 describe('every raw property arm refuses dims no Dimension can spell, naming the property', () => {
