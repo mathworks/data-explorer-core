@@ -273,6 +273,12 @@ const OTHER_CASES: [name: string, value: Record<string, unknown>, node: string, 
   ['BagVariantConfigurationData', { _array_class: 'Simulink.VariantConfigurationData', _array_type: 'object', DefaultConfigurationName: 'Cfg' }, 'VariantConfigurationDataNode', []],
   ['BagVariantConfigurations', { _array_class: 'Simulink.VariantConfigurations', _array_type: 'object', DefaultConfigurationName: 'Cfg' }, 'VariantConfigurationDataNode', []],
   ['BagCustomObject', { _array_class: 'CustomObject', _array_type: 'object', Description: 'A custom object' }, 'CustomObjectNode', [['Value', '1']]],
+  // `_elements: null`, which a hand edit can leave, is the same shape (as NullElements is above):
+  // the made-up element was written over the null, and an editor offered for it.
+  ['NullBagSignal', { _array_class: 'Simulink.Signal', _array_type: 'object', DataType: 'single', Description: 'A signal', _elements: null }, 'SignalNode', [['Min', '0'], ['StorageClass', 'ExportedGlobal']]],
+  ['NullBagAliasType', { _array_class: 'Simulink.AliasType', _array_type: 'object', BaseType: 'int16', Description: 'An alias', _elements: null }, 'AliasTypeNode', [['BaseType', 'int8']]],
+  ['NullBagVariantControl', { _array_class: 'Simulink.VariantControl', _array_type: 'object', Value: 1, _elements: null }, 'VariantControlNode', [['Value', '2']]],
+  ['NullBagCustomObject', { _array_class: 'CustomObject', _array_type: 'object', Description: 'A custom object', _elements: null }, 'CustomObjectNode', [['Value', '1']]],
 ];
 
 /** sparse_text.sldd with each of OTHER_CASES appended as an entry, in the file's own tab-indented layout. */
