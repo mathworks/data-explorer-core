@@ -88,6 +88,7 @@ import {
   formatNumericXml,
   formatComplexBodyXml,
   formatComplexNum,
+  shownComplexText,
   formatMatlabNum,
   formatMxCharSerial,
   formatNumLiteral,
@@ -816,6 +817,11 @@ export default class MatlabVariableNode extends DataNode {
       const text = String(this._scalarValue);
       return text.startsWith('@') ? text : '@' + text;
     }
+    // A complex element is held as its text, and an imaginary part of -0 shows with a `+`
+    // (shownComplexText): every element row, cell member and field, and the grid's cells.
+    if (this._scalarType === 'complex' && typeof this._scalarValue === 'string') {
+      return shownComplexText(this._scalarValue);
+    }
     return formatMatlabNum(this._scalarValue);
   }
 
@@ -863,7 +869,9 @@ export default class MatlabVariableNode extends DataNode {
         ? elems.map(function (v) {
             return v ? 'true' : 'false';
           })
-        : elems;
+        : this._isComplexValue()
+          ? elems.map((v) => (typeof v === 'string' ? shownComplexText(v) : v))
+          : elems;
     const text = formatMatrix(this._dims[0], this._dims[1], formatted);
     // The count rule alone is not a bound on LENGTH: ten 200-character elements
     // are still a 2000-character cell. The char budget is the runaway guard.
