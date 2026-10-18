@@ -46,6 +46,7 @@ import {
   ENUMERATION_KEY,
   emptyHeaderDims,
   formatMatrixSerial,
+  formatMxCharSerial,
   formatNumLiteral,
   isEnumBag,
   isExactToken,
@@ -62,7 +63,7 @@ import {
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
-import { dimsText, everyExtent, isSize, isTextExtent, MAT_MAX_EXTENT } from './Size.js';
+import { dimsText, everyExtent, headerDigits, isSize, isTextExtent, MAT_MAX_EXTENT } from './Size.js';
 
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
@@ -1296,12 +1297,13 @@ export function textDictionaryForm(x: unknown, at = ''): unknown {
 
 /**
  * Where a value stands in the one textDictionaryForm is writing: the value itself (an entry's,
- * or one written on its own), a property or a struct field (`named`), a cell's element, or an
- * object array's element. Asked only where a text dictionary's spelling of a value is held to
- * what it was until MATLAB reads one back (heldTextSpelling), which differs by place because
- * the binary reader's did.
+ * or one written on its own), an object's property (a Simulink.Parameter's Value among them), a
+ * struct field, a cell's element, or an object array's element. Asked only of a binary
+ * dictionary's empty (heldTextSpelling), whose spelling differs by place where MATLAB's does: an
+ * object array's empty is `[]` at a property and `{"_type": cls, "_value": "[]"}` in a field or
+ * a cell.
  */
-type Place = 'value' | 'named' | 'cell' | 'element';
+type Place = 'value' | 'property' | 'field' | 'cell' | 'element';
 
 function textForm(x: unknown, at: string, place: Place): unknown {
   if (x === null || typeof x !== 'object') {
@@ -1354,6 +1356,11 @@ function textForm(x: unknown, at: string, place: Place): unknown {
   // for an N-D value but the stream, so it is refused here, finally, said where it stands in
   // the value.
   if (Array.isArray(o._emptyDims) && typeof o._type === 'string') {
+    // Of rank 2, it is the empty the binary reader holds under its header, and is spelled so.
+    const held = emptyDimsHeldForm(o);
+    if (held) {
+      return Array.isArray(held) ? held : heldTextSpelling(held, place, at);
+    }
     const empty = { name: '', className: o._type, dimensions: o._emptyDims, isComplex: false, isLogical: o._type === 'logical', value: [], fields: null };
     try {
       return { _type: 'cdata', _value: encodeCdata(empty) };
@@ -1439,7 +1446,7 @@ function textForm(x: unknown, at: string, place: Place): unknown {
     const v = o[k];
     const t =
       k === '_elements' && Array.isArray(v) ? elementsForm(o, at)
-        : k === '_properties' && v && typeof v === 'object' && !Array.isArray(v) ? namedForm(v as Record<string, unknown>, at)
+        : k === '_properties' && v && typeof v === 'object' && !Array.isArray(v) ? namedForm(v as Record<string, unknown>, at, 'property')
           : textForm(v, at, place);
     if (t !== o[k]) {
       out = out ?? { ...o };
@@ -1461,60 +1468,173 @@ function bagClass(o: Record<string, unknown>): string {
 }
 
 /**
- * The spelling a text dictionary was given, before the binary reader kept what it now keeps, for
- * a value whose spelling there waits on MATLAB reading one back; undefined for every other value.
- * Held where it was, place by place, because it differed by place:
+ * The spelling a text dictionary is given for a binary dictionary's empty, place by place;
+ * undefined for every other value. MATLAB was asked, at an entry, a cell's element, a struct
+ * field, a Simulink.Parameter's Value and an object's property
+ * (test/parity/matlab/probe_text_empty_readback.m, text_empty_readback.truth.json, R2027a):
  *
- *   - an empty enumeration array (an enumeration bag with no enumeral): `[]` as a value of its
- *     own, an entry's, and '' as a property or a field, which is what the reader made of it
- *     before it read IsEnum there; in a cell, the bag, as the cell reader has held it since it
- *     read IsEnum. MATLAB's own text dictionary writes `{"_type": "dSomeColors", "_value":
- *     "[]"}` for one, whatever its size.
+ *   - an empty enumeration array (an enumeration bag with no enumeral), and any other numeric or
+ *     logical empty, which the binary reader holds as its class under a bare `Matrix(…)` header
+ *     (BinarySlddParser.emptyOf): `{"_type": "int8", "_value": "Matrix(0,3)"}`, which MATLAB
+ *     reads back as the int8 0x3 it is at every place; and a 0x0 MATLAB's own spelling of one,
+ *     `{"_type": "int16", "_value": "[]"}`, `[]` for a double (textEmptySpelling). MATLAB's own
+ *     text writer writes that `"[]"` for every one, whatever its size, and reads its own file
+ *     back as a 0x0; the binary one keeps the size.
  *   - a shaped empty char, which the binary reader holds as the shaped char's mxchar literal
- *     with no character (BinarySlddParser.charValue): '', at every place, as it was read;
- *   - any other classed or shaped empty, which the binary reader holds as its class under a
- *     bare `Matrix(…)` header (BinarySlddParser.emptyOf), as each place's old form gave it: at
- *     a property or a field, `[]` for a numeric class and '' for any other; as an entry's
- *     value, what MatlabVariableNode.serializeValue made of the entry's `{_type, _emptyDims}`
- *     (entryEmptyText); in a cell, the header as read, which the cell reader always gave, but
- *     for a logical 0x0, which it held as `{_type: 'logical', _value: '[]'}`. MATLAB's own text
- *     dictionary writes `{"_type": "int16", "_value": "[]"}` for an int16 0x0 property and `[]`
- *     for an empty Simulink.BusElement array; how it reads a shaped one back is the open
- *     question.
+ *     with no character (BinarySlddParser.charValue): that literal, which MATLAB reads back as
+ *     the 0x2 or the 2x0 it is, where its own writer writes `""`, a 0x0.
+ *   - an object array's empty, which MATLAB reads back right in no spelling, its own included:
+ *     what MATLAB writes for one, `[]` at a property and `{"_type": "WidgetPart", "_value": "[]"}`
+ *     in a field or a cell (which MATLAB reopens as a char 0x0, a 1x1 default Simulink.Parameter,
+ *     or a struct without the field; this package with its class). As an entry's value, which
+ *     MATLAB refuses to hold at all and so has no spelling of, `[]`, as before: the double 0x0
+ *     that MATLAB and this package both read it back as.
+ *   - one of rank >= 3, or of a class MATLAB gives no object of its own (a function handle's),
+ *     the spelling it was given before: at a property or a field, `[]` for a numeric class and
+ *     '' for any other, an N-D char '' at every place (MATLAB's own `""`); as an entry's value,
+ *     its MAT stream (entryEmptyText); in a cell, the header as read.
  *
  * Each is one the binary reader says it read: an enumeration value by its keys (XmlUtils.ENUM_KEY),
- * an empty by its own (XmlUtils.BINARY_EMPTY_KEY), which is gone from what this returns, the
- * header kept as read included. The same spelling without that key is a text dictionary's own,
- * written by MATLAB or by this package, and is never asked here: it is written as it is held,
- * pasted, copied out of the text dictionary and back, or re-read from it.
+ * an empty by its own (XmlUtils.BINARY_EMPTY_KEY), which is gone from what this returns. The same
+ * spelling without that key is a text dictionary's own, written by MATLAB or by this package, and
+ * is never asked here: it is written as it is held, pasted, copied out of the text dictionary and
+ * back, or re-read from it.
  */
 function heldTextSpelling(o: Record<string, unknown>, place: Place, at: string): unknown {
   if (isEnumBag(o)) {
     if (!Array.isArray(o._elements) || o._elements.length > 0) {
       return undefined;
     }
-    return place === 'value' ? [] : place === 'named' ? '' : undefined;
+    const dims = o._dimensions;
+    if (typeof o._array_class === 'string' && Array.isArray(dims) && dims.length >= 2 && dims.every(isCount)) {
+      const spelled = textEmptySpelling(o._array_class, dims as number[], place, at, true);
+      if (spelled !== undefined) {
+        return spelled;
+      }
+    }
+    return place === 'value' ? [] : place === 'property' || place === 'field' ? '' : undefined;
   }
   const header = { ...o };
   delete header[BINARY_EMPTY_KEY];
   if (o._type === 'mxchar') {
-    return '';
+    const charDims = mxcharEmptyDims(o._value);
+    const spelled = charDims ? textEmptySpelling('mxchar', charDims, place, at) : undefined;
+    return spelled === undefined ? '' : spelled;
   }
   const dims = bareEmptyDims(o);
   if (!dims) {
     return header;
   }
+  const spelled = textEmptySpelling(o._type as string, dims, place, at, false, o._value as string);
+  if (spelled !== undefined) {
+    return spelled;
+  }
   switch (place) {
-    case 'named':
+    case 'property':
+    case 'field':
       return NUMERIC_CLASS.test(o._type as string) ? [] : '';
     case 'value':
       return entryEmptyText(o._type as string, dims, at);
-    case 'cell':
-      return o._type === 'logical' && dims.length === 2 && dims[0] === 0 && dims[1] === 0 ? { _type: 'logical', _value: '[]' } : header;
     default:
       return header;
   }
 }
+
+/**
+ * The text dictionary's spelling of an empty of class `cls` with extents `dims` standing at
+ * `place` (heldTextSpelling): a numeric, logical or enumeration (`enumeration`) one as its class
+ * under the header of its extents, `header` when it is given and states two, and its 0x0 as
+ * MATLAB spells one; a char as the shaped char's literal, its 0x0 `''`; an object array's as
+ * MATLAB writes it, which it reads back right in no spelling. Undefined for one of rank >= 3, for
+ * an extent that is no count, for a class MATLAB gives no object of its own
+ * (NOT_AN_OBJECT_CLASS), and for an object array's at an object array's element.
+ *
+ * Refused, finally, said where it stands (`at`), for one whose spelling states an extent past
+ * MAT_MAX_EXTENT: MATLAB reads `Matrix(0,2147483648)` back as a 0x18446744071562067968, the
+ * extent wrapped, where it reads `Matrix(0,2147483647)` as what it is (R2027a, a text
+ * dictionary's entry), and no MAT stream can say the extent either, so a text dictionary has no
+ * spelling for it, as for an N-D one past it (entryEmptyText).
+ */
+function textEmptySpelling(cls: string, dims: number[], place: Place, at: string, enumeration = false, header?: string): unknown {
+  const d = effectiveDims(dims);
+  if (d.length !== 2 || !d.every(isCount)) {
+    return undefined;
+  }
+  const char = cls === 'mxchar' || cls === 'char';
+  if ((char || enumeration || cls === 'logical' || NUMERIC_CLASS.test(cls)) && d.some((x) => x > MAT_MAX_EXTENT)) {
+    const what = 'a ' + d.join('x') + ' ' + (char ? 'char' : cls);
+    throw new MatBudgetError((at || 'the value') + ', ' + what + ', has an extent past ' + MAT_MAX_EXTENT, at, what, undefined, 'past-int32');
+  }
+  const zero = d[0] === 0 && d[1] === 0;
+  if (cls === 'mxchar' || cls === 'char') {
+    return zero ? '' : { _type: 'mxchar', _value: formatMxCharSerial('', d) };
+  }
+  if (enumeration || cls === 'logical' || NUMERIC_CLASS.test(cls)) {
+    if (zero) {
+      return cls === 'double' ? [] : { _type: cls, _value: '[]' };
+    }
+    const stated = typeof header === 'string' && /^Matrix\(\d+,\d+\)$/.test(header) ? header : 'Matrix(' + d.map(headerDigits).join(',') + ')';
+    return { _type: cls, _value: stated };
+  }
+  if (NOT_AN_OBJECT_CLASS.test(cls)) {
+    return undefined;
+  }
+  switch (place) {
+    case 'value':
+    case 'property':
+      return [];
+    case 'field':
+    case 'cell':
+      return { _type: cls, _value: '[]' };
+    default:
+      return undefined;
+  }
+}
+
+/** The classes a binary dictionary's empty may name that MATLAB gives no object of its own, and that keep their old spelling (heldTextSpelling). */
+const NOT_AN_OBJECT_CLASS = /^(?:function_handle|string|struct|cell|cdata|sparse|complex)$/;
+
+const isCount = (d: unknown): boolean => typeof d === 'number' && Number.isInteger(d) && d >= 0;
+
+/** The extents of the binary reader's shaped empty char, its mxchar literal with no character (`Matrix(0,2)\n[]`), or null. */
+function mxcharEmptyDims(text: unknown): number[] | null {
+  const m = typeof text === 'string' ? /^Matrix\((\d+(?:,\d+)*)\)\n/.exec(text) : null;
+  return m ? m[1].split(',').map(Number) : null;
+}
+
+/**
+ * `{_type, _emptyDims}`, the form an entry's classed or shaped empty took before the binary reader
+ * held one under its header, and the form a host still hands in, as that reader holds it now
+ * (BinarySlddParser.emptyOf, XmlUtils.BINARY_EMPTY_KEY): of rank 2, so that a text dictionary is
+ * given the one spelling of it (heldTextSpelling), and a copy carries its class and size; a double
+ * 0x0 `[]`, as both dictionaries hold one. Null for one of rank >= 3, which has a MAT stream of
+ * its own, for an extent that is no safe count, and for a class whose name this package's own
+ * values give another meaning under `_type` (BinarySlddParser.RESERVED_TYPE), or a char, a struct
+ * or a cell, which no reader holds so: the binary one holds a struct's or a cell's empty as its
+ * array (BinarySlddParser.structValue, cellValue), and the header's text spelling, `[]` or '',
+ * would reopen one as a double or a char 0x0, where its MAT stream reopens as what it is. Null
+ * too for a string or a function handle, which no MAT stream holds: a text dictionary was given
+ * one as the host handed it in, which reopens as what it is at a field and in a cell, where the
+ * header's spelling at a field, '', reopens as a char 0x0.
+ */
+export function emptyDimsHeldForm(o: Record<string, unknown>): Record<string, unknown> | [] | null {
+  const cls = o._type;
+  const dims = o._emptyDims;
+  if (
+    typeof cls !== 'string' || RESERVED_EMPTY_TYPE.has(cls) || cls === 'char' || cls === 'struct' || cls === 'cell' || cls === 'string' || cls === 'function_handle'
+    || !Array.isArray(dims) || dims.length < 2 || !dims.every((x) => Number.isSafeInteger(x) && (x as number) >= 0) || !dims.includes(0)
+  ) {
+    return null;
+  }
+  const d = effectiveDims(dims as number[]);
+  if (d.length !== 2) {
+    return null;
+  }
+  return cls === 'double' && d[0] === 0 && d[1] === 0 ? [] : { _type: cls, _value: 'Matrix(' + d.join(',') + ')', [BINARY_EMPTY_KEY]: true };
+}
+
+/** BinarySlddParser.RESERVED_TYPE: the `_type`s this package's values give a meaning of their own. */
+const RESERVED_EMPTY_TYPE = new Set(['mxchar', 'cdata', 'sparse', 'complex']);
 
 /**
  * What a text dictionary was given for an entry's classed or shaped empty while the binary
@@ -1565,7 +1685,7 @@ function entryEmptyText(cls: string, dims: number[], at: string): unknown {
  * Null when an enumeral lacks its type or number, when they disagree on the type, when the type is
  * not an integer class (the only kind the corpus shows MATLAB spelling, and a double's or a
  * logical's spelling here is unattested), when the size is not the count of enumerals, and for
- * an empty one, whose spelling waits on MATLAB reading one back (heldTextSpelling).
+ * an empty one, which is spelled as MATLAB reads one back (heldTextSpelling).
  */
 function enumTextForm(o: Record<string, unknown>): Record<string, unknown> | null {
   const elements = Array.isArray(o._elements) ? (o._elements as unknown[]) : [];
@@ -1640,10 +1760,10 @@ function bareEmptyDims(o: Record<string, unknown>): number[] | null {
 }
 
 /** textDictionaryForm over a record of named values — an object's properties, a struct's fields — each at `.name`. */
-function namedForm(named: Record<string, unknown>, at: string): Record<string, unknown> {
+function namedForm(named: Record<string, unknown>, at: string, place: 'property' | 'field'): Record<string, unknown> {
   let out: Record<string, unknown> | null = null;
   for (const name of Object.keys(named)) {
-    const t = textForm(named[name], at + '.' + name, 'named');
+    const t = textForm(named[name], at + '.' + name, place);
     if (t !== named[name]) {
       out = out ?? { ...named };
       out[name] = t;
@@ -1669,7 +1789,7 @@ function elementsForm(o: Record<string, unknown>, at: string): unknown[] {
       // A struct element is its fields, each a value of its own; an object's, its id and
       // its `_properties`.
       t = e && typeof e === 'object' && !Array.isArray(e) && o._array_type === 'Struct'
-        ? namedForm(e as Record<string, unknown>, here)
+        ? namedForm(e as Record<string, unknown>, here, 'field')
         : textForm(e, here, 'element');
     }
     changed = changed || t !== e;

@@ -254,13 +254,16 @@ describe('an entry nobody has edited: what each writer does', () => {
     const text = pasteSaveReopen(TEXT, sayable);
     expect([sayable, pasteSaveReopen(BINARY, sayable).written, text.entry.dims, text.entry._scalarType]).toEqual([{ _type: 'int8', _value: 'Matrix(0,3,2)', _binary_empty: true }, SAYABLE, [0, 3, 2], 'int8']);
     expect(isMatCdata(textDictionaryForm(sayable) as any)).toBe(true);
-    // A 0x2147483648 is copied as read too, its class and size with it, and a text dictionary
-    // is given `[]` for it, as it was.
+    // A 0x2147483648 is copied as read too, its class and size with it; a text dictionary, where
+    // MATLAB reads the header of its extents back with the extent wrapped, refuses it, naming it,
+    // as it does an N-D one (MatWriter.textEmptySpelling).
     const flatPast = copy('flatPast');
-    expect([flatPast, textDictionaryForm(flatPast), pasteSaveReopen(BINARY, flatPast).written]).toEqual([
+    const [refused] = thrownBy(() => pasteSaveReopen(TEXT, flatPast));
+    expect([flatPast, pasteSaveReopen(BINARY, flatPast).written, refused?.name, refused?.message]).toEqual([
       { _type: 'double', _value: 'Matrix(0,2147483648)', _binary_empty: true },
-      [],
       '<P Name="Value" Class="double" Dimension="0*2147483648"/>',
+      'MatBudgetError',
+      'Cannot write "pasted": pasted is a 0x2147483648 double' + PAST_INT32,
     ]);
   });
 

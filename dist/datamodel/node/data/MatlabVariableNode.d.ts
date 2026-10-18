@@ -403,8 +403,8 @@ export default class MatlabVariableNode extends DataNode {
      * binary dictionary, and an entry or a property in a text one, showed its class and was saved,
      * and reopened, as a double.
      *
-     * Only the classes classAfterEdit keeps, and only the 0x0, which is all `[]` makes: a shaped
-     * empty's text spelling waits on MATLAB reading one back (MatWriter.heldTextSpelling).
+     * Only the classes classAfterEdit keeps, and only the 0x0, which is all `[]` makes, in MATLAB's
+     * own spelling of one (a binary dictionary's shaped empty is spelled by MatWriter.heldTextSpelling).
      */
     _serializeEmpty(): unknown;
     _serializeArray(): unknown;

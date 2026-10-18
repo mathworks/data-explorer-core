@@ -119,7 +119,9 @@ export class BaseBusNode extends DataNode {
             // empty, the element class under the header of its size (BinarySlddParser.emptyOf),
             // kept as read. A binary dictionary writes it back as MATLAB wrote it, `<P
             // Name="Elements_internal" Class="Simulink.BusElement" Dimension="0*0"/>`, and a text
-            // dictionary is given what it was given before (MatWriter.heldTextSpelling). It
+            // dictionary is given `[]`, MATLAB's spelling of an empty object array at a property
+            // (MatWriter.heldTextSpelling) and what its own text dictionary holds for an empty
+            // bus, which MATLAB reads back as an empty BusElement array (D8-READBACKS M3). It
             // used to be read as '', a char, which every save wrote as `Class="char"`, and once
             // read with its class this arm's `[]` below would have made it a double.
             props.Elements_internal = rawEI;

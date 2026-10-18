@@ -95,8 +95,8 @@ export declare function propertySourcesOf(element: unknown): Record<string, Prop
  * 'int8', _value: 'Matrix(0,3)'}` (BinarySlddParser.emptyOf), and a shaped empty char as the
  * shaped char's literal with no character in it, `{_type: 'mxchar', _value: 'Matrix(0,2)\n[]'}`
  * (BinarySlddParser.charValue). A text dictionary can hold the same spelling, and reads it as
- * the same value. What a text dictionary is given for a binary dictionary's empty is held to
- * what it was given before, until MATLAB reads one back (MatWriter.heldTextSpelling); an empty
+ * the same value. What a text dictionary is given for a binary dictionary's empty is the spelling
+ * MATLAB reads back there (MatWriter.heldTextSpelling), not always this one; an empty
  * the text dictionary holds itself is its own, and is written as it holds it, however often it
  * is copied, pasted or re-read. The spelling cannot tell the two apart, and a copy keeps no
  * identity, so the binary reader says which it is, under this key, as it says a value is an

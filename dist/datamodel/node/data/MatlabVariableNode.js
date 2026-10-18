@@ -21,7 +21,7 @@ import { setOwn } from '../../parser/ownKeys.js';
 import { isMatCdata, uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { encodedClass, encodedStream, encodedXml, hexValue, isEncodedValue, matStreamPrefix, recordDecodeFailure, recordPartialDecode, } from '../../parser/EncodedValue.js';
 import { dimensionText, dimsText, isSize, isStreamSize } from '../../parser/Size.js';
-import { classPhrase, classRefusal, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
+import { classPhrase, classRefusal, emptyDimsHeldForm, encodeMatStream, MatBudgetError, MatWriteError, matStreamOfElement, oneWrite, sparseWriteRefusal, spendUnbacked, writeUnderWay, } from '../../parser/MatWriter.js';
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { charNeedsShape, charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
@@ -1944,6 +1944,14 @@ export default class MatlabVariableNode extends DataNode {
         // class and dims being all of it: so an N-D one with such dims is the form it was read as,
         // not a refusal that left an entry nobody had edited impossible to copy or delete.
         const emptyDims = this._rawInput?._emptyDims;
+        // A rank-2 one, which only a host hands in now (the binary reader holds each other one under
+        // its header), goes as that reader's empty: a text dictionary is given the spelling MATLAB
+        // reads back for it (MatWriter.heldTextSpelling), where `[]` here wrote a double 0x0, and a
+        // copy carries its class and size.
+        const held = this._rawInput !== undefined && emptyDims ? emptyDimsHeldForm(this._rawInput) : null;
+        if (held) {
+            return held;
+        }
         if (this._rawInput !== undefined && (!emptyDims || (effectiveDims(emptyDims).length > 2 && !isStreamSize(emptyDims)))) {
             // Complex TEXT included, which is not a text dictionary's form, and the empty: on the
             // way into such a file DataNode.serialize turns the one into its form and refuses the
@@ -2382,8 +2390,8 @@ export default class MatlabVariableNode extends DataNode {
      * binary dictionary, and an entry or a property in a text one, showed its class and was saved,
      * and reopened, as a double.
      *
-     * Only the classes classAfterEdit keeps, and only the 0x0, which is all `[]` makes: a shaped
-     * empty's text spelling waits on MATLAB reading one back (MatWriter.heldTextSpelling).
+     * Only the classes classAfterEdit keeps, and only the 0x0, which is all `[]` makes, in MATLAB's
+     * own spelling of one (a binary dictionary's shaped empty is spelled by MatWriter.heldTextSpelling).
      */
     _serializeEmpty() {
         const d = effectiveDims(this._dims);
