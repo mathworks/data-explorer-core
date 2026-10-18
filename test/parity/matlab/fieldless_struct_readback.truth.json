@@ -1,0 +1,187 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-10-17",
+  "cases": [
+    {
+      "file": "fieldless_char_text.sldd",
+      "format": "text",
+      "place": "entry",
+      "entry": "bigPasted",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (     @         %    \\\"    ! G   0)P   0         %  0  0    $         \\u0000\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_char_text.sldd",
+      "format": "text",
+      "place": "field",
+      "entry": "bigInField",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (     @         %    \\\"    ! G   0)P   0         %  0  0    $         \\u0000\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_char_text.sldd",
+      "format": "text",
+      "place": "cell",
+      "entry": "bigInCell",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (     @         %    \\\"    ! G   0)P   0         %  0  0    $         \\u0000\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_char_binary.sldd",
+      "format": "binary",
+      "place": "entry",
+      "entry": "bigPasted",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"72\">\n                0001494D000000000E00000038000000060000000800000002000000000000000500000008000000102700001027000001000000000000000500040001000000\n                0100000000000000</P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_char_binary.sldd",
+      "format": "binary",
+      "place": "field",
+      "entry": "bigInField",
+      "fragment": "<P Name=\"f\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"72\">\n                        0001494D000000000E00000038000000060000000800000002000000000000000500000008000000102700001027000001000000000000000500040001000000\n                        0100000000000000</P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_char_binary.sldd",
+      "format": "binary",
+      "place": "cell",
+      "entry": "bigInCell",
+      "fragment": "<Element Class=\"struct\" Encoding=\"hex\" EncodedLength=\"72\">\n                    0001494D000000000E00000038000000060000000800000002000000000000000500000008000000102700001027000001000000000000000500040001000000\n                    0100000000000000</Element>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_sparse_text.sldd",
+      "format": "text",
+      "place": "entry",
+      "entry": "bigPasted",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (     @         %    \\\"    ! G   0)P   0         %  0  0    $         \\u0000\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_sparse_text.sldd",
+      "format": "text",
+      "place": "field",
+      "entry": "bigInField",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (     @         %    \\\"    ! G   0)P   0         %  0  0    $         \\u0000\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_sparse_text.sldd",
+      "format": "text",
+      "place": "cell",
+      "entry": "bigInCell",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (     @         %    \\\"    ! G   0)P   0         %  0  0    $         \\u0000\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_sparse_binary.sldd",
+      "format": "binary",
+      "place": "entry",
+      "entry": "bigPasted",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"72\">\n                0001494D000000000E00000038000000060000000800000002000000000000000500000008000000102700001027000001000000000000000500040001000000\n                0100000000000000</P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_sparse_binary.sldd",
+      "format": "binary",
+      "place": "field",
+      "entry": "bigInField",
+      "fragment": "<P Name=\"f\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"72\">\n                        0001494D000000000E00000038000000060000000800000002000000000000000500000008000000102700001027000001000000000000000500040001000000\n                        0100000000000000</P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    },
+    {
+      "file": "fieldless_sparse_binary.sldd",
+      "format": "binary",
+      "place": "cell",
+      "entry": "bigInCell",
+      "fragment": "<Element Class=\"struct\" Encoding=\"hex\" EncodedLength=\"72\">\n                    0001494D000000000E00000038000000060000000800000002000000000000000500000008000000102700001027000001000000000000000500040001000000\n                    0100000000000000</Element>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          10000,
+          10000
+        ],
+        "fields": 0
+      }
+    }
+  ]
+}
