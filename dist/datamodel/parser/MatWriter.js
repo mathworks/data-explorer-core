@@ -62,7 +62,9 @@ export class MatWriteError extends Error {
  *   - 'not-an-index': a sparse array's non-zero whose row or column is not a whole number,
  *     which no index can hold, and without which the array is not the one it is;
  *   - 'not-decoded': a value the reader recorded without decoding, with no stream of its own
- *     to be written as, so nothing holds its value but the text of its placeholder.
+ *     to be written as, so nothing holds its value but the text of its placeholder;
+ *   - 'no-spelling': an empty a text dictionary has no spelling of that MATLAB reads back as
+ *     what it is: a function handle's, an N-D enumeration's or string's (textEmptySpelling).
  * Final: nothing may be written in the value's place — not the value laid out full, not its
  * summary, not its elements one by one — so it reaches whoever asked for the write, and a
  * copy or a save that holds the value fails. Every other MatWriteError says this writer has
@@ -343,6 +345,7 @@ export function budgetFailure(e, entry, where) {
         'past-int32': ', an extent past ' + MAT_MAX_EXTENT + ', the most a MAT stream\'s dimensions can say, and it has no other spelling here.',
         'not-an-index': ', which is not a row and a column, and it has no spelling here without that non-zero.',
         'not-decoded': ', so there is no value of it to write.',
+        'no-spelling': ', and a text dictionary has no spelling of it that MATLAB reads back as it is.',
     }[e.reason];
     return new MatBudgetError('Cannot write "' + entry + '": ' + at + ' is ' + e.what + why + ' Nothing was written.', at, e.what, entry, e.reason);
 }
@@ -1135,6 +1138,10 @@ function matrixLiteralVariable(o) {
  * recorded is the dims array itself, not the bag holding it: an untouched object array is
  * written as a new bag around its elements (ObjectNode.serializeValue, `{ ...rawVal,
  * _elements }`), which keeps the array read and is not the bag read.
+ *
+ * And a `{_type, _emptyDims}` of its own, the form a host hands an empty in as, which the file
+ * holds as it was written there (emptyDimsHeldForm): a string's or a function handle's goes as
+ * read, where one handed in is respelled or refused.
  */
 const textDictionaryOwn = new WeakSet();
 const isInfinity = (x) => x === Infinity || x === -Infinity;
@@ -1142,9 +1149,9 @@ const isInfinity = (x) => x === Infinity || x === -Infinity;
 const isReadExtent = (x) => isInfinity(x) || isTextExtent(x);
 /**
  * Records every complex text in `value`, a value as the text dictionary being read holds it,
- * and every dims array that holds an infinity. Every entry is walked, so the walk allocates
- * nothing and steps over every primitive: 15 ms of the 420 ms a 138 MB dictionary of 140,000
- * entries takes to read.
+ * every dims array that holds an infinity, and every `{_type, _emptyDims}`. Every entry is
+ * walked, so the walk allocates nothing and steps over every primitive: 15 ms of the 420 ms a
+ * 138 MB dictionary of 140,000 entries takes to read.
  */
 export function heldByTextDictionary(value) {
     if (Array.isArray(value)) {
@@ -1171,6 +1178,9 @@ export function heldByTextDictionary(value) {
             // entries' walk, where this costs none that shows.
             if (k === '_dimensions' && Array.isArray(v) && v.some(isInfinity)) {
                 textDictionaryOwn.add(v);
+            }
+            else if (k === '_emptyDims') {
+                textDictionaryOwn.add(o);
             }
             heldByTextDictionary(v);
         }
@@ -1376,10 +1386,14 @@ function bagClass(o) {
  *     or a struct without the field; this package with its class). As an entry's value, which
  *     MATLAB refuses to hold at all and so has no spelling of, `[]`, as before: the double 0x0
  *     that MATLAB and this package both read it back as.
- *   - one of rank >= 3, or of a class MATLAB gives no object of its own (a function handle's),
- *     the spelling it was given before: at a property or a field, `[]` for a numeric class and
- *     '' for any other, an N-D char '' at every place (MATLAB's own `""`); as an entry's value,
- *     its MAT stream (entryEmptyText); in a cell, the header as read.
+ *   - an empty string, the String bag holding no element; an N-D numeric, logical or char one,
+ *     its MAT stream at every place, which MATLAB reads back as what it is (its own writer writes
+ *     the 0x0 of its class, `""` for a char); refused, an empty function handle, an N-D
+ *     enumeration's and an N-D string's, which MATLAB reads back as what they are in no spelling
+ *     (textEmptySpelling, lossy_empties_readback.truth.json);
+ *   - an object array's of rank >= 3, or one of a class MATLAB gives no object of its own
+ *     (NOT_AN_OBJECT_CLASS), the spelling it was given before: at a property or a field, '';
+ *     as an entry's value `[]` (entryEmptyText); in a cell, the header as read.
  *
  * Each is one the binary reader says it read: an enumeration value by its keys (XmlUtils.ENUM_KEY),
  * an empty by its own (XmlUtils.BINARY_EMPTY_KEY), which is gone from what this returns. The same
@@ -1431,8 +1445,8 @@ function heldTextSpelling(o, place, at) {
  * `place` (heldTextSpelling): a numeric, logical or enumeration (`enumeration`) one as its class
  * under the header of its extents, `header` when it is given and states two, and its 0x0 as
  * MATLAB spells one; a char as the shaped char's literal, its 0x0 `''`; an object array's as
- * MATLAB writes it, which it reads back right in no spelling. Undefined for one of rank >= 3, for
- * an extent that is no count, for a class MATLAB gives no object of its own
+ * MATLAB writes it, which it reads back right in no spelling. Undefined for an object array's of
+ * rank >= 3, for an extent that is no count, for a class MATLAB gives no object of its own
  * (NOT_AN_OBJECT_CLASS), and for an object array's at an object array's element.
  *
  * Refused, finally, said where it stands (`at`), for one whose spelling states an extent past
@@ -1440,13 +1454,39 @@ function heldTextSpelling(o, place, at) {
  * extent wrapped, where it reads `Matrix(0,2147483647)` as what it is (R2027a, a text
  * dictionary's entry), and no MAT stream can say the extent either, so a text dictionary has no
  * spelling for it, as for an N-D one past it (entryEmptyText).
+ *
+ * And, at every place, an empty string, an empty function handle and an N-D empty, which MATLAB
+ * was asked about too (test/parity/matlab/probe_lossy_empties_readback.m,
+ * lossy_empties_readback.truth.json, R2027a):
+ *   - a string's of rank 2 is the String bag holding no element, `{"_array_type": "String",
+ *     "_dimensions": [0, 3], "_elements": [], "_mw_element_type": "MATLABArray"}`, MATLAB's own
+ *     spelling of one at an entry (below one it writes no `_mw_element_type`), which it reads
+ *     back, either way, as the string it is at an entry, a cell, a field and an object's property;
+ *   - an N-D numeric, logical or char one is its MAT stream, which MATLAB reads back as what it is
+ *     at every place, where its own writer writes the 0x0 of its class; refused past MAT_MAX_EXTENT,
+ *     as at an entry (entryEmptyText);
+ *   - a function handle's is refused at every rank: MATLAB holds no function handle in a dictionary
+ *     but as an object's property, and reads its own spelling of an empty one there,
+ *     `{"_type": "function_handle", "_value": "[]"}`, back as a 1x1 handle. So is an N-D
+ *     enumeration's, which MATLAB reads back with its third extent gone under the header or as the
+ *     bag less its keys, as a 0x0 in its own spelling, and in the bag it writes for a non-empty one,
+ *     around an empty stream (enumTextForm), not at all: R2027a crashes opening the dictionary. And
+ *     an N-D string's, which MATLAB refuses in a cell or a field and reads back as another value at
+ *     an entry.
  */
 function textEmptySpelling(cls, dims, place, at, enumeration = false, header) {
     const d = effectiveDims(dims);
-    if (d.length !== 2 || !d.every(isCount)) {
+    if (!d.every(isCount)) {
         return undefined;
     }
     const char = cls === 'mxchar' || cls === 'char';
+    if (cls === 'function_handle' || (d.length > 2 && (enumeration || cls === 'string'))) {
+        const what = cls === 'function_handle' ? 'an empty function handle (' + d.join('x') + ')' : 'a ' + d.join('x') + ' ' + cls;
+        throw new MatBudgetError((at || 'the value') + ', ' + what + ', has no spelling MATLAB reads back', at, what, undefined, 'no-spelling');
+    }
+    if (d.length > 2) {
+        return char || cls === 'logical' || NUMERIC_CLASS.test(cls) ? entryEmptyText(char ? 'char' : cls, d, at) : undefined;
+    }
     if ((char || enumeration || cls === 'logical' || NUMERIC_CLASS.test(cls)) && d.some((x) => x > MAT_MAX_EXTENT)) {
         const what = 'a ' + d.join('x') + ' ' + (char ? 'char' : cls);
         throw new MatBudgetError((at || 'the value') + ', ' + what + ', has an extent past ' + MAT_MAX_EXTENT, at, what, undefined, 'past-int32');
@@ -1461,6 +1501,9 @@ function textEmptySpelling(cls, dims, place, at, enumeration = false, header) {
         }
         const stated = typeof header === 'string' && /^Matrix\(\d+,\d+\)$/.test(header) ? header : 'Matrix(' + d.map(headerDigits).join(',') + ')';
         return { _type: cls, _value: stated };
+    }
+    if (cls === 'string') {
+        return { _array_type: 'String', _dimensions: d, _elements: [], _mw_element_type: 'MATLABArray' };
     }
     if (NOT_AN_OBJECT_CLASS.test(cls)) {
         return undefined;
@@ -1477,7 +1520,7 @@ function textEmptySpelling(cls, dims, place, at, enumeration = false, header) {
     }
 }
 /** The classes a binary dictionary's empty may name that MATLAB gives no object of its own, and that keep their old spelling (heldTextSpelling). */
-const NOT_AN_OBJECT_CLASS = /^(?:function_handle|string|struct|cell|cdata|sparse|complex)$/;
+const NOT_AN_OBJECT_CLASS = /^(?:struct|cell|cdata|sparse|complex)$/;
 const isCount = (d) => typeof d === 'number' && Number.isInteger(d) && d >= 0;
 /** The extents of the binary reader's shaped empty char, its mxchar literal with no character (`Matrix(0,2)\n[]`), or null. */
 function mxcharEmptyDims(text) {
@@ -1494,20 +1537,30 @@ function mxcharEmptyDims(text) {
  * values give another meaning under `_type` (BinarySlddParser.RESERVED_TYPE), or a char, a struct
  * or a cell, which no reader holds so: the binary one holds a struct's or a cell's empty as its
  * array (BinarySlddParser.structValue, cellValue), and the header's text spelling, `[]` or '',
- * would reopen one as a double or a char 0x0, where its MAT stream reopens as what it is. Null
- * too for a string or a function handle, which no MAT stream holds: a text dictionary was given
- * one as the host handed it in, which reopens as what it is at a field and in a cell, where the
- * header's spelling at a field, '', reopens as a char 0x0.
+ * would reopen one as a double or a char 0x0, where its MAT stream reopens as what it is.
+ *
+ * A string's and a function handle's, which no MAT stream holds, go so too, the function handle's
+ * at every rank: a text dictionary is given a string's as the String bag MATLAB reads back as it
+ * is, and refuses a function handle's, which MATLAB reads back as it is in no spelling
+ * (textEmptySpelling). As the host handed it in, MATLAB read either back as another value, or a
+ * struct without the field, and it was written so at a field and in a cell, and `[]` at an entry
+ * and at an object's property, a double 0x0. But one the text dictionary holds itself, as it was
+ * written there (heldByTextDictionary), is itself: a save that edits nothing writes the file it
+ * read.
  */
 export function emptyDimsHeldForm(o) {
     const cls = o._type;
     const dims = o._emptyDims;
-    if (typeof cls !== 'string' || RESERVED_EMPTY_TYPE.has(cls) || cls === 'char' || cls === 'struct' || cls === 'cell' || cls === 'string' || cls === 'function_handle'
+    if (typeof cls !== 'string' || RESERVED_EMPTY_TYPE.has(cls) || cls === 'char' || cls === 'struct' || cls === 'cell'
         || !Array.isArray(dims) || dims.length < 2 || !dims.every((x) => Number.isSafeInteger(x) && x >= 0) || !dims.includes(0)) {
         return null;
     }
+    const handle = cls === 'function_handle';
+    if ((handle || cls === 'string') && textDictionaryOwn.has(o)) {
+        return o;
+    }
     const d = effectiveDims(dims);
-    if (d.length !== 2) {
+    if (d.length !== 2 && !handle) {
         return null;
     }
     return cls === 'double' && d[0] === 0 && d[1] === 0 ? [] : { _type: cls, _value: 'Matrix(' + d.join(',') + ')', [BINARY_EMPTY_KEY]: true };

@@ -1,0 +1,2725 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-10-18",
+  "self": [
+    {
+      "id": "Str03",
+      "expr": "strings(0,3)",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t0,\n\t\t\t\t\t\t\t\t3\n\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\"_elements\": [],\n\t\t\t\t\t\t\t\"_mw_element_type\": \"MATLABArray\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str03",
+      "expr": "strings(0,3)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t0,\n\t\t\t\t\t\t\t\t\t\t3\n\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\"_elements\": []\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str03",
+      "expr": "strings(0,3)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t\t0,\n\t\t\t\t\t\t\t\t\t\t\t3\n\t\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\t\"_elements\": []\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str03",
+      "expr": "strings(0,3)",
+      "place": "param",
+      "text": "",
+      "refused": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str03",
+      "expr": "strings(0,3)",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t\t\t0,\n\t\t\t\t\t\t\t\t\t\t\t\t3\n\t\t\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\t\t\"_elements\": []\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str00",
+      "expr": "strings(0,0)",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t0,\n\t\t\t\t\t\t\t\t0\n\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\"_elements\": [],\n\t\t\t\t\t\t\t\"_mw_element_type\": \"MATLABArray\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str00",
+      "expr": "strings(0,0)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t0,\n\t\t\t\t\t\t\t\t\t\t0\n\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\"_elements\": []\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str00",
+      "expr": "strings(0,0)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t\t0,\n\t\t\t\t\t\t\t\t\t\t\t0\n\t\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\t\"_elements\": []\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str00",
+      "expr": "strings(0,0)",
+      "place": "param",
+      "text": "",
+      "refused": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str00",
+      "expr": "strings(0,0)",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t\t\t0,\n\t\t\t\t\t\t\t\t\t\t\t\t0\n\t\t\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\t\t\"_elements\": []\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str10",
+      "expr": "strings(1,0)",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t1,\n\t\t\t\t\t\t\t\t0\n\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\"_elements\": [],\n\t\t\t\t\t\t\t\"_mw_element_type\": \"MATLABArray\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str10",
+      "expr": "strings(1,0)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t1,\n\t\t\t\t\t\t\t\t\t\t0\n\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\"_elements\": []\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str10",
+      "expr": "strings(1,0)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t\t1,\n\t\t\t\t\t\t\t\t\t\t\t0\n\t\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\t\"_elements\": []\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str10",
+      "expr": "strings(1,0)",
+      "place": "param",
+      "text": "",
+      "refused": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str10",
+      "expr": "strings(1,0)",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_array_type\": \"String\",\n\t\t\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t\t\t1,\n\t\t\t\t\t\t\t\t\t\t\t\t0\n\t\t\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\t\t\"_elements\": []\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Str022",
+      "expr": "strings(0,2,2)",
+      "place": "entry",
+      "text": "? null\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      },
+      "binaryReads": [],
+      "binarySaveError": "Unable to save the following dictionaries: /private/tmp/groupG/out-GA/g4/final/scratch_binary.sldd."
+    },
+    {
+      "id": "Str022",
+      "expr": "strings(0,2,2)",
+      "place": "cell",
+      "text": "",
+      "refused": "The value 'N-D string array' is invalid, expecting '2-D string array'.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": "Unable to save the following dictionaries: /private/tmp/groupG/out-GA/g4/final/scratch_binary.sldd."
+    },
+    {
+      "id": "Str022",
+      "expr": "strings(0,2,2)",
+      "place": "field",
+      "text": "",
+      "refused": "The value 'N-D string array' is invalid, expecting '2-D string array'.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": "Unable to save the following dictionaries: /private/tmp/groupG/out-GA/g4/final/scratch_binary.sldd."
+    },
+    {
+      "id": "Str022",
+      "expr": "strings(0,2,2)",
+      "place": "param",
+      "text": "",
+      "refused": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": "Unable to save the following dictionaries: /private/tmp/groupG/out-GA/g4/final/scratch_binary.sldd."
+    },
+    {
+      "id": "Str022",
+      "expr": "strings(0,2,2)",
+      "place": "prop",
+      "text": "?ABSENT",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": [],
+      "binarySaveError": "Unable to save the following dictionaries: /private/tmp/groupG/out-GA/g4/final/scratch_binary.sldd."
+    },
+    {
+      "id": "Fh00",
+      "expr": "function_handle.empty",
+      "place": "entry",
+      "text": "",
+      "refused": "Values of class 'function_handle' are not supported in the 'Design_Data' section of the dictionary.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Fh00",
+      "expr": "function_handle.empty",
+      "place": "cell",
+      "text": "",
+      "refused": "Unable to import variable 'c_Fh00'. Function handle data type not supported for data dictionaries.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Fh00",
+      "expr": "function_handle.empty",
+      "place": "field",
+      "text": "",
+      "refused": "Unable to import variable 's_Fh00'. Function handle data type not supported for data dictionaries.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Fh00",
+      "expr": "function_handle.empty",
+      "place": "param",
+      "text": "",
+      "refused": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Fh00",
+      "expr": "function_handle.empty",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"function_handle\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "function_handle",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Fh10",
+      "expr": "function_handle.empty(1,0)",
+      "place": "entry",
+      "text": "",
+      "refused": "Values of class 'function_handle' are not supported in the 'Design_Data' section of the dictionary.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Fh10",
+      "expr": "function_handle.empty(1,0)",
+      "place": "cell",
+      "text": "",
+      "refused": "Unable to import variable 'c_Fh10'. Function handle data type not supported for data dictionaries.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Fh10",
+      "expr": "function_handle.empty(1,0)",
+      "place": "field",
+      "text": "",
+      "refused": "Unable to import variable 's_Fh10'. Function handle data type not supported for data dictionaries.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Fh10",
+      "expr": "function_handle.empty(1,0)",
+      "place": "param",
+      "text": "",
+      "refused": "Invalid value specified for parameter. Value must be a numeric array, fi object, enumerated value, structure whose fields contain valid values, string scalar, or an expression.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "Fh10",
+      "expr": "function_handle.empty(1,0)",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"function_handle\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "function_handle",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "D022",
+      "expr": "zeros(0,2,2)",
+      "place": "entry",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "D022",
+      "expr": "zeros(0,2,2)",
+      "place": "cell",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "D022",
+      "expr": "zeros(0,2,2)",
+      "place": "field",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "D022",
+      "expr": "zeros(0,2,2)",
+      "place": "param",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "D022",
+      "expr": "zeros(0,2,2)",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "I8203",
+      "expr": "int8(zeros(2,0,3))",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          2,
+          0,
+          3
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "I8203",
+      "expr": "int8(zeros(2,0,3))",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          2,
+          0,
+          3
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "I8203",
+      "expr": "int8(zeros(2,0,3))",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          2,
+          0,
+          3
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "I8203",
+      "expr": "int8(zeros(2,0,3))",
+      "place": "param",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          2,
+          0,
+          3
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "I8203",
+      "expr": "int8(zeros(2,0,3))",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          2,
+          0,
+          3
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Lg012",
+      "expr": "false(0,1,2)",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          1,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Lg012",
+      "expr": "false(0,1,2)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          1,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Lg012",
+      "expr": "false(0,1,2)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          1,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Lg012",
+      "expr": "false(0,1,2)",
+      "place": "param",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          1,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Lg012",
+      "expr": "false(0,1,2)",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          1,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Ch002",
+      "expr": "char(zeros(0,0,2))",
+      "place": "entry",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Ch002",
+      "expr": "char(zeros(0,0,2))",
+      "place": "cell",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Ch002",
+      "expr": "char(zeros(0,0,2))",
+      "place": "field",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Ch002",
+      "expr": "char(zeros(0,0,2))",
+      "place": "param",
+      "text": "[\n\t\t\t\t\t\t\t\t\t\t\t\"\"\n\t\t\t\t\t\t\t\t\t\t]",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "Ch002",
+      "expr": "char(zeros(0,0,2))",
+      "place": "prop",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "En022",
+      "expr": "GearMode.empty(0,2,2)",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"GearMode\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "En022",
+      "expr": "GearMode.empty(0,2,2)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"GearMode\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "En022",
+      "expr": "GearMode.empty(0,2,2)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"GearMode\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "En022",
+      "expr": "GearMode.empty(0,2,2)",
+      "place": "param",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "En022",
+      "expr": "GearMode.empty(0,2,2)",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "EnND",
+      "expr": "repmat(GearMode.Drive,1,2,2)",
+      "place": "entry",
+      "text": "? {\n\t\t\t\t\t\t\t\"_array_class\": \"GearMode\",\n\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t1,\n\t\t\t\t\t\t\t\t1\n\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\"_elements\": [\n\t\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\t\"_enum_value\": {\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"cdata\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"  %)30     .    2     8    (    #          %    #     $    \\\"     @         !          4    0     0    $    !     0    \\u0000\\u0000\\u0000\"\n\t\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t\t\"_id\": \"1\"\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\"_",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          1,
+          2,
+          2
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          1,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "EnND",
+      "expr": "repmat(GearMode.Drive,1,2,2)",
+      "place": "cell",
+      "text": "?\n\t\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\t\"_array_class\": \"GearMode\",\n\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t1,\n\t\t\t\t\t\t\t\t\t\t1\n\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\"_elements\": [\n\t\t\t\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\t\t\t\"_enum_value\": {\n\t\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"cdata\",\n\t\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"  %)30     .    2     8    (    #          %    #     $    \\\"     @         !          4    0     0    $    !     0    \\u0000\\u0000\\u0000\"\n\t\t\t\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t\t\t\t\"_id\": \"",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          1,
+          2,
+          2
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          1,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "EnND",
+      "expr": "repmat(GearMode.Drive,1,2,2)",
+      "place": "field",
+      "text": "? {\n\t\t\t\t\t\t\t\t\t\t\"_array_class\": \"GearMode\",\n\t\t\t\t\t\t\t\t\t\t\"_dimensions\": [\n\t\t\t\t\t\t\t\t\t\t\t1,\n\t\t\t\t\t\t\t\t\t\t\t1\n\t\t\t\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\t\t\t\"_elements\": [\n\t\t\t\t\t\t\t\t\t\t\t{\n\t\t\t\t\t\t\t\t\t\t\t\t\"_enum_value\": {\n\t\t\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"cdata\",\n\t\t\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"  %)30     .    2     8    (    #          %    #     $    \\\"     @         !          4    0     0    $    !     0    \\u0000\\u0000\\u0000\"\n\t\t\t\t\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t\t\t\t\t\"_id",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          1,
+          2,
+          2
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          1,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "EnND",
+      "expr": "repmat(GearMode.Drive,1,2,2)",
+      "place": "param",
+      "text": "? {\n\t\t\t\t\t\t\t\t\t\t\t\"_enum_value\": {\n\t\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"cdata\",\n\t\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"  %)30     .    2     8    (    #          %    #     $    \\\"     @         !          4    0     0    $    !     0    \\u0000\\u0000\\u0000\"\n\t\t\t\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t\t\t\t\"_id\": \"2\",\n\t\t\t\t\t\t\t\t\t\t\t\"_object_class\": \"GearMode\"\n\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\"_mw_element_type\": \"MATLABArray\"\n\t\t\t\t\t\t}\n\t\t\t\t\t},\n\t",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          1,
+          2,
+          2
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          1,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "EnND",
+      "expr": "repmat(GearMode.Drive,1,2,2)",
+      "place": "prop",
+      "text": "? {\n\t\t\t\t\t\t\t\t\t\t\t\"_enum_value\": {\n\t\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"cdata\",\n\t\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"  %)30     .    2     8    (    #          %    #     $    \\\"     @         !          4    0     0    $    !     0    \\u0000\\u0000\\u0000\"\n\t\t\t\t\t\t\t\t\t\t\t},\n\t\t\t\t\t\t\t\t\t\t\t\"_id\": \"2\",\n\t\t\t\t\t\t\t\t\t\t\t\"_object_class\": \"GearMode\"\n\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t],\n\t\t\t\t\t\t\t\"_mw_element_type\": \"MATLABArray\"\n\t\t\t\t\t\t}\n\t\t\t\t\t},\n\t",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          1,
+          2,
+          2
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          1,
+          2,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "DWide",
+      "expr": "zeros(0,2,2147483648)",
+      "place": "entry",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "DWide",
+      "expr": "zeros(0,2,2147483648)",
+      "place": "cell",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "DWide",
+      "expr": "zeros(0,2,2147483648)",
+      "place": "field",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "DWide",
+      "expr": "zeros(0,2,2147483648)",
+      "place": "param",
+      "text": "",
+      "refused": "Simulink supports dimension size of up to 2147483647. The dimension size specified exceeds this limit. Consider reducing the value size before compiling or simulating the model.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "DWide",
+      "expr": "zeros(0,2,2147483648)",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "I8Wide",
+      "expr": "int8(zeros(2147483648,0,2))",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          2.147483648E+9,
+          0,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "I8Wide",
+      "expr": "int8(zeros(2147483648,0,2))",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          2.147483648E+9,
+          0,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "I8Wide",
+      "expr": "int8(zeros(2147483648,0,2))",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          2.147483648E+9,
+          0,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "I8Wide",
+      "expr": "int8(zeros(2147483648,0,2))",
+      "place": "param",
+      "text": "",
+      "refused": "Simulink supports dimension size of up to 2147483647. The dimension size specified exceeds this limit. Consider reducing the value size before compiling or simulating the model.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "I8Wide",
+      "expr": "int8(zeros(2147483648,0,2))",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"int8\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "int8",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "int8",
+        "size": [
+          2.147483648E+9,
+          0,
+          2
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "LgWide",
+      "expr": "false(0,2,2147483648)",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "LgWide",
+      "expr": "false(0,2,2147483648)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "LgWide",
+      "expr": "false(0,2,2147483648)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "LgWide",
+      "expr": "false(0,2,2147483648)",
+      "place": "param",
+      "text": "",
+      "refused": "Simulink supports dimension size of up to 2147483647. The dimension size specified exceeds this limit. Consider reducing the value size before compiling or simulating the model.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "LgWide",
+      "expr": "false(0,2,2147483648)",
+      "place": "prop",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\t\"_type\": \"logical\",\n\t\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "logical",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "logical",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "ChWide",
+      "expr": "char(zeros(0,2,2147483648))",
+      "place": "entry",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "ChWide",
+      "expr": "char(zeros(0,2,2147483648))",
+      "place": "cell",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "ChWide",
+      "expr": "char(zeros(0,2,2147483648))",
+      "place": "field",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "ChWide",
+      "expr": "char(zeros(0,2,2147483648))",
+      "place": "param",
+      "text": "[\n\t\t\t\t\t\t\t\t\t\t\t\"\"\n\t\t\t\t\t\t\t\t\t\t]",
+      "refused": "",
+      "textReads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binaryReads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "ChWide",
+      "expr": "char(zeros(0,2,2147483648))",
+      "place": "prop",
+      "text": "\"\"",
+      "refused": "",
+      "textReads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "char",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "EnWide",
+      "expr": "GearMode.empty(0,2,2147483648)",
+      "place": "entry",
+      "text": "{\n\t\t\t\t\t\t\t\"_type\": \"GearMode\",\n\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "EnWide",
+      "expr": "GearMode.empty(0,2,2147483648)",
+      "place": "cell",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\"_type\": \"GearMode\",\n\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "EnWide",
+      "expr": "GearMode.empty(0,2,2147483648)",
+      "place": "field",
+      "text": "{\n\t\t\t\t\t\t\t\t\t\t\"_type\": \"GearMode\",\n\t\t\t\t\t\t\t\t\t\t\"_value\": \"[]\"\n\t\t\t\t\t\t\t\t\t}",
+      "refused": "",
+      "textReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    },
+    {
+      "id": "EnWide",
+      "expr": "GearMode.empty(0,2,2147483648)",
+      "place": "param",
+      "text": "",
+      "refused": "Simulink supports dimension size of up to 2147483647. The dimension size specified exceeds this limit. Consider reducing the value size before compiling or simulating the model.",
+      "textReads": [],
+      "binaryReads": [],
+      "binarySaveError": ""
+    },
+    {
+      "id": "EnWide",
+      "expr": "GearMode.empty(0,2,2147483648)",
+      "place": "prop",
+      "text": "[]",
+      "refused": "",
+      "textReads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      },
+      "binaryReads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2,
+          2.147483648E+9
+        ]
+      },
+      "binarySaveError": ""
+    }
+  ],
+  "candidates": [
+    {
+      "id": "S03",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,3],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "entry",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "S03",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,3],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "cell",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "S03",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,3],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S03",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,3],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "field",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "S03",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,3],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "prop",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "S00",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,0],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "entry",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S00",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,0],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "cell",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S00",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,0],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S00",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,0],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "field",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S00",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,0],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "prop",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S10",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[1,0],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "entry",
+      "reads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S10",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[1,0],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "cell",
+      "reads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S10",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[1,0],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S10",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[1,0],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "field",
+      "reads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S10",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[1,0],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "place": "prop",
+      "reads": {
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S03nomw",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,3],\"_elements\":[]}",
+      "place": "entry",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "S03nomw",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,3],\"_elements\":[]}",
+      "place": "cell",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "S03nomw",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,3],\"_elements\":[]}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "S03nomw",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,3],\"_elements\":[]}",
+      "place": "field",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "S03nomw",
+      "spelling": "{\"_array_type\":\"String\",\"_dimensions\":[0,3],\"_elements\":[]}",
+      "place": "prop",
+      "reads": {
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Shost",
+      "spelling": "{\"_type\":\"string\",\"_emptyDims\":[0,3]}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Shost",
+      "spelling": "{\"_type\":\"string\",\"_emptyDims\":[0,3]}",
+      "place": "cell",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Shost",
+      "spelling": "{\"_type\":\"string\",\"_emptyDims\":[0,3]}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Shost",
+      "spelling": "{\"_type\":\"string\",\"_emptyDims\":[0,3]}",
+      "place": "field",
+      "reads": {
+        "error": "Unrecognized field name \"f\"."
+      }
+    },
+    {
+      "id": "Shost",
+      "spelling": "{\"_type\":\"string\",\"_emptyDims\":[0,3]}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Fhost10",
+      "spelling": "{\"_type\":\"function_handle\",\"_emptyDims\":[1,0]}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Fhost10",
+      "spelling": "{\"_type\":\"function_handle\",\"_emptyDims\":[1,0]}",
+      "place": "cell",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Fhost10",
+      "spelling": "{\"_type\":\"function_handle\",\"_emptyDims\":[1,0]}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Fhost10",
+      "spelling": "{\"_type\":\"function_handle\",\"_emptyDims\":[1,0]}",
+      "place": "field",
+      "reads": {
+        "error": "Unrecognized field name \"f\"."
+      }
+    },
+    {
+      "id": "Fhost10",
+      "spelling": "{\"_type\":\"function_handle\",\"_emptyDims\":[1,0]}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Fhost00",
+      "spelling": "{\"_type\":\"function_handle\",\"_emptyDims\":[0,0]}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Fhost00",
+      "spelling": "{\"_type\":\"function_handle\",\"_emptyDims\":[0,0]}",
+      "place": "cell",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Fhost00",
+      "spelling": "{\"_type\":\"function_handle\",\"_emptyDims\":[0,0]}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "Fhost00",
+      "spelling": "{\"_type\":\"function_handle\",\"_emptyDims\":[0,0]}",
+      "place": "field",
+      "reads": {
+        "error": "Unrecognized field name \"f\"."
+      }
+    },
+    {
+      "id": "Fhost00",
+      "spelling": "{\"_type\":\"function_handle\",\"_emptyDims\":[0,0]}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Nd022",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@         %    #          \\\"     @         !          D         \\u0000\"}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nd022",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@         %    #          \\\"     @         !          D         \\u0000\"}",
+      "place": "cell",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nd022",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@         %    #          \\\"     @         !          D         \\u0000\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nd022",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@         %    #          \\\"     @         !          D         \\u0000\"}",
+      "place": "field",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nd022",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@         %    #          \\\"     @         !          D         \\u0000\"}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ni8203",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"          %    #     (          P         !          $         \\u0000\"}",
+      "place": "entry",
+      "reads": {
+        "class": "int8",
+        "size": [
+          2,
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Ni8203",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"          %    #     (          P         !          $         \\u0000\"}",
+      "place": "cell",
+      "reads": {
+        "class": "int8",
+        "size": [
+          2,
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Ni8203",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"          %    #     (          P         !          $         \\u0000\"}",
+      "place": "param",
+      "reads": {
+        "class": "int8",
+        "size": [
+          2,
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Ni8203",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"          %    #     (          P         !          $         \\u0000\"}",
+      "place": "field",
+      "reads": {
+        "class": "int8",
+        "size": [
+          2,
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Ni8203",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"          %    #     (          P         !          $         \\u0000\"}",
+      "place": "prop",
+      "reads": {
+        "class": "int8",
+        "size": [
+          2,
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "Nlg012",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"0(        %    #          !     @         !          (         \\u0000\"}",
+      "place": "entry",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nlg012",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"0(        %    #          !     @         !          (         \\u0000\"}",
+      "place": "cell",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nlg012",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"0(        %    #          !     @         !          (         \\u0000\"}",
+      "place": "param",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nlg012",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"0(        %    #          !     @         !          (         \\u0000\"}",
+      "place": "field",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nlg012",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"0(        %    #          !     @         !          (         \\u0000\"}",
+      "place": "prop",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nch002",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !          %    #                @         !         !          \\u0000\"}",
+      "place": "entry",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nch002",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !          %    #                @         !         !          \\u0000\"}",
+      "place": "cell",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nch002",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !          %    #                @         !         !          \\u0000\"}",
+      "place": "param",
+      "reads": {
+        "class": "string",
+        "size": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Nch002",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !          %    #                @         !         !          \\u0000\"}",
+      "place": "field",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Nch002",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !          %    #                @         !         !          \\u0000\"}",
+      "place": "prop",
+      "reads": {
+        "class": "char",
+        "size": [
+          0,
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ni32022",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    #          %    #          \\\"     @         !          4         \\u0000\"}",
+      "place": "entry",
+      "reads": {
+        "class": "int32",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ni32022",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    #          %    #          \\\"     @         !          4         \\u0000\"}",
+      "place": "cell",
+      "reads": {
+        "class": "int32",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ni32022",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    #          %    #          \\\"     @         !          4         \\u0000\"}",
+      "place": "param",
+      "reads": {
+        "class": "int32",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ni32022",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    #          %    #          \\\"     @         !          4         \\u0000\"}",
+      "place": "field",
+      "reads": {
+        "class": "int32",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ni32022",
+      "spelling": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    #          %    #          \\\"     @         !          4         \\u0000\"}",
+      "place": "prop",
+      "reads": {
+        "class": "int32",
+        "size": [
+          0,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hd022",
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2,2)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hd022",
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2,2)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hd022",
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2,2)\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hd022",
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2,2)\"}",
+      "place": "field",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hd022",
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2,2)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hlg012",
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,1,2)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Hlg012",
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,1,2)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Hlg012",
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,1,2)\"}",
+      "place": "param",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Hlg012",
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,1,2)\"}",
+      "place": "field",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "Hlg012",
+      "spelling": "{\"_type\":\"logical\",\"_value\":\"Matrix(0,1,2)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "logical",
+        "size": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "id": "He022",
+      "spelling": "{\"_type\":\"GearMode\",\"_value\":\"Matrix(0,2,2)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "He022",
+      "spelling": "{\"_type\":\"GearMode\",\"_value\":\"Matrix(0,2,2)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "He022",
+      "spelling": "{\"_type\":\"GearMode\",\"_value\":\"Matrix(0,2,2)\"}",
+      "place": "param",
+      "reads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "He022",
+      "spelling": "{\"_type\":\"GearMode\",\"_value\":\"Matrix(0,2,2)\"}",
+      "place": "field",
+      "reads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "He022",
+      "spelling": "{\"_type\":\"GearMode\",\"_value\":\"Matrix(0,2,2)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ebag022",
+      "spelling": "{\"_array_class\":\"GearMode\",\"_dimensions\":[0,2,2],\"_mw_element_type\":\"MATLABArray\",\"_elements\":[]}",
+      "place": "entry",
+      "reads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ebag022",
+      "spelling": "{\"_array_class\":\"GearMode\",\"_dimensions\":[0,2,2],\"_mw_element_type\":\"MATLABArray\",\"_elements\":[]}",
+      "place": "cell",
+      "reads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ebag022",
+      "spelling": "{\"_array_class\":\"GearMode\",\"_dimensions\":[0,2,2],\"_mw_element_type\":\"MATLABArray\",\"_elements\":[]}",
+      "place": "param",
+      "reads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ebag022",
+      "spelling": "{\"_array_class\":\"GearMode\",\"_dimensions\":[0,2,2],\"_mw_element_type\":\"MATLABArray\",\"_elements\":[]}",
+      "place": "field",
+      "reads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Ebag022",
+      "spelling": "{\"_array_class\":\"GearMode\",\"_dimensions\":[0,2,2],\"_mw_element_type\":\"MATLABArray\",\"_elements\":[]}",
+      "place": "prop",
+      "reads": {
+        "class": "GearMode",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hwide",
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2,2147483648)\"}",
+      "place": "entry",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hwide",
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2,2147483648)\"}",
+      "place": "cell",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hwide",
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2,2147483648)\"}",
+      "place": "param",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hwide",
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2,2147483648)\"}",
+      "place": "field",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "Hwide",
+      "spelling": "{\"_type\":\"double\",\"_value\":\"Matrix(0,2,2147483648)\"}",
+      "place": "prop",
+      "reads": {
+        "class": "double",
+        "size": [
+          0,
+          2
+        ]
+      }
+    }
+  ]
+}

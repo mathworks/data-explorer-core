@@ -16,7 +16,9 @@ export declare class MatWriteError extends Error {
  *   - 'not-an-index': a sparse array's non-zero whose row or column is not a whole number,
  *     which no index can hold, and without which the array is not the one it is;
  *   - 'not-decoded': a value the reader recorded without decoding, with no stream of its own
- *     to be written as, so nothing holds its value but the text of its placeholder.
+ *     to be written as, so nothing holds its value but the text of its placeholder;
+ *   - 'no-spelling': an empty a text dictionary has no spelling of that MATLAB reads back as
+ *     what it is: a function handle's, an N-D enumeration's or string's (textEmptySpelling).
  * Final: nothing may be written in the value's place — not the value laid out full, not its
  * summary, not its elements one by one — so it reaches whoever asked for the write, and a
  * copy or a save that holds the value fails. Every other MatWriteError says this writer has
@@ -31,7 +33,7 @@ export declare class MatBudgetError extends MatWriteError {
     readonly at: string;
     readonly what: string;
     readonly entry: string | undefined;
-    readonly reason: 'budget' | 'not-a-count' | 'past-int32' | 'not-an-index' | 'not-decoded';
+    readonly reason: 'budget' | 'not-a-count' | 'past-int32' | 'not-an-index' | 'not-decoded' | 'no-spelling';
     /** False when what stands at `at` declares a size that is no count at all (NaN, Inf). */
     readonly counted: boolean;
     constructor(message: string, at: string, what: string, entry?: string, reason?: MatBudgetError['reason']);
@@ -142,9 +144,9 @@ export declare function matStreamOfElement(raw: Uint8Array): Uint8Array | null;
 export declare function complexTextVariable(raw: unknown): MatVariable | null;
 /**
  * Records every complex text in `value`, a value as the text dictionary being read holds it,
- * and every dims array that holds an infinity. Every entry is walked, so the walk allocates
- * nothing and steps over every primitive: 15 ms of the 420 ms a 138 MB dictionary of 140,000
- * entries takes to read.
+ * every dims array that holds an infinity, and every `{_type, _emptyDims}`. Every entry is
+ * walked, so the walk allocates nothing and steps over every primitive: 15 ms of the 420 ms a
+ * 138 MB dictionary of 140,000 entries takes to read.
  */
 export declare function heldByTextDictionary(value: unknown): void;
 /**
@@ -173,10 +175,16 @@ export declare function textDictionaryForm(x: unknown, at?: string): unknown;
  * values give another meaning under `_type` (BinarySlddParser.RESERVED_TYPE), or a char, a struct
  * or a cell, which no reader holds so: the binary one holds a struct's or a cell's empty as its
  * array (BinarySlddParser.structValue, cellValue), and the header's text spelling, `[]` or '',
- * would reopen one as a double or a char 0x0, where its MAT stream reopens as what it is. Null
- * too for a string or a function handle, which no MAT stream holds: a text dictionary was given
- * one as the host handed it in, which reopens as what it is at a field and in a cell, where the
- * header's spelling at a field, '', reopens as a char 0x0.
+ * would reopen one as a double or a char 0x0, where its MAT stream reopens as what it is.
+ *
+ * A string's and a function handle's, which no MAT stream holds, go so too, the function handle's
+ * at every rank: a text dictionary is given a string's as the String bag MATLAB reads back as it
+ * is, and refuses a function handle's, which MATLAB reads back as it is in no spelling
+ * (textEmptySpelling). As the host handed it in, MATLAB read either back as another value, or a
+ * struct without the field, and it was written so at a field and in a cell, and `[]` at an entry
+ * and at an object's property, a double 0x0. But one the text dictionary holds itself, as it was
+ * written there (heldByTextDictionary), is itself: a save that edits nothing writes the file it
+ * read.
  */
 export declare function emptyDimsHeldForm(o: Record<string, unknown>): Record<string, unknown> | [] | null;
 export {};
