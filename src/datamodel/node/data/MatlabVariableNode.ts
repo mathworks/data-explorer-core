@@ -1175,29 +1175,7 @@ export default class MatlabVariableNode extends DataNode {
     if (propName !== 'Value' || this._isConstrainedChild()) {
       return null;
     }
-    const own = this as unknown as Record<string, unknown>;
-    const saved = new Map(Object.entries(own).filter(([key]) => !RESTORE_LEAVES.has(key)));
-    const children = this.children.slice();
-    return () => {
-      // First, so that every node above drops what it was read from (it is written from its
-      // children now, this one among them) and the entry is Modified and its file dirty. The
-      // restore below then gives this node its own back.
-      this._markModified();
-      for (const key of Object.keys(own)) {
-        if (!RESTORE_LEAVES.has(key) && !saved.has(key)) {
-          delete own[key];
-        }
-      }
-      for (const [key, value] of saved) {
-        own[key] = value;
-      }
-      this.children = children.slice();
-      for (const child of this.children) {
-        child.parent = this;
-      }
-      // As setProperty's own Value edit does: the parent's row for this node follows its shape.
-      this.parent?.childStructureChanged(this);
-    };
+    return this._ownStateRestorer(RESTORE_LEAVES);
   }
 
   /**
