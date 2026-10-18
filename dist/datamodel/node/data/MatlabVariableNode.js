@@ -2036,7 +2036,8 @@ export default class MatlabVariableNode extends DataNode {
      *     re-encodes it;
      *   - otherwise what MatWriter writes for the live value, which is MATLAB's own bytes for
      *     a sparse array, written from its non-zeros (MatWriter.encodeSparse); null for what
-     *     MatWriter has no spelling for, which a caller writes its own way.
+     *     MatWriter has no spelling for, or writes as what it is not (_matWritable: a string
+     *     read from a file, as its char), which a caller writes its own way.
      *
      * Except past the unbacked-bytes budget: that refusal is final, and it is thrown, restated
      * with the entry and the path (_budgetFailure), so the copy or the save asking fails and
@@ -2071,7 +2072,27 @@ export default class MatlabVariableNode extends DataNode {
             }
         }
         try {
-            return encodeMatStream(this._var);
+            const bytes = encodeMatStream(this._var);
+            // Written, but not necessarily as what it is (_matWritable). A string read from a
+            // dictionary's JSON or XML is handed to MatWriter as the char its elements join to
+            // (_buildVarObject), so the stream of an N-D cell holding one, edited at a sibling, held
+            // the char 'abcd', and its copy reopened as that char, pasted into either kind of
+            // dictionary. Such a value is refused as one MatWriter has no class for, and its caller
+            // writes it its own way, as the unedited value is (a binary dictionary's Cell bag), or, when
+            // `refuse` is set, refuses it. After the encode, so that a refusal of MatWriter's own (for
+            // dims, for the budget, which are final) stands whatever the order of the members.
+            if (!this._matWritable()) {
+                const unwritableClass = (n) => {
+                    if (!(n instanceof MatlabVariableNode)) {
+                        return String(n.className || 'value');
+                    }
+                    const c = n.children.find((m) => !(m instanceof MatlabVariableNode) || !m._matWritable());
+                    return c ? unwritableClass(c) : n._isOpaque ? n._opaqueClassName || 'object' : n._scalarType;
+                };
+                const cls = this._holdsString() ? 'string' : unwritableClass(this);
+                throw classRefusal(cls) ?? new MatWriteError(classPhrase(cls) + ' MatWriter has no variable for');
+            }
+            return bytes;
         }
         catch (e) {
             if (e instanceof MatBudgetError) {
