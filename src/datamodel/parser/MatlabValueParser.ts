@@ -655,9 +655,12 @@ function tokenizeCellElements(rowStr: string): unknown[] | null {
 
         // The span of ONE element. Bracketed and quoted spans are measured by the
         // scanners that already know where they end (a ',' or ' ' inside either is
-        // ordinary content); a bare token runs to the next separator.
+        // ordinary content); a bare token runs to the next separator that is not beside
+        // a binary `+` or `-`.
         const ch = rowStr.charAt(i);
         let span: string;
+        // A bare token joined to the next at a binary `+` or `-` (see below).
+        let joined = false;
         if (ch === "'" || ch === '"') {
             // A string's span is the whole of its sum, "a" + newline + "b" (scanStringSum).
             const scanned = ch === '"' ? scanStringSum(rowStr, i, true) : scanQuoted(rowStr, i);
@@ -671,8 +674,34 @@ function tokenizeCellElements(rowStr: string): unknown[] | null {
             i = end + 1;
         } else {
             let end = i;
-            while (end < len && rowStr.charAt(end) !== ',' && rowStr.charAt(end) !== ' ' && rowStr.charAt(end) !== ';') {
-                end++;
+            for (;;) {
+                while (end < len && rowStr.charAt(end) !== ',' && rowStr.charAt(end) !== ' ' && rowStr.charAt(end) !== ';') {
+                    end++;
+                }
+                // MATLAB's whitespace rule inside brackets and braces: a `+` or `-` that ends
+                // a token (`3+ 4i`), or has whitespace after it (`3 + 4i`, `1 - 2i`), is
+                // binary and joins the terms either side of it; one with whitespace before
+                // it and none after starts a member (`3 +4i` is {3, 4i}, `1 -2` is {1, -2}).
+                // Split at every space, `{3 + 4i}` was the three members 3, '+' and '0+4i'.
+                let next = end;
+                while (next < len && rowStr.charAt(next) === ' ') { next++; }
+                const last = rowStr.charAt(end - 1);
+                if ((last === '+' || last === '-') && next > end && next < len) {
+                    joined = true;
+                    end = next;
+                    continue;
+                }
+                const op = rowStr.charAt(next);
+                if ((op === '+' || op === '-') && rowStr.charAt(next + 1) === ' ') {
+                    let after = next + 1;
+                    while (after < len && rowStr.charAt(after) === ' ') { after++; }
+                    if (after < len) {
+                        joined = true;
+                        end = after;
+                        continue;
+                    }
+                }
+                break;
             }
             span = rowStr.slice(i, end);
             i = end;
@@ -684,8 +713,11 @@ function tokenizeCellElements(rowStr: string): unknown[] | null {
             // far as this reader is concerned, and refusing it would reject a value the
             // table can perfectly well show. A malformed BRACKETED or QUOTED span is a
             // different thing: it announced a shape and then failed to be one, so it is
-            // still a rejection of the whole cell.
-            if (ch === '[' || ch === '{' || ch === "'" || ch === '"') { return null; }
+            // still a rejection of the whole cell. So is a span joined at a `+` or `-` that
+            // is not a complex literal (`1 + 2`, `a + b`, `'a' + 1`): MATLAB adds the terms,
+            // this parser does no arithmetic, and the text held as a char is a value MATLAB
+            // never makes of it ({3}, a sum, {98}).
+            if (ch === '[' || ch === '{' || ch === "'" || ch === '"' || joined) { return null; }
             elements.push(span);
             continue;
         }
@@ -718,6 +750,7 @@ function tokenizeCellElements(rowStr: string): unknown[] | null {
  *   {["a" "b"]}     {"_array_type": "String", "_dimensions": [1,2], "_elements": ["a","b"]}
  *   {"a"}           ["a"]
  *   {{1;2}}         {"_array_type": "Cell",   "_dimensions": [2,1], "_elements": [1,2]}
+ *   {1+2i}          {"_type": "cdata",   "_value": "<a MAT stream>"}   <- the bag {"_type": "cdata", "_value": "1+2i"} here
  *
  * Note how little of that is a free choice: a double row is bare and a LOGICAL row is
  * not, because the bare form says double; a 1x1 string is a one-element LIST because a
@@ -789,10 +822,13 @@ function cellElementRaw(parsed: ParsedValue): unknown {
                 : { _type: 'double', _value: formatMatrixSerial(value, dims, 'double') };
         }
         default:
-            // 'complex'. MATLAB writes a cdata MAT stream for one of those even inside a
-            // cell, which this parser cannot build, so the formatted literal is kept as
-            // text — the reading `{1+2i}` has always had here. Logged in the spec.
-            return parsed.value;
+            // 'complex': the complex-text bag a binary dictionary's reader gives a complex
+            // element of a cell (`<Element Class="double" IsComplex="1">1.0+2.0i</Element>`),
+            // which each writer spells as MATLAB does: a text dictionary's as the cdata MAT
+            // stream MATLAB writes even inside a cell, a binary one's as that IsComplex
+            // element. The formatted literal used to be kept as bare text, which is a CHAR,
+            // and was written as one in both formats (`"1+2i"`, `<Element Class="char">`).
+            return { _type: 'cdata', _value: parsed.value };
     }
 }
 
