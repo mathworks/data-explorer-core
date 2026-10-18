@@ -151,6 +151,12 @@ interface DecodeContext {
   // variable, so an object two variables share is reported for both.
   unreadBlocks: Set<number>;
   unreadText: Set<number>;
+  // The expansion budget, per variable too (MAX_REPEATED_OBJECTS): `expanded` the objects
+  // buildProperties has laid out for this variable, `repeats` how many times it laid out one of
+  // them again, and `unexpanded` the objects it then showed without their properties.
+  expanded: Set<number>;
+  repeats: number;
+  unexpanded: Set<number>;
 }
 
 /**
@@ -173,6 +179,23 @@ export interface McosDecodeIssue {
 
 const MI_MATRIX = 14;
 const MAX_RECURSION_DEPTH = 32;
+
+// How many times one variable's decode lays out an object it has already laid out, before it
+// shows a repeat without its properties, as it shows one past MAX_RECURSION_DEPTH. MATLAB saves
+// a handle once and refers to it by id from each place that holds it, and buildProperties lays
+// an object out once per path to it, guarding only the current path, which is what a cycle
+// needs. So a chain of handles whose every Kids is [cur cur], one handle held twice, is laid
+// out as 2^(d+1) - 1 objects at depth d, and the node layer builds rows for each of them.
+// MATLAB writes depth 20 in 930 bytes, and it ran a 4 GB heap out while it opened.
+//
+// Counted per variable, beside unreadBlocks, and reported with the variable's decode, so a
+// warning names it. Not a cache of one bag per object: the node layer would still build a row
+// per path from the shared bags, and an edit to one would show in all of them. The figure is
+// MAX_EXPANDED_ELEMENTS, the node layer's row cap, restated because this folder imports
+// nothing from display/ (test/moduleBoundaries.test.ts), and held to it by
+// test/mcosSharedObjects.test.ts. No MATLAB-written fixture repeats an object at all, and the
+// most any corpus file does is 111 times.
+const MAX_REPEATED_OBJECTS = 10000;
 
 // A MATLAB `string`-typed value is stored as its own MCOS object whose text lives in
 // a packed uint64 heap cell. That cell IS decoded now (see the payload section below,
@@ -851,6 +874,15 @@ function buildProperties(objId: number, ctx: DecodeContext, path: Set<number>, d
   if (depth > MAX_RECURSION_DEPTH || path.has(objId)) return props;
   const obj = ctx.meta.objects[objId];
   if (!obj) return props;
+  if (ctx.expanded.has(objId)) {
+    if (ctx.repeats >= MAX_REPEATED_OBJECTS) {
+      ctx.unexpanded.add(objId);
+      return props;
+    }
+    ctx.repeats++;
+  } else {
+    ctx.expanded.add(objId);
+  }
 
   path.add(objId);
 
@@ -1171,9 +1203,14 @@ export function decodeMcosVariables<V extends McosVariableRef>(
       ? (lastCell.value as (MatVariable | null)[])
       : [];
 
-  const ctx: DecodeContext = { cells, meta, defaults, unreadBlocks: new Set(), unreadText: new Set() };
+  const ctx: DecodeContext = { cells, meta, defaults, unreadBlocks: new Set(), unreadText: new Set(), expanded: new Set(), repeats: 0, unexpanded: new Set() };
 
   for (const v of variables) {
+    // The budget is fresh for each variable, before the enumeration read below, which lays
+    // objects out as well: one variable cannot spend another's.
+    ctx.expanded = new Set();
+    ctx.repeats = 0;
+    ctx.unexpanded = new Set();
     // The parsed handle first: MatParser keeps one for every class-17 element at any
     // depth, and it is the only one a cell element has, since a cell element keeps no
     // raw bytes to scan. The scan is the fallback for a variable no parser of handles
@@ -1266,6 +1303,11 @@ export function decodeMcosVariables<V extends McosVariableRef>(
     }
     if (ctx.unreadText.size > 0) {
       lost.push(`${ctx.unreadText.size} of its strings' text could not be read, so those strings are shown without it`);
+    }
+    if (ctx.unexpanded.size > 0) {
+      lost.push(
+        `${ctx.unexpanded.size} of its objects are reached more than once, and past ${MAX_REPEATED_OBJECTS} repeats they are shown without their properties`,
+      );
     }
     if (lost.length > 0) {
       issues?.set(v, { refused: false, reason: lost.join('; ') });
