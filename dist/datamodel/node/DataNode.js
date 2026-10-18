@@ -3,14 +3,14 @@ import BaseNode, { encodedHolderOf } from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
-import { budgetFailure, classPhrase, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
-import { dimsText, isExactDigits, isSpellableExtent, isTextExtent } from '../parser/Size.js';
+import { budgetFailure, classPhrase, MatBudgetError, MatWriteError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
+import { dimensionText, dimsText, everyExtent, isExactDigits, isSpellableExtent, isTextExtent } from '../parser/Size.js';
 import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
 import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import { validateMatlabName } from '../matlabName.js';
 import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
-import { charTextFromCodes, decimalCharXml, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
+import { charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -681,6 +681,40 @@ export default class DataNode extends BaseNode {
             m.lastModifiedDate = formatMatlabTimestamp(raw);
         }
     }
+    /**
+     * What puts this node back as it stands now: every own field but those in `leaves`, and its
+     * list of children, held now and put back when it is called. For a node's `_restorerFor`
+     * (DataModel.editProperty), for the undo of a Value edit about to be made, by a node whose
+     * Value edit assigns every field it changes and changes nothing it found in place, so that
+     * what it holds now is still the value it was: MatlabVariableNode's (_applyParsed) and
+     * ParameterNode's. `_rawInput` comes back with the rest, so a value undone is written as it
+     * was read.
+     */
+    _ownStateRestorer(leaves) {
+        const own = this;
+        const saved = new Map(Object.entries(own).filter(([key]) => !leaves.has(key)));
+        const children = this.children.slice();
+        return () => {
+            // First, so that every node above drops what it was read from (it is written from its
+            // children now, this one among them) and the entry is Modified and its file dirty. The
+            // restore below then gives this node its own back.
+            this._markModified();
+            for (const key of Object.keys(own)) {
+                if (!leaves.has(key) && !saved.has(key)) {
+                    delete own[key];
+                }
+            }
+            for (const [key, value] of saved) {
+                own[key] = value;
+            }
+            this.children = children.slice();
+            for (const child of this.children) {
+                child.parent = this;
+            }
+            // As a Value edit does: the parent's row for this node follows its shape.
+            this.parent?.childStructureChanged(this);
+        };
+    }
     serialize() {
         // serialize() is what a text dictionary is written from — SlddNode.serializeJson, and
         // a host splicing one entry's JSON into the file — and serializeValue's replay of an
@@ -1056,6 +1090,49 @@ export default class DataNode extends BaseNode {
             validValue: this._resolveProperty(propName) === 'name' ? this.name : this.displayValue,
         };
     }
+    /**
+     * Does this object's value hold its properties beside its class, with no element (SER-TE)?
+     *
+     * MATLAB writes an object's properties inside its one element, `{_array_class, _elements:
+     * [{_properties: {…}}]}`, and so does every reader and writer in this package. A text
+     * dictionary is JSON anyone, or any generator, can write, and one can hold them inline
+     * instead, `{_array_class: 'Simulink.Parameter', Value: 0.001, …}`, with no `_elements` (or a
+     * `null` one): three in the local corpus do (complex/base, plant and shared.sldd). A typed
+     * node reads its properties from the element only, so such an entry opens with each at its
+     * default. Its class's serializeValue rebuilt the element from `_elements[0]`, and threw a
+     * TypeError, which failed an untouched save of the whole file, a copy of the entry and the
+     * save after a rename.
+     *
+     * Under the maintainer's ruling (group F, 2026-10-18, option (a)) the value is written back as
+     * it was read, by ParameterNode, the buses and EnumTypeNode, whose serializeValue threw on it.
+     * An edit the replay would drop is refused (_refuseInlineBagEdit), and so is its XML
+     * (_serializeSimulinkObjectXml), which has no spelling for it.
+     */
+    _inlineObjectBag() {
+        const raw = this.serial && this.serial._rawVal;
+        return !!raw && typeof raw === 'object' && !!raw._array_class && !Array.isArray(raw._elements);
+    }
+    /**
+     * The refusal of an edit to an object holding its properties beside its class
+     * (_inlineObjectBag), or null when the edit may go ahead. Its value is written back as it was
+     * read, so an edit the node took would be dropped by the save; a rename is let through, as
+     * the name lives outside the value. Asked by the setProperty of each class that replays it.
+     */
+    _refuseInlineBagEdit(propName, stringValue) {
+        if (!this._inlineObjectBag() || this._resolveProperty(propName) === 'name') {
+            return null;
+        }
+        return {
+            error: true,
+            reason: `'${this.displayName}' holds its properties in a form MATLAB does not write. This editor cannot show or change them, and a save keeps them as written.`,
+            invalidValue: stringValue,
+            validValue: this.displayValue,
+        };
+    }
+    /** `info`, with no editor for any property but the name of an object holding its properties beside its class (_inlineObjectBag). */
+    _inlineBagPropInfo(info) {
+        return info.key !== 'Name' && this._inlineObjectBag() ? { ...info, editable: false } : info;
+    }
     serializeXml(tagName, attrs, indent) {
         if (!writeUnderWay()) {
             return oneWrite(() => this.serializeXml(tagName, attrs, indent));
@@ -1075,11 +1152,33 @@ export default class DataNode extends BaseNode {
         const p = xmlPad(indent);
         const ip = xmlPad(indent + 1);
         const rawVal = this.serial._rawVal;
+        // Properties held beside the class, with no element (_inlineObjectBag), which no class reads
+        // and this writer cannot spell: it wrote an `<Element>` of the class holding no property.
+        // Refused rather than written wrong (the maintainer's group F ruling, 2026-10-18).
+        if (this._inlineObjectBag()) {
+            const where = this._whereWritten();
+            throw new MatWriteError('Cannot write "' + where.entry + '": ' + where.path +
+                ' holds its properties in a form MATLAB does not write, which a binary dictionary has no spelling for. Nothing was written.');
+        }
         // The class of the one object written, its element's: an array of one element of another
         // class was written as an object of the array's. A nested object's spelling is its own
         // element, and names its own class.
         const nested = !rawVal._array_class;
-        const className = nested ? rawVal._object_class : objectValueClassOf(rawVal);
+        // Each class the value names, where one is not a class name, refused (_classOrRefuse): the
+        // nested object's own, or the array's and its one element's.
+        const at = () => this._whereWritten();
+        if (!nested) {
+            DataNode._classOrRefuse(rawVal._array_class, '', at);
+            const elements = rawVal._elements;
+            DataNode._ownClassOrRefuse(Array.isArray(elements) && elements.length === 1 ? elements[0] : undefined, '', at);
+        }
+        const className = DataNode._classOrRefuse(nested ? rawVal._object_class : objectValueClassOf(rawVal), '', at);
+        // An array's dims no Dimension can spell, refused, finally, naming the array's class as
+        // ObjectNode does: its one element was written as a scalar object, [NaN,1] or [1,"x"]
+        // gone. A nested object's spelling carries no _dimensions.
+        if (!nested) {
+            this._spellableOrRefuse(rawVal._dimensions, rawVal._array_class);
+        }
         const props = this._xmlProperties();
         let attrStr = '';
         if (attrs && attrs.Name) {
@@ -1177,7 +1276,7 @@ export default class DataNode extends BaseNode {
             return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"/>';
         }
         if (typeof value === 'number') {
-            return p + '<P' + DataNode.pxAttrs(name) + ' Class="double">' + formatDoubleXml(value) + '</P>';
+            return p + '<P' + DataNode.pxAttrs(name) + ' Class="double">' + formatFloatXml(value, 'double') + '</P>';
         }
         if (typeof value === 'boolean') {
             return p + '<P' + DataNode.pxAttrs(name) + ' Class="logical">' + (value ? '1' : '0') + '</P>';
@@ -1193,7 +1292,7 @@ export default class DataNode extends BaseNode {
             if (codes) {
                 return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + codes.attrs + '>' + codes.body + '</P>';
             }
-            return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(value) + '</P>';
+            return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"' + charRowDimension(value, [1, value.length]) + '>' + escapeXml(value) + '</P>';
         }
         if (Array.isArray(value)) {
             if (value.length === 0) {
@@ -1212,7 +1311,7 @@ export default class DataNode extends BaseNode {
                 return DataNode._serializeStringPropertyXml(name, value, [1, value.length], indent);
             }
             const formatted = value.map(function (v) {
-                return formatDoubleXml(v);
+                return formatFloatXml(v, 'double');
             });
             return (p +
                 '<P' +
@@ -1266,7 +1365,67 @@ export default class DataNode extends BaseNode {
                 return DataNode._serializeStringPropertyXml(name, elements, obj._dimensions || [1, elements.length], indent);
             }
         }
-        return p + '<P' + DataNode.pxAttrs(name) + ' Class="char">' + escapeXml(String(value)) + '</P>';
+        throw DataNode._unspellable(value, name, at);
+    }
+    /**
+     * The refusal of a raw value that no arm of the property or cell-element writer has a
+     * spelling for (serializePropertyXml, _serializeCellElementXml), naming the entry and the path
+     * from `at`, or, for a caller that gives none, the property `name`.
+     *
+     * Both writers used to end in `Class="char"` around String() of what was left: an object of
+     * no recognised shape went into the .sldd as the text `[object Object]`, a null or undefined
+     * cell element as `null` or `undefined`, a bigint as its digits, a function as its source.
+     * MATLAB reads each back as a char, which is not the value, and nothing said so. A save that
+     * holds one is refused rather than written wrong (C-205; the maintainer's group F ruling,
+     * 2026-10-18). A MatWriteError and not a MatBudgetError: this writer has no spelling for the
+     * value, which is not a budget.
+     */
+    static _unspellable(value, name, at) {
+        let what;
+        if (value === null || value === undefined) {
+            what = String(value);
+        }
+        else if (typeof value === 'object') {
+            const keys = Object.keys(value);
+            what = keys.length === 0
+                ? 'an object holding no key'
+                : 'an object holding ' + keys.slice(0, 5).map((k) => '"' + k + '"').join(', ') + (keys.length > 5 ? ' and ' + (keys.length - 5) + ' more' : '');
+        }
+        else {
+            what = 'a ' + typeof value;
+        }
+        return new MatWriteError('Cannot write "' + (at ? at.entry : name) + '": ' + (at ? at.path : name) + ' is ' + what +
+            ', which a binary dictionary has no spelling for. Nothing was written.');
+    }
+    /**
+     * The refusal of a function handle by an XML writer, naming the entry and the path (FH-PASTE).
+     * `text` is the handle as this package holds one: `sin`, `@(x) x + 1`, or the bare header of an
+     * empty one's size, `Matrix(0,0)`.
+     *
+     * MATLAB holds a handle in a binary dictionary only inside the hex element of a MAT stream,
+     * which this package cannot write. The writers spelled one through their numeric tails, as
+     * `Class="function_handle">0` or `>NaN<`, and an empty one as `Class="function_handle"
+     * Dimension="0*0"/>`; MATLAB R2027a reads none of those ("Class 'function_handle' is not
+     * supported."). A save that holds one is refused rather than written wrong (the maintainer's
+     * group F ruling, 2026-10-18). A value that holds its own stream is still written as that
+     * hex, at an entry, before any of these writers is asked (_binaryEncoded).
+     */
+    static _handleRefusal(text, entry, path) {
+        const empty = text === '[]' ? [0, 0] : emptyHeaderDims(text);
+        const what = empty
+            ? 'an empty function handle (' + empty.join('x') + ')'
+            : 'a function handle (' + (/^[@<]/.test(text) ? text : '@' + text) + ')';
+        return new MatWriteError('Cannot write "' + entry + '": ' + path + ' is ' + what +
+            ", which a binary dictionary holds only in MATLAB's MAT encoding, and this package cannot write that. Nothing was written.");
+    }
+    /** The same refusal for a handle this node holds, naming the entry and the path as _budgetFailure does. */
+    _handleRefusalHere(text) {
+        let root = this;
+        while (root.parent) {
+            root = root.parent;
+        }
+        const entry = root._writtenAt ? root._writtenAt.entry : this.owningEntry?.name ?? this.matlabPath;
+        return DataNode._handleRefusal(text, entry, this.matlabPath);
     }
     /**
      * The `Class="char" Dimension="r*c"` attributes and body of an mxchar literal, or
@@ -1288,7 +1447,7 @@ export default class DataNode extends BaseNode {
             // No header: nothing to state, and the body is already the text (see
             // MatlabVariableNode.parseMxChar, which reads the same shape back as a row).
             const text = String(value._value);
-            return decimalCharXml(text, [1, text.length]) ?? { attrs: '', body: escapeXml(text) };
+            return decimalCharXml(text, [1, text.length]) ?? { attrs: charRowDimension(text, [1, text.length]), body: escapeXml(text) };
         }
         const dims = m[1].split(',').map(function (s) {
             return parseInt(s, 10);
@@ -1296,7 +1455,7 @@ export default class DataNode extends BaseNode {
         // Number() rather than a cast: _parseMatrixNums is typed for the 64-bit case now,
         // and a char code is never one — mxchar is not an integer class.
         const text = charTextFromCodes(DataNode._parseMatrixNums(m[2]).map(Number), dims);
-        return decimalCharXml(text, dims) ?? { attrs: ' Dimension="' + dims.join('*') + '"', body: escapeXml(text) };
+        return decimalCharXml(text, dims) ?? { attrs: ' Dimension="' + dimensionText(dims) + '"', body: escapeXml(text) };
     }
     /**
      * MATLAB's spelling of a string value, from the `<Element Class="string">` down: a
@@ -1320,12 +1479,13 @@ export default class DataNode extends BaseNode {
         const ip3 = xmlPad(indent + 3);
         // 1x1 alone goes bare, and the rank has to be tested with it: dims[0] === 1 &&
         // dims[1] === 1 is also true of a 1x1x3, whose extents must be stated.
-        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims.join('*') + '"';
+        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dimensionText(dims) + '"';
         let xml = ip + '<Element Class="string">\n';
         xml += ip2 + '<P Source="saveobj" PropertyType="any" Class="cell"' + dimAttr + '>\n';
         for (const el of elements) {
             // `|| ''`: a `missing` element is null in the model, and has no text to write.
-            xml += ip3 + '<Element Class="char">' + escapeXml(el || '') + '</Element>\n';
+            const text = el || '';
+            xml += ip3 + '<Element Class="char"' + charRowDimension(text, [1, text.length]) + '>' + escapeXml(text) + '</Element>\n';
         }
         xml += ip2 + '</P>\n';
         xml += ip + '</Element>\n';
@@ -1347,8 +1507,16 @@ export default class DataNode extends BaseNode {
         const p = xmlPad(indent);
         const type = value._type;
         const raw = String(value._value);
+        // No XML spelling: see _handleRefusal.
+        if (type === 'function_handle') {
+            throw DataNode._handleRefusal(raw, at ? at.entry : name, at ? at.path : name);
+        }
         if (type === 'mxchar') {
             DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', name, at, raw);
+            const odd = DataNode._mxCharDisagreement(raw);
+            if (odd) {
+                throw DataNode._mxCharRefusal(odd, at ? at.entry : name, at ? at.path : name);
+            }
         }
         const mxChar = DataNode._mxCharXml(value);
         if (mxChar) {
@@ -1445,7 +1613,7 @@ export default class DataNode extends BaseNode {
         const dims = m[1].split(',').map(function (s) {
             return parseInt(s, 10);
         });
-        const open = xmlPad(indent) + '<' + tag + attrs + ' Class="' + escapeXml(type) + '" Dimension="' + dims.join('*') + '"';
+        const open = xmlPad(indent) + '<' + tag + attrs + ' Class="' + escapeXml(type) + '" Dimension="' + dimensionText(dims) + '"';
         if (m[2] === undefined) {
             if (!dims.some((d) => d === 0)) {
                 return null;
@@ -1480,7 +1648,7 @@ export default class DataNode extends BaseNode {
     static _complexTextXml(tag, attrs, value, indent) {
         const cls = complexClassTag(value._class) ?? 'double';
         const dims = Array.isArray(value._dimensions) ? value._dimensions : null;
-        const dimAttr = dims && !(dims.length <= 2 && dims[0] === 1 && dims[1] === 1) ? ' Dimension="' + dims.join('*') + '"' : '';
+        const dimAttr = dims && !(dims.length <= 2 && dims[0] === 1 && dims[1] === 1) ? ' Dimension="' + dimensionText(dims) + '"' : '';
         const open = xmlPad(indent) + '<' + tag + attrs + ' Class="' + cls + '" IsComplex="1"' + dimAttr;
         const body = formatComplexBodyXml(String(value._value ?? ''), cls);
         // An empty body is MATLAB's complex empty, `<P … Dimension="1*0"/>`.
@@ -1502,7 +1670,9 @@ export default class DataNode extends BaseNode {
         }
         const p = xmlPad(indent);
         const ip = xmlPad(indent + 1);
-        const className = value._array_class;
+        // A class that is not a class name, refused (_classOrRefuse): the array's here, and each
+        // element's own below.
+        const className = DataNode._classOrRefuse(value._array_class, name, at);
         DataNode._sizeOrRefuse(value._dimensions, className, name, at);
         const dims = value._dimensions || [1, 1];
         const elements = value._elements || [];
@@ -1524,9 +1694,10 @@ export default class DataNode extends BaseNode {
         // no elements, which BaseBusNode writes as this, is the commonest. A bag whose size says
         // 1x1 is one object with no properties, and is still written as one.
         if (elements.length === 0 && dims.some((d) => d === 0)) {
-            return p + '<' + tag + attrs + ' Class="' + escapeXml(className) + '" Dimension="' + dims.join('*') + '"/>';
+            return p + '<' + tag + attrs + ' Class="' + escapeXml(className) + '" Dimension="' + dimensionText(dims) + '"/>';
         }
         if (elements.length === 0 || (elements.length === 1 && Object.keys(propsOf(elements[0])).length === 0)) {
+            DataNode._ownClassOrRefuse(elements[0], name, at);
             return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(elementClassOf(elements[0], className)) + '"/>\n' + p + close;
         }
         // Every extent, exactly as the struct sibling below does and for the same
@@ -1537,13 +1708,14 @@ export default class DataNode extends BaseNode {
         // extents would drop that shape's attribute entirely.
         const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1
             ? ''
-            : ' Dimension="' + dims.join('*') + '"';
+            : ' Dimension="' + dimensionText(dims) + '"';
         let xml = p + '<' + tag + attrs + dimAttr + '>\n';
         // Each element under its own class: a config set's Components holds nine or more, and
         // every one was written as the array's.
         elements.forEach((elem, k) => {
             const props = propsOf(elem);
             const sources = propertySourcesOf(elem);
+            DataNode._ownClassOrRefuse(elem, name, DataNode._within(at, elements.length, k, ''));
             xml += ip + '<Element Class="' + escapeXml(elementClassOf(elem, className)) + '">\n';
             for (const [propName, propVal] of Object.entries(props)) {
                 xml += DataNode._elementPropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName), sources) + '\n';
@@ -1574,10 +1746,10 @@ export default class DataNode extends BaseNode {
         const elements = value._elements || [];
         const open = p + '<' + tag + attrs + ' IsEnum="' + escapeXml(String(value[ENUM_KEY])) + '"';
         if (elements.length === 0) {
-            return open + ' Class="' + className + '" Dimension="' + dims.join('*') + '"/>';
+            return open + ' Class="' + className + '" Dimension="' + dimensionText(dims) + '"/>';
         }
         const scalar = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1;
-        let xml = open + (scalar ? '' : ' Dimension="' + dims.join('*') + '"') + '>\n';
+        let xml = open + (scalar ? '' : ' Dimension="' + dimensionText(dims) + '"') + '>\n';
         for (const element of elements) {
             const e = enumeralOf(element);
             xml += ip + '<Element Class="' + className + '"';
@@ -1592,6 +1764,65 @@ export default class DataNode extends BaseNode {
         return xml + p + '</' + tag + '>';
     }
     /**
+     * The class `cls` an object is written under, `Class="…"`, where it is a class name, a string
+     * and not the empty one; anything else is refused, naming the entry and the path from `at` (or
+     * from what it answers, asked only then), or, for a caller that gives none, `name`
+     * (OBJCLASS-NONSTRING).
+     *
+     * MATLAB names every class by a string, and a binary dictionary's reader reads every one from
+     * an attribute, but a text dictionary is JSON anyone can edit: `{"_object_class": 5}` or
+     * `"_array_class": ["a"]` opens and shows as read (`<1x1 5>`), and a text save writes it back
+     * as read. Every XML writer of an object handed such a class to escapeXml, which threw a
+     * TypeError, "str.replace is not a function", and a host showed that as the reason the paste or
+     * the save failed. The writer has no spelling for it, and a save that holds one is refused
+     * rather than written wrong (the maintainer's group F ruling, 2026-10-18), with a MatWriteError,
+     * as _unspellable refuses a value of no shape.
+     */
+    static _classOrRefuse(cls, name, at) {
+        if (typeof cls === 'string' && cls !== '') {
+            return cls;
+        }
+        const where = typeof at === 'function' ? at() : at;
+        throw DataNode._classRefusal(cls, where ? where.entry : name, where ? where.path : name);
+    }
+    /**
+     * Refuses `element`, one of an object array's `_elements`, where it names its own class
+     * (`_object_class`) by something that is not a string, as _classOrRefuse refuses an array's.
+     * The reader takes such an element for one of the array's class (elementClassOf), and the
+     * writers wrote it so, the class the file gave it gone. An empty string is the array's, as
+     * elementClassOf has it.
+     */
+    static _ownClassOrRefuse(element, name, at) {
+        const own = element && typeof element === 'object' ? element._object_class : undefined;
+        if (own !== undefined && typeof own !== 'string') {
+            const where = typeof at === 'function' ? at() : at;
+            throw DataNode._classRefusal(own, where ? where.entry : name, where ? where.path : name);
+        }
+    }
+    /** The refusal of `cls` as the class of what stands at `path` of the entry `entry`, quoted as JSON gives it, so far. */
+    static _classRefusal(cls, entry, path) {
+        let text;
+        try {
+            text = JSON.stringify(cls);
+        }
+        catch {
+            // A bigint, which JSON has no spelling for.
+        }
+        text = text === undefined ? String(cls) : text;
+        if (text.length > 60) {
+            text = text.slice(0, 60) + '...';
+        }
+        return new MatWriteError('Cannot write "' + entry + '": ' + path + ' names its class as ' + text + ', which is not a class name. Nothing was written.');
+    }
+    /** Where this node is written, for a refusal: the entry, found as _budgetFailure finds it, and the path to the node. */
+    _whereWritten() {
+        let root = this;
+        while (root.parent) {
+            root = root.parent;
+        }
+        return { entry: root._writtenAt ? root._writtenAt.entry : this.owningEntry?.name ?? this.matlabPath, path: this.matlabPath };
+    }
+    /**
      * Refuses to write a raw property value whose dims no Dimension can spell (parser/Size): a
      * raw cell, struct, object or string bag, an mxchar's or a typed literal's `Matrix(…)`
      * header, a complex text's `_dimensions`. A binary dictionary's reader passes every finite
@@ -1603,7 +1834,7 @@ export default class DataNode extends BaseNode {
      * isExactDigits).
      */
     static _sizeOrRefuse(dims, cls, name, at, header) {
-        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : Array.isArray(dims) && dims.every(isSpellableExtent))) {
+        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : everyExtent(dims, isSpellableExtent))) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
@@ -1618,6 +1849,29 @@ export default class DataNode extends BaseNode {
     static _headerExact(text) {
         const m = /^Matrix\((\d+(?:,\d+)*)\)/.exec(text);
         return !m || m[1].split(',').every(isExactDigits);
+    }
+    /**
+     * The extents an mxchar literal's `Matrix(…)` header declares and the number of codes its body
+     * holds, when the two disagree, or null: `Matrix(1,5)\n[97, 98, 99]` is [1,5] over 3 codes. No
+     * Dimension spells such a char: written with the header it is XML whose body does not fill its
+     * Dimension, and with the text's own size a row, which is another value (_mxCharRefusal).
+     */
+    static _mxCharDisagreement(text) {
+        const m = /^Matrix\((\d+(?:,\d+)*)\)\n(.+)$/s.exec(text);
+        if (!m) {
+            return null;
+        }
+        const dims = m[1].split(',').map(Number);
+        const count = DataNode._parseMatrixNums(m[2]).length;
+        return dims.reduce((a, b) => a * b, 1) === count ? null : { dims, count };
+    }
+    /**
+     * The refusal of such a char (_mxCharDisagreement) at `path` in entry `entry`. Not a budget
+     * refusal: it is a char no Dimension spells, and nothing is written in its place.
+     */
+    static _mxCharRefusal(odd, entry, path) {
+        return new MatWriteError('Cannot write "' + entry + '": ' + path + ' is a char declaring dimensions ' + dimsText(odd.dims) + ' and holding ' +
+            odd.count + (odd.count === 1 ? ' character' : ' characters') + ', which no Dimension spells. Nothing was written.');
     }
     /**
      * A refusal of a write that began at this node, restated for a user: the entry — the one
@@ -1638,7 +1892,7 @@ export default class DataNode extends BaseNode {
      * its digits as there — naming the entry and the path.
      */
     _spellableOrRefuse(dims, cls, header) {
-        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : Array.isArray(dims) && dims.every(isSpellableExtent))) {
+        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : everyExtent(dims, isSpellableExtent))) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
@@ -1646,12 +1900,12 @@ export default class DataNode extends BaseNode {
     }
     /**
      * Refuses to write this node's value as a text dictionary's JSON, or copy it there, when its
-     * dims hold NaN, an infinity or a bigint, which JSON writes as null or cannot write
-     * (parser/Size, isTextExtent), naming the entry and the path, as _spellableOrRefuse does for
-     * a Dimension.
+     * dims hold NaN, an infinity, a bigint, undefined, a function, a symbol or a hole, which JSON
+     * writes as null or cannot write (parser/Size, isTextExtent), naming the entry and the path,
+     * as _spellableOrRefuse does for a Dimension.
      */
     _textSpellableOrRefuse(dims, cls) {
-        if (!Array.isArray(dims) || dims.every(isTextExtent)) {
+        if (!Array.isArray(dims) || everyExtent(dims, isTextExtent)) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
@@ -1682,7 +1936,7 @@ export default class DataNode extends BaseNode {
         // Every extent, not the first two: MATLAB's own binary dictionary writes
         // `Class="struct" Dimension="2*3*2"` for a 2x3x2 struct array, and twelve
         // <Element>s under a `2*3` would read back as a six-element array.
-        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dims.join('*') + '"';
+        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 ? '' : ' Dimension="' + dimensionText(dims) + '"';
         let xml = p + '<' + tag + attrs + ' Class="struct"' + dimAttr + '>\n';
         // An EMPTY struct declares its field names with `<Field Name="…"/>`, and only an empty one
         // does: MATLAB writes them on every struct property of its own with no `<Element>` and on
@@ -1731,7 +1985,7 @@ export default class DataNode extends BaseNode {
         const elements = value._elements || [];
         const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && elements.length === 1
             ? ''
-            : ' Dimension="' + dims.join('*') + '"';
+            : ' Dimension="' + dimensionText(dims) + '"';
         let xml = p + '<' + tag + attrs + ' Class="cell"' + dimAttr + '>\n';
         elements.forEach((elem, k) => {
             xml += DataNode._serializeCellElementXml(elem, indent + 1, at && { entry: at.entry, path: at.path + '{' + (k + 1) + '}' }) + '\n';
@@ -1758,7 +2012,7 @@ export default class DataNode extends BaseNode {
     static _serializeCellElementXml(elem, indent, at) {
         const p = xmlPad(indent);
         if (typeof elem === 'number') {
-            return p + '<Element Class="double">' + formatDoubleXml(elem) + '</Element>';
+            return p + '<Element Class="double">' + formatFloatXml(elem, 'double') + '</Element>';
         }
         if (typeof elem === 'boolean') {
             return p + '<Element Class="logical">' + (elem ? '1' : '0') + '</Element>';
@@ -1768,7 +2022,7 @@ export default class DataNode extends BaseNode {
             if (codes) {
                 return p + '<Element Class="char"' + codes.attrs + '>' + codes.body + '</Element>';
             }
-            return p + '<Element Class="char">' + escapeXml(elem) + '</Element>';
+            return p + '<Element Class="char"' + charRowDimension(elem, [1, elem.length]) + '>' + escapeXml(elem) + '</Element>';
         }
         if (Array.isArray(elem)) {
             if (elem.length === 0) {
@@ -1781,7 +2035,7 @@ export default class DataNode extends BaseNode {
                 return DataNode._stringXml('Element', '', elem, [1, elem.length], indent);
             }
             const formatted = elem.map(function (v) {
-                return formatDoubleXml(v);
+                return formatFloatXml(v, 'double');
             });
             return p + '<Element Class="double" Dimension="1*' + elem.length + '">' + formatted.join(' ') + '</Element>';
         }
@@ -1792,6 +2046,10 @@ export default class DataNode extends BaseNode {
             const obj = elem;
             const type = obj._type;
             const raw = String(obj._value);
+            // And its function handle, for its reason: see _handleRefusal.
+            if (type === 'function_handle') {
+                throw DataNode._handleRefusal(raw, at ? at.entry : 'a cell element', at ? at.path : 'a cell element');
+            }
             // The property writer's two cdata cases, for the same reasons: a MAT byte stream is
             // written by the node it reads back as, and complex text as itself.
             if (type === 'cdata') {
@@ -1807,6 +2065,10 @@ export default class DataNode extends BaseNode {
             }
             if (type === 'mxchar') {
                 DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', '', at, raw);
+                const odd = DataNode._mxCharDisagreement(raw);
+                if (odd) {
+                    throw DataNode._mxCharRefusal(odd, at ? at.entry : '', at ? at.path : '');
+                }
             }
             const mxChar = DataNode._mxCharXml(obj);
             if (mxChar) {
@@ -1873,7 +2135,7 @@ export default class DataNode extends BaseNode {
                 return DataNode._stringXml('Element', '', elements, obj._dimensions || [1, elements.length], indent);
             }
         }
-        return p + '<Element Class="char">' + escapeXml(String(elem)) + '</Element>';
+        throw DataNode._unspellable(elem, 'a cell element', at);
     }
     /**
      * One number out of a typed literal: '3.14159274F', '18446744073709551615U', '-1'.

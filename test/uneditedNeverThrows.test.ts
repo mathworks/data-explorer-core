@@ -25,7 +25,9 @@
 // past it that write is refused, by the fail-closed ruling. Those are named below. The cell
 // declaring 1e8 elements is refused as an entry (serializeEntryToXml writes a cell holding a
 // sparse array as one stream, and its holes are past the budget); its serializeXml() alone
-// is the XML of the element it holds, as a cell of full arrays' is.
+// is the XML of the element it holds, as a cell of full arrays' is. And a function handle,
+// which no XML writer spells (DataNode._handleRefusal): sparse_text.sldd's fhAlias and
+// hexobj_text.sldd's anonAlias hold one as their Fh, and their paste is refused, named below.
 //
 // serialize() of a variable in a .mat or a host's own source is its copy, not a dictionary
 // entry: past the budget, and with no bytes to copy it as, it is refused too, named last.
@@ -53,6 +55,8 @@ function slddUnder(dir: string): string[] {
 }
 const buffer = (u8: Uint8Array) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
 const isZip = (b: Uint8Array) => b[0] === 0x50 && b[1] === 0x4b;
+/** What throwersIn says of the text dictionary's entries `names`, each holding a function handle: their XML is refused. */
+const handleRefused = (...names: string[]) => names.flatMap((n) => [`${n} serializeXml: MatWriteError`, `${n}_r serializeXml: MatWriteError (renamed)`]);
 
 /**
  * Every writer of `entry`: serialize() as a host's delete records it, serializeXml() as an
@@ -128,7 +132,7 @@ describe('an entry nobody has edited: what each writer does', () => {
   it('every entry of every dictionary in the fixtures: no writer throws, as read or renamed', { timeout: HEAVY_TIMEOUT }, () => {
     const files = [...slddUnder(join(ROOT, 'fixtures')), ...slddUnder(join(ROOT, 'parity', 'artifacts'))];
     expect(files.length).toBeGreaterThanOrEqual(40);
-    expect(files.flatMap((f) => throwersIn(f.slice(ROOT.length), new Uint8Array(readFileSync(f))))).toEqual([]);
+    expect(files.flatMap((f) => throwersIn(f.slice(ROOT.length), new Uint8Array(readFileSync(f))))).toEqual(handleRefused('anonAlias', 'fhAlias'));
   });
 
   it('a text dictionary\'s complex text no MAT stream can say, as v1.36.0 wrote it: a save writes it back as read, as read, renamed, and beside an edit', () => {
@@ -220,7 +224,7 @@ describe('an entry nobody has edited: what each writer does', () => {
     const bytes = uudecode(spTall.value._value);
     bytes.set(DAMAGED, hex([...bytes]).indexOf(hex(DIMS)) / 2);
     spTall.value._value = uuencode(bytes);
-    expect(throwersIn(TEXT, strToU8(JSON.stringify(json)))).toEqual([]);
+    expect(throwersIn(TEXT, strToU8(JSON.stringify(json)))).toEqual(handleRefused('fhAlias'));
   });
 
   it('a binary dictionary\'s N-D empty whose dims no MAT stream can say: no writer throws, as read or renamed, and its copy is the value as read', () => {
@@ -267,11 +271,11 @@ describe('an entry nobody has edited: what each writer does', () => {
     );
     const text = strToU8(JSON.stringify(json));
     const refusedAsXml = ['flat serializeXml: MatBudgetError', 'rank3 serializeXml: MatBudgetError'];
-    expect(throwersIn(TEXT, text)).toEqual(refusedAsXml.flatMap((t) => [t, t.replace(' ', '_r ') + ' (renamed)']));
+    expect(throwersIn(TEXT, text)).toEqual([...handleRefused('fhAlias'), ...refusedAsXml.flatMap((t) => [t, t.replace(' ', '_r ') + ' (renamed)'])]);
     // A host's dictionary content is the same; and it saves as it was opened.
     const session = createSession();
     const root: any = session.addDataSource('host.sldd', JSON.parse(strFromU8(text)));
-    expect(root.getSection('design').children.flatMap((e: any) => writersOf(e, false))).toEqual(refusedAsXml);
+    expect(root.getSection('design').children.flatMap((e: any) => writersOf(e, false))).toEqual(['fhAlias serializeXml: MatWriteError', ...refusedAsXml]);
     expect(thrownBy(() => session.serializeSource(root.name))[0]).toBeNull();
   });
 

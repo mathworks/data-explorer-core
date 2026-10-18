@@ -19,17 +19,16 @@
 // Shape, all three readers:
 //
 //   - An attribute is a key prefixed `@_`; an element's text is the key `#text`.
-//   - TEXT is coerced by the model and project readers, and more widely than "numbers": `007`
-//     and `1.0` read as 7 and 1, `0x1F` reads as 31, and `true`/`false` — lowercase only — read
-//     as BOOLEANS. The spelling is gone once it has. An integer too large for a double is the
-//     one case the coercion declines: it stays a string rather than lose precision. The
-//     DICTIONARY reader coerces nothing; see "WHAT THE THREE READERS DO NOT SHARE".
-//   - Attribute values are coerced not at all — `Dim="7"` stays the string '7' and
+//   - TEXT is text, in every reader: `007`, `1.0`, `0x1F`, `true` and `false` arrive as the
+//     characters the file holds, and a value is converted by the code that knows what it is
+//     (`parseTagValue: false`; see "WHAT THE THREE READERS SHARE").
+//   - Attribute values are coerced not at all either — `Dim="7"` stays the string '7' and
 //     `Flag="true"` stays the string 'true'.
-//   - Named entities are decoded (`&amp;` -> `&`). NUMERIC character references are not, by
-//     the model and project readers: `&#65;` arrives there as the five characters `&#65;`. The
-//     dictionary reader decodes them. Either way `SlddScan` carries no entity table and
-//     refuses a name with any entity in it, rather than decide what to decode for itself.
+//   - Named entities are decoded (`&amp;` -> `&`), and so are NUMERIC character references:
+//     `&#65;` arrives as `A` and `&#xD;` as a carriage return, in text and in attribute values
+//     alike. HTML's named entities are not (`&nbsp;` stays as written). `SlddScan` carries no
+//     entity table and refuses a name with any entity in it, rather than decide what to
+//     decode for itself.
 //   - CDATA arrives as ordinary text with its markup characters intact.
 //   - `<P/>` reads as the empty STRING when it carries no attributes, and as an object
 //     with no `#text` key when it does. Both, not one.
@@ -54,7 +53,7 @@
 // ---------------------------------------------------------------------------------------
 // WHAT THE THREE READERS DO NOT SHARE
 //
-// Four options differ, and each is isolated in the test:
+// Two options differ, and each is isolated in the test:
 //
 //   `isArray` (dictionary only) forces `Object`, `P`, `Element` and `Field` to arrays even
 //   when singular. Without it a one-entry dictionary hands back an object where a
@@ -82,10 +81,19 @@
 //
 //   It has a second effect that is not in its name: with trimming off the engine returns any
 //   value that DIFFERS FROM ITS OWN TRIM raw and unparsed, so `' 7 '` stays three characters
-//   where the model reader would make it the number 7. Interior whitespace is untouched either
+//   where the model reader trims it to the text '7'. Interior whitespace is untouched either
 //   way — trimming is not normalization.
 //
-//   `parseTagValue: false` (dictionary only) turns the text coercion off. Its only caller,
+// ---------------------------------------------------------------------------------------
+// WHAT THE THREE READERS SHARE, AND ONCE DID NOT
+//
+// Two options were the dictionary reader's alone and are now every reader's. The dictionary
+// reader took them first (#92); the model and project readers kept the engine's defaults
+// until a census showed what those cost a model (below).
+//
+//   `parseTagValue: false` turns the text coercion off. The engine's coercion was wider than
+//   "numbers": `007` and `1.0` read as 7 and 1, `0x1F` as 31, and `true`/`false` — lowercase
+//   only — as BOOLEANS, and the spelling was gone once it had. The dictionary reader's caller,
 //   `BinarySlddParser`, converts every value itself by the Class the element declares —
 //   `parseMatlabNum`, `parseNumericBody`, `parseExactBody`, `parseInt` — so the engine's
 //   conversion did nothing for it but run before the Class was known. That was a loss, not a
@@ -97,15 +105,28 @@
 //   double -0 values read as +0. A char matrix or an encoded stream whose text looked like a
 //   number lost its characters the same way, though none of the 52 holds one.
 //
-//   `htmlEntities` (dictionary only) is given XML's five named entities as an OBJECT, which is
-//   how this engine is told to decode numeric character references without HTML's named
-//   entities: its decoder takes an object there as the named table to use instead of HTML's,
-//   and allows numeric references exactly when the option is set. XML requires a reader to
+//   A model part's text is a parameter EXPRESSION, which MATLAB evaluates and this package
+//   only shows, so nothing in a model wants it converted at all. Measured over the 152 `.slx`
+//   and 9 project stores of the local corpus and `test/`: a block parameter whose text is
+//   `false` read as the boolean false, which `SlxParser`'s `|| ''` then read as no value, so
+//   80 blocks in 16 models were missing from Model Elements (a Constant, an Outport or a
+//   UnitDelay whose value is `false`; the same block in a `.mdl` was listed). Its twin `true`
+//   was listed, as a boolean in a field typed string. And `ParsedSlx.configSets[].data`
+//   respelled 1,721 values (`2000.0` as 2000, `1e-6` as 0.000001). Projects read no element
+//   text, and nothing else any row shows differed.
+//
+//   `htmlEntities` is given XML's five named entities as an OBJECT, which is how this engine
+//   is told to decode numeric character references without HTML's named entities: its
+//   decoder takes an object there as the named table to use instead of HTML's, and allows
+//   numeric references exactly when the option is set. XML requires a reader to
 //   replace a reference with its character, and a dictionary needs it — MATLAB writes `&#xD;`
 //   for every CR inside a char, and a reader that left the five characters standing showed
-//   them and saved them back as `&amp;#xD;`. A codepoint XML prohibits is still deleted, as it
-//   was. The typings call the option a boolean, so it is cast; the contract test pins the
-//   behaviour, and is the file that goes red if an engine release stops honouring the object.
+//   them and saved them back as `&amp;#xD;`. A model part and a project document are XML too,
+//   and get the same; a block name's `&#xA;` now arrives as the line break it is, which
+//   `normalizeBlockName` flattens exactly as it flattened the five characters. A codepoint XML
+//   prohibits is still deleted, as it was. The typings call the option a boolean, so it is
+//   cast; the contract test pins the behaviour, and is the file that goes red if an engine
+//   release stops honouring the object.
 import { XMLParser } from 'fast-xml-parser';
 import { readDictionaryXmlFast } from './DictionaryXmlFast.js';
 /**
@@ -185,7 +206,14 @@ const dictionaryParser = new XMLParser({
 // sets only LOOKED different. They are kept as two exported readers because their
 // callers are two documents with two different failure stories to tell, and the day one
 // of them needs an option the other must not have, this is the line that splits.
-const defaultParser = new XMLParser(SHAPE);
+//
+// Text is kept as text and character references are decoded, as the dictionary reader does
+// (see "WHAT THE THREE READERS SHARE"); trimming and singular children are the engine's.
+const defaultParser = new XMLParser({
+    ...SHAPE,
+    parseTagValue: false,
+    htmlEntities: XML_NAMED_ENTITIES,
+});
 /**
  * A `.sldd`'s XML part. `Object`, `P` and `Element` are always arrays; text is the text the
  * file holds, entity-decoded and never converted; whitespace inside a value is preserved
@@ -231,8 +259,10 @@ export function readDictionaryXmlGeneric(text) {
     return dictionaryParser.parse(text);
 }
 /**
- * One part of a `.slx` or `.mdl` package. Engine defaults: text is trimmed, and a lone
- * child stays an object, so a walker over one of these has to coerce to an array itself.
+ * One part of a `.slx` or `.mdl` package. Text is the text the part holds, entity-decoded
+ * and never converted, so `false` and `10.0` arrive as those characters. Otherwise the
+ * engine's defaults: text is trimmed, and a lone child stays an object, so a walker over
+ * one of these has to coerce to an array itself.
  */
 export function readModelXml(text) {
     return defaultParser.parse(text);

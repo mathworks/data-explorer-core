@@ -62,7 +62,7 @@ import {
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
-import { dimsText, isSize, isTextExtent, MAT_MAX_EXTENT } from './Size.js';
+import { dimsText, everyExtent, isSize, isTextExtent, MAT_MAX_EXTENT } from './Size.js';
 
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
@@ -1317,17 +1317,17 @@ function textForm(x: unknown, at: string, place: Place): unknown {
     return changed ? out : x;
   }
   const o = x as Record<string, unknown>;
-  // Dims holding NaN or an infinity, which JSON.stringify writes as null, or a bigint, which
-  // it cannot write at all. Refused, finally, as an XML writer refuses them
-  // (DataNode._sizeOrRefuse), said where they stand; a hand-made [1, "x"] goes as read, and
-  // so do undefined, a function, a symbol and a hole, which are not asked (parser/Size,
-  // isTextExtent). Not an infinity the text dictionary was read with
-  // (textDictionaryOwn: a complex text's bag, or the dims array); NaN or a bigint, which no
-  // file holds, even there.
+  // Dims holding NaN, an infinity, undefined, a function, a symbol or a hole, which
+  // JSON.stringify writes as null, or a bigint, which it cannot write at all. Refused,
+  // finally, as an XML writer refuses them (DataNode._sizeOrRefuse), said where they stand; a
+  // hand-made [1, "x"] goes as read, and so does a null (parser/Size, isTextExtent). Dims are
+  // walked by index, so a hole is undefined (everyExtent). Not an infinity the text
+  // dictionary was read with (textDictionaryOwn: a complex text's bag, or the dims array);
+  // NaN or a bigint, which no file holds, even there.
   const dims = o._dimensions;
   if (
-    Array.isArray(dims) && !dims.every(isTextExtent)
-    && !((textDictionaryOwn.has(o) || textDictionaryOwn.has(dims)) && dims.every(isReadExtent))
+    Array.isArray(dims) && !everyExtent(dims, isTextExtent)
+    && !((textDictionaryOwn.has(o) || textDictionaryOwn.has(dims)) && everyExtent(dims, isReadExtent))
   ) {
     const what = classPhrase(bagClass(o)) + ' declaring dimensions ' + dimsText(dims);
     throw new MatBudgetError(what + ' was not written', at, what, undefined, 'not-a-count');

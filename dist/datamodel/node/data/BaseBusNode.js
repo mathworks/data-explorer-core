@@ -8,6 +8,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { emptyHeaderDims } from '../../parser/XmlUtils.js';
+import { isElement, reportNotElements } from './notAnElement.js';
 // An empty as the binary reader holds one: a class under the bare `Matrix(…)` header of a size
 // with a 0 in it (BinarySlddParser.emptyOf).
 function isTypedEmpty(v) {
@@ -78,6 +79,15 @@ export class BaseBusNode extends DataNode {
     get icon() { return this.isDerived ? 'typeBus' : 'wsBus'; }
     get displayValue() { return ''; }
     get valueEditable() { return false; }
+    // A bus whose properties are held beside its class is shown as read, and takes an edit of its
+    // name alone, which the save writes back as read (DataNode._inlineObjectBag, _refuseInlineBagEdit).
+    get descriptionEditable() { return !this._inlineObjectBag() && super.descriptionEditable; }
+    setProperty(propName, stringValue) {
+        if (this._isUnchangedCommit(propName, stringValue)) {
+            return true;
+        }
+        return this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
+    }
     getProperties() { return [PropName, PropDataType, PropDescription]; }
     // PI layout is schema-driven (schema/classes/{bus,connectionBus,serviceBus}.json).
     // Each concrete bus container has a schema entry keyed by its className, so the
@@ -145,16 +155,22 @@ export class BaseBusNode extends DataNode {
         return props;
     }
     serializeValue() {
+        // Properties held beside the class, with no element to rebuild, are written as they were
+        // read (DataNode._inlineObjectBag): `_elements[0]` threw a TypeError here.
+        if (this._inlineObjectBag()) {
+            return { ...this.serial._rawVal };
+        }
         const props = this._getSerializedProperties();
         const result = { ...this.serial._rawVal };
         result._elements = [{ ...result._elements[0], _properties: props }];
         return result;
     }
-    // Not inside a value still in its encoded stream (DataNode._encodedReadOnly).
-    canRemoveChild() { return !this._encodedReadOnly && this.children.length > 0; }
+    // Not inside a value still in its encoded stream (DataNode._encodedReadOnly), nor one whose
+    // properties are held beside its class, which the save writes back as read.
+    canRemoveChild() { return !this._encodedReadOnly && !this._inlineObjectBag() && this.children.length > 0; }
     removeChildNode(child) { this.removeChild(child); this._markModified(); }
     restoreChildNode(child, index) { this.children.splice(index, 0, child); child.parent = this; this._markModified(); }
-    canAddChild() { return !this._encodedReadOnly; }
+    canAddChild() { return !this._encodedReadOnly && !this._inlineObjectBag(); }
     addChildNode() {
         const baseName = 'a';
         const existing = new Set(this.children.map(function (c) { return c.name; }));
@@ -222,6 +238,11 @@ export class BaseBusNode extends DataNode {
         const busElements = props.Elements_internal;
         if (busElements && busElements._elements) {
             busElements._elements.forEach(function (busElem) {
+                // An element that is not one (a hand-edited `null`, number or string) gets no
+                // row, as one holding no properties gets none below; reported after the loop.
+                if (!isElement(busElem)) {
+                    return;
+                }
                 const childProps = busElem._properties || {};
                 const elemName = childProps.Name || '';
                 // Skip phantom elements with empty properties — these arise when a
@@ -234,6 +255,11 @@ export class BaseBusNode extends DataNode {
                 const childNode = new ElementNodeClass(elemName, node, childProps, childSerial);
                 node.addChild(childNode);
             });
+            // Said once for the entry, and the value kept as read, so an untouched save writes
+            // it back whole; the rows are all an edit writes (C-190).
+            if (reportNotElements(busElements._elements, name, 'bus element', 'bus')) {
+                node._keepNullElement(rawVal);
+            }
         }
         else if (busElements && busElements._properties) {
             const childProps = busElements._properties;

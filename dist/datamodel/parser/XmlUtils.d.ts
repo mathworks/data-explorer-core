@@ -271,6 +271,21 @@ export declare function valueForClass(value: unknown, type: string | null | unde
  */
 export declare function complexForIntegerClass(text: string, type: string): string;
 export declare function formatDoubleXml(num: unknown): string;
+/**
+ * A double or a single as a binary dictionary's XML holds it: MATLAB's own spelling of the
+ * number (floatDigits.matlabFloatText), `-0.0`, `1.0E-5`, `3.1415926535897931`, and for a
+ * single the float32 the number is, `1.0E+6`, `3.14159274`. An infinity and a NaN are
+ * MATLAB's words, and a single past a float32's range is the infinity single() makes it. Text
+ * (the exact decimal of a 64-bit integer, see formatDoubleXml) is written as it is.
+ *
+ * formatDoubleXml, String() and a `.0`, wrote the same values in JavaScript's spelling:
+ * `0.0` for -0, which MATLAB then read as +0 (C-062), `0.00001`, `3.141592653589793`, and a
+ * single as the double it was widened to. The value MATLAB read was the same for every
+ * other number, but the text was not MATLAB's, so each entry a save rebuilt came back with
+ * numbers nobody edited respelled. A text dictionary's literal keeps formatDoubleXml
+ * (formatNumLiteral): its spelling is another.
+ */
+export declare function formatFloatXml(num: unknown, cls: 'double' | 'single'): string;
 export declare function formatNumericXml(num: unknown, type: string): string;
 export declare function formatNumLiteral(num: unknown, type: string): string;
 export declare function formatMatrixSerial(values: unknown[], dims: number[], type: string): string;
@@ -283,6 +298,25 @@ export declare function formatMatrixSerial(values: unknown[], dims: number[], ty
  * the pages. The rule is the char twin of the row-vector rule in formatMatrixSerial.
  */
 export declare function charNeedsShape(dims: number[]): boolean;
+/**
+ * The longest 1xN char row MATLAB writes into a binary dictionary with no Dimension.
+ *
+ * Measured on R2027a (test/fixtures/make_char_rowdim.m, char_rowdim_binary.sldd): a row
+ * of 512 has none, and one of 513 is `Class="char" Dimension="1*513"`. That holds at an
+ * entry's Value, a cell element, a struct field, a Parameter's Description, a string's
+ * element and an object's property. N counts MATLAB char elements (UTF-16 code units), not
+ * bytes: `é` x512 has none, and 256 `&<` pairs, 2,560 bytes once escaped, have none. A
+ * newline or a CRLF in the row changes nothing. MATLAB reads a row back the same either way,
+ * so this is byte fidelity only.
+ */
+export declare const MATLAB_CHAR_ROW_DIM_THRESHOLD = 512;
+/**
+ * The Dimension MATLAB states on a char ROW written as text: `' Dimension="1*N"'` when
+ * the row is longer than MATLAB_CHAR_ROW_DIM_THRESHOLD, and `''` otherwise. A shape that
+ * is not a row is charNeedsShape's to state, and this says nothing of it. `text.length` is
+ * the count of UTF-16 code units, which is what MATLAB counts.
+ */
+export declare function charRowDimension(text: string, dims: number[]): string;
 /**
  * The char codes of a stored (column-major) string, in the row-major order the
  * `Matrix()` literal lays out — the same order parseMatrixValue and
@@ -320,10 +354,10 @@ export declare function decimalCharXml(text: string, dims: number[]): {
  * is past 65535), which a reader then keeps as the text it is rather than as NULs.
  */
 export declare function charFromDecimal(body: string): string | null;
-export declare function formatComplexXml(complexStr: string): string;
+export declare function formatComplexXml(complexStr: string, cls?: 'double' | 'single'): string;
 /**
  * A complex value's body as a binary dictionary's `<P Class="…" IsComplex="1">` carries it,
- * for its class: a float class's parts each read as a float (formatComplexXml's `.0`), an
+ * for its class: a float class's parts each as MATLAB spells a number of it (formatComplexXml), an
  * integer class's parts as the integers they are. MATLAB writes `Class="int8"
  * IsComplex="1">3-4i` and `Class="int64" IsComplex="1">9223372036854775807+1i`, and the
  * `.0` form, `9223372036854775807.0+1.0i`, is not that value. An infinity is `Inf`, the

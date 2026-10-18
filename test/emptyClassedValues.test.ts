@@ -446,20 +446,23 @@ describe('an empty of a class that XML must escape, or a function handle', () =>
     { name: 'Amp', cls: 'My&amp;Class', shown: ['My&Class', '<0x0 My&Class>', [0, 0]], editable: false },
     { name: 'Fh', cls: 'function_handle', shown: ['function_handle', '[ ]', [0, 0]], editable: false },
   ];
-  const xml = (): string => {
-    const props = ODD.map((o) => `                <P Name="${o.name}" Class="${o.cls}" Dimension="0*0"/>`);
-    const cell = [`                <P Name="Odd" Class="cell" Dimension="1*${ODD.length}">`, ...ODD.map((o) => `                    <Element Class="${o.cls}" Dimension="0*0"/>`), '                </P>'];
-    const entries = ODD.map((o, k) => entry('e' + o.name, k + 40, `        <P Name="Value" Class="${o.cls}" Dimension="0*0"/>`));
+  const xml = (odd = ODD): string => {
+    const props = odd.map((o) => `                <P Name="${o.name}" Class="${o.cls}" Dimension="0*0"/>`);
+    const cell = [`                <P Name="Odd" Class="cell" Dimension="1*${odd.length}">`, ...odd.map((o) => `                    <Element Class="${o.cls}" Dimension="0*0"/>`), '                </P>'];
+    const entries = odd.map((o, k) => entry('e' + o.name, k + 40, `        <P Name="Value" Class="${o.cls}" Dimension="0*0"/>`));
     const tail = '    <Object Class="DD.Dictionary">';
     return HOST_XML.replace(NOTHING, [NOTHING, ...props, ...cell].join('\n')).replace(tail, entries.join('\n') + '\n' + tail);
   };
 
   it('opens as an empty of its class, and is saved as MATLAB wrote it, untouched and with another property edited', () => {
     for (const edit of [false, true]) {
-      const { session, root } = open(xml());
+      // An edited entry is written from the model, and no XML writer writes a function handle
+      // (FH-PASTE): the edited round holds none, and the test below holds its refusal.
+      const odd = edit ? ODD.filter((o) => o.cls !== 'function_handle') : ODD;
+      const { session, root } = open(xml(odd));
       const widget = entryNode(root, 'widget');
       const cell = childOf(widget, 'Odd');
-      ODD.forEach((o, k) => {
+      odd.forEach((o, k) => {
         for (const node of [childOf(widget, o.name), cell.children[k], entryNode(root, 'e' + o.name)]) {
           expect([...shown(node), node.valueEditable], o.name).toEqual([...o.shown, o.editable]);
         }
@@ -470,7 +473,7 @@ describe('an empty of a class that XML must escape, or a function handle', () =>
       const saved = chunkOf(session.serializeSource(root.name)!.bytes!);
       const w = entryOf(saved, 'widget');
       const c = w.slice(w.indexOf('<P Name="Odd"'));
-      ODD.forEach((o, k) => {
+      odd.forEach((o, k) => {
         expect(lineOf(w, `<P Name="${o.name}" `), o.name).toBe(`<P Name="${o.name}" Class="${o.cls}" Dimension="0*0"/>`);
         expect(c.split('\n')[k + 1].trim(), o.name).toBe(`<Element Class="${o.cls}" Dimension="0*0"/>`);
         expect(lineOf(entryOf(saved, 'e' + o.name), '<P Name="Value"'), o.name).toBe(`<P Name="Value" Class="${o.cls}" Dimension="0*0"/>`);
@@ -479,6 +482,18 @@ describe('an empty of a class that XML must escape, or a function handle', () =>
       const again = open(saved);
       expect(shown(childOf(entryNode(again.root, 'widget'), 'Amp'))).toEqual(ODD[0].shown);
     }
+  });
+
+  it('an empty function handle read so is written back only as read: an edit to its entry refuses the save, naming it', () => {
+    // MATLAB R2027a reads `Class="function_handle" Dimension="0*0"/>` back as no value at all:
+    // getValue answers "Class 'function_handle' is not supported." The untouched save above
+    // writes each as the file had it; an edited entry holding one is not written.
+    const { session, root } = open(xml());
+    expect(childOf(entryNode(root, 'widget'), 'Scalar').setProperty('Value', '2.5')).toBe(true);
+    expect(() => session.serializeSource(root.name)).toThrowError(
+      'Cannot write "widget": widget.Fh is an empty function handle (0x0), which a binary dictionary holds only in ' +
+        "MATLAB's MAT encoding, and this package cannot write that. Nothing was written.",
+    );
   });
 });
 
