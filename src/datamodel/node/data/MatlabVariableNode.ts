@@ -19,6 +19,7 @@ import MatlabValueParser, { controlsAsOneChar, formatMatlabChar, formatMatlabStr
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
 import { NOT_AVAILABLE } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
+import { integerReader } from './integerReading.js';
 import { subscriptLabel } from '../../display/Subscript.js';
 import type { Bracket, ElementOrder } from '../../display/Subscript.js';
 import { decodeMatStream, functionHandleOf, structElementsHeld, undecodedValue, type MatVariable } from '../../parser/MatParser.js';
@@ -3891,7 +3892,13 @@ export default class MatlabVariableNode extends DataNode {
       // range, which MATLAB refuses on read (defect 29). _scalarValue is `unknown` and
       // needsTypedLiteral keys off the CLASS, so the writer still spells it
       // `Class="uint64"` with the 'U' suffix, from the digits MATLAB itself wrote.
-      node._scalarValue = parseExactNum(bare);
+      // Held as MATLAB reads it, as every integer class's number is (below).
+      node._scalarValue = integerReader(node._scalarType)(parseExactNum(bare));
+    } else if (isIntegerClass(node._scalarType)) {
+      // As MATLAB reads a text dictionary's literal: converted to the class, so int8 300 is
+      // 127 and 2.5 is 3 (integerReading, F1-17). Read as the double it spells, it showed 300,
+      // which no int8 is. The literal itself stays `_rawInput`, which an untouched save writes.
+      node._scalarValue = integerReader(node._scalarType)(parseMatlabNum(bare));
     } else {
       node._scalarValue = parseMatlabNum(bare);
     }
@@ -4430,7 +4437,13 @@ export default class MatlabVariableNode extends DataNode {
       // typed_text.sldd's u64Vec2 takes, and rounding it here cost more than the one
       // element — MATLAB abandons the REST of an array's body at the first out-of-range
       // token, so a perfectly representable neighbour came back zero too (defect 30).
-      node._elements = parts.map(parseExactNum);
+      // Each held as MATLAB reads it, as below.
+      const read = integerReader(node._scalarType);
+      node._elements = parts.map((t) => read(parseExactNum(t)));
+    } else if (isIntegerClass(node._scalarType)) {
+      // See parseTypedScalar: each element as MATLAB reads it, converted to the class.
+      const read = integerReader(node._scalarType);
+      node._elements = parts.map((t) => read(parseMatlabNum(t)));
     } else {
       node._elements = parts.map(parseMatlabNum);
     }
@@ -4513,6 +4526,15 @@ export default class MatlabVariableNode extends DataNode {
     node._elements = parsed.elements;
     node._dims = parsed.dims.slice();
     node._scalarType = parsed.type;
+    // See parseTypedScalar: each element as MATLAB reads it, converted to the class. In place:
+    // parseMatrixValue made the array for this node alone.
+    if (isIntegerClass(parsed.type)) {
+      const read = integerReader(parsed.type);
+      const elements = parsed.elements;
+      for (let i = 0; i < elements.length; i++) {
+        elements[i] = read(elements[i]);
+      }
+    }
     // This package's own spelling of an edited sparse double (_serializeArray), read back:
     // a sparse double, as MATLAB reads it — its non-zeros, as every sparse array is held.
     if (parsed.type === 'sparse') {

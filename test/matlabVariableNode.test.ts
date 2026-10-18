@@ -869,11 +869,12 @@ describe("MatlabVariableNode — an array element's data type follows the array"
   it('leaves the elements displaying exactly what they displayed as doubles', () => {
     // The integer/single classes format through formatMatlabNum, same as double, so
     // asserting the text pins that this change is invisible outside the Data Type
-    // column — and that an element cell still shows something re-typeable.
+    // column — and that an element cell still shows something re-typeable. Numbers every
+    // class holds: one an int8 cannot hold is shown as MATLAB reads it (F1-17).
     for (const t of CLASSES) {
-      expect([t, typed(t, '[100, 200, 300]').children.map((c: Any) => c.displayValue)]).toEqual([
+      expect([t, typed(t, '[100, 110, 120]').children.map((c: Any) => c.displayValue)]).toEqual([
         t,
-        ['100', '200', '300'],
+        ['100', '110', '120'],
       ]);
     }
   });
@@ -895,7 +896,7 @@ describe("MatlabVariableNode — an array element's data type follows the array"
     // _setConstrainedValue rewrote the element's class on every commit, so the
     // column flipped back to 'double' the moment a user touched a cell.
     for (const t of CLASSES) {
-      const n = typed(t, '[100, 200]');
+      const n = typed(t, '[100, 120]');
       expect(n.children[0].setProperty('Value', '150')).toBe(true);
       expect([t, n.children.map((c: Any) => c.dataType), n.serializeValue()]).toEqual([
         t,
@@ -903,9 +904,9 @@ describe("MatlabVariableNode — an array element's data type follows the array"
         // Suffixed per class: a suffixless body is one MATLAB reads back as double,
         // which would undo the very class this test is about. Bare of a Matrix()
         // header, because a 1xN row states no shape (defect 21). The 150 typed into an
-        // int8 is int8(150), 127: MATLAB saturates at the class's range. The 200 was read,
+        // int8 is int8(150), 127: MATLAB saturates at the class's range. The 120 was read,
         // not typed, and stays as read.
-        { _type: t, _value: '[' + (t === 'int8' ? '127' : '150') + suffixOf(t) + ', 200' + suffixOf(t) + ']' },
+        { _type: t, _value: '[' + (t === 'int8' ? '127' : '150') + suffixOf(t) + ', 120' + suffixOf(t) + ']' },
       ]);
     }
   });

@@ -10,6 +10,7 @@ import { slddChunkContent } from '../../parser/SlddContent.js';
 import { SC_PART, emptyCatalogBag, untypedDefinitions } from '../../parser/ScCatalog.js';
 import { DATA_PART_KEY, TEXT_CONTENT, TEXT_PARTS } from '../../parser/SlddParts.js';
 import { takeDecodeFailures, takePartialDecodes } from '../../parser/EncodedValue.js';
+import { takeUnheldIntegers, unheldIntegerWarning } from '../data/integerReading.js';
 import { heldByTextDictionary } from '../../parser/MatWriter.js';
 import { attachChunkFrame, attachEntrySource, readFrameOf, readSourceOf } from '../../parser/EntrySource.js';
 const SECTION_DEFS = [
@@ -220,6 +221,9 @@ export default class SlddNode extends ContainerNode {
                     // was read and says so, collected the same way (recordPartialDecode).
                     takeDecodeFailures();
                     takePartialDecodes();
+                    // And a number its integer class cannot hold, which is shown as MATLAB
+                    // reads it, converted (integerReading): one warning for the entry.
+                    takeUnheldIntegers();
                     // A text dictionary's complex text is this file's own, which a save writes
                     // back as read where it has no stream to be instead
                     // (MatWriter.heldByTextDictionary). A binary dictionary's is not: the record
@@ -248,6 +252,10 @@ export default class SlddNode extends ContainerNode {
                     }
                     for (const message of takePartialDecodes()) {
                         warnings?.push({ code: 'part-unreadable', message, part: String(entry.name) });
+                    }
+                    const unheld = takeUnheldIntegers();
+                    if (unheld) {
+                        warnings?.push(unheldIntegerWarning(String(entry.name), unheld, node.sourceFormat !== 'xml'));
                     }
                 }
             });
