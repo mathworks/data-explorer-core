@@ -29,7 +29,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, relative } from 'node:path';
-import { unzipSync, zipSync } from 'fflate';
+import { strToU8, unzipSync, zipSync } from 'fflate';
 import { XMLValidator } from 'fast-xml-parser';
 import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
@@ -430,12 +430,24 @@ describe('what the model writes is laid out as the file it goes into is', () => 
 });
 
 // cellarr_binary.sldd, because a regeneration rewrites 11 of its 14 entries: an untouched
-// entry written from the model here would not pass for its own bytes.
+// entry written from the model here would not pass for its own bytes. The renames take it as an
+// earlier save left it, every 1x1 cell given `Dimension="1*1"` (MATLAB reads it as the same
+// value, cell1x1.truth.json), because the writers now spell those cells as MATLAB does, and it
+// is that spelling that a regeneration rewrites.
 describe('an edit changes its own entry and nothing else', () => {
   const PATH = join(HERE, 'fixtures', 'cellarr_binary.sldd');
+  const olderSave = (): { session: any; root: any; bytes: Uint8Array } => {
+    const parts = unzipSync(new Uint8Array(readFileSync(PATH)));
+    const xml = text(parts[CHUNK]);
+    parts[CHUNK] = strToU8(xml.replace(/(<(?:P Name="[^"]*"|Element) Class="cell")>/g, '$1 Dimension="1*1">'));
+    expect(text(parts[CHUNK])).not.toBe(xml);
+    const bytes = zipSync(parts);
+    const session = createSession();
+    return { session, root: ingest(session, buffer(bytes), { filename: 'cellarr_binary.sldd' }), bytes };
+  };
 
   it('rename one, delete the first, add one: the rest are their bytes, in place', () => {
-    const { session, root, bytes } = open(PATH);
+    const { session, root, bytes } = olderSave();
     const xml = text(unzipSync(bytes)[CHUNK]);
     const spans = spansOf(xml);
     const all = entries(root);
@@ -487,7 +499,7 @@ describe('an edit changes its own entry and nothing else', () => {
   });
 
   it('an edited entry is written in its own place, its bytes with only its edited lines new', () => {
-    const { session, root, bytes } = open(PATH);
+    const { session, root, bytes } = olderSave();
     const xml = text(unzipSync(bytes)[CHUNK]);
     const spans = spansOf(xml);
     const target = entries(root)[4];

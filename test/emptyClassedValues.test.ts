@@ -332,14 +332,14 @@ describe('a typed `[]` is the 0x0 of its class', () => {
   });
 
   it("and a binary dictionary's 0x0 logical in a cell, which its reader holds as one", () => {
-    const xml = hostXml().replace('<P Name="Value" Class="cell" Dimension="2*2">', '<P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>\n        <P Name="Was" Class="cell" Dimension="2*2">');
+    const xml = hostXml().replace('<P Name="Value" Class="cell" Dimension="2*2">', '<P Name="Value" Class="cell">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>\n        <P Name="Was" Class="cell" Dimension="2*2">');
     const { session, root } = open(xml);
     const member = entryNode(root, 'partCell').children[0];
     expect(shown(member)).toEqual(['logical', '<0x0 logical>', [0, 0]]);
     const saved = entryOf(chunkOf(session.serializeSource(root.name)!.bytes!), 'partCell');
-    expect(saved).toContain('        <P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
+    expect(saved).toContain('        <P Name="Value" Class="cell">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
     // The save keeps the unedited entry's bytes; the writer writes the same from the model.
-    expect(entryOf(regenerateChunkXml(root), 'partCell'), 'written from the model').toContain('        <P Name="Value" Class="cell" Dimension="1*1">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
+    expect(entryOf(regenerateChunkXml(root), 'partCell'), 'written from the model').toContain('        <P Name="Value" Class="cell">\n            <Element Class="logical" Dimension="0*0"/>\n        </P>');
   });
 });
 

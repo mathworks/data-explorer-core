@@ -2904,8 +2904,15 @@ export default class MatlabVariableNode extends DataNode {
             return p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + (empty ? dimensionText(dims) : '0*0') + '"/>';
         }
         // dims.join, so a 2x3x2 cell keeps its third extent here as it does in
-        // _serializeCellPropertyXml and in what MATLAB itself writes.
-        let xml = p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + dimensionText(dims) + '">\n';
+        // _serializeCellPropertyXml and in what MATLAB itself writes. A 1x1 cell of one element
+        // states none, at an entry, a cell element or a struct field, as MATLAB writes it there
+        // and as DataNode._cellXml writes a property's: no cell MATLAB writes says
+        // `Dimension="1*1"` (cell1x1_binary.sldd). The binary reader takes the absence as 1x1 at
+        // an entry and as 1xN for N elements in a cell or a struct.
+        const dimAttr = dims.length <= 2 && dims[0] === 1 && dims[1] === 1 && this.children.length === 1
+            ? ''
+            : ' Dimension="' + dimensionText(dims) + '"';
+        let xml = p + '<' + tagName + attrStr + ' Class="cell"' + dimAttr + '>\n';
         // Each element with its origin in the file while a merge asks for it (EntrySource).
         for (const child of this.children) {
             xml += withOrigin(child.serializeXml('Element', {}, indent + 1), originOf(child)) + '\n';

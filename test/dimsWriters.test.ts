@@ -808,7 +808,7 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
     const said = `0*${digits.replace(/^0+(?=\d)/, '')}`;
     return [
       [binaryPaste(literal('double', dims)), `<P Name="Value" Class="double" Dimension="${said}"/>`],
-      [binaryPaste(cell(literal('int8', dims))), `<P Name="Value" Class="cell" Dimension="1*1"> <Element Class="int8" Dimension="${said}"/> </P>`],
+      [binaryPaste(cell(literal('int8', dims))), `<P Name="Value" Class="cell"> <Element Class="int8" Dimension="${said}"/> </P>`],
       [binaryPaste({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: literal('double', dims) }], _fields: ['f'] }), `<P Name="Value" Class="struct"> <Element> <P Name="f" Class="double" Dimension="${said}"/> </Element> </P>`],
       [binaryPaste(parameter(literal('double', dims))), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="double" Dimension="${said}"></P> </Element> </P>`],
       [binaryPaste(parameter(cell(literal('int8', dims)))), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="cell"> <Element Class="int8" Dimension="${said}"></Element> </P> </Element> </P>`],
@@ -841,11 +841,11 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
     // digits of the doubles it read (Size.headerDigits), so the header names a count a
     // double holds.
     const OLD = '<P Name="Value" Class="double" Dimension="0*0"/>';
-    const one = (element: string) => `<P Name="Value" Class="cell" Dimension="1*1">\n            ${element}\n        </P>`;
+    const one = (element: string) => `<P Name="Value" Class="cell">\n            ${element}\n        </P>`;
     const FORMS: [string, string][] = [
       ['a double', one('<Element Class="double" Dimension="0*9007199254740992"/>')],
       ['an int8', one('<Element Class="int8" Dimension="0*9007199254740992"/>')],
-      ['a nested cell\'s', one('<Element Class="cell" Dimension="1*1">\n                <Element Class="double" Dimension="0*9007199254740992"/>\n            </Element>')],
+      ['a nested cell\'s', one('<Element Class="cell">\n                <Element Class="double" Dimension="0*9007199254740992"/>\n            </Element>')],
       ['a rank-4', one('<Element Class="double" Dimension="1*2*0*9007199254740992"/>')],
       ['2^53 + 2', one('<Element Class="double" Dimension="0*9007199254740994"/>')],
       ['10^20', one('<Element Class="double" Dimension="0*100000000000000000000"/>')],
@@ -952,9 +952,9 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       const emptyStruct = { _array_type: 'Struct', _dimensions: [0, n], _elements: [], _fields: ['f'] };
       const forms: [unknown, string][] = [
         [emptyCell, `<P Name="Value" Class="cell" Dimension="0*${d}"/>`],
-        [cell(emptyCell), `<P Name="Value" Class="cell" Dimension="1*1"> <Element Class="cell" Dimension="0*${d}"/> </P>`],
+        [cell(emptyCell), `<P Name="Value" Class="cell"> <Element Class="cell" Dimension="0*${d}"/> </P>`],
         [emptyStruct, `<P Name="Value" Class="struct" Dimension="0*${d}"> <Field Name="f"/> </P>`],
-        [cell(emptyStruct), `<P Name="Value" Class="cell" Dimension="1*1"> <Element Class="struct" Dimension="0*${d}"> <Field Name="f"/> </Element> </P>`],
+        [cell(emptyStruct), `<P Name="Value" Class="cell"> <Element Class="struct" Dimension="0*${d}"> <Field Name="f"/> </Element> </P>`],
         [parameter(emptyCell), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="cell" Dimension="0*${d}"> </P> </Element> </P>`],
         [parameter(emptyStruct), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="struct" Dimension="0*${d}"> <Field Name="f"/> </P> </Element> </P>`],
         [parameter(cell(emptyCell)), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="cell"> <Element Class="cell" Dimension="0*${d}"> </Element> </P> </Element> </P>`],
@@ -989,7 +989,7 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       ['0*1152921504606847000', '0*1152921504606846976'],
       ['0*1000000000000000000000', '0*1000000000000000000000'],
     ]) {
-      const inCell = (dimension: string) => `<P Name="Value" Class="cell" Dimension="1*1">\n            ${element(dimension)}\n        </P>`;
+      const inCell = (dimension: string) => `<P Name="Value" Class="cell">\n            ${element(dimension)}\n        </P>`;
       const cellEntry = opened(OLD, inCell(file));
       const dEmpty = cellEntry.root.getSection('design').children.find((e: any) => e.name === 'dEmpty');
       expect(dEmpty.serialize().value._elements, file).toEqual([{ _type: 'double', _value: `Matrix(${exact.split('*').join(',')})`, _binary_empty: true }]);
@@ -1040,7 +1040,7 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
     // same five places: Matrix(2,2) is Dimension="2*2">acbd.
     const want = [
       '<P Name="Value" Class="char" Dimension="2*2">acbd</P>',
-      '<P Name="Value" Class="cell" Dimension="1*1"> <Element Class="char" Dimension="2*2">acbd</Element> </P>',
+      '<P Name="Value" Class="cell"> <Element Class="char" Dimension="2*2">acbd</Element> </P>',
       '<P Name="Value" Class="struct"> <Element> <P Name="f" Class="char" Dimension="2*2">acbd</P> </Element> </P>',
       '<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="char" Dimension="2*2">acbd</P> </Element> </P>',
       '<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="cell"> <Element Class="char" Dimension="2*2">acbd</Element> </P> </Element> </P>',
