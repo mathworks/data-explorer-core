@@ -9,12 +9,13 @@
 // 'Modified' nor 'New', and it still has the name, the section and the metadata it had when
 // its bytes were attached — is written as those bytes, and a whole chunk is written in the
 // reader's frame: the entries in document order, between the prolog, separators and tail
-// the file already had. Only an edited or added entry is written from the model, and the
-// objects after the last entry only when the dictionary-level fields they hold changed;
-// what is written from the model is laid out as the file is (parser/ChunkLayout). So a save
-// that edits nothing gives back the chunk it read, and the per-value writers are reached
-// only for what the user changed, which is the only place their spelling is anybody's
-// choice. Writing every entry from the model used to respell values nobody touched (25,278
+// the file already had. Only what was edited or added is written from the model: an added
+// entry whole, an edited one as the bytes it was read from with the parts the edit changed
+// written from the model (parser/EntryMerge), and the objects after the last entry only when
+// the dictionary-level fields they hold changed; what is written from the model is laid out
+// as the file is (parser/ChunkLayout). So a save that edits nothing gives back the chunk it
+// read, and the per-value writers are reached only for what the user changed, which is the
+// only place their spelling is anybody's choice. Writing every entry from the model used to respell values nobody touched (25,278
 // of 242,089 entries over 57 real dictionaries), reorder interleaved sections, drop the
 // trailing newline and add a DD.Dictionary the file never had.
 //
@@ -27,8 +28,12 @@ import { encodedXml } from './EncodedValue.js';
 import { oneWrite } from './MatWriter.js';
 import { DATA_PART_XML } from './SlddParts.js';
 import { SC_PART_XML, catalogFunctionRenames, catalogRenames, scXmlWithRenames } from './ScCatalog.js';
-import { chunkFrameOf, entrySourceOf, keptFragmentOf, packageStampsOf } from './EntrySource.js';
+import { chunkFrameOf, entrySourceOf, keptFragmentOf, packageStampsOf, withOriginTags } from './EntrySource.js';
 import { WRITER_LAYOUT, inLayout, layoutOf } from './ChunkLayout.js';
+import { baseOf, catalogOf, keptPartsOf, mergeEntry, readEntryFragment, stripOrigins } from './EntryMerge.js';
+import { entrySpans } from './BinarySlddParser.js';
+import { findEntryObjectSpan, pNodeText } from './xmlEntrySplice.js';
+import { entrySelectorOf, toEntrySelector } from './entrySelector.js';
 export function serializeBinarySldd(slddNode) {
     const xmlString = buildDataChunkXml(slddNode);
     const encoder = new TextEncoder();
@@ -265,28 +270,83 @@ function uneditedBytes(entryNode) {
     }
     return keptFragmentOf(entryNode) ?? undefined;
 }
+// An edited entry that has bytes it was read from, as those bytes with only what the model
+// changed in them written from the model (EntryMerge), what is written from the model laid out in
+// `layout`. `merged` is null where the entry has no bytes, or they cannot be merged with the
+// model's text, and the entry is then regenerated whole, as every edited entry was: `line` is that
+// regeneration when it has been written already, so that it is not written twice.
+//
+// The merge is used only when, read again on its own, it gives the model's own text: a merge that
+// read as anything but what the model holds would save another value than the one shown.
+function mergedEntry(entryNode, layout) {
+    const source = entrySourceOf(entryNode);
+    if (!source || source.fragment === null) {
+        return { merged: null, line: null };
+    }
+    const tagged = withOriginTags(() => regenerateEntryXml(entryNode));
+    const line = stripOrigins(tagged);
+    const catalog = catalogOf(entryNode);
+    const base = baseOf(source, catalog, (read) => withOriginTags(() => regenerateEntryXml(read)));
+    const merged = base === null ? null : mergeEntry(source.fragment, base, tagged, layout);
+    if (merged === null) {
+        return { merged: null, line };
+    }
+    let again = null;
+    try {
+        const reread = readEntryFragment(merged, { systemComposer: catalog });
+        again = reread ? regenerateEntryXml(reread) : null;
+    }
+    catch {
+        again = null;
+    }
+    return { merged: again === line ? merged : null, line };
+}
 // One entry's `<Object>…</Object>`, without the line around it: its bytes when unedited,
-// otherwise written from the model and laid out as the chunk it goes into is.
+// otherwise those bytes with what was edited written from the model, or, for an entry with no
+// bytes, the whole of it written from the model; what is written from the model is laid out as
+// the chunk it goes into is.
 function entryObjectXml(entryNode, layout) {
     const bytes = uneditedBytes(entryNode);
     if (bytes !== undefined) {
         return bytes;
     }
-    const line = regenerateEntryXml(entryNode);
-    const object = line.substring(4, line.length - 1);
+    const { merged, line } = mergedEntry(entryNode, layout);
+    if (merged !== null) {
+        return merged;
+    }
+    const regenerated = line ?? regenerateEntryXml(entryNode);
+    const object = regenerated.substring(4, regenerated.length - 1);
     return layout ? inLayout(object, layout) : object;
+}
+// The layout of the chunk an entry's bytes were read from, read off its first object as a save
+// reads it (framedChunkXml).
+const frameLayouts = new WeakMap();
+function frameLayoutOf(frame) {
+    if (!frameLayouts.has(frame)) {
+        const first = frame.spans.length > 0 ? frame.spans[0][0] : -1;
+        frameLayouts.set(frame, layoutOf(frame.xml, first));
+    }
+    return frameLayouts.get(frame);
 }
 /**
  * One entry's `<Object>` as a line: four spaces, the object, a newline. An unedited entry
- * whose bytes the reader verified is those bytes; any other is regenerated.
+ * whose bytes the reader verified is those bytes; an edited one is those bytes with what was
+ * edited written from the model, laid out as the chunk it was read from is; any other is
+ * regenerated.
  */
 export function serializeEntryToXml(entryNode) {
     const bytes = uneditedBytes(entryNode);
-    return bytes !== undefined ? '    ' + bytes + '\n' : regenerateEntryXml(entryNode);
+    if (bytes !== undefined) {
+        return '    ' + bytes + '\n';
+    }
+    const frame = entrySourceOf(entryNode)?.frame;
+    const { merged, line } = mergedEntry(entryNode, frame ? frameLayoutOf(frame) : null);
+    return merged !== null ? '    ' + merged + '\n' : line ?? regenerateEntryXml(entryNode);
 }
 /**
  * One entry's `<Object>` line written from the model, whatever bytes it was read from.
- * Internal: the writers' entry point, for their tests and the fidelity census.
+ * Internal: the writers' entry point, for their tests and the fidelity census, and the text
+ * (C, and B for the bytes as read) an edited entry is merged from (mergedEntry).
  */
 export function regenerateEntryXml(entryNode) {
     const meta = entryNode.metadata || {};
@@ -323,5 +383,68 @@ export function regenerateEntryXml(entryNode) {
     }) + '\n';
     xml += '    </Object>\n';
     return xml;
+}
+/**
+ * Where the text written for one entry, `writtenObject` (its `<Object>…</Object>`, as a host holds
+ * it in the chunk it is about to save), changes what nobody edited, by path: empty when it keeps
+ * every part of the bytes the entry was read from that the model has not changed. An entry nobody
+ * edited must be exactly those bytes. An edited one may differ from them only where the model
+ * differs from what the bytes read as, and in its Name and LastMod lines (EntryMerge.keptPartsOf):
+ * read with a structure-aware scan of the text, never with the reader, which can lose what the
+ * writer loses. Empty for an entry with no bytes it was read from, which nothing holds it to.
+ * A binary save gate refuses a save this finds anything in (the maintainer's D12 addendum).
+ */
+export function keptPartsViolations(entryNode, writtenObject) {
+    const source = entrySourceOf(entryNode);
+    if (!source || source.fragment === null) {
+        return [];
+    }
+    const object = writtenObject.trim();
+    if (uneditedBytes(entryNode) !== undefined) {
+        return object === source.fragment ? [] : ['the entry, which nobody edited, is not the bytes it was read from'];
+    }
+    const tagged = withOriginTags(() => regenerateEntryXml(entryNode));
+    const base = baseOf(source, catalogOf(entryNode), (read) => withOriginTags(() => regenerateEntryXml(read)));
+    return base === null ? [] : keptPartsOf(source.fragment, base, tagged, object) ?? [];
+}
+/**
+ * `chunkXml` with one entry's `<Object>…</Object>` replaced by what a save writes for it now
+ * (entryObjectXml: its bytes, merged with the edit, or regenerated), laid out as the chunk is, and
+ * every byte around it as it was; null when the chunk holds no such entry. The entry is found by
+ * `selectorBefore`, the name (and, where two share it, the UUID) it has in the chunk, which a
+ * rename has changed in the model; the entry's own by default. Found by the structure-aware scan
+ * a save reads spans with (BinarySlddParser.entrySpans), or, in a chunk that scan cannot vouch
+ * for, by findEntryObjectSpan. For a host that keeps a chunk as text and splices each edit into
+ * it: the whitespace before and after the object is the chunk's, so no edit moves it.
+ */
+export function spliceEntryObject(chunkXml, entryNode, selectorBefore) {
+    const selector = toEntrySelector(selectorBefore ?? entrySelectorOf(entryNode));
+    const { spans, clean } = entrySpans(chunkXml);
+    let span = null;
+    if (clean) {
+        let first = null;
+        for (const [start, end] of spans) {
+            const fragment = chunkXml.substring(start, end);
+            if (pNodeText(fragment, '<P Name="Name"') !== selector.name) {
+                continue;
+            }
+            const here = { offset: start, length: end - start };
+            if (!selector.uuid || pNodeText(fragment, '<P Name="UUID"') === selector.uuid) {
+                span = here;
+                break;
+            }
+            first ??= here;
+        }
+        span ??= first;
+    }
+    else {
+        span = findEntryObjectSpan(chunkXml, selector);
+    }
+    if (!span) {
+        return null;
+    }
+    const firstObject = clean && spans.length > 0 ? spans[0][0] : span.offset;
+    const object = entryObjectXml(entryNode, layoutOf(chunkXml, firstObject));
+    return chunkXml.substring(0, span.offset) + object + chunkXml.substring(span.offset + span.length);
 }
 //# sourceMappingURL=BinarySlddSerializer.js.map

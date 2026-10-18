@@ -5,6 +5,8 @@
 //   node scripts/save-fidelity.mjs --only repo         fixtures and parity artifacts only
 //   node scripts/save-fidelity.mjs --dist <dir>        measure another build's dist/
 //   node scripts/save-fidelity.mjs --json              one JSON line per file, then the totals
+//   node scripts/save-fidelity.mjs --rename            also rename every entry, save, and count
+//                                                      what changed beyond the Name and LastMod elements
 //
 // It answers two different questions about every binary `.sldd` it finds, and keeps them
 // apart because a save that copies what nobody edited no longer exercises the writers:
@@ -19,6 +21,11 @@
 //
 // Each entry is paired with the file's by UUID and Name (with an occurrence count for the
 // entries that carry neither), never by position, so a reordered chunk still pairs.
+//
+// With --rename it asks a third: `rename`, every entry of a file renamed through the API and the
+// file saved, each entry then compared with the bytes it was read from. A rename touches the Name
+// and LastMod elements alone, so everything else that differs is a part nobody edited that the
+// save rewrote: the count S2 (an edited entry keeps its untouched parts) is measured by.
 //
 // It also prints a digest of the model (every entry's row and its serialize()) and of
 // every textual dictionary's save, which is how two builds are shown to read and write
@@ -353,6 +360,62 @@ function measureBinary(path, bytes) {
   };
 }
 
+// Every entry renamed, the file saved, and each entry compared with the bytes it was read from,
+// its Name and LastMod elements aside: what the save changed that the rename did not. Compared as
+// multisets of markup tokens (each tag, and the text before it, trimmed), so that a chunk written
+// on one line counts as one written on many does. Paired by UUID and by the name it was read with.
+const RENAMED = 'S2r';
+const NAME_AND_LASTMOD = /<P Name="(?:Name|LastMod)"[^>]*(?:\/>|>[^<]*<\/P>)/g;
+function tokens(text) {
+  const m = new Map();
+  for (const t of text.replace(NAME_AND_LASTMOD, '').split(/(?<=>)/)) {
+    const token = t.trim();
+    if (token !== '') m.set(token, (m.get(token) ?? 0) + 1);
+  }
+  return m;
+}
+function measureRename(path, bytes) {
+  const orig = new TextDecoder().decode(unzipSync(bytes)[CHUNK]);
+  const session = core.createSession();
+  const root = core.ingest(session, buffer(bytes), { filename: path.split('/').pop() });
+  let renamed = 0;
+  for (const section of root.children) {
+    for (const entry of section.children) {
+      if (entry.setProperty('Name', entry.name + RENAMED) === true) renamed++;
+    }
+  }
+  const t0 = performance.now();
+  const saved = new TextDecoder().decode(unzipSync(session.serializeSource(root.name).bytes)[CHUNK]);
+  const ms = performance.now() - t0;
+  const before = new Map(keyedEntries(orig).map((e) => [e.key, e.text]));
+  let changedEntries = 0;
+  let changedTokens = 0;
+  let changedBytes = 0;
+  let unpaired = 0;
+  for (const e of keyedEntries(saved.split(RENAMED + '</P>').join('</P>'))) {
+    const o = before.get(e.key);
+    if (o === undefined) {
+      unpaired++;
+      continue;
+    }
+    if (e.text === o) continue;
+    const was = tokens(o);
+    let count = 0;
+    for (const [token, n] of tokens(e.text)) {
+      const extra = n - (was.get(token) ?? 0);
+      if (extra > 0) {
+        count += extra;
+        changedBytes += extra * token.length;
+      }
+    }
+    if (count > 0) {
+      changedEntries++;
+      changedTokens += count;
+    }
+  }
+  return { entries: before.size, renamed, changedEntries, changedTokens, changedBytes, unpaired, ms: Math.round(ms) };
+}
+
 function measureText(path, bytes) {
   const session = core.createSession();
   const root = core.ingest(session, buffer(bytes), { filename: path.split('/').pop() });
@@ -370,7 +433,9 @@ const totals = {
   noopIdentical: 0, noopMembersIdentical: 0, noopDirectoryIdentical: 0, noopChanged: 0, noopFilesChanged: 0,
   regenChanged: 0, regenFilesChanged: 0, regenReordered: 0, regenNewlineLost: 0, regenCrlfLost: 0, regenDictionaryAdded: 0,
   kinds: {}, text: 0, textSaveThrew: 0, skipped: 0, failed: 0,
+  renameEntries: 0, renamed: 0, renameChangedEntries: 0, renameChangedTokens: 0, renameChangedBytes: 0, renameFilesChanged: 0, renameUnpaired: 0,
 };
+const renameMode = flag('rename');
 
 console.log(`dist: ${relative(REPO, DIST) || '.'} (regenerating with ${regenerateName})`);
 for (const path of files) {
@@ -408,6 +473,25 @@ for (const path of files) {
   totals.regenCrlfLost += regen.crlfLost ? 1 : 0;
   totals.regenDictionaryAdded += regen.dictionaryAdded ? 1 : 0;
   for (const [k, n] of Object.entries(regen.kinds)) totals.kinds[k] = (totals.kinds[k] ?? 0) + n;
+  if (renameMode) {
+    let r;
+    try {
+      r = measureRename(path, bytes);
+    } catch (err) {
+      r = { failed: String(err?.message ?? err) };
+      totals.failed++;
+    }
+    result.rename = r;
+    if (!r.failed) {
+      totals.renameEntries += r.entries;
+      totals.renamed += r.renamed;
+      totals.renameChangedEntries += r.changedEntries;
+      totals.renameChangedTokens += r.changedTokens;
+      totals.renameChangedBytes += r.changedBytes;
+      totals.renameFilesChanged += r.changedEntries > 0 ? 1 : 0;
+      totals.renameUnpaired += r.unpaired;
+    }
+  }
   if (asJson) {
     console.log(json({ file: label(path), ...result }));
   } else {
@@ -416,6 +500,7 @@ for (const path of files) {
       `entries ${noop.entries}`,
       `no-op ${noop.identical && noop.membersIdentical ? 'identical' : `CHANGED (${noop.changed + noop.lost} entries; members ${noop.membersChanged.join(',') || 'none'})`}`,
       `regenerate ${regen.changed + regen.lost} entries changed, ${regen.moved} moved`,
+      ...(renameMode ? [result.rename.failed ? `rename FAILED ${result.rename.failed}` : `rename ${result.rename.renamed} entries, ${result.rename.changedEntries} changed beyond Name and LastMod (${result.rename.changedTokens} tokens)`] : []),
       `rows ${result.model.rows}`,
       `serialize ${result.model.serialize}`,
     ].join('\t'));
@@ -431,5 +516,10 @@ console.log(`  regenerate: ${totals.regenChanged} entries changed in ${totals.re
   `${totals.regenReordered} reordered, ${totals.regenNewlineLost} lose the trailing newline, ` +
   `${totals.regenCrlfLost} lose CRLF, ${totals.regenDictionaryAdded} gain a DD.Dictionary`);
 console.log(`  regenerate, changed leaves by kind: ${Object.entries(totals.kinds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ') || 'none'}`);
+if (renameMode) {
+  console.log(`  rename every entry and save: ${totals.renamed} of ${totals.renameEntries} entries renamed; ` +
+    `${totals.renameChangedEntries} entries in ${totals.renameFilesChanged} files changed beyond the Name and LastMod elements ` +
+    `(${totals.renameChangedTokens} tokens, ${totals.renameChangedBytes} bytes); ${totals.renameUnpaired} unpaired`);
+}
 console.log(`text dictionaries: ${totals.text} (the save threw in ${totals.textSaveThrew}); skipped over 100 MB: ${totals.skipped}; failed: ${totals.failed}`);
 process.exitCode = totals.failed > 0 ? 1 : 0;

@@ -14,6 +14,7 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { emptyHeaderDims } from '../../parser/XmlUtils.js';
 import { isElement, reportNotElements } from './notAnElement.js';
+import { elementOriginAt, originOf, recordElementOrigins, recordOrigin, taggingOrigins } from '../../parser/EntrySource.js';
 
 // An empty as the binary reader holds one: a class under the bare `Matrix(…)` header of a size
 // with a 0 in it (BinarySlddParser.emptyOf).
@@ -115,6 +116,8 @@ export class BaseBusNode extends DataNode {
 
     _getSerializedProperties(): Record<string, unknown> {
         const elementsInternal = this.children.map(function (child) { return (child as BaseBusElementNode).serializeValue(); });
+        // Each element's origin in the file, for the save that merges an edited entry (EntrySource).
+        if (taggingOrigins()) { recordElementOrigins(elementsInternal, this.children.map(originOf)); }
         const props = { ...(this.serial._properties as Record<string, unknown>) };
         const rawEI = (this.serial._properties as Record<string, unknown>).Elements_internal;
         if (elementsInternal.length > 0) {
@@ -184,6 +187,7 @@ export class BaseBusNode extends DataNode {
         const props = this._getSerializedProperties();
         const result = { ...(this.serial._rawVal as Record<string, unknown>) };
         result._elements = [{ ...((result._elements as unknown[])[0] as Record<string, unknown>), _properties: props }];
+        if (taggingOrigins()) { recordElementOrigins(result._elements as unknown[], [elementOriginAt((this.serial._rawVal as Record<string, unknown>)._elements, 0)]); }
         return result;
     }
 
@@ -254,7 +258,7 @@ export class BaseBusNode extends DataNode {
         node.Description = (props.Description as string) || '';
         const busElements = props.Elements_internal as Record<string, unknown> | undefined;
         if (busElements && (busElements as Record<string, unknown>)._elements) {
-            ((busElements as Record<string, unknown>)._elements as Record<string, unknown>[]).forEach(function (busElem) {
+            ((busElements as Record<string, unknown>)._elements as Record<string, unknown>[]).forEach(function (busElem, index) {
                 // An element that is not one (a hand-edited `null`, number or string) gets no
                 // row, as one holding no properties gets none below; reported after the loop.
                 if (!isElement(busElem)) { return; }
@@ -266,6 +270,8 @@ export class BaseBusNode extends DataNode {
                 if (!elemName && Object.keys(childProps).length === 0) { return; }
                 const childSerial = { _rawElem: busElem, _properties: childProps };
                 const childNode = new ElementNodeClass(elemName, node, childProps, childSerial as Record<string, unknown>);
+                // Which <Element> of the file it was read from, if it was (EntrySource).
+                recordOrigin(childNode, elementOriginAt((busElements as Record<string, unknown>)._elements, index));
                 node.addChild(childNode);
             });
             // Said once for the entry, and the value kept as read, so an untouched save writes

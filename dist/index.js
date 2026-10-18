@@ -49,6 +49,18 @@ export { parseBinarySldd, parseBinarySlddParts } from './datamodel/parser/Binary
 // write it. Prefer session.serializeSource() when a session already holds the file:
 // it picks the flavour the file arrived in, which this cannot know.
 export { serializeBinarySldd, serializeEntryToXml } from './datamodel/parser/BinarySlddSerializer.js';
+// For a host that keeps a binary dictionary's chunk as text and splices each edit into it (the
+// maintainer's D12): spliceEntryObject replaces one entry's `<Object>` in a chunk with what a save
+// writes for it now, laid out as the chunk is, the bytes around it untouched; keptPartsViolations
+// says, by path, where the text a host is about to save for an entry changes a part of it nobody
+// edited (empty when it changes none), read with a structure-aware scan and not with the reader,
+// for a save gate to refuse on; readEntryFragment reads one `<Object Class="DD.ENTRY">` as the
+// binary reader reads a file's entries, into a section and, with `inheritPlaceFrom`, with the bytes
+// it was read from as its own, which is how an undo that rebuilds an entry from text keeps them.
+// An edited entry is saved as those bytes with only what the edit changed written from the model
+// (README, "Saving a file").
+export { keptPartsViolations, spliceEntryObject } from './datamodel/parser/BinarySlddSerializer.js';
+export { readEntryFragment } from './datamodel/parser/EntryMerge.js';
 // What a refused write throws, out of session.serializeSource(), an entry's serialize() (a
 // copy) or serializeEntryToXml() (a binary dictionary's paste and splice). A host has to
 // recognise the refusal to show it rather than fail on it: MatWriteError for a value the MAT

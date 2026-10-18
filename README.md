@@ -61,9 +61,15 @@ for a text dictionary. The other formats are read-only and answer `null`.
 
 A binary dictionary's save writes each entry nobody edited as the bytes it was
 read from, in its own place, and writes from the model only what was edited or
-added. (Where the reader cannot pair every entry with the bytes it was read
-from, the save writes the whole chunk from the model.) Two rules follow, and
-both are part of the contract:
+added. An edited entry is written the same way, part by part: its bytes, with
+only the parts the edit changed written from the model. A rename changes the
+entry's Name and LastMod lines and nothing else, a value MATLAB spelled its own
+way is kept as MATLAB spelled it until it is edited, and removing a bus element
+leaves every other element as it was read. (Where the reader cannot pair every
+entry with the bytes it was read from, the save writes the whole chunk from the
+model; where an edited entry's parts cannot be paired with certainty, that
+entry is written whole from the model.) Two rules follow, and both are part of
+the contract:
 
 - **Malformed in, malformed out.** The readers accept some input that is not
   well-formed XML: a bad XML declaration, text outside the root element, a
@@ -72,14 +78,26 @@ both are part of the contract:
 - **The API is the contract.** Only an edit made through core's API is saved:
   `editProperty` (a rename is one), `addEntry`, `addChild`, `deleteNode` and the
   session's other edit methods, with their `undo` and `redo`. Each marks the entry
-  it changes, `Modified` (or `New` for an added one), and the save writes a marked
-  entry from the model. A change made around the API marks nothing, so it is not
+  it changes, `Modified` (or `New` for an added one), and the save writes what was
+  edited in a marked entry from the model. A change made around the API marks nothing, so it is not
   guaranteed to be saved: a value changed in place, such as `p.Value = 42`, is
   not, and the entry is written as the bytes it was read from. Before it writes an
   unedited entry's bytes, the save does check the entry's name, section and the
-  metadata it writes, and writes the entry from the model where any of those has
-  changed; that guards against some edits made around the API but does not widen
+  metadata it writes, and writes what changed from the model where any of those
+  has changed; that guards against some edits made around the API but does not widen
   the contract.
+
+A host that keeps a binary dictionary's `data/chunk0.xml` as text and splices
+each edit into it has three functions for it. `spliceEntryObject(chunkXml,
+entry, nameBefore)` replaces one entry's `<Object>` with what a save writes for
+it now, laid out as the chunk is, every byte around it untouched.
+`keptPartsViolations(entry, objectText)` lists, by path, where the text a host
+is about to save for an entry changes a part nobody edited; it reads the text
+with a structure-aware scan, not with the reader, and an empty list means the
+untouched parts are the bytes they were read as. `readEntryFragment(fragment,
+{ section, inheritPlaceFrom })` reads one `<Object>` into a section with the
+bytes it came from, so an entry rebuilt from text by an undo is still written as
+those bytes, and merged with them when it is edited again.
 
 ## Usage across a folder
 

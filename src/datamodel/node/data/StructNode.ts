@@ -18,6 +18,17 @@ import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayC
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
 import { dimensionText } from '../../parser/Size.js';
 import { setOwn } from '../../parser/ownKeys.js';
+import {
+    elementOriginAt,
+    originAttr,
+    originOf,
+    ownElementOriginOf,
+    recordElementOrigins,
+    recordOrigin,
+    recordOwnElementOrigin,
+    taggingOrigins,
+    withOrigin,
+} from '../../parser/EntrySource.js';
 
 /**
  * A struct's field names, read from the bytes rather than trusted from a key MATLAB may
@@ -202,6 +213,10 @@ export default class StructNode extends DataNode {
             elements.push(this.serializeElement());
         }
 
+        // Each element's origin in the file, for the save that merges an edited entry (EntrySource).
+        if (taggingOrigins()) {
+            recordElementOrigins(elements, this._numElements > 1 ? this.children.map(originOf) : [ownElementOriginOf(this)]);
+        }
         const result: Record<string, unknown> = {
             _array_type: 'Struct',
             _dimensions: d,
@@ -258,12 +273,13 @@ export default class StructNode extends DataNode {
             return empty + p + '</' + tagName + '>';
         }
         let xml = p + '<' + tagName + attrStr + ' Class="struct"' + dimAttr + '>\n';
+        // Each element with its origin in the file while a merge asks for it (EntrySource).
         if (this._numElements > 1) {
             for (const elemNode of this.children) {
-                xml += (elemNode as DataNode).serializeXml('Element', {}, indent + 1) + '\n';
+                xml += withOrigin((elemNode as DataNode).serializeXml('Element', {}, indent + 1), originOf(elemNode)) + '\n';
             }
         } else {
-            xml += xmlPad(indent + 1) + '<Element>\n';
+            xml += xmlPad(indent + 1) + '<Element' + originAttr(ownElementOriginOf(this)) + '>\n';
             for (const child of this.children) {
                 xml += (child as DataNode).serializeXml('P', { Name: child.name }, indent + 2) + '\n';
             }
@@ -406,6 +422,8 @@ export default class StructNode extends DataNode {
                 // DERIVED from this spec by BaseNode.displayName rather than baked
                 // here, so renaming the array relabels its elements.
                 elemNode._subscript = { index: ei, dims, order: 'column-major', bracket: '()' };
+                // Which <Element> of the file it was read from, if it was (EntrySource).
+                recordOrigin(elemNode, elementOriginAt(elements, ei));
                 fields.forEach((field) => {
                     const childNode = NodeRegistry.parseValue(fieldOf(elem, field), field, elemNode);
                     elemNode.addChild(childNode);
@@ -413,6 +431,7 @@ export default class StructNode extends DataNode {
                 node.addChild(elemNode);
             });
         } else if (elements.length === 1) {
+            recordOwnElementOrigin(node, elementOriginAt(elements, 0));
             fields.forEach((field) => {
                 const childNode = NodeRegistry.parseValue(fieldOf(elements[0], field), field, node);
                 node.addChild(childNode);

@@ -30,6 +30,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSession, ingest } from '../../src/index.js';
+import { regenerateEntryXml } from '../../src/datamodel/parser/BinarySlddSerializer.js';
 import { saveReadbacks } from './matlab/save_readbacks.mjs';
 import '../../src/datamodel/node/data/NodeClassMap.js';
 
@@ -65,13 +66,13 @@ describe("MATLAB's read-back of core's saves (D8-READBACKS M1, M2, M3)", () => {
   });
 
   it('core still writes each fragment MATLAB was asked about (M2, M3)', () => {
-    const { cases } = saveReadbacks({ createSession, ingest }, read, () => null);
+    const { cases } = saveReadbacks({ createSession, ingest, regenerateEntryXml }, read, () => null);
     expect(cases.map(input)).toEqual(TRUTH.cases.filter((c) => c.check !== 'M1').map(input));
   });
 
   // Skipped, and so reported, without the corpus files.
   it.skipIf(!CORPUS)('and M1, from the corpus files DEX_READBACKS_CORPUS names', () => {
-    const { cases } = saveReadbacks({ createSession, ingest }, read, corpus);
+    const { cases } = saveReadbacks({ createSession, ingest, regenerateEntryXml }, read, corpus);
     expect(cases.filter((c: Case) => c.check === 'M1').map(input)).toEqual(rows('M1').map(input));
   });
 

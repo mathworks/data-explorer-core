@@ -14,6 +14,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { isElement, reportNotElements } from './notAnElement.js';
+import { elementOriginAt, originOf, recordElementOrigins, recordOrigin, taggingOrigins } from '../../parser/EntrySource.js';
 
 const CLASS_NAME = 'Simulink.data.dictionary.EnumTypeDefinition';
 
@@ -93,6 +94,8 @@ export class EnumTypeNode extends DataNode {
 
     _getSerializedProperties(): Record<string, unknown> {
         const enumerals = this.children.map(function (child) { return (child as EnumValueNode).serializeValue(); });
+        // Each enumeral's origin in the file, for the save that merges an edited entry (EntrySource).
+        if (taggingOrigins()) { recordElementOrigins(enumerals, this.children.map(originOf)); }
         const props = { ...(this.serial._properties as Record<string, unknown>) };
         if ('DefaultValue' in (this.serial._properties as Record<string, unknown>) || this.DefaultValue) { props.DefaultValue = this.DefaultValue; }
         if ('Description' in (this.serial._properties as Record<string, unknown>) || this.Description) { props.Description = this.Description; }
@@ -126,6 +129,7 @@ export class EnumTypeNode extends DataNode {
         const props = this._getSerializedProperties();
         const result = { ...(this.serial._rawVal as Record<string, unknown>) };
         result._elements = [{ ...((result._elements as unknown[])[0] as Record<string, unknown>), _properties: props }];
+        if (taggingOrigins()) { recordElementOrigins(result._elements as unknown[], [elementOriginAt((this.serial._rawVal as Record<string, unknown>)._elements, 0)]); }
         return result;
     }
 
@@ -173,12 +177,14 @@ export class EnumTypeNode extends DataNode {
         const serial = { _rawVal: rawVal, _properties: props, _rawEnumerals: enumerals };
         const node = new EnumTypeNode(name, parent, props, serial as Record<string, unknown>);
         if (enumerals._elements) {
-            (enumerals._elements as Record<string, unknown>[]).forEach(function (en) {
+            (enumerals._elements as Record<string, unknown>[]).forEach(function (en, index) {
                 // An enumeral that is not one (a hand-edited `null`, number or string) gets no
                 // row; reported after the loop.
                 if (!isElement(en)) { return; }
                 const enumName = (en.Name as string) || '';
                 const childNode = new EnumValueNode(enumName, node, en);
+                // Which <Element> of the file it was read from, if it was (EntrySource).
+                recordOrigin(childNode, elementOriginAt(enumerals._elements, index));
                 node.addChild(childNode);
             });
             // Said once for the entry, and the value kept as read, so an untouched save writes

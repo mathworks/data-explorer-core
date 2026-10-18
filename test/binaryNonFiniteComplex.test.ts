@@ -152,10 +152,11 @@ describe('a save that edits nothing writes them as it did', () => {
     expect(complexTags(entryBlock(saved, 'pMixedNF'))).toEqual([
       '<P Name="Value" Class="double" IsComplex="1" Dimension="1*3">1.0+2.0i NaN+0.0i 3.0-4.0i</P>',
     ]);
-    // And a rename, which leaves the value as it was, written from the model.
+    // And a rename, which leaves the value as it was: the bytes MATLAB wrote, `1.0NaNi` and all,
+    // since nobody changed it (S2, the maintainer's D3).
     const entry = nodeAt(root, ['pNonFinite']);
     expect(entry.setProperty('Name', 'pNonFiniteRenamed')).toBe(true);
-    expect(complexTags(serializeEntryToXml(entry))).toEqual(complexTags(entryBlock(regenerated, 'pNonFinite')));
+    expect(complexTags(serializeEntryToXml(entry))).toEqual(complexTags(entryBlock(saved, 'pNonFinite')));
   });
 });
 

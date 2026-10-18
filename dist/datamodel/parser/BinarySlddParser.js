@@ -54,7 +54,7 @@ import { setOwn } from './ownKeys.js';
 import { bodyHoldsUnwritten, isWrittenSpelling, recordUnwrittenSpelling, takeUnwrittenSpellings, unwrittenSpellingWarning, } from './writtenSpelling.js';
 import { arrayClassOf, componentsBaseOf } from './objectArrayClass.js';
 import { headerDigits } from './Size.js';
-import { recordPackageStamps, recordReadFrame, recordReadSource } from './EntrySource.js';
+import { recordPackageStamps, recordReadElements, recordReadFrame, recordReadSource } from './EntrySource.js';
 /**
  * Read a `Dimension="d1*d2*...*dn"` attribute into every extent it declares.
  *
@@ -795,6 +795,8 @@ function parseEntry(obj, rawXml) {
 // the one case MATLAB states them separately — see `fieldNamesOf`.
 function structValue(elements, dimParts, declaredFields = []) {
     const parsed = elements.map((e) => parseStructElement(e));
+    // Element k is the k-th <Element> read, for the save that merges an edited entry (EntrySource).
+    recordReadElements(parsed);
     return {
         _array_type: 'Struct',
         _dimensions: dimParts,
@@ -820,10 +822,13 @@ function fieldNamesOf(node) {
 // with no Dimension is 1x1; a nested cell is 1xN), so dims are the caller's to
 // decide and only the envelope is shared.
 function cellValue(elements, dimParts) {
+    const parsed = elements.map((e) => parseCellElement(e));
+    // Element k is the k-th <Element> read (EntrySource.recordReadElements).
+    recordReadElements(parsed);
     return {
         _array_type: 'Cell',
         _dimensions: dimParts,
-        _elements: elements.map((e) => parseCellElement(e)),
+        _elements: parsed,
         _mw_element_type: 'MATLABArray',
     };
 }
@@ -855,11 +860,14 @@ function objectArrayValue(elements, dimParts, base) {
     }
     const classes = elements.map((e) => e['@_Class'] || first);
     const arrayClass = base ?? arrayClassOf(classes);
+    const parsed = elements.map((e, k) => objectElement(e, classes[k], arrayClass));
+    // Element k is the k-th <Element> read (EntrySource.recordReadElements).
+    recordReadElements(parsed);
     return {
         _array_class: arrayClass,
         _dimensions: dimParts,
         _mw_element_type: 'MATLABArray',
-        _elements: elements.map((e, k) => objectElement(e, classes[k], arrayClass)),
+        _elements: parsed,
     };
 }
 /**
@@ -1531,11 +1539,14 @@ function parseElement(el) {
     if (!className) {
         return structValue([el], [1, 1]);
     }
+    // The one element is the one <Element> read (EntrySource.recordReadElements).
+    const parsed = [objectElement(el, className, className)];
+    recordReadElements(parsed);
     return {
         _array_class: className,
         _dimensions: [1, 1],
         _mw_element_type: 'MATLABArray',
-        _elements: [objectElement(el, className, className)],
+        _elements: parsed,
     };
 }
 // The <P> children of one <Element>, as a plain name → value bag. Serves both the
