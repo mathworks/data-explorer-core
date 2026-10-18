@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import DataNode from '../src/datamodel/node/DataNode.js';
 import SlddNode from '../src/datamodel/node/container/SlddNode.js';
+import { MatBudgetError, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 const prop = (name: string, value: unknown, indent = 0) => DataNode.serializePropertyXml(name, value, indent, null);
@@ -54,8 +55,22 @@ describe('DataNode.serializePropertyXml — primitives', () => {
     expect(prop('Gain', 1, 2)).toBe('        <P Name="Gain" Class="double">1.0</P>');
   });
 
-  it('falls back to char for a value of no recognised shape', () => {
-    expect(prop('Odd', { nothing: 'matches' })).toBe('<P Name="Odd" Class="char">[object Object]</P>');
+  // It used to be written as char from String(), `[object Object]`, which MATLAB reads back
+  // as that text (C-205; the maintainer's group F ruling: refused rather than written wrong).
+  it('refuses a value of no recognised shape, naming the property, rather than write it as char', () => {
+    const refusal = (() => {
+      try {
+        prop('Odd', { nothing: 'matches' });
+      } catch (e) {
+        return e;
+      }
+      return null;
+    })();
+    expect(refusal).toBeInstanceOf(MatWriteError);
+    expect(refusal).not.toBeInstanceOf(MatBudgetError);
+    expect((refusal as Error).message).toBe(
+      'Cannot write "Odd": Odd is an object holding "nothing", which a binary dictionary has no spelling for. Nothing was written.',
+    );
   });
 });
 
@@ -314,9 +329,12 @@ describe('DataNode.serializePropertyXml — structs and cells', () => {
     expect(xml).toContain('<Element Class="double">Inf</Element>');
   });
 
-  it('falls back to char for a cell element of no recognised shape', () => {
+  // As for a property, above (C-205).
+  it('refuses a cell element of no recognised shape, naming the element, rather than write it as char', () => {
     const value = { _array_type: 'Cell', _dimensions: [1, 1], _elements: [{ unknown: true }] };
-    expect(prop('C', value)).toContain('<Element Class="char">[object Object]</Element>');
+    expect(() => DataNode.serializePropertyXml('C', value, 0, null, { entry: 'e', path: 'e.C' })).toThrow(
+      new MatWriteError('Cannot write "e": e.C{1} is an object holding "unknown", which a binary dictionary has no spelling for. Nothing was written.'),
+    );
   });
 });
 

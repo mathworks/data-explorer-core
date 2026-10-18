@@ -952,7 +952,7 @@ function emptyOf(cls, dimParts) {
 }
 /** The `_type`s this package's values give a meaning of their own, which no class's empty can wear (emptyOf). */
 const RESERVED_TYPE = new Set(['mxchar', 'cdata', 'sparse', 'complex']);
-/** Whether every extent is a count a `Matrix(…)` header states as digits (emptyOf): not 2.5, nor one String spells with an exponent. */
+/** Whether every extent is a count a `Matrix(…)` header states as digits (emptyOf, Size.headerDigits): not 2.5. 10^21 is one. */
 const headerCounts = (dimParts) => dimParts.every((d) => /^\d+$/.test(headerDigits(d)));
 function parseEntryValue(prop) {
     const encoded = encodedOf(prop);

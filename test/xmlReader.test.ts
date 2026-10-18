@@ -23,11 +23,11 @@
 //     model and project readers share one parser today; asserting the model reader alone
 //     would keep passing on the day someone gives one of them an option of its own.
 //
-// What is NOT pinned here is desirability. That an unclosed tag parses cleanly, or that a
-// model part's `007` reads as 7, is not a behaviour this package chose — it is one the callers
-// have to survive, and the notes in `XmlReader` say which of them survive it how. Where this
-// package DID choose — the dictionary reader keeps its text and decodes numeric references —
-// the choice is pinned as a difference between the readers, in the dictionary block below.
+// What is NOT pinned here is desirability. That an unclosed tag parses cleanly is not a
+// behaviour this package chose — it is one the callers have to survive, and the notes in
+// `XmlReader` say which of them survive it how. Where this package DID choose — every reader
+// keeps its text as text and decodes numeric references — the choice is pinned through all
+// three readers, in the shape block below.
 
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -45,9 +45,6 @@ const READERS: Array<[string, (text: string) => unknown]> = [
   ['project', readProjectXml],
 ];
 
-/** The two readers that keep the engine's default text handling. */
-const ENGINE_DEFAULT_READERS = READERS.slice(1);
-
 /**
  * Asserts one fact through every reader. `Q` and `R` are deliberately outside the
  * dictionary's `isArray` list (`Object`, `P`, `Element`), so a shared fact can be stated
@@ -57,19 +54,6 @@ function everyReader(xml: string, expected: unknown): void {
   for (const [name, read] of READERS) {
     expect(read(xml), name).toEqual(expected);
   }
-}
-
-/**
- * Asserts one fact through the model and project readers, and what the dictionary reader
- * answers instead. Written as one call so the difference is stated where it is pinned: a fact
- * that holds for two readers and not the third cannot be asserted through `everyReader`, and
- * asserting the two alone would let the third drift unseen.
- */
-function engineDefaultReaders(xml: string, expected: unknown, dictionary: unknown): void {
-  for (const [name, read] of ENGINE_DEFAULT_READERS) {
-    expect(read(xml), name).toEqual(expected);
-  }
-  expect(readDictionaryXml(xml), 'dictionary').toEqual(dictionary);
 }
 
 describe('the shape every reader produces', () => {
@@ -83,12 +67,12 @@ describe('the shape every reader produces', () => {
     everyReader('<Q>x</Q>', { Q: 'x' });
   });
 
-  it('coerces numeric-looking TEXT to a number — except the dictionary reader', () => {
-    // `blockParamUsages` sees this on `<version>42</version>` and every numeric block
-    // parameter, and it is the reason the walkers stringify before they compare. The
-    // dictionary reader keeps the text: its only caller converts each value by the Class the
-    // element declares, which the engine cannot see.
-    engineDefaultReaders('<Q>7</Q>', { Q: 7 }, { Q: '7' });
+  it('keeps numeric-looking TEXT as text, in every reader', () => {
+    // A value is converted by the code that knows what it is: the dictionary reader's caller
+    // by the Class the element declares, which the engine cannot see, and a model part's
+    // parameter not at all, because it is an expression MATLAB evaluates. The model and
+    // project readers used to coerce this to the number 7.
+    everyReader('<Q>7</Q>', { Q: '7' });
   });
 
   it('does NOT coerce an attribute value', () => {
@@ -97,18 +81,18 @@ describe('the shape every reader produces', () => {
     everyReader('<Q Dim="7"/>', { Q: { '@_Dim': '7' } });
   });
 
-  it('loses the SPELLING of a number when it coerces, which the dictionary reader does not', () => {
-    // `007` and `1.0` are not `7` and `1` to MATLAB, and once the engine has answered
-    // there is nothing left in the tree to recover the original spelling from. That is what
-    // the dictionary reader used to do to every char that looked like a number: '0.0' came
-    // back '0' and '1e-3' came back '0.001', on screen and in the next save.
-    engineDefaultReaders('<Q>007</Q>', { Q: 7 }, { Q: '007' });
-    engineDefaultReaders('<Q>1.0</Q>', { Q: 1 }, { Q: '1.0' });
-    // Hex too, which is easier to miss: the option is on by default, so a value written
-    // `0x1F` reads as the decimal 31.
-    engineDefaultReaders('<Q>0x1F</Q>', { Q: 31 }, { Q: '0x1F' });
-    // And the sign of zero: `String(-0)` is '0', so the coerced -0 lost it on the way back.
-    engineDefaultReaders('<Q>-0.0</Q>', { Q: -0 }, { Q: '-0.0' });
+  it('keeps the SPELLING of a number, in every reader', () => {
+    // `007` and `1.0` are not `7` and `1` to MATLAB, and once a reader has coerced there is
+    // nothing left in the tree to recover the original spelling from. That is what the
+    // dictionary reader used to do to every char that looked like a number ('0.0' came back
+    // '0' and '1e-3' came back '0.001', on screen and in the next save), and what the model
+    // reader did to every configuration set (`10.0` read as 10, `1e-3` as 0.001).
+    everyReader('<Q>007</Q>', { Q: '007' });
+    everyReader('<Q>1.0</Q>', { Q: '1.0' });
+    // Hex too, which is easier to miss: the engine's coercion read `0x1F` as the decimal 31.
+    everyReader('<Q>0x1F</Q>', { Q: '0x1F' });
+    // And the sign of zero: `String(-0)` is '0', so a coerced -0 lost it on the way back.
+    everyReader('<Q>-0.0</Q>', { Q: '-0.0' });
   });
 
   it('leaves an integer too large for a double as a STRING', () => {
@@ -118,15 +102,14 @@ describe('the shape every reader produces', () => {
     everyReader('<Q>9007199254740993</Q>', { Q: '9007199254740993' });
   });
 
-  it('coerces `true` and `false` to BOOLEANS, lowercase only — except the dictionary reader', () => {
-    // Not a number and not documented anywhere before this: the engine tests the trimmed
-    // text against these two words before it tries `strnum`. So a model part's
-    // `<P Name="Foo">true` arrives as a boolean — and `TRUE`, which MATLAB would not write
-    // but a hand-edited file might, does not. Every walker that compares a parsed value to
-    // a string depends on which of these two it got. A dictionary's 'true' is a char until
-    // its Class says otherwise.
-    engineDefaultReaders('<Q>true</Q>', { Q: true }, { Q: 'true' });
-    engineDefaultReaders('<Q>false</Q>', { Q: false }, { Q: 'false' });
+  it('keeps `true` and `false` as TEXT, in every reader', () => {
+    // The engine's coercion tested the trimmed text against these two words, lowercase only,
+    // and the model reader took it: a block parameter `<P Name="Value">false</P>` arrived as
+    // the BOOLEAN false, which `SlxParser` read as no value at all, so the block was missing
+    // from Model Elements. A dictionary's 'true' is a char until its Class says otherwise,
+    // and a model's is the expression the user typed.
+    everyReader('<Q>true</Q>', { Q: 'true' });
+    everyReader('<Q>false</Q>', { Q: 'false' });
     everyReader('<Q>TRUE</Q>', { Q: 'TRUE' });
     everyReader('<Q>True</Q>', { Q: 'True' });
   });
@@ -135,17 +118,17 @@ describe('the shape every reader produces', () => {
     everyReader('<Q Flag="true"/>', { Q: { '@_Flag': 'true' } });
   });
 
-  it('decodes a NAMED entity but leaves a numeric character reference alone — except the dictionary reader', () => {
-    // Both halves matter. The first is why `SlddScan` refuses a name containing an entity
-    // rather than mirror a decoder it does not own; the second is why a `&#65;` reaching a
-    // cell must still render flat, which `blockParamUsages` asserts from the other side.
+  it('decodes a NAMED entity and a numeric character reference, in every reader', () => {
+    // The first is why `SlddScan` refuses a name containing an entity rather than mirror a
+    // decoder it does not own.
     //
     // XML requires a reader to replace a numeric character reference, and a dictionary needs
     // it: MATLAB writes `&#xD;` for every CR inside a char, and a reader that left the five
-    // characters standing showed them and saved them back as `&amp;#xD;`.
-    engineDefaultReaders('<Q>a&amp;b&#65;</Q>', { Q: 'a&b&#65;' }, { Q: 'a&bA' });
-    engineDefaultReaders('<Q>a&#xD;b</Q>', { Q: 'a&#xD;b' }, { Q: 'a\rb' });
-    engineDefaultReaders('<Q N="a&#xD;b"/>', { Q: { '@_N': 'a&#xD;b' } }, { Q: { '@_N': 'a\rb' } });
+    // characters standing showed them and saved them back as `&amp;#xD;`. The model and
+    // project readers used to leave them standing too.
+    everyReader('<Q>a&amp;b&#65;</Q>', { Q: 'a&bA' });
+    everyReader('<Q>a&#xD;b</Q>', { Q: 'a\rb' });
+    everyReader('<Q N="a&#xD;b"/>', { Q: { '@_N': 'a\rb' } });
   });
 
   it('decodes no HTML entity in any reader', () => {
@@ -275,7 +258,7 @@ describe('what only the dictionary reader does', () => {
     // The model reader trims first, is left with nothing, and adds no key either — it
     // arrives at the same shape by the other route.
     expect(readModelXml('<Object>\n  <P Name="a">1</P>\n</Object>')).toEqual({
-      Object: { P: { '@_Name': 'a', '#text': 1 } },
+      Object: { P: { '@_Name': 'a', '#text': '1' } },
     });
   });
 
@@ -316,16 +299,16 @@ describe('what only the dictionary reader does', () => {
     expect(readModelXml('<Q Name="v">   </Q>')).toEqual({ Q: { '@_Name': 'v' } });
   });
 
-  it('does not COERCE a padded value either, which the model reader does', () => {
+  it('does not COERCE a padded value either, which the model reader trims and keeps as text', () => {
     // With trimming off the engine returns any value that differs from its own trim RAW,
     // unparsed — which was how a padded dictionary value escaped the coercion the reader
-    // used to apply. The dictionary reader coerces nothing now, so padding protects nothing
-    // it needs protecting from; the case stays because the model reader still trims first
-    // and then coerces, so the same bytes become 7 and true there.
+    // used to apply. No reader coerces now, so padding protects nothing it needs protecting
+    // from; the case stays because the model reader still trims, and the same bytes there
+    // are the text '7' and 'true' — not the number and the boolean they once were.
     expect(readDictionaryXml('<Q> 7 </Q>')).toEqual({ Q: ' 7 ' });
     expect(readDictionaryXml('<Q>  true  </Q>')).toEqual({ Q: '  true  ' });
-    expect(readModelXml('<Q> 7 </Q>')).toEqual({ Q: 7 });
-    expect(readModelXml('<Q>  true  </Q>')).toEqual({ Q: true });
+    expect(readModelXml('<Q> 7 </Q>')).toEqual({ Q: '7' });
+    expect(readModelXml('<Q>  true  </Q>')).toEqual({ Q: 'true' });
   });
 
   it('trims only the ENDS — interior whitespace survives everywhere', () => {
