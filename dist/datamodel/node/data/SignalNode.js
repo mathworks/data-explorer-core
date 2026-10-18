@@ -63,6 +63,10 @@ export default class SignalNode extends DataNode {
         const layout = super.getPILayout();
         return layout && layout.map((g) => ({ ...g, items: withEnumAtoms(g.items) }));
     }
+    // A Signal whose properties are held beside its class is shown as read, and takes an edit of
+    // its name alone (DataNode._inlineObjectBag, _refuseInlineBagEdit).
+    get descriptionEditable() { return !this._inlineObjectBag() && super.descriptionEditable; }
+    getPropInfo(PropClassRef) { return this._inlineBagPropInfo(super.getPropInfo(PropClassRef)); }
     setProperty(propName, stringValue) {
         // Its own shown text, set back, is no edit (DataNode._isUnchangedCommit).
         if (this._isUnchangedCommit(propName, stringValue)) {
@@ -72,6 +76,11 @@ export default class SignalNode extends DataNode {
         const encodedRefusal = this._refuseEncodedEdit(propName, stringValue);
         if (encodedRefusal) {
             return encodedRefusal;
+        }
+        // Nor one whose properties are held beside its class, which the save writes back as read (DataNode._refuseInlineBagEdit).
+        const inlineRefusal = this._refuseInlineBagEdit(propName, stringValue);
+        if (inlineRefusal) {
+            return inlineRefusal;
         }
         if (propName === 'Min' || propName === 'Max') {
             return this._setMinMax(propName, stringValue);

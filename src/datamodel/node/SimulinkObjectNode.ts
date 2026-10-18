@@ -1,6 +1,8 @@
 // Copyright 2026 The MathWorks, Inc.
 
 import DataNode, { customSaveOf } from './DataNode.js';
+import type { SetPropertyResult } from './DataNode.js';
+import type { PropClass } from './BaseNode.js';
 import { SAVEOBJ_KEY } from '../parser/XmlUtils.js';
 import { oneWrite, writeUnderWay } from '../parser/MatWriter.js';
 
@@ -73,6 +75,26 @@ export default class SimulinkObjectNode extends DataNode {
       return oneWrite(() => this.serializeValue());
     }
     return this._serializeSimulinkObject(this._serializedOverrides());
+  }
+
+  // An object whose properties are held beside its class is written as it was read
+  // (DataNode._inlineObjectBag, _serializeSimulinkObject), so it is shown as read: it takes an
+  // edit of its name alone, and offers no editor for anything else. A subclass whose own
+  // setProperty answers before this one asks _refuseInlineBagEdit first itself.
+  get valueEditable(): boolean {
+    return !this._inlineObjectBag() && super.valueEditable;
+  }
+
+  get descriptionEditable(): boolean {
+    return !this._inlineObjectBag() && super.descriptionEditable;
+  }
+
+  getPropInfo(PropClassRef: PropClass): ReturnType<DataNode['getPropInfo']> {
+    return this._inlineBagPropInfo(super.getPropInfo(PropClassRef));
+  }
+
+  setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+    return this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
   }
 
   /**

@@ -241,6 +241,12 @@ export default class VariantBankCoderInfoNode extends SimulinkObjectNode {
     // the entry Modified and answer `true`, and the file would gain a key MATLAB ignores. One still
     // in the encoded stream it was read from keeps that refusal's own reason.
     setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+        // One whose properties are held beside its class, which the save writes back as read, refuses
+        // every edit but a rename in one message (DataNode._refuseInlineBagEdit).
+        const inlineRefusal = this._refuseInlineBagEdit(propName, stringValue);
+        if (inlineRefusal) {
+            return inlineRefusal;
+        }
         const resolved = this._resolveProperty(propName);
         if (resolved === 'Value') {
             return (

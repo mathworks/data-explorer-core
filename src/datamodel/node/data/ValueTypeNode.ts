@@ -110,6 +110,11 @@ export default class ValueTypeNode extends SimulinkObjectNode {
         if (encodedRefusal) {
             return encodedRefusal;
         }
+        // Nor one whose properties are held beside its class, which the save writes back as read (DataNode._refuseInlineBagEdit).
+        const inlineRefusal = this._refuseInlineBagEdit(propName, stringValue);
+        if (inlineRefusal) {
+            return inlineRefusal;
+        }
         if (propName === 'Min' || propName === 'Max') { return this._setMinMax(propName, stringValue); }
         const notAnEnumeral = this._rejectUnknownEnumeral(propName, stringValue);
         if (notAnEnumeral) { return notAnEnumeral; }
