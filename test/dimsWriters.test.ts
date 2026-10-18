@@ -737,7 +737,8 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
   });
 
   it('2^60\'s own digits, which a double holds, are written in the same five places, not refused', () => {
-    // As that double, which a Dimension spells as String does: digits that read back as 2^60.
+    // As that double, which a Dimension spells with its own digits (Size.extentDigits); this
+    // asks only that they read back as 2^60.
     for (const [got] of written('1152921504606846976')) {
       expect(Number(/ Dimension="0\*(\d+)"/.exec(String(got))?.[1]), String(got)).toBe(2 ** 60);
     }
@@ -808,8 +809,9 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
   it('a binary dictionary\'s own empty cell element at 2^60 is not refused by a save that edited nothing', () => {
     // String spells 2^60 as 1152921504606847000, digits that say another count, so the
     // header the reader builds from it is spelled with the double's exact digits. Written,
-    // its Dimension spells that double as String does, as f535020 wrote it. As a cell
-    // entry's element, and in a Parameter's Value, which the raw cell-element arm writes.
+    // its Dimension spells that double with its own digits too (Size.extentDigits); this
+    // asks only that they read back as 2^60. As a cell entry's element, and in a
+    // Parameter's Value, which the raw cell-element arm writes.
     const OLD = '<P Name="Value" Class="double" Dimension="0*0"/>';
     const OLD_VALUE = '<P Name="Value" Class="double" Dimension="3*3">0.0 0.0 6.0 5.0 0.0 0.0 0.0 0.0 0.0</P>';
     for (const dimension of ['0*1152921504606846976', '0*1152921504606847000']) {
@@ -841,6 +843,119 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       const regenValueAt = valueRegenerated.indexOf('<Element Class="double"', valueRegenerated.indexOf('<P Name="Name" Class="char">pDense</P>'));
       expect(Number(/^<Element Class="double" Dimension="0\*(\d+)"\/>/.exec(valueRegenerated.slice(regenValueAt))?.[1]), `${dimension} in a Parameter's Value, written from the model`).toBe(2 ** 60);
     }
+  });
+
+  // Every XML extent is spelled with the count's own digits (Size.extentDigits, dimensionText).
+  // String spells 2^60 as 1152921504606847000, digits that say another count, which the readers
+  // refuse (isExactDigits), and 10^21 as 1e+21, which no reader takes for digits.
+  it('2^60 and 10^21 are written with their own digits in the same five places, not as String spells them', () => {
+    for (const digits of ['1152921504606846976', '1000000000000000000000']) {
+      for (const [got, want] of written(digits)) expect(got, digits).toBe(want);
+    }
+  });
+
+  it('so are a pasted cell\'s and struct\'s _dimensions [0,2^60] and [0,10^21], as an entry, a cell entry\'s element, a Parameter\'s Value and its cell\'s element', () => {
+    for (const [n, d] of [[2 ** 60, '1152921504606846976'], [1e21, '1000000000000000000000']] as const) {
+      const emptyCell = { _array_type: 'Cell', _dimensions: [0, n], _elements: [] };
+      const emptyStruct = { _array_type: 'Struct', _dimensions: [0, n], _elements: [], _fields: ['f'] };
+      const forms: [unknown, string][] = [
+        [emptyCell, `<P Name="Value" Class="cell" Dimension="0*${d}"/>`],
+        [cell(emptyCell), `<P Name="Value" Class="cell" Dimension="1*1"> <Element Class="cell" Dimension="0*${d}"/> </P>`],
+        [emptyStruct, `<P Name="Value" Class="struct" Dimension="0*${d}"> <Field Name="f"/> </P>`],
+        [cell(emptyStruct), `<P Name="Value" Class="cell" Dimension="1*1"> <Element Class="struct" Dimension="0*${d}"> <Field Name="f"/> </Element> </P>`],
+        [parameter(emptyCell), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="cell" Dimension="0*${d}"> </P> </Element> </P>`],
+        [parameter(emptyStruct), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="struct" Dimension="0*${d}"> <Field Name="f"/> </P> </Element> </P>`],
+        [parameter(cell(emptyCell)), `<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="cell"> <Element Class="cell" Dimension="0*${d}"> </Element> </P> </Element> </P>`],
+      ];
+      for (const [value, want] of forms) expect(binaryPaste(value), want).toBe(want);
+    }
+  });
+
+  it('written from the model, a binary dictionary\'s own empty cell element at 2^60 or 10^21 has the count\'s own digits, as a cell entry\'s element and in a Parameter\'s Value', () => {
+    // The reader built 10^21's header as Matrix(0,1e+21), which no writer reads as digits, so
+    // the writer wrote that element as 0*0 in a cell entry and as 0.0 in a Parameter's Value,
+    // and 2^60's Dimension as 1152921504606847000. A save that edited nothing keeps the
+    // entry's bytes, so it is the writer that is asked here (regenerateChunkXml).
+    const OLD = '<P Name="Value" Class="double" Dimension="0*0"/>';
+    const OLD_VALUE = '<P Name="Value" Class="double" Dimension="3*3">0.0 0.0 6.0 5.0 0.0 0.0 0.0 0.0 0.0</P>';
+    const squeeze = (xml: string) => xml.replace(/\s+/g, ' ').trim();
+    const element = (dimension: string) => `<Element Class="double" Dimension="${dimension}"/>`;
+    const opened = (old: string, read: string) => {
+      const files = unzipSync(new Uint8Array(sparseFixture(BINARY)));
+      const xml = strFromU8(files['data/chunk0.xml']);
+      expect(xml).toContain(old);
+      files['data/chunk0.xml'] = strToU8(xml.replace(old, read));
+      const session = createSession();
+      const root: any = ingest(session, buffer(zipSync(files)), { filename: BINARY });
+      const [thrown] = thrownBy(() => session.serializeSource(root.name));
+      expect(thrown?.message ?? null, read).toBeNull();
+      return { root, saved: strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']), regenerated: regenerateChunkXml(root) };
+    };
+    // The Dimension in the file, and the digits of the count it is.
+    for (const [file, exact] of [
+      ['0*1152921504606846976', '0*1152921504606846976'],
+      ['0*1152921504606847000', '0*1152921504606846976'],
+      ['0*1000000000000000000000', '0*1000000000000000000000'],
+    ]) {
+      const inCell = (dimension: string) => `<P Name="Value" Class="cell" Dimension="1*1">\n            ${element(dimension)}\n        </P>`;
+      const cellEntry = opened(OLD, inCell(file));
+      const dEmpty = cellEntry.root.getSection('design').children.find((e: any) => e.name === 'dEmpty');
+      expect(dEmpty.serialize().value._elements, file).toEqual([{ _type: 'double', _value: `Matrix(${exact.replace('*', ',')})`, _binary_empty: true }]);
+      const from = cellEntry.saved.indexOf('<P Name="Value"', cellEntry.saved.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
+      expect(cellEntry.saved.slice(from, cellEntry.saved.indexOf('</Object>', from)).trimEnd(), `${file}, saved`).toBe(inCell(file));
+      const at = cellEntry.regenerated.indexOf('<P Name="Value"', cellEntry.regenerated.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
+      expect(cellEntry.regenerated.slice(at, cellEntry.regenerated.indexOf('</Object>', at)).trimEnd(), `${file}, written from the model`).toBe(inCell(exact));
+
+      const inValue = (dimension: string) => `<P Name="Value" Class="cell">\n                    ${element(dimension)}\n                </P>`;
+      const parameterEntry = opened(OLD_VALUE, inValue(file));
+      const valueOf = (xml: string) => {
+        const v = xml.indexOf('<P Name="Value"', xml.indexOf('<Element Class="Simulink.Parameter">', xml.indexOf('<P Name="Name" Class="char">pDense</P>')));
+        return squeeze(xml.slice(v, xml.indexOf('<P Name="Complexity"', v)));
+      };
+      expect(valueOf(parameterEntry.saved), `${file} in a Parameter's Value, saved`).toBe(squeeze(inValue(file)));
+      expect(valueOf(parameterEntry.regenerated), `${file} in a Parameter's Value, written from the model`).toBe(squeeze(inValue(exact)));
+    }
+  });
+
+  // An mxchar's `Matrix(…)` header states its extents, and its body one code per character.
+  // When the two disagree there is no Dimension to write: the entry, a cell entry's element and
+  // a struct entry's field were written with the text's own size, a row; a Parameter's Value and
+  // its cell's element with the header over a body that does not fill it. Refused instead,
+  // naming the place, as a MatWriteError that is not a budget refusal.
+  const charPlaces = (l: unknown): [string, unknown][] => [
+    ['pasted', l],
+    ['pasted{1}', cell(l)],
+    ['pasted.f', { _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: l }], _fields: ['f'] }],
+    ['pasted.Value', parameter(l)],
+    ['pasted.Value{1}', parameter(cell(l))],
+  ];
+
+  it('an mxchar whose header declares another number of characters than it has codes is refused in the five places, not written as a row or under a Dimension its body does not fill; one that agrees is written under it', () => {
+    for (const [text, dims, holding] of [
+      ['Matrix(1,5)\n[97, 98, 99]', '[1,5]', '3 characters'],
+      ['Matrix(3,1)\n[97, 98]', '[3,1]', '2 characters'],
+      ['Matrix(1,2)\n[97]', '[1,2]', '1 character'],
+      ['Matrix(1,2)\n[]', '[1,2]', '0 characters'],
+    ]) {
+      for (const [path, value] of charPlaces({ _type: 'mxchar', _value: text })) {
+        expect(binaryPaste(value), `${JSON.stringify(text)} at ${path}`).toEqual([
+          'MatWriteError',
+          `Cannot write "pasted": ${path} is a char declaring dimensions ${dims} and holding ${holding}, which no Dimension spells. Nothing was written.`,
+        ]);
+      }
+    }
+    // One whose header declares as many characters as it has codes is written under it in the
+    // same five places: Matrix(2,2) is Dimension="2*2">acbd.
+    const want = [
+      '<P Name="Value" Class="char" Dimension="2*2">acbd</P>',
+      '<P Name="Value" Class="cell" Dimension="1*1"> <Element Class="char" Dimension="2*2">acbd</Element> </P>',
+      '<P Name="Value" Class="struct"> <Element> <P Name="f" Class="char" Dimension="2*2">acbd</P> </Element> </P>',
+      '<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="char" Dimension="2*2">acbd</P> </Element> </P>',
+      '<P Name="Value"> <Element Class="Simulink.Parameter"> <P Name="Value" Class="cell"> <Element Class="char" Dimension="2*2">acbd</Element> </P> </Element> </P>',
+    ];
+    expect(charPlaces({ _type: 'mxchar', _value: 'Matrix(2,2)\n[[97, 98]; [99, 100]]' }).map(([, value]) => binaryPaste(value))).toEqual(want);
+    // And an empty one, which has no code to hold: a 0x2 char.
+    expect(binaryPaste({ _type: 'mxchar', _value: 'Matrix(0,2)\n[]' })).toBe('<P Name="Value" Class="char" Dimension="0*2"/>');
   });
 });
 

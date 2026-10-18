@@ -16,6 +16,7 @@ import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
+import { dimensionText } from '../../parser/Size.js';
 import { setOwn } from '../../parser/ownKeys.js';
 
 /**
@@ -231,7 +232,7 @@ export default class StructNode extends DataNode {
         // `d[0] + '*' + d[1]` promised 6 elements over a 2x3x2's twelve, and for a
         // 1x1x3 dropped the attribute entirely (d[0] and d[1] are both 1), which
         // MATLAB's XML reader answers with a segmentation fault rather than an error.
-        const dimAttr = d.every((n) => n === 1) ? '' : ' Dimension="' + d.join('*') + '"';
+        const dimAttr = d.every((n) => n === 1) ? '' : ' Dimension="' + dimensionText(d) + '"';
         // A struct of no element, as MATLAB writes one: self-closed, or around the `<Field
         // Name="…"/>` of each field it declares, which is the one place the fields of a struct
         // with no element can be stated (BinarySlddParser.fieldNamesOf reads them back from

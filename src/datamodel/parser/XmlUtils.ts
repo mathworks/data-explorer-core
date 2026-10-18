@@ -2,6 +2,8 @@
 
 'use strict';
 
+import { dimensionText } from './Size.js';
+
 /**
  * Text or an attribute value, as XML has to carry it.
  *
@@ -774,7 +776,7 @@ export function decimalCharXml(text: string, dims: number[]): { attrs: string; b
     for (let i = 0; i < text.length; i++) {
         codes.push(text.charCodeAt(i));
     }
-    return { attrs: ' Dimension="' + dims.join('*') + '" Format="decimal"', body: codes.join(' ') };
+    return { attrs: ' Dimension="' + dimensionText(dims) + '" Format="decimal"', body: codes.join(' ') };
 }
 
 /**

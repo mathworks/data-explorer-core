@@ -486,6 +486,24 @@ export default class DataNode extends BaseNode {
     /** Whether each extent of a `Matrix(…)` header parses to the count its digits say, or there is no header. */
     static _headerExact(text: string): boolean;
     /**
+     * The extents an mxchar literal's `Matrix(…)` header declares and the number of codes its body
+     * holds, when the two disagree, or null: `Matrix(1,5)\n[97, 98, 99]` is [1,5] over 3 codes. No
+     * Dimension spells such a char: written with the header it is XML whose body does not fill its
+     * Dimension, and with the text's own size a row, which is another value (_mxCharRefusal).
+     */
+    static _mxCharDisagreement(text: string): {
+        dims: number[];
+        count: number;
+    } | null;
+    /**
+     * The refusal of such a char (_mxCharDisagreement) at `path` in entry `entry`. Not a budget
+     * refusal: it is a char no Dimension spells, and nothing is written in its place.
+     */
+    static _mxCharRefusal(odd: {
+        dims: number[];
+        count: number;
+    }, entry: string, path: string): MatWriteError;
+    /**
      * A refusal of a write that began at this node, restated for a user: the entry — the one
      * above, or, for a node a writer built on its own to write a raw property value
      * (_detachedXml), the one it was built for — and the path to it.

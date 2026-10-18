@@ -15,7 +15,8 @@
 //     parse to doubles, so digits naming a count no double holds exactly (isExactDigits) are
 //     refused too: they would be parsed to another count, and written as that one. A header
 //     a binary dictionary's reader builds from the doubles it read is spelled with their
-//     exact digits (headerDigits), so it never is;
+//     exact digits (headerDigits), so it never is, and so is every extent an XML Dimension
+//     states (dimensionText): the digits of the count it is, never String's;
 //   - a text dictionary is written as JSON, so a hand-made `[1, "x"]` is written back as
 //     read, and NaN, an infinity, a bigint, undefined, a function and a symbol are refused
 //     (isTextExtent): JSON.stringify writes all but the bigint as null, which is not the
@@ -63,8 +64,8 @@ export function isSpellableExtent(x: unknown): x is number {
  * 9007199254740993 parses to 2^53, and 1152921504606847000, the digits String gives 2^60,
  * parses to 2^60, which is another count. Whether the digits survive a round trip as text
  * is another question: 2^60's own do not, and String(2^60)'s do. Leading zeros say nothing.
- * The count is written in a Dimension as String spells it, 2^60 as 1152921504606847000: the
- * XML writers' spelling of every extent, which this does not change.
+ * A Dimension spells a count with its own digits (dimensionText), 2^60 as
+ * 1152921504606846976, which this holds to be the count they say.
  */
 export function isExactDigits(digits: string): boolean {
   if (!/^\d+$/.test(digits)) {
@@ -75,15 +76,32 @@ export function isExactDigits(digits: string): boolean {
 }
 
 /**
+ * `x`, one extent, as the text that states it: for a whole non-negative number, the digits of
+ * the count it is. String spells a whole number past 2^53 - 1 with the shortest digits that
+ * parse to it, which can say another count (2^60 as 1152921504606847000, which isExactDigits
+ * refuses), and from 10^21 with an exponent (1e+21), which no reader takes for digits. Any
+ * other number, 2.5 among them, and anything that is not a number, is as String spells it.
+ */
+export function extentDigits(x: number): string {
+  return typeof x === 'number' && Number.isInteger(x) && x >= 0 && !Number.isSafeInteger(x) ? BigInt(x).toString() : String(x);
+}
+
+/**
  * `x`, an extent a binary dictionary's reader read as a double, as the digits of a `Matrix(…)`
- * header: the count it is. String spells a whole number past 2^53 - 1 with the shortest digits
- * that parse to it, which can say another count (2^60 as 1152921504606847000), and a header so
- * spelled is refused (isExactDigits). From 10^21 String spells an exponent instead; that is
- * left as it was.
+ * header: the count it is (extentDigits), 10^21 included, so a header so built is never
+ * refused (isExactDigits).
  */
 export function headerDigits(x: number): string {
-  const s = String(x);
-  return Number.isSafeInteger(x) || !/^\d+$/.test(s) ? s : BigInt(x).toString();
+  return extentDigits(x);
+}
+
+/**
+ * `dims` as an XML Dimension states them, `0*1152921504606846976`: every number extent with
+ * the digits of the count it is (extentDigits), joined by `*`. What is not a number is joined
+ * as `join` joins it; the writers refuse such dims before they spell them (isSpellableExtent).
+ */
+export function dimensionText(dims: readonly unknown[]): string {
+  return dims.map((x) => (typeof x === 'number' ? extentDigits(x) : x)).join('*');
 }
 
 /**
