@@ -1201,7 +1201,15 @@ export default class DataNode extends BaseNode {
     // class was written as an object of the array's. A nested object's spelling is its own
     // element, and names its own class.
     const nested = !rawVal._array_class;
-    const className = nested ? (rawVal._object_class as string) : objectValueClassOf(rawVal);
+    // Each class the value names, where one is not a class name, refused (_classOrRefuse): the
+    // nested object's own, or the array's and its one element's.
+    const at = () => this._whereWritten();
+    if (!nested) {
+      DataNode._classOrRefuse(rawVal._array_class, '', at);
+      const elements = rawVal._elements;
+      DataNode._ownClassOrRefuse(Array.isArray(elements) && elements.length === 1 ? elements[0] : undefined, '', at);
+    }
+    const className = DataNode._classOrRefuse(nested ? rawVal._object_class : objectValueClassOf(rawVal), '', at);
     const props = this._xmlProperties();
 
     let attrStr = '';
@@ -1760,7 +1768,9 @@ export default class DataNode extends BaseNode {
     }
     const p = xmlPad(indent);
     const ip = xmlPad(indent + 1);
-    const className = value._array_class as string;
+    // A class that is not a class name, refused (_classOrRefuse): the array's here, and each
+    // element's own below.
+    const className = DataNode._classOrRefuse(value._array_class, name, at);
     DataNode._sizeOrRefuse(value._dimensions, className, name, at);
     const dims = (value._dimensions as number[]) || [1, 1];
     const elements = (value._elements as (Record<string, unknown> | null)[]) || [];
@@ -1786,6 +1796,7 @@ export default class DataNode extends BaseNode {
       return p + '<' + tag + attrs + ' Class="' + escapeXml(className) + '" Dimension="' + dims.join('*') + '"/>';
     }
     if (elements.length === 0 || (elements.length === 1 && Object.keys(propsOf(elements[0])).length === 0)) {
+      DataNode._ownClassOrRefuse(elements[0], name, at);
       return p + '<' + tag + attrs + '>\n' + ip + '<Element Class="' + escapeXml(elementClassOf(elements[0], className)) + '"/>\n' + p + close;
     }
 
@@ -1805,6 +1816,7 @@ export default class DataNode extends BaseNode {
     elements.forEach((elem, k) => {
       const props = propsOf(elem);
       const sources = propertySourcesOf(elem);
+      DataNode._ownClassOrRefuse(elem, name, DataNode._within(at, elements.length, k, ''));
       xml += ip + '<Element Class="' + escapeXml(elementClassOf(elem, className)) + '">\n';
       for (const [propName, propVal] of Object.entries(props)) {
         xml += DataNode._elementPropertyXml(propName, propVal, indent + 2, ownerNode, DataNode._within(at, elements.length, k, '.' + propName), sources) + '\n';
@@ -1859,6 +1871,68 @@ export default class DataNode extends BaseNode {
       xml += '>' + escapeXml(e ? e.value : '') + '</Element>\n';
     }
     return xml + p + '</' + tag + '>';
+  }
+
+  /**
+   * The class `cls` an object is written under, `Class="…"`, where it is a class name, a string
+   * and not the empty one; anything else is refused, naming the entry and the path from `at` (or
+   * from what it answers, asked only then), or, for a caller that gives none, `name`
+   * (OBJCLASS-NONSTRING).
+   *
+   * MATLAB names every class by a string, and a binary dictionary's reader reads every one from
+   * an attribute, but a text dictionary is JSON anyone can edit: `{"_object_class": 5}` or
+   * `"_array_class": ["a"]` opens and shows as read (`<1x1 5>`), and a text save writes it back
+   * as read. Every XML writer of an object handed such a class to escapeXml, which threw a
+   * TypeError, "str.replace is not a function", and a host showed that as the reason the paste or
+   * the save failed. The writer has no spelling for it, and a save that holds one is refused
+   * rather than written wrong (the maintainer's group F ruling, 2026-10-18), with a MatWriteError,
+   * as _unspellable refuses a value of no shape.
+   */
+  static _classOrRefuse(cls: unknown, name: string, at: PropertyAt | undefined | (() => PropertyAt)): string {
+    if (typeof cls === 'string' && cls !== '') {
+      return cls;
+    }
+    const where = typeof at === 'function' ? at() : at;
+    throw DataNode._classRefusal(cls, where ? where.entry : name, where ? where.path : name);
+  }
+
+  /**
+   * Refuses `element`, one of an object array's `_elements`, where it names its own class
+   * (`_object_class`) by something that is not a string, as _classOrRefuse refuses an array's.
+   * The reader takes such an element for one of the array's class (elementClassOf), and the
+   * writers wrote it so, the class the file gave it gone. An empty string is the array's, as
+   * elementClassOf has it.
+   */
+  static _ownClassOrRefuse(element: unknown, name: string, at: PropertyAt | undefined | (() => PropertyAt)): void {
+    const own = element && typeof element === 'object' ? (element as Record<string, unknown>)._object_class : undefined;
+    if (own !== undefined && typeof own !== 'string') {
+      const where = typeof at === 'function' ? at() : at;
+      throw DataNode._classRefusal(own, where ? where.entry : name, where ? where.path : name);
+    }
+  }
+
+  /** The refusal of `cls` as the class of what stands at `path` of the entry `entry`, quoted as JSON gives it, so far. */
+  static _classRefusal(cls: unknown, entry: string, path: string): MatWriteError {
+    let text: string | undefined;
+    try {
+      text = JSON.stringify(cls);
+    } catch {
+      // A bigint, which JSON has no spelling for.
+    }
+    text = text === undefined ? String(cls) : text;
+    if (text.length > 60) {
+      text = text.slice(0, 60) + '...';
+    }
+    return new MatWriteError('Cannot write "' + entry + '": ' + path + ' names its class as ' + text + ', which is not a class name. Nothing was written.');
+  }
+
+  /** Where this node is written, for a refusal: the entry, found as _budgetFailure finds it, and the path to the node. */
+  _whereWritten(): PropertyAt {
+    let root: BaseNode = this;
+    while (root.parent) {
+      root = root.parent;
+    }
+    return { entry: root._writtenAt ? root._writtenAt.entry : this.owningEntry?.name ?? this.matlabPath, path: this.matlabPath };
   }
 
   /**
