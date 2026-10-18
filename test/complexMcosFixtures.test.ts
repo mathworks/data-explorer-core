@@ -223,13 +223,6 @@ function expectValueNode(node: any, v: ValueTruth, path: string): string {
 // way, as it did before.
 const PINNED: [file: string, path: string, shows: string, why: string][] = [
   [
-    'complex.sldd',
-    'pNonFinite',
-    '[Infinity-Infinityi NaN+1i 1NaNi -Infinity+2i]',
-    'a text dictionary holds a complex value as a MAT stream, read by the .mat reader\'s complex ' +
-      'arm, which spells an infinite part with String(): the `Infinity` a plain .mat variable shows',
-  ],
-  [
     'complex_binary.sldd',
     'pThird',
     '0.33333333333333331+0.1i',

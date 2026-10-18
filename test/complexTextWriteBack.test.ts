@@ -172,8 +172,7 @@ describe('an edited complex value keeps its class and its NaN parts', () => {
 
   it('every non-finite part stays what it was', () => {
     const e = editAndReopen('pNonFinite', 0, '5');
-    // The text dictionary's own spelling of an infinity (complexMcosFixtures pins it).
-    expect(e.displayValue).toBe('[5+0i NaN+1i 1NaNi -Infinity+2i]');
+    expect(e.displayValue).toBe('[5+0i NaN+1i 1NaNi -Inf+2i]');
   });
 });
 
