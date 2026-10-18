@@ -985,7 +985,7 @@ describe('a Matrix(…) header\'s digits are taken exactly wherever the value st
       const inCell = (dimension: string) => `<P Name="Value" Class="cell" Dimension="1*1">\n            ${element(dimension)}\n        </P>`;
       const cellEntry = opened(OLD, inCell(file));
       const dEmpty = cellEntry.root.getSection('design').children.find((e: any) => e.name === 'dEmpty');
-      expect(dEmpty.serialize().value._elements, file).toEqual([{ _type: 'double', _value: `Matrix(${exact.replace('*', ',')})`, _binary_empty: true }]);
+      expect(dEmpty.serialize().value._elements, file).toEqual([{ _type: 'double', _value: `Matrix(${exact.split('*').join(',')})`, _binary_empty: true }]);
       const from = cellEntry.saved.indexOf('<P Name="Value"', cellEntry.saved.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
       expect(cellEntry.saved.slice(from, cellEntry.saved.indexOf('</Object>', from)).trimEnd(), `${file}, saved`).toBe(inCell(file));
       const at = cellEntry.regenerated.indexOf('<P Name="Value"', cellEntry.regenerated.indexOf('<P Name="Name" Class="char">dEmpty</P>'));
