@@ -58,11 +58,21 @@ MATLAB's setters, each refusal quoted verbatim by `setProperty`:
   is a C identifier that does not start with `rt` (case sensitive: `RTa.h` is taken). That is
   checked first; refused: "'HeaderFile' property for Simulink.VariantBankCoderInfo must be a valid
   C identifier that does not start with "rt"." (`a b.h`, `1a.h`, `rta.h`, `.h`, `inc/a.h`, `a-b.h`).
-  Then the extension, what follows the last `.` of the last part of the path (one trailing `/`
-  dropped), must be exactly `h` or `hpp`; refused: "Change file extension 'c' to header file
-  extension '.h' or '.hpp'." (`a.c`, `a.H`, `a`, `a.h `, `a.h/x`). Any length is taken.
+  Then the length: each `/`-separated part of the name may be at most 255 characters, a leading
+  space counted. 255 is taken and 256 refused, for `.h`, `.hpp`, a leading space and a dotted
+  middle part alike; `a.b/` and 253 more characters is taken, 257 in all, and a first part of 262
+  before a `/` is refused. A character that decomposes counts as its parts, as the macOS file
+  system counts a name (measured on macOS: `é` counts 2, `ǖ` 3, and `€` and `中` 1 each, each at
+  its limit; another platform's count of a character outside ASCII was not measured, and an edit
+  writes only ASCII). Refused: "Check specified header file name '…' for invalid characters,
+  invalid file name length, and trailing spaces.", even where the extension is wrong too
+  (`a`×300`.c`), but not where the first part is (`rt`, or `1`, then `a`×300`.h` get the first
+  part's message). Then the extension, what follows the last `.` of the last part of the path
+  (one trailing `/` dropped), must be exactly `h` or `hpp`; refused: "Change file extension 'c' to
+  header file extension '.h' or '.hpp'." (`a.c`, `a.H`, `a`, `a.h `, `a.h/x`).
 - **DefinitionFile**: the same first-part rule, with its own name in the message, and no
-  extension rule: `a`, `a.`, `a.txt`, `a.h` and `a.cpp` are all taken.
+  extension or length rule: `a`, `a.`, `a.txt`, `a.h` and `a.cpp` are all taken, and so is a name
+  of 302 characters.
 - **PreStatement, PostStatement**: any text, a line break included.
 - **Qualifier**: the enumeration None, Const, Volatile and ConstVolatile, typed in any case
   (`const`, `CONSTVOLATILE`) and stored in that one. Refused: "Error setting property 'Qualifier'
@@ -76,7 +86,8 @@ the first part (`a.b/c.h`, `a.h/`, `a. .h`, `a.-.h`, `a.c d.h`), and a definitio
 trailing space or a `$` (`d.c `, `a.$`). They are refused with "'…' is not a header file name
 this editor can check, so it is not written" (or a definition file name), stating the shape it
 takes: a C identifier, then any `.`-separated parts of letters, digits and underscores, ending .h
-or .hpp for a header file. Every name of that shape was measured to be taken. `$` starts a token MATLAB checks by a rule not measured here (`a.c$.h` is refused with
+or .hpp for a header file. Every name of that shape, within the header file's length, was
+measured to be taken. `$` starts a token MATLAB checks by a rule not measured here (`a.c$.h` is refused with
 "'$.' is not a supported token for property 'HeaderFile'."), and refusing a name costs an edit,
 where writing one MATLAB refuses costs the whole coder info (below).
 
@@ -85,19 +96,23 @@ where writing one MATLAB refuses costs the whole coder info (below).
 What MATLAB loads, measured with the text fixture's `ciA` edited one field at a time:
 
 - A HeaderFile or DefinitionFile the setter refuses (`a.c`, `a b.h`, `inc/a.h`, `rta.h`, `a b.c`,
-  `1a.c`) makes MATLAB load the **whole coder info as defaults**, its Qualifier `'Const'` lost too,
-  with no warning.
+  `1a.c`, and a HeaderFile of 256 or 302 characters, or of 131 that decompose to 256) makes MATLAB
+  load the **whole coder info as defaults**, its Qualifier `'Const'` lost too, with no warning. A
+  HeaderFile of 255 characters, or of 130 that decompose to 255, loads as written.
 - A Qualifier that is not one of the four **as MATLAB spells them** loads as `'None'`, the rest as
   written: `const`, `CONST` and `volatile` too, though the setter takes them, and `foo`, `''` and a
   number.
 - A field that is not text loads as `''` (a Qualifier as `'None'`), the rest as written.
-- Read as written: `ConstVolatile`, a HeaderFile `''`, `a.hpp`, ` h.h`, `a.c.h` or `a.h/`, a
-  DefinitionFile `a.txt` or `d.c `, and a two-line PostStatement.
+- Read as written: `ConstVolatile`, a HeaderFile `''`, `a.hpp`, ` h.h`, `a.c.h`, `a.h/` or
+  `a.b/` and 253 more characters, a DefinitionFile `a.txt` or `d.c `, and a two-line
+  PostStatement.
 
 Following theme 1 (warn and show what was read; never refuse the file, never crash), such a coder
 info is shown as read and saved as read, and the dictionary's warnings carry one
 `part-unreadable` for it, naming each field MATLAB would not read as written and what MATLAB does
-with it. A file name MATLAB takes that an edit would not write is not reported. A field the
+with it. A header file name refused for its length is quoted cut short, so the warning says
+that it is longer than the 255 characters MATLAB takes. A file name MATLAB takes that an edit
+would not write is not reported. A field the
 envelope does not have takes no edit, because the edit would have nowhere to be written. An edit
 of a hand-edited field is undone to the value as read (`_restorerFor`), which its shown text
 could not always do: a number shows as `5`, and a Qualifier `const` set back would be `Const`.
@@ -115,8 +130,8 @@ envelope: `"_elements": [{"_id": "1", "_properties": {"DefinitionFile": "", "Hea
 `~/delite/mix/dd_json.sldd`; its binary dictionaries already hold the envelope). R2027a reads that
 spelling property by property, through the setters (the `r2026b` LOAD lines, which respell `ciA`
 so, and a copy of `~/delite/textsldd/dd.sldd` edited by hand): a Qualifier `const` is read as `Const` and
-`foo` as `None`, and a HeaderFile `a.c`, a DefinitionFile `a b.c` or a HeaderFile `5` as `''`,
-with every other property as written. So where a bag has no envelope the node reads the five
+`foo` as `None`, and a HeaderFile `a.c`, a DefinitionFile `a b.c`, a HeaderFile `5` or a
+HeaderFile of 256 characters as `''`, with every other property as written. So where a bag has no envelope the node reads the five
 from, and writes an edit into, the plain properties, in MATLAB's spelling, and invents no
 envelope; and the warnings say what MATLAB does there, which is one property's default, not the
 whole coder info's. MATLAB read this package's edit of `ciA` so spelled back as written (2026-10-18:

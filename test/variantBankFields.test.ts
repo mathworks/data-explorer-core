@@ -558,6 +558,8 @@ const MSG_EXTENSION = (ext: string) => `Change file extension '${ext}' to header
 const MSG_QUALIFIER = (v: string) =>
   `Error setting property 'Qualifier' of class 'VariantBankCoderInfo': There is no enumerated value named '${v}'.`;
 const NOT_CHECKED = (what: string) => expect.stringContaining(`is not a ${what} this editor can check`);
+const MSG_LENGTH = (v: string) =>
+  `Check specified header file name '${v}' for invalid characters, invalid file name length, and trailing spaces.`;
 
 // The `<Element Class="Simulink.VariantBankCoderInfo">` of one entry, as the binary file spells it.
 function coderInfoXml(xml: string, entry: string): string {
@@ -632,8 +634,8 @@ describe.each(FORMATS)('VariantBankCoderInfo fields (%s): a MATLAB-written coder
 
 // Each edit, by the column id the table sends: what it is typed as, the field it writes, and
 // what is written there (and shown after). The odd-looking ones are MATLAB's own edges: it keeps
-// a leading space, takes any '.'-separated parts after the first, and takes a definition file of
-// any extension or none.
+// a leading space, takes any '.'-separated parts after the first, takes a header file name of up
+// to 255 characters (in each part of a path), and takes a definition file of any extension or none.
 const CI_EDITS = [
   { column: 'headerFile', typed: 'x.h', field: 'HeaderFile', written: 'x.h' },
   { column: 'headerFile', typed: 'x.hpp', field: 'HeaderFile', written: 'x.hpp' },
@@ -646,7 +648,10 @@ const CI_EDITS = [
   { column: 'headerFile', typed: 'a..hpp', field: 'HeaderFile', written: 'a..hpp' },
   { column: 'headerFile', typed: ' a.h', field: 'HeaderFile', written: ' a.h' },
   { column: 'headerFile', typed: '\ta.h', field: 'HeaderFile', written: '\ta.h' },
-  { column: 'headerFile', typed: 'a'.repeat(300) + '.h', field: 'HeaderFile', written: 'a'.repeat(300) + '.h' },
+  { column: 'headerFile', typed: 'a'.repeat(253) + '.h', field: 'HeaderFile', written: 'a'.repeat(253) + '.h' },
+  { column: 'headerFile', typed: 'a'.repeat(251) + '.hpp', field: 'HeaderFile', written: 'a'.repeat(251) + '.hpp' },
+  { column: 'headerFile', typed: ' ' + 'a'.repeat(252) + '.h', field: 'HeaderFile', written: ' ' + 'a'.repeat(252) + '.h' },
+  { column: 'headerFile', typed: 'a.' + 'b'.repeat(251) + '.h', field: 'HeaderFile', written: 'a.' + 'b'.repeat(251) + '.h' },
   { column: 'definitionFile', typed: 'x.cpp', field: 'DefinitionFile', written: 'x.cpp' },
   { column: 'definitionFile', typed: 'a.h', field: 'DefinitionFile', written: 'a.h' },
   { column: 'definitionFile', typed: 'a.txt', field: 'DefinitionFile', written: 'a.txt' },
@@ -748,9 +753,22 @@ const CI_REFUSED = [
   { column: 'headerFile', typed: 'a-b.h', reason: MSG_FILE_NAME('HeaderFile') },
   { column: 'headerFile', typed: 'é.h', reason: MSG_FILE_NAME('HeaderFile') },
   { column: 'headerFile', typed: 'inc/', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: 'rt' + 'a'.repeat(300) + '.h', reason: MSG_FILE_NAME('HeaderFile') },
+  { column: 'headerFile', typed: '1' + 'a'.repeat(300) + '.h', reason: MSG_FILE_NAME('HeaderFile') },
+  // The length, checked next, before the extension: each '/'-separated part of the name at most
+  // 255 characters, a leading space counted, and a character that decomposes (é is e and an
+  // accent) counted as its parts. CI_EDITS has the longest names taken.
+  ...['a'.repeat(254) + '.h', 'a'.repeat(252) + '.hpp', ' ' + 'a'.repeat(253) + '.h', 'a.' + 'b'.repeat(252) + '.h',
+    'a'.repeat(300) + '.h', 'a'.repeat(300) + '.c', 'a'.repeat(300) + '.h ', 'a.' + 'é'.repeat(125) + 'xx.h',
+    'a.' + 'ǖ'.repeat(84) + 'x.h', 'a.' + '€'.repeat(252) + '.h', 'a.' + '中'.repeat(252) + '.h', 'a.' + 'b'.repeat(260) + '/c.h']
+    .map((typed) => ({ column: 'headerFile', typed, reason: MSG_LENGTH(typed) })),
   // MATLAB takes these (or, for '$.', refuses them for a token rule not measured here); this
   // editor does not check them, so they are not written.
-  ...['a.b/c.h', 'a.c/x.h', 'a.h/', 'a.hpp/', 'a. .h', 'a.-.h', 'a.c d.h', 'a.c$.h'].map((typed) => ({ column: 'headerFile', typed, reason: NOT_CHECKED('header file name') })),
+  // Among them, names MATLAB takes at its length limit: 255 in a part, decomposed, or 257 in all
+  // with no part longer than 253.
+  ...['a.b/c.h', 'a.c/x.h', 'a.h/', 'a.hpp/', 'a. .h', 'a.-.h', 'a.c d.h', 'a.c$.h', 'a.é.h', 'a.' + 'é'.repeat(125) + 'x.h',
+    'a.' + 'ǖ'.repeat(83) + 'x.h', 'a.' + '€'.repeat(251) + '.h', 'a.' + '中'.repeat(251) + '.h', 'a.b/' + 'c'.repeat(251) + '.h']
+    .map((typed) => ({ column: 'headerFile', typed, reason: NOT_CHECKED('header file name') })),
   { column: 'definitionFile', typed: 'a b.c', reason: MSG_FILE_NAME('DefinitionFile') },
   { column: 'definitionFile', typed: '1a.c', reason: MSG_FILE_NAME('DefinitionFile') },
   { column: 'definitionFile', typed: 'rta.c', reason: MSG_FILE_NAME('DefinitionFile') },
@@ -850,14 +868,21 @@ const CI_HAND_EDITS = [
   { what: 'HeaderFile a b.h', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "a b.h"', column: 'headerFile', shown: 'a b.h', says: "its HeaderFile 'a b.h' is not a header file name MATLAB takes" },
   { what: 'HeaderFile inc/a.h', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "inc/a.h"', column: 'headerFile', shown: 'inc/a.h', says: "its HeaderFile 'inc/a.h' is not a header file name MATLAB takes" },
   { what: 'HeaderFile rta.h', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "rta.h"', column: 'headerFile', shown: 'rta.h', says: "its HeaderFile 'rta.h' is not a header file name MATLAB takes" },
+  { what: 'HeaderFile 256 characters', from: '"HeaderFile": "h.h"', to: `"HeaderFile": "${'a'.repeat(254)}.h"`, column: 'headerFile', shown: 'a'.repeat(254) + '.h', says: `its HeaderFile '${'a'.repeat(40)}...' is not a header file name MATLAB takes (it is longer than the 255 characters MATLAB takes in a file or folder name), ${WHOLE_CODER_INFO}` },
+  { what: 'HeaderFile 302 characters', from: '"HeaderFile": "h.h"', to: `"HeaderFile": "${'a'.repeat(300)}.h"`, column: 'headerFile', shown: 'a'.repeat(300) + '.h', says: `(it is longer than the 255 characters MATLAB takes in a file or folder name), ${WHOLE_CODER_INFO}` },
+  { what: 'HeaderFile of 131 characters, 256 decomposed', from: '"HeaderFile": "h.h"', to: `"HeaderFile": "a.${'é'.repeat(125)}xx.h"`, column: 'headerFile', shown: `a.${'é'.repeat(125)}xx.h`, says: `(it is longer than the 255 characters MATLAB takes in a file or folder name), ${WHOLE_CODER_INFO}` },
+  { what: 'HeaderFile with a folder of 262 characters', from: '"HeaderFile": "h.h"', to: `"HeaderFile": "a.${'b'.repeat(260)}/c.h"`, column: 'headerFile', shown: `a.${'b'.repeat(260)}/c.h`, says: `(it is longer than the 255 characters MATLAB takes in a file or folder name), ${WHOLE_CODER_INFO}` },
   // MATLAB: HeaderFile '', the rest as written.
   { what: 'HeaderFile a number', from: '"HeaderFile": "h.h"', to: '"HeaderFile": 5', column: 'headerFile', shown: '5', says: "its HeaderFile is not text, which MATLAB reads as ''" },
-  // MATLAB: as written, though an edit would not write the last three.
+  // MATLAB: as written, though an edit would not write a.h/, the name with a '/' or the one with é.
   { what: 'HeaderFile empty', from: '"HeaderFile": "h.h"', to: '"HeaderFile": ""', column: 'headerFile', shown: '', says: null },
   { what: 'HeaderFile a.hpp', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "a.hpp"', column: 'headerFile', shown: 'a.hpp', says: null },
   { what: 'HeaderFile with a leading space', from: '"HeaderFile": "h.h"', to: '"HeaderFile": " h.h"', column: 'headerFile', shown: ' h.h', says: null },
   { what: 'HeaderFile a.c.h', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "a.c.h"', column: 'headerFile', shown: 'a.c.h', says: null },
   { what: 'HeaderFile a.h/', from: '"HeaderFile": "h.h"', to: '"HeaderFile": "a.h/"', column: 'headerFile', shown: 'a.h/', says: null },
+  { what: 'HeaderFile 255 characters', from: '"HeaderFile": "h.h"', to: `"HeaderFile": "${'a'.repeat(253)}.h"`, column: 'headerFile', shown: 'a'.repeat(253) + '.h', says: null },
+  { what: 'HeaderFile of 257 characters in two parts', from: '"HeaderFile": "h.h"', to: `"HeaderFile": "a.b/${'c'.repeat(251)}.h"`, column: 'headerFile', shown: `a.b/${'c'.repeat(251)}.h`, says: null },
+  { what: 'HeaderFile of 130 characters, 255 decomposed', from: '"HeaderFile": "h.h"', to: `"HeaderFile": "a.${'é'.repeat(125)}x.h"`, column: 'headerFile', shown: `a.${'é'.repeat(125)}x.h`, says: null },
   // MATLAB: the whole coder info as defaults.
   { what: 'DefinitionFile a b.c', from: '"DefinitionFile": "d.c"', to: '"DefinitionFile": "a b.c"', column: 'definitionFile', shown: 'a b.c', says: `its DefinitionFile 'a b.c' is not a definition file name MATLAB takes, ${WHOLE_CODER_INFO}` },
   { what: 'DefinitionFile 1a.c', from: '"DefinitionFile": "d.c"', to: '"DefinitionFile": "1a.c"', column: 'definitionFile', shown: '1a.c', says: "its DefinitionFile '1a.c' is not a definition file name MATLAB takes" },
@@ -992,6 +1017,9 @@ describe('VariantBankCoderInfo fields: a coder info R2026b wrote, as plain prope
     { what: 'HeaderFile a.c', field: 'HeaderFile', value: 'a.c', column: 'headerFile', shown: 'a.c', says: "its HeaderFile 'a.c' is not a header file name MATLAB takes, which MATLAB reads as ''" },
     { what: 'DefinitionFile a b.c', field: 'DefinitionFile', value: 'a b.c', column: 'definitionFile', shown: 'a b.c', says: "its DefinitionFile 'a b.c' is not a definition file name MATLAB takes, which MATLAB reads as ''" },
     { what: 'HeaderFile a number', field: 'HeaderFile', value: 5, column: 'headerFile', shown: '5', says: "its HeaderFile is not text, which MATLAB reads as ''" },
+    { what: 'HeaderFile 256 characters', field: 'HeaderFile', value: 'a'.repeat(254) + '.h', column: 'headerFile', shown: 'a'.repeat(254) + '.h', says: "(it is longer than the 255 characters MATLAB takes in a file or folder name), which MATLAB reads as ''" },
+    // MATLAB: as written.
+    { what: 'HeaderFile 255 characters', field: 'HeaderFile', value: 'a'.repeat(253) + '.h', column: 'headerFile', shown: 'a'.repeat(253) + '.h', says: null },
     { what: 'Qualifier foo', field: 'Qualifier', value: 'foo', column: 'qualifier', shown: 'foo', says: "its Qualifier 'foo' is not None, Const, Volatile or ConstVolatile, which MATLAB reads as 'None'" },
     // MATLAB: 'Const', read through the setter; so not reported.
     { what: 'Qualifier const', field: 'Qualifier', value: 'const', column: 'qualifier', shown: 'const', says: null },

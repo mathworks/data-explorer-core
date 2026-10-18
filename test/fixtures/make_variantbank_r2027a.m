@@ -13,7 +13,8 @@ function make_variantbank_r2027a(outDir)
   % `outDir` defaults to this folder. The committed files were written by R2027a
   % (27.1.0.3409468) on 2026-10-18; a re-run gives new UUIDs and timestamps, and the same values.
   % The coder info SET and LOAD lines were added later the same day and run with `outDir` a
-  % scratch folder, which wrote the same values again, so the committed files were not replaced.
+  % scratch folder, which wrote the same values again, so the committed files were not replaced;
+  % so were the header file length lines, added in review the same day.
   % The hand-edited copies go to tempdir and are deleted; the tests make the same edits to the
   % committed text file. What the SET and LOAD lines said is recorded in
   % src/datamodel/node/data/Simulink.VariantBank.md and Simulink.VariantBankCoderInfo.md.
@@ -186,6 +187,25 @@ function make_variantbank_r2027a(outDir)
   for k = 1:numel(hf), tryset(C(), 'HeaderFile', hf{k}); end
   tryset(C(), 'HeaderFile', "s.h");
   tryset(C(), 'HeaderFile', 5);
+  % A header file name's length (added in review of C-169B): 255 and 256 characters, with .h,
+  % .hpp, a leading space and a dotted middle part; which refusal MATLAB gives first for a name
+  % too long that another rule refuses too; how a character outside ASCII is counted (é, ǖ, €,
+  % 中 and an emoji, at the limit of each count tried); and whether the limit is on the whole
+  % name or on each '/'-separated part of it.
+  hl = {[repmat('a', 1, 253) '.h'], [repmat('a', 1, 254) '.h'], [repmat('a', 1, 251) '.hpp'], ...
+    [repmat('a', 1, 252) '.hpp'], [' ' repmat('a', 1, 252) '.h'], [' ' repmat('a', 1, 253) '.h'], ...
+    ['a.' repmat('b', 1, 251) '.h'], ['a.' repmat('b', 1, 252) '.h'], ['inc/' repmat('a', 1, 249) '.h'], ...
+    ['inc/' repmat('a', 1, 250) '.h'], ['rt' repmat('a', 1, 300) '.h'], ['1' repmat('a', 1, 300) '.h'], ...
+    [repmat('a', 1, 300) '.c'], [repmat('a', 1, 300) '.h '], ['a.' char(233) '.h'], ...
+    ['a.' repmat(char(233), 1, 200) '.h'], ['a.' repmat(char(233), 1, 252) '.h'], ...
+    ['a.' repmat(char(233), 1, 125) 'x.h'], ['a.' repmat(char(233), 1, 125) 'xx.h'], ...
+    ['a.' repmat(char(8364), 1, 83) 'xx.h'], ['a.' repmat(char(8364), 1, 83) 'xxx.h'], ...
+    ['a.' repmat(char([55357 56832]), 1, 62) 'xxx.h'], ['a.' repmat(char([55357 56832]), 1, 62) 'xxxx.h'], ...
+    ['a.' repmat(char(470), 1, 83) 'x.h'], ['a.' repmat(char(470), 1, 84) 'x.h'], ['a.' repmat(char(20013), 1, 100) '.h'], ...
+    ['a.b/' repmat('c', 1, 249) '.h'], ['a.b/' repmat('c', 1, 251) '.h'], ['a.' repmat('b', 1, 260) '/c.h'], ...
+    ['a.' repmat(char(8364), 1, 251) '.h'], ['a.' repmat(char(8364), 1, 252) '.h'], ...
+    ['a.' repmat(char(20013), 1, 251) '.h'], ['a.' repmat(char(20013), 1, 252) '.h']};
+  for k = 1:numel(hl), tryset(C(), 'HeaderFile', hl{k}); end
   df = {'', 'd.c', 'a.h', 'a.cpp', 'a.C', 'a', 'a.', '.c', 'a.txt', 'a b.c', ' a.c', 'a.c ', '1a.c', ...
     'rta.c', '_a.c', 'a-b.c', 'a.b.c', 'inc/a.c', 'inc\a.c', '<a.c>', sprintf('a\nb'), ...
     [repmat('a', 1, 300) '.c'], [char(233) '.c'], 'a. b', 'a.1', 'a.c/', 'a/', 'a.$', 'a. c', ...
@@ -234,6 +254,13 @@ function make_variantbank_r2027a(outDir)
   loadcheckCi(src, 'ci HeaderFile inc/a.h', '"HeaderFile": "h.h"', '"HeaderFile": "inc/a.h"');
   loadcheckCi(src, 'ci HeaderFile a.hpp', '"HeaderFile": "h.h"', '"HeaderFile": "a.hpp"');
   loadcheckCi(src, 'ci HeaderFile number', '"HeaderFile": "h.h"', '"HeaderFile": 5');
+  loadcheckCi(src, 'ci HeaderFile 255 chars', '"HeaderFile": "h.h"', ['"HeaderFile": "' repmat('a', 1, 253) '.h"']);
+  loadcheckCi(src, 'ci HeaderFile 256 chars', '"HeaderFile": "h.h"', ['"HeaderFile": "' repmat('a', 1, 254) '.h"']);
+  loadcheckCi(src, 'ci HeaderFile 302 chars', '"HeaderFile": "h.h"', ['"HeaderFile": "' repmat('a', 1, 300) '.h"']);
+  loadcheckCi(src, 'ci HeaderFile 255 decomposed', '"HeaderFile": "h.h"', ['"HeaderFile": "a.' repmat(char(233), 1, 125) 'x.h"']);
+  loadcheckCi(src, 'ci HeaderFile 256 decomposed', '"HeaderFile": "h.h"', ['"HeaderFile": "a.' repmat(char(233), 1, 125) 'xx.h"']);
+  loadcheckCi(src, 'ci HeaderFile 257 in two parts', '"HeaderFile": "h.h"', ['"HeaderFile": "a.b/' repmat('c', 1, 251) '.h"']);
+  loadcheckCi(src, 'ci HeaderFile folder of 262', '"HeaderFile": "h.h"', ['"HeaderFile": "a.' repmat('b', 1, 260) '/c.h"']);
   loadcheckCi(src, 'ci DefinitionFile a b.c', '"DefinitionFile": "d.c"', '"DefinitionFile": "a b.c"');
   loadcheckCi(src, 'ci DefinitionFile a.txt', '"DefinitionFile": "d.c"', '"DefinitionFile": "a.txt"');
   loadcheckCi(src, 'ci DefinitionFile number', '"DefinitionFile": "d.c"', '"DefinitionFile": 5');
@@ -253,6 +280,8 @@ function make_variantbank_r2027a(outDir)
   loadcheckCi(plain, 'r2026b Qualifier foo', '"Qualifier": "Const"', '"Qualifier": "foo"');
   loadcheckCi(plain, 'r2026b HeaderFile a.c', '"HeaderFile": "h.h"', '"HeaderFile": "a.c"');
   loadcheckCi(plain, 'r2026b HeaderFile number', '"HeaderFile": "h.h"', '"HeaderFile": 5');
+  loadcheckCi(plain, 'r2026b HeaderFile 255 chars', '"HeaderFile": "h.h"', ['"HeaderFile": "' repmat('a', 1, 253) '.h"']);
+  loadcheckCi(plain, 'r2026b HeaderFile 256 chars', '"HeaderFile": "h.h"', ['"HeaderFile": "' repmat('a', 1, 254) '.h"']);
   loadcheckCi(plain, 'r2026b DefinitionFile a b.c', '"DefinitionFile": "d.c"', '"DefinitionFile": "a b.c"');
   fprintf('MAKE_VARIANTBANK_R2027A_DONE\n');
 end

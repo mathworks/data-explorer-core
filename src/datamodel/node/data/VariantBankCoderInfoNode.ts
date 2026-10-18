@@ -47,19 +47,25 @@ const FIELDS = ['HeaderFile', 'DefinitionFile', 'PreStatement', 'PostStatement',
 
 // MATLAB R2027a's refusals, verbatim. A file name's first '.'-separated part, after any leading
 // spaces or tabs, must be a C identifier that does not start with 'rt' (case sensitive); that is
-// checked first. Then a header file's extension, which is what follows the last '.' of the last
-// part of its path (one trailing '/' dropped), must be exactly 'h' or 'hpp'. The rest of a name is
-// not checked by MATLAB as far as was measured: it took 'a.c.h', 'a. .h', 'a.b/c.h' and 'a.h/'.
+// checked first. Then each '/'-separated part of a header file's name must be at most 255
+// characters, a leading space counted and a character that decomposes counted as its parts (on
+// macOS, where it was measured: 'é' counts 2, 'ǖ' 3, '€' and '中' 1, as the file system counts a
+// name). Then a header file's extension, which is what follows the last '.' of the last part of
+// its path (one trailing '/' dropped), must be exactly 'h' or 'hpp'. The rest of a name is not
+// checked by MATLAB as far as was measured: it took 'a.c.h', 'a. .h', 'a.b/c.h' and 'a.h/'.
 const fileNameRefusal = (field: string): string =>
     `'${field}' property for Simulink.VariantBankCoderInfo must be a valid C identifier that does not start with "rt".`;
 const extensionRefusal = (ext: string): string => `Change file extension '${ext}' to header file extension '.h' or '.hpp'.`;
+const lengthRefusal = (value: string): string =>
+    `Check specified header file name '${value}' for invalid characters, invalid file name length, and trailing spaces.`;
+const NAME_MAX = 255;
 const qualifierRefusal = (value: string): string =>
     `Error setting property 'Qualifier' of class 'VariantBankCoderInfo': There is no enumerated value named '${value}'.`;
 // What an edit writes, of what MATLAB takes: a C identifier, then any '.'-separated parts of
-// letters, digits and underscores, every shape of which MATLAB was measured to take, ending in
-// .h or .hpp for a header file. MATLAB takes some names beyond these (a space, a '/' or a '-'
-// after the first part) and refuses others for a rule of its own not measured here (a '$' starts
-// a token), so a name outside them is not written.
+// letters, digits and underscores, every shape of which MATLAB was measured to take (a header
+// file's within the length above), ending in .h or .hpp for a header file. MATLAB takes some
+// names beyond these (a space, a '/' or a '-' after the first part) and refuses others for a rule
+// of its own not measured here (a '$' starts a token), so a name outside them is not written.
 const HEADER_FILE_WRITTEN = /^[ \t]*[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]*)*\.(h|hpp)$/;
 const DEFINITION_FILE_WRITTEN = /^[ \t]*[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]*)*$/;
 const notCheckedRefusal = (value: string, what: string, shape: string): string =>
@@ -71,6 +77,10 @@ function firstPartRefused(value: string): boolean {
     const dot = name.indexOf('.');
     const first = dot < 0 ? name : name.slice(0, dot);
     return !/^[A-Za-z_][A-Za-z0-9_]*$/.test(first) || first.startsWith('rt');
+}
+
+function headerNameTooLong(value: string): boolean {
+    return value.split('/').some((part) => part.normalize('NFD').length > NAME_MAX);
 }
 
 function headerExtension(value: string): string {
@@ -89,6 +99,9 @@ function matlabRefusal(field: string, value: string): string | null {
         return fileNameRefusal(field);
     }
     if (field === 'HeaderFile') {
+        if (headerNameTooLong(value)) {
+            return lengthRefusal(value);
+        }
         const ext = headerExtension(value);
         if (ext !== 'h' && ext !== 'hpp') {
             return extensionRefusal(ext);
@@ -154,8 +167,12 @@ function unreadFields(props: Record<string, unknown>): string[] {
     const plain = !(SAVEOBJ_KEY in props);
     for (const [field, what] of [['HeaderFile', 'header file name'], ['DefinitionFile', 'definition file name']]) {
         const value = fieldOf(props, field);
-        if (typeof value === 'string' && matlabRefusal(field, value) !== null) {
-            found.push(`its ${field} ${quoted(value)} is not a ${what} MATLAB takes, ${plain ? "which MATLAB reads as ''" : WHOLE_CODER_INFO}`);
+        const refusal = typeof value === 'string' ? matlabRefusal(field, value) : null;
+        if (typeof value === 'string' && refusal !== null) {
+            // The name is quoted cut short, so a refusal for its length says so.
+            const why = refusal === lengthRefusal(value)
+                ? ` (it is longer than the ${NAME_MAX} characters MATLAB takes in a file or folder name)` : '';
+            found.push(`its ${field} ${quoted(value)} is not a ${what} MATLAB takes${why}, ${plain ? "which MATLAB reads as ''" : WHOLE_CODER_INFO}`);
         }
     }
     for (const field of FIELDS) {
