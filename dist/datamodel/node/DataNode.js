@@ -10,7 +10,7 @@ import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import { validateMatlabName } from '../matlabName.js';
 import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
-import { charTextFromCodes, decimalCharXml, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
+import { charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -1299,6 +1299,36 @@ export default class DataNode extends BaseNode {
             ', which a binary dictionary has no spelling for. Nothing was written.');
     }
     /**
+     * The refusal of a function handle by an XML writer, naming the entry and the path (FH-PASTE).
+     * `text` is the handle as this package holds one: `sin`, `@(x) x + 1`, or the bare header of an
+     * empty one's size, `Matrix(0,0)`.
+     *
+     * MATLAB holds a handle in a binary dictionary only inside the hex element of a MAT stream,
+     * which this package cannot write. The writers spelled one through their numeric tails, as
+     * `Class="function_handle">0` or `>NaN<`, and an empty one as `Class="function_handle"
+     * Dimension="0*0"/>`; MATLAB R2027a reads none of those ("Class 'function_handle' is not
+     * supported."). A save that holds one is refused rather than written wrong (the maintainer's
+     * group F ruling, 2026-10-18). A value that holds its own stream is still written as that
+     * hex, at an entry, before any of these writers is asked (_binaryEncoded).
+     */
+    static _handleRefusal(text, entry, path) {
+        const empty = text === '[]' ? [0, 0] : emptyHeaderDims(text);
+        const what = empty
+            ? 'an empty function handle (' + empty.join('x') + ')'
+            : 'a function handle (' + (/^[@<]/.test(text) ? text : '@' + text) + ')';
+        return new MatWriteError('Cannot write "' + entry + '": ' + path + ' is ' + what +
+            ", which a binary dictionary holds only in MATLAB's MAT encoding, and this package cannot write that. Nothing was written.");
+    }
+    /** The same refusal for a handle this node holds, naming the entry and the path as _budgetFailure does. */
+    _handleRefusalHere(text) {
+        let root = this;
+        while (root.parent) {
+            root = root.parent;
+        }
+        const entry = root._writtenAt ? root._writtenAt.entry : this.owningEntry?.name ?? this.matlabPath;
+        return DataNode._handleRefusal(text, entry, this.matlabPath);
+    }
+    /**
      * The `Class="char" Dimension="r*c"` attributes and body of an mxchar literal, or
      * null for anything else — shared by the property and cell-element writers below.
      *
@@ -1377,6 +1407,10 @@ export default class DataNode extends BaseNode {
         const p = xmlPad(indent);
         const type = value._type;
         const raw = String(value._value);
+        // No XML spelling: see _handleRefusal.
+        if (type === 'function_handle') {
+            throw DataNode._handleRefusal(raw, at ? at.entry : name, at ? at.path : name);
+        }
         if (type === 'mxchar') {
             DataNode._sizeOrRefuse(DataNode._headerDims(raw), 'char', name, at, raw);
         }
@@ -1822,6 +1856,10 @@ export default class DataNode extends BaseNode {
             const obj = elem;
             const type = obj._type;
             const raw = String(obj._value);
+            // And its function handle, for its reason: see _handleRefusal.
+            if (type === 'function_handle') {
+                throw DataNode._handleRefusal(raw, at ? at.entry : 'a cell element', at ? at.path : 'a cell element');
+            }
             // The property writer's two cdata cases, for the same reasons: a MAT byte stream is
             // written by the node it reads back as, and complex text as itself.
             if (type === 'cdata') {

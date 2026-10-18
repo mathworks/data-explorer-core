@@ -390,6 +390,22 @@ export default class DataNode extends BaseNode {
      */
     static _unspellable(value: unknown, name: string, at: PropertyAt | undefined): MatWriteError;
     /**
+     * The refusal of a function handle by an XML writer, naming the entry and the path (FH-PASTE).
+     * `text` is the handle as this package holds one: `sin`, `@(x) x + 1`, or the bare header of an
+     * empty one's size, `Matrix(0,0)`.
+     *
+     * MATLAB holds a handle in a binary dictionary only inside the hex element of a MAT stream,
+     * which this package cannot write. The writers spelled one through their numeric tails, as
+     * `Class="function_handle">0` or `>NaN<`, and an empty one as `Class="function_handle"
+     * Dimension="0*0"/>`; MATLAB R2027a reads none of those ("Class 'function_handle' is not
+     * supported."). A save that holds one is refused rather than written wrong (the maintainer's
+     * group F ruling, 2026-10-18). A value that holds its own stream is still written as that
+     * hex, at an entry, before any of these writers is asked (_binaryEncoded).
+     */
+    static _handleRefusal(text: string, entry: string, path: string): MatWriteError;
+    /** The same refusal for a handle this node holds, naming the entry and the path as _budgetFailure does. */
+    _handleRefusalHere(text: string): MatWriteError;
+    /**
      * The `Class="char" Dimension="r*c"` attributes and body of an mxchar literal, or
      * null for anything else — shared by the property and cell-element writers below.
      *

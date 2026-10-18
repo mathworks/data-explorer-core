@@ -2498,6 +2498,11 @@ export default class MatlabVariableNode extends DataNode {
         if (!writeUnderWay()) {
             return oneWrite(() => this.serializeXml(tagName, attrs, indent));
         }
+        // A function handle has no XML spelling (DataNode._handleRefusal). One at an entry that holds
+        // its own MAT stream was written as that hex before this was asked (_binaryEncoded).
+        if (this._scalarType === 'function_handle') {
+            throw this._handleRefusalHere(this._kind === 'scalar' ? String(this._scalarValue) : 'Matrix(' + this._dims.join(',') + ')');
+        }
         // Dims no Dimension can spell — a text dictionary's [1, "x"] or a host's NaN pasted
         // into a binary one — are refused, finally, naming the value, and never written as
         // `Dimension="1*x"` (parser/Size). What a binary dictionary read is spelled as read.
