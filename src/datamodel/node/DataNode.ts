@@ -17,7 +17,7 @@ import {
   charTextFromCodes,
   decimalCharXml,
   escapeXml,
-  formatDoubleXml,
+  formatFloatXml,
   formatNumericXml,
   formatComplexBodyXml,
   complexClassTag,
@@ -1314,7 +1314,7 @@ export default class DataNode extends BaseNode {
       return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"/>';
     }
     if (typeof value === 'number') {
-      return p + '<P' + DataNode.pxAttrs(name) + ' Class="double">' + formatDoubleXml(value) + '</P>';
+      return p + '<P' + DataNode.pxAttrs(name) + ' Class="double">' + formatFloatXml(value, 'double') + '</P>';
     }
     if (typeof value === 'boolean') {
       return p + '<P' + DataNode.pxAttrs(name) + ' Class="logical">' + (value ? '1' : '0') + '</P>';
@@ -1349,7 +1349,7 @@ export default class DataNode extends BaseNode {
         return DataNode._serializeStringPropertyXml(name, value, [1, value.length], indent);
       }
       const formatted = value.map(function (v: number) {
-        return formatDoubleXml(v);
+        return formatFloatXml(v, 'double');
       });
       return (
         p +
@@ -1987,7 +1987,7 @@ export default class DataNode extends BaseNode {
   static _serializeCellElementXml(elem: unknown, indent: number, at?: PropertyAt): string {
     const p = xmlPad(indent);
     if (typeof elem === 'number') {
-      return p + '<Element Class="double">' + formatDoubleXml(elem) + '</Element>';
+      return p + '<Element Class="double">' + formatFloatXml(elem, 'double') + '</Element>';
     }
     if (typeof elem === 'boolean') {
       return p + '<Element Class="logical">' + (elem ? '1' : '0') + '</Element>';
@@ -2010,7 +2010,7 @@ export default class DataNode extends BaseNode {
         return DataNode._stringXml('Element', '', elem, [1, elem.length], indent);
       }
       const formatted = elem.map(function (v: number) {
-        return formatDoubleXml(v);
+        return formatFloatXml(v, 'double');
       });
       return p + '<Element Class="double" Dimension="1*' + elem.length + '">' + formatted.join(' ') + '</Element>';
     }

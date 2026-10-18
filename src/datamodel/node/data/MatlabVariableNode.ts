@@ -78,7 +78,7 @@ import {
   decimalCharXml,
   emptyHeaderDims,
   escapeXml,
-  formatDoubleXml,
+  formatFloatXml,
   formatNumericXml,
   formatComplexBodyXml,
   formatComplexNum,
@@ -2921,7 +2921,7 @@ export default class MatlabVariableNode extends DataNode {
       );
     }
     if (type === 'double') {
-      return p + '<' + tagName + attrStr + ' Class="double">' + formatDoubleXml(val as number) + '</' + tagName + '>';
+      return p + '<' + tagName + attrStr + ' Class="double">' + formatFloatXml(val, 'double') + '</' + tagName + '>';
     }
     // No `as number`: an int64/uint64 scalar holds exact decimal TEXT (parseTypedScalar),
     // and formatNumericXml writes one verbatim instead of rounding it through a double.

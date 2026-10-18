@@ -10,7 +10,7 @@ import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import { validateMatlabName } from '../matlabName.js';
 import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
-import { charTextFromCodes, decimalCharXml, escapeXml, formatDoubleXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
+import { charTextFromCodes, decimalCharXml, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
 // display string ('YYYY-MM-DDThh:mm:ssZ'). Mirrors the binary parser's
 // formatDate so a text-format and a binary-format entry render identically.
@@ -1177,7 +1177,7 @@ export default class DataNode extends BaseNode {
             return p + '<P' + DataNode.pxAttrs(name) + ' Class="char"/>';
         }
         if (typeof value === 'number') {
-            return p + '<P' + DataNode.pxAttrs(name) + ' Class="double">' + formatDoubleXml(value) + '</P>';
+            return p + '<P' + DataNode.pxAttrs(name) + ' Class="double">' + formatFloatXml(value, 'double') + '</P>';
         }
         if (typeof value === 'boolean') {
             return p + '<P' + DataNode.pxAttrs(name) + ' Class="logical">' + (value ? '1' : '0') + '</P>';
@@ -1212,7 +1212,7 @@ export default class DataNode extends BaseNode {
                 return DataNode._serializeStringPropertyXml(name, value, [1, value.length], indent);
             }
             const formatted = value.map(function (v) {
-                return formatDoubleXml(v);
+                return formatFloatXml(v, 'double');
             });
             return (p +
                 '<P' +
@@ -1758,7 +1758,7 @@ export default class DataNode extends BaseNode {
     static _serializeCellElementXml(elem, indent, at) {
         const p = xmlPad(indent);
         if (typeof elem === 'number') {
-            return p + '<Element Class="double">' + formatDoubleXml(elem) + '</Element>';
+            return p + '<Element Class="double">' + formatFloatXml(elem, 'double') + '</Element>';
         }
         if (typeof elem === 'boolean') {
             return p + '<Element Class="logical">' + (elem ? '1' : '0') + '</Element>';
@@ -1781,7 +1781,7 @@ export default class DataNode extends BaseNode {
                 return DataNode._stringXml('Element', '', elem, [1, elem.length], indent);
             }
             const formatted = elem.map(function (v) {
-                return formatDoubleXml(v);
+                return formatFloatXml(v, 'double');
             });
             return p + '<Element Class="double" Dimension="1*' + elem.length + '">' + formatted.join(' ') + '</Element>';
         }

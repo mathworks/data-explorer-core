@@ -271,6 +271,21 @@ export declare function valueForClass(value: unknown, type: string | null | unde
  */
 export declare function complexForIntegerClass(text: string, type: string): string;
 export declare function formatDoubleXml(num: unknown): string;
+/**
+ * A double or a single as a binary dictionary's XML holds it: MATLAB's own spelling of the
+ * number (floatDigits.matlabFloatText), `-0.0`, `1.0E-5`, `3.1415926535897931`, and for a
+ * single the float32 the number is, `1.0E+6`, `3.14159274`. An infinity and a NaN are
+ * MATLAB's words, and a single past a float32's range is the infinity single() makes it. Text
+ * (the exact decimal of a 64-bit integer, see formatDoubleXml) is written as it is.
+ *
+ * formatDoubleXml, String() and a `.0`, wrote the same values in JavaScript's spelling:
+ * `0.0` for -0, which MATLAB then read as +0 (C-062), `0.00001`, `3.141592653589793`, and a
+ * single as the double it was widened to. The value MATLAB read was the same for every
+ * other number, but the text was not MATLAB's, so each entry a save rebuilt came back with
+ * numbers nobody edited respelled. A text dictionary's literal keeps formatDoubleXml
+ * (formatNumLiteral): its spelling is another.
+ */
+export declare function formatFloatXml(num: unknown, cls: 'double' | 'single'): string;
 export declare function formatNumericXml(num: unknown, type: string): string;
 export declare function formatNumLiteral(num: unknown, type: string): string;
 export declare function formatMatrixSerial(values: unknown[], dims: number[], type: string): string;
@@ -320,10 +335,10 @@ export declare function decimalCharXml(text: string, dims: number[]): {
  * is past 65535), which a reader then keeps as the text it is rather than as NULs.
  */
 export declare function charFromDecimal(body: string): string | null;
-export declare function formatComplexXml(complexStr: string): string;
+export declare function formatComplexXml(complexStr: string, cls?: 'double' | 'single'): string;
 /**
  * A complex value's body as a binary dictionary's `<P Class="…" IsComplex="1">` carries it,
- * for its class: a float class's parts each read as a float (formatComplexXml's `.0`), an
+ * for its class: a float class's parts each as MATLAB spells a number of it (formatComplexXml), an
  * integer class's parts as the integers they are. MATLAB writes `Class="int8"
  * IsComplex="1">3-4i` and `Class="int64" IsComplex="1">9223372036854775807+1i`, and the
  * `.0` form, `9223372036854775807.0+1.0i`, is not that value. An infinity is `Inf`, the

@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 'use strict';
+import { matlabFloatText } from './floatDigits.js';
 /**
  * Text or an attribute value, as XML has to carry it.
  *
@@ -507,6 +508,30 @@ export function formatDoubleXml(num) {
     }
     return s;
 }
+/**
+ * A double or a single as a binary dictionary's XML holds it: MATLAB's own spelling of the
+ * number (floatDigits.matlabFloatText), `-0.0`, `1.0E-5`, `3.1415926535897931`, and for a
+ * single the float32 the number is, `1.0E+6`, `3.14159274`. An infinity and a NaN are
+ * MATLAB's words, and a single past a float32's range is the infinity single() makes it. Text
+ * (the exact decimal of a 64-bit integer, see formatDoubleXml) is written as it is.
+ *
+ * formatDoubleXml, String() and a `.0`, wrote the same values in JavaScript's spelling:
+ * `0.0` for -0, which MATLAB then read as +0 (C-062), `0.00001`, `3.141592653589793`, and a
+ * single as the double it was widened to. The value MATLAB read was the same for every
+ * other number, but the text was not MATLAB's, so each entry a save rebuilt came back with
+ * numbers nobody edited respelled. A text dictionary's literal keeps formatDoubleXml
+ * (formatNumLiteral): its spelling is another.
+ */
+export function formatFloatXml(num, cls) {
+    if (typeof num === 'string') {
+        return num;
+    }
+    if (typeof num !== 'number') {
+        return formatMatlabNum(num);
+    }
+    const x = cls === 'single' ? Math.fround(num) : num;
+    return isFinite(x) ? matlabFloatText(x, cls) : formatMatlabNum(x);
+}
 export function formatNumericXml(num, type) {
     // As MATLAB converts it to the class, the exact decimal text of a 64-bit one included,
     // which toIntegerClass keeps as it is when the class holds it. Math.round, which this
@@ -521,7 +546,7 @@ export function formatNumericXml(num, type) {
         return num;
     }
     if (type === 'double' || type === 'single') {
-        return formatDoubleXml(num);
+        return formatFloatXml(num, type);
     }
     return formatMatlabNum(Math.round(Number(num)));
 }
@@ -729,20 +754,33 @@ export function charFromDecimal(body) {
     }
     return text;
 }
-// Every numeric part of a complex literal has to read as a double, so an integral
-// part gains a '.0'. Match the WHOLE number rather than a trailing run of digits:
-// the run-of-digits form appended '.0' to the EXPONENT, so '1e-7+2e-8i' was written
-// as '1e-7.0+2e-8.0i', which is not a MATLAB literal at all. Exponents are not a
-// corner case here — Number stringifies anything below 1e-6 that way, so typing an
-// ordinary small value like '0.0000001+0.00000002i' into the inspector is stored as
-// '1e-7+2e-8i' and reached this routine. The leading-dot alternative comes first so
-// '.5' is seen as one number instead of a bare '5' that would yield '.5.0'.
-export function formatComplexXml(complexStr) {
-    return complexStr.replace(/\.\d+(?:[eE][+-]?\d+)?|\d+\.?\d*(?:[eE][+-]?\d+)?/g, (num) => (/[.eE]/.test(num) ? num : num + '.0'));
+// Every element of a complex literal, each part as MATLAB spells it under the float class
+// `cls` (formatFloatXml): `1e-7+2e-8i` is `1.0E-7+2.0E-8i`, complex(1e6, -0) `1000000.0-0.0i`,
+// and a NaN imaginary part `+NaNi`, signed (formatComplexBodyXml says why). MATLAB writes
+// complex(1e-7, 2e-8) as `1.0E-7+2.0E-8i`, so an element typed in the inspector, which is
+// stored as Number spells it, was written `1e-7+2e-8i` until each part was respelled.
+//
+// Text that is not an element (parseComplexNum), `2i`, keeps the form it had: a '.0' on each
+// integral number. Match the WHOLE number rather than a trailing run of digits: the
+// run-of-digits form appended '.0' to the EXPONENT, so '1e-7+2e-8i' was written as
+// '1e-7.0+2e-8.0i', which is not a MATLAB literal at all. The leading-dot alternative comes
+// first so '.5' is seen as one number instead of a bare '5' that would yield '.5.0'.
+export function formatComplexXml(complexStr, cls = 'double') {
+    return complexStr
+        .split(/(\s+)/)
+        .map((token, i) => {
+        const pair = i % 2 === 0 && token !== '' ? parseComplexNum(token) : null;
+        if (!pair) {
+            return token.replace(/\.\d+(?:[eE][+-]?\d+)?|\d+\.?\d*(?:[eE][+-]?\d+)?/g, (num) => (/[.eE]/.test(num) ? num : num + '.0'));
+        }
+        const im = formatFloatXml(pair.im, cls);
+        return formatFloatXml(pair.re, cls) + (im.startsWith('-') ? '' : '+') + im + 'i';
+    })
+        .join('');
 }
 /**
  * A complex value's body as a binary dictionary's `<P Class="…" IsComplex="1">` carries it,
- * for its class: a float class's parts each read as a float (formatComplexXml's `.0`), an
+ * for its class: a float class's parts each as MATLAB spells a number of it (formatComplexXml), an
  * integer class's parts as the integers they are. MATLAB writes `Class="int8"
  * IsComplex="1">3-4i` and `Class="int64" IsComplex="1">9223372036854775807+1i`, and the
  * `.0` form, `9223372036854775807.0+1.0i`, is not that value. An infinity is `Inf`, the
@@ -769,7 +807,7 @@ export function formatComplexBodyXml(text, className) {
             .map((token, i) => (i % 2 === 0 && token !== '' ? complexForIntegerClass(token, className) : token))
             .join('');
     }
-    return className === 'double' || className === 'single' ? formatComplexXml(body) : body;
+    return className === 'double' || className === 'single' ? formatComplexXml(body, className) : body;
 }
 export function transposeToColumnMajor(rowMajor, rows, cols) {
     if (rows <= 1) {
