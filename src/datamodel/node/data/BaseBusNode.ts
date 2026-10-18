@@ -97,6 +97,16 @@ export class BaseBusNode extends DataNode {
     get displayValue(): string { return ''; }
     get valueEditable(): boolean { return false; }
 
+    // A bus whose properties are held beside its class is shown as read, and takes an edit of its
+    // name alone, which the save writes back as read (DataNode._inlineObjectBag, _refuseInlineBagEdit).
+    get descriptionEditable(): boolean { return !this._inlineObjectBag() && super.descriptionEditable; }
+    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+        if (this._isUnchangedCommit(propName, stringValue)) {
+            return true;
+        }
+        return this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
+    }
+
     getProperties(): PropClass[] { return [PropName, PropDataType, PropDescription]; }
     // PI layout is schema-driven (schema/classes/{bus,connectionBus,serviceBus}.json).
     // Each concrete bus container has a schema entry keyed by its className, so the
@@ -163,17 +173,23 @@ export class BaseBusNode extends DataNode {
     }
 
     serializeValue(): unknown {
+        // Properties held beside the class, with no element to rebuild, are written as they were
+        // read (DataNode._inlineObjectBag): `_elements[0]` threw a TypeError here.
+        if (this._inlineObjectBag()) {
+            return { ...(this.serial._rawVal as Record<string, unknown>) };
+        }
         const props = this._getSerializedProperties();
         const result = { ...(this.serial._rawVal as Record<string, unknown>) };
         result._elements = [{ ...((result._elements as unknown[])[0] as Record<string, unknown>), _properties: props }];
         return result;
     }
 
-    // Not inside a value still in its encoded stream (DataNode._encodedReadOnly).
-    canRemoveChild(): boolean { return !this._encodedReadOnly && this.children.length > 0; }
+    // Not inside a value still in its encoded stream (DataNode._encodedReadOnly), nor one whose
+    // properties are held beside its class, which the save writes back as read.
+    canRemoveChild(): boolean { return !this._encodedReadOnly && !this._inlineObjectBag() && this.children.length > 0; }
     removeChildNode(child: BaseNode): void { this.removeChild(child); this._markModified(); }
     restoreChildNode(child: BaseNode, index: number): void { this.children.splice(index, 0, child); child.parent = this; this._markModified(); }
-    canAddChild(): boolean { return !this._encodedReadOnly; }
+    canAddChild(): boolean { return !this._encodedReadOnly && !this._inlineObjectBag(); }
 
     addChildNode(): BaseNode | null {
         const baseName = 'a';

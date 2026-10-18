@@ -331,6 +331,34 @@ export default class DataNode extends BaseNode {
      */
     get _encodedReadOnly(): boolean;
     _refuseEncodedEdit(propName: string, stringValue: string): SetPropertyResult | null;
+    /**
+     * Does this object's value hold its properties beside its class, with no element (SER-TE)?
+     *
+     * MATLAB writes an object's properties inside its one element, `{_array_class, _elements:
+     * [{_properties: {…}}]}`, and so does every reader and writer in this package. A text
+     * dictionary is JSON anyone, or any generator, can write, and one can hold them inline
+     * instead, `{_array_class: 'Simulink.Parameter', Value: 0.001, …}`, with no `_elements` (or a
+     * `null` one): three in the local corpus do (complex/base, plant and shared.sldd). A typed
+     * node reads its properties from the element only, so such an entry opens with each at its
+     * default. Its class's serializeValue rebuilt the element from `_elements[0]`, and threw a
+     * TypeError, which failed an untouched save of the whole file, a copy of the entry and the
+     * save after a rename.
+     *
+     * Under the maintainer's ruling (group F, 2026-10-18, option (a)) the value is written back as
+     * it was read, by ParameterNode, the buses and EnumTypeNode, whose serializeValue threw on it.
+     * An edit the replay would drop is refused (_refuseInlineBagEdit), and so is its XML
+     * (_serializeSimulinkObjectXml), which has no spelling for it.
+     */
+    _inlineObjectBag(): boolean;
+    /**
+     * The refusal of an edit to an object holding its properties beside its class
+     * (_inlineObjectBag), or null when the edit may go ahead. Its value is written back as it was
+     * read, so an edit the node took would be dropped by the save; a rename is let through, as
+     * the name lives outside the value. Asked by the setProperty of each class that replays it.
+     */
+    _refuseInlineBagEdit(propName: string, stringValue: string): SetPropertyResult | null;
+    /** `info`, with no editor for any property but the name of an object holding its properties beside its class (_inlineObjectBag). */
+    _inlineBagPropInfo(info: ReturnType<BaseNode['getPropInfo']>): ReturnType<BaseNode['getPropInfo']>;
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _serializeSimulinkObjectXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
     _getSerializedProperties(): Record<string, unknown>;

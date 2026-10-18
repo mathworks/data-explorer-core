@@ -1056,6 +1056,49 @@ export default class DataNode extends BaseNode {
             validValue: this._resolveProperty(propName) === 'name' ? this.name : this.displayValue,
         };
     }
+    /**
+     * Does this object's value hold its properties beside its class, with no element (SER-TE)?
+     *
+     * MATLAB writes an object's properties inside its one element, `{_array_class, _elements:
+     * [{_properties: {…}}]}`, and so does every reader and writer in this package. A text
+     * dictionary is JSON anyone, or any generator, can write, and one can hold them inline
+     * instead, `{_array_class: 'Simulink.Parameter', Value: 0.001, …}`, with no `_elements` (or a
+     * `null` one): three in the local corpus do (complex/base, plant and shared.sldd). A typed
+     * node reads its properties from the element only, so such an entry opens with each at its
+     * default. Its class's serializeValue rebuilt the element from `_elements[0]`, and threw a
+     * TypeError, which failed an untouched save of the whole file, a copy of the entry and the
+     * save after a rename.
+     *
+     * Under the maintainer's ruling (group F, 2026-10-18, option (a)) the value is written back as
+     * it was read, by ParameterNode, the buses and EnumTypeNode, whose serializeValue threw on it.
+     * An edit the replay would drop is refused (_refuseInlineBagEdit), and so is its XML
+     * (_serializeSimulinkObjectXml), which has no spelling for it.
+     */
+    _inlineObjectBag() {
+        const raw = this.serial && this.serial._rawVal;
+        return !!raw && typeof raw === 'object' && !!raw._array_class && !Array.isArray(raw._elements);
+    }
+    /**
+     * The refusal of an edit to an object holding its properties beside its class
+     * (_inlineObjectBag), or null when the edit may go ahead. Its value is written back as it was
+     * read, so an edit the node took would be dropped by the save; a rename is let through, as
+     * the name lives outside the value. Asked by the setProperty of each class that replays it.
+     */
+    _refuseInlineBagEdit(propName, stringValue) {
+        if (!this._inlineObjectBag() || this._resolveProperty(propName) === 'name') {
+            return null;
+        }
+        return {
+            error: true,
+            reason: `'${this.displayName}' holds its properties in a form MATLAB does not write, which this editor shows as read but cannot change.`,
+            invalidValue: stringValue,
+            validValue: this.displayValue,
+        };
+    }
+    /** `info`, with no editor for any property but the name of an object holding its properties beside its class (_inlineObjectBag). */
+    _inlineBagPropInfo(info) {
+        return info.key !== 'Name' && this._inlineObjectBag() ? { ...info, editable: false } : info;
+    }
     serializeXml(tagName, attrs, indent) {
         if (!writeUnderWay()) {
             return oneWrite(() => this.serializeXml(tagName, attrs, indent));
@@ -1075,6 +1118,14 @@ export default class DataNode extends BaseNode {
         const p = xmlPad(indent);
         const ip = xmlPad(indent + 1);
         const rawVal = this.serial._rawVal;
+        // Properties held beside the class, with no element (_inlineObjectBag), which no class reads
+        // and this writer cannot spell: it wrote an `<Element>` of the class holding no property.
+        // Refused rather than written wrong (the maintainer's group F ruling, 2026-10-18).
+        if (this._inlineObjectBag()) {
+            const where = this._whereWritten();
+            throw new MatWriteError('Cannot write "' + where.entry + '": ' + where.path +
+                ' holds its properties in a form MATLAB does not write, which a binary dictionary has no spelling for. Nothing was written.');
+        }
         // The class of the one object written, its element's: an array of one element of another
         // class was written as an object of the array's. A nested object's spelling is its own
         // element, and names its own class.

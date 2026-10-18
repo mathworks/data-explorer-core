@@ -71,6 +71,17 @@ export class EnumTypeNode extends DataNode {
         return (this.children[0] && this.children[0].name) || '';
     }
     getProperties() { return [PropName, PropEnumValue, PropDataType, PropDescription]; }
+    // An enumeration type whose properties are held beside its class is shown as read, and takes
+    // an edit of its name alone, which the save writes back as read (DataNode._inlineObjectBag,
+    // _refuseInlineBagEdit).
+    get valueEditable() { return !this._inlineObjectBag() && super.valueEditable; }
+    get descriptionEditable() { return !this._inlineObjectBag() && super.descriptionEditable; }
+    setProperty(propName, stringValue) {
+        if (this._isUnchangedCommit(propName, stringValue)) {
+            return true;
+        }
+        return this._refuseInlineBagEdit(propName, stringValue) ?? super.setProperty(propName, stringValue);
+    }
     // PI layout is schema-driven (schema/classes/enumType.json). NOTE: EnumValueNode
     // shares this className but keeps its own getPILayout override (a value row, not
     // the enum type), so it never resolves the schema layout.
@@ -104,16 +115,22 @@ export class EnumTypeNode extends DataNode {
         return props;
     }
     serializeValue() {
+        // Properties held beside the class, with no element to rebuild, are written as they were
+        // read (DataNode._inlineObjectBag): `_elements[0]` threw a TypeError here.
+        if (this._inlineObjectBag()) {
+            return { ...this.serial._rawVal };
+        }
         const props = this._getSerializedProperties();
         const result = { ...this.serial._rawVal };
         result._elements = [{ ...result._elements[0], _properties: props }];
         return result;
     }
-    // Not inside a value still in its encoded stream (DataNode._encodedReadOnly).
-    canRemoveChild() { return !this._encodedReadOnly && this.children.length > 0; }
+    // Not inside a value still in its encoded stream (DataNode._encodedReadOnly), nor one whose
+    // properties are held beside its class, which the save writes back as read.
+    canRemoveChild() { return !this._encodedReadOnly && !this._inlineObjectBag() && this.children.length > 0; }
     removeChildNode(child) { this.removeChild(child); this._markModified(); }
     restoreChildNode(child, index) { this.children.splice(index, 0, child); child.parent = this; this._markModified(); }
-    canAddChild() { return !this._encodedReadOnly; }
+    canAddChild() { return !this._encodedReadOnly && !this._inlineObjectBag(); }
     addChildNode() {
         const existing = new Set(this.children.map(function (c) { return c.name; }));
         let i = 1;

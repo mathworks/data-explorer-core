@@ -26,6 +26,8 @@ export declare class BaseBusNode extends DataNode {
     get icon(): string;
     get displayValue(): string;
     get valueEditable(): boolean;
+    get descriptionEditable(): boolean;
+    setProperty(propName: string, stringValue: string): true | SetPropertyResult;
     getProperties(): PropClass[];
     _getSerializedProperties(): Record<string, unknown>;
     /**
