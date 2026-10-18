@@ -207,4 +207,24 @@ describe("an empty string or function handle pasted into a binary dictionary, gr
       }
     }
   });
+
+  it("a host's empty string with a trailing 1 is written as the one without it at a property and a Value, and copied so", () => {
+    // A trailing 1 is no extent: MATLAB's size of a 0x3x1 string is 0x3, and every other class is
+    // written at its dims without it (MatWriter.effectiveDims). Written with it, the envelope was
+    // `Dimension="0*3*1"`, a spelling MATLAB was never asked about, and it reopened here as a 0x3x1.
+    for (const dims of [[0, 3, 1], [1, 0, 1], [0, 0, 1, 1]]) {
+      const two = dims.slice(0, 2);
+      const envelope = (place: Place) => TRUTH.rows.find((r) => r.form === 'bag' && r.place === place && JSON.stringify(r.dims) === JSON.stringify(two))!.spelling;
+      const v = { _type: 'string', _emptyDims: dims };
+      expect(pastedAndSaved('w_h', 'prop', v, two), dims.join('x') + ' at prop').toEqual({ spelling: envelope('prop'), matlab: reads('string', two), reopened: ['string', two] });
+      expect(pastedAndSaved('p_h', 'param', v, two), dims.join('x') + ' at param').toEqual({ spelling: envelope('param'), matlab: reads('double', [0, 0]), reopened: ['string', two] });
+      const session = createSession();
+      const bin: any = ingest(session, buffer(BINARY), { filename: 'lossy_empties_readback_binary.sldd' });
+      const design = bin.getSection('design');
+      const pasted = design.parseEntry({ name: 'h', metadata: { ...design.children[0].metadata, uuid: '00000000-0000-4000-a942-000000000001' }, value: v });
+      const copy = JSON.parse(JSON.stringify(pasted.serialize()));
+      expect(copy.value, dims.join('x') + ' copied').toEqual({ _array_type: 'String', _dimensions: two, _elements: [], _mw_element_type: 'MATLABArray' });
+      expect(pastedAndSaved('e_copy', 'entry', copy.value, two), dims.join('x') + ' copy pasted').toEqual({ spelling: envelope('entry'), matlab: reads('string', two), reopened: ['string', two] });
+    }
+  });
 });

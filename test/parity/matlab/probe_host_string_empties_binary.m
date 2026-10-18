@@ -2,12 +2,13 @@
 % each place a value can stand? (PR #147's review, round 1, measured 2026-10-18.)
 %
 % A host hands an empty string in as `{_type: 'string', _emptyDims: [r, c]}`. Pasted into a binary
-% dictionary, core writes it `Class="string" Dimension="r*c"` with no body, at an entry's value, a
-% cell's element and a struct field as before PR #147, and, since MatWriter.emptyDimsHeldForm
-% hands it on as the binary reader's empty, at a Simulink.Parameter's Value and at an object's
-% property too, where it was `Class="double" Dimension="0*0"`. MATLAB itself writes a string's
-% empty in a binary dictionary as its saveobj envelope, so it never writes this spelling; this asks
-% what it reads back of it.
+% dictionary, core writes it `Class="string" Dimension="r*c"` with no body at an entry's value, a
+% cell's element and a struct field, as before PR #147. At a Simulink.Parameter's Value and at an
+% object's property, where it was `Class="double" Dimension="0*0"`, MatWriter.emptyDimsHeldForm
+% hands it on as the String bag, which the binary writer spells as MATLAB's own saveobj envelope;
+% at that PR's first head it was the bare tag there too. MATLAB itself writes a string's empty in a
+% binary dictionary as that envelope, so it never writes the bare tag; this asks what it reads back
+% of each spelling, each form a host hands one in as pasted at each place.
 %
 % Run: node test/parity/matlab/host_string_empties_binary.mjs /tmp/hsb   (with dist built)
 %      env HOST_STRING_EMPTIES_OUT=/tmp/hsb mw -using Bmain matlab -nodesktop \

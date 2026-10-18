@@ -315,4 +315,56 @@ describe('an empty string, an empty function handle or an N-D empty pasted into 
     expect(zValues(saved)).toEqual(zValues(file));
     expect(saved === file).toBe(true);
   });
+
+  /** A Simulink.Parameter, MATLAB's own, copied out of its binary dictionary, holding `v` as its Value. */
+  const inParameter = (v: unknown, dims: number[]): unknown => {
+    const bin: any = ingest(createSession(), buffer(bytesAt(BINARY)), { filename: 'lossy_empties_readback_binary.sldd' });
+    const p = JSON.parse(JSON.stringify(bin.getSection('design').children.find((e: any) => e.name === 'p_D022').serialize().value));
+    p._elements[0]._properties.Value = v;
+    p._elements[0]._properties.Dimensions = dims;
+    return p;
+  };
+  const hostAt = (place: Place, v: unknown, dims: number[]): Outcome =>
+    pasteInto(place === 'prop' ? 'other' : 'design', { name: 'h_' + place, value: place === 'param' ? inParameter(v, dims) : wrapped(place, v) }, place);
+
+  it("a host's empty string with a trailing 1 is written as the one without it, which MATLAB reads back with its class and size", () => {
+    // A trailing 1 is no extent: MATLAB's size of a 0x3x1 string is 0x3, and every other class is
+    // written at its dims without it (MatWriter.effectiveDims). Written with it, `_dimensions` was
+    // a spelling MATLAB was never asked about, and the value reopened here as a 0x3x1.
+    const wrong: string[] = [];
+    for (const dims of [[0, 3, 1], [1, 0, 1], [0, 0, 1, 1]]) {
+      const two = dims.slice(0, 2);
+      for (const place of HOST_PLACES) {
+        const problem = graded('h_' + place, place, { class: 'string', size: two }, hostAt(place, { _type: 'string', _emptyDims: dims }, dims));
+        if (problem) {
+          wrong.push(dims.join('x') + ' ' + problem);
+        }
+      }
+      // At a Parameter's Value MATLAB reads every spelling of an empty string back as a double 0x0
+      // (Str03 at param), so there is no spelling to grade it by: it is written as the one without the 1.
+      const atValue = (d: number[]) => JSON.stringify(hostAt('param', { _type: 'string', _emptyDims: d }, two));
+      if (atValue(dims) !== atValue(two)) {
+        wrong.push(dims.join('x') + ' at param: ' + atValue(dims) + ', where without the 1: ' + atValue(two));
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it("a host's N-D empty string is refused at every place, a Parameter's Value too, and named as the string it is", () => {
+    // MATLAB reads back no text spelling of an N-D string (Str022): it refuses one in a cell, a
+    // field and at a Value, and reads its own text back as another value at an entry and a property.
+    const wrong: string[] = [];
+    for (const dims of [[0, 0, 2], [0, 3, 2]]) {
+      for (const place of [...HOST_PLACES, 'param'] as Place[]) {
+        const name = 'h_' + place;
+        const outcome = hostAt(place, { _type: 'string', _emptyDims: dims }, dims);
+        const problem = graded(name, place, { class: 'string', size: dims }, outcome);
+        const message = `Cannot write "${name}": ${name}${PATH[place]} is a ${dims.join('x')} string, which a text dictionary holds only as its MAT stream, and that stream cannot be written: no MAT class for "string". Nothing was written.`;
+        if (problem || !('refused' in outcome) || outcome.refused !== 'MatWriteError' || outcome.message !== message) {
+          wrong.push(dims.join('x') + ' at ' + place + ': ' + (problem ?? JSON.stringify(outcome)));
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
 });
