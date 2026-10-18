@@ -13,8 +13,8 @@
 // What it pins:
 //   * a rename changes the Name and LastMod lines of the entry and nothing else, a value MATLAB
 //     spelled `1.0NaNi` included (D3);
-//   * an edit of one property, one struct field or the elements of a bus changes that part
-//     alone: its siblings, the elements that survive and the open tags around them are the
+//   * an edit of one property, one struct field or the elements of a bus or a cell changes that
+//     part alone: its siblings, the elements that survive and the open tags around them are the
 //     file's bytes, and the elements are paired by where they were read from, never by position
 //     (D1);
 //   * an edit and its undo give back the bytes with only the LastMod line new (D2);
@@ -224,12 +224,17 @@ describe('a struct field edit changes only that field', () => {
 });
 
 describe('a bus\'s elements are paired by where they were read from, never by position (D1)', () => {
-  // bus_types_binary.sldd's btBus, four elements, with each element's empty Description spelled
-  // `></P>` rather than MATLAB's `/>` (which a hand edit may do, and which reads the same), so
-  // that a survivor written from the model shows.
+  // bus_types_binary.sldd's btBus, four elements, with the empty Description of the second and
+  // the fourth spelled `></P>` rather than MATLAB's `/>` (which a hand edit may do, and which reads
+  // the same), so that a survivor written from the model shows, and so does a survivor merged with
+  // the element read at its new place rather than with the one it was read as: every removal
+  // below that moves an element moves a `></P>` onto a `/>` or the other way round. Were all four
+  // respelled alike, an element paired by position would get the same text from the wrong one.
+  const EMPTY = '<P Name="Description" Class="char"/>';
+  const RESPELT = '<P Name="Description" Class="char"></P>';
   const { xml: file } = open(fixture('bus_types_binary.sldd'));
   const original = objectOf(file, 'btBus');
-  const busObject = original.split('<P Name="Description" Class="char"/>').join('<P Name="Description" Class="char"></P>');
+  const busObject = original.split(EMPTY).reduce((acc, piece, k) => acc + (k === 2 || k === 4 ? RESPELT : EMPTY) + piece);
   const xml = file.replace(original, busObject);
   // Each element's `<Element …>…</Element>` with the whitespace before it.
   const elements = (object: string): string[] => {
@@ -259,10 +264,12 @@ describe('a bus\'s elements are paired by where they were read from, never by po
     it(`removing ${label}: the survivors are their bytes, under the model's Dimension`, () => {
       const { session, root } = fromChunk(xml);
       const bus = busIn(root);
-      // Four elements, each spelled as the writers do not spell it.
+      // Four elements, the second and the fourth spelled as the writers do not spell them.
       expect(ORIGINAL.length).toBe(4);
+      expect(ORIGINAL.map((e) => e.includes(RESPELT))).toEqual([false, true, false, true]);
+      expect(ORIGINAL.map((e) => e.includes(EMPTY))).toEqual([true, false, true, false]);
       expect(bus.children.map((c: any) => c.name)).toEqual(['plain', 'aliased', 'geared', 'matrix']);
-      expect(regenerated(bus)).not.toContain('<P Name="Description" Class="char"></P>');
+      expect(regenerated(bus)).not.toContain(RESPELT);
       const victims = removed.map((k) => bus.children[k]);
       for (const v of victims) expect(session.deleteNodeById(v.id)).toBe(true);
       const kept = [0, 1, 2, 3].filter((k) => !removed.includes(k));
@@ -292,7 +299,7 @@ describe('a bus\'s elements are paired by where they were read from, never by po
     expect(now.name).toBe('aliased');
     session.setActive(root, now);
     expect(session.editProperty(now.id, 'Description', 'the second, edited')).toBe(true);
-    const edited = ORIGINAL[1].replace('<P Name="Description" Class="char"></P>', '<P Name="Description" Class="char">the second, edited</P>');
+    const edited = ORIGINAL[1].replace(RESPELT, '<P Name="Description" Class="char">the second, edited</P>');
     const expected = keeping([1, 2, 3]).replace(ORIGINAL[1], edited);
     expect(savedChunk(session, root)).toBe(withObject(xml, 'btBus', expected));
   });
@@ -304,6 +311,32 @@ describe('a bus\'s elements are paired by where they were read from, never by po
     session.undo();
     expect(bus.children.length).toBe(4);
     expect(savedChunk(session, root)).toBe(withObject(xml, 'btBus', keeping([0, 1, 2, 3])));
+  });
+});
+
+describe('a cell\'s elements are paired by where they were read from, never by position (D1)', () => {
+  // The parity artifact cases.sldd's cellNest, {1.0, {2.0, {3.0}}} as MATLAB wrote it, whose
+  // innermost cell, 1x1, has no Dimension, where the writers spell one. Removing the 1.0 moves the
+  // nested cell from the second place to the first: it keeps its bytes only if it is merged with
+  // the element it was read as, not with the 1.0 that was read first.
+  const CASES = join(HERE, 'parity', 'artifacts', 'binary', 'cases.sldd');
+  const FIRST = '\n            <Element Class="double">1.0</Element>';
+
+  it('removing the first: the nested cell that survives is its bytes, under the model\'s Dimension', () => {
+    const { session, root, xml } = open(CASES);
+    const entry = entryNamed(root, 'cellNest');
+    const before = objectOf(xml, 'cellNest');
+    expect(before.split(FIRST).length).toBe(2);
+    expect(before).toContain('<Element Class="cell">');
+    expect(before).not.toContain('Dimension="1*1"');
+    expect(entry.children.length).toBe(2);
+    expect(session.deleteNodeById(entry.children[0].id)).toBe(true);
+    expect(entry.children.length).toBe(1);
+    // The writers spell the survivor's innermost cell otherwise than MATLAB did.
+    expect(regenerated(entry)).toContain('<Element Class="cell" Dimension="1*1">');
+    const expected = renamedAndStamped(before.replace(FIRST, ''), null)
+      .replace('<P Name="Value" Class="cell" Dimension="1*2">', '<P Name="Value" Class="cell" Dimension="1*1">');
+    expect(savedChunk(session, root)).toBe(withObject(xml, 'cellNest', expected));
   });
 });
 
