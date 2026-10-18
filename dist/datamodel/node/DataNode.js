@@ -681,6 +681,40 @@ export default class DataNode extends BaseNode {
             m.lastModifiedDate = formatMatlabTimestamp(raw);
         }
     }
+    /**
+     * What puts this node back as it stands now: every own field but those in `leaves`, and its
+     * list of children, held now and put back when it is called. For a node's `_restorerFor`
+     * (DataModel.editProperty), for the undo of a Value edit about to be made, by a node whose
+     * Value edit assigns every field it changes and changes nothing it found in place, so that
+     * what it holds now is still the value it was: MatlabVariableNode's (_applyParsed) and
+     * ParameterNode's. `_rawInput` comes back with the rest, so a value undone is written as it
+     * was read.
+     */
+    _ownStateRestorer(leaves) {
+        const own = this;
+        const saved = new Map(Object.entries(own).filter(([key]) => !leaves.has(key)));
+        const children = this.children.slice();
+        return () => {
+            // First, so that every node above drops what it was read from (it is written from its
+            // children now, this one among them) and the entry is Modified and its file dirty. The
+            // restore below then gives this node its own back.
+            this._markModified();
+            for (const key of Object.keys(own)) {
+                if (!leaves.has(key) && !saved.has(key)) {
+                    delete own[key];
+                }
+            }
+            for (const [key, value] of saved) {
+                own[key] = value;
+            }
+            this.children = children.slice();
+            for (const child of this.children) {
+                child.parent = this;
+            }
+            // As a Value edit does: the parent's row for this node follows its shape.
+            this.parent?.childStructureChanged(this);
+        };
+    }
     serialize() {
         // serialize() is what a text dictionary is written from — SlddNode.serializeJson, and
         // a host splicing one entry's JSON into the file — and serializeValue's replay of an
