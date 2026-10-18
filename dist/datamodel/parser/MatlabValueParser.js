@@ -331,6 +331,18 @@ function parseComplex(str) {
     const shown = parseComplexNum(str);
     return shown ? { type: 'complex', value: formatComplexNum(shown.re, shown.im) } : null;
 }
+// A complex literal written imaginary part first: the imaginary term (a decimal, or the bare
+// unit for 1 of it; never Inf or NaN, which MATLAB would read as the names `Infi`, `NaNi`),
+// then a sign, with or without spaces, then the real part (a decimal, Inf or NaN). MATLAB
+// R2027a makes `i + 1` 1+1i, `2i - 3` -3+2i and `-2i + 3` 3-2i. Exactly two terms: a third
+// (`i + 1 + 2`) or a second imaginary one (`i + 1i`) is arithmetic, and does not match.
+const IMAGINARY_FIRST = new RegExp('^([+-]?)((?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?)?[ij]\\s*([+-])\\s*(' + COMPLEX_LITERAL_PART + ')$');
+// Only a cell's member is read this way (tokenizeCellElements); the top level reads a complex
+// literal real part first, as it always has (parseComplex).
+function parseImaginaryFirst(str) {
+    const m = IMAGINARY_FIRST.exec(str);
+    return m ? { type: 'complex', value: formatComplexNum(complexPart(m[3], m[4]), complexPart(m[1], m[2])) } : null;
+}
 function parseArray(str) {
     str = str.trim();
     if (str.length < 2 || str.charAt(0) !== '[' || str.charAt(str.length - 1) !== ']') {
@@ -665,12 +677,17 @@ function tokenizeCellElements(rowStr) {
     let i = 0;
     const len = rowStr.length;
     while (i < len) {
+        const gap = i;
         while (i < len && (rowStr.charAt(i) === ' ' || rowStr.charAt(i) === ',')) {
             i++;
         }
         if (i >= len) {
             break;
         }
+        // No term stands before this member: it opens the row, or a comma ends the last one.
+        // After a bracketed or quoted term and only spaces, a `+` or `-` with whitespace after
+        // it is binary in MATLAB (`{[1] - 2}` is {-1}, `{'a' - 2}` is {95}).
+        const noTermBefore = elements.length === 0 || rowStr.slice(gap, i).includes(',');
         // The span of ONE element. Bracketed and quoted spans are measured by the
         // scanners that already know where they end (a ',' or ' ' inside either is
         // ordinary content); a bare token runs to the next separator that is not beside
@@ -733,8 +750,17 @@ function tokenizeCellElements(rowStr) {
             }
             span = rowStr.slice(i, end);
             i = end;
+            // A sign with whitespace after it and no term before it is unary, as in MATLAB:
+            // `{- 2}` is {-2} and `{1, - 2}` is {1, -2}. The join above made it the span
+            // `- 2`; without the whitespace it is the literal `-2`. The span stays `joined`,
+            // so a rest that is not one value is still refused (`{- 2 - 3}`, `{- a}`).
+            if (noTermBefore && /^[+-] /.test(span)) {
+                span = span.charAt(0) + span.slice(1).trimStart();
+            }
         }
-        const parsed = parse(span);
+        // An imaginary term then a real one (`i + 1`, `2i-3`) is one complex value in MATLAB,
+        // which `parse` reads only real part first. Held as text, `{i+1}` was the char 'i+1'.
+        const parsed = parse(span) ?? parseImaginaryFirst(span);
         if (parsed === null) {
             // A bare identifier in a cell stays text — {a, b} is a cell of two names as
             // far as this reader is concerned, and refusing it would reject a value the
