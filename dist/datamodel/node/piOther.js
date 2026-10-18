@@ -23,7 +23,7 @@ import { isMatCdata, uudecode } from '../parser/CdataCodec.js';
 import { encodedClass, encodedStream, isEncodedValue } from '../parser/EncodedValue.js';
 import { decodeMatStream } from '../parser/MatParser.js';
 import { EMPTY_NUMERIC, sparseSummaryForm, summaryForm } from '../display/DisplayConvention.js';
-import { ENUMERATION_KEY, complexClassTag, formatComplexNum, formatMatlabNum, parseComplexNum, transposeFromColumnMajorND, } from '../parser/XmlUtils.js';
+import { ENUMERATION_KEY, complexClassTag, formatComplexNum, formatMatlabNum, parseComplexNum, shownComplexText, transposeFromColumnMajorND, } from '../parser/XmlUtils.js';
 // Internal serialization-envelope keys — structural, never user properties.
 const ENVELOPE_KEYS = new Set([
     '_id', '_object_class', '_array_class', '_array_type', '_dimensions',
@@ -111,7 +111,8 @@ function formatCdata(v) {
         if (!colMajor.every((t) => parseComplexNum(t) !== null) || colMajor.length !== dims.reduce((a, b) => a * b, 1)) {
             return text;
         }
-        return layOut(transposeFromColumnMajorND(colMajor, dims), dims, complexClassTag(v._class) ?? 'double');
+        // An imaginary part of -0 shows with a `+`, as the element's own row shows it.
+        return layOut(transposeFromColumnMajorND(colMajor.map(shownComplexText), dims), dims, complexClassTag(v._class) ?? 'double');
     }
     return formatStream(uudecode(text));
 }
