@@ -216,6 +216,31 @@ describe('a hand-edited text dictionary holding an object of no MATLAB shape, op
     expect(entry.displayValue).toBe('<{"a", "b"}>');
     expect(entry.valueEditable).toBe(false);
   });
+
+  it('pasted, is not reported on the next dictionary opened, which holds none', () => {
+    // A paste records the object as a read does, and no read takes the record then: the next one
+    // takes it before each entry is built (SlddNode.parse), so it is not reported on that file's
+    // first entry, naming the pasted entry's path.
+    pastedInto(SPARSE_TEXT, PLACED[1].cases[0]);
+    const { root } = openText(readFileSync(fileURLToPath(new URL('./fixtures/rt_text.sldd', import.meta.url)), 'utf8'));
+    expect(root.warnings ?? []).toEqual([]);
+  });
+
+  it('as an element of a numeric array, the family this leaves out: shown as before, with an editor and no warning (control)', () => {
+    // `[1, {"foo": 1}]` is read as a double array, not by parseScalar's last arm, so its element
+    // holds the object but was not read from it, and is no _unshapedObject: it shows String() of
+    // it with an editor, as before. Its XML is written so too (`1.0 [object Object]`), as before.
+    const arrays: Case[] = [
+      { name: 'arr', value: [1, { foo: 1 }], path: 'arr(2)', shown: '', what: '', row: child('2') },
+      { name: 'inCell', value: cellOf(2, [1, { foo: 1 }]), path: 'inCell{2}(2)', shown: '', what: '', row: (e) => child('2')(child('2')(e)) },
+    ];
+    const { root } = openText(handEdited(arrays));
+    for (const c of arrays) {
+      const row = c.row(entryIn(root, c));
+      expect([c.path, row.matlabPath, row.displayValue, row.valueEditable]).toEqual([c.path, c.path, '[object Object]', true]);
+    }
+    expect(root.warnings ?? []).toEqual([]);
+  });
 });
 
 describe('an object of no MATLAB shape, written as XML', () => {
