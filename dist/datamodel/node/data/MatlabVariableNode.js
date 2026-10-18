@@ -27,7 +27,7 @@ import { classPhrase, classRefusal, emptyDimsHeldForm, encodeMatStream, MatBudge
 import { cloneSparse, complexElement, emptySparse, MAX_DENSE_ELEMENTS, setSparseEntry, sparseEntry, sparseFromDense, sparseToDense, } from '../../parser/SparseData.js';
 import { EMPTY_CELL, EMPTY_NUMERIC, MAX_EXPANDED_ELEMENTS, effectiveDims, elementCount, needsSummary, overCharBudget, classColumnText, sparseSummaryForm, summaryForm, } from '../../display/DisplayConvention.js';
 import { admitRows, buildApart, buildUncut } from './matNodeCeiling.js';
-import { charNeedsShape, charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
+import { charNeedsShape, charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, formatComplexNum, shownComplexText, formatMatlabNum, formatMxCharSerial, formatNumLiteral, formatMatrixSerial, parseMatlabNum, parseExactNum, parseComplexNum, complexClassTag, isExactToken, needsExactInt, valueForClass, complexForIntegerClass, isIntegerClass, transposeToColumnMajorND, transposeFromColumnMajorND, pad as xmlPad, BINARY_EMPTY_KEY, isEnumBag, textEnumValueOf, } from '../../parser/XmlUtils.js';
 import { TYPED_NUMERIC_CLASS, classAfterEdit, elementClass, emptyDouble, formatCharMatrix, formatMatrix, formatStringElement, needsTypedLiteral, parseMatrixValue, } from './matlabValueRules.js';
 // ---- Node-local tables ----
 // The pure rules about a MATLAB VALUE — what class an edit leaves behind, when a
@@ -603,6 +603,11 @@ export default class MatlabVariableNode extends DataNode {
             const text = String(this._scalarValue);
             return text.startsWith('@') ? text : '@' + text;
         }
+        // A complex element is held as its text, and an imaginary part of -0 shows with a `+`
+        // (shownComplexText): every element row, cell member and field, and the grid's cells.
+        if (this._scalarType === 'complex' && typeof this._scalarValue === 'string') {
+            return shownComplexText(this._scalarValue);
+        }
         return formatMatlabNum(this._scalarValue);
     }
     // The real extents of a char value. _dims wins when it accounts for every
@@ -647,7 +652,9 @@ export default class MatlabVariableNode extends DataNode {
             ? elems.map(function (v) {
                 return v ? 'true' : 'false';
             })
-            : elems;
+            : this._isComplexValue()
+                ? elems.map((v) => (typeof v === 'string' ? shownComplexText(v) : v))
+                : elems;
         const text = formatMatrix(this._dims[0], this._dims[1], formatted);
         // The count rule alone is not a bound on LENGTH: ten 200-character elements
         // are still a 2000-character cell. The char budget is the runaway guard.
