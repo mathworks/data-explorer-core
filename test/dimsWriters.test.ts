@@ -205,6 +205,53 @@ describe('a size holding NaN, an infinity or a bigint, which a text dictionary\'
     }
   });
 
+  // JSON.stringify writes undefined, a function, a symbol and an array hole as null, so a text
+  // save wrote each of these dims as [1,null], and complex text with a symbol threw a raw
+  // TypeError ("Cannot convert a Symbol value to a number"). `every` skips a hole, so a hole
+  // also got past the XML refusers: a binary paste wrote a cell's as `Dimension="1*"` and a
+  // struct's as no Dimension at all. Only an in-process host reaches these: a payload that
+  // went through JSON has none of them.
+  const hole = (): unknown[] => {
+    const d: unknown[] = [1];
+    d.length = 2;
+    return d;
+  };
+  const unspelled: [string, string, () => unknown[]][] = [
+    ['undefined', '[1,undefined]', () => [1, undefined]],
+    ['a function', '[1,a function]', () => [1, () => 1]],
+    ['a symbol', '[1,Symbol(s)]', () => [1, Symbol('s')]],
+    ['a hole', '[1,undefined]', hole],
+  ];
+
+  for (const [label, said, d] of unspelled) {
+    it(`a host's dictionary content holding ${label} in its dims is refused, as a cell, a struct and complex text`, () => {
+      const values: [() => unknown, string][] = [
+        [() => cell(d()), 'cell'],
+        [() => struct(d()), 'struct'],
+        [() => ({ _type: 'cdata', _value: '1+2i', _dimensions: d() }), 'double'],
+      ];
+      const got = values.map(([value, cls]) => {
+        const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
+        entriesOf(json).push({ name: 'h', metadata: { uuid: '00000000-0000-4000-ef80-000000000003' }, value: value() });
+        const session = createSession();
+        const root: any = session.addDataSource('host.sldd', json);
+        const h = root.getSection('design').children.find((e: any) => e.name === 'h');
+        return [cls, refusal(thrownBy(() => session.serializeSource(root.name))[0]), refusal(thrownBy(() => h.serialize())[0])];
+      });
+      expect(got, label).toEqual(values.map(([, cls]) => {
+        const want = ['MatBudgetError', 'not-a-count', `Cannot write "h": h is a ${cls} declaring dimensions ${said}${NOT_A_COUNT}`];
+        return [cls, want, want];
+      }));
+    });
+
+    it(`${label} in the dims of a cell or a struct pasted into a binary dictionary: its save is refused the same`, () => {
+      const forms = [[cell, 'cell'], [struct, 'struct']] as const;
+      expect(forms.map(([make, cls]) => [cls, refusal(pasteInto(BINARY, make(d())).save)]), label).toEqual(
+        forms.map(([, cls]) => [cls, ['MatBudgetError', 'not-a-count', `Cannot write "pasted": pasted is a ${cls} declaring dimensions ${said}${NOT_A_COUNT}`]]),
+      );
+    });
+  }
+
   it('[1,"x"] and [1,{}], which JSON spells as given, are written as pasted, as a cell and as a struct', () => {
     for (const d of [[1, 'x'], [1, {}]]) {
       for (const make of [cell, struct]) {

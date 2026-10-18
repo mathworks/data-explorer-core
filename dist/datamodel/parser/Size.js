@@ -17,18 +17,29 @@
 //     a binary dictionary's reader builds from the doubles it read is spelled with their
 //     exact digits (headerDigits), so it never is;
 //   - a text dictionary is written as JSON, so a hand-made `[1, "x"]` is written back as
-//     read, and NaN, an infinity and a bigint are refused (isTextExtent): JSON.stringify
-//     writes the first two as null and cannot write a bigint at all. It writes undefined, a
-//     function, a symbol and an array hole as null too; those are not asked.
+//     read, and NaN, an infinity, a bigint, undefined, a function and a symbol are refused
+//     (isTextExtent): JSON.stringify writes all but the bigint as null, which is not the
+//     extent given, and cannot write a bigint at all. `null` is what a hand-made text file
+//     holds, like "x", and is written back as read.
+// Dims are walked by index (everyExtent), so an array hole is undefined, which no writer
+// spells. `every` skips a hole: a `[1, <hole>]` passed for a size, and was written as
+// `Dimension="1*"`, as no Dimension at all, or as null.
 /** The most elements one dimension of a MAT stream may have: its dims word is an int32. */
 export const MAT_MAX_EXTENT = 0x7fffffff;
 /** Whether `x` is one extent of a size: a whole number of elements a double counts exactly. */
 export function isExtent(x) {
     return typeof x === 'number' && Number.isSafeInteger(x) && x >= 0;
 }
+/**
+ * Whether `d` is a list and `pred` holds for every entry of it, a hole read as undefined:
+ * `every` skips a hole, so `[1, <hole>].every(isExtent)` is true.
+ */
+export function everyExtent(d, pred) {
+    return Array.isArray(d) && Array.from(d).every(pred);
+}
 /** Whether `d` is a size: a list whose every entry is an extent. */
 export function isSize(d) {
-    return Array.isArray(d) && d.every(isExtent);
+    return everyExtent(d, isExtent);
 }
 /** Whether a MAT stream can say `d`: a size, every extent of which its int32 dims word holds. */
 export function isStreamSize(d) {
@@ -66,11 +77,19 @@ export function headerDigits(x) {
     const s = String(x);
     return Number.isSafeInteger(x) || !/^\d+$/.test(s) ? s : BigInt(x).toString();
 }
-/** Whether `x` is anything but NaN, an infinity or a bigint, the extents a text dictionary refuses. */
+/**
+ * Whether `x` is anything but NaN, an infinity, a bigint, undefined, a function or a symbol,
+ * the extents a text dictionary refuses.
+ */
 export function isTextExtent(x) {
-    return typeof x === 'number' ? Number.isFinite(x) : typeof x !== 'bigint';
+    return typeof x === 'number'
+        ? Number.isFinite(x)
+        : !(x === undefined || typeof x === 'bigint' || typeof x === 'function' || typeof x === 'symbol');
 }
-/** `d` as it was given, for a message: `[1,"x"]`, `[0,Infinity]`, `[NaN,1]`, `[2n,3n]`. */
+/**
+ * `d` as it was given, for a message: `[1,"x"]`, `[0,Infinity]`, `[NaN,1]`, `[2n,3n]`. A hole
+ * is `undefined`, and a function `a function`, not its source.
+ */
 export function dimsText(d) {
     const one = (x) => {
         if (typeof x === 'number')
@@ -79,6 +98,8 @@ export function dimsText(d) {
             return String(x) + 'n';
         if (typeof x === 'string')
             return JSON.stringify(x);
+        if (typeof x === 'function')
+            return 'a function';
         try {
             return JSON.stringify(x) ?? String(x);
         }
@@ -86,6 +107,6 @@ export function dimsText(d) {
             return String(x);
         }
     };
-    return Array.isArray(d) ? '[' + d.map(one).join(',') + ']' : one(d);
+    return Array.isArray(d) ? '[' + Array.from(d).map(one).join(',') + ']' : one(d);
 }
 //# sourceMappingURL=Size.js.map

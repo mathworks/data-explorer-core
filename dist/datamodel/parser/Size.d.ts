@@ -2,6 +2,11 @@
 export declare const MAT_MAX_EXTENT = 2147483647;
 /** Whether `x` is one extent of a size: a whole number of elements a double counts exactly. */
 export declare function isExtent(x: unknown): x is number;
+/**
+ * Whether `d` is a list and `pred` holds for every entry of it, a hole read as undefined:
+ * `every` skips a hole, so `[1, <hole>].every(isExtent)` is true.
+ */
+export declare function everyExtent(d: unknown, pred: (x: unknown) => boolean): d is unknown[];
 /** Whether `d` is a size: a list whose every entry is an extent. */
 export declare function isSize(d: unknown): d is number[];
 /** Whether a MAT stream can say `d`: a size, every extent of which its int32 dims word holds. */
@@ -27,8 +32,14 @@ export declare function isExactDigits(digits: string): boolean;
  * left as it was.
  */
 export declare function headerDigits(x: number): string;
-/** Whether `x` is anything but NaN, an infinity or a bigint, the extents a text dictionary refuses. */
+/**
+ * Whether `x` is anything but NaN, an infinity, a bigint, undefined, a function or a symbol,
+ * the extents a text dictionary refuses.
+ */
 export declare function isTextExtent(x: unknown): boolean;
-/** `d` as it was given, for a message: `[1,"x"]`, `[0,Infinity]`, `[NaN,1]`, `[2n,3n]`. */
+/**
+ * `d` as it was given, for a message: `[1,"x"]`, `[0,Infinity]`, `[NaN,1]`, `[2n,3n]`. A hole
+ * is `undefined`, and a function `a function`, not its source.
+ */
 export declare function dimsText(d: unknown): string;
 //# sourceMappingURL=Size.d.ts.map

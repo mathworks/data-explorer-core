@@ -4,7 +4,7 @@ import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
 import { budgetFailure, classPhrase, MatBudgetError, oneWrite, textDictionaryForm, writeUnderWay } from '../parser/MatWriter.js';
-import { dimsText, isExactDigits, isSpellableExtent, isTextExtent } from '../parser/Size.js';
+import { dimsText, everyExtent, isExactDigits, isSpellableExtent, isTextExtent } from '../parser/Size.js';
 import { encodedXml, isEncodedValue } from '../parser/EncodedValue.js';
 import { setOwn } from '../parser/ownKeys.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
@@ -1603,7 +1603,7 @@ export default class DataNode extends BaseNode {
      * isExactDigits).
      */
     static _sizeOrRefuse(dims, cls, name, at, header) {
-        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : Array.isArray(dims) && dims.every(isSpellableExtent))) {
+        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : everyExtent(dims, isSpellableExtent))) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
@@ -1638,7 +1638,7 @@ export default class DataNode extends BaseNode {
      * its digits as there — naming the entry and the path.
      */
     _spellableOrRefuse(dims, cls, header) {
-        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : Array.isArray(dims) && dims.every(isSpellableExtent))) {
+        if (dims === undefined || (header !== undefined ? DataNode._headerExact(header) : everyExtent(dims, isSpellableExtent))) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
@@ -1646,12 +1646,12 @@ export default class DataNode extends BaseNode {
     }
     /**
      * Refuses to write this node's value as a text dictionary's JSON, or copy it there, when its
-     * dims hold NaN, an infinity or a bigint, which JSON writes as null or cannot write
-     * (parser/Size, isTextExtent), naming the entry and the path, as _spellableOrRefuse does for
-     * a Dimension.
+     * dims hold NaN, an infinity, a bigint, undefined, a function, a symbol or a hole, which JSON
+     * writes as null or cannot write (parser/Size, isTextExtent), naming the entry and the path,
+     * as _spellableOrRefuse does for a Dimension.
      */
     _textSpellableOrRefuse(dims, cls) {
-        if (!Array.isArray(dims) || dims.every(isTextExtent)) {
+        if (!Array.isArray(dims) || everyExtent(dims, isTextExtent)) {
             return;
         }
         const what = classPhrase(cls) + ' declaring dimensions ' + dimsText(dims);
