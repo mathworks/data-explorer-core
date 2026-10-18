@@ -100,11 +100,19 @@ describe('past the budget, the write is refused at once, and nothing is written 
       'Cannot write "pasted": pasted is a 1x100000000 cell holding 1 of its 100000000 elements, and with it the value would add more than 16 MiB that its data does not hold, the most one value may add. Nothing was written.',
       true,
     ]);
-    // A .mat cell declaring as many and holding one is read as what it holds, and copied so.
+    // A .mat cell declaring as many and holding one is shown as what was read of it, not
+    // decoded, and its copy is refused at once, naming it: there is no value of it to write (the
+    // maintainer's group F ruling of 2026-10-18, F1-10). The copy was the text of its
+    // placeholder, which a dictionary took for a char.
     const member = sparseVar({ name: '', dimensions: [0, 5], ir: [], jc: [0, 0, 0, 0, 0, 0], real: [], nzmax: 1, sparseFlag: true });
     const c: any = createSession().addMatSource('c.mat', matFile([cellVar('c', [member], [1, 1e8])])).children[0];
-    const [copied, copyMs] = timed(() => JSON.stringify(c.serialize().value));
-    expect([copyMs < 1000, copied.length < 1000]).toEqual([true, true]);
+    expect(c.displayValue).toBe('<1x100000000 cell, not decoded>');
+    const [copyRefused, copyMs] = thrownBy(() => c.serialize());
+    expect([copyRefused?.name, copyRefused?.message, copyMs < 1000]).toEqual([
+      'MatBudgetError',
+      'Cannot write "c": c is a 1x100000000 cell that was not decoded (declares 100000000 elements, more than the 96 bytes left in it can hold), so there is no value of it to write. Nothing was written.',
+      true,
+    ]);
     expect(peakMB()).toBeLessThan(1024);
   });
 });

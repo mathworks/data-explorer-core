@@ -263,6 +263,14 @@ sparse array of a class MATLAB never stores sparse (an int8 one in a hand-made f
 an array is written back as the bytes it was read from. Pinned in
 `test/sparseDamaged.test.ts`, in a binary dictionary, a text one and a `.mat`.
 
+One whose indices place non-zeros its bytes hold no values for — its real or imaginary part
+absent, cut short inside its tag, of a type with no width, or holding fewer values than
+there are non-zeros — is not decoded: `<3x4 sparse double, not decoded>`, one row with no
+editor and no element rows, and a part-unreadable warning says why. Read, each missing
+value was a zero, and the array a matrix of zeros the file never held. A dictionary keeps
+such a value as the cdata or the hex it was read from; a copy of one out of a `.mat` is
+refused. Pinned in `test/sparseUnreadValues.test.ts`.
+
 What backs a column is the file's own column index, or, for a source with none (this
 package's `sparse` literal, a host's dense list or non-zeros), an element: never the
 declared count alone, since a column index is cols + 1 words whatever the rows. What a

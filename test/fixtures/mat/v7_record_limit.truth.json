@@ -1,0 +1,16 @@
+{
+  "source": "v7limit.m and v7struct.m in this folder, run on MATLAB R2027a (mw -using Bmain) on 2026-10-17",
+  "written": [
+    { "uint8Bytes": 2147482624, "fileBytes": 7602348, "recordCompressedBytes": 7602212, "recordInflatesTo": 2147482680 },
+    { "uint8Bytes": 2147483584, "fileBytes": 7602351, "recordCompressedBytes": 7602215, "recordInflatesTo": 2147483640 },
+    { "uint8Bytes": 2147483600, "fileBytes": 7602357, "recordCompressedBytes": 7602221, "recordInflatesTo": 2147483656 }
+  ],
+  "refused": [
+    { "uint8Bytes": 2147483648, "fileBytes": 128, "id": "MATLAB:save:sizeTooBigForMATFile" },
+    { "uint8Bytes": 2147484672, "fileBytes": 128, "id": "MATLAB:save:sizeTooBigForMATFile" }
+  ],
+  "structRefused": [
+    { "elements": 33554432, "whosBytes": 4026531865, "fileBytes": 128, "id": "MATLAB:save:sizeTooBigForMATFile" },
+    { "elements": 67108864, "whosBytes": 8053063705, "fileBytes": 128, "id": "MATLAB:save:sizeTooBigForMATFile" }
+  ]
+}

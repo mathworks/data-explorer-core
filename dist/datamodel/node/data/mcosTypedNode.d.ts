@@ -1,6 +1,6 @@
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
-import type { MatVariable } from '../../parser/MatParser.js';
+import { type MatVariable } from '../../parser/MatParser.js';
 import { type ParseWarning } from '../../parser/ParseWarning.js';
 export declare function buildTypedNodeFromMcos(className: string, name: string, parent: BaseNode | null, properties?: Record<string, unknown> | null, elements?: Record<string, unknown>[] | null, dimensions?: number[] | null, warnings?: ParseWarning[]): DataNode | null;
 export interface McosDecoded {

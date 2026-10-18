@@ -72,6 +72,13 @@ export declare function functionHandleOf(variable: MatVariable): {
 } | undefined;
 export declare function parseMatrix(view: DataView, baseOffset: number, length: number, depth?: number): MatVariable;
 export declare function parseMat(arrayBuffer: ArrayBuffer): ParsedMat;
+/**
+ * What this reader says of an array holding fewer elements than it declares, a struct
+ * array's (`element`) or a cell's (`cell`): here for a value outside any object, and in
+ * mcosTypedNode.reportUndecoded for one under a decoded object, so the two say it in the
+ * same words.
+ */
+export declare function shortArrayMessage(path: string, declared: number, read: number, unit: 'element' | 'cell'): string;
 /** A MAT stream read: the variable and the elements after it, or why there is none. */
 export type MatStream = {
     ok: true;
