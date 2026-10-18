@@ -97,7 +97,10 @@ its own selector by default.
 `keptPartsViolations(entry, objectText)` lists, by path, where the text a host
 is about to save for an entry changes a part nobody edited; it reads the text
 with a structure-aware scan, not with the reader, and an empty list means the
-untouched parts are the bytes they were read as. `readEntryFragment(fragment,
+untouched parts are the bytes they were read as, or that there is nothing to
+hold them to: an entry with no bytes it was read from, or one whose bytes that
+scan cannot read (a processing instruction inside it, for example), which a
+save gate has to check for itself. `readEntryFragment(fragment,
 { section, inheritPlaceFrom })` reads one `<Object>` into a section with the
 bytes it came from, so an entry rebuilt from text by an undo is still written as
 those bytes, and merged with them when it is edited again.

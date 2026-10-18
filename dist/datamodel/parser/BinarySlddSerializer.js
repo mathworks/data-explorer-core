@@ -391,7 +391,9 @@ export function regenerateEntryXml(entryNode) {
  * edited must be exactly those bytes. An edited one may differ from them only where the model
  * differs from what the bytes read as, and in its Name and LastMod lines (EntryMerge.keptPartsOf):
  * read with a structure-aware scan of the text, never with the reader, which can lose what the
- * writer loses. Empty for an entry with no bytes it was read from, which nothing holds it to.
+ * writer loses. Empty for an entry with no bytes it was read from, which nothing holds it to, and
+ * for one whose bytes the scan cannot read (a processing instruction inside it, say): empty then
+ * means unchecked, not kept, and a save gate has to check that case for itself.
  * A binary save gate refuses a save this finds anything in (the maintainer's D12 addendum).
  */
 export function keptPartsViolations(entryNode, writtenObject) {
