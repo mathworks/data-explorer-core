@@ -1401,14 +1401,16 @@ function formatMatrix(values, dims, type) {
  * it is shown as, and becomes that value's 1 or 0, so that what a paste or a copy is given is what
  * the table shows (LENIENT). The node reads a row's token as `'1'` or `'true'` and a matrix's as
  * its number, so `1.0` is false in a row and true in a matrix, as it always was. A matrix's token
- * that is not one number (`true`, `1-2`) is kept: the node reads no value from it, or two.
+ * that is not one number (`true`, `1-2`) is kept: the node reads no value from it, or two. An
+ * empty body splits to one empty token, which is no spelling at all: it is kept as it always was
+ * (a row of it shows 0x0), and not recorded.
  */
 function logicalValue(text, dimParts) {
     const tokens = text.trim().split(/\s+/);
     const row = dimParts.length <= 2 && dimParts[0] === 1;
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
-        if (!isWrittenSpelling('logical', token)) {
+        if (token !== '' && !isWrittenSpelling('logical', token)) {
             const numbers = row ? null : token.match(MATRIX_NUMBER);
             if (row || numbers?.length === 1) {
                 const value = row ? token === 'true' : Boolean(parseMatlabNum(numbers[0]));
@@ -1714,7 +1716,8 @@ function complexCdata(text, dimension, className) {
 // value it is shown as; an integer's becomes that value, converted to the class as the node
 // converts it (integerReading), so that what a paste or a copy is given is what the table shows,
 // and F1-17's warning, about a number spelled as MATLAB writes one, is not given for it too
-// (LENIENT).
+// (LENIENT). An empty body's one empty token is no spelling at all, and is read as it always was,
+// unrecorded.
 function numericBody(text, type) {
     const parts = needsExactInt(type) ? parseExactBody(text) : parseNumericBody(text);
     if (type && bodyHoldsUnwritten(type, text)) {
@@ -1722,7 +1725,7 @@ function numericBody(text, type) {
         const tokens = text.trim().split(/\s+/);
         const integer = isIntegerClass(type);
         for (let i = 0; i < tokens.length; i++) {
-            if (!isWrittenSpelling(type, tokens[i])) {
+            if (tokens[i] !== '' && !isWrittenSpelling(type, tokens[i])) {
                 const shown = integer ? toIntegerClass(parts[i], type) : parts[i];
                 parts[i] = shown;
                 recordUnwrittenSpelling(type, tokens[i], formatMatlabNum(shown));
