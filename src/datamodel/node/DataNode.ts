@@ -74,7 +74,7 @@ function formatMatlabTimestamp(raw: string): string {
  * parse state shared with `_rawVal`. Writing through it would make serializing a model
  * change the model.
  */
-function writeIntoSaveobj(envelope: unknown, key: string, val: unknown): unknown {
+export function writeIntoSaveobj(envelope: unknown, key: string, val: unknown): unknown {
   if (!envelope || typeof envelope !== 'object') {
     return envelope;
   }
@@ -92,6 +92,29 @@ function writeIntoSaveobj(envelope: unknown, key: string, val: unknown): unknown
     return envelope;
   }
   return { ...env, _elements: [{ ...(el as Record<string, unknown>), [key]: val }] };
+}
+
+/**
+ * One field of the saveobj envelope in a node's property bag (`props[SAVEOBJ_KEY]`), as read:
+ * the inverse of `writeIntoSaveobj`, and on the same terms, so a field this returns is one an
+ * edit can be written back into. Undefined when it is not: no envelope, one that is not 1x1, or
+ * one whose `_fields` do not declare `key` (a hand edit can leave any of those). Own keys only.
+ */
+export function readSaveobjField(props: Record<string, unknown> | undefined, key: string): unknown {
+  const env = props?.[SAVEOBJ_KEY] as Record<string, unknown> | undefined;
+  if (!env || typeof env !== 'object') {
+    return undefined;
+  }
+  const fields = env._fields;
+  const elements = env._elements;
+  if (!Array.isArray(fields) || !fields.includes(key) || !Array.isArray(elements) || elements.length !== 1) {
+    return undefined;
+  }
+  const el = elements[0];
+  if (!el || typeof el !== 'object' || !Object.prototype.hasOwnProperty.call(el, key)) {
+    return undefined;
+  }
+  return (el as Record<string, unknown>)[key];
 }
 
 /**

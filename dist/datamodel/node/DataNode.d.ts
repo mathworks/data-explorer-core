@@ -4,6 +4,33 @@ import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { MatBudgetError, MatWriteError } from '../parser/MatWriter.js';
 import { type EncodedValue } from '../parser/EncodedValue.js';
 import { type PropertySource } from '../parser/XmlUtils.js';
+/**
+ * One field of MATLAB's saveobj envelope, replaced — the write MATLAB actually reads
+ * (defect 46; see `_mergeProps` for why the sibling property alone was not enough).
+ *
+ * The envelope is a parsed struct: `_fields` names its fields and `_elements` holds one
+ * property bag per element. A field is written only if the envelope ALREADY declares it,
+ * so an edit can never invent a field in a struct MATLAB's loadobj is about to destructure;
+ * an unknown name leaves the envelope untouched and the sibling stands alone, which is the
+ * old behaviour.
+ *
+ * Only a 1x1 envelope is written. A multi-element one is an object array, and a single
+ * property bag — which is all `_getSerializedProperties` returns — cannot say which element
+ * an edit belongs to. (A dictionary cannot hold an object array at all: MATLAB rejects it
+ * outright, as `truth.notes.slddRejected` records.)
+ *
+ * Copies rather than mutates: this runs inside serialization, and `serial._properties` is
+ * parse state shared with `_rawVal`. Writing through it would make serializing a model
+ * change the model.
+ */
+export declare function writeIntoSaveobj(envelope: unknown, key: string, val: unknown): unknown;
+/**
+ * One field of the saveobj envelope in a node's property bag (`props[SAVEOBJ_KEY]`), as read:
+ * the inverse of `writeIntoSaveobj`, and on the same terms, so a field this returns is one an
+ * edit can be written back into. Undefined when it is not: no envelope, one that is not 1x1, or
+ * one whose `_fields` do not declare `key` (a hand edit can leave any of those). Own keys only.
+ */
+export declare function readSaveobjField(props: Record<string, unknown> | undefined, key: string): unknown;
 export interface SetPropertyResult {
     error: boolean;
     reason: string;

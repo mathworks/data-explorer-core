@@ -32,6 +32,10 @@ import PropMin from '../prop/PropMin.js';
 import PropMax from '../prop/PropMax.js';
 import PropUnit from '../prop/PropUnit.js';
 import PropDescription from '../prop/PropDescription.js';
+import PropBankName from '../prop/PropBankName.js';
+import PropVariantConditions from '../prop/PropVariantConditions.js';
+import PropAllChoicesCoderInfo from '../prop/PropAllChoicesCoderInfo.js';
+import PropActiveChoiceCoderInfo from '../prop/PropActiveChoiceCoderInfo.js';
 
 // Curated atom keys a schema `layout` may reference. These are the node-owned,
 // often COMPUTED properties (Name→displayName, Value→displayValue formatting,
@@ -53,6 +57,11 @@ const ATOM_BY_KEY: Record<string, PropClass> = {
     max: PropMax as unknown as PropClass,
     unit: PropUnit as unknown as PropClass,
     description: PropDescription as unknown as PropClass,
+    // Simulink.VariantBank's own properties, read out of its saveobj envelope (VariantBankNode).
+    bankName: PropBankName as unknown as PropClass,
+    variantConditions: PropVariantConditions as unknown as PropClass,
+    allChoicesCoderInfo: PropAllChoicesCoderInfo as unknown as PropClass,
+    activeChoiceCoderInfo: PropActiveChoiceCoderInfo as unknown as PropClass,
 };
 
 // Format a hydrated raw value for display. Arrays render the way MATLAB's own

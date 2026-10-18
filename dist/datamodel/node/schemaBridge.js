@@ -26,6 +26,10 @@ import PropMin from '../prop/PropMin.js';
 import PropMax from '../prop/PropMax.js';
 import PropUnit from '../prop/PropUnit.js';
 import PropDescription from '../prop/PropDescription.js';
+import PropBankName from '../prop/PropBankName.js';
+import PropVariantConditions from '../prop/PropVariantConditions.js';
+import PropAllChoicesCoderInfo from '../prop/PropAllChoicesCoderInfo.js';
+import PropActiveChoiceCoderInfo from '../prop/PropActiveChoiceCoderInfo.js';
 // Curated atom keys a schema `layout` may reference. These are the node-owned,
 // often COMPUTED properties (Name→displayName, Value→displayValue formatting,
 // Data Type→computed getter) that a static sourcePath cannot express — the schema
@@ -46,6 +50,11 @@ const ATOM_BY_KEY = {
     max: PropMax,
     unit: PropUnit,
     description: PropDescription,
+    // Simulink.VariantBank's own properties, read out of its saveobj envelope (VariantBankNode).
+    bankName: PropBankName,
+    variantConditions: PropVariantConditions,
+    allChoicesCoderInfo: PropAllChoicesCoderInfo,
+    activeChoiceCoderInfo: PropActiveChoiceCoderInfo,
 };
 // Format a hydrated raw value for display. Arrays render the way MATLAB's own
 // mat2str spells a row — `[1 1]`, space-separated — because that is the spelling

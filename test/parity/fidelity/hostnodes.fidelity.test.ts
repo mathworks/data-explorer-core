@@ -24,10 +24,12 @@ describe('Tier-4 contract-lock: VariantBankNode', () => {
     expect(node.className).toBe('Simulink.VariantBank');
   });
 
-  it('exposes [PropName, PropValue, PropDataType] properties', () => {
+  // The class's own properties, read out of its saveobj envelope (C-168 option (b),
+  // test/variantBankFields.test.ts), after the three it always had.
+  it('exposes [PropName, PropValue, PropDataType], then Description and the bank\'s own four properties', () => {
     const node = VariantBankNode.createDefault('vb1', null);
     const keys = node.getProperties().map((p) => p.key);
-    expect(keys).toEqual(['Name', 'Value', 'DataType']);
+    expect(keys).toEqual(['Name', 'Value', 'DataType', 'Description', 'BankName', 'VariantConditions', 'AllChoicesCoderInfo', 'ActiveChoiceCoderInfo']);
   });
 
   it('has empty-string Value by default', () => {

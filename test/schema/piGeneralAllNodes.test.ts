@@ -58,12 +58,19 @@ describe('common "General" identity group — schema-driven classes', () => {
       name: 'General',
       items: ['Name', 'Specification', 'DataType', 'Kind', 'Class'],
     });
-    for (const M of [VariantBankNode, VariantConfigurationDataNode]) {
-      expect(firstGroup(M.createDefault('n', null))).toEqual({
-        name: 'General',
-        items: ['Name', 'Value', 'DataType', 'Kind', 'Class'],
-      });
-    }
+    expect(firstGroup(VariantConfigurationDataNode.createDefault('n', null))).toEqual({
+      name: 'General',
+      items: ['Name', 'Value', 'DataType', 'Kind', 'Class'],
+    });
+  });
+
+  it('VariantBank keeps the identity five, then Description last, as ConfigSet does', () => {
+    // MATLAB's bank has a Description, read out of its saveobj envelope (C-168 option (b));
+    // its other four properties have a group of their own (test/variantBankFields.test.ts).
+    expect(firstGroup(VariantBankNode.createDefault('n', null))).toEqual({
+      name: 'General',
+      items: ['Name', 'Value', 'DataType', 'Kind', 'Class', 'Description'],
+    });
   });
 
   it('ConfigSet* keep the identity five, then their own properties, Description last', () => {

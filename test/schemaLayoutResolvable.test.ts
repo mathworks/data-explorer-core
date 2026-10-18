@@ -68,6 +68,10 @@ import PropMin from '../src/datamodel/prop/PropMin.js';
 import PropMax from '../src/datamodel/prop/PropMax.js';
 import PropUnit from '../src/datamodel/prop/PropUnit.js';
 import PropDescription from '../src/datamodel/prop/PropDescription.js';
+import PropBankName from '../src/datamodel/prop/PropBankName.js';
+import PropVariantConditions from '../src/datamodel/prop/PropVariantConditions.js';
+import PropAllChoicesCoderInfo from '../src/datamodel/prop/PropAllChoicesCoderInfo.js';
+import PropActiveChoiceCoderInfo from '../src/datamodel/prop/PropActiveChoiceCoderInfo.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -102,6 +106,10 @@ const LAYOUT_ATOMS: Record<string, PropClass> = {
     max: PropMax as unknown as PropClass,
     unit: PropUnit as unknown as PropClass,
     description: PropDescription as unknown as PropClass,
+    bankName: PropBankName as unknown as PropClass,
+    variantConditions: PropVariantConditions as unknown as PropClass,
+    allChoicesCoderInfo: PropAllChoicesCoderInfo as unknown as PropClass,
+    activeChoiceCoderInfo: PropActiveChoiceCoderInfo as unknown as PropClass,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
@@ -230,7 +238,30 @@ const ATOM_PROBE_KIND: Record<string, ProbeKind> = {
     baseType: 'string',
     condition: 'string',
     specification: 'string',
+    bankName: 'string',
+    variantConditions: 'string',
+    allChoicesCoderInfo: 'string',
+    activeChoiceCoderInfo: 'string',
 };
+
+// A field-backed atom whose raw key is the saveobj envelope (SAVEOBJ_KEY) reads one FIELD of it,
+// which is where a real file carries the value: so that field, inside an envelope, is the
+// location probed (`_saveobj/<field>`, built by bagWithProbe). Listed for the same reason as
+// ATOM_PROBE_KIND: an envelope atom missing here is recorded as a problem rather than probed at
+// a location no file uses.
+const ENVELOPE_FIELD: Record<string, string> = {
+    bankName: 'Name',
+    variantConditions: 'VariantConditions',
+    allChoicesCoderInfo: 'AllChoicesCoderInfo',
+    activeChoiceCoderInfo: 'ActiveChoiceCoderInfo',
+};
+// And a shared atom that a class reads out of its envelope as well as from its own raw key: a
+// further location for that class, probed as its own case (Simulink.VariantBank keeps its
+// Description in the envelope, where MATLAB writes it).
+const ENVELOPE_ALSO: Record<string, Record<string, string>> = {
+    'Simulink.VariantBank': { description: 'Description' },
+};
+const ENVELOPE_PREFIX = '_saveobj/';
 
 // ─────────────────────────────────────────────────────────────────────────────────────────
 // Building the source bag
@@ -265,6 +296,12 @@ const OBJECT_CLASS_OF: Record<string, string> = {
 // purpose: a bag with one key makes it unambiguous which property a row is reading, and it is
 // also the harshest case — the node gets no help from any other key.
 function bagWithProbe(sourcePath: string, value: unknown): Record<string, unknown> {
+    // One field of a 1x1 saveobj envelope, as both readers file one in the bag (and as MATLAB
+    // writes one, with its `_fields` declared).
+    if (sourcePath.startsWith(ENVELOPE_PREFIX)) {
+        const field = sourcePath.slice(ENVELOPE_PREFIX.length);
+        return { _saveobj: { _array_type: 'Struct', _dimensions: [1, 1], _fields: [field], _elements: [{ [field]: value }] } };
+    }
     const parts = sourcePath.split('.');
     let current: unknown = value;
     for (let i = parts.length - 1; i >= 1; i--) {
@@ -469,7 +506,22 @@ for (const className of SCHEMA_CLASSES) {
                 // displaying it is the same defect: toPIObject adds both to shownKeys, so the
                 // unread one is suppressed from "Other" as well.
                 for (const rawKey of atom.sourceKeys ?? [atom.key]) {
+                    if (rawKey === '_saveobj') {
+                        const field = ENVELOPE_FIELD[layoutKey];
+                        if (!field) {
+                            classificationProblems.push(
+                                `${pair}: reads the saveobj envelope with no entry in ENVELOPE_FIELD — add the field it reads`,
+                            );
+                            continue;
+                        }
+                        sweepCases.push({ className, layoutKey, rowName: atom.key, sourcePath: ENVELOPE_PREFIX + field, route: 'atom', kind });
+                        continue;
+                    }
                     sweepCases.push({ className, layoutKey, rowName: atom.key, sourcePath: rawKey, route: 'atom', kind });
+                }
+                const also = ENVELOPE_ALSO[className]?.[layoutKey];
+                if (also) {
+                    sweepCases.push({ className, layoutKey, rowName: atom.key, sourcePath: ENVELOPE_PREFIX + also, route: 'atom', kind });
                 }
                 continue;
             }
