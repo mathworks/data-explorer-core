@@ -591,11 +591,13 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
     }
   });
 
-  it('one too large to decode with no stream to write is its placeholder, escaped, never markup', () => {
-    // Every reader here leaves such a value its stream (the cdata it was read from, or the
-    // element of a .mat or a model workspace), and those are what it is written as. Built
-    // without one, all there is to write is the placeholder; unescaped inside a
-    // Class="double" element it made the dictionary one MATLAB would not open at all.
+  it('one too large to decode with no stream to write is refused, never written as its placeholder', () => {
+    // A dictionary's reader leaves such a value the cdata or the hex it was read from, and that
+    // is what it is written as. Built without one, all there is to write is the placeholder,
+    // which is another value: written escaped inside a Class="double" element, a binary
+    // dictionary read it back as 0, and unescaped it made the dictionary one MATLAB would not
+    // open at all. So it is refused, naming it (the maintainer's group F ruling of 2026-10-18,
+    // F1-10).
     const node = MatlabVariableNode._createUndecoded(
       {
         name: '', className: 'double', dimensions: [10000000, 2], isComplex: false, isLogical: false, isSparse: true,
@@ -604,8 +606,8 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
       'spTall',
       null,
     );
-    expect(node.serializeXml('P', { Name: 'Value' }, 2)).toBe(
-      '        <P Name="Value" Class="double">&lt;10000000x2 sparse double, not decoded&gt;</P>',
+    expect(() => node.serializeXml('P', { Name: 'Value' }, 2)).toThrow(
+      'Cannot write "spTall": spTall is a 10000000x2 double that was not decoded (too large), so there is no value of it to write. Nothing was written.',
     );
   });
 

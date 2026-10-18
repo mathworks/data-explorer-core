@@ -529,4 +529,75 @@ describe('a value a text dictionary could hold only as a MAT stream MatWriter ca
     expect(thrown(() => serializeEntryToXml(node))).toBeNull();
     expect(binary.design.children).toContain(node);
   });
+
+  // The string member read from the file, beside an edited sibling (the agenda's 2a). An edit
+  // anywhere in the cell drops its `_rawInput`, so the copy is written from the live value, as a
+  // stream (_matStream). MatWriter refuses a string that was typed ("str"), but a string read from
+  // the file is handed to it as the char its elements join to (_buildVarObject), and it wrote
+  // that: the copy held the char 'abcd', and a paste of it into either kind of dictionary reopened
+  // as that char. MATLAB wrote nd_binary.sldd's C; the string member is written by this package's
+  // own XML, which the in-place save below reads back.
+  /** C{1,1,1} set to ["ab","cd"] in nd_binary.sldd, saved and reopened, then C{2,1,1} set to 7. */
+  const stringReadThenSiblingEdited = () => {
+    const edited = editedInBinary('["ab","cd"]');
+    const saved = edited.session.serializeSource(edited.root.name).bytes;
+    const d = openBytes(saved.buffer.slice(saved.byteOffset, saved.byteOffset + saved.byteLength) as ArrayBuffer, 'nd_binary.sldd');
+    const member = cOf(d).children.find((c: any) => c.displayName === 'C{1,1,1}');
+    expect([member.className, member.displayValue, member.status], 'the member is read as a string').toEqual(['string', '["ab" "cd"]', '']);
+    expect(cOf(d).children.find((c: any) => c.displayName === 'C{2,1,1}').setProperty('Value', '7')).toBe(true);
+    expect(cOf(d)._rawInput, 'the cell is edited').toBeUndefined();
+    return d;
+  };
+  const STRING_MEMBER = { _array_type: 'String', _dimensions: [1, 2], _elements: ['ab', 'cd'], _mw_element_type: 'MATLABArray' };
+  const element = (node: any, label: string) => node.children.find((c: any) => c.displayName === label);
+
+  it('a string read from the file, beside an edited sibling: the copy is the Cell bag that holds the string, as the unedited copy is', () => {
+    const copy = copyOf(cOf(stringReadThenSiblingEdited()));
+    expect(isMatCdata(copy), 'not a MAT stream').toBe(false);
+    expect(copy).toEqual({ _array_type: 'Cell', _dimensions: [2, 2, 2], _elements: [STRING_MEMBER, 7, 3, 4, 5, 6, 7, 8], _mw_element_type: 'MATLABArray' });
+  });
+
+  it('that copy pasted into a binary dictionary, saved and reopened: the member is still the string, and the sibling is 7', () => {
+    const binary = open('../fixtures/nd_binary.sldd');
+    binary.design.parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ea01-000000000003' }, value: copyOf(cOf(stringReadThenSiblingEdited())) });
+    const saved = binary.session.serializeSource(binary.root.name).bytes;
+    const back = openBytes(saved.buffer.slice(saved.byteOffset, saved.byteOffset + saved.byteLength) as ArrayBuffer, 'nd_binary.sldd');
+    const pasted = back.design.children.find((e: any) => e.name === 'pasted');
+    const member = element(pasted, 'pasted{1,1,1}');
+    expect([member.className, member.displayValue]).toEqual(['string', '["ab" "cd"]']);
+    expect(element(pasted, 'pasted{2,1,1}').displayValue).toBe('7');
+  });
+
+  it('that copy pasted into a text dictionary: refused, naming the entry and the reason, as the unedited one is', () => {
+    const r = pasteIntoText(copyOf(cOf(stringReadThenSiblingEdited())));
+    expect([r.error?.name, r.error?.message]).toEqual(['MatWriteError', REFUSAL('pasted')]);
+    expect(r.error).toBeInstanceOf(MatWriteError);
+    expect({ held: r.held, dirty: r.dirty, unchanged: r.unchanged }).toEqual({ held: false, dirty: false, unchanged: true });
+  });
+
+  it('the same cell in a text dictionary, read from its JSON as the bag and a sibling edited: the save and the copy are refused, not written as the char', () => {
+    // A text dictionary holds such a cell only as its stream, so a bag of it there is a hand
+    // edit: it opens as what was read, and the save of it edited, which has no stream for it, is
+    // refused rather than written as a stream of the char 'abcd'.
+    const json = JSON.parse(new TextDecoder().decode(bytesOf('../fixtures/nd_text.sldd')));
+    const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    entries.find((e: any) => e.name === 'C').value = { _array_type: 'Cell', _dimensions: [2, 2, 2], _elements: [STRING_MEMBER, 2, 3, 4, 5, 6, 7, 8], _mw_element_type: 'MATLABArray' };
+    const d = openBytes(new TextEncoder().encode(JSON.stringify(json)).buffer as ArrayBuffer, 'nd_text.sldd');
+    expect([element(cOf(d), 'C{1,1,1}').className, element(cOf(d), 'C{1,1,1}').displayValue], 'opened as read').toEqual(['string', '["ab" "cd"]']);
+    expect(element(cOf(d), 'C{2,1,1}').setProperty('Value', '7')).toBe(true);
+    const refusal = 'Cannot write "C": C is a 2x2x2 cell, which a text dictionary holds only as its MAT stream, and that stream cannot be written: no MAT class for "string". Nothing was written.';
+    const copy = thrown(() => cOf(d).serialize());
+    expect([copy?.name, copy?.message]).toEqual(['MatWriteError', refusal]);
+    const save = thrown(() => d.session.serializeSource(d.root.name));
+    expect([save?.name, save?.message]).toEqual(['MatWriteError', refusal]);
+  });
+
+  it('the control: that cell saved in place, where the binary XML writes it element by element, reopens with the string and the 7', () => {
+    const d = stringReadThenSiblingEdited();
+    const saved = d.session.serializeSource(d.root.name).bytes;
+    const back = openBytes(saved.buffer.slice(saved.byteOffset, saved.byteOffset + saved.byteLength) as ArrayBuffer, 'nd_binary.sldd');
+    const member = element(cOf(back), 'C{1,1,1}');
+    expect([member.className, member.displayValue]).toEqual(['string', '["ab" "cd"]']);
+    expect(element(cOf(back), 'C{2,1,1}').displayValue).toBe('7');
+  });
 });

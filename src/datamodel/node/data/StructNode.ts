@@ -16,6 +16,7 @@ import PropClassAtom from '../../prop/PropClass.js';
 import { escapeXml, pad as xmlPad } from '../../parser/XmlUtils.js';
 import { effectiveDims, elementCount, summaryForm } from '../../display/DisplayConvention.js';
 import { oneWrite, writeUnderWay } from '../../parser/MatWriter.js';
+import { dimensionText } from '../../parser/Size.js';
 import { setOwn } from '../../parser/ownKeys.js';
 
 /**
@@ -59,11 +60,18 @@ function fieldsOf(rawVal: Record<string, unknown>): string[] {
 // An element that is not a field bag holds no field either (isFieldBag). On `null` the own-key
 // test threw ("Cannot convert undefined or null to object"), and the throw failed the open of
 // the whole dictionary, not just this struct.
+//
+// A field the element does not hold is `[]`, MATLAB's 0x0 double, which is what MATLAB R2027a
+// reads it as: sMissing.a (`_fields: ["a"]` over `{}`), sArrNull(2).a and sArrMissing(2).a all
+// read `class=double size=[0 0]` (test/structAbsentField.test.ts). Answered as `undefined`, the
+// field node read it as 0: it showed `0`, and every save that rebuilt the struct (an edit of the
+// field and its undo, or an edit of another element) wrote `"a": 0`. An untouched save still
+// replays the element as it was read (`_rawInput`), `null` or `{}`.
 function fieldOf(element: unknown, field: string): unknown {
     if (!isFieldBag(element)) {
-        return undefined;
+        return [];
     }
-    return Object.prototype.hasOwnProperty.call(element, field) ? element[field] : undefined;
+    return Object.prototype.hasOwnProperty.call(element, field) ? element[field] : [];
 }
 
 export default class StructNode extends DataNode {
@@ -231,7 +239,7 @@ export default class StructNode extends DataNode {
         // `d[0] + '*' + d[1]` promised 6 elements over a 2x3x2's twelve, and for a
         // 1x1x3 dropped the attribute entirely (d[0] and d[1] are both 1), which
         // MATLAB's XML reader answers with a segmentation fault rather than an error.
-        const dimAttr = d.every((n) => n === 1) ? '' : ' Dimension="' + d.join('*') + '"';
+        const dimAttr = d.every((n) => n === 1) ? '' : ' Dimension="' + dimensionText(d) + '"';
         // A struct of no element, as MATLAB writes one: self-closed, or around the `<Field
         // Name="…"/>` of each field it declares, which is the one place the fields of a struct
         // with no element can be stated (BinarySlddParser.fieldNamesOf reads them back from

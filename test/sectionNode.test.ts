@@ -470,7 +470,9 @@ describe('parseEntry', () => {
 
   it('parses the value into a class-appropriate node, attaches it, and keeps the metadata', () => {
     const design = sectionOf(sldd(), 'design');
-    const meta = { namespace: NS_DESIGN, isderived: '0', uuid: 'u' };
+    // All five keys a text dictionary's entry needs: one lacking any is completed, in a copy
+    // (test/pasteNamespace.test.ts).
+    const meta = { uuid: 'u', namespace: NS_DESIGN, lastmod: '20261018T120000.000000', modifiedby: '', isderived: '0' };
     const node = design.parseEntry(entry('Kp', { _type: 'double', _value: '1' }, meta))!;
     expect(node.name).toBe('Kp');
     expect(node.parent).toBe(design);

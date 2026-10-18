@@ -51,7 +51,14 @@ export interface NativeInflate {
    * pays for a lying member in memory rather than in correctness.
    */
   raw(deflated: Uint8Array, maxOutputLength?: number): Uint8Array;
-  zlib(wrapped: Uint8Array): Uint8Array;
+  /**
+   * `maxOutputLength` is the ceiling one MAT-file record may inflate to
+   * (`MAT_RECORD_INFLATE_CEILING`), passed and honoured as `raw`'s is: an engine throws
+   * `ERR_BUFFER_TOO_LARGE` or returns more than that many bytes, and either way the record is
+   * unreadable (see `inflateZlib`). Optional for the same reason: an engine that ignores it
+   * still works, and pays for a record past the ceiling in memory rather than in correctness.
+   */
+  zlib(wrapped: Uint8Array, maxOutputLength?: number): Uint8Array;
   /**
    * Inflate as much as a PREFIX of a zlib stream allows, treating the missing tail as
    * the end of the input rather than as corruption.
@@ -127,7 +134,8 @@ function detectNative(): NativeInflate | null {
   // an INJECTED engine too and not only for this one.
   return {
     raw: (deflated, maxOutputLength) => inflateRawSync(deflated, capOf(maxOutputLength)),
-    zlib: inflateSync,
+    // The ceiling for one MAT record, as `raw` is held to a member's declared size.
+    zlib: (wrapped, maxOutputLength) => inflateSync(wrapped, capOf(maxOutputLength)),
     zlibHead:
       typeof syncFlush === 'number'
         ? (prefix) => inflateSync(prefix, { finishFlush: syncFlush })
@@ -600,20 +608,144 @@ const utf8 = new TextDecoder();
 // ---------------------------------------------------------------------------------
 
 /**
- * Inflate a zlib-wrapped stream — the framing MAT v5 `miCOMPRESSED` records use.
+ * The most one MAT-file `miCOMPRESSED` record may inflate to, in bytes: 2 GiB and 64 KiB.
+ *
+ * A record is inflated before anything in it can be read, and nothing outside it says how
+ * big it will be — the size its matrix declares is inside the payload. So without a bound a
+ * record of a few hundred kilobytes inflates to whatever its bytes expand to, all of it
+ * held, before anything can decide it is too big. This is that bound, and it is per record:
+ * a total per file would refuse files of many legitimate variables.
+ *
+ * MEASURED in MATLAB rather than chosen (test/fixtures/mat/v7limit.m, v7struct.m, and
+ * v7_record_limit.truth.json): R2027a's `save -v7` writes a uint8 array of 2^31-48 bytes as
+ * a record that inflates to 2^31+8, and refuses one of 2^31 bytes with
+ * `MATLAB:save:sizeTooBigForMATFile`, on the size in memory — a struct array of empty
+ * fields 4 GB in memory is refused too, however small it would serialize. So a record
+ * exceeds the data it holds by its headers alone, and the 64 KiB covers any name and
+ * dimensions header there is. Over the corpus (236 records in 40 files) the largest record
+ * inflates to 114 MB, under an eighteenth of this.
+ *
+ * Not the size the record's own matrix declares, which would be tighter: a payload with
+ * bytes after its matrix reads today, and refusing it would refuse a file that opens.
+ */
+export const MAT_RECORD_INFLATE_CEILING = 2 ** 31 + 2 ** 16;
+
+/**
+ * A zlib stream that inflates to more than the ceiling it was inflated under. Thrown by
+ * `inflateZlib` and caught by `parseMat`, which reports the record as unreadable and reads
+ * on; `code` is what tells it apart from a stream that would not inflate at all.
+ */
+export class InflateCeilingError extends Error {
+  readonly code = 'ERR_INFLATE_CEILING';
+
+  constructor(readonly ceiling: number) {
+    super(`inflates to more than the ${ceiling}-byte ceiling for one MAT-file record`);
+    this.name = 'InflateCeilingError';
+  }
+}
+
+let matRecordCeiling = MAT_RECORD_INFLATE_CEILING;
+
+/**
+ * Lower (or raise) the ceiling every MAT record is inflated under, or pass `undefined` to
+ * return to `MAT_RECORD_INFLATE_CEILING`. For tests, which cannot spend 2 GiB to show what
+ * happens past it, and deliberately not in the package's barrel (`src/index.ts`).
+ */
+export function setMatRecordInflateCeiling(ceiling: number | undefined): void {
+  matRecordCeiling = ceiling ?? MAT_RECORD_INFLATE_CEILING;
+}
+
+/** The ceiling MAT records are inflated under now: `MAT_RECORD_INFLATE_CEILING`, unless a test set another. */
+export function matRecordInflateCeiling(): number {
+  return matRecordCeiling;
+}
+
+/**
+ * Inflate a zlib-wrapped stream — the framing MAT v5 `miCOMPRESSED` records use — to no
+ * more than `ceiling` bytes, or throw `InflateCeilingError`.
  *
  * On a fflate failure this rethrows unchanged; on a NATIVE failure it retries with
  * fflate before giving up, so a stream the old engine could read does not start
  * failing because the new one is stricter about trailing bytes.
+ *
+ * Past the ceiling the stream is unreadable, on every engine, and is never returned cut to
+ * the ceiling: a record cut short reads as a different, wrong variable. The engine is handed
+ * the ceiling as its `maxOutputLength`. Its `ERR_BUFFER_TOO_LARGE` is final and is not
+ * retried on fflate, which would only inflate the same stream to the same verdict at
+ * fflate's cost; nor is a result longer than the ceiling, from an engine that ignores it.
+ * The fflate path holds itself to the ceiling too (`unzlibWithin`), so the fallback is not
+ * the way round it.
  */
-export function inflateZlib(wrapped: Uint8Array): Uint8Array {
+export function inflateZlib(wrapped: Uint8Array, ceiling: number = matRecordCeiling): Uint8Array {
   const native = activeNative();
-  if (native === null) return unzlibSync(wrapped);
-  try {
-    return ownExactBuffer(native.zlib(wrapped));
-  } catch {
-    return unzlibSync(wrapped);
+  if (native !== null) {
+    let inflated: Uint8Array | undefined;
+    try {
+      inflated = native.zlib(wrapped, ceiling);
+    } catch (err) {
+      if ((err as { code?: unknown } | null)?.code === 'ERR_BUFFER_TOO_LARGE') throw new InflateCeilingError(ceiling);
+    }
+    if (inflated !== undefined) {
+      // Checked before `ownExactBuffer`, so the bytes of a record that is over are not copied.
+      if (inflated.byteLength > ceiling) throw new InflateCeilingError(ceiling);
+      return ownExactBuffer(inflated);
+    }
   }
+  return unzlibWithin(wrapped, ceiling);
+}
+
+/**
+ * deflate's largest expansion: a 258-byte match coded in 2 bits, one for its length and one
+ * for its distance, is 1032 bytes out per byte in. zlib documents the same limit.
+ */
+const DEFLATE_MAX_RATIO = 1032;
+/** The input slices `unzlibWithin` pushes, at most and at least. */
+const SLICE_MAX = 64 * 1024;
+const SLICE_MIN = 1024;
+
+/**
+ * fflate's inflate of a zlib stream, held to `ceiling` bytes the way node:zlib's
+ * `maxOutputLength` is: `InflateCeilingError` as soon as the output passes it.
+ *
+ * A stream too short to pass the ceiling at deflate's largest expansion — every record in
+ * the corpus but two, at the default — is inflated by `unzlibSync` exactly as it always
+ * was. Only a longer one is streamed, and it has to be: fflate's one-shot inflate has no
+ * limit, and its bounded form (`{ out }`) fails on a stream that outgrows the buffer rather
+ * than saying so. Its streaming `Unzlib` hands each push's output to a callback that can
+ * stop it, but only after that push: 200 MB of zeros pushed whole raised the peak RSS by
+ * 660 MB before the callback ran. So the stream is pushed in slices sized to the room left
+ * under the ceiling at that expansion, and no push can run more than about a megabyte past
+ * it. Measured on the same 200 MB under a 1 MiB ceiling: 16 KB slices raised the peak by 66
+ * MB and 1 KB ones by 9.5 MB. Far from the ceiling the slices are 64 KB, which on the
+ * corpus's largest record (5.9 MB that inflate to 114 MB) took 272 ms against
+ * `unzlibSync`'s 225, byte-identical; 1 KB slices throughout took 521 ms against 239.
+ *
+ * Chunks are COPIED, as `fflateHead` copies them: fflate reuses the buffer it hands out.
+ */
+function unzlibWithin(wrapped: Uint8Array, ceiling: number): Uint8Array {
+  if (wrapped.byteLength * DEFLATE_MAX_RATIO <= ceiling) return unzlibSync(wrapped);
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const stream = new Unzlib((chunk) => {
+    total += chunk.byteLength;
+    if (total > ceiling) throw new InflateCeilingError(ceiling);
+    chunks.push(chunk.slice());
+  });
+  let at = 0;
+  while (at < wrapped.byteLength) {
+    const room = Math.floor((ceiling - total) / DEFLATE_MAX_RATIO);
+    const end = Math.min(wrapped.byteLength, at + Math.min(SLICE_MAX, Math.max(SLICE_MIN, room)));
+    stream.push(wrapped.subarray(at, end), end === wrapped.byteLength);
+    at = end;
+  }
+  if (chunks.length === 1) return chunks[0];
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
 }
 
 /**
@@ -636,7 +768,8 @@ export function inflateZlib(wrapped: Uint8Array): Uint8Array {
  * Falls back to inflating the whole stream — never to failing — when the engine has no
  * head mode, when the head mode throws, or when the fflate path produces nothing. That
  * fallback is what lets `MatScan` treat this as an optimization rather than a second
- * format reader with its own failure modes.
+ * format reader with its own failure modes. It is `inflateZlib`, so it is held to the MAT
+ * record ceiling as a whole read is, and a stream past it throws `InflateCeilingError`.
  */
 export function inflateZlibHead(wrapped: Uint8Array, maxInputBytes: number): Uint8Array {
   const prefix =
@@ -650,7 +783,7 @@ export function inflateZlibHead(wrapped: Uint8Array, maxInputBytes: number): Uin
       return inflateZlib(wrapped);
     }
   }
-  return fflateHead(prefix) ?? unzlibSync(wrapped);
+  return fflateHead(prefix) ?? inflateZlib(wrapped);
 }
 
 /**

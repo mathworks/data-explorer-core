@@ -10,6 +10,7 @@ import { registeredSubclasses, superclassOf } from '../registeredSubclasses.js';
 import { MatBudgetError, oneWrite, textDictionaryForm } from '../../parser/MatWriter.js';
 import { classificationOf as _classificationOf, renameInCatalog as _renameInCatalog, } from '../../parser/ScCatalog.js';
 import { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE } from '../../SectionConstants.js';
+import { setOwn } from '../../parser/ownKeys.js';
 export { NS_DESIGN, NS_CONFIGURATIONS, NS_OTHER, SECTION_NAMESPACE };
 const ALLOWED_TYPES = {
     design: [
@@ -287,6 +288,54 @@ export default class SectionNode extends ContainerNode {
     // host makes builds its entry here.
     parseEntry(rawEntry, systemComposer) {
         const text = this.parent?.sourceFormat === 'json';
+        // An entry handed in with metadata that names no namespace — core's own API takes
+        // `{ name, metadata: { uuid }, value }` — was written with an empty Namespace into a binary
+        // dictionary and with none into a text one, and MATLAB refuses to open either file, whole
+        // ("Failed to open file", R2027a, a pasted 5). It takes this section's namespace and
+        // isderived, as a host's paste supplies them and addEntry stamps them: the two say which
+        // section a reopened file puts the entry in. A text dictionary's writer writes metadata as
+        // it is held, and MATLAB refuses to open one whose entry lacks any of uuid, namespace,
+        // lastmod, modifiedby and isderived, so there a missing lastmod and modifiedby are stamped
+        // as addEntry stamps them too; a binary writer stamps the save's time and an empty author
+        // itself (regenerateEntryXml). The keys go in MATLAB's order, and what metadata names is
+        // kept, a binary reader's _rawLastMod and lastModifiedBy as a lastmod and a modifiedby. The
+        // metadata handed in is not changed. Metadata that is absent is left absent: with no uuid
+        // there is no entry MATLAB would open either way.
+        const given = rawEntry.metadata;
+        if (given !== undefined && given !== null && typeof given === 'object' && !Array.isArray(given)) {
+            const md = given;
+            const unnamed = (v) => v === undefined || v === null || v === '';
+            const stamp = {};
+            if (unnamed(md.namespace)) {
+                stamp.namespace = SECTION_NAMESPACE[this.name] || NS_OTHER;
+            }
+            if (unnamed(md.isderived)) {
+                stamp.isderived = this.name === 'arch' ? '1' : '0';
+            }
+            if (text && md.lastmod == null && md._rawLastMod == null) {
+                stamp.lastmod = matlabTimestampNow();
+            }
+            if (text && md.modifiedby == null && md.lastModifiedBy == null) {
+                stamp.modifiedby = '';
+            }
+            if (Object.keys(stamp).length !== 0) {
+                const metadata = {};
+                for (const key of ['uuid', 'namespace', 'lastmod', 'modifiedby', 'isderived']) {
+                    if (key in stamp) {
+                        metadata[key] = stamp[key];
+                    }
+                    else if (Object.prototype.hasOwnProperty.call(md, key)) {
+                        metadata[key] = md[key];
+                    }
+                }
+                for (const [key, val] of Object.entries(md)) {
+                    if (!Object.prototype.hasOwnProperty.call(metadata, key)) {
+                        setOwn(metadata, key, val);
+                    }
+                }
+                rawEntry = { ...rawEntry, metadata };
+            }
+        }
         if (text && rawEntry.value !== undefined) {
             let value = rawEntry.value;
             try {

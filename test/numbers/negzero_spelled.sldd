@@ -1,0 +1,263 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "negz",
+						"metadata": {
+							"uuid": "db62ddd7-9c00-4859-8dc7-55f755231745",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.566969",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": 0
+					},
+					{
+						"name": "negzCell",
+						"metadata": {
+							"uuid": "dcf0d5ea-c2bb-4826-9ebd-4238301e8c79",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.567890",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								0
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "negzCol",
+						"metadata": {
+							"uuid": "a538df2b-be4a-4d42-bd72-d9695e41f67f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.567448",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "double",
+							"_value": "Matrix(2,1)\n[-0.0, 1.0]"
+						}
+					},
+					{
+						"name": "negzInfRow",
+						"metadata": {
+							"uuid": "7a6af6f4-9ff1-40aa-8759-673d5c59f89b",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.567750",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "double",
+							"_value": "[-0.0, Inf]"
+						}
+					},
+					{
+						"name": "negzMat",
+						"metadata": {
+							"uuid": "1cf99cb8-9274-4f8e-85e7-0f08f5b4c01d",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.567615",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "double",
+							"_value": "Matrix(2,2)\n[[-0.0, 1.0]; [2.0, 3.0]]"
+						}
+					},
+					{
+						"name": "negzP",
+						"metadata": {
+							"uuid": "1d5e6b7a-21e5-4216-bc70-6d99e89de56b",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.568125",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Parameter",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"CoderInfo": {
+											"_id": "2",
+											"_object_class": "Simulink.CoderInfo",
+											"_properties": {
+												"CSCPackageName": "Simulink",
+												"CustomAttributes": {
+													"_id": "3",
+													"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+													"_properties": {}
+												},
+												"CustomStorageClass": "Default",
+												"ParameterOrSignal": "Parameter",
+												"StorageClass": "Auto"
+											}
+										},
+										"Complexity": "real",
+										"Dimensions": [
+											1,
+											1
+										],
+										"Value": 0
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "negzRow",
+						"metadata": {
+							"uuid": "b29de9e7-0da9-4091-81d7-95326f773c8b",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.567227",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": [
+							0,
+							1
+						]
+					},
+					{
+						"name": "negzS",
+						"metadata": {
+							"uuid": "546034eb-8378-4c97-94d4-47dcfb708dd4",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.568357",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "-0F"
+						}
+					},
+					{
+						"name": "negzSCell",
+						"metadata": {
+							"uuid": "99f41354-9db2-406f-83c4-edf2707c17c1",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.568870",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_type": "single",
+									"_value": "-0F"
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "negzSCol",
+						"metadata": {
+							"uuid": "ee4cbd3e-a102-406e-ac12-077d68d86841",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.568721",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "Matrix(2,1)\n[-0F, 1F]"
+						}
+					},
+					{
+						"name": "negzSRow",
+						"metadata": {
+							"uuid": "ae7c13aa-885d-420a-babd-7d5f369ef50c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.568519",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "[-0F, 1F]"
+						}
+					},
+					{
+						"name": "negzStruct",
+						"metadata": {
+							"uuid": "960f1293-7a75-432f-8202-4e207cb2ef04",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.568017",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"a": 0
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "posz",
+						"metadata": {
+							"uuid": "52eb0932-a407-49bb-ab66-e90ff6b9a740",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.568955",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": 0
+					},
+					{
+						"name": "poszS",
+						"metadata": {
+							"uuid": "588c6db7-f4af-4f2e-bbc2-d4d01d04c42d",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261018T015831.569097",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "single",
+							"_value": "0F"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

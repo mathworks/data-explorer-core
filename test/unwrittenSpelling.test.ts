@@ -144,10 +144,10 @@ const MATLAB_READS: Spelled[] = [
 const UNHELD = { name: 'i8big', xml: '<P Name="Value" Class="int8">300</P>', shown: '127' };
 // MATLAB reads i8big as int8 44 (measure2.log): its binary reader wraps.
 
-/** MATLAB's typed_binary.sldd with the entries above added, as the scoping's probe built its files. */
-function binaryDictionary(): Uint8Array {
+/** MATLAB's typed_binary.sldd with the entries above (or `entries`) added, as the scoping's probe built its files. */
+function binaryDictionary(entries: { name: string; xml: string }[] = [...MATLAB_READS, UNHELD]): Uint8Array {
   const zip = unzipSync(fixture('typed_binary.sldd'));
-  const objects = [...MATLAB_READS, UNHELD].map(({ name, xml }, i) =>
+  const objects = entries.map(({ name, xml }, i) =>
     [
       '    <Object Class="DD.ENTRY">',
       `        <P Name="Name" Class="char">${name}</P>`,
@@ -239,6 +239,93 @@ describe('a binary dictionary holding a spelling MATLAB does not write', () => {
       expect(entryOf(reopened, name).displayValue, name).toBe(shown);
     }
     expect(reopened.warnings).toBeUndefined();
+  });
+});
+
+interface Empty {
+  name: string;
+  xml: string;
+  shown: string;
+  /** What the entry's children show. */
+  kids: string[];
+  value: unknown;
+}
+
+/**
+ * A typed body holding nothing, under a Dimension that counts elements: a hand edit's or a damaged
+ * file's, since MATLAB writes no such body. It holds no token at all, so no spelling MATLAB does not
+ * write, and it is read exactly as it was before LENIENT (f9acdf9): a logical row as 0x0, with no
+ * false made up for it, a numeric one as [0], and none of them warned about.
+ */
+const EMPTY_BODY: Empty[] = [
+  { name: 'lgRowE', xml: '<P Name="Value" Class="logical" Dimension="1*2"></P>', shown: '<0x0 logical>', kids: [], value: { _type: 'logical', _value: '[]' } },
+  {
+    name: 'lgColE',
+    xml: '<P Name="Value" Class="logical" Dimension="2*1"></P>',
+    shown: '<2x1 logical>',
+    kids: [],
+    value: { _type: 'logical', _value: 'Matrix(2,1)\n[]' },
+  },
+  {
+    name: 'cellLgE',
+    xml: '<P Name="Value" Class="cell"><Element Class="logical" Dimension="1*2"></Element></P>',
+    shown: '{<0x0 logical>}',
+    kids: ['<0x0 logical>'],
+    value: { _array_type: 'Cell', _dimensions: [1, 1], _elements: [{ _type: 'logical', _value: '[]' }], _mw_element_type: 'MATLABArray' },
+  },
+  { name: 'i16RowE', xml: '<P Name="Value" Class="int16" Dimension="1*2"></P>', shown: '[0]', kids: [], value: { _type: 'int16', _value: '[0]' } },
+  { name: 'dblRowE', xml: '<P Name="Value" Class="double" Dimension="1*2"> </P>', shown: '[0]', kids: [], value: [0] },
+];
+
+/** Controls: the empties MATLAB writes, whose extents count no element, which LENIENT never reached. */
+const WRITTEN_EMPTY: Empty[] = [
+  {
+    name: 'lg10',
+    xml: '<P Name="Value" Class="logical" Dimension="1*0"></P>',
+    shown: '<1x0 logical>',
+    kids: [],
+    value: { _type: 'logical', _value: 'Matrix(1,0)', _binary_empty: true },
+  },
+  {
+    name: 'i16_00',
+    xml: '<P Name="Value" Class="int16" Dimension="0*0"></P>',
+    shown: '[ ]',
+    kids: [],
+    value: { _type: 'int16', _value: 'Matrix(0,0)', _binary_empty: true },
+  },
+  {
+    name: 'cellLg10',
+    xml: '<P Name="Value" Class="cell"><Element Class="logical" Dimension="1*0"></Element></P>',
+    shown: '{<1x0 logical>}',
+    kids: ['<1x0 logical>'],
+    value: {
+      _array_type: 'Cell',
+      _dimensions: [1, 1],
+      _elements: [{ _type: 'logical', _value: 'Matrix(1,0)', _binary_empty: true }],
+      _mw_element_type: 'MATLABArray',
+    },
+  },
+];
+
+describe('a binary dictionary holding an empty typed body', () => {
+  const bytes = binaryDictionary([...EMPTY_BODY, ...WRITTEN_EMPTY]);
+
+  const readsAsBefore = ({ name, shown, kids, value }: Empty) => {
+    const root = open(createSession(), bytes, 'empty_binary.sldd');
+    const entry = entryOf(root, name);
+    expect([entry.displayValue, entry.children.map((c: any) => c.displayValue)], name).toEqual([shown, kids]);
+    expect(entry.serialize().value, name).toEqual(value);
+    expect((root.warnings ?? []).filter((w: ParseWarning) => w.part === name), name).toEqual([]);
+  };
+
+  for (const empty of EMPTY_BODY) {
+    it(`reads ${empty.xml} as before, and warns nothing`, () => readsAsBefore(empty));
+  }
+
+  it('reads each empty MATLAB writes as before, and warns nothing (a control)', () => {
+    for (const empty of WRITTEN_EMPTY) {
+      readsAsBefore(empty);
+    }
   });
 });
 

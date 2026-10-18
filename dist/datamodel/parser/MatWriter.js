@@ -41,7 +41,7 @@ import { BINARY_EMPTY_KEY, complexClassTag, ENUM_KEY, ENUMERATION_KEY, emptyHead
 import { isMatCdata, uuencode } from './CdataCodec.js';
 import { encodedBytes, isEncodedValue } from './EncodedValue.js';
 import { backedColumnsOf, sparseFromDense, sparseIndexFault } from './SparseData.js';
-import { dimsText, isSize, isTextExtent, MAT_MAX_EXTENT } from './Size.js';
+import { dimsText, everyExtent, isSize, isTextExtent, MAT_MAX_EXTENT } from './Size.js';
 /**
  * A value this format cannot carry — an MCOS object (a MATLAB `string`, an
  * object array), or a class MatParser could not name. Thrown rather than
@@ -60,7 +60,9 @@ export class MatWriteError extends Error {
  *   - 'not-a-count': its dims are not a size (parser/Size), so there is nothing to count;
  *   - 'past-int32': an extent past MAT_MAX_EXTENT, which no MAT stream's dims word can say;
  *   - 'not-an-index': a sparse array's non-zero whose row or column is not a whole number,
- *     which no index can hold, and without which the array is not the one it is.
+ *     which no index can hold, and without which the array is not the one it is;
+ *   - 'not-decoded': a value the reader recorded without decoding, with no stream of its own
+ *     to be written as, so nothing holds its value but the text of its placeholder.
  * Final: nothing may be written in the value's place — not the value laid out full, not its
  * summary, not its elements one by one — so it reaches whoever asked for the write, and a
  * copy or a save that holds the value fails. Every other MatWriteError says this writer has
@@ -340,6 +342,7 @@ export function budgetFailure(e, entry, where) {
         'not-a-count': ', a size that is not a count, so what it would add beyond its data cannot be held to the ' + mib + ' one value may add.',
         'past-int32': ', an extent past ' + MAT_MAX_EXTENT + ', the most a MAT stream\'s dimensions can say, and it has no other spelling here.',
         'not-an-index': ', which is not a row and a column, and it has no spelling here without that non-zero.',
+        'not-decoded': ', so there is no value of it to write.',
     }[e.reason];
     return new MatBudgetError('Cannot write "' + entry + '": ' + at + ' is ' + e.what + why + ' Nothing was written.', at, e.what, entry, e.reason);
 }
@@ -975,9 +978,9 @@ export function encodeMatStream(v) {
  * The MAT stream of a value whose miMATRIX element is at hand AS READ (MatVariable's
  * `_rawBytes`), or null when the bytes are not a whole one this can re-frame.
  *
- * For the value nothing here can re-encode because the reader never decoded it — one
- * MatParser recorded as `undecoded` — and which a copy out of a .mat or a model workspace
- * into a dictionary would otherwise write as the text of its placeholder. Its bytes are
+ * For a value nothing here can re-encode because the reader never decoded it — one
+ * MatParser recorded as `undecoded` — though a copy of such a value itself, out of a .mat or
+ * a model workspace, is refused (MatlabVariableNode._undecodedRefusal). Its bytes are
  * the value; the one thing in them a stream does not carry is the variable's NAME, which a
  * .mat writes into the element and a stream leaves empty, so the name subelement is
  * replaced by the empty one and the element's size restated. Everything else is copied byte for byte. An MCOS opaque (class 17) is not framed this
@@ -1205,16 +1208,16 @@ function textForm(x, at, place) {
         return changed ? out : x;
     }
     const o = x;
-    // Dims holding NaN or an infinity, which JSON.stringify writes as null, or a bigint, which
-    // it cannot write at all. Refused, finally, as an XML writer refuses them
-    // (DataNode._sizeOrRefuse), said where they stand; a hand-made [1, "x"] goes as read, and
-    // so do undefined, a function, a symbol and a hole, which are not asked (parser/Size,
-    // isTextExtent). Not an infinity the text dictionary was read with
-    // (textDictionaryOwn: a complex text's bag, or the dims array); NaN or a bigint, which no
-    // file holds, even there.
+    // Dims holding NaN, an infinity, undefined, a function, a symbol or a hole, which
+    // JSON.stringify writes as null, or a bigint, which it cannot write at all. Refused,
+    // finally, as an XML writer refuses them (DataNode._sizeOrRefuse), said where they stand; a
+    // hand-made [1, "x"] goes as read, and so does a null (parser/Size, isTextExtent). Dims are
+    // walked by index, so a hole is undefined (everyExtent). Not an infinity the text
+    // dictionary was read with (textDictionaryOwn: a complex text's bag, or the dims array);
+    // NaN or a bigint, which no file holds, even there.
     const dims = o._dimensions;
-    if (Array.isArray(dims) && !dims.every(isTextExtent)
-        && !((textDictionaryOwn.has(o) || textDictionaryOwn.has(dims)) && dims.every(isReadExtent))) {
+    if (Array.isArray(dims) && !everyExtent(dims, isTextExtent)
+        && !((textDictionaryOwn.has(o) || textDictionaryOwn.has(dims)) && everyExtent(dims, isReadExtent))) {
         const what = classPhrase(bagClass(o)) + ' declaring dimensions ' + dimsText(dims);
         throw new MatBudgetError(what + ' was not written', at, what, undefined, 'not-a-count');
     }

@@ -22,6 +22,8 @@ export default class ParameterNode extends DataNode {
     get dataType(): string;
     get displayValue(): string;
     get valueEditable(): boolean;
+    get descriptionEditable(): boolean;
+    getPropInfo(PropClassRef: PropClass): ReturnType<DataNode['getPropInfo']>;
     _valueIsEnum(): boolean;
     _refuseStreamValue(stringValue: string): SetPropertyResult | null;
     _refuseValueBelow(node: MatlabVariableNode, parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
@@ -34,6 +36,7 @@ export default class ParameterNode extends DataNode {
     get isObjectPropertyBag(): boolean;
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _restorerFor(propName: string): (() => void) | null;
     _getSerializedProperties(): Record<string, unknown>;
     serializeValue(): unknown;
     serializeXml(tagName: string, attrs: Record<string, string> | undefined, indent: number): string;
