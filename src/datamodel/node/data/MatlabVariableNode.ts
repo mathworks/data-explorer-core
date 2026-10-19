@@ -2343,6 +2343,11 @@ export default class MatlabVariableNode extends DataNode {
         return cdata;
       }
     }
+    // A struct array or a cell none of whose elements could be read has no bag MATLAB reads
+    // back as it (_heldNone). Asked after the stream, which MatWriter writes padded.
+    if (this._heldNone()) {
+      throw this._heldNoneRefusal();
+    }
     switch (this._kind) {
       case 'scalar':
         return this._serializeScalar();
@@ -3000,6 +3005,12 @@ export default class MatlabVariableNode extends DataNode {
         return encodedXml(tagName, attrStr, hex, indent);
       }
     }
+    // Nor has a struct array or a cell none of whose elements could be read, at any rank
+    // (_heldNone): a cell was `Dimension="0*0"`, a struct one with no `<Element>` to name its
+    // fields.
+    if (this._heldNone()) {
+      throw this._heldNoneRefusal();
+    }
     switch (this._kind) {
       case 'scalar':
         return this._serializeScalarXml(tagName, attrs, indent);
@@ -3224,8 +3235,9 @@ export default class MatlabVariableNode extends DataNode {
     // A cell of no element keeps its extents when they are an empty's: a 0x3 is
     // `Dimension="0*3"/>`, as the property writer (DataNode._cellXml) and MATLAB write a
     // shaped empty cell, and as the binary reader reads one; `0*0` saved it as another
-    // value. serializeXml has refused dims no Dimension can spell before this. Dims that
-    // are not an empty's (a bag with none, a damaged 1x3 holding nothing) stay `0*0`.
+    // value. serializeXml has refused dims no Dimension can spell before this, and a damaged
+    // 1x3 read from a MAT stream holding nothing (_heldNone). Other dims that are not an
+    // empty's (a bag with none, a host's 1x3 bag of no element) stay `0*0`.
     if (this.children.length === 0) {
       const empty = dims.length >= 2 && dims.some((d) => d === 0);
       return p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + (empty ? dimensionText(dims) : '0*0') + '"/>';
@@ -3377,6 +3389,39 @@ export default class MatlabVariableNode extends DataNode {
     // Named as its row is (MatParser's placeholder, `<3x4 sparse double, not decoded>`): a sparse
     // array the reader did not decode is not a full one, and its node holds no non-zeros to say so.
     const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + (v?.isSparse ? 'sparse ' : '') + this._scalarType + ' that was not decoded' + (why ? ' (' + why + ')' : '');
+    return this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-decoded'));
+  }
+
+  /**
+   * Is this a struct array with fields or a cell, read from a MAT stream, that declares elements
+   * and whose bytes hold none of them — the reader's `"v" declares 3 cell(s) and only 0 could be
+   * read`? One holding SOME of them is written at its declared size beside those it holds, and
+   * MATLAB R2027a reads that back with the rest `[]`, its field names kept, in a text and a binary
+   * dictionary (short_array_copy_readback.truth.json, B-26). One holding none has no such form: a
+   * struct array's bag names its fields from its element rows, so it named none, and MATLAB read a
+   * 1x3 struct with no fields; a cell's XML was `Dimension="0*0"`, a 0x0 cell. The maintainer's
+   * group F ruling (theme 1: a save the writer cannot spell is refused rather than written wrong)
+   * refuses it, as a value the reader did not decode is (_undecodedRefusal). Its MAT stream, which
+   * MatWriter writes padded (an N-D one's copy, measured too), is not refused. Nor is a container
+   * the node ceiling built without its rows (_cutByCeiling), which is written from a twin with
+   * them, nor a struct with no fields, which holds every element it declares.
+   */
+  _heldNone(): boolean {
+    if (!this._matVar || this._cutByCeiling || this._undecoded || this._isOpaque || this.children.length > 0) {
+      return false;
+    }
+    const count = elementCount(this._dims);
+    if (this._kind === 'cell') {
+      return count > 0;
+    }
+    return this._kind === 'scalar' && this._scalarType === 'struct' && count > 1 && Object.keys(this._matVar.fields ?? {}).length > 0;
+  }
+
+  /** The refusal of a struct array or a cell none of whose elements could be read (_heldNone). */
+  _heldNoneRefusal(): MatBudgetError {
+    const count = elementCount(this._dims);
+    const of = count === 1 ? ' whose one element could not be read' : ' none of whose ' + count + ' elements could be read';
+    const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + (this._kind === 'cell' ? 'cell' : 'struct') + of;
     return this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-decoded'));
   }
 
