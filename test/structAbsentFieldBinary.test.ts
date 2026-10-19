@@ -225,4 +225,20 @@ describe("a struct with a field an element does not hold, pasted into a binary d
     const saved = pastedAndSaved('D1', 'prop', S([{}], ['a', 'a']));
     expect(saved.spelling).toBe(row('A1', 'filled', 'prop').spelling);
   });
+
+  // `_fields` is JSON anyone can edit too, so a member of it can be a number or null, which names no
+  // field. Written as one, it went out as `<P Name="5">`, a field no struct of MATLAB's can have, or
+  // failed the save; it is written as no field, as before B-17 (which wrote only the fields an
+  // element holds), and the struct as one whose element holds `a`, which MATLAB reads as such (C1).
+  it.each(PLACES)('at %s, a member of `_fields` that is not a name is written as no field, and the save does not fail', (place) => {
+    for (const [id, fields] of [
+      ['NS', ['a', 5]],
+      ['NL', [null, 'a']],
+    ] as [string, unknown[]][]) {
+      const saved = pastedAndSaved(id, place, S([{ a: 1 }], fields as string[]));
+      expect(saved.spelling, id).toBe(row('C1', 'held', place).spelling);
+      expect(matlabRead(place, saved.spelling), id).toEqual(row('C1', 'text', place).reads);
+      expect(saved.reopened.some((r) => r.endsWith('/a = 1')), id).toBe(true);
+    }
+  });
 });
