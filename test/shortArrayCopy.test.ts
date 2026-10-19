@@ -209,6 +209,61 @@ describe('a .mat struct array or cell holding none of the elements it declares (
     expect(thrown(() => session.serializeSource(root.name))).toEqual(refused('pasted', 'pasted', ONE_CELL));
   });
 
+  it('control: a cell declaring no element (0x0, 1x0, 0x3) holds all it declares, so it copies and saves as before, alone, in a cell and in a struct', () => {
+    // An empty cell is not one holding none of the elements it declares: it declares none. It
+    // opens with no warning, copies as its empty bag, and a binary dictionary writes it with its
+    // extents, as MATLAB writes a shaped empty cell (emptyCellEntry.test.ts).
+    const DIMS = [[0, 0], [1, 0], [0, 3]];
+    const SHOWN = ['{}', '<1x0 cell>', '<0x3 cell>'];
+    const empty = (name: string, k: number) => cellVar(name, [], DIMS[k]);
+    const bag = (dims: number[]) => ({ _array_type: 'Cell', _dimensions: dims, _elements: [], _mw_element_type: 'MATLABArray' });
+    const inCell = (name: string) => cellVar(name, [one(7), empty('', 0), empty('', 1), empty('', 2)], [1, 4]);
+    const inStruct = (name: string) => structVar(name, ['a', 'b', 'c'], [{ a: empty('', 0), b: empty('', 1), c: empty('', 2) }]);
+    const mat = opened(empty('c0', 0), empty('c1', 1), empty('c3', 2), inCell('h'), inStruct('s'));
+    expect(mat.warnings).toBeUndefined();
+    const [c0, c1, c3, h, s] = mat.children;
+    expect([c0, c1, c3, h].map((v: any) => v.displayValue)).toEqual([...SHOWN, '{7, {}, <1x0 cell>, <0x3 cell>}']);
+    expect([c0, c1, c3].map(copyOf)).toEqual(DIMS.map(bag));
+    expect(copyOf(h)).toEqual({ _array_type: 'Cell', _dimensions: [1, 4], _elements: [7, ...DIMS.map(bag)], _mw_element_type: 'MATLABArray' });
+    expect(copyOf(s)).toEqual({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ a: bag([0, 0]), b: bag([1, 0]), c: bag([0, 3]) }], _fields: ['a', 'b', 'c'], _mw_element_type: 'MATLABArray' });
+    // MATLAB's own empty cells, in a file it wrote, copy as their bags too.
+    const disp: any = createSession().addMatSource('dispcat.mat', arrayBufferOf(testFile('fixtures/display/dispcat.mat')));
+    expect(['dx_cell_0x0', 'dx_cell_1x0', 'dx_cell_0x3'].map((n) => copyOf(disp.children.find((v: any) => v.name === n)))).toEqual(DIMS.map(bag));
+    // A text dictionary's cdata of each, pasted into a binary one, is saved with its extents, and
+    // the saved file reopens as it.
+    const PREAMBLE = [0x00, 0x01, 0x49, 0x4d, 0x00, 0x00, 0x00, 0x00];
+    const cdataOf = (el: Uint8Array) => ({ _type: 'cdata', _value: uuencode(Uint8Array.from([...PREAMBLE, ...el])) });
+    const cases: [Uint8Array, string, string, string[]][] = [
+      [empty('', 0), '<P Name="Value" Class="cell" Dimension="0*0"/>', SHOWN[0], []],
+      [empty('', 1), '<P Name="Value" Class="cell" Dimension="1*0"/>', SHOWN[1], []],
+      [empty('', 2), '<P Name="Value" Class="cell" Dimension="0*3"/>', SHOWN[2], []],
+      [
+        inCell(''),
+        '<P Name="Value" Class="cell" Dimension="1*4"> <Element Class="double">7.0</Element> <Element Class="cell" Dimension="0*0"/> <Element Class="cell" Dimension="1*0"/> <Element Class="cell" Dimension="0*3"/> </P>',
+        '{7, {}, <1x0 cell>, <0x3 cell>}',
+        ['7', ...SHOWN],
+      ],
+      [
+        inStruct(''),
+        '<P Name="Value" Class="struct"> <Element> <P Name="a" Class="cell" Dimension="0*0"/> <P Name="b" Class="cell" Dimension="1*0"/> <P Name="c" Class="cell" Dimension="0*3"/> </Element> </P>',
+        '<1x1 struct>',
+        SHOWN,
+      ],
+    ];
+    for (const [el, written, shown, rows] of cases) {
+      const session = createSession();
+      const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
+      const design = root.getSection('design');
+      design.parseEntry({ name: 'pasted', metadata: { ...design.children[0].metadata, uuid: '00000000-0000-4000-eb26-000000000004' }, value: cdataOf(el) });
+      const xml = strFromU8(unzipSync(session.serializeSource(root.name).bytes)['data/chunk0.xml']);
+      const at = xml.indexOf('<P Name="Value"', xml.indexOf('<P Name="Name" Class="char">pasted</P>'));
+      const open = xml.slice(at, xml.indexOf('>', at) + 1);
+      expect((open.endsWith('/>') ? open : xml.slice(at, xml.indexOf('</P>', at) + 4)).replace(/\s+/g, ' '), shown).toBe(written);
+      const { entry } = pasteSaveReopen(BINARY, cdataOf(el));
+      expect([entry.displayValue, entry.children.map((e: any) => e.displayValue)], shown).toEqual([shown, rows]);
+    }
+  });
+
   it('N-D, is copied as its stream, which MatWriter writes padded, and pastes as the padded value', () => {
     for (const el of [cellVar('n', [], [1, 1, 3]), structVar('n', ['a'], [], [1, 1, 3])]) {
       const [n] = opened(el).children;
