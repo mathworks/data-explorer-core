@@ -203,3 +203,91 @@ describe('a bus element or an enumeral that is not an element', () => {
     expect(again.root.warnings ?? []).toEqual([]);
   });
 });
+
+// A list that is not a list: the hand edit put something else where the bus's Elements_internal,
+// or the enumeration's Enumerals, holds its elements. Reading it as a list threw (`forEach is not
+// a function`) and the whole dictionary failed to open; a `null` there opened as an entry with no
+// elements, with nothing said, and its untouched save wrote the list as `[]`. Now the entry shows
+// no element, says so once, and an untouched save writes it as it was read. An edit to the entry
+// writes it from its rows, which are none: what the same edit writes once its elements are all
+// deleted.
+const NOT_LISTS: Array<[string, unknown, string]> = [
+  ['a number', 5, '5'],
+  ['a string', 'x', '"x"'],
+  ['an object', { a: 1 }, 'an object'],
+  ['null', null, 'null'],
+];
+
+/** arch.sldd with the kind's element list holding `value` where its elements belong. */
+function notAList(kind: Kind, value: unknown): string {
+  const json = JSON.parse(PRISTINE);
+  listOf(json, kind)._elements = value;
+  return JSON.stringify(json, null, '\t');
+}
+
+/** arch.sldd with the kind's elements all deleted, as a host deletes them. */
+function emptied(kind: Kind): { session: any; root: any } {
+  const opened = open(PRISTINE);
+  for (const child of [...entryOf(opened.root, kind.entry).children]) {
+    expect(opened.session.deleteNodeById(child.id)).toBe(true);
+  }
+  expect(entryOf(opened.root, kind.entry).children).toEqual([]);
+  return opened;
+}
+
+/** An edit to the entry itself, as a host makes it. */
+function editEntry(session: any, root: any, kind: Kind): void {
+  const entry = entryOf(root, kind.entry);
+  session.setActive(root, entry);
+  expect(session.editProperty(entry.id, 'Description', 'edited')).toBe(true);
+}
+
+const LIST_CASES = KINDS.flatMap((kind) =>
+  NOT_LISTS.map(([label, value, spelled]) => [`${kind.short} ${kind.entry}, ${label}`, { kind, value, spelled }] as const),
+);
+
+describe('a bus\'s or an enumeration\'s list of elements that is not a list', () => {
+  it.each(LIST_CASES)('%s: the file opens, the entry shows no element, and every other row is the file\'s', (_title, { kind, value }) => {
+    const { root } = open(notAList(kind, value));
+    expect(entryOf(root, kind.entry).children).toEqual([]);
+    const under = `${SECTION}/${kind.entry}/`;
+    expect(rowsOf(root)).toEqual(rowsOf(open(PRISTINE).root).filter((r) => !r.startsWith(under)));
+  });
+
+  it.each(LIST_CASES)('%s: one warning, against the entry, says what was read where the list belongs', (_title, { kind, value, spelled }) => {
+    const { root } = open(notAList(kind, value));
+    expect((root.warnings ?? []).map((w: any) => [w.code, w.part])).toEqual([['part-unreadable', kind.entry]]);
+    const { message } = root.warnings[0];
+    expect(message).toContain(`"${kind.entry}"`);
+    expect(message).toContain(`${spelled} where its list of ${kind.noun}s belongs`);
+    expect(message).toContain('not shown');
+    expect(message).toContain('an edit');
+  });
+
+  it.each(LIST_CASES)('%s: an untouched save writes the file as it was read', (_title, { kind, value }) => {
+    const text = notAList(kind, value);
+    const { session, root } = open(text);
+    expect((session.serializeSource(root.name) as { text: string }).text).toBe(text);
+  });
+
+  it.each(LIST_CASES)('%s: an edit to the entry saves it with no element, as the same edit after its elements are deleted', (_title, { kind, value }) => {
+    const { session, root } = open(notAList(kind, value));
+    editEntry(session, root, kind);
+    const saved = savedValue(session, root, kind.entry);
+    const control = emptied(kind);
+    editEntry(control.session, control.root, kind);
+    expect(saved).toEqual(savedValue(control.session, control.root, kind.entry));
+    const again = open((session.serializeSource(root.name) as { text: string }).text);
+    expect(again.root.warnings ?? []).toEqual([]);
+  });
+
+  // Its Value, that is: the delete stamps the entry's LastMod, which an untouched entry keeps.
+  it.each(LIST_CASES)('%s: the entry\'s value writes as XML, the XML of the value with its elements deleted', (_title, { kind, value }) => {
+    const valueXml = (entry: any): string => {
+      const xml = serializeEntryToXml(entry);
+      expect(xml).toContain('<P Name="Value">');
+      return xml.slice(xml.indexOf('<P Name="Value">'));
+    };
+    expect(valueXml(entryOf(open(notAList(kind, value)).root, kind.entry))).toBe(valueXml(entryOf(emptied(kind).root, kind.entry)));
+  });
+});

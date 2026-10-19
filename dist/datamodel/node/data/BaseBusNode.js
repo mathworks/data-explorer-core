@@ -8,7 +8,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { emptyHeaderDims } from '../../parser/XmlUtils.js';
-import { isElement, reportNotElements } from './notAnElement.js';
+import { isElement, reportNotAList, reportNotElements } from './notAnElement.js';
 import { elementOriginAt, originOf, recordElementOrigins, recordOrigin, taggingOrigins } from '../../parser/EntrySource.js';
 // An empty as the binary reader holds one: a class under the bare `Matrix(…)` header of a size
 // with a 0 in it (BinarySlddParser.emptyOf).
@@ -246,7 +246,7 @@ export class BaseBusNode extends DataNode {
         const node = new BusNodeClass(name, parent, serial);
         node.Description = props.Description || '';
         const busElements = props.Elements_internal;
-        if (busElements && busElements._elements) {
+        if (busElements && Array.isArray(busElements._elements)) {
             busElements._elements.forEach(function (busElem, index) {
                 // An element that is not one (a hand-edited `null`, number or string) gets no
                 // row, as one holding no properties gets none below; reported after the loop.
@@ -272,6 +272,12 @@ export class BaseBusNode extends DataNode {
             if (reportNotElements(busElements._elements, name, 'bus element', 'bus')) {
                 node._keepNullElement(rawVal);
             }
+        }
+        else if (busElements && busElements._elements !== undefined) {
+            // A list of elements that is not a list (a hand-edited number, string, object or
+            // `null`): no row, said once, and the value kept as read (C-190).
+            reportNotAList(busElements._elements, name, 'bus element', 'bus');
+            node._keepNullElement(rawVal);
         }
         else if (busElements && busElements._properties) {
             const childProps = busElements._properties;
