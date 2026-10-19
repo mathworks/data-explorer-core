@@ -3601,6 +3601,17 @@ export default class MatlabVariableNode extends DataNode {
       node._scalarValue = '<' + (variable.className || 'double') + ', not decoded>';
       return node;
     }
+    // A real value of a class MatParser does not model ('unknown': a flags word overwritten,
+    // say) holds no value the reader read, and its class and size are what the file says of it.
+    // It fell to the numeric arm, which built the null it was left as: `null` (a 1x3 `[null]`, an
+    // empty `[ ]`) of class unknown, with an editor whose commit made it a double, at the top of
+    // a .mat or a model workspace and in a cell or a struct anywhere. It is what the complex one
+    // is shown as (MatNode.fromParsed): its class and size, not decoded, its copy refused
+    // (_undecodedRefusal). A complex one still fails in the complex arm, and what holds it
+    // catches that and shows the whole value not decoded, as the 2026-10-16 ruling made it.
+    if (variable.className === 'unknown' && !variable.isComplex) {
+      return MatlabVariableNode.createNotDecoded(variable, name, parent);
+    }
     if (variable.className === 'struct') {
       return MatlabVariableNode._createFromMatStruct(variable, name, parent);
     }
@@ -3794,10 +3805,10 @@ export default class MatlabVariableNode extends DataNode {
     // why (MatParser's collectUndecoded); a model workspace does not (the C-232 ruling).
     //
     // A class MatParser does not model ('unknown': a flags word overwritten, say) is not this,
-    // since no arm read it. It keeps the null a real one shows, and a complex one fails in the
-    // complex arm below. What holds it catches that and shows it not decoded: a binary
-    // dictionary the whole value (parseEncoded), and a model workspace or a .mat the whole
-    // variable (ModelSectionNode.addWorkspaceEntry, MatNode.fromParsed).
+    // since no arm read it. A real one is not decoded before it gets here (parseMatVariable),
+    // and a complex one fails in the complex arm below. What holds it catches that and shows it
+    // not decoded: a binary dictionary the whole value (parseEncoded), and a model workspace or a
+    // .mat the whole variable (ModelSectionNode.addWorkspaceEntry, MatNode.fromParsed).
     if (variable.value === null && totalElements > 0 && variable.className !== 'unknown') {
       return MatlabVariableNode.createNotDecoded(variable, name, parent, variable.isLogical ? 'logical' : variable.className);
     }
