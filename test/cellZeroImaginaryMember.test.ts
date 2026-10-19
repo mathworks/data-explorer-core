@@ -30,6 +30,7 @@ import MatNode from '../src/datamodel/node/container/MatNode.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
 import { CLASS, MI, cellVar, charVar, matFile, numericVar } from './tools/matBytes.js';
+import { BINARY, TEXT, copyOf, pasteSaveReopen } from './tools/pasteVenues.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -182,6 +183,55 @@ describe('a .mat file cell holding a complex member whose imaginary part is 0, w
       }
       expect(variable('ci').displayValue).toBe('{1+2i, 5}');
       expect(variable('ci').valueEditable).toBe(true);
+    });
+  }
+
+  // The imaginary part 0 whatever the real part and the class: complex(0, 0), with a -0 in
+  // either part or both, complex(-1, 0), complex(Inf, 0), and single and int16 complex(1, 0). A
+  // literal reads each such member as real, so the cell offers no editor and refuses its literal,
+  // as it does for complex(1, 0). With its 5 set to 6 as an element, the cell copied into either
+  // kind of dictionary and saved keeps the member as read, of its class and complex. A cell the
+  // node ceiling built without its rows has no element to edit, so its copy is saved as read.
+  const scalar = (cls: number, re: number, im: number): Uint8Array => numericVar({ name: '', cls, dimensions: [1, 1], real: [re], imag: [im] });
+  const zero: [string, Uint8Array, string][] = [
+    ['complex(0, 0)', scalar(CLASS.DOUBLE, 0, 0), 'double'],
+    ['complex(-0, 0)', scalar(CLASS.DOUBLE, -0, 0), 'double'],
+    ['complex(0, -0)', scalar(CLASS.DOUBLE, 0, -0), 'double'],
+    ['complex(-0, -0)', scalar(CLASS.DOUBLE, -0, -0), 'double'],
+    ['complex(-1, 0)', scalar(CLASS.DOUBLE, -1, 0), 'double'],
+    ['complex(Inf, 0)', scalar(CLASS.DOUBLE, Infinity, 0), 'double'],
+    ['single(complex(1, 0))', scalar(CLASS.SINGLE, 1, 0), 'single'],
+    ['int16(complex(1, 0))', scalar(CLASS.INT16, 1, 0), 'int16'],
+  ];
+  const zeroFile = (): ArrayBuffer => matFile(zero.map(([, member], k) => cellVar(`z${k}`, [member, dbl([5])])));
+
+  for (const nodeCeiling of [0, Number.MAX_SAFE_INTEGER]) {
+    it(`node ceiling ${nodeCeiling}: a member whose imaginary part is 0, at any real part and of any class, offers no editor, and the save keeps it as read`, () => {
+      const cut = nodeCeiling === 0;
+      const root = (MatNode.fromParsed as any)(parseMat(zeroFile()), 'f.mat', { nodeCeiling });
+      zero.forEach(([label, , cls], k) => {
+        const cell = root.children.find((v: any) => v.name === `z${k}`);
+        const shown = String(cell.displayValue);
+        const member = /^\{(.+), 5\}$/.exec(shown)?.[1];
+        expect(member, label).toMatch(/\+0i$/);
+        expect(cell.valueEditable, label).toBe(false);
+        expect(cell.setProperty('Value', `{${member}, 6}`), label).toMatchObject({ error: true, reason: REASON });
+        expect(cell.displayValue, label).toBe(shown);
+        const asRead = copyOf(cell) as any;
+
+        expect(cell.children.length, label).toBe(cut ? 0 : 2);
+        if (!cut) {
+          expect(rows(cell), label).toEqual([[`${cls} (complex)`, member], ['double', '5']]);
+          expect(cell.children[1].setProperty('Value', '6'), label).toBe(true);
+          expect(rows(cell), label).toEqual([[`${cls} (complex)`, member], ['double', '6']]);
+        }
+        const copy = copyOf(cell) as any;
+        expect(copy._elements[0], label).toEqual(asRead._elements[0]);
+        for (const dictionary of [TEXT, BINARY]) {
+          const { entry } = pasteSaveReopen(dictionary, copy);
+          expect(rows(entry), `${label}, ${dictionary}`).toEqual([[`${cls} (complex)`, member], ['double', cut ? '5' : '6']]);
+        }
+      });
     });
   }
 
