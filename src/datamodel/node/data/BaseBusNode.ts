@@ -26,6 +26,32 @@ function isTypedEmpty(v: unknown): boolean {
     return typeof o._type === 'string' && emptyHeaderDims(o._value) !== null;
 }
 
+// An Elements_internal read in the form MATLAB's text dictionary gives a bus of one element, the
+// element itself, `{_id, _object_class, _properties}` (BaseBusNode._parseElements's last arm).
+function isElementForm(read: Record<string, unknown>): boolean {
+    return read._elements === undefined && '_object_class' in read && !!read._properties;
+}
+
+// An element in that form: as it is where it carries its class, and otherwise (one added here) with
+// the array's, where MATLAB puts it, after its _id.
+function inElementForm(element: Record<string, unknown>, arrayClass: string): Record<string, unknown> {
+    if ('_object_class' in element) {
+        return element;
+    }
+    const { _id, ...rest } = element;
+    return _id === undefined ? { _object_class: arrayClass, ...rest } : { _id, _object_class: arrayClass, ...rest };
+}
+
+// An element of the array, without the `_object_class` the element's form gave it where that is the
+// array's class, as MATLAB writes it there.
+function withoutArrayClass(element: Record<string, unknown>, arrayClass: string): Record<string, unknown> {
+    if (element._object_class !== arrayClass) {
+        return element;
+    }
+    const { _object_class: _own, ...rest } = element;
+    return rest;
+}
+
 // Clone a Prop* atom with an expanded `sourceKeys`, preserving its static methods
 // (readValue/format) via the prototype chain — an object spread would drop them.
 // Bus/connection elements read some props through `*_internal` aliased raw keys
@@ -123,8 +149,9 @@ export class BaseBusNode extends DataNode {
         if (elementsInternal.length > 0) {
             // The source's Elements_internal may be in single-object form
             // (_object_class + _properties) or array form (_array_class + _elements).
-            // Always emit the canonical array form so the serializer uses the correct
-            // branch (_array_class) and respects the live _elements and _dimensions.
+            // The array form is written under the class either names, with the live
+            // _elements and _dimensions; one read in the single-object form keeps it
+            // while the bus holds one element (below).
             const arrayClass = rawEI && typeof rawEI === 'object' && !Array.isArray(rawEI)
                 ? ((rawEI as Record<string, unknown>)._array_class as string
                     || (rawEI as Record<string, unknown>)._object_class as string
@@ -136,7 +163,20 @@ export class BaseBusNode extends DataNode {
             // binary reader's bag carries it, and keeps it. The XML writer does not read it.
             const read = rawEI && typeof rawEI === 'object' && !Array.isArray(rawEI) ? (rawEI as Record<string, unknown>) : null;
             const elementType = read && '_mw_element_type' in read ? { _mw_element_type: read._mw_element_type } : {};
-            props.Elements_internal = { _array_class: arrayClass, _dimensions: [elementsInternal.length, 1], _elements: elementsInternal, ...elementType };
+            // MATLAB's text dictionary writes a bus of one element with its Elements_internal as
+            // that element, `{_id, _object_class, _properties}` (params.sldd's MyConnBus), and of
+            // more as the array above, whose elements carry no `_object_class` of the array's
+            // class (B-24, probe_bus_one_element_text.m). One read in the element's form is
+            // written back in it while the bus holds one element, so a save that changed nothing
+            // is the file (A4); with more, as MATLAB writes the array. One read as the array
+            // stays the array.
+            const elementForm = read !== null && isElementForm(read);
+            if (elementForm && elementsInternal.length === 1) {
+                props.Elements_internal = inElementForm(elementsInternal[0] as Record<string, unknown>, arrayClass);
+            } else {
+                const elements = elementForm ? elementsInternal.map(function (e) { return withoutArrayClass(e as Record<string, unknown>, arrayClass); }) : elementsInternal;
+                props.Elements_internal = { _array_class: arrayClass, _dimensions: [elements.length, 1], _elements: elements, ...elementType };
+            }
         } else if (isTypedEmpty(rawEI)) {
             // A bus read with no elements: its Elements_internal as the binary reader holds an
             // empty, the element class under the header of its size (BinarySlddParser.emptyOf),
