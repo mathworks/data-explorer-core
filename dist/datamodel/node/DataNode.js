@@ -1133,7 +1133,7 @@ export default class DataNode extends BaseNode {
      * [{_properties: {…}}]}`, and so does every reader and writer in this package. A text
      * dictionary is JSON anyone, or any generator, can write, and one can hold them inline
      * instead, `{_array_class: 'Simulink.Parameter', Value: 0.001, …}`, with no `_elements` (or a
-     * `null` one): three in the local corpus do (complex/base, plant and shared.sldd). A typed
+     * `null` one): three in the local corpus do (all three written by a test generator). A typed
      * node reads its properties from the element only, so such an entry opens with each at its
      * default. Its class's serializeValue rebuilt the element from `_elements[0]`, and threw a
      * TypeError, which failed an untouched save of the whole file, a copy of the entry and the

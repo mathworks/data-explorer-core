@@ -2788,8 +2788,8 @@ export default class MatlabVariableNode extends DataNode {
             if (val === '' || val === null || val === undefined) {
                 // MATLAB writes a 0x0 or 1x0 empty char with neither a body nor a Dimension —
                 // char_binary.sldd's charEmpty — and any other with its Dimension:
-                // `Class="char" Dimension="0*2"/>`, `"2*0"`, `"0*0*2"` (dSLDD_JSONApi.sldd's
-                // matEmptyString entries). Those went out as the 0x0.
+                // `Class="char" Dimension="0*2"/>`, `"2*0"`, `"0*0*2"` (the matEmptyString entries of
+                // a binary dictionary MATLAB wrote). Those went out as the 0x0.
                 const empty = this._textDims('');
                 const dimAttr = charNeedsShape(empty) && !(empty.length === 2 && empty[0] === 0 && empty[1] === 0) ? ' Dimension="' + dimensionText(empty) + '"' : '';
                 return p + '<' + tagName + attrStr + ' Class="char"' + dimAttr + '/>';

@@ -34,7 +34,7 @@ if isempty(outdir), outdir = fullfile(tempdir, 'textempty'); end
 if ~exist(outdir, 'dir'), mkdir(outdir); end
 here = fileparts(mfilename('fullpath'));
 addpath(fullfile(here, '..', '..', 'fixtures', 'mcos'));   % Widget, WidgetPart
-% An integer enumeration of its own, the kind dSLDD_JSONApi.sldd's dSomeColors is.
+% An integer enumeration of its own, the kind dSomeColors in a binary dictionary MATLAB wrote is.
 fid = fopen(fullfile(outdir, 'dProbeColors.m'), 'w');
 fprintf(fid, 'classdef dProbeColors < Simulink.IntEnumType\n  enumeration\n    Red(0)\n    Green(1)\n    Blue(2)\n  end\nend\n');
 fclose(fid);

@@ -429,12 +429,12 @@ describe('ModelBlockNode', () => {
 });
 
 // The SID is the identity and the name is only a label — blockIdentity's two rules,
-// measured on the file shapes that forced them. f14.slx (a shipped Simulink demo) is
+// measured on the file shapes that forced them. A shipped Simulink demo model is
 // where both were found: it holds four blocks named `Gain`, and one Constant whose
 // recorded name is a bare line break.
 describe('ModelBlockNode — identity is the SID, the name is a label', () => {
   it('gives same-named blocks in different systems a row each', () => {
-    // f14.slx's shape: `Gain` appears in several subsystems, each with its own gain.
+    // That demo's shape: `Gain` appears in several subsystems, each with its own gain.
     // Keyed by name, the four arrived as ONE row reading `Gain=Mq, Gain=Zw, ...` —
     // four blocks' parameters under one name, and three blocks the host could not
     // reach at all because they shared an id.
@@ -451,7 +451,7 @@ describe('ModelBlockNode — identity is the SID, the name is a label', () => {
   });
 
   it('shows `<SID: 65>` for a block whose recorded name is blank', () => {
-    // f14.slx records `Name="&#xA;"` on one Constant — a label the user cleared, which
+    // That demo records `Name="&#xA;"` on one Constant — a label the user cleared, which
     // normalizes to ''. The row still has to name something the user can act on, and
     // the SID is the one thing that file offers.
     const blk = blockModel(
@@ -557,7 +557,7 @@ describe('ModelBlockNode — the path says which block a row is', () => {
   });
 
   it('uses the label, so a nameless block is placed by its SID stand-in', () => {
-    // f14.slx's cleared-label Constant. Composed with the label rather than the raw name
+    // That demo's cleared-label Constant. Composed with the label rather than the raw name
     // so a path never ends in nothing — an empty last segment would read as the system
     // itself, not as a block in it.
     const blk = blockModel(`<Block BlockType="Constant" Name="&#xA;" SID="65"><P Name="Value">Uo</P></Block>`)

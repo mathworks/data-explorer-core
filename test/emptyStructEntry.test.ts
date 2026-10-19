@@ -8,7 +8,7 @@
 // Dimension="0*2">` around an `<Element>` it never had: reopened, a struct of one element in a
 // shape that holds none, and a struct with declared fields lost them. MATLAB writes them as
 // test/parity/artifacts/binary/cases.sldd's structEmpty is, `<P Name="Value" Class="struct"
-// Dimension="0*0"/>`, and dSLDD_JSONApi.sldd's structNoEmptyField as `<P Name="Value"
+// Dimension="0*0"/>`, and as a binary dictionary MATLAB wrote holds its structNoEmptyField, `<P Name="Value"
 // Class="struct" Dimension="1*0">` around `<Field Name="a"/>` and `<Field Name="b"/>`; the
 // other shapes below are that file's structEmptyArray2, 3 and 4, in its spelling.
 import { describe, it, expect } from 'vitest';

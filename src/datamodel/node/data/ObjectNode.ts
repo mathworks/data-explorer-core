@@ -109,7 +109,7 @@ const ENUM_TOKEN = /true|false|[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|Inf
 /**
  * The value `value`, a text dictionary's `_enum_value`, holds, or null for a spelling this does
  * not read. Each spelling MATLAB writes (MatWriter.enumTextForm, read off custom_object_text.sldd,
- * dNJSON_SLDDApi.sldd and the display catalog's dispcat_text.sldd): a bare `true`/`false` for an
+ * a text dictionary MATLAB wrote and the display catalog's dispcat_text.sldd): a bare `true`/`false` for an
  * OnOffSwitchState scalar, `{_type: 'int32', _value: '1'}` for a scalar, `'[1, 3]'` for a row,
  * `'Matrix(7,1)\n[…]'` for any other two-dimensional size, row by row, and a MAT stream
  * (`_type: 'cdata'`) past two dimensions.

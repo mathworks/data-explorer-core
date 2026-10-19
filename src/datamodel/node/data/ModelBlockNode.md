@@ -25,16 +25,16 @@ The node carries:
 ## Identity: the SID, not the name
 
 `id` is `` `${parent.id}/${blockKey(name, sid)}` `` — the **SID**, e.g.
-`f14.slx/blocks/65` — and `displayName` is `blockLabel(name, sid)`, which is the name
+`<model>.slx/blocks/65` — and `displayName` is `blockLabel(name, sid)`, which is the name
 or `<SID: 65>` when the file records none. Both rules live in
 `src/datamodel/blockIdentity.ts`; see item 21 in `docs/TODO.md` for the evidence.
 
-Why they are separate: a block name is unique **within its own system** only. `f14.slx`
-holds four blocks named `Gain`, so a name-keyed id gave all four
-`f14.slx/blocks/Gain` and the section merged them into one row reading
+Why they are separate: a block name is unique **within its own system** only. A shipped
+Simulink demo model holds four blocks named `Gain`, so a name-keyed id gave all four
+`<model>.slx/blocks/Gain` and the section merged them into one row reading
 `Gain=Mq, Gain=Zw, Gain=Kf, Gain=Zw`. A name may also be **blank** — clearing a label
 leaves `Name="&#xA;"` in the file, which normalizes to `''` — which made the id
-`f14.slx/blocks/` and left the Name cell and every link to that block with no text.
+`<model>.slx/blocks/` and left the Name cell and every link to that block with no text.
 
 Its `toRow()` emits a specialized row with a `_graphTarget` for model navigation
 and optional `linkTarget` in the DataType column for parameter cross-referencing.

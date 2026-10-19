@@ -269,7 +269,7 @@ for (const c of CASES) {
 }
 
 // A bank and a bank coder info in the form the corpus's text dictionaries hold them
-// (mix/dd_json.sldd and textsldd/dd.sldd, release R2026b): plain, sorted `_properties` with no
+// (two text dictionaries R2026b wrote): plain, sorted `_properties` with no
 // saveobj envelope and no Value key. Copied from those files' VariantBank and VariantBankCoderInfo
 // entries, field for field.
 const NO_ENVELOPE: Record<Case['CLASS'], Record<string, unknown>> = {

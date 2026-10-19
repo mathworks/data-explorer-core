@@ -37,7 +37,7 @@ const CLASS_NAME = 'Simulink.VariantBankCoderInfo';
 // read.
 //
 // A text dictionary R2026b wrote holds the five as plain properties, with no envelope
-// (~/delite/textsldd/dd.sldd and mix/dd_json.sldd). R2027a reads that spelling property by
+// (measured on two such dictionaries). R2027a reads that spelling property by
 // property, through the setters: a value one refuses is read as that property's default, alone,
 // and a Qualifier in any case as MATLAB's own (measured). So there the five are read from, and an
 // edit written into, the plain property.

@@ -9,7 +9,7 @@
 //     {"_array_class": "Simulink.Parameter", "_elements": [{"_properties": {"Value": 0.001}}]}
 //
 // A text dictionary is JSON anyone, or any generator, can write, and three in the local
-// corpus (complex/base, plant and shared.sldd, written by a test generator) hold them inline
+// corpus (all three written by a test generator) hold them inline
 // instead, with no `_elements` at all:
 //
 //     {"_array_class": "Simulink.Parameter", "_array_type": "object", "Value": 0.001, ...}
@@ -37,7 +37,7 @@ import '../src/datamodel/node/data/NodeClassMap.js';
 
 type Any = any;
 
-// complex/base.sldd's SampleTime, as the generator wrote it.
+// One of those three dictionaries' SampleTime, as the generator wrote it.
 const PARAMETER = {
   _array_class: 'Simulink.Parameter',
   _array_type: 'object',

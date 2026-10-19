@@ -36,8 +36,8 @@ function openText(name: string) {
   return { s, src };
 }
 
-// The ServiceBus entry of the corpus's one binary dictionary that has one
-// (example/dd1.sldd), trimmed to what a FunctionElement needs.
+// The ServiceBus entry of the corpus's one binary dictionary that has one,
+// trimmed to what a FunctionElement needs.
 const ARG = (name: string) =>
   `<Element Class="Simulink.BusElement"><P Name="DimensionsMode" Class="char">Fixed</P><P Name="Name" Class="char">${name}</P><P Name="DataType_internal" Class="char">double</P><P Name="Complexity" Class="char">real</P><P Name="Dimensions" Class="double">1.0</P></Element>`;
 const FN = (name: string, prototype: string, args: string[]) =>
@@ -364,7 +364,7 @@ describe('a FunctionElement rename carries into the System Composer catalog', ()
   });
 
   // The catalog member of a compressed-binary dictionary, in the shape of the corpus's one
-  // binary dictionary with a service interface (example/dd1.sldd, R2027a), trimmed to the
+  // binary dictionary with a service interface (R2027a), trimmed to the
   // definitions the chunk above holds: a ServiceInterface with f and g, and a data interface.
   const FN_XML = (name: string, prototype: string, args: string[]) =>
     `\n        <p_FunctionElements type="systemcomposer.architecture.model.swarch.FunctionElement" uuid="fe-${name}">${args.map((a) =>

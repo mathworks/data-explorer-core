@@ -268,7 +268,7 @@ function make_variantbank_r2027a(outDir)
   loadcheckCi(src, 'ci PostStatement LF', '"PostStatement": "post"', '"PostStatement": "a\nb"');
   loadcheckCi(src, 'ci PostStatement number', '"PostStatement": "post"', '"PostStatement": 5');
   % R2026b's spelling: a text dictionary that release wrote holds a coder info as plain
-  % properties, with no envelope (~/delite/textsldd/dd.sldd: "_elements": [{"_id": "1",
+  % properties, with no envelope (measured: "_elements": [{"_id": "1",
   % "_properties": {...}}]). ciA respelled so, then edited by hand the same way.
   plain = regexprep(src, ['"_custom_save": \{\s*"_array_type": "Struct",\s*"_dimensions": \[\s*1,\s*1\s*\],\s*' ...
     '"_elements": \[\s*(\{[^{}]*"HeaderFile": "h\.h"[^{}]*\})\s*\],\s*"_fields": \[[^\]]*\]\s*\},\s*"_id": "1"'], ...

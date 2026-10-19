@@ -1614,7 +1614,7 @@ function entryEmptyText(cls, dims, at) {
  *   a 7x1       {"_type": "uint8", "_value": "Matrix(7,1)\n[0U, 0U, 0U, 0U, 0U, 0U, 0U]"}
  *   matEnum3D   {"_type": "cdata", "_value": …}, a 2x2x2's MAT stream of int32, as for any N-D value
  *
- * read off custom_object_text.sldd, dNJSON_SLDDApi.sldd and a customer dictionary, each the twin
+ * read off custom_object_text.sldd, a text dictionary MATLAB wrote and a customer dictionary, each the twin
  * of a binary dictionary holding the same values. The binary reader holds each enumeral's
  * `EnumerationType` and its number as MATLAB wrote them (XmlUtils.ENUMERATION_KEY), in MATLAB's
  * column-major order, and those are the whole of it: the enumeral's name is not in the text form,
