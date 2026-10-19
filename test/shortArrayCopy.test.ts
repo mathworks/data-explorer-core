@@ -190,6 +190,25 @@ describe('a .mat struct array or cell holding none of the elements it declares (
     }
   });
 
+  it('1x1, a cell holding none of its one element is refused too, named as that, as a copy, held in a cell, and pasted into a binary dictionary', () => {
+    // Its copy was `_dimensions [1,1]` with no `_elements`, and its XML `Class="cell"
+    // Dimension="0*0"`, the spelling MATLAB reads as a 0x0 cell (cell_none_binary.sldd above).
+    const ONE_CELL = 'a 1x1 cell whose one element could not be read';
+    const mat = opened(cellVar('c', [], [1, 1]), cellVar('h', [one(7), cellVar('', [], [1, 1])], [1, 2]));
+    const [c, h] = mat.children;
+    expect([c.displayValue, c.children.length, h.displayValue]).toEqual(['{}', 0, '{7, {}}']);
+    expect(mat.warnings.map((w: any) => w.message)).toEqual(['"c" declares 1 cell(s) and only 0 could be read.', '"h{2}" declares 1 cell(s) and only 0 could be read.']);
+    expect(thrown(() => c.serialize())).toEqual(refused('c', 'c', ONE_CELL));
+    expect(thrown(() => h.serialize())).toEqual(refused('h', 'h{2}', ONE_CELL));
+    // A text dictionary's cdata of it, pasted into a binary one: refused at the save.
+    const PREAMBLE = [0x00, 0x01, 0x49, 0x4d, 0x00, 0x00, 0x00, 0x00];
+    const session = createSession();
+    const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
+    const design = root.getSection('design');
+    design.parseEntry({ name: 'pasted', metadata: { ...design.children[0].metadata, uuid: '00000000-0000-4000-eb26-000000000003' }, value: { _type: 'cdata', _value: uuencode(Uint8Array.from([...PREAMBLE, ...cellVar('', [], [1, 1])])) } });
+    expect(thrown(() => session.serializeSource(root.name))).toEqual(refused('pasted', 'pasted', ONE_CELL));
+  });
+
   it('N-D, is copied as its stream, which MatWriter writes padded, and pastes as the padded value', () => {
     for (const el of [cellVar('n', [], [1, 1, 3]), structVar('n', ['a'], [], [1, 1, 3])]) {
       const [n] = opened(el).children;
