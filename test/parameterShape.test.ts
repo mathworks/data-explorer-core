@@ -247,9 +247,9 @@ describe('MATLAB reads each of core\'s saves with the Dimensions and Complexity 
 });
 
 describe('a Parameter whose file holds no Dimensions, or no Complexity, is saved without it after an edit of its Value', () => {
-  // Only a key the file holds is set from the Value (_followValueShape): MATLAB itself writes
-  // binary Parameters with Dimensions and no Complexity, and core's own text dictionaries, as
-  // typeLink.sldd is, hold a Parameter with no Dimensions. A save that wrote the Value's shape into
+  // Only a key the file holds is set from the Value (_followValueShape): binary Parameters in
+  // MATLAB-written dictionaries can hold Dimensions and no Complexity (R2027a's own edit writes
+  // both), and core's own text dictionaries, as typeLink.sldd is, hold a Parameter with no Dimensions. A save that wrote the Value's shape into
   // one would write a property the file never carried.
   type Key = 'Dimensions' | 'Complexity';
   const other = (key: Key): Key => (key === 'Dimensions' ? 'Complexity' : 'Dimensions');
