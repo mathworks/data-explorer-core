@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import BaseNode, { encodedHolderOf } from './BaseNode.js';
+import BaseNode, { encodedHolderOf, propNamed } from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
@@ -325,11 +325,11 @@ export default class DataNode extends BaseNode {
         return !this.isEntry;
     }
     // The prop atom `propName` names — by its own key or by the column it renders
-    // into, which is how an edit committed in the 'Value' column reaches the atom
-    // that actually owns it (a Variant's Condition/Specification). Undefined when
-    // this node has no such prop.
+    // into, or else by the node field it writes (BaseNode's propNamed has the rule).
+    // Every per-property gate asks here, so `Complexity` is checked as `complexity`
+    // is. Undefined when this node has no such prop.
     _propFor(propName) {
-        return this.getProperties().find((prop) => prop.key === propName || prop.column === propName);
+        return propNamed(this.getProperties(), propName);
     }
     _resolveProperty(propName) {
         const prop = this._propFor(propName);

@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import BaseNode, { encodedHolderOf } from './BaseNode.js';
+import BaseNode, { encodedHolderOf, propNamed } from './BaseNode.js';
 import type { PropClass } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
@@ -417,13 +417,11 @@ export default class DataNode extends BaseNode {
   }
 
   // The prop atom `propName` names — by its own key or by the column it renders
-  // into, which is how an edit committed in the 'Value' column reaches the atom
-  // that actually owns it (a Variant's Condition/Specification). Undefined when
-  // this node has no such prop.
+  // into, or else by the node field it writes (BaseNode's propNamed has the rule).
+  // Every per-property gate asks here, so `Complexity` is checked as `complexity`
+  // is. Undefined when this node has no such prop.
   _propFor(propName: string): PropClass | undefined {
-    return this.getProperties().find(
-      (prop) => prop.key === propName || (prop as unknown as { column?: string }).column === propName,
-    );
+    return propNamed(this.getProperties(), propName);
   }
 
   _resolveProperty(propName: string): string {
