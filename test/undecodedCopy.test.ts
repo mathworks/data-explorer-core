@@ -24,10 +24,13 @@ import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { decodeMatStream } from '../src/datamodel/parser/MatParser.js';
 import { uuencode } from '../src/datamodel/parser/CdataCodec.js';
+import { encodeMatStream } from '../src/datamodel/parser/MatWriter.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { MatBudgetError, createSession, ingest } from '../src/index.js';
 import { CLASS, MI, arrayFlags, cellVar, dims, element, matFile, matrix, mxArrayFile, numericVar, structVar, varName } from './tools/matBytes.js';
+import * as matBytes from './tools/matBytes.js';
 import { BINARY, TEXT, copyOf, pasteSaveReopen, thrownBy } from './tools/pasteVenues.js';
+import { holder, members, ndUndecodedCopyReadback } from './parity/matlab/nd_undecoded_copy_readback.mjs';
 
 /** A file under test/, as bytes. */
 const testFile = (path: string): Uint8Array => new Uint8Array(readFileSync(fileURLToPath(new URL(`./${path}`, import.meta.url))));
@@ -299,5 +302,129 @@ describe('what is written as it was', () => {
     }
     const workspace = openedWorkspace({ ok: one(7) });
     expect(workspace.children[0].serialize().value).toBe(7);
+  });
+});
+
+// B-11 (group H). An N-D cell or struct out of a .mat or a model workspace that holds a value the
+// reader did not decode has a member with nothing to copy, as a rank-2 one has. #138 left it copying
+// as its whole MAT stream, with the member's own bytes in it where the member is a sparse array whose
+// values the file does not hold (F1-5). The copy is refused now, but only by the check _matStream
+// makes after the encode (_matWritable, from #132): serializeValue then goes on to the member, which
+// throws _undecodedRefusal. Without that check a struct member the reader did not decode is encoded
+// into the stream as well, and no test held the copy to the refusal. MATLAB was asked first (theme 2;
+// parity/matlab/probe_nd_undecoded_copy_readback.m, R2027a): the stream does not always read back as
+// MATLAB loads the variable. A 1x1x2 struct whose member's values are absent read back from a text
+// dictionary as a 1x0 double, and from a binary one not at all, and nothing in the bytes tells such a
+// stream from one that reads back. So the copy stays refused, naming the member, as the ruling F1-10
+// refuses the member's own copy (theme 1: a save the writer cannot spell is refused rather than
+// written wrong).
+const SPARSE_UNREAD: { key: 'absent' | 'widthless' | 'short'; label: string; why: string }[] = [
+  { key: 'absent', label: 'a 3x4 sparse double whose values are absent', why: 'its indices place 4 non-zero(s) and its bytes end before their real part' },
+  {
+    key: 'widthless',
+    label: 'a 3x4 sparse double whose values are of a type with no width',
+    why: 'its real part is of MAT data type 16, which has no element width, so none of its 4 elements can be read',
+  },
+  { key: 'short', label: 'a 3x4 sparse double holding 2 of its 4 values', why: 'its real part holds 2 of the 4 values its indices place' },
+];
+
+/** What a copy of `node` threw, after checking it is the refusal of a write of `path` in `entry` for a value not decoded for `why`. */
+function refusedAt(node: any, entry: string, path: string, why: string): unknown[] {
+  const got = thrown(() => node.serialize());
+  expect(got.slice(0, 5)).toEqual(['MatBudgetError', true, 'not-decoded', entry, path]);
+  expect(got[5]).toContain(`Cannot write "${entry}": ${path} is a `);
+  expect(got[5]).toContain(` that was not decoded (${why}), so there is no value of it to write. Nothing was written.`);
+  return got;
+}
+
+describe('an N-D cell or struct holding a value the reader did not decode: its copy is refused at that value, never written as its MAT stream (B-11)', () => {
+  const builds = [
+    ...KINDS.map((k) => ({ label: k.label, build: () => k.build(''), why: k.why(false) as string, what: k.what })),
+    ...SPARSE_UNREAD.map((k) => ({ label: k.label, build: members(matBytes)[k.key], why: k.why, what: null })),
+  ];
+  for (const k of builds) {
+    it(`${k.label}, element 2 of a 1x1x2 cell and of a 1x1x2 struct out of a .mat and a model workspace: each copy is refused at it`, () => {
+      const c = openedMat('c.mat', [holder(matBytes, 'cell', 'c', k.build())]).children[0];
+      const s = openedMat('s.mat', [holder(matBytes, 'struct', 's', k.build())]).children[0];
+      const e = c.children[1];
+      const f = s.children[1].children[0];
+      expect([c.dims, c.displayValue, s.dims, s.displayValue]).toEqual([[1, 1, 2], '<1x1x2 cell>', [1, 1, 2], '<1x1x2 struct>']);
+      expect([e.displayValue, f.displayValue].every((v: string) => v.endsWith(', not decoded>'))).toBe(true);
+      // Before: a cell or a struct holding one of the sparse arrays copied as its MAT stream, the
+      // array's own bytes in it, which MATLAB does not always read back as it was (below).
+      const atCell = refusedAt(c, 'c', 'c{2}', k.why);
+      const atStruct = refusedAt(s, 's', 's(2).f', k.why);
+      // The member's own refusal, restated for the copy of what holds it.
+      expect([atCell, atStruct]).toEqual([thrown(() => e.serialize()), thrown(() => f.serialize())]);
+      if (k.what) {
+        expect([atCell, atStruct]).toEqual([refused('c', 'c{2}', k.what, k.why), refused('s', 's(2).f', k.what, k.why)]);
+      }
+      // A host pastes what the copy gave it; there is nothing to paste.
+      for (const file of [TEXT, BINARY]) {
+        expect(thrown(() => pasteSaveReopen(file, copyOf(c))), file).toEqual(atCell);
+        expect(thrown(() => pasteSaveReopen(file, copyOf(s))), file).toEqual(atStruct);
+      }
+      const workspace = openedWorkspace({ ok: one(7), x: holder(matBytes, 'cell', '', k.build()), y: holder(matBytes, 'struct', '', k.build()) });
+      const [o, x, y] = workspace.children;
+      refusedAt(x, 'x', 'x{2}', k.why);
+      refusedAt(y, 'y', 'y(2).f', k.why);
+      expect(o.serialize().value).toBe(7);
+    });
+  }
+
+  it('a 3x4 sparse double that decodes, in the same places: the copy is its MAT stream, as before, and pastes as the cell or struct it is', () => {
+    for (const shape of ['cell', 'struct'] as const) {
+      const v = openedMat('v.mat', [holder(matBytes, shape, 'v', members(matBytes).intact())]).children[0];
+      const copied = copyOf(v) as { _type: string; _value: string };
+      expect(copied._type, shape).toBe('cdata');
+      for (const file of [TEXT, BINARY]) {
+        const { entry } = pasteSaveReopen(file, copied);
+        const member = shape === 'cell' ? entry.children[1] : entry.children[1].children[0];
+        expect([entry.displayValue, member.displayValue, member.children.map((n: any) => n.displayValue)], `${shape} ${file}`).toEqual([
+          `<1x1x2 ${shape}>`,
+          '<3x4 sparse double>',
+          ['10', '11', '20', '30'],
+        ]);
+      }
+    }
+  });
+});
+
+describe('MATLAB reads the stream such a cell or struct copied as back as it loads the variable in some cases and not in others (B-11)', () => {
+  type Read = { class?: string; size?: number[]; first?: number; member?: { class: string; size: number[]; sparse: boolean; nnz: number; values: number[] }; error?: string };
+  type Row = { id: string; kind: string; shape: string; file: string; format: string; fragment: string; loaded: Read; matlab: Read };
+  const TRUTH: { release: string; cases: Row[] } = JSON.parse(readFileSync(fileURLToPath(new URL('./parity/matlab/nd_undecoded_copy_readback.truth.json', import.meta.url)), 'utf8'));
+  const read = (rel: string) => testFile('fixtures/' + rel);
+  const { files, cases } = ndUndecodedCopyReadback({ createSession, ingest, uuencode, encodeMatStream }, matBytes, read);
+
+  it('each stream is the one MATLAB was asked about: the control as it is copied, each other as MatWriter encodes it', () => {
+    expect(TRUTH.release).toBe('2027a');
+    expect(cases.length).toBe(16);
+    expect(cases.map((c: any) => [c.file, c.fragment])).toEqual(TRUTH.cases.map((c) => [c.file, c.fragment]));
+  });
+
+  it('a 1x1x2 struct whose member\'s values are absent does not read back as it loads; the control and the rest do', () => {
+    const differs = TRUTH.cases.filter((c) => JSON.stringify(c.loaded) !== JSON.stringify(c.matlab));
+    expect(differs.map((c) => c.file)).toEqual(['absent_struct_text.sldd', 'absent_struct_binary.sldd']);
+    expect(differs[0].matlab).toEqual({ class: 'double', size: [1, 0] });
+    expect(differs[1].matlab.error).toBe('Unable to read data stream because the data contains a bad version or endian-key');
+    const member = (id: string) => TRUTH.cases.find((c) => c.id === id)!.loaded.member;
+    expect(member('intact_cell')).toEqual({ class: 'double', size: [3, 4], sparse: true, nnz: 4, values: [10, 11, 0, 0, 0, 20, 0, 0, 0, 0, 30, 0] });
+    // And what `load` makes of the values the file does not hold: zeros, the values this reader
+    // will not make up (F1-5), or for absent ones a 0x0 double.
+    expect(member('widthless_cell')!.values).toEqual(new Array(12).fill(0));
+    expect(member('short_cell')!.values).toEqual([10, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    expect(member('absent_cell')).toEqual({ class: 'double', size: [0, 0], sparse: false, nnz: 0, values: [] });
+  });
+
+  it('so the copy of each but the control is refused, and nothing is written in its place', () => {
+    for (const c of cases.filter((r: any) => r.format === 'text')) {
+      const v: any = createSession().addMatSource(c.mat, arrayBufferOf(files[c.mat])).children[0];
+      if (c.kind === 'intact') {
+        expect((copyOf(v) as { _value: string })._value, c.id).toBe(c.fragment);
+      } else {
+        expect(thrown(() => v.serialize()).slice(0, 5), c.id).toEqual(['MatBudgetError', true, 'not-decoded', 'c', c.shape === 'cell' ? 'c{2}' : 'c(2).f']);
+      }
+    }
   });
 });
