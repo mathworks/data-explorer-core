@@ -137,8 +137,7 @@ envelope; and the warnings say what MATLAB does there, which is one property's d
 whole coder info's. MATLAB read this package's edit of `ciA` so spelled back as written (2026-10-18:
 a Qualifier typed `constvolatile`, a header file `p.hpp`, a two-line PreStatement and a cleared
 DefinitionFile). (A `Simulink.VariantBank` in the same files has the same spelling, which
-`VariantBankNode` does not read yet: its fields show their defaults there, beside `Other` rows
-holding the file's values.)
+`VariantBankNode` reads the same way: `Simulink.VariantBank.md`.)
 
 Locked by `test/variantBankFields.test.ts` (both formats).
 
