@@ -382,6 +382,14 @@ describe('a cell member that opens with a sign or its imaginary part is what MAT
     // has (cellElementShape.test.ts); only a span that would have to be computed is refused.
     expect(MatlabValueParser.parse('{abc}')).toEqual({ type: 'cell', value: ['abc'], dims: [1, 1] });
     expect(MatlabValueParser.parse('{a_b, c1}')).toEqual({ type: 'cell', value: ['a_b', 'c1'], dims: [1, 2] });
+    // The operator check is on the bare member alone, not on the row it sits in: a word beside a
+    // member that holds a sign, an exponent, a quoted '-' or a signed array element is still text,
+    // and that member is read as it always was.
+    expect(MatlabValueParser.parse('{abc, -2}')).toEqual({ type: 'cell', value: ['abc', -2], dims: [1, 2] });
+    expect(MatlabValueParser.parse('{abc, 1e-3}')).toEqual({ type: 'cell', value: ['abc', 0.001], dims: [1, 2] });
+    expect(MatlabValueParser.parse("{abc, 'x-y'}")).toEqual({ type: 'cell', value: ['abc', 'x-y'], dims: [1, 2] });
+    expect(MatlabValueParser.parse('{abc, [1 -2]}')).toEqual({ type: 'cell', value: ['abc', [1, -2]], dims: [1, 2] });
+    expect(MatlabValueParser.parse('{-2, abc}')).toEqual({ type: 'cell', value: [-2, 'abc'], dims: [1, 2] });
   });
 
   it.each(ZERO_IMAGINARY)('$literal holds the real double MATLAB makes of a zero imaginary part', ({ literal, dims, members }) => {
