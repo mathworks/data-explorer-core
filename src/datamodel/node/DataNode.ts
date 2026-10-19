@@ -2245,10 +2245,36 @@ export default class DataNode extends BaseNode {
     // An element that is not a bag of fields (isFieldBag) is written as one holding none, as
     // StructNode reads it: Object.entries threw on a null one, and failed the whole write, and
     // wrote a string's or an array's indices as its fields.
+    //
+    // Each element is written with every field the struct has, as StructNode reads them (its
+    // fieldsOf: `_fields`, or element 1's keys), in that order, one the element does not hold as
+    // `[]` (StructNode's fieldOf), and then any other it holds, each name once. Written with only
+    // the fields it held, in its own order, `<Element></Element>` for `{}` or `null`, MATLAB R2027a
+    // read a struct of one element back with no field at all, and one whose first element lacks a
+    // field, or holds its fields in another order than `_fields` (as MATLAB's text dictionaries
+    // hold them, keys sorted), with its fields in another order; so did core's own reader. MATLAB
+    // reads this as it reads the text source (test/parity/matlab/struct_absent_fields_binary.truth.json).
+    const fields = Array.isArray(value._fields)
+      ? (value._fields as unknown[])
+      : elements.length > 0 && isFieldBag(elements[0])
+        ? Object.keys(elements[0])
+        : [];
     elements.forEach((elem, k) => {
       // With its origin in the file while a merge asks for it (EntrySource.originAttr).
       xml += ip + '<Element' + originAttr(elementOriginAt(value._elements, k)) + '>\n';
-      for (const [field, fieldVal] of Object.entries(isFieldBag(elem) ? elem : {})) {
+      const held: Record<string, unknown> = isFieldBag(elem) ? elem : {};
+      const written = new Map<string, unknown>();
+      for (const field of fields) {
+        if (typeof field === 'string' && !written.has(field)) {
+          written.set(field, Object.prototype.hasOwnProperty.call(held, field) ? held[field] : []);
+        }
+      }
+      for (const [field, fieldVal] of Object.entries(held)) {
+        if (!written.has(field)) {
+          written.set(field, fieldVal);
+        }
+      }
+      for (const [field, fieldVal] of written) {
         xml += DataNode.serializePropertyXml(field, fieldVal, indent + 2, null, DataNode._within(at, elements.length, k, '.' + field)) + '\n';
       }
       xml += ip + '</Element>\n';
