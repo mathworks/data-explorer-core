@@ -305,6 +305,12 @@ const REFUSED = [
   { column: 'variantConditions', typed: 'V==1', reason: MSG_NOT_CELL },
   { column: 'variantConditions', typed: '{1,2}', reason: MSG_NOT_STRING },
   { column: 'variantConditions', typed: "{{'V==1'}}", reason: MSG_NOT_STRING },
+  // MATLAB makes a cell of one number of each ({1+1i}, {1+1i}, {-2}: probe_cell_sign_literals.m),
+  // so its member is not text, as {1,2}'s are. A reader that did not take the imaginary-first or
+  // the spaced-sign form as one value would answer "must be a cell array" instead.
+  { column: 'variantConditions', typed: '{i+1}', reason: MSG_NOT_STRING },
+  { column: 'variantConditions', typed: '{i + 1}', reason: MSG_NOT_STRING },
+  { column: 'variantConditions', typed: '{- 2}', reason: MSG_NOT_STRING },
   { column: 'variantConditions', typed: "{''}", reason: MSG_EMPTY },
   { column: 'variantConditions', typed: "{'V==2147483648'}", reason: MSG_RANGE('2147483648', 'V==2147483648') },
   { column: 'variantConditions', typed: "{'V==-2147483649'}", reason: MSG_RANGE('-2147483649', 'V==-2147483649') },
