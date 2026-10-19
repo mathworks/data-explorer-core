@@ -50,10 +50,6 @@ function refusedAsField(parsed) {
 export default class ParameterNode extends DataNode {
     constructor(name, parent, props, serial) {
         super(name, parent, serial);
-        // The Dimensions and Complexity this Parameter held before a removal collapsed its Value
-        // node `of` to a scalar, which the undo of that removal puts back (childStructureChanged);
-        // null otherwise. Kept with the node it is of: a Value typed in since is another node.
-        this._preCollapseShape = null;
         this.Value = props.Value;
         this._valueNode = null;
         // 'auto' when the key is absent, because that is MATLAB's default and not a
@@ -287,11 +283,9 @@ export default class ParameterNode extends DataNode {
     // collapses the value node to the scalar 1, and without this the Parameter kept a
     // childless Value row (an expander onto nothing) until the file was reloaded.
     //
-    // Its Dimensions and Complexity follow the same line (the maintainer's ruling A7, 2026-10-15
-    // evening): MATLAB keeps them as the Value's, and `p.Value(2:3) = []` of [1+2i 3+4i 5+6i]
-    // leaves Dimensions [1 1] and Complexity 'complex', of [7 3+4i 5+6i] 'real' (measured, R2027a).
-    // They stayed [1 3] and 'complex', shown and saved. So the collapse sets them from the scalar
-    // left (_collapseShape), and the undo that brings the elements back puts back what they were.
+    // Its Dimensions and Complexity follow the Value too (_followValueShape): the value node
+    // reports here after every change to it, an Add or a removal, a Value typed on its row or
+    // on one of its elements, and the undo or redo of each.
     childStructureChanged(child) {
         if (child !== this._valueNode) {
             return;
@@ -299,51 +293,68 @@ export default class ParameterNode extends DataNode {
         if (ParameterNode._needsValueRow(child)) {
             if (this.children.length === 0) {
                 this.addChild(child);
-                this._restoreShape(child);
             }
-            return;
         }
-        if (this.children.length > 0) {
-            this._collapseShape(child);
+        else {
+            // Not removeChild: that nulls the child's parent, and this node lives on as
+            // _valueNode — it still formats and serializes the value, so it has to keep
+            // pointing back at this Parameter.
+            this.children = [];
         }
-        // Not removeChild: that nulls the child's parent, and this node lives on as
-        // _valueNode — it still formats and serializes the value, so it has to keep
-        // pointing back at this Parameter.
-        this.children = [];
+        this._followValueShape();
     }
-    // The Value has just lost its row: a scalar is all that is left of the array it was. Its
-    // Dimensions and Complexity become the scalar's, as MATLAB makes them, each where the file
-    // holds one: Dimensions [1 1], unless it is a symbolic one ('[1,N]'), which MATLAB keeps; and
-    // Complexity the scalar's, by the rule its save follows (MatlabVariableNode._isComplexValue).
-    _collapseShape(valueNode) {
+    // MATLAB keeps a Parameter's Dimensions and Complexity as its Value's: it refuses a numeric
+    // Dimensions other than its size (UDDData_CannotSetCustomDimensions) and any Complexity set
+    // (UDDData_CannotSetComplexity), and after an edit of the Value they are its size and its
+    // complexity (the maintainer's ruling A7, 2026-10-15 evening, for a removal that collapses
+    // it; measured for every edit core makes by test/parity/matlab/probe_parameter_shape.m,
+    // R2027a). They stayed as read, shown
+    // and saved: pRow cut from three elements to two kept [1 3], and [1 2 3 4] typed over it
+    // kept [1 3] and 'complex'. So after every edit they are set from the Value as it stands
+    // (_shapeFromValue), as MATLAB sets them, each where the file holds one, except that MATLAB
+    //   - keeps a symbolic Dimensions ('[1,N]');
+    //   - keeps both for an empty Value: [] typed over pRow leaves [1 3] and 'complex';
+    //   - keeps the Complexity of a struct Value: [] and then a struct typed over pRow leaves
+    //     'complex'.
+    // An undo puts back the Value, and these with it: an Add's or a removal's by this same
+    // rule, a Value typed in by what it held (_restorerFor).
+    _followValueShape() {
         const sp = this.serial._properties;
-        if (!sp) {
+        const shape = sp ? this._shapeFromValue() : null;
+        if (!sp || !shape) {
             return;
+        }
+        const has = (key) => Object.prototype.hasOwnProperty.call(sp, key);
+        const dims = sp.Dimensions;
+        const sameDims = Array.isArray(dims) && dims.length === shape.dims.length && dims.every((d, k) => d === shape.dims[k]);
+        if (has('Dimensions') && typeof dims !== 'string' && !sameDims) {
+            sp.Dimensions = shape.dims;
+        }
+        if (has('Complexity') && shape.complexity !== null && sp.Complexity !== shape.complexity) {
+            sp.Complexity = shape.complexity;
+        }
+    }
+    // The Value's size, and its complexity by the rule its save follows
+    // (MatlabVariableNode._isComplexValue), or null for a struct's, which MATLAB leaves as it
+    // was; or null for an empty Value, of which MATLAB keeps both. Text is a string scalar in
+    // MATLAB, whose Value setter makes one of any char ('' included): [1 1] and real.
+    _shapeFromValue() {
+        const valueNode = this._valueNode;
+        if (!valueNode) {
+            // A Value held bare: a number, a logical or a char, or no Value or an empty one.
+            const value = this.Value;
+            if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)) {
+                return null;
+            }
+            return { dims: [1, 1], complexity: 'real' };
+        }
+        const dims = valueNode.className === 'char' ? [1, 1] : valueNode.dims;
+        if (!Array.isArray(dims) || dims.some((d) => d === 0)) {
+            return null;
         }
         const isComplex = valueNode._isComplexValue;
-        const props = {};
-        if (Object.prototype.hasOwnProperty.call(sp, 'Dimensions') && typeof sp.Dimensions !== 'string') {
-            props.Dimensions = sp.Dimensions;
-            sp.Dimensions = [1, 1];
-        }
-        if (Object.prototype.hasOwnProperty.call(sp, 'Complexity') && typeof isComplex === 'function') {
-            props.Complexity = sp.Complexity;
-            sp.Complexity = isComplex.call(valueNode) ? 'complex' : 'real';
-        }
-        this._preCollapseShape = { of: valueNode, props };
-    }
-    // The Value has its row back: the undo of the removal that collapsed it. What the collapse
-    // set is put back as the file had it.
-    _restoreShape(valueNode) {
-        const shape = this._preCollapseShape;
-        const sp = this.serial._properties;
-        if (!shape || shape.of !== valueNode || !sp) {
-            return;
-        }
-        for (const key of Object.keys(shape.props)) {
-            sp[key] = shape.props[key];
-        }
-        this._preCollapseShape = null;
+        const complexity = valueNode.className === 'struct' || typeof isComplex !== 'function' ? null : isComplex.call(valueNode) ? 'complex' : 'real';
+        return { dims: dims.slice(), complexity };
     }
     // This node's one child IS the class's `Value` property, exactly as an object's
     // children are its properties — so its name is fixed by the class, not chosen by the
@@ -432,6 +443,7 @@ export default class ParameterNode extends DataNode {
                     this.Value = els;
                 }
                 this._markModified();
+                this._followValueShape();
                 return true;
             }
             // A string SCALAR — the one text class MATLAB genuinely stores at this
@@ -462,6 +474,7 @@ export default class ParameterNode extends DataNode {
                 this._adoptValueNode([parsed.value], true);
                 this.Value = [parsed.value];
                 this._markModified();
+                this._followValueShape();
                 return true;
             }
             if ((parsed.type === 'double' && Array.isArray(parsed.value)) || parsed.type === 'string-array') {
@@ -492,12 +505,14 @@ export default class ParameterNode extends DataNode {
                 this._adoptValueNode(rawValue, true);
                 this.Value = parsed.value;
                 this._markModified();
+                this._followValueShape();
                 return true;
             }
             if (parsed.type === 'complex') {
                 this._adoptValueNode({ _type: 'cdata', _value: parsed.value }, true);
                 this.Value = parsed.value;
                 this._markModified();
+                this._followValueShape();
                 return true;
             }
             // Every remaining type — including a char, at any shape — is stored as the
@@ -516,6 +531,7 @@ export default class ParameterNode extends DataNode {
             this._valueNode = null;
             this.Value = parsed.value;
             this._markModified();
+            this._followValueShape();
             return true;
         }
         if (propName === 'Min' || propName === 'Max') {
@@ -541,8 +557,27 @@ export default class ParameterNode extends DataNode {
     //
     // A Value the edit refuses (read from a stream, an encoded one or an enumeration value)
     // records no undo, so the restorer goes unused.
+    //
+    // The Dimensions and Complexity the edit sets from the Value (_followValueShape) are in the
+    // bag the file holds, which the edit changes in place, so they are held apart and put back
+    // with the Value: as they were, an empty Value's kept ones included.
     _restorerFor(propName) {
-        return propName === 'Value' ? this._ownStateRestorer(RESTORE_LEAVES) : null;
+        if (propName !== 'Value') {
+            return null;
+        }
+        const restore = this._ownStateRestorer(RESTORE_LEAVES);
+        const sp = this.serial._properties;
+        const held = sp ? ['Dimensions', 'Complexity'].filter((key) => Object.prototype.hasOwnProperty.call(sp, key)) : [];
+        const shape = held.map((key) => [key, sp[key]]);
+        return () => {
+            restore();
+            const now = this.serial._properties;
+            if (now) {
+                for (const [key, value] of shape) {
+                    now[key] = value;
+                }
+            }
+        };
     }
     _getSerializedProperties() {
         let innerValue;

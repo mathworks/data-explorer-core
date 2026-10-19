@@ -136,7 +136,9 @@ validation is not mirrored.
 - `SignalNode.setProperty('complexity'|'dimensionsMode', ...)` delegates to
   `DataNode._rejectUnknownEnumeral`, which reads the legal set off the atom the
   dropdown is built from. Returns `{error, reason: "There is no enumerated value
-  named 'X'."}`. Test: `test/signalEnumProps.test.ts`.
+  named 'X'."}`. Test: `test/signalEnumProps.test.ts`. The field's spelling
+  (`'Complexity'|'DimensionsMode'`) is the same property and takes the same check.
+  Test: `test/enumFieldSpelling.test.ts`.
 - Read-only props (DataType, Unit, Dimensions, SamplingMode, InitialValue): not
   editable in our UI; editor is `'label'` or column not projected. No dead
   validation needed.

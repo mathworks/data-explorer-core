@@ -1,0 +1,1806 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-10-19",
+  "symbolicDimensionsTag": "<P Name=\"Dimensions\" Class=\"char\">[1,N]</P>",
+  "rows": [
+    {
+      "id": "cut_row_to_2",
+      "entry": "pRow",
+      "edit": "p.Value(3) = [];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          2
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          2
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "cut_row_to_1",
+      "entry": "pRow",
+      "edit": "p.Value(3) = []; p.Value(2) = [];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "cut_col_to_2",
+      "entry": "pCol",
+      "edit": "p.Value(3) = [];",
+      "before": {
+        "dimensions": [
+          3,
+          1
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          2,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          2,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "cut_int16_to_2",
+      "entry": "pInt16Row",
+      "edit": "p.Value(3) = [];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          2
+        ],
+        "complexity": "complex",
+        "valueClass": "int16",
+        "valueSize": [
+          1,
+          2
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "add_row",
+      "entry": "pRow",
+      "edit": "p.Value(end+1) = 0;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "add_col",
+      "entry": "pCol",
+      "edit": "p.Value(end+1) = 0;",
+      "before": {
+        "dimensions": [
+          3,
+          1
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          4,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          4,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "add_int16",
+      "entry": "pInt16Row",
+      "edit": "p.Value(end+1) = 0;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "complex",
+        "valueClass": "int16",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "add_then_cut",
+      "entry": "pRow",
+      "edit": "p.Value(end+1) = 0; p.Value(end) = [];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          3
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "element_one_real",
+      "entry": "pRow",
+      "edit": "p.Value(1) = 7;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          3
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "elements_all_real",
+      "entry": "pRow",
+      "edit": "p.Value(1) = 7; p.Value(2) = 8; p.Value(3) = 9;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          3
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_real_row",
+      "entry": "pRow",
+      "edit": "p.Value = [1 2 3 4];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_real_col",
+      "entry": "pRow",
+      "edit": "p.Value = [1; 2; 3];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          3,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          3,
+          1
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_matrix",
+      "entry": "pRow",
+      "edit": "p.Value = [1 2; 3 4];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          2,
+          2
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          2,
+          2
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_scalar",
+      "entry": "pRow",
+      "edit": "p.Value = 5;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_complex",
+      "entry": "pRow",
+      "edit": "p.Value = 3+4i;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "typed_zero_imag",
+      "entry": "pRow",
+      "edit": "p.Value = 1+0i;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_empty",
+      "entry": "pRow",
+      "edit": "p.Value = [];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          0,
+          0
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_empty_char",
+      "entry": "pRow",
+      "edit": "p.Value = '';",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "string",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "typed_empty_string",
+      "entry": "pRow",
+      "edit": "p.Value = \"\";",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "string",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "typed_empty_on_real",
+      "entry": "pRow",
+      "edit": "p.Value = [1 2]; p.Value = [];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          2
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          0,
+          0
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_empty_on_struct",
+      "entry": "pStruct",
+      "edit": "p.Value = [];",
+      "before": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          0,
+          0
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_empty_then_row",
+      "entry": "pRow",
+      "edit": "p.Value = []; p.Value = [1 2 3 4];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_empty_then_struct",
+      "entry": "pRow",
+      "edit": "p.Value = []; p.Value = struct('field', 0);",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "struct",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "typed_struct_over_complex",
+      "entry": "pRow",
+      "edit": "p.Value = struct('field', 0);",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "struct",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "typed_char",
+      "entry": "pRow",
+      "edit": "p.Value = 'abc';",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "string",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "typed_string",
+      "entry": "pRow",
+      "edit": "p.Value = \"abc\";",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "string",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "typed_logical_row",
+      "entry": "pRow",
+      "edit": "p.Value = [true false];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          2
+        ],
+        "complexity": "real",
+        "valueClass": "logical",
+        "valueSize": [
+          1,
+          2
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_logical",
+      "entry": "pRow",
+      "edit": "p.Value = true;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "logical",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_over_scalar",
+      "entry": "pScalar",
+      "edit": "p.Value = [1 2 3 4];",
+      "before": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_over_struct",
+      "entry": "pStruct",
+      "edit": "p.Value = [1 2 3 4];",
+      "before": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_then_add",
+      "entry": "pRow",
+      "edit": "p.Value = [1 2 3]; p.Value(end+1) = 0;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "typed_then_cut",
+      "entry": "pRow",
+      "edit": "p.Value = [1 2 3]; p.Value(3) = [];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          2
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          2
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "struct_add_field",
+      "entry": "pStruct",
+      "edit": "p.Value.field = 0;",
+      "before": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "struct",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "symbolic_set",
+      "entry": "pRow",
+      "edit": "p.Dimensions = '[1,N]';",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          3
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "symbolic_cut",
+      "entry": "pRow",
+      "edit": "p.Dimensions = '[1,N]'; p.Value(3) = [];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          2
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "symbolic_add",
+      "entry": "pRow",
+      "edit": "p.Dimensions = '[1,N]'; p.Value(end+1) = 0;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "symbolic_typed",
+      "entry": "pRow",
+      "edit": "p.Dimensions = '[1,N]'; p.Value = [1 2 3 4];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "symbolic_typed_scalar",
+      "entry": "pRow",
+      "edit": "p.Dimensions = '[1,N]'; p.Value = 5;",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "symbolic_typed_empty",
+      "entry": "pRow",
+      "edit": "p.Dimensions = '[1,N]'; p.Value = [];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": true,
+      "identifier": "",
+      "message": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          0,
+          0
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "id": "dimensions_set_other",
+      "entry": "pRow",
+      "edit": "p.Dimensions = [1 5];",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": false,
+      "identifier": "Simulink:Data:UDDData_CannotSetCustomDimensions",
+      "message": "To set 'Dimensions' for data object, 'Value' must be empty.",
+      "after": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          3
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "id": "complexity_set_real",
+      "entry": "pRow",
+      "edit": "p.Complexity = 'real';",
+      "before": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex"
+      },
+      "ok": false,
+      "identifier": "Simulink:Data:UDDData_CannotSetComplexity",
+      "message": "'Complexity' must match complexity of numeric 'Value'.",
+      "after": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          3
+        ],
+        "isreal": false
+      }
+    }
+  ],
+  "reads": [
+    {
+      "file": "core_add_col.sldd",
+      "id": "add_col",
+      "entry": "pCol",
+      "error": "",
+      "after": {
+        "dimensions": [
+          4,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          4,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_add_int16.sldd",
+      "id": "add_int16",
+      "entry": "pInt16Row",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "complex",
+        "valueClass": "int16",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_add_row.sldd",
+      "id": "add_row",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_add_then_cut.sldd",
+      "id": "add_then_cut",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          3
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_cut_col_to_2.sldd",
+      "id": "cut_col_to_2",
+      "entry": "pCol",
+      "error": "",
+      "after": {
+        "dimensions": [
+          2,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          2,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_cut_int16_to_2.sldd",
+      "id": "cut_int16_to_2",
+      "entry": "pInt16Row",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          2
+        ],
+        "complexity": "complex",
+        "valueClass": "int16",
+        "valueSize": [
+          1,
+          2
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_cut_row_to_1.sldd",
+      "id": "cut_row_to_1",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_cut_row_to_2.sldd",
+      "id": "cut_row_to_2",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          2
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          2
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_element_one_real.sldd",
+      "id": "element_one_real",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          3
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_elements_all_real.sldd",
+      "id": "elements_all_real",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_struct_add_field.sldd",
+      "id": "struct_add_field",
+      "entry": "pStruct",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "struct",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_symbolic_add.sldd",
+      "id": "symbolic_add",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_symbolic_cut.sldd",
+      "id": "symbolic_cut",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          2
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_symbolic_set.sldd",
+      "id": "symbolic_set",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          3
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_symbolic_typed.sldd",
+      "id": "symbolic_typed",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_symbolic_typed_empty.sldd",
+      "id": "symbolic_typed_empty",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          0,
+          0
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_symbolic_typed_scalar.sldd",
+      "id": "symbolic_typed_scalar",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": "[1,N]",
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_char.sldd",
+      "id": "typed_char",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "string",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_typed_complex.sldd",
+      "id": "typed_complex",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_typed_empty.sldd",
+      "id": "typed_empty",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          3
+        ],
+        "complexity": "complex",
+        "valueClass": "double",
+        "valueSize": [
+          0,
+          0
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_empty_char.sldd",
+      "id": "typed_empty_char",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "string",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_typed_empty_on_real.sldd",
+      "id": "typed_empty_on_real",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          2
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          0,
+          0
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_empty_on_struct.sldd",
+      "id": "typed_empty_on_struct",
+      "entry": "pStruct",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          0,
+          0
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_empty_string.sldd",
+      "id": "typed_empty_string",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "string",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_typed_empty_then_row.sldd",
+      "id": "typed_empty_then_row",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_logical.sldd",
+      "id": "typed_logical",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_logical_row.sldd",
+      "id": "typed_logical_row",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          2
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          2
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_matrix.sldd",
+      "id": "typed_matrix",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          2,
+          2
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          2,
+          2
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_over_scalar.sldd",
+      "id": "typed_over_scalar",
+      "entry": "pScalar",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_over_struct.sldd",
+      "id": "typed_over_struct",
+      "entry": "pStruct",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_real_col.sldd",
+      "id": "typed_real_col",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          3,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          3,
+          1
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_real_row.sldd",
+      "id": "typed_real_row",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_scalar.sldd",
+      "id": "typed_scalar",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_string.sldd",
+      "id": "typed_string",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          1
+        ],
+        "complexity": "real",
+        "valueClass": "string",
+        "valueSize": [
+          1,
+          1
+        ],
+        "isreal": false
+      }
+    },
+    {
+      "file": "core_typed_then_add.sldd",
+      "id": "typed_then_add",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          4
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          4
+        ],
+        "isreal": true
+      }
+    },
+    {
+      "file": "core_typed_then_cut.sldd",
+      "id": "typed_then_cut",
+      "entry": "pRow",
+      "error": "",
+      "after": {
+        "dimensions": [
+          1,
+          2
+        ],
+        "complexity": "real",
+        "valueClass": "double",
+        "valueSize": [
+          1,
+          2
+        ],
+        "isreal": true
+      }
+    }
+  ]
+}

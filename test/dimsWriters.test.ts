@@ -391,6 +391,54 @@ describe('a value whose XML is its only spelling in a binary dictionary', () => 
     }
   });
 
+  it('so is a one-element array whose dims count another number of elements, [2,1], [1,0], [1,2], [0,0] or [2,0.5], where it was written as one object', () => {
+    // The same writer, DataNode._serializeSimulinkObjectXml, wrote the one element as a scalar
+    // object whatever the array's dims counted: a 2x1 Parameter holding one element was saved
+    // as a 1x1 one. So did a class with no node of its own (ObjectNode), whose one-element array
+    // is written there too. [2,0.5] multiplies to 1 and is no 1x1.
+    const one = (cls: string, d: unknown) => ({ _array_class: cls, ...(d === undefined ? {} : { _dimensions: d }), _elements: [{ _properties: cls === 'Simulink.Parameter' ? { Value: 1 } : { Description: 'd' } }] });
+    // Each place, and the object at it in the value saved.
+    const places: [string, (v: unknown) => unknown, (saved: any) => any][] = [
+      ['pasted', (v) => v, (s) => s],
+      ['pasted{1}', (v) => ({ _array_type: 'Cell', _dimensions: [1, 1], _elements: [v], _mw_element_type: 'MATLABArray' }), (s) => s._elements[0]],
+      ['pasted.f', (v) => ({ _array_type: 'Struct', _dimensions: [1, 1], _elements: [{ f: v }], _fields: ['f'] }), (s) => s._elements[0].f],
+    ];
+    const paste = (file: string, value: unknown) => {
+      const session = createSession();
+      const root: any = ingest(session, sparseFixture(file), { filename: file });
+      root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: '00000000-0000-4000-ef20-00000000000a' }, value });
+      return { session, root };
+    };
+    // The binary save's refusal, or else the objects' tags the pasted entry was written with.
+    const save = (value: unknown): unknown => {
+      const { session, root } = paste(BINARY, value);
+      const [e] = thrownBy(() => session.serializeSource(root.name));
+      if (e) return [e.name, (e as any).reason, e.message];
+      const xml = strFromU8(unzipSync(session.serializeSource(root.name)!.bytes!)['data/chunk0.xml']);
+      const entry = xml.slice(xml.indexOf('<P Name="Name" Class="char">pasted</P>'));
+      return entry.slice(0, entry.indexOf('</Object>')).match(/<Element Class="[^"]*"[^<>]*>/g);
+    };
+    for (const cls of ['Simulink.Parameter', 'Simulink.Signal', 'Simulink.AliasType', 'dexsparse.Unmodelled']) {
+      for (const [at, wrap, objectIn] of places) {
+        for (const [d, said] of [[[2, 1], '[2,1]'], [[1, 0], '[1,0]'], [[1, 2], '[1,2]'], [[0, 0], '[0,0]'], [[2, 0.5], '[2,0.5]']] as const) {
+          expect(save(wrap(one(cls, d))), `${cls} ${at} ${said}`).toEqual([
+            'MatWriteError',
+            undefined,
+            `Cannot write "pasted": ${at} is a ${cls} declaring dimensions ${said} and holding 1 element, which no Dimension spells. Nothing was written.`,
+          ]);
+          // A text dictionary's JSON spells it as it is: its save keeps the dims and the one element.
+          const text = paste(TEXT, wrap(one(cls, d)));
+          const saved = objectIn(entriesOf(JSON.parse(text.session.serializeSource(text.root.name)!.text!)).find((e: any) => e.name === 'pasted').value);
+          expect([saved._array_class, saved._dimensions, saved._elements.length], `${cls} ${at} ${said} in a text dictionary`).toEqual([cls, d, 1]);
+        }
+        // The controls: dims that count the one element, and none, are written as one object.
+        for (const d of [[1, 1], [1, 1, 1], [1], [], undefined]) {
+          expect(save(wrap(one(cls, d))), `${cls} ${at} ${JSON.stringify(d)}`).toEqual([`<Element Class="${cls}">`]);
+        }
+      }
+    }
+  });
+
   it('complex text pasted as an entry, a cell entry\'s element or a struct entry\'s field, with dims no Dimension can spell, is refused, not written as `Dimension="NaN*1"`', () => {
     // The node that writes these held its own dims, which it reads from the text — [1,1] for
     // 1+2i — to a Dimension's spelling, and then wrote the bag's _dimensions unchecked

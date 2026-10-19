@@ -8,7 +8,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import { emptyHeaderDims } from '../../parser/XmlUtils.js';
-import { isElement, reportNotElements } from './notAnElement.js';
+import { isElement, reportNotAList, reportNotElements } from './notAnElement.js';
 import { elementOriginAt, originOf, recordElementOrigins, recordOrigin, taggingOrigins } from '../../parser/EntrySource.js';
 // An empty as the binary reader holds one: a class under the bare `Matrix(…)` header of a size
 // with a 0 in it (BinarySlddParser.emptyOf).
@@ -18,6 +18,29 @@ function isTypedEmpty(v) {
     }
     const o = v;
     return typeof o._type === 'string' && emptyHeaderDims(o._value) !== null;
+}
+// An Elements_internal read in the form MATLAB's text dictionary gives a bus of one element, the
+// element itself, `{_id, _object_class, _properties}` (BaseBusNode._parseElements's last arm).
+function isElementForm(read) {
+    return read._elements === undefined && '_object_class' in read && !!read._properties;
+}
+// An element in that form: as it is where it carries its class, and otherwise (one added here) with
+// the array's, where MATLAB puts it, after its _id.
+function inElementForm(element, arrayClass) {
+    if ('_object_class' in element) {
+        return element;
+    }
+    const { _id, ...rest } = element;
+    return _id === undefined ? { _object_class: arrayClass, ...rest } : { _id, _object_class: arrayClass, ...rest };
+}
+// An element of the array, without the `_object_class` the element's form gave it where that is the
+// array's class, as MATLAB writes it there.
+function withoutArrayClass(element, arrayClass) {
+    if (element._object_class !== arrayClass) {
+        return element;
+    }
+    const { _object_class: _own, ...rest } = element;
+    return rest;
 }
 // Clone a Prop* atom with an expanded `sourceKeys`, preserving its static methods
 // (readValue/format) via the prototype chain — an object spread would drop them.
@@ -104,8 +127,9 @@ export class BaseBusNode extends DataNode {
         if (elementsInternal.length > 0) {
             // The source's Elements_internal may be in single-object form
             // (_object_class + _properties) or array form (_array_class + _elements).
-            // Always emit the canonical array form so the serializer uses the correct
-            // branch (_array_class) and respects the live _elements and _dimensions.
+            // The array form is written under the class either names, with the live
+            // _elements and _dimensions; one read in the single-object form keeps it
+            // while the bus holds one element (below).
             const arrayClass = rawEI && typeof rawEI === 'object' && !Array.isArray(rawEI)
                 ? (rawEI._array_class
                     || rawEI._object_class
@@ -117,7 +141,21 @@ export class BaseBusNode extends DataNode {
             // binary reader's bag carries it, and keeps it. The XML writer does not read it.
             const read = rawEI && typeof rawEI === 'object' && !Array.isArray(rawEI) ? rawEI : null;
             const elementType = read && '_mw_element_type' in read ? { _mw_element_type: read._mw_element_type } : {};
-            props.Elements_internal = { _array_class: arrayClass, _dimensions: [elementsInternal.length, 1], _elements: elementsInternal, ...elementType };
+            // MATLAB's text dictionary writes a bus of one element with its Elements_internal as
+            // that element, `{_id, _object_class, _properties}` (params.sldd's MyConnBus), and of
+            // more as the array above, whose elements carry no `_object_class` of the array's
+            // class (B-24, probe_bus_one_element_text.m). One read in the element's form is
+            // written back in it while the bus holds one element, so a save that changed nothing
+            // is the file (A4); with more, as MATLAB writes the array. One read as the array
+            // stays the array.
+            const elementForm = read !== null && isElementForm(read);
+            if (elementForm && elementsInternal.length === 1) {
+                props.Elements_internal = inElementForm(elementsInternal[0], arrayClass);
+            }
+            else {
+                const elements = elementForm ? elementsInternal.map(function (e) { return withoutArrayClass(e, arrayClass); }) : elementsInternal;
+                props.Elements_internal = { _array_class: arrayClass, _dimensions: [elements.length, 1], _elements: elements, ...elementType };
+            }
         }
         else if (isTypedEmpty(rawEI)) {
             // A bus read with no elements: its Elements_internal as the binary reader holds an
@@ -246,7 +284,7 @@ export class BaseBusNode extends DataNode {
         const node = new BusNodeClass(name, parent, serial);
         node.Description = props.Description || '';
         const busElements = props.Elements_internal;
-        if (busElements && busElements._elements) {
+        if (busElements && Array.isArray(busElements._elements)) {
             busElements._elements.forEach(function (busElem, index) {
                 // An element that is not one (a hand-edited `null`, number or string) gets no
                 // row, as one holding no properties gets none below; reported after the loop.
@@ -272,6 +310,12 @@ export class BaseBusNode extends DataNode {
             if (reportNotElements(busElements._elements, name, 'bus element', 'bus')) {
                 node._keepNullElement(rawVal);
             }
+        }
+        else if (busElements && busElements._elements !== undefined) {
+            // A list of elements that is not a list (a hand-edited number, string, object or
+            // `null`): no row, said once, and the value kept as read (C-190).
+            reportNotAList(busElements._elements, name, 'bus element', 'bus');
+            node._keepNullElement(rawVal);
         }
         else if (busElements && busElements._properties) {
             const childProps = busElements._properties;

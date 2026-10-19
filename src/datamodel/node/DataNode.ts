@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import BaseNode, { encodedHolderOf } from './BaseNode.js';
+import BaseNode, { encodedHolderOf, propNamed } from './BaseNode.js';
 import type { PropClass } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
@@ -417,13 +417,11 @@ export default class DataNode extends BaseNode {
   }
 
   // The prop atom `propName` names — by its own key or by the column it renders
-  // into, which is how an edit committed in the 'Value' column reaches the atom
-  // that actually owns it (a Variant's Condition/Specification). Undefined when
-  // this node has no such prop.
+  // into, or else by the node field it writes (BaseNode's propNamed has the rule).
+  // Every per-property gate asks here, so `Complexity` is checked as `complexity`
+  // is. Undefined when this node has no such prop.
   _propFor(propName: string): PropClass | undefined {
-    return this.getProperties().find(
-      (prop) => prop.key === propName || (prop as unknown as { column?: string }).column === propName,
-    );
+    return propNamed(this.getProperties(), propName);
   }
 
   _resolveProperty(propName: string): string {
@@ -1346,6 +1344,19 @@ export default class DataNode extends BaseNode {
     // gone. A nested object's spelling carries no _dimensions.
     if (!nested) {
       this._spellableOrRefuse(rawVal._dimensions, rawVal._array_class as string);
+      // And one element under dims that count another number, [2,1], [1,0] or [1,2]: it was
+      // written as a scalar object, its dims gone. Every extent must be 1, as [2,0.5] multiplies
+      // to 1 too. An array of more than one element is ObjectNode's to write; one of none is
+      // left as it was.
+      const dims = rawVal._dimensions;
+      const elements = rawVal._elements;
+      if (dims !== undefined && Array.isArray(elements) && elements.length === 1 && !everyExtent(dims, (x) => x === 1)) {
+        const where = this._whereWritten();
+        throw new MatWriteError(
+          'Cannot write "' + where.entry + '": ' + where.path + ' is ' + classPhrase(rawVal._array_class as string) + ' declaring dimensions ' +
+            dimsText(dims) + ' and holding 1 element, which no Dimension spells. Nothing was written.',
+        );
+      }
     }
     const props = this._xmlProperties();
 
@@ -2232,10 +2243,36 @@ export default class DataNode extends BaseNode {
     // An element that is not a bag of fields (isFieldBag) is written as one holding none, as
     // StructNode reads it: Object.entries threw on a null one, and failed the whole write, and
     // wrote a string's or an array's indices as its fields.
+    //
+    // Each element is written with every field the struct has, as StructNode reads them (its
+    // fieldsOf: `_fields`, or element 1's keys), in that order, one the element does not hold as
+    // `[]` (StructNode's fieldOf), and then any other it holds, each name once. Written with only
+    // the fields it held, in its own order, `<Element></Element>` for `{}` or `null`, MATLAB R2027a
+    // read a struct of one element back with no field at all, and one whose first element lacks a
+    // field, or holds its fields in another order than `_fields` (as MATLAB's text dictionaries
+    // hold them, keys sorted), with its fields in another order; so did core's own reader. MATLAB
+    // reads this as it reads the text source (test/parity/matlab/struct_absent_fields_binary.truth.json).
+    const fields = Array.isArray(value._fields)
+      ? (value._fields as unknown[])
+      : elements.length > 0 && isFieldBag(elements[0])
+        ? Object.keys(elements[0])
+        : [];
     elements.forEach((elem, k) => {
       // With its origin in the file while a merge asks for it (EntrySource.originAttr).
       xml += ip + '<Element' + originAttr(elementOriginAt(value._elements, k)) + '>\n';
-      for (const [field, fieldVal] of Object.entries(isFieldBag(elem) ? elem : {})) {
+      const held: Record<string, unknown> = isFieldBag(elem) ? elem : {};
+      const written = new Map<string, unknown>();
+      for (const field of fields) {
+        if (typeof field === 'string' && !written.has(field)) {
+          written.set(field, Object.prototype.hasOwnProperty.call(held, field) ? held[field] : []);
+        }
+      }
+      for (const [field, fieldVal] of Object.entries(held)) {
+        if (!written.has(field)) {
+          written.set(field, fieldVal);
+        }
+      }
+      for (const [field, fieldVal] of written) {
         xml += DataNode.serializePropertyXml(field, fieldVal, indent + 2, null, DataNode._within(at, elements.length, k, '.' + field)) + '\n';
       }
       xml += ip + '</Element>\n';

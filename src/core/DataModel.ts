@@ -29,6 +29,7 @@ import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 // a field of NodeUsage breaks the one line that installs the resolver — see UsageResolver.
 import type { RowData, UsageResolver, TypeLinkResolver } from '../datamodel/node/BaseNode.js';
 import RowCellPool from '../datamodel/node/RowCellPool.js';
+import { propNamed } from '../datamodel/node/BaseNode.js';
 
 // The session's own vocabulary — what a caller passes in and what these functions hand
 // back — and the compiler that turns one of those types, FindNodesQuery, into the tests
@@ -1635,20 +1636,18 @@ subscribe('node/children-changed', reindexAll);
 
 // The value `propertyName` currently holds on `node`, as the string setProperty
 // accepts, so an edit can be undone without the caller having to supply the prior
-// value. Falls back to `fallback` when the node does not project the property (an
-// arbitrary key, or one absent from getProperties), which keeps a caller that DOES
-// pass oldValue authoritative for anything this cannot see.
+// value. The prop is found as the node's own gates find it (propNamed: key, column,
+// or the node field, so `Complexity` as `complexity`). Falls back to `fallback` when
+// the node does not project the property (an arbitrary key, or one absent from
+// getProperties), which keeps a caller that DOES pass oldValue authoritative for
+// anything this cannot see.
 function readPropertyValue(node: INode, propertyName: string, fallback: unknown): unknown {
   try {
-    const props = node.getProperties();
-    for (let i = 0; i < props.length; i++) {
-      const key = props[i].key;
-      const column = (props[i] as unknown as { column?: string }).column;
-      if (key === propertyName || column === propertyName) {
-        // displayValue is the round-trippable text form (what the inspector shows
-        // and what an edit submits); `value` may be a live object reference.
-        return node.getPropInfo(props[i]).displayValue;
-      }
+    const prop = propNamed(node.getProperties(), propertyName);
+    if (prop) {
+      // displayValue is the round-trippable text form (what the inspector shows
+      // and what an edit submits); `value` may be a live object reference.
+      return node.getPropInfo(prop).displayValue;
     }
   } catch {
     // A node whose property projection throws must not break the edit itself.

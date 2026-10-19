@@ -1,0 +1,126 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "OneBus",
+						"metadata": {
+							"uuid": "61491575-5244-4711-a62d-84633735c221",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T032132.995730",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.Bus",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"DataScope": "Auto",
+										"Description": "",
+										"Elements_internal": {
+											"_id": "2",
+											"_object_class": "Simulink.BusElement",
+											"_properties": {
+												"Complexity": "real",
+												"Dimensions": 1,
+												"DimensionsMode": "Fixed",
+												"DocUnits": "",
+												"Name": "x"
+											}
+										},
+										"HeaderFile": "",
+										"PreserveElementDimensions": false
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "OneConnBus",
+						"metadata": {
+							"uuid": "6ef159fe-64c2-4965-a0ad-5b8ab3956cd4",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T032133.001138",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.ConnectionBus",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Description": "",
+										"Elements_internal": {
+											"_id": "2",
+											"_object_class": "Simulink.ConnectionElement",
+											"_properties": {
+												"Description": "",
+												"Name": "c1",
+												"Type_internal": "Connection: <domain name>"
+											}
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "OneServiceBus",
+						"metadata": {
+							"uuid": "9494e894-d189-4f2a-983d-bd76127cd847",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T032138.596329",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.ServiceBus",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Description": "",
+										"Elements_internal": {
+											"_id": "2",
+											"_object_class": "Simulink.FunctionElement",
+											"_properties": {
+												"Arguments": [],
+												"Asynchronous": false,
+												"Name": "svc",
+												"Prototype": "y = svc(u,v)"
+											}
+										}
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}
