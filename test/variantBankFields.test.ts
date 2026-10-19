@@ -1052,6 +1052,150 @@ describe('VariantBankCoderInfo fields: a coder info R2026b wrote, as plain prope
   });
 });
 
+// ─── A saveobj envelope spelled <P Name="undefined"> ──────────────────────────────────────────
+
+// An earlier version of this package wrote a saveobj envelope back as `<P Name="undefined"
+// Class="struct">` (its absent Name keyed under the string 'undefined'; DataNode.pxAttrs), in place
+// of MATLAB's `<P Source="saveobj" PropertyType="any" Class="struct">`, and a dictionary saved so
+// still holds a coder info that way. The node reads the five properties from the envelope, or
+// from R2026b's plain properties, and found neither there, so the coder info showed blank, with
+// its state only as an `Other.undefined` row and no warning (S1-26, theme 1).
+//
+// What R2027a (27.1.0.3409468) makes of it, measured by test/parity/matlab/probe_coderinfo_undefined.m
+// on files made from the R2027a fixtures (coderinfo_undefined.mjs), whose truth is read here, with
+// no warning in any case:
+//   - in a binary dictionary it cannot make the coder info at all: the entry's value fails with
+//     "Data dictionary unable to create an object of class 'Simulink.VariantBankCoderInfo'.",
+//     while the dictionary and its other entries open as written;
+//   - a text dictionary's plain bag holding only that struct is read as a coder info with every
+//     property at its default;
+//   - and one holding the five properties too is read from those, the 'undefined' ignored.
+// So the coder info is shown as read, with one warning that names 'undefined' and says what
+// MATLAB does, and it is saved as read. An edit of one of its five has nowhere to be saved, as
+// for any field the file does not have.
+type UndefinedCase = { id: string; format: Format; entries: string[]; beside?: boolean; sha256: string };
+type CoderInfoRead = Record<string, string>;
+const UNDEFINED_TRUTH: { release: string; cases: UndefinedCase[]; rows: { id: string; warning: string; reads: Record<string, CoderInfoRead> }[] } = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./parity/matlab/coderinfo_undefined.truth.json', import.meta.url)), 'utf8'),
+);
+const ENVELOPE_XML = '<P Source="saveobj" PropertyType="any" Class="struct">';
+const UNDEFINED_XML = '<P Name="undefined" Class="struct">';
+const OTHER_VALUES = { DefinitionFile: 'u.c', HeaderFile: 'u.h', PostStatement: 'upost', PreStatement: 'upre', Qualifier: 'Volatile' };
+// The file a case of the truth names, made as coderinfo_undefined.mjs made it, and checked to be
+// the one MATLAB opened (a binary file by its chunk, as the zip around it carries the time it was
+// made).
+function undefinedCaseFile(id: string): Uint8Array | string {
+  const c = UNDEFINED_TRUTH.cases.find((k) => k.id === id)!;
+  const sha = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+  if (c.format === 'binary') {
+    let edited = '';
+    const bytes = c.entries.length === 0 ? fixture('binary') : withXml((xml) => {
+      edited = xml;
+      for (const entry of c.entries) {
+        const element = coderInfoXml(edited, entry);
+        const at = edited.indexOf(element);
+        expect(element.startsWith(`<Element Class="Simulink.VariantBankCoderInfo">\n${' '.repeat(16)}${ENVELOPE_XML}`), entry).toBe(true);
+        edited = edited.slice(0, at) + element.replace(ENVELOPE_XML, UNDEFINED_XML) + edited.slice(at + element.length);
+      }
+      return edited;
+    });
+    expect(sha(chunkXml(bytes)), `${id} is the file MATLAB read`).toBe(c.sha256);
+    return bytes;
+  }
+  const json = JSON.parse(fixtureText());
+  for (const entry of json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries) {
+    if (c.entries.includes(entry.name)) {
+      const envelope = entry.value._elements[0]._custom_save;
+      const own = c.beside ? Object.fromEntries(Object.keys(envelope._elements[0]).sort().map((k) => [k, envelope._elements[0][k]])) : {};
+      entry.value._elements[0] = { _id: '1', _properties: { ...own, undefined: c.beside ? { ...envelope, _elements: [OTHER_VALUES] } : envelope } };
+    }
+  }
+  const text = JSON.stringify(json, null, '\t');
+  expect(sha(text), `${id} is the file MATLAB read`).toBe(c.sha256);
+  return text;
+}
+const undefinedRead = (id: string) => UNDEFINED_TRUTH.rows.find((r) => r.id === id)!.reads;
+const asRead = (ci: Record<string, unknown>) => ({ class: 'Simulink.VariantBankCoderInfo', ...ci });
+const CI_DEFAULTS = CI_WROTE.ciB;
+const NO_OBJECT = "Data dictionary unable to create an object of class 'Simulink.VariantBankCoderInfo'.";
+const shownCoderInfo = (node: DataNode) => Object.fromEntries(CI_COLUMNS.map((c) => [c, cellText(rowOf(node), c)]));
+const CI_SHOWN: Record<string, Record<string, string>> = {
+  ciA: { headerFile: 'h.h', definitionFile: 'd.c', preStatement: 'pre', postStatement: 'post', qualifier: 'Const' },
+  ciB: { headerFile: '', definitionFile: '', preStatement: '', postStatement: '', qualifier: 'None' },
+};
+const BLANK = { headerFile: '', definitionFile: '', preStatement: '', postStatement: '', qualifier: '' };
+const UNDEFINED_SAYS = {
+  binary: "its properties are held in a property named 'undefined' instead of the saveobj envelope MATLAB reads, so MATLAB cannot read it at all (getting its value fails)",
+  text: "its properties are held in a property named 'undefined' instead of as its own, which MATLAB reads as a coder info with every property at its default",
+};
+
+describe('VariantBankCoderInfo fields: a coder info whose envelope is spelled <P Name="undefined">', () => {
+  const DAMAGED = [
+    { id: 'b_ciA_undefined', damaged: ['ciA'] },
+    { id: 'b_both_undefined', damaged: ['ciA', 'ciB'] },
+    { id: 't_ciA_undefined', damaged: ['ciA'] },
+  ];
+
+  it('is a case MATLAB was given, each graded here, and MATLAB warned of none of them', () => {
+    expect(UNDEFINED_TRUTH.release).toBe('2027a');
+    expect(UNDEFINED_TRUTH.cases.map((c) => c.id).sort()).toEqual(['b_written', 't_ciA_undefined_beside', ...DAMAGED.map((d) => d.id)].sort());
+    expect(UNDEFINED_TRUTH.rows.map((r) => r.warning).filter((w) => w !== '')).toEqual([]);
+    // The binary fixture, as MATLAB wrote it, is read as written: the cases differ from it only
+    // where they say.
+    expect(undefinedRead('b_written')).toEqual({ ciA: asRead(CI_WROTE.ciA), ciB: asRead(CI_WROTE.ciB) });
+    const { source } = open(undefinedCaseFile('b_written'));
+    expect(source.warnings).toBeUndefined();
+  });
+
+  it.each(DAMAGED)('$id: is shown as read, warned of by name, and saved as read', ({ id, damaged }) => {
+    const content = undefinedCaseFile(id);
+    const format: Format = typeof content === 'string' ? 'text' : 'binary';
+    // What MATLAB read: no coder info at all from a binary dictionary, every default from a text one.
+    const reads = undefinedRead(id);
+    for (const entry of ['ciA', 'ciB']) {
+      const read = damaged.includes(entry) ? (format === 'binary' ? { error: NO_OBJECT } : asRead(CI_DEFAULTS)) : asRead(CI_WROTE[entry]);
+      expect(reads[entry], `MATLAB's ${entry}`).toEqual(read);
+    }
+    const { session, source } = open(content);
+    // Shown as read: the five are not in the file, and the struct is listed under Other.
+    for (const entry of ['ciA', 'ciB']) {
+      const node = entryIn(source, entry);
+      expect(shownCoderInfo(node), entry).toEqual(damaged.includes(entry) ? BLANK : CI_SHOWN[entry]);
+      expect(Object.keys(pi(node).values).filter((k) => k.startsWith('Other.')), entry).toEqual(damaged.includes(entry) ? ['Other.undefined'] : []);
+    }
+    // One warning for each, naming 'undefined', and saying what MATLAB does with it.
+    const warnings: ParseWarning[] = source.warnings ?? [];
+    expect(warnings.map((w) => [w.part, w.code])).toEqual(damaged.map((entry) => [entry, 'part-unreadable']));
+    for (const [k, entry] of damaged.entries()) {
+      expect(warnings[k].message).toBe(
+        `"${entry}" holds a Simulink.VariantBankCoderInfo MATLAB does not read as written: ${UNDEFINED_SAYS[format]}. `
+          + 'It is shown as read, and saved as read unless edited.',
+      );
+    }
+    // An edit has nowhere to be saved, and the file is saved as read.
+    const node = entryIn(source, damaged[0]);
+    expect(node.setProperty('headerFile', 'x.h')).toMatchObject({
+      error: true,
+      reason: `'${damaged[0]}' was read with no HeaderFile in its saved form, so a Header File edit has nowhere to be saved.`,
+    });
+    const out = saved(session, source);
+    if (typeof content === 'string') {
+      expect(out).toBe(content);
+    } else {
+      expect(chunkXml(out as Uint8Array)).toBe(chunkXml(content));
+    }
+  });
+
+  it('one that holds its own five properties too is read from them, as MATLAB reads it, with no warning', () => {
+    expect(undefinedRead('t_ciA_undefined_beside')).toEqual({ ciA: asRead(CI_WROTE.ciA), ciB: asRead(CI_WROTE.ciB) });
+    const text = undefinedCaseFile('t_ciA_undefined_beside') as string;
+    const { session, source } = open(text);
+    expect(source.warnings).toBeUndefined();
+    expect(shownCoderInfo(entryIn(source, 'ciA'))).toEqual(CI_SHOWN.ciA);
+    expect(saved(session, source)).toBe(text);
+  });
+});
+
 // ═══ A Simulink.VariantBank in R2026b's spelling ═════════════════════════════════════════════
 //
 // A text dictionary R2026b wrote holds a bank as plain properties too, with no envelope, as it

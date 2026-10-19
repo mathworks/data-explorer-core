@@ -1,0 +1,140 @@
+{"version":"27.1.0.3409468 (R2027a) Prerelease","release":"2027a","date":"2026-10-18",
+"cases": [
+ {
+  "id": "b_written",
+  "format": "binary",
+  "entries": [],
+  "sha256": "d56233fa102fe577644babac6394ba3e35fdf8912a90425d6931861408ca56b0"
+ },
+ {
+  "id": "b_ciA_undefined",
+  "format": "binary",
+  "entries": [
+   "ciA"
+  ],
+  "sha256": "36a9ac7d50f17a28e45335c39bc171d846ab2b9312ccd4fded1978532faebb6e"
+ },
+ {
+  "id": "b_both_undefined",
+  "format": "binary",
+  "entries": [
+   "ciA",
+   "ciB"
+  ],
+  "sha256": "af4b215ef17d90cae6a5120e41beb060a5d9b94f5bd03133a06d58b1626e7398"
+ },
+ {
+  "id": "t_ciA_undefined",
+  "format": "text",
+  "entries": [
+   "ciA"
+  ],
+  "sha256": "e5de7bdd5808fc347086e0e69c58efa5dce720513a8276f7ac92bca0d865eb0b"
+ },
+ {
+  "id": "t_ciA_undefined_beside",
+  "format": "text",
+  "entries": [
+   "ciA"
+  ],
+  "beside": true,
+  "sha256": "eacc4e8f14d16114e0a1d88b2d0bcaea5400216b9d916a9b5047c555b5c2eae3"
+ }
+],
+"rows": [
+  {
+    "id": "b_written",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "h.h",
+        "DefinitionFile": "d.c",
+        "PreStatement": "pre",
+        "PostStatement": "post",
+        "Qualifier": "Const"
+      },
+      "ciB": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      }
+    }
+  },
+  {
+    "id": "b_ciA_undefined",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "error": "Data dictionary unable to create an object of class 'Simulink.VariantBankCoderInfo'."
+      },
+      "ciB": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      }
+    }
+  },
+  {
+    "id": "b_both_undefined",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "error": "Data dictionary unable to create an object of class 'Simulink.VariantBankCoderInfo'."
+      },
+      "ciB": {
+        "error": "Data dictionary unable to create an object of class 'Simulink.VariantBankCoderInfo'."
+      }
+    }
+  },
+  {
+    "id": "t_ciA_undefined",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      },
+      "ciB": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      }
+    }
+  },
+  {
+    "id": "t_ciA_undefined_beside",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "h.h",
+        "DefinitionFile": "d.c",
+        "PreStatement": "pre",
+        "PostStatement": "post",
+        "Qualifier": "Const"
+      },
+      "ciB": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      }
+    }
+  }
+]}

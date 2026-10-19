@@ -141,6 +141,30 @@ DefinitionFile). (A `Simulink.VariantBank` in the same files has the same spelli
 
 Locked by `test/variantBankFields.test.ts` (both formats).
 
+## An envelope spelled `<P Name="undefined">`
+
+An earlier version of this package wrote a saveobj envelope back as `<P Name="undefined"
+Class="struct">` in place of MATLAB's `<P Source="saveobj" PropertyType="any" Class="struct">`
+(`DataNode.pxAttrs`), so a binary dictionary it saved can hold a coder info whose five properties
+are inside a property named `undefined`, with no envelope and none of the five beside it. Neither
+spelling above finds them there, so the row shows the five blank and the Property Inspector lists
+the struct as `Other.undefined`.
+
+What R2027a makes of it (2026-10-18, `test/parity/matlab/probe_coderinfo_undefined.m`, on files
+made from the R2027a fixtures by `coderinfo_undefined.mjs`), with no warning in any case:
+
+- A binary dictionary so spelled opens, and its other entries read as written, but that entry's
+  value fails: "Data dictionary unable to create an object of class
+  'Simulink.VariantBankCoderInfo'."
+- A text dictionary's plain bag holding only that struct is read as a coder info with every
+  property at its default.
+- A plain bag holding the five properties too is read from them, and the `undefined` is ignored.
+
+Following theme 1, such a coder info is shown as read and saved as read, and the dictionary's
+warnings carry one `part-unreadable` for it that names `undefined` and says what MATLAB does with
+it in that format. An edit of one of the five has nowhere to be written, as for any field the
+file does not have, and is refused so. A bag with the five beside its `undefined` is not reported.
+
 ## Description: the class has none
 
 `properties(Simulink.VariantBankCoderInfo)` lists the five above and no Description. The row used
