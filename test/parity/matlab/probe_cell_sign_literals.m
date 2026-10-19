@@ -1,6 +1,6 @@
 % What does MATLAB make of a cell literal whose member opens with a sign and a space
 % (`{- 2}`, `{1, - 2}`), or with its imaginary part (`{i + 1}`, `{2i - 3}`), and of the
-% arithmetic beside those forms (`{- 2 - 3}`, `{[1] - 2}`, `{i + 1i}`)?
+% arithmetic beside those forms (`{- 2 - 3}`, `{[1] - 2}`, `{i + 1i}`), spaced or not (`{1+2}`, `{-a}`)?
 %
 % The grading table is ../../cellSignMember.test.ts, which quotes each LIT row of this
 % probe's output (R2027a, 27.1.0.3409468) above the entry it grades. The parser
@@ -18,7 +18,10 @@ lits = {'{- 2}', '{-2}', '{1, - 2}', '{i + 1}', '{2i - 3}', '{i+1}', '{2i-3}', '
         '{2i - 1e3}', '{2.5i + .5}', '{i - 0}', '{-i - 0}', '{i +1}', '{2i -3}', ...
         '{- 2 - 3}', '{- 2 + 3}', '{1, - 2 - 3}', '{- -2}', '{- a}', '{[1] - 2}', '{''a'' - 2}', '{"a" - 2}', ...
         '{[1 2] + 3}', '{- [1 2]}', '{- ''a''}', '{1 - 2}', '{a + b}', '{1 + 2i + 3}', '{i + 1i}', '{i + 1 + 2}', ...
-        '{2i+3i}', '{i + -1}', '{1 + -2i}', '{Infi + 1}', '{- 2 3i}'};
+        '{2i+3i}', '{i + -1}', '{1 + -2i}', '{Infi + 1}', '{- 2 3i}', ...
+        '{1+2}', '{1-2}', '{a+b}', '{a-b}', '{-a}', '{+a}', '{2*3}', '{6/2}', '{6\2}', '{2^3}', '{2.*3}', ...
+        '{1, 2+3}', '{2+3, 1}', '{1+2; 3}', '{1+2+3i}', '{-pi}', '{-true}', '{-}', '{+}', ...
+        '{abc}', '{1e+3}', '{1e-3}', '{1+2i}', '{-2i}'};
 for k = 1:numel(lits)
     try
         v = eval(lits{k});

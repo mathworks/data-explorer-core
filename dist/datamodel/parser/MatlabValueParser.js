@@ -769,8 +769,10 @@ function tokenizeCellElements(rowStr) {
             // still a rejection of the whole cell. So is a span joined at a `+` or `-` that
             // is not a complex literal (`1 + 2`, `a + b`, `'a' + 1`): MATLAB adds the terms,
             // this parser does no arithmetic, and the text held as a char is a value MATLAB
-            // never makes of it ({3}, a sum, {98}).
-            if (ch === '[' || ch === '{' || ch === "'" || ch === '"' || joined) {
+            // never makes of it ({3}, a sum, {98}). Unspaced, it is the same arithmetic, and so is
+            // a sign on a name: `{1+2}`, `{a+b}`, `{2i+3i}`, `{2*3}`, `{-a}` were each held as one
+            // char, where the spaced form beside them was refused. A bare word holds no operator.
+            if (ch === '[' || ch === '{' || ch === "'" || ch === '"' || joined || /[-+*/\\^]/.test(span)) {
                 return null;
             }
             elements.push(span);

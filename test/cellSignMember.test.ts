@@ -135,12 +135,43 @@ const MATLAB_COMPUTES: { literal: string; matlab: string }[] = [
   { literal: '{i + -1}', matlab: 'cell [1 1] {double complex [1 1] [-1,1i]}' },
   { literal: '{1 + -2i}', matlab: 'cell [1 1] {double complex [1 1] [1,-2i]}' },
   { literal: '{Infi + 1}', matlab: "ERROR Unrecognized function or variable 'Infi'." },
+  // Unspaced, the same arithmetic. Each was held as one char member ('1+2', '-a'), a value MATLAB
+  // never makes of it, where the spaced form beside it was refused.
+  { literal: '{1+2}', matlab: 'cell [1 1] {double [1 1] [3]}' },
+  { literal: '{1-2}', matlab: 'cell [1 1] {double [1 1] [-1]}' },
+  { literal: '{a+b}', matlab: "ERROR Unrecognized function or variable 'a'." },
+  { literal: '{a-b}', matlab: "ERROR Unrecognized function or variable 'a'." },
+  { literal: '{2i+3i}', matlab: 'cell [1 1] {double complex [1 1] [0,5i]}' },
+  { literal: '{1+2+3i}', matlab: 'cell [1 1] {double complex [1 1] [3,3i]}' },
+  { literal: '{-a}', matlab: "ERROR Unrecognized function or variable 'a'." },
+  { literal: '{+a}', matlab: "ERROR Unrecognized function or variable 'a'." },
+  { literal: '{-pi}', matlab: 'cell [1 1] {double [1 1] [-3.1415926535897931]}' },
+  { literal: '{-true}', matlab: 'cell [1 1] {double [1 1] [-1]}' },
+  { literal: '{2*3}', matlab: 'cell [1 1] {double [1 1] [6]}' },
+  { literal: '{6/2}', matlab: 'cell [1 1] {double [1 1] [3]}' },
+  { literal: '{6\\2}', matlab: 'cell [1 1] {double [1 1] [0.33333333333333331]}' },
+  { literal: '{2^3}', matlab: 'cell [1 1] {double [1 1] [8]}' },
+  { literal: '{2.*3}', matlab: 'cell [1 1] {double [1 1] [6]}' },
+  { literal: '{1, 2+3}', matlab: 'cell [1 2] {double [1 1] [1] ; double [1 1] [5]}' },
+  { literal: '{2+3, 1}', matlab: 'cell [1 2] {double [1 1] [5] ; double [1 1] [1]}' },
+  { literal: '{1+2; 3}', matlab: 'cell [2 1] {double [1 1] [3] ; double [1 1] [3]}' },
 ];
 
-/** Read as before: a sign with whitespace before it and none after starts a member. */
+/**
+ * Read as before: a sign with whitespace before it and none after starts a member, and a sign
+ * inside one literal (an exponent's, a complex part's, a leading one) is that literal's own.
+ */
 const READ_AS_BEFORE: { literal: string; dims: number[]; members: Member[] }[] = [
   // LIT {-2}             -> cell [1 1] {double [1 1] [-2]}
   { literal: '{-2}', dims: [1, 1], members: [-2] },
+  // LIT {1e+3}           -> cell [1 1] {double [1 1] [1000]}
+  { literal: '{1e+3}', dims: [1, 1], members: [1000] },
+  // LIT {1e-3}           -> cell [1 1] {double [1 1] [0.001]}
+  { literal: '{1e-3}', dims: [1, 1], members: [0.001] },
+  // LIT {1+2i}           -> cell [1 1] {double complex [1 1] [1,2i]}
+  { literal: '{1+2i}', dims: [1, 1], members: [{ re: 1, im: 2 }] },
+  // LIT {-2i}            -> cell [1 1] {double complex [1 1] [-0,-2i]}
+  { literal: '{-2i}', dims: [1, 1], members: [{ re: -0, im: -2 }] },
   // LIT {i +1}           -> cell [1 2] {double complex [1 1] [0,1i] ; double [1 1] [1]}
   { literal: '{i +1}', dims: [1, 2], members: [{ re: 0, im: 1 }, 1] },
   // LIT {2i -3}          -> cell [1 2] {double complex [1 1] [0,2i] ; double [1 1] [-3]}
@@ -201,6 +232,23 @@ describe('a cell member that opens with a sign or its imaginary part is what MAT
     expect(parsed, literal).not.toBeNull();
     expect(parsed!.dims).toEqual(dims);
     expect((parsed!.value as unknown[]).map(memberOf)).toEqual(members.map(expected));
+  });
+
+  it('refuses a lone sign, which MATLAB cannot read either', () => {
+    // LIT {-}              -> ERROR Error: Unexpected '}'. When calling a function or indexing a variable, use parentheses. Otherwise, check for mismatched delimiters.
+    // LIT {+}              -> (the same)
+    // Held as the char '-' or '+' before, a value MATLAB never makes of the text.
+    for (const literal of ['{-}', '{+}']) {
+      expect(MatlabValueParser.parse(literal), literal).toBeNull();
+    }
+  });
+
+  it('keeps a bare word, which holds no operator, as the text it was', () => {
+    // LIT {abc}            -> ERROR Unrecognized function or variable 'abc'.
+    // MATLAB looks the name up. This reader holds it as text the table can show, as it always
+    // has (cellElementShape.test.ts); only a span that would have to be computed is refused.
+    expect(MatlabValueParser.parse('{abc}')).toEqual({ type: 'cell', value: ['abc'], dims: [1, 1] });
+    expect(MatlabValueParser.parse('{a_b, c1}')).toEqual({ type: 'cell', value: ['a_b', 'c1'], dims: [1, 2] });
   });
 
   it('leaves the top level and arrays as they were: refused, not read', () => {
@@ -338,7 +386,7 @@ for (const { format, file } of FORMATS) {
     });
 
     it('refuses a sign after a term and a member it would have to compute, leaving the value as it was', () => {
-      for (const literal of ['{[1] - 2}', "{'a' - 2}", '{- 2 - 3}', '{i + 1i}', '{- -2}']) {
+      for (const literal of ['{[1] - 2}', "{'a' - 2}", '{- 2 - 3}', '{i + 1i}', '{- -2}', '{1+2}', '{a+b}', '{-a}', '{2i+3i}']) {
         const { session, entry } = openCCplx(file);
         const result = session.editProperty(entry.id, 'Value', literal);
         expect(result, literal).toMatchObject({ error: true, reason: 'Invalid MATLAB expression' });
