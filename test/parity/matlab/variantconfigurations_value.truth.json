@@ -1,0 +1,91 @@
+{"version":"27.1.0.3409468 (R2027a) Prerelease","release":"2027a","date":"2026-10-18",
+"rows": [
+  {
+    "typed": "Simulink.VariantConfigurationData",
+    "class": "Simulink.VariantConfigurations",
+    "properties": [
+      "Configurations",
+      "Constraints",
+      "PreferredConfiguration"
+    ],
+    "isprop_Value": false,
+    "meta": {
+      "names": [
+        "Configurations",
+        "VariantConfigurations",
+        "Constraints",
+        "DefaultConfigurationName",
+        "PreferredConfiguration",
+        "DataDictionaryName",
+        "DataDictionarySection",
+        "AreSubModelConfigurationsMigrated",
+        "ComponentConfigurationData",
+        "Version"
+      ],
+      "hidden": [
+        false,
+        true,
+        false,
+        true,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    "get_Value": {
+      "identifier": "MATLAB:noSuchMethodOrField",
+      "message": "Unrecognized method, property, or field 'Value' for class 'Simulink.VariantConfigurations'."
+    },
+    "set_Value": {
+      "identifier": "MATLAB:noPublicFieldForClass",
+      "message": "Unrecognized property 'Value' for class 'Simulink.VariantConfigurations'."
+    }
+  },
+  {
+    "typed": "Simulink.VariantConfigurations",
+    "class": "Simulink.VariantConfigurations",
+    "properties": [
+      "Configurations",
+      "Constraints",
+      "PreferredConfiguration"
+    ],
+    "isprop_Value": false,
+    "meta": {
+      "names": [
+        "Configurations",
+        "VariantConfigurations",
+        "Constraints",
+        "DefaultConfigurationName",
+        "PreferredConfiguration",
+        "DataDictionaryName",
+        "DataDictionarySection",
+        "AreSubModelConfigurationsMigrated",
+        "ComponentConfigurationData",
+        "Version"
+      ],
+      "hidden": [
+        false,
+        true,
+        false,
+        true,
+        false,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    "get_Value": {
+      "identifier": "MATLAB:noSuchMethodOrField",
+      "message": "Unrecognized method, property, or field 'Value' for class 'Simulink.VariantConfigurations'."
+    },
+    "set_Value": {
+      "identifier": "MATLAB:noPublicFieldForClass",
+      "message": "Unrecognized property 'Value' for class 'Simulink.VariantConfigurations'."
+    }
+  }
+]}

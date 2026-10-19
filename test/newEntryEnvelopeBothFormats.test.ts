@@ -43,6 +43,8 @@ import VariantBankNode from '../src/datamodel/node/data/VariantBankNode.js';
 import VariantBankCoderInfoNode from '../src/datamodel/node/data/VariantBankCoderInfoNode.js';
 import VariantConfigurationDataNode from '../src/datamodel/node/data/VariantConfigurationDataNode.js';
 import ParameterNode from '../src/datamodel/node/data/ParameterNode.js';
+import SimulinkObjectNode from '../src/datamodel/node/SimulinkObjectNode.js';
+import type BaseNode from '../src/datamodel/node/BaseNode.js';
 import { unzipSync } from 'fflate';
 import {
   loadModel,
@@ -165,8 +167,8 @@ function objectPropNames(entryXml: string): string[] {
 }
 
 let seq = 0;
-/** A one-entry dictionary chunk, parsed back into a model, and the node it holds. */
-function reopen(entryXml: string): any {
+/** A one-entry dictionary chunk, parsed back into a model, and the node it holds (or the one named `name`). */
+function reopen(entryXml: string, name?: string): any {
   const xml =
     '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<DataSource FormatVersion="1" MinRelease="R2014a">\n' +
@@ -181,7 +183,7 @@ function reopen(entryXml: string): any {
     path: 'envelope.sldd',
   });
   const find = (n: any): any => {
-    if (n.serial && n.serial._properties) {
+    if (name === undefined ? n.serial && n.serial._properties : n.name === name) {
       return n;
     }
     for (const c of n.children ?? []) {
@@ -321,14 +323,13 @@ describe('C-199: a value saved beside a NEW entry\'s envelope can be cleared, in
   //
   // That shape was first pinned on VariantBank's `Value`, which C-168 removed: MATLAB's
   // Simulink.VariantBank has no Value, so none can be set on a new bank any more, and
-  // VariantBankCoderInfo's went the same way (C-169). VariantConfigurations' is now the only
-  // field a new entry still writes as a sibling beside an envelope that does not declare it.
-  // MATLAB's class may not have that one either (it is unmeasured); if it goes too, this row
-  // has no vehicle left among new entries, and the undeclared case below fails first.
+  // VariantBankCoderInfo's went the same way (C-169). VariantConfigurations' went last (B-19):
+  // MATLAB R2027a's class has no Value either (parity/matlab/variantconfigurations_value.truth.json),
+  // so no class this package models writes a field beside an envelope that does not declare it.
+  // The undeclared shape is pinned below on a class of this test's own, UndeclaredSiblingNode.
   const FIXTURE = 'cases.sldd';
   const CLEARABLE = [
     { className: 'Simulink.VariantVariable', prop: 'Specification', declared: true },
-    { className: 'Simulink.VariantConfigurations', prop: 'Value', declared: false },
   ] as const;
 
   /** A new `className` entry in cases.sldd with `prop` set to 'x', saved and reopened. */
@@ -406,13 +407,100 @@ describe('C-199: a value saved beside a NEW entry\'s envelope can be cleared, in
     }
   }
 
+  /**
+   * A custom saver whose node writes, beside its envelope, a property the envelope does not
+   * declare: the shape this describe's undeclared case needs, which no class this package models
+   * has any more. Its class name is no MATLAB class, so the reader models what it reads as an
+   * ObjectNode; the test hands what the reader read to this class's `parse`, as SectionNode hands
+   * a registered class the entry's value (NodeRegistry.parseValue).
+   */
+  const UNDECLARED_CLASS = 'Test.UndeclaredSibling';
+  class UndeclaredSiblingNode extends SimulinkObjectNode {
+    Value: unknown;
+    constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) {
+      super(name, parent, serial);
+      this.Value = props.Value !== undefined ? props.Value : '';
+    }
+    get className(): string {
+      return UNDECLARED_CLASS;
+    }
+    _serializedOverrides(): Record<string, unknown> {
+      return { Value: this.Value };
+    }
+    static get defaultName(): string {
+      return 'UndeclaredSibling';
+    }
+    static parse(rawVal: Record<string, unknown>, name: string, parent: BaseNode | null): UndeclaredSiblingNode {
+      const props = UndeclaredSiblingNode._propsOf(rawVal);
+      return new UndeclaredSiblingNode(name, parent, props, { _rawVal: rawVal, _properties: props });
+    }
+    static createDefault(name: string, parent: BaseNode | null): UndeclaredSiblingNode {
+      return UndeclaredSiblingNode.parse(
+        UndeclaredSiblingNode._defaultCustomSaveRawVal(UNDECLARED_CLASS, ['Version'], { Version: '27.1' }),
+        name,
+        parent,
+      );
+    }
+  }
+
+  /**
+   * `node` written by the format's own writer and read back by its reader, as the vehicle: a
+   * binary entry through `serializeEntryToXml` and the binary parser (`reopen`), a text one
+   * through `serializeValue` inside a whole text dictionary and that dictionary's reader.
+   */
+  function readBack(node: UndeclaredSiblingNode, format: SlddFormat, uri: string): { written: any; back: UndeclaredSiblingNode } {
+    if (format === 'binary') {
+      const xml = serializeEntryToXml(node as any);
+      const read: any = reopen(xml, 'vNew');
+      expect(read.className).toBe(UNDECLARED_CLASS);
+      return { written: xml, back: UndeclaredSiblingNode.parse(read.serial._rawVal, 'vNew', null) };
+    }
+    const json = JSON.parse(new TextDecoder().decode(serializeModel(loadModel('json', FIXTURE, uri), 'json')));
+    const entries = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries as any[];
+    entries.push({
+      name: 'vNew',
+      metadata: { ...entries[0].metadata, uuid: 'c199c199-0000-4000-8000-000000000001' },
+      // What a text dictionary is written from; a node with no section answers the value alone.
+      value: (node as any).serialize(),
+    });
+    const read = entryByName(reparseModel(new TextEncoder().encode(JSON.stringify(json, null, '\t')), 'json', FIXTURE, uri), uri, 'vNew');
+    expect(read.className).toBe(UNDECLARED_CLASS);
+    return { written: entries[entries.length - 1].value._elements[0], back: UndeclaredSiblingNode.parse(read.serial._rawVal, 'vNew', null) };
+  }
+
+  for (const format of ['binary', 'json'] as const) {
+    it(UNDECLARED_CLASS + '.Value, ' + format + ': cleared after a save, it is written and reopens cleared', () => {
+      const uri = 'mem://c199-undeclared-' + format;
+      const node = UndeclaredSiblingNode.createDefault('vNew', null);
+      expect(node.setProperty('Value', 'x')).toBe(true);
+      const first = readBack(node, format, uri);
+      // The premise, stated so a vehicle that stops being one fails here rather than passing
+      // vacuously: the envelope declares no Value, so the sibling is the only copy.
+      expect((first.back.serial._properties as any)[SAVEOBJ_KEY]._fields).not.toContain('Value');
+      expect((first.back.serial._properties as any).Value).toBe('x');
+      expect(first.back.Value).toBe('x');
+
+      expect(first.back.setProperty('Value', '')).toBe(true);
+      const second = readBack(first.back, format, uri);
+      // The written form is the envelope alone, as created; before C-199 the sibling still said 'x'.
+      if (format === 'binary') {
+        expect(objectPropNames(second.written)).toEqual(['<unnamed>']);
+        expect(second.written).not.toContain('>x</P>');
+      } else {
+        expect(Object.keys(second.written)).toEqual([CUSTOM_SAVE_KEY]);
+        expect(Object.prototype.hasOwnProperty.call(second.written[CUSTOM_SAVE_KEY]._elements[0], 'Value')).toBe(false);
+      }
+      expect(second.back.serial._properties).not.toHaveProperty('Value');
+      expect(second.back.Value).toBe('');
+    });
+  }
+
   it('an undeclared field: the sibling goes, and the envelope is the same object', () => {
     // On _mergeProps directly, because only identity can say the envelope was not rebuilt.
-    const uri = 'mem://c199-new-undeclared';
-    const v: any = entryByName(savedNew('binary', 'Simulink.VariantConfigurations', 'Value', uri), uri, 'vNew');
+    const node = UndeclaredSiblingNode.createDefault('vNew', null);
+    expect(node.setProperty('Value', 'x')).toBe(true);
+    const v: any = readBack(node, 'binary', 'mem://c199-new-undeclared').back;
     const bag = v.serial._properties as Record<string, unknown>;
-    // The premise, stated so a vehicle that stops being one fails here rather than passing
-    // vacuously: the envelope declares no Value, so the sibling is the only copy.
     expect((bag[SAVEOBJ_KEY] as any)._fields).not.toContain('Value');
     expect(bag.Value).toBe('x');
     const merged = v._mergeProps({ Value: '' });
