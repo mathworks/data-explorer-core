@@ -183,8 +183,8 @@ describe('ParameterNode.dataType', () => {
   it('reports auto when the dictionary stores no DataType', () => {
     // An absent DataType is MATLAB's default, 'auto' — not "unknown". A text sldd
     // omits the key for a default-typed Parameter while a binary one writes
-    // DataType="auto" explicitly (verified on the matched pair
-    // ~/delite/mix/param_json.sldd and param_bin.sldd, whose P01_Default came from
+    // DataType="auto" explicitly (verified on a matched pair of MATLAB-written
+    // dictionaries, one text and one binary, whose P01_Default came from
     // the same MATLAB script), so reading absence literally showed the SAME
     // parameter as blank in one format and 'auto' in the other.
     const p = parseParam({ Value: 7 });

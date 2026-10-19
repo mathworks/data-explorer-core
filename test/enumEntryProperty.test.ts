@@ -311,8 +311,8 @@ describe('and is saved as MATLAB wrote it', () => {
   it('and one that is not a row, or has more than two dimensions, as MATLAB spells it there', () => {
     // A column as a typed column of its numbers, as a customer dictionary's text twin holds a
     // 7x1 of uint8 enumerals; past two dimensions, MATLAB's MAT stream of them, which is
-    // MATLAB's own bytes for dNJSON_SLDDApi.sldd's matEnum3D, the text twin of
-    // dSLDD_JSONApi.sldd's eight enumerals below.
+    // MATLAB's own bytes for matEnum3D in a text dictionary MATLAB wrote, the text twin of
+    // the eight enumerals below, from a binary dictionary MATLAB wrote.
     const enumeral = (cls: string, name: string, type: string, value: string) =>
       `            <Element Class="${cls}" EnumerationName="${name}" EnumerationType="${type}">${value}</Element>`;
     const column = ['        <P Name="Value" IsEnum="1" Dimension="7*1">', ...Array.from({ length: 7 }, () => enumeral('ShiftMode', 'Off', 'uint8', '0')), '        </P>'].join('\n');
@@ -351,7 +351,7 @@ describe('and is saved as MATLAB wrote it', () => {
     // What changes on the way into a text dictionary is what the binary reader says is its own
     // (XmlUtils.ENUM_KEY). MATLAB's spelling there goes as it came: custom_object_text.sldd's
     // gearValue, gearRow and widget.Mode, each with the `_id` MATLAB stamps, its spelling of an
-    // empty one, `{_type: 'GearMode', _value: '[]'}` (dNJSON_SLDDApi.sldd's matEmptyEnum
+    // empty one, `{_type: 'GearMode', _value: '[]'}` (that text dictionary's matEmptyEnum
     // entries), and of a 2x2x2, the MAT stream of matEnum3D.
     const json = JSON.parse(strFromU8(bytesAt(TEXT_HOST)));
     const entries: any[] = json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
@@ -385,7 +385,7 @@ describe('and is saved as MATLAB wrote it', () => {
   });
 });
 
-/** MATLAB's MAT stream of int32 [0 1; 2 0] and [2 10; 0 1], a 2x2x2, as its text dictionary holds it: dNJSON_SLDDApi.sldd's matEnum3D. */
+/** MATLAB's MAT stream of int32 [0 1; 2 0] and [2 10; 0 1], a 2x2x2, as its text dictionary holds it: matEnum3D in a text dictionary MATLAB wrote. */
 const MATLAB_ENUM_3D =
   '  %)30     .    6     8    (    #          %    #     (    "     @         !          4    @          (    !          (         "@    $    \u0000\u0000';
 

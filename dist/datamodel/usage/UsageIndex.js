@@ -319,7 +319,7 @@ export function resolveName(model, name, slddByName, matByName, systemPath = '')
 }
 const reverseKey = (srcId, name) => `${srcId}\n${name}`;
 // Keyed by the block's KEY (its SID), which is what paramsOf is asked with. Keying this by
-// name merged every same-named block in a model: in f14.slx one lookup of `Gain` answered
+// name merged every same-named block in a model: in a shipped demo model one lookup of `Gain` answered
 // with four different blocks' gains.
 const forwardKey = (modelSrcId, blockKey) => `${modelSrcId}\n${blockKey}`;
 /**

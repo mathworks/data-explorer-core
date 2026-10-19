@@ -482,7 +482,7 @@ export function resolveName(
 
 const reverseKey = (srcId: string, name: string): string => `${srcId}\n${name}`;
 // Keyed by the block's KEY (its SID), which is what paramsOf is asked with. Keying this by
-// name merged every same-named block in a model: in f14.slx one lookup of `Gain` answered
+// name merged every same-named block in a model: in a shipped demo model one lookup of `Gain` answered
 // with four different blocks' gains.
 const forwardKey = (modelSrcId: string, blockKey: string): string => `${modelSrcId}\n${blockKey}`;
 

@@ -459,7 +459,7 @@ describe('numeric character references, which both engines decode', () => {
   it('keeps a decoded LF, CR or space even when it is the whole value', () => {
     // A decoded value is offered to the layout-whitespace hook like any other, so a leaf that is
     // nothing but `&#xD;` is MATLAB's one-character CR and has to survive as one — the case
-    // dSLDD_JSONApi.sldd's varStrCR is.
+    // varStrCR in a binary dictionary MATLAB wrote is.
     expectRead('<P Name="v">&#xD;</P>', { P: [{ '#text': '\r', '@_Name': 'v' }] });
     expectRead('<P>&#32;&#10;</P>', { P: [' \n'] });
     // Beside a child it is layout, and dropped, as the same characters written raw would be.

@@ -125,8 +125,8 @@ describe('decodeMcosBlob — an Nx1 MCOS property keeps its column shape', () =>
 // C-033: a REAL numeric property of a class other than double keeps its class. The
 // decoder handed every numeric scalar and row over bare, and stamped `double` on every
 // column and matrix, so a Simulink.Parameter whose Value is int32([1 2 3]) showed class
-// double in a .mat and a model workspace, where both dictionaries show int32 (the corpus
-// twins param_vars.mat / param_bin.sldd, P47_ValInt32Vec). Each is now the binary
+// double in a .mat and a model workspace, where both dictionaries show int32 (a .mat and a
+// binary dictionary in the corpus that one MATLAB script wrote, P47_ValInt32Vec). Each is now the binary
 // dictionary's spelling of the same value (BinarySlddParser formatTypedScalar,
 // formatTypedVector, formatMatrix), which the node layer already reads. A double is
 // unchanged: bare scalar and row, `_type: 'double'` column and matrix.

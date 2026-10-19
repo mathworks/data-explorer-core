@@ -973,10 +973,10 @@ describe('VariantBankCoderInfo fields: a hand-edited coder info is shown as read
 // ─── R2026b's spelling ────────────────────────────────────────────────────────────────────────
 
 // A text dictionary R2026b wrote holds a coder info as plain properties, with no envelope
-// (~/delite/textsldd/dd.sldd and mix/dd_json.sldd): `"_elements": [{"_id": "1", "_properties":
+// (two such dictionaries): `"_elements": [{"_id": "1", "_properties":
 // {"DefinitionFile": "", "HeaderFile": "", "PostStatement": "", "PreStatement": "", "Qualifier":
 // "None"}}]`. R2027a reads it property by property, through the setters (the r2026b LOAD lines of
-// make_variantbank_r2027a.m, which respell ciA so, and a copy of ~/delite/textsldd/dd.sldd edited
+// make_variantbank_r2027a.m, which respell ciA so, and a copy of one of those dictionaries edited
 // by hand): HeaderFile 'x.h' and Qualifier 'Const' as written, a Qualifier 'const' as 'Const' and
 // 'foo' as 'None', and a HeaderFile 'a.c', a DefinitionFile 'a b.c' or a HeaderFile 5 as '' with
 // every other property as written. This is the committed R2027a text fixture with ciA and ciB

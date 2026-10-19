@@ -399,7 +399,7 @@ describe('findUsages() — which blocks reference a definition', () => {
         modelSrcId: 'mdlcases.mdl',
         // `<sid>@<model>`: the cell reads `TF` and the link carries SID 3, which is what
         // this file records for that block. A name would not identify it — see
-        // blockIdentity, and the four blocks named `Gain` in f14.slx.
+        // blockIdentity, and the four blocks named `Gain` in a shipped demo model.
         linkTarget: '3@mdlcases.mdl',
       },
     ]);

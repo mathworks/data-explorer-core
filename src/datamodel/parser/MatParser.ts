@@ -254,8 +254,8 @@ function pastElementLimit(view: DataView, sub: SubElement, count: number, what: 
  *
  * getFloat32 hands back the double of the same value, and every number here prints as the
  * shortest text of its DOUBLE: single(3.3) is the double 3.299999952316284, and showed so,
- * where both dictionaries hold MATLAB's own text for the same value, `3.3` (the corpus
- * twins param_vars.mat / param_json.sldd, P30_TypeMaxUnitDesc; DESIGN.md recorded the
+ * where both dictionaries hold MATLAB's own text for the same value, `3.3` (a .mat and a
+ * text dictionary in the corpus that one MATLAB script wrote, P30_TypeMaxUnitDesc; DESIGN.md recorded the
  * difference as a limitation). It is not "the shortest decimal that is the same float32":
  * MATLAB writes single(1/3) as 0.333333343, where 0.33333334 would do, and the smallest
  * subnormal as 1.4013e-45, where 1e-45 would. make_typed_fixtures.m's sSingleSweep, 4,082

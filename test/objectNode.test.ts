@@ -399,7 +399,7 @@ describe('ObjectNode keeps the `_`-named keys of its property bag', () => {
 
   describe('in a binary dictionary, where the saveobj envelope is the only one with an XML spelling', () => {
     // MATLAB writes a table's `_overridden_*` keys into a text dictionary and not into a binary
-    // one: the corpus's binary twin of parity/dNJSON_SLDDApi.sldd holds the same table with none
+    // one: the binary twin, in the corpus, of a text dictionary MATLAB wrote holds the same table with none
     // of them. Nor can the XML spell them, because no `_`-named key but SAVEOBJ_KEY has a <P>
     // spelling (DataNode.pxAttrs), so one goes out as `<P Name="_overridden_data" …>`, a property
     // the class does not have. A host pastes a text dictionary's entry into a binary one from its

@@ -1945,7 +1945,7 @@ entry, and this one only misbehaves one level down, inside a cell.
 ## A defect found by clicking a link the Usage column drew
 
 Also not a phase, and reported the same way 49 was — by a user, on their own models. Three
-parameters in `mWhereUsedRefVars.slx` and its child rendered as links and did nothing when
+parameters in one of the user's models and its child rendered as links and did nothing when
 clicked: a Bus Selector's `OutputSignals=a,b`, a Math Function's `Operator=square`, and a
 Model block's file name. The dead link is a **VS Code renderer** defect and is fixed there
 (both `paramLinks` arms now gate the anchor on `linkTarget`, as the Value column already
