@@ -299,6 +299,17 @@ export function complexPropertyValue(cell) {
 }
 // An exact 64-bit token (a string) is always finite.
 const isFinitePart = (x) => typeof x !== 'number' || Number.isFinite(x);
+// The slots of a cell under an object that resolveValue could not read, by the cell's bag: each
+// slot's index and what MatParser read there, the variable, or null for an element that is not a
+// matrix. The bag keeps `undefined` in such a slot, as it always has, so what a copy replays of it
+// does not change. The node layer shows each one as not decoded (MatlabVariableNode.parseCell),
+// where it showed the double 0, and the bridge says so (mcosTypedNode.reportUndecoded), where it
+// said nothing. A side table rather than a key of the bag, which every writer would spell.
+const unreadSlots = new WeakMap();
+/** The slots of `bag`, a cell resolveValue built, that it could not read; undefined for any other value. */
+export function unreadCellSlots(bag) {
+    return bag !== null && typeof bag === 'object' ? unreadSlots.get(bag) : undefined;
+}
 // Turn a parsed mxArray value into a property value in the SLDD-shaped form the
 // data model expects. Object handles recurse into nested { _object_class,
 // _properties }; structs and cells recurse into { _array_type: 'Struct'|'Cell', … }.
@@ -382,12 +393,25 @@ function resolveValue(cell, ctx, path, depth, owner, propName) {
         if (handle !== null) {
             return { _type: 'function_handle', _value: handle };
         }
-        return {
+        const bag = {
             _array_type: 'Cell',
             _dimensions: cell.dimensions || [1, elems.length],
             _elements: resolved,
             _mw_element_type: 'MATLABArray',
         };
+        // A slot it could not read (unreadCellSlots): one that is not a matrix (MatParser's null), or
+        // a value no arm here spells, one MatParser recorded without decoding among them.
+        let unread = null;
+        for (let i = 0; i < resolved.length; i++) {
+            if (resolved[i] === undefined) {
+                unread = unread ?? new Map();
+                unread.set(i, elems[i] ?? null);
+            }
+        }
+        if (unread) {
+            unreadSlots.set(bag, unread);
+        }
+        return bag;
     }
     if (cls === 'char') {
         return typeof val === 'string' ? val : '';

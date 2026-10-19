@@ -240,7 +240,7 @@ export default class MatlabVariableNode extends DataNode {
     private _buildSparseChildren;
     private _makeStringElement;
     _buildStringChildren(): void;
-    _buildCellChildren(elements: unknown[]): void;
+    _buildCellChildren(elements: unknown[], unread?: ReadonlyMap<number, MatVariable | null>): void;
     canAddChild(): boolean;
     addChildNode(): BaseNode | null;
     private _becomeStruct;
@@ -446,6 +446,23 @@ export default class MatlabVariableNode extends DataNode {
      */
     _undecodedRefusal(): MatBudgetError;
     /**
+     * Is this a struct array with fields or a cell, read from a MAT stream, that declares elements
+     * and whose bytes hold none of them — the reader's `"v" declares 3 cell(s) and only 0 could be
+     * read`? One holding SOME of them is written at its declared size beside those it holds, and
+     * MATLAB R2027a reads that back with the rest `[]`, its field names kept, in a text and a binary
+     * dictionary (short_array_copy_readback.truth.json, B-26). One holding none has no such form: a
+     * struct array's bag names its fields from its element rows, so it named none, and MATLAB read a
+     * 1x3 struct with no fields; a cell's XML was `Dimension="0*0"`, a 0x0 cell. The maintainer's
+     * group F ruling (theme 1: a save the writer cannot spell is refused rather than written wrong)
+     * refuses it, as a value the reader did not decode is (_undecodedRefusal). Its MAT stream, which
+     * MatWriter writes padded (an N-D one's copy, measured too), is not refused. Nor is a container
+     * the node ceiling built without its rows (_cutByCeiling), which is written from a twin with
+     * them, nor a struct with no fields, which holds every element it declares.
+     */
+    _heldNone(): boolean;
+    /** The refusal of a struct array or a cell none of whose elements could be read (_heldNone). */
+    _heldNoneRefusal(): MatBudgetError;
+    /**
      * The variable a member of a cell or a struct is written from. A member of another class
      * — a struct a text dictionary read as a StructNode, a Simulink object — has none here: it
      * stands in as one MatWriter refuses (`_unwritable`), with the dims it declares, so that a
@@ -458,6 +475,17 @@ export default class MatlabVariableNode extends DataNode {
     static _createOpaque(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createFromMatHandle(variable: MatVariable, text: string | null, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createUndecoded(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
+    /**
+     * A slot of a cell under an MCOS object that the decoder could not read (McosParser.unreadCellSlots),
+     * as not decoded: no editor, no value, and a copy refused (_undecodedRefusal). It was the double 0,
+     * editable, built from the `undefined` the decoder left in the slot. `variable` is what MatParser
+     * read there: one it recorded without decoding is the row it is at the top of a .mat, its
+     * placeholder (_createUndecoded); any other, of a class no arm spells or holding no data, is its
+     * class and size (createNotDecoded). Null is an element that is not a matrix, of no class or size
+     * the bytes say: `<unknown, not decoded>`, as a value whose dims are no numbers is spelled without
+     * them (parseMatVariable). At the top of a .mat that slot is a hole, `[ ]`, a value it never held.
+     */
+    static _createUnreadSlot(variable: MatVariable | null, name: string, parent: BaseNode | null): MatlabVariableNode;
     static createNotDecoded(variable: MatVariable, name: string, parent: BaseNode | null, cls?: string): MatlabVariableNode;
     static createFromMcosDecoded(variable: MatVariable, decoded: {
         value: unknown;

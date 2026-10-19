@@ -16,12 +16,13 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renameInMat } from './tools/matRename.js';
-import { createSession } from '../src/index.js';
+import { MatBudgetError, createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { buildTypedNodeFromMcos } from '../src/datamodel/node/data/mcosTypedNode.js';
 import StructNode from '../src/datamodel/node/data/StructNode.js';
 import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
+import { thrownBy } from './tools/pasteVenues.js';
 
 const fixture = (rel: string) => new Uint8Array(readFileSync(new URL(`./fixtures/${rel}`, import.meta.url)));
 
@@ -104,6 +105,81 @@ describe('a cell under a decoded object that holds fewer cells than it declares'
     const { holder, warnings } = holderOpened([1, 2]);
     expect(warnings).toEqual([]);
     expect(holder.children.find((x: any) => x.name === 'C').children).toHaveLength(2);
+  });
+});
+
+// holder.C's two elements as MATLAB wrote them, 1+2i and [3+4i 5+6i]: each one's miMATRIX tag (14) and
+// byte count, its array flags (a complex double, class 6) and its dims, and the first one's name and
+// parts. `tag` and `cls` respell an element in place, at the same length, so the cell's walk still
+// lands on the next element where MATLAB put it.
+const firstCell = (tag = 14, cls = 6, d = [1, 1]) => [
+  tag, 0, 0, 0, 72, 0, 0, 0, 6, 0, 0, 0, 8, 0, 0, 0, cls, 8, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 8, 0, 0, 0, ...new Uint8Array(Int32Array.from(d).buffer),
+  1, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 63, 9, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64,
+];
+const secondCellTag = (tag = 14) => [tag, 0, 0, 0, 88, 0, 0, 0];
+function slotsOpened(d: number[], first: number[], second = secondCellTag()): { c: any; warnings: ParseWarning[] } {
+  const from = Uint8Array.from([...cellHeader([1, 2]), ...firstCell(), ...secondCellTag()]);
+  const out = renameInMat(fixture('mcos/complex_objects.mat'), from, Uint8Array.from([...cellHeader(d), ...first, ...second]));
+  expect(out.hits).toBe(1);
+  const src: any = createSession().addMatSource('complex_objects.mat', out.bytes);
+  const holder = src.children.find((x: any) => x.name === 'holder');
+  return { c: holder.children.find((x: any) => x.name === 'C'), warnings: src.warnings ?? [] };
+}
+const slotRows = (c: any) => c.children.map((e: any) => [e.displayName, e.displayValue, e.valueEditable]);
+// What a host meets copying the slot: the refusal of a value that was not decoded (F1-10), naming it.
+function copyRefused(node: any): unknown[] {
+  const [e] = thrownBy(() => node.serialize());
+  const b = e as MatBudgetError | null;
+  return [e instanceof MatBudgetError, b?.reason, b?.entry, b?.at, e?.message];
+}
+const refusedAs = (what: string, why?: string) => [
+  true, 'not-decoded', 'holder', 'holder.C{1}',
+  `Cannot write "holder": holder.C{1} is ${what} that was not decoded${why ? ` (${why})` : ''}, so there is no value of it to write. Nothing was written.`,
+];
+
+describe('a cell slot under a decoded object that could not be read', () => {
+  // McosParser's cell arm resolved each slot and kept what it could not read as `undefined`, which
+  // the node layer built as the double 0: holder.C showed `{0, [3+4i 5+6i]}`, editable, said nothing,
+  // and a copy of the slot was the 0. At the top of a .mat the same cell says it holds one cell of
+  // its two (MatParser.collectUndecoded). Under an object it now says so in those words, and the slot
+  // shows as not decoded (theme 1: show what was read), with no editor and a refused copy.
+  it('one that is not a matrix: shown as not decoded, in its own place, and counted as not read', () => {
+    const { c, warnings } = slotsOpened([1, 2], firstCell(2));
+    expect(warnings).toEqual([cellsSaid('holder.C', 2, 1)]);
+    expect(slotRows(c)).toEqual([['C{1}', '<unknown, not decoded>', false], ['C{2}', '[3+4i 5+6i]', true]]);
+    expect(c.displayValue).toBe('{<unknown, not decoded>, [3+4i 5+6i]}');
+    expect(copyRefused(c.children[0])).toEqual(refusedAs('a 1x1 unknown'));
+    // The second slot, the first read: nothing slides into the hole.
+    const second = slotsOpened([1, 2], firstCell(), secondCellTag(2));
+    expect(second.warnings).toEqual([cellsSaid('holder.C', 2, 1)]);
+    expect(slotRows(second.c)).toEqual([['C{1}', '1+2i', true], ['C{2}', '<unknown, not decoded>', false]]);
+  });
+
+  it('one of a class the reader does not model: the same, under the class the file names', () => {
+    const { c, warnings } = slotsOpened([1, 2], firstCell(14, 99));
+    expect(warnings).toEqual([cellsSaid('holder.C', 2, 1)]);
+    expect(slotRows(c)).toEqual([['C{1}', '<1x1 unknown, not decoded>', false], ['C{2}', '[3+4i 5+6i]', true]]);
+    expect(copyRefused(c.children[0])).toEqual(refusedAs('a 1x1 unknown', 'its MAT array class is not one this reader models'));
+  });
+
+  it('one the reader recorded without decoding: shown by its placeholder, and said with its reason, as at the top of a .mat', () => {
+    const { c, warnings } = slotsOpened([1, 2], firstCell(14, 6, [1, 100_000_000]));
+    const why = 'declares 100000000 elements, more than the 32 bytes left in it can hold';
+    expect(warnings).toEqual([{ code: 'part-unreadable', message: `"holder.C{1}" was not decoded: ${why}.`, part: 'holder.C{1}' }]);
+    expect(slotRows(c)).toEqual([['C{1}', '<1x100000000 double, not decoded>', false], ['C{2}', '[3+4i 5+6i]', true]]);
+    expect(copyRefused(c.children[0])).toEqual(refusedAs('a 1x100000000 double', why));
+  });
+
+  it('in a cell that also holds fewer cells than it declares: one warning, counting both', () => {
+    const { c, warnings } = slotsOpened([1, 3], firstCell(2));
+    expect(warnings).toEqual([cellsSaid('holder.C', 3, 1)]);
+    expect(slotRows(c)).toEqual([['C{1}', '<unknown, not decoded>', false], ['C{2}', '[3+4i 5+6i]', true]]);
+  });
+
+  it('control: the respelling is the identity on the pristine bytes, and the slots read', () => {
+    const { c, warnings } = slotsOpened([1, 2], firstCell());
+    expect(warnings).toEqual([]);
+    expect(slotRows(c)).toEqual([['C{1}', '1+2i', true], ['C{2}', '[3+4i 5+6i]', true]]);
   });
 });
 

@@ -18,8 +18,8 @@ import { encodedBytes, matStreamPrefix } from '../src/datamodel/parser/EncodedVa
 import { MAX_EXPANDED_ELEMENTS } from '../src/datamodel/display/DisplayConvention.js';
 import { CLASS, MI, arrayFlags, cellVar, dims, element, matFile, matrix, numericVar, structVar, varName } from './tools/matBytes.js';
 import { renameInMat } from './tools/matRename.js';
-import { BINARY, TEXT, copyOf, pasteSaveReopen, sparseFixture } from './tools/pasteVenues.js';
-import { createSession, ingest } from '../src/index.js';
+import { BINARY, TEXT, copyOf, pasteSaveReopen, sparseFixture, thrownBy } from './tools/pasteVenues.js';
+import { MatBudgetError, createSession, ingest } from '../src/index.js';
 import { regenerateChunkXml } from '../src/datamodel/parser/BinarySlddSerializer.js';
 
 function num(name: string, v: number): MatVariable {
@@ -731,6 +731,47 @@ describe('a MAT struct array with a field slot that is not a matrix', () => {
         part: 's',
       },
     ]);
+    // The file opens, and every other variable in it is what it is in a file without it.
+    const control = opened('c.mat', before, after);
+    expect([b, a].map(deep)).toEqual(control.children.map(deep));
+    expect(control.warnings).toBeUndefined();
+  });
+});
+
+// B-20 (group H; theme 1: warn and show what was read). The 1x1 twin of the struct array above: a
+// slot that is not a matrix was stepped over, so the struct showed its other fields only, and the
+// file said nothing. Nothing in a 1x1 can move, so the slot is kept as its field, in its place, as a
+// value that was not decoded, and the file says why. Its copy, and the copy of the struct holding
+// it, are refused at it, as any value the reader did not decode is (F1-10).
+describe('a MAT 1x1 struct with a field slot that is not a matrix', () => {
+  const one = (n: number) => numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [n] });
+  const reason = 'it is not a matrix (a data element of type 9)';
+  const damaged = structVar('s', ['a', 'b'], [{ a: element(MI.DOUBLE, new Uint8Array(8)), b: one(2) }]);
+  const opened = (name: string, ...variables: Uint8Array[]): any => createSession().addMatSource(name, matFile(variables));
+  const row = (n: any) => [n.name, n.displayValue, n.className, n.children.length, n.valueEditable];
+  const deep = (n: any): unknown => [n.name, n.displayValue, n.children.map(deep)];
+  const refusedAt = (node: any): unknown[] => {
+    const [e] = thrownBy(() => node.serialize());
+    return [e instanceof MatBudgetError, (e as MatBudgetError | null)?.reason, (e as MatBudgetError | null)?.at, e?.message];
+  };
+
+  it('shows the field in its place as not decoded, keeps the other one, and the file says why', () => {
+    const before = numericVar({ name: 'before', cls: CLASS.DOUBLE, dimensions: [1, 2], real: [1, 2] });
+    const after = cellVar('after', [one(9), structVar('', ['a'], [{ a: one(8) }])]);
+    const mat = opened('s.mat', before, damaged, after);
+    const [b, s, a] = mat.children;
+    expect([s.name, s.displayValue, s.children.length]).toEqual(['s', '<1x1 struct>', 2]);
+    expect(s.children.map(row)).toEqual([
+      ['a', '<unknown, not decoded>', 'unknown', 0, false],
+      ['b', '2', 'double', 0, true],
+    ]);
+    expect(mat.warnings).toEqual([{ code: 'part-unreadable', message: `"s.a" was not decoded: ${reason}.`, part: 's.a' }]);
+    // Nothing to write it from: its copy, and the struct's, are refused at it, naming it. The field
+    // beside it copies as it was.
+    const refusal = [true, 'not-decoded', 's.a', `Cannot write "s": s.a is a 1x1 unknown that was not decoded (${reason}), so there is no value of it to write. Nothing was written.`];
+    expect(refusedAt(s)).toEqual(refusal);
+    expect(refusedAt(s.children[0])).toEqual(refusal);
+    expect(s.children[1].serialize()).toBe(2);
     // The file opens, and every other variable in it is what it is in a file without it.
     const control = opened('c.mat', before, after);
     expect([b, a].map(deep)).toEqual(control.children.map(deep));

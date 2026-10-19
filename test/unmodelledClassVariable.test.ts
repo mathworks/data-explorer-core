@@ -20,6 +20,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { unzipSync, zipSync } from 'fflate';
+import { parseBinarySlddParts } from '../src/datamodel/parser/BinarySlddParser.js';
+import { hexText } from '../src/datamodel/parser/EncodedValue.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { parseMxArray } from '../src/datamodel/parser/MxArrayParser.js';
 import type { ParseWarning } from '../src/datamodel/parser/ParseWarning.js';
@@ -238,5 +240,126 @@ describe('a .mat variable whose flags word is overwritten is shown as not decode
         part: 'z',
       },
     ]);
+  });
+});
+
+// ---- A real value of such a class (B-21) ------------------------------------------------
+
+// The same damage on a value that is not complex: its class byte names no class the reader
+// models (255, 18), and no flag says complex. Nothing threw, so nothing caught it: the numeric
+// arm built it from the null MatParser left, and showed `null` (a 1x3 `[null]`, an empty `[ ]`),
+// with an editor, of class `unknown`, as if that were the value; a commit made it a double. Its
+// class and size are what the file holds of it (group B: no `null` where the file says more), so
+// it is shown as that, not decoded, as the complex one is (theme 1: show what was read): one row
+// with no editor and no rows, and a copy refused, naming it (F1-10). Wherever it stands, a struct
+// field or a cell element, the row that is not decoded is its own, and the copy of what holds it
+// is refused at it.
+
+/** Class 255 with no flag set, and class 18 (one past the last class MATLAB writes), real. */
+const REAL_WORDS: [number, string][] = [
+  [0x000000ff, '0x000000FF'],
+  [0x00000012, '0x00000012'],
+];
+
+/** A real double of `dimensions`, its flags word overwritten with `word`. */
+function damagedReal(name: string, word: number, dimensions: number[] = [1, 1]): Uint8Array {
+  const n = dimensions.reduce((a, b) => a * b, 1);
+  const x = numericVar({ name, cls: CLASS.DOUBLE, dimensions, real: Array.from({ length: n }, (_, i) => i + 5) });
+  expect([x[16], x[17]]).toEqual([CLASS.DOUBLE, 0x00]);
+  return withWord(x, 16, word);
+}
+
+/** The refusal of a copy of `name` at its piece `path`, a `shape` unknown not decoded. */
+const refusedCopyAt = (name: string, path: string, shape: string) =>
+  `Cannot write "${name}": ${path} is a ${shape} unknown that was not decoded (its MAT array class is not one this reader models), `
+  + 'so there is no value of it to write. Nothing was written.';
+
+describe('a real value of a class the reader does not model is shown as not decoded, wherever it stands (B-21)', () => {
+  const five = () => numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [5] });
+  const fiveRow = (name: string) => [name, '5', 'double', true, []];
+
+  for (const [word, spelled] of REAL_WORDS) {
+    it(`a .mat scalar's flags word set to ${spelled}: not decoded, said once, and its copy refused`, () => {
+      // Before: the row was ['x', 'null', 'unknown', true, []], and setProperty('Value', '3') made it a double.
+      const mat = openedMat('t.mat', [ok(), damagedReal('x', word), tail()]);
+      const control = openedMat('control.mat', [ok(), tail()]);
+      const rows = mat.children.map(row);
+      expect(rows[1]).toEqual(notDecoded('x', '1x1', 'unknown'));
+      expect([rows[0], rows[2]]).toEqual(control.children.map(row));
+      expect(mat.warnings).toEqual([notModelled('x')]);
+      expect(() => mat.children[1].toRow()).not.toThrow();
+      expect(() => mat.children[1].serializeValue()).toThrow(refusedCopy('x', '1x1'));
+      for (const n of [mat.children[0], mat.children[2]]) {
+        expect(() => JSON.stringify(n.serializeValue())).not.toThrow();
+      }
+    });
+  }
+
+  it('a .mat 1x3 and an empty one: each is its size, not decoded, and its copy refused', () => {
+    // Before: `[null]` and `[ ]`, each with an editor, of class unknown.
+    const mat = openedMat('t.mat', [ok(), damagedReal('v', 0xff, [1, 3]), damagedReal('e', 0x12, [0, 0]), tail()]);
+    expect(mat.children.map(row).slice(1, 3)).toEqual([notDecoded('v', '1x3', 'unknown'), notDecoded('e', '0x0', 'unknown')]);
+    expect(mat.warnings).toEqual([notModelled('v'), notModelled('e')]);
+    expect(() => mat.children[1].serializeValue()).toThrow(refusedCopy('v', '1x3'));
+    expect(() => mat.children[2].serializeValue()).toThrow(refusedCopy('e', '0x0'));
+  });
+
+  it('a .mat cell element and struct field: that element is not decoded, the one beside it is as read, and each copy is refused at it', () => {
+    const c = cellVar('c', [damagedReal('', 0xff), five()]);
+    const s = structVar('s', ['a', 'b'], [{ a: damagedReal('', 0x12), b: five() }]);
+    const mat = openedMat('nested.mat', [ok(), c, s, tail()]);
+    // Before: c was `{null, 5}` with an editor, and c{1} and s.a each `null`, editable, of class unknown.
+    const [, cRow, sRow] = mat.children.map(row);
+    expect(cRow).toEqual(['c', '{<1x1 unknown, not decoded>, 5}', 'cell', false, [notDecoded('1', '1x1', 'unknown'), fiveRow('2')]]);
+    expect(sRow).toEqual(['s', '<1x1 struct>', 'struct', false, [notDecoded('a', '1x1', 'unknown'), fiveRow('b')]]);
+    // The reader's warning names the element; it is the only one.
+    expect(mat.warnings).toEqual([notModelled('c{1}'), notModelled('s.a')]);
+    const [, cNode, sNode] = mat.children;
+    expect(() => cNode.serializeValue()).toThrow(refusedCopyAt('c', 'c{1}', '1x1'));
+    expect(() => cNode.children[0].serializeValue()).toThrow(refusedCopyAt('c', 'c{1}', '1x1'));
+    expect(() => sNode.serializeValue()).toThrow(refusedCopyAt('s', 's.a', '1x1'));
+    expect(() => sNode.children[0].serializeValue()).toThrow(refusedCopyAt('s', 's.a', '1x1'));
+    expect(cNode.children[1].serializeValue()).toEqual(5);
+  });
+
+  it('a model workspace variable, cell element and struct field: each is not decoded, nothing warns, and each copy is refused at it', () => {
+    const one = (n: number) => numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [n] });
+    const ws = structVar('', ['ok', 'x', 'c', 's', 'tail'], [{
+      ok: one(7),
+      x: damagedReal('', 0xff),
+      c: cellVar('', [damagedReal('', 0x12), one(5)]),
+      s: structVar('', ['a', 'b'], [{ a: damagedReal('', 0xff), b: one(5) }]),
+      tail: one(9),
+    }]);
+    const entries = unzipSync(testFile('parity/artifacts/slx/cases.slx'));
+    const { model, sections, warnings } = openedModel('cases.slx', { ...entries, [PART]: new Uint8Array(mxArrayFile(ws.subarray(8))) });
+    // Before: x, c{1} and s.a each showed `null`, editable, of class unknown.
+    expect(sections.find(([n]) => n === 'workspace')![1]).toEqual([
+      ['ok', '7', 'double', true, []],
+      notDecoded('x', '1x1', 'unknown'),
+      ['c', '{<1x1 unknown, not decoded>, 5}', 'cell', false, [notDecoded('1', '1x1', 'unknown'), fiveRow('2')]],
+      ['s', '<1x1 struct>', 'struct', false, [notDecoded('a', '1x1', 'unknown'), fiveRow('b')]],
+      ['tail', '9', 'double', true, []],
+    ]);
+    // A model workspace does not report a value it did not decode (the C-232 ruling).
+    expect(warnings).toEqual([]);
+    const [, x, c, s] = model.children.find((n: any) => n.name === 'workspace').children;
+    expect(() => x.serializeValue()).toThrow(refusedCopy('x', '1x1'));
+    expect(() => c.serializeValue()).toThrow(refusedCopyAt('c', 'c{1}', '1x1'));
+    expect(() => s.serializeValue()).toThrow(refusedCopyAt('s', 's.a', '1x1'));
+  });
+
+  it('a binary dictionary value whose stream holds one in a cell: that element is not decoded, and the one beside it is as read', () => {
+    const stream = new Uint8Array(mxArrayFile(cellVar('', [damagedReal('', 0xff), five()]).subarray(8)));
+    const xml =
+      '<?xml version="1.0" encoding="UTF-8"?>\n<DataSource FormatVersion="1" MinRelease="R2014a">\n    <Object Class="DD.ENTRY">\n'
+      + '        <P Name="Name" Class="char">v</P>\n        <P Name="UUID" Class="char">u</P>\n'
+      + `        <P Name="Value" Class="cell" Encoding="hex" EncodedLength="${stream.length}">${hexText(stream, 2)}</P>\n`
+      + '    </Object>\n</DataSource>';
+    const warnings: ParseWarning[] = [];
+    const root: any = createSession().addDataSource('mem://b21', parseBinarySlddParts(xml, {}, warnings), { path: 'e.sldd' }, warnings);
+    const v = root.getSection('design').children[0];
+    // Before: `{null, 5}`, its element 1 `null` of class unknown. A value read from a stream takes no editor, either way.
+    expect([v.displayValue, v.children.map(row)]).toEqual(['{<1x1 unknown, not decoded>, 5}', [notDecoded('1', '1x1', 'unknown'), ['2', '5', 'double', false, []]]]);
   });
 });

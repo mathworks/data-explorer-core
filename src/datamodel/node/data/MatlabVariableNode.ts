@@ -17,7 +17,7 @@ import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { controlsAsOneChar, formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
 import type { ParsedValue } from '../../parser/MatlabValueParser.js';
-import { NOT_AVAILABLE } from '../../parser/McosParser.js';
+import { NOT_AVAILABLE, unreadCellSlots } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { heldAsRead, integerReader } from './integerReading.js';
 import { isWrittenSpelling, matrixHoldsUnwritten, recordUnwrittenSpelling, rowHoldsUnwritten } from '../../parser/writtenSpelling.js';
@@ -1838,9 +1838,13 @@ export default class MatlabVariableNode extends DataNode {
   // children and no zero extent it writes `Dimension="0*0"`, i.e. it would save the
   // value away. A huge cell is also far rarer than a huge numeric matrix, which is the
   // shape that actually arrives. Pinned by test/largeArrayNotExpanded.test.ts.
-  _buildCellChildren(elements: unknown[]): void {
+  // `unread`: the slots of a cell under an object that the MCOS decoder could not read
+  // (McosParser.unreadCellSlots), each shown as not decoded (_createUnreadSlot).
+  _buildCellChildren(elements: unknown[], unread?: ReadonlyMap<number, MatVariable | null>): void {
     for (let i = 0; i < elements.length; i++) {
-      const child = NodeRegistry.parseValue(elements[i], String(i + 1), this);
+      const child = unread?.has(i)
+        ? MatlabVariableNode._createUnreadSlot(unread.get(i) ?? null, String(i + 1), this)
+        : NodeRegistry.parseValue(elements[i], String(i + 1), this);
       // Which <Element> of the file it was read from, if it was (EntrySource).
       recordOrigin(child, elementOriginAt(elements, i));
       this.addChild(child);
@@ -2344,6 +2348,11 @@ export default class MatlabVariableNode extends DataNode {
       if (cdata) {
         return cdata;
       }
+    }
+    // A struct array or a cell none of whose elements could be read has no bag MATLAB reads
+    // back as it (_heldNone). Asked after the stream, which MatWriter writes padded.
+    if (this._heldNone()) {
+      throw this._heldNoneRefusal();
     }
     switch (this._kind) {
       case 'scalar':
@@ -3002,6 +3011,12 @@ export default class MatlabVariableNode extends DataNode {
         return encodedXml(tagName, attrStr, hex, indent);
       }
     }
+    // Nor has a struct array or a cell none of whose elements could be read, at any rank
+    // (_heldNone): a cell was `Dimension="0*0"`, a struct one with no `<Element>` to name its
+    // fields.
+    if (this._heldNone()) {
+      throw this._heldNoneRefusal();
+    }
     switch (this._kind) {
       case 'scalar':
         return this._serializeScalarXml(tagName, attrs, indent);
@@ -3141,6 +3156,17 @@ export default class MatlabVariableNode extends DataNode {
     }
 
     if (rows === 0 || cols === 0 || (!this._sparse && this._elements.length === 0 && this.children.length === 0)) {
+      // A host's empty string, `{_type: 'string', _emptyDims}`, of rank 2 (a trailing 1 is no
+      // extent): the String bag's envelope, as _serializeStringXml writes the bag itself and the
+      // property writer this same value (MatWriter.emptyDimsHeldForm). The bare tag below,
+      // `Class="string" Dimension="0*3"/>`, MATLAB cannot read at an entry, a cell's element or a
+      // struct field ("Invalid string returned."), where it reads the envelope back as the string
+      // it is (test/parity/matlab/host_string_empties_binary.truth.json, R2027a). The binary
+      // reader's own empty, held under its header, is still written as it was read.
+      const two = effectiveDims(dims);
+      if (type === 'string' && (this._rawInput as Record<string, unknown> | undefined)?._emptyDims && two.length === 2 && elementCount(two) === 0) {
+        return DataNode._stringXml(tagName, attrStr, [], two, indent);
+      }
       return (
         p + '<' + tagName + attrStr + ' Class="' + escapeXml(type || 'double') + '" Dimension="' + dimAttr + '"/>'
       );
@@ -3215,8 +3241,9 @@ export default class MatlabVariableNode extends DataNode {
     // A cell of no element keeps its extents when they are an empty's: a 0x3 is
     // `Dimension="0*3"/>`, as the property writer (DataNode._cellXml) and MATLAB write a
     // shaped empty cell, and as the binary reader reads one; `0*0` saved it as another
-    // value. serializeXml has refused dims no Dimension can spell before this. Dims that
-    // are not an empty's (a bag with none, a damaged 1x3 holding nothing) stay `0*0`.
+    // value. serializeXml has refused dims no Dimension can spell before this, and a damaged
+    // 1x3 read from a MAT stream holding nothing (_heldNone). Other dims that are not an
+    // empty's (a bag with none, a host's 1x3 bag of no element) stay `0*0`.
     if (this.children.length === 0) {
       const empty = dims.length >= 2 && dims.some((d) => d === 0);
       return p + '<' + tagName + attrStr + ' Class="cell" Dimension="' + (empty ? dimensionText(dims) : '0*0') + '"/>';
@@ -3365,7 +3392,42 @@ export default class MatlabVariableNode extends DataNode {
     } else if (!why && v && v.value === null && !v.fields && !v.isSparse && !v.isOpaque) {
       why = 'it declares ' + v.dimensions.reduce((a, b) => a * b, 1) + ' element(s) and holds no data';
     }
-    const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + this._scalarType + ' that was not decoded' + (why ? ' (' + why + ')' : '');
+    // Named as its row is (MatParser's placeholder, `<3x4 sparse double, not decoded>`): a sparse
+    // array the reader did not decode is not a full one, and its node holds no non-zeros to say so.
+    const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + (v?.isSparse ? 'sparse ' : '') + this._scalarType + ' that was not decoded' + (why ? ' (' + why + ')' : '');
+    return this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-decoded'));
+  }
+
+  /**
+   * Is this a struct array with fields or a cell, read from a MAT stream, that declares elements
+   * and whose bytes hold none of them — the reader's `"v" declares 3 cell(s) and only 0 could be
+   * read`? One holding SOME of them is written at its declared size beside those it holds, and
+   * MATLAB R2027a reads that back with the rest `[]`, its field names kept, in a text and a binary
+   * dictionary (short_array_copy_readback.truth.json, B-26). One holding none has no such form: a
+   * struct array's bag names its fields from its element rows, so it named none, and MATLAB read a
+   * 1x3 struct with no fields; a cell's XML was `Dimension="0*0"`, a 0x0 cell. The maintainer's
+   * group F ruling (theme 1: a save the writer cannot spell is refused rather than written wrong)
+   * refuses it, as a value the reader did not decode is (_undecodedRefusal). Its MAT stream, which
+   * MatWriter writes padded (an N-D one's copy, measured too), is not refused. Nor is a container
+   * the node ceiling built without its rows (_cutByCeiling), which is written from a twin with
+   * them, nor a struct with no fields, which holds every element it declares.
+   */
+  _heldNone(): boolean {
+    if (!this._matVar || this._cutByCeiling || this._undecoded || this._isOpaque || this.children.length > 0) {
+      return false;
+    }
+    const count = elementCount(this._dims);
+    if (this._kind === 'cell') {
+      return count > 0;
+    }
+    return this._kind === 'scalar' && this._scalarType === 'struct' && count > 1 && Object.keys(this._matVar.fields ?? {}).length > 0;
+  }
+
+  /** The refusal of a struct array or a cell none of whose elements could be read (_heldNone). */
+  _heldNoneRefusal(): MatBudgetError {
+    const count = elementCount(this._dims);
+    const of = count === 1 ? ' whose one element could not be read' : ' none of whose ' + count + ' elements could be read';
+    const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + (this._kind === 'cell' ? 'cell' : 'struct') + of;
     return this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-decoded'));
   }
 
@@ -3590,6 +3652,17 @@ export default class MatlabVariableNode extends DataNode {
       node._scalarValue = '<' + (variable.className || 'double') + ', not decoded>';
       return node;
     }
+    // A real value of a class MatParser does not model ('unknown': a flags word overwritten,
+    // say) holds no value the reader read, and its class and size are what the file says of it.
+    // It fell to the numeric arm, which built the null it was left as: `null` (a 1x3 `[null]`, an
+    // empty `[ ]`) of class unknown, with an editor whose commit made it a double, at the top of
+    // a .mat or a model workspace and in a cell or a struct anywhere. It is what the complex one
+    // is shown as (MatNode.fromParsed): its class and size, not decoded, its copy refused
+    // (_undecodedRefusal). A complex one still fails in the complex arm, and what holds it
+    // catches that and shows the whole value not decoded, as the 2026-10-16 ruling made it.
+    if (variable.className === 'unknown' && !variable.isComplex) {
+      return MatlabVariableNode.createNotDecoded(variable, name, parent);
+    }
     if (variable.className === 'struct') {
       return MatlabVariableNode._createFromMatStruct(variable, name, parent);
     }
@@ -3643,6 +3716,32 @@ export default class MatlabVariableNode extends DataNode {
     node._scalarType = variable.className;
     node._scalarValue = variable.value;
     node._dims = variable.dimensions.slice();
+    return node;
+  }
+
+  /**
+   * A slot of a cell under an MCOS object that the decoder could not read (McosParser.unreadCellSlots),
+   * as not decoded: no editor, no value, and a copy refused (_undecodedRefusal). It was the double 0,
+   * editable, built from the `undefined` the decoder left in the slot. `variable` is what MatParser
+   * read there: one it recorded without decoding is the row it is at the top of a .mat, its
+   * placeholder (_createUndecoded); any other, of a class no arm spells or holding no data, is its
+   * class and size (createNotDecoded). Null is an element that is not a matrix, of no class or size
+   * the bytes say: `<unknown, not decoded>`, as a value whose dims are no numbers is spelled without
+   * them (parseMatVariable). At the top of a .mat that slot is a hole, `[ ]`, a value it never held.
+   */
+  static _createUnreadSlot(variable: MatVariable | null, name: string, parent: BaseNode | null): MatlabVariableNode {
+    if (variable?.undecoded) {
+      return MatlabVariableNode._createUndecoded(variable, name, parent);
+    }
+    if (variable) {
+      return MatlabVariableNode.createNotDecoded(variable, name, parent, variable.isLogical ? 'logical' : variable.className);
+    }
+    const node = new MatlabVariableNode(name, parent, {});
+    node._kind = 'scalar';
+    node._undecoded = true;
+    node._scalarType = 'unknown';
+    node._scalarValue = '<unknown, not decoded>';
+    node._dims = [1, 1];
     return node;
   }
 
@@ -3757,10 +3856,10 @@ export default class MatlabVariableNode extends DataNode {
     // why (MatParser's collectUndecoded); a model workspace does not (the C-232 ruling).
     //
     // A class MatParser does not model ('unknown': a flags word overwritten, say) is not this,
-    // since no arm read it. It keeps the null a real one shows, and a complex one fails in the
-    // complex arm below. What holds it catches that and shows it not decoded: a binary
-    // dictionary the whole value (parseEncoded), and a model workspace or a .mat the whole
-    // variable (ModelSectionNode.addWorkspaceEntry, MatNode.fromParsed).
+    // since no arm read it. A real one is not decoded before it gets here (parseMatVariable),
+    // and a complex one fails in the complex arm below. What holds it catches that and shows it
+    // not decoded: a binary dictionary the whole value (parseEncoded), and a model workspace or a
+    // .mat the whole variable (ModelSectionNode.addWorkspaceEntry, MatNode.fromParsed).
     if (variable.value === null && totalElements > 0 && variable.className !== 'unknown') {
       return MatlabVariableNode.createNotDecoded(variable, name, parent, variable.isLogical ? 'logical' : variable.className);
     }
@@ -4863,7 +4962,7 @@ export default class MatlabVariableNode extends DataNode {
     node._dims = (rawVal._dimensions as number[]) || [1, 1];
 
     if (rawVal._elements && (rawVal._elements as unknown[]).length > 0) {
-      node._buildCellChildren(rawVal._elements as unknown[]);
+      node._buildCellChildren(rawVal._elements as unknown[], unreadCellSlots(rawVal));
     }
 
     return node;

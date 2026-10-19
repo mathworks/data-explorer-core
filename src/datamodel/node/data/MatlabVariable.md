@@ -155,7 +155,12 @@ array MATLAB wrote is every element it declares. An array with fields whose byte
 out holds fewer, and has a child for each of those alone, as a cell has one per element
 read: a child per declared element let a 304-byte file declaring a 1x999,999 struct run
 a 512 MB heap out while it opened. A copy holds the same elements at the declared size,
-as a short cell's does. `McosParser` lays an object's struct value out a bag per element
+as a short cell's does, and MATLAB R2027a reads that back with the elements past the
+bytes `[]`, in a text and a binary dictionary (`short_array_copy_readback.truth.json`).
+A struct array with fields or a cell holding none of its elements has no such copy: the
+bag named no field and the cell's XML was `0*0`, so its copy and its save are refused
+(`_heldNone`); its MAT stream, which MatWriter writes padded, is not.
+`McosParser` lays an object's struct value out a bag per element
 held, and `StructNode` reads one bag of an array as that array's element, not as a 1x1.
 
 ### A .mat file's tree is built up to a node ceiling

@@ -203,12 +203,7 @@ function readNumericArray(view: DataView, sub: SubElement, count: number, single
     // 512 MB heap out. The full-array arm of parseMatrix records such a payload as not
     // decoded (unreadablePart), and so does the sparse arm a pr or a pi of such a type that
     // non-zeros are placed in (readSparse's `unread`).
-    const width = ELEMENT_WIDTH[sub.type];
-    if (!width) {
-        return values;
-    }
-    const available = Math.min(sub.bytes, Math.max(0, view.byteLength - off));
-    count = Math.min(count, Math.floor(available / width));
+    count = heldElements(view, sub, count);
 
     for (let i = 0; i < count; i++) {
         switch (sub.type) {
@@ -229,6 +224,25 @@ function readNumericArray(view: DataView, sub: SubElement, count: number, single
         }
     }
     return values;
+}
+
+// How many of `count` elements readNumericArray reads of the part `sub`: as many as its bytes
+// and the buffer hold, and none of a type with no width.
+function heldElements(view: DataView, sub: SubElement, count: number): number {
+    const width = ELEMENT_WIDTH[sub.type];
+    if (!width) {
+        return 0;
+    }
+    const available = Math.min(sub.bytes, Math.max(0, view.byteLength - sub.dataOffset));
+    return Math.min(count, Math.floor(available / width));
+}
+
+// Why readNumericArray cannot read the `count` elements asked of the part `sub` into one array, or
+// null when it can: its bytes hold more than the element limit (MAT_ARRAY_ELEMENT_LIMIT). `what`
+// names them as the reason does, `its real part holds N elements` or `it has N row indices`.
+function pastElementLimit(view: DataView, sub: SubElement, count: number, what: (n: number) => string): string | null {
+    const n = heldElements(view, sub, count);
+    return n > arrayElementLimit ? what(n) + ', more than the ' + arrayElementLimit + ' this reader reads into one array' : null;
 }
 
 /**
@@ -450,6 +464,28 @@ const MAX_LAID_OUT_FIELDLESS = 10000;
 // at a value with nothing under it.
 export const MAX_NESTING = 128;
 
+// Past this many elements in one numeric part, an array is recorded rather than read (the
+// limit in parseMatrix and readSparse). readNumericArray reads a part as one JS array, one
+// number per element, and an engine holds only so many in one array: past 2^27 V8's push
+// threw "RangeError: Invalid array length" (measured, Node 24), nothing caught it, and the
+// whole .mat failed to open: a 200 MB uint8 array was enough. Each array that threw is
+// recorded now with its class, its size and the reason, and keeps the bytes it was read from;
+// an array of 2^27 elements or fewer reads as it did (1x2^27 uint8 opens, measured, Node 24).
+// A limit is the same on every engine, as MAX_NESTING is.
+export const MAT_ARRAY_ELEMENT_LIMIT = 2 ** 27;
+
+let arrayElementLimit = MAT_ARRAY_ELEMENT_LIMIT;
+
+/**
+ * Lower (or raise) the element limit of one numeric part, or pass `undefined` to return to
+ * `MAT_ARRAY_ELEMENT_LIMIT`. For tests, which cannot spend a gigabyte of heap on every case
+ * past it, and deliberately not in the package's barrel (`src/index.ts`), as the inflate
+ * ceiling's setter is not.
+ */
+export function setMatArrayElementLimit(limit: number | undefined): void {
+    arrayElementLimit = limit ?? MAT_ARRAY_ELEMENT_LIMIT;
+}
+
 /**
  * Whether `v` is a struct array whose elements nothing reads one by one: one this reader
  * recorded without decoding (`undecoded`), or one with no fields declaring more than
@@ -545,7 +581,8 @@ export function structElementsHeld(v: MatVariable): number {
 // type with no width (unreadablePart), or holds fewer values than there are non-zeros. Each
 // value that is not there used to be read as 0 and dropped as one, so such an array showed as
 // a matrix of zeros, or of some of its non-zeros, that the file never held; its caller records
-// it as not decoded instead, as the full-array arm does a part it cannot read.
+// it as not decoded instead, as the full-array arm does a part it cannot read. So it does an array
+// with more row indices or column starts than one array here holds (MAT_ARRAY_ELEMENT_LIMIT).
 function readSparse(
     view: DataView,
     offset: number,
@@ -572,7 +609,16 @@ function readSparse(
             // At the type's own width: counted at four bytes apiece, an ir of miUINT8 read
             // none of its rows and one of miINT16 half of them.
             const irCount = Math.floor(irSub.bytes / ELEMENT_WIDTH[irSub.type]);
-            ir = readNumericArray(view, irSub, nzmax > 0 ? Math.min(nzmax, irCount) : irCount).map(Number);
+            const irRead = nzmax > 0 ? Math.min(nzmax, irCount) : irCount;
+            // More row indices, or column starts below, than one array here holds
+            // (MAT_ARRAY_ELEMENT_LIMIT) are not read, and the array is recorded with the reason,
+            // as the full-array arm records one: read, they threw a RangeError, and the whole file
+            // failed to open. Its values are no more than its row indices, so they fit.
+            const tooMany = pastElementLimit(view, irSub, irRead, (n) => 'it has ' + n + ' row indices');
+            if (tooMany) {
+                return { data: emptySparse(isComplex, 0), unread: tooMany };
+            }
+            ir = readNumericArray(view, irSub, irRead).map(Number);
         }
     }
 
@@ -581,6 +627,10 @@ function readSparse(
         const jcSub = readSubelement(view, offset);
         offset += jcSub.totalSize;
         if (INTEGER_DATA_TYPES.has(jcSub.type)) {
+            const tooMany = pastElementLimit(view, jcSub, cols + 1, (n) => 'it has ' + n + ' column starts');
+            if (tooMany) {
+                return { data: emptySparse(isComplex, 0), unread: tooMany };
+            }
             jc = readNumericArray(view, jcSub, cols + 1).map(Number);
         }
     }
@@ -1063,9 +1113,14 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number, 
             const imagAt = offset;
             const imagSub = isComplex && offset < end ? readSubelement(view, offset) : null;
             // A part that holds none of the elements declared, its tag cut short or of a type
-            // with no width, leaves no value to read (unreadablePart).
+            // with no width, leaves no value to read (unreadablePart). Nor does one holding more
+            // elements than one array here holds (MAT_ARRAY_ELEMENT_LIMIT): read, it threw a
+            // RangeError, and the whole file failed to open.
+            const elements = (part: string) => (n: number) => 'its ' + part + ' holds ' + n + ' elements';
             const unread = unreadablePart(view, realAt, realSub, totalElements, 'real part')
-                ?? (imagSub && unreadablePart(view, imagAt, imagSub, totalElements, 'imaginary part'));
+                ?? (imagSub && unreadablePart(view, imagAt, imagSub, totalElements, 'imaginary part'))
+                ?? pastElementLimit(view, realSub, totalElements, elements('real part'))
+                ?? (imagSub && pastElementLimit(view, imagSub, totalElements, elements('imaginary part')));
             if (unread) {
                 result.value = undecodedValue(dimensions, className);
                 result.undecoded = unread;
@@ -1241,12 +1296,31 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number, 
                         // after it moved up one in that field and not in the others: element 3's
                         // value showed as element 2's, and nothing said so. A tag the end of the
                         // bytes cuts is not this: it is a cut, and the elements before it are
-                        // kept, as for a struct array cut anywhere else. In a 1x1 such a slot
-                        // only leaves its field out, and nothing moves.
+                        // kept, as for a struct array cut anywhere else. A 1x1's is below.
                         result.value = undecodedValue(dimensions, className);
                         result.undecoded = 'element ' + (e + 1) + "'s field " + fn
                             + ' is not a matrix (a data element of type ' + fieldMatrixSub.type + ')';
                         return result;
+                    } else if (fieldStart + 8 <= end) {
+                        // The same slot in a 1x1, where nothing can move: it is kept as its
+                        // field, in its place, as a value that was not decoded, with the reason,
+                        // which parseMat reports (collectUndecoded). Stepped over, the field was
+                        // left out, the struct showed its other fields only, and nothing was
+                        // said (theme 1: warn and show what was read). It is of no class or size
+                        // the bytes say, so it is spelled as the MCOS decoder spells a cell slot
+                        // that is not a matrix (MatlabVariableNode._createUnreadSlot), and it has
+                        // no bytes of a matrix to be written from, so it keeps none: its copy,
+                        // and the copy of what holds it, are refused (_undecodedRefusal).
+                        setOwn<MatVariable | MatVariable[]>(fields, fn, {
+                            name: '',
+                            className: 'unknown',
+                            dimensions: [1, 1],
+                            isComplex: false,
+                            isLogical: false,
+                            value: '<unknown, not decoded>',
+                            fields: null,
+                            undecoded: 'it is not a matrix (a data element of type ' + fieldMatrixSub.type + ')',
+                        });
                     }
                     offset += fieldMatrixSub.totalSize;
                 }

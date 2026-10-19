@@ -28,6 +28,14 @@ export interface ParsedMat {
 }
 export declare function undecodedValue(dimensions: number[], className: string): string;
 export declare const MAX_NESTING = 128;
+export declare const MAT_ARRAY_ELEMENT_LIMIT: number;
+/**
+ * Lower (or raise) the element limit of one numeric part, or pass `undefined` to return to
+ * `MAT_ARRAY_ELEMENT_LIMIT`. For tests, which cannot spend a gigabyte of heap on every case
+ * past it, and deliberately not in the package's barrel (`src/index.ts`), as the inflate
+ * ceiling's setter is not.
+ */
+export declare function setMatArrayElementLimit(limit: number | undefined): void;
 /**
  * Whether `v` is a struct array whose elements nothing reads one by one: one this reader
  * recorded without decoding (`undecoded`), or one with no fields declaring more than

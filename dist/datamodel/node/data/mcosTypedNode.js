@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
-import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME } from '../../parser/McosParser.js';
+import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME, unreadCellSlots } from '../../parser/McosParser.js';
 import { mcosRefused, setMcosDecoded, setMcosRefused } from './mcosDecodedTable.js';
 import { shortArrayMessage } from '../../parser/MatParser.js';
 import { reasonOf } from '../../parser/ParseWarning.js';
@@ -121,7 +121,10 @@ warnings) {
  *
  * Read short includes a struct array or a cell holding fewer elements than it declares
  * (shortArrayOf), which MatParser.collectUndecoded reports outside an object: its rows are the
- * elements held, and a `<1x3 struct>` with one row said nothing of the other two.
+ * elements held, and a `<1x3 struct>` with one row said nothing of the other two. And a cell with
+ * a slot the decoder could not read (McosParser.unreadCellSlots), which shows as not decoded: one
+ * MatParser recorded without decoding says so with its reason, above, as `c{1}` does at the top
+ * of a .mat; any other is a cell not read, as an element that is not a matrix is counted there.
  */
 function reportUndecoded(node, path, warnings) {
     const reason = node instanceof MatlabVariableNode && node._undecoded ? node._matVar?.undecoded : undefined;
@@ -167,7 +170,14 @@ function shortArrayOf(node) {
         return null;
     }
     const declared = dims.reduce((a, b) => a * b, 1);
-    return declared > held.length ? { declared, read: held.length, unit } : null;
+    // A slot held that the decoder could not read, and that says nothing of its own, is not read.
+    let read = held.length;
+    for (const variable of unit === 'cell' ? unreadCellSlots(raw)?.values() ?? [] : []) {
+        if (!variable?.undecoded) {
+            read--;
+        }
+    }
+    return declared > read ? { declared, read, unit } : null;
 }
 // Decode the MCOS blob that carries every opaque object's real property values.
 // A .mat file keeps it in an anonymous trailing element; an .slx model workspace in

@@ -607,7 +607,7 @@ describe('an edited sparse array is written in a form MATLAB reads back as itsel
       null,
     );
     expect(() => node.serializeXml('P', { Name: 'Value' }, 2)).toThrow(
-      'Cannot write "spTall": spTall is a 10000000x2 double that was not decoded (too large), so there is no value of it to write. Nothing was written.',
+      'Cannot write "spTall": spTall is a 10000000x2 sparse double that was not decoded (too large), so there is no value of it to write. Nothing was written.',
     );
   });
 

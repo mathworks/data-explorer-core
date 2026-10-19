@@ -64,6 +64,8 @@ export declare const STRING_CLASS_NAME = "string";
  * Exported for its unit tests; resolveValue is the one caller.
  */
 export declare function complexPropertyValue(cell: MatVariable): Record<string, unknown> | undefined;
+/** The slots of `bag`, a cell resolveValue built, that it could not read; undefined for any other value. */
+export declare function unreadCellSlots(bag: unknown): ReadonlyMap<number, MatVariable | null> | undefined;
 export interface OpaqueVarRef {
     name: string;
     className: string;

@@ -1,0 +1,1360 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-10-19",
+  "cases": [
+    {
+      "id": "struct_short",
+      "full": false,
+      "mat": "struct_short.mat",
+      "file": "struct_short_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[1,3],\"_elements\":[{\"a\":1},{\"a\":2}],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "loaded": {
+        "error": "Unable to open file \"struct_short.mat\"."
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          3
+        ],
+        "fields": [
+          "a"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 1
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 2
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "struct_short",
+      "full": false,
+      "mat": "struct_short.mat",
+      "file": "struct_short_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Dimension=\"1*3\">\n            <Element>\n                <P Name=\"a\" Class=\"double\">1.0</P>\n            </Element>\n            <Element>\n                <P Name=\"a\" Class=\"double\">2.0</P>\n            </Element>\n        </P>",
+      "loaded": {
+        "error": "Unable to open file \"struct_short.mat\"."
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          3
+        ],
+        "fields": [
+          "a"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 1
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 2
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "struct_none",
+      "full": false,
+      "mat": "struct_none.mat",
+      "file": "struct_none_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[1,3],\"_elements\":[],\"_fields\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "loaded": {
+        "error": "Unable to open file \"struct_none.mat\"."
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          3
+        ],
+        "fields": [],
+        "elements": [
+          {},
+          {},
+          {}
+        ]
+      }
+    },
+    {
+      "id": "struct_none",
+      "full": false,
+      "mat": "struct_none.mat",
+      "file": "struct_none_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Dimension=\"1*3\">\n        </P>",
+      "loaded": {
+        "error": "Unable to open file \"struct_none.mat\"."
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          3
+        ],
+        "fields": [],
+        "elements": [
+          {},
+          {},
+          {}
+        ]
+      }
+    },
+    {
+      "id": "struct_partial",
+      "full": false,
+      "mat": "struct_partial.mat",
+      "file": "struct_partial_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[2,2],\"_elements\":[{\"a\":1,\"b\":2},{\"a\":3,\"b\":4},{\"a\":5}],\"_fields\":[\"a\",\"b\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "loaded": {
+        "error": "Unable to open file \"struct_partial.mat\"."
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          2,
+          2
+        ],
+        "fields": [
+          "a",
+          "b"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 1
+            },
+            "b": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 2
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 3
+            },
+            "b": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 4
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 5
+            },
+            "b": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "b": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "struct_partial",
+      "full": false,
+      "mat": "struct_partial.mat",
+      "file": "struct_partial_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Dimension=\"2*2\">\n            <Element>\n                <P Name=\"a\" Class=\"double\">1.0</P>\n                <P Name=\"b\" Class=\"double\">2.0</P>\n            </Element>\n            <Element>\n                <P Name=\"a\" Class=\"double\">3.0</P>\n                <P Name=\"b\" Class=\"double\">4.0</P>\n            </Element>\n            <Element>\n                <P Name=\"a\" Class=\"double\">5.0</P>\n                <P Name=\"b\" Class=\"double\" Dimension=\"0*0\"/>\n            </Element>\n        </P>",
+      "loaded": {
+        "error": "Unable to open file \"struct_partial.mat\"."
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          2,
+          2
+        ],
+        "fields": [
+          "a",
+          "b"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 1
+            },
+            "b": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 2
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 3
+            },
+            "b": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 4
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 5
+            },
+            "b": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            },
+            "b": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_short",
+      "full": false,
+      "mat": "cell_short.mat",
+      "file": "cell_short_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_array_type\":\"Cell\",\"_dimensions\":[1,3],\"_elements\":[7],\"_mw_element_type\":\"MATLABArray\"}",
+      "loaded": {
+        "error": "Unable to open file \"cell_short.mat\"."
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 7
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_short",
+      "full": false,
+      "mat": "cell_short.mat",
+      "file": "cell_short_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*3\">\n            <Element Class=\"double\">7.0</Element>\n        </P>",
+      "loaded": {
+        "error": "Unable to open file \"cell_short.mat\"."
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 7
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_none",
+      "full": false,
+      "mat": "cell_none.mat",
+      "file": "cell_none_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_array_type\":\"Cell\",\"_dimensions\":[1,3],\"_elements\":[],\"_mw_element_type\":\"MATLABArray\"}",
+      "loaded": {
+        "error": "Unable to open file \"cell_none.mat\"."
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_none",
+      "full": false,
+      "mat": "cell_none.mat",
+      "file": "cell_none_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"cell\" Dimension=\"0*0\"/>",
+      "loaded": {
+        "error": "Unable to open file \"cell_none.mat\"."
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          0,
+          0
+        ],
+        "elements": []
+      }
+    },
+    {
+      "id": "cell_2x2_short",
+      "full": false,
+      "mat": "cell_2x2_short.mat",
+      "file": "cell_2x2_short_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_array_type\":\"Cell\",\"_dimensions\":[2,2],\"_elements\":[7,8,9],\"_mw_element_type\":\"MATLABArray\"}",
+      "loaded": {
+        "error": "Unable to open file \"cell_2x2_short.mat\"."
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          2,
+          2
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 7
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 8
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 9
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_2x2_short",
+      "full": false,
+      "mat": "cell_2x2_short.mat",
+      "file": "cell_2x2_short_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"cell\" Dimension=\"2*2\">\n            <Element Class=\"double\">7.0</Element>\n            <Element Class=\"double\">8.0</Element>\n            <Element Class=\"double\">9.0</Element>\n        </P>",
+      "loaded": {
+        "error": "Unable to open file \"cell_2x2_short.mat\"."
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          2,
+          2
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 7
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 8
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 9
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "struct_nd_short",
+      "full": false,
+      "mat": "struct_nd_short.mat",
+      "file": "struct_nd_short_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .      $   8    (     @         %    #     $    !     P         !          4 !  %     0    4   !A          X    X    !@    @    &          4    (     0    $    !          D    (            \\\\#\\\\.    .     8    (    !@         %    \\\"     $    !     0         )    \\\"             ! #@   #     &    \\\"     8         !0    @               $         \\\"0         \\u0000\\u0000\"}",
+      "loaded": {
+        "error": "Unable to open file \"struct_nd_short.mat\"."
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          1,
+          3
+        ],
+        "fields": [
+          "a"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 1
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 2
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "struct_nd_short",
+      "full": false,
+      "mat": "struct_nd_short.mat",
+      "file": "struct_nd_short_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Dimension=\"1*1*3\">\n            <Element>\n                <P Name=\"a\" Class=\"double\">1.0</P>\n            </Element>\n            <Element>\n                <P Name=\"a\" Class=\"double\">2.0</P>\n            </Element>\n            <Element>\n                <P Name=\"a\" Class=\"double\" Dimension=\"0*0\"/>\n            </Element>\n        </P>",
+      "loaded": {
+        "error": "Unable to open file \"struct_nd_short.mat\"."
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          1,
+          3
+        ],
+        "fields": [
+          "a"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 1
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 2
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "struct_nd_none",
+      "full": false,
+      "mat": "struct_nd_none.mat",
+      "file": "struct_nd_none_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    \\\\     8    (     @         %    #     $    !     P         !          4 !  %     0    4   !A          X    P    !@    @    &          4    (               !          D         #@   #     &    \\\"     8         !0    @               $         \\\"0         .    ,     8    (    !@         %    \\\"                0         )          \\u0000\\u0000\\u0000\"}",
+      "loaded": {
+        "error": "Unable to open file \"struct_nd_none.mat\"."
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          1,
+          3
+        ],
+        "fields": [
+          "a"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "struct_nd_none",
+      "full": false,
+      "mat": "struct_nd_none.mat",
+      "file": "struct_nd_none_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Dimension=\"1*1*3\">\n            <Element>\n                <P Name=\"a\" Class=\"double\" Dimension=\"0*0\"/>\n            </Element>\n            <Element>\n                <P Name=\"a\" Class=\"double\" Dimension=\"0*0\"/>\n            </Element>\n            <Element>\n                <P Name=\"a\" Class=\"double\" Dimension=\"0*0\"/>\n            </Element>\n        </P>",
+      "loaded": {
+        "error": "Unable to open file \"struct_nd_none.mat\"."
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          1,
+          3
+        ],
+        "fields": [
+          "a"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                0,
+                0
+              ],
+              "value": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_nd_short",
+      "full": false,
+      "mat": "cell_nd_short.mat",
+      "file": "cell_nd_short_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    X     8    (     0         %    #     $    !     P         !          X    X    !@    @    &          4    (     0    $    !          D    (            '$ .    ,     8    (    !@         %    \\\"                0         )          X    P    !@    @    &          4    (               !          D         \\u0000\"}",
+      "loaded": {
+        "error": "Unable to open file \"cell_nd_short.mat\"."
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          1,
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 7
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_nd_short",
+      "full": false,
+      "mat": "cell_nd_short.mat",
+      "file": "cell_nd_short_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*1*3\">\n            <Element Class=\"double\">7.0</Element>\n            <Element Class=\"double\" Dimension=\"0*0\"/>\n            <Element Class=\"double\" Dimension=\"0*0\"/>\n        </P>",
+      "loaded": {
+        "error": "Unable to open file \"cell_nd_short.mat\"."
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          1,
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 7
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_nd_none",
+      "full": false,
+      "mat": "cell_nd_none.mat",
+      "file": "cell_nd_none_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    V     8    (     0         %    #     $    !     P         !          X    P    !@    @    &          4    (               !          D         #@   #     &    \\\"     8         !0    @               $         \\\"0         .    ,     8    (    !@         %    \\\"                0         )          \\u0000\\u0000\\u0000\"}",
+      "loaded": {
+        "error": "Unable to open file \"cell_nd_none.mat\"."
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          1,
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_nd_none",
+      "full": false,
+      "mat": "cell_nd_none.mat",
+      "file": "cell_nd_none_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*1*3\">\n            <Element Class=\"double\" Dimension=\"0*0\"/>\n            <Element Class=\"double\" Dimension=\"0*0\"/>\n            <Element Class=\"double\" Dimension=\"0*0\"/>\n        </P>",
+      "loaded": {
+        "error": "Unable to open file \"cell_nd_none.mat\"."
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          1,
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          },
+          {
+            "class": "double",
+            "size": [
+              0,
+              0
+            ],
+            "value": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "struct_full",
+      "full": true,
+      "mat": "struct_full.mat",
+      "file": "struct_full_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[1,3],\"_elements\":[{\"a\":1},{\"a\":2},{\"a\":3}],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          3
+        ],
+        "fields": [
+          "a"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 1
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 2
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 3
+            }
+          }
+        ]
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          3
+        ],
+        "fields": [
+          "a"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 1
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 2
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "struct_full",
+      "full": true,
+      "mat": "struct_full.mat",
+      "file": "struct_full_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Dimension=\"1*3\">\n            <Element>\n                <P Name=\"a\" Class=\"double\">1.0</P>\n            </Element>\n            <Element>\n                <P Name=\"a\" Class=\"double\">2.0</P>\n            </Element>\n            <Element>\n                <P Name=\"a\" Class=\"double\">3.0</P>\n            </Element>\n        </P>",
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          3
+        ],
+        "fields": [
+          "a"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 1
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 2
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 3
+            }
+          }
+        ]
+      },
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          3
+        ],
+        "fields": [
+          "a"
+        ],
+        "elements": [
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 1
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 2
+            }
+          },
+          {
+            "a": {
+              "class": "double",
+              "size": [
+                1,
+                1
+              ],
+              "value": 3
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_full",
+      "full": true,
+      "mat": "cell_full.mat",
+      "file": "cell_full_text.sldd",
+      "format": "text",
+      "entry": "pasted",
+      "fragment": "{\"_array_type\":\"Cell\",\"_dimensions\":[1,3],\"_elements\":[7,8,9],\"_mw_element_type\":\"MATLABArray\"}",
+      "loaded": {
+        "class": "cell",
+        "size": [
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 7
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 8
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 9
+          }
+        ]
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 7
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 8
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "cell_full",
+      "full": true,
+      "mat": "cell_full.mat",
+      "file": "cell_full_binary.sldd",
+      "format": "binary",
+      "entry": "pasted",
+      "fragment": "<P Name=\"Value\" Class=\"cell\" Dimension=\"1*3\">\n            <Element Class=\"double\">7.0</Element>\n            <Element Class=\"double\">8.0</Element>\n            <Element Class=\"double\">9.0</Element>\n        </P>",
+      "loaded": {
+        "class": "cell",
+        "size": [
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 7
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 8
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 9
+          }
+        ]
+      },
+      "matlab": {
+        "class": "cell",
+        "size": [
+          1,
+          3
+        ],
+        "elements": [
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 7
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 8
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "value": 9
+          }
+        ]
+      }
+    }
+  ]
+}

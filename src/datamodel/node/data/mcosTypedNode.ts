@@ -2,7 +2,7 @@
 
 import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
-import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME, type McosDecodeIssue } from '../../parser/McosParser.js';
+import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME, unreadCellSlots, type McosDecodeIssue } from '../../parser/McosParser.js';
 import { mcosRefused, setMcosDecoded, setMcosRefused } from './mcosDecodedTable.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
@@ -136,7 +136,10 @@ export function buildTypedNodeFromMcos(
  *
  * Read short includes a struct array or a cell holding fewer elements than it declares
  * (shortArrayOf), which MatParser.collectUndecoded reports outside an object: its rows are the
- * elements held, and a `<1x3 struct>` with one row said nothing of the other two.
+ * elements held, and a `<1x3 struct>` with one row said nothing of the other two. And a cell with
+ * a slot the decoder could not read (McosParser.unreadCellSlots), which shows as not decoded: one
+ * MatParser recorded without decoding says so with its reason, above, as `c{1}` does at the top
+ * of a .mat; any other is a cell not read, as an element that is not a matrix is counted there.
  */
 function reportUndecoded(node: BaseNode, path: string, warnings: ParseWarning[]): void {
   const reason = node instanceof MatlabVariableNode && node._undecoded ? node._matVar?.undecoded : undefined;
@@ -183,7 +186,14 @@ function shortArrayOf(node: BaseNode): { declared: number; read: number; unit: '
     return null;
   }
   const declared = (dims as number[]).reduce((a, b) => a * b, 1);
-  return declared > held.length ? { declared, read: held.length, unit } : null;
+  // A slot held that the decoder could not read, and that says nothing of its own, is not read.
+  let read = held.length;
+  for (const variable of unit === 'cell' ? unreadCellSlots(raw)?.values() ?? [] : []) {
+    if (!variable?.undecoded) {
+      read--;
+    }
+  }
+  return declared > read ? { declared, read, unit } : null;
 }
 
 // One decoded object. `elements`/`dimensions` are populated for an object ARRAY; a
