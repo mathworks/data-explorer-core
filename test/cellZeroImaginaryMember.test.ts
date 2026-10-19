@@ -184,6 +184,31 @@ describe('a .mat file cell holding a complex member whose imaginary part is 0, w
       expect(variable('ci').valueEditable).toBe(true);
     });
   }
+
+  // The controls: an imaginary part that is not 0, however small, is not 0. exp(1i*pi)'s is
+  // 1.2246467991473532e-16, and 5e-324 is the least double above 0; NaN is not 0 either. The
+  // literal reads such a member back as itself, so the cell keeps its editor, and the literal with
+  // only the 5 retyped keeps the member complex.
+  const notZero: [number, number][] = [[1, 0.5], [Math.cos(Math.PI), Math.sin(Math.PI)], [1, 1e-16], [1, 5e-324], [1, NaN]];
+  const notZeroFile = (): ArrayBuffer => matFile(notZero.map(([re, im], k) => cellVar(`s${k}`, [dbl([re], [im]), dbl([5])])));
+
+  for (const nodeCeiling of [0, Number.MAX_SAFE_INTEGER]) {
+    it(`node ceiling ${nodeCeiling}: a member whose imaginary part is small but not 0 keeps the editor, and the literal keeps it complex`, () => {
+      const root = (MatNode.fromParsed as any)(parseMat(notZeroFile()), 'f.mat', { nodeCeiling });
+      notZero.forEach(([re, im], k) => {
+        const label = `{complex(${re}, ${im}), 5}`;
+        const cell = root.children.find((v: any) => v.name === `s${k}`);
+        const shown = String(cell.displayValue);
+        const member = /^\{(.+), 5\}$/.exec(shown)?.[1];
+        expect(member, label).toMatch(/i$/);
+        expect(cell.valueEditable, label).toBe(true);
+        const retyped = `{${member}, 6}`;
+        expect(cell.setProperty('Value', retyped), label).toBe(true);
+        expect(cell.displayValue, label).toBe(retyped);
+        expect(rows(cell), label).toEqual([['double (complex)', member], ['double', '6']]);
+      });
+    });
+  }
 });
 
 type Read = { name: string; class: string; size: number[]; members: string[] };
