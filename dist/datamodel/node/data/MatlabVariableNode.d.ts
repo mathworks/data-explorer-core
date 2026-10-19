@@ -240,7 +240,7 @@ export default class MatlabVariableNode extends DataNode {
     private _buildSparseChildren;
     private _makeStringElement;
     _buildStringChildren(): void;
-    _buildCellChildren(elements: unknown[]): void;
+    _buildCellChildren(elements: unknown[], unread?: ReadonlyMap<number, MatVariable | null>): void;
     canAddChild(): boolean;
     addChildNode(): BaseNode | null;
     private _becomeStruct;
@@ -458,6 +458,17 @@ export default class MatlabVariableNode extends DataNode {
     static _createOpaque(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createFromMatHandle(variable: MatVariable, text: string | null, name: string, parent: BaseNode | null): MatlabVariableNode;
     static _createUndecoded(variable: MatVariable, name: string, parent: BaseNode | null): MatlabVariableNode;
+    /**
+     * A slot of a cell under an MCOS object that the decoder could not read (McosParser.unreadCellSlots),
+     * as not decoded: no editor, no value, and a copy refused (_undecodedRefusal). It was the double 0,
+     * editable, built from the `undefined` the decoder left in the slot. `variable` is what MatParser
+     * read there: one it recorded without decoding is the row it is at the top of a .mat, its
+     * placeholder (_createUndecoded); any other, of a class no arm spells or holding no data, is its
+     * class and size (createNotDecoded). Null is an element that is not a matrix, of no class or size
+     * the bytes say: `<unknown, not decoded>`, as a value whose dims are no numbers is spelled without
+     * them (parseMatVariable). At the top of a .mat that slot is a hole, `[ ]`, a value it never held.
+     */
+    static _createUnreadSlot(variable: MatVariable | null, name: string, parent: BaseNode | null): MatlabVariableNode;
     static createNotDecoded(variable: MatVariable, name: string, parent: BaseNode | null, cls?: string): MatlabVariableNode;
     static createFromMcosDecoded(variable: MatVariable, decoded: {
         value: unknown;

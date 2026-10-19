@@ -11,7 +11,7 @@ import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
 import MatlabValueParser, { controlsAsOneChar, formatMatlabChar, formatMatlabString } from '../../parser/MatlabValueParser.js';
-import { NOT_AVAILABLE } from '../../parser/McosParser.js';
+import { NOT_AVAILABLE, unreadCellSlots } from '../../parser/McosParser.js';
 import { mcosDecodedFor } from './mcosDecodedTable.js';
 import { heldAsRead, integerReader } from './integerReading.js';
 import { isWrittenSpelling, matrixHoldsUnwritten, recordUnwrittenSpelling, rowHoldsUnwritten } from '../../parser/writtenSpelling.js';
@@ -1586,9 +1586,13 @@ export default class MatlabVariableNode extends DataNode {
     // children and no zero extent it writes `Dimension="0*0"`, i.e. it would save the
     // value away. A huge cell is also far rarer than a huge numeric matrix, which is the
     // shape that actually arrives. Pinned by test/largeArrayNotExpanded.test.ts.
-    _buildCellChildren(elements) {
+    // `unread`: the slots of a cell under an object that the MCOS decoder could not read
+    // (McosParser.unreadCellSlots), each shown as not decoded (_createUnreadSlot).
+    _buildCellChildren(elements, unread) {
         for (let i = 0; i < elements.length; i++) {
-            const child = NodeRegistry.parseValue(elements[i], String(i + 1), this);
+            const child = unread?.has(i)
+                ? MatlabVariableNode._createUnreadSlot(unread.get(i) ?? null, String(i + 1), this)
+                : NodeRegistry.parseValue(elements[i], String(i + 1), this);
             // Which <Element> of the file it was read from, if it was (EntrySource).
             recordOrigin(child, elementOriginAt(elements, i));
             this.addChild(child);
@@ -3336,6 +3340,31 @@ export default class MatlabVariableNode extends DataNode {
         node._dims = variable.dimensions.slice();
         return node;
     }
+    /**
+     * A slot of a cell under an MCOS object that the decoder could not read (McosParser.unreadCellSlots),
+     * as not decoded: no editor, no value, and a copy refused (_undecodedRefusal). It was the double 0,
+     * editable, built from the `undefined` the decoder left in the slot. `variable` is what MatParser
+     * read there: one it recorded without decoding is the row it is at the top of a .mat, its
+     * placeholder (_createUndecoded); any other, of a class no arm spells or holding no data, is its
+     * class and size (createNotDecoded). Null is an element that is not a matrix, of no class or size
+     * the bytes say: `<unknown, not decoded>`, as a value whose dims are no numbers is spelled without
+     * them (parseMatVariable). At the top of a .mat that slot is a hole, `[ ]`, a value it never held.
+     */
+    static _createUnreadSlot(variable, name, parent) {
+        if (variable?.undecoded) {
+            return MatlabVariableNode._createUndecoded(variable, name, parent);
+        }
+        if (variable) {
+            return MatlabVariableNode.createNotDecoded(variable, name, parent, variable.isLogical ? 'logical' : variable.className);
+        }
+        const node = new MatlabVariableNode(name, parent, {});
+        node._kind = 'scalar';
+        node._undecoded = true;
+        node._scalarType = 'unknown';
+        node._scalarValue = '<unknown, not decoded>';
+        node._dims = [1, 1];
+        return node;
+    }
     // A variable shown as what was read of it and nothing more: its class and its size, as one
     // not-decoded row (_createUndecoded), `<2x3 double, not decoded>`, spelled as MatParser
     // spells its own placeholder (undecodedValue). It is built for a numeric value that holds no
@@ -4476,7 +4505,7 @@ export default class MatlabVariableNode extends DataNode {
         node._kind = 'cell';
         node._dims = rawVal._dimensions || [1, 1];
         if (rawVal._elements && rawVal._elements.length > 0) {
-            node._buildCellChildren(rawVal._elements);
+            node._buildCellChildren(rawVal._elements, unreadCellSlots(rawVal));
         }
         return node;
     }
