@@ -29,7 +29,7 @@ import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js
 import { MatBudgetError, createSession, ingest } from '../src/index.js';
 import { CLASS, MI, arrayFlags, cellVar, dims, element, matFile, matrix, mxArrayFile, numericVar, structVar, varName } from './tools/matBytes.js';
 import * as matBytes from './tools/matBytes.js';
-import { BINARY, TEXT, copyOf, pasteSaveReopen, thrownBy } from './tools/pasteVenues.js';
+import { BINARY, TEXT, copyOf, pasteSaveReopen, sparseFixture, thrownBy } from './tools/pasteVenues.js';
 import { holder, members, ndUndecodedCopyReadback } from './parity/matlab/nd_undecoded_copy_readback.mjs';
 
 /** A file under test/, as bytes. */
@@ -426,5 +426,137 @@ describe('MATLAB reads the stream such a cell or struct copied as back as it loa
         expect(thrown(() => v.serialize()).slice(0, 5), c.id).toEqual(['MatBudgetError', true, 'not-decoded', 'c', c.shape === 'cell' ? 'c{2}' : 'c(2).f']);
       }
     }
+  });
+});
+
+// B-12 (group H). A struct holding a value the reader did not decode has a member with nothing to
+// write but its placeholder (F1-10). Where such a struct can take an edit at a sibling and then be
+// saved, the save is refused at that member, naming it, and nothing is written in its place: the
+// sibling's edit is never a way round the refusal. In the text or binary dictionary it was read
+// from, the member is its own cdata or hex, so the same edit saves with the member as it was read.
+// A text dictionary keeps a whole struct read from a MAT stream read-only (C-012), and a binary one
+// its own hex. So the struct whose sibling a user can edit while its member cannot be written is one
+// a text dictionary held, pasted into a binary dictionary, which has no spelling for that member: its
+// save is refused before the edit and after it alike. The behaviour was right before this; nothing
+// tested it (the maintainer's group F ruling, F1-10; theme 1: a save the writer cannot spell is
+// refused rather than written wrong).
+describe('a struct holding a value the reader did not decode, edited at a sibling and saved (B-12)', () => {
+  const PREAMBLE = [0x00, 0x01, 0x49, 0x4d, 0x00, 0x00, 0x00, 0x00];
+  const streamOf = (element: Uint8Array): Uint8Array => Uint8Array.from([...PREAMBLE, ...element]);
+  const hexOf = (bytes: Uint8Array): string => Array.from(bytes, (b) => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+  const struct = (f: Uint8Array) => structVar('', ['f', 'g'], [{ f, g: one(2) }]);
+  /** A text dictionary's own struct {f, g: 2}, the member f held as the cdata `f` is the stream of, as MATLAB writes one its JSON cannot spell. */
+  const textStruct = (f: Uint8Array) => ({
+    _array_type: 'Struct',
+    _dimensions: [1, 1],
+    _elements: [{ f: { _type: 'cdata', _value: uuencode(streamOf(f)) }, g: 2 }],
+    _fields: ['f', 'g'],
+    _mw_element_type: 'MATLABArray',
+  });
+
+  /** fixtures/sparse/sparse_text.sldd with its entry c's value `value`: the session, the source and c. */
+  function textWith(value: unknown): { session: any; root: any; c: any } {
+    const json = JSON.parse(strFromU8(testFile('fixtures/sparse/sparse_text.sldd')));
+    json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'c').value = value;
+    const session = createSession();
+    const root: any = session.addDataSource('sparse_text.sldd', json);
+    return { session, root, c: root.getSection('design').children.find((e: any) => e.name === 'c') };
+  }
+  /** fixtures/sparse/sparse_binary.sldd with its entry c's Value tag `tag`: the session, the source and c. */
+  function binaryWith(tag: string): { session: any; root: any; c: any } {
+    const parts = unzipSync(testFile('fixtures/sparse/sparse_binary.sldd'));
+    const chunk = strFromU8(parts['data/chunk0.xml']);
+    const at = chunk.indexOf('<P Name="Value" Class="cell" Encoding="hex"', chunk.indexOf('<P Name="Name" Class="char">c</P>'));
+    expect(at).toBeGreaterThan(0);
+    const zip = zipSync({ ...parts, 'data/chunk0.xml': strToU8(chunk.slice(0, at) + tag + chunk.slice(chunk.indexOf('</P>', at) + 4)) });
+    const session = createSession();
+    const root: any = ingest(session, arrayBufferOf(zip), { filename: 'sparse_binary.sldd' });
+    return { session, root, c: root.getSection('design').children.find((e: any) => e.name === 'c') };
+  }
+  let seq = 0;
+  /** `value` pasted into a fresh binary dictionary as the entry `pasted`, unsaved: the session, the source and the entry. */
+  function pastedIntoBinary(value: unknown): { session: any; root: any; entry: any } {
+    const session = createSession();
+    const root: any = ingest(session, sparseFixture(BINARY), { filename: BINARY });
+    const entry = root.getSection('design').parseEntry({ name: 'pasted', metadata: { uuid: `00000000-0000-4000-e812-${String(++seq).padStart(12, '0')}` }, value });
+    return { session, root, entry };
+  }
+  /** The entry `name`'s Value tag and what is inside it, as `bytes`, a saved binary dictionary, has it. */
+  const writtenValue = (bytes: Uint8Array, name: string): string => {
+    const xml = strFromU8(unzipSync(bytes)['data/chunk0.xml']);
+    const from = xml.indexOf('<P Name="Value"', xml.indexOf(`<P Name="Name" Class="char">${name}</P>`));
+    return xml.slice(from, xml.indexOf('</Object>', from)).trimEnd();
+  };
+
+  const held = [
+    ...KINDS.map((k) => ({ label: k.label, build: () => k.build(''), why: k.why(false) as string, what: k.what as string | null, sparse: false })),
+    ...SPARSE_UNREAD.map((k) => ({ label: k.label, build: members(matBytes)[k.key], why: k.why, what: null, sparse: true })),
+  ];
+  for (const k of held) {
+    it(`${k.label} at f of a text dictionary's struct, pasted into a binary one: g takes an edit, and the save is refused at f, naming it`, () => {
+      // The struct as a text dictionary holds it, {f, g} in its JSON with f a cdata, and as one
+      // it read whole from a MAT stream; a host copies each as read and pastes it as it came.
+      const asJson = textWith(textStruct(k.build())).c;
+      const asStream = textWith({ _type: 'cdata', _value: uuencode(streamOf(struct(k.build()))) }).c;
+      for (const [venue, from] of [['its JSON', asJson], ['a MAT stream', asStream]] as const) {
+        const { session, root, entry } = pastedIntoBinary(copyOf(from));
+        const [f, g] = entry.children;
+        expect([entry.displayValue, f.name, f.displayValue.endsWith(', not decoded>'), f.valueEditable, g.name, g.valueEditable], venue).toEqual([
+          '<1x1 struct>', 'f', true, false, 'g', true,
+        ]);
+        const unedited = thrown(() => session.serializeSource(root.name));
+        expect(g.setProperty('Value', '3'), venue).toBe(true);
+        expect([entry.status, g.displayValue], venue).toEqual(['Modified', '3']);
+        // Saved: refused, finally, at f, naming the entry and the path, with why f was not decoded.
+        // Nothing is written: the save returns nothing, and f is never its placeholder's text.
+        const got = thrown(() => session.serializeSource(root.name));
+        expect(got.slice(0, 5), venue).toEqual(['MatBudgetError', true, 'not-decoded', 'pasted', 'pasted.f']);
+        expect(got[5], venue).toContain('Cannot write "pasted": pasted.f is a ');
+        expect(got[5], venue).toContain(` that was not decoded (${k.why}), so there is no value of it to write. Nothing was written.`);
+        if (k.what) {
+          expect(got, venue).toEqual(refused('pasted', 'pasted.f', k.what, k.why));
+        }
+        // The same refusal the save met before the edit: the edit is no way round it. Except
+        // for a struct read whole from a stream with a sparse member: unedited, that is written
+        // as the hex of the stream it was read from, as one holding a sparse array is at an
+        // entry (_binaryEncoded), and that is not what this asks about; edited, it is refused.
+        if (!(k.sparse && from === asStream)) {
+          expect(unedited, venue).toEqual(got);
+        }
+        // A copy is as the text dictionary has it (a member's serialize() is its value): f read
+        // from its JSON is its own cdata, which a text dictionary holds and a binary one has no
+        // spelling for; f read out of the struct's stream has no form of its own, and neither
+        // has the struct once g is edited.
+        if (from === asJson) {
+          expect([f.serialize(), (copyOf(entry) as any)._elements[0].f], venue).toEqual([textStruct(k.build())._elements[0].f, textStruct(k.build())._elements[0].f]);
+        } else {
+          expect([thrown(() => f.serialize()), thrown(() => entry.serialize())], venue).toEqual([got, got]);
+        }
+        // The next save meets the same refusal: the edit stands, and nothing went past f.
+        expect(thrown(() => session.serializeSource(root.name)), venue).toEqual(got);
+        expect([f.displayValue.endsWith(', not decoded>'), g.displayValue], venue).toEqual([true, '3']);
+      }
+    });
+  }
+
+  it('in the dictionary it was read from, the same edit saves, with the member as read: a text dictionary\'s cdata, a binary one\'s hex', () => {
+    const f = KINDS[0].build('');
+    const text = textWith(textStruct(f));
+    const [tf, tg] = text.c.children;
+    expect([tf.displayValue, tf.valueEditable, tg.valueEditable]).toEqual(['<2x3 double, not decoded>', false, true]);
+    expect(tg.setProperty('Value', '3')).toBe(true);
+    const saved = JSON.parse(text.session.serializeSource(text.root.name)!.text!);
+    const value = saved.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries.find((e: any) => e.name === 'c').value;
+    expect(value).toEqual({ ...textStruct(f), _elements: [{ f: textStruct(f)._elements[0].f, g: 3 }] });
+
+    // A field held as the hex of its own MAT stream, as this package writes a sparse field and
+    // MATLAB reads it back (MatlabVariableNode.serializeXml).
+    const hex = `<P Name="f" Class="double" Encoding="hex" EncodedLength="${streamOf(f).length}">${hexOf(streamOf(f))}</P>`;
+    const tag = (g: string) => `<P Name="Value" Class="struct">\n<Element>\n${hex}\n<P Name="g" Class="double">${g}</P>\n</Element>\n</P>`;
+    const binary = binaryWith(tag('2.0'));
+    const [bf, bg] = binary.c.children;
+    expect([bf.displayValue, bf.valueEditable, bg.valueEditable]).toEqual(['<2x3 double, not decoded>', false, true]);
+    expect(bg.setProperty('Value', '3')).toBe(true);
+    expect(writtenValue((binary.session.serializeSource(binary.root.name) as any).bytes, 'c')).toBe(tag('3.0'));
   });
 });
