@@ -29,7 +29,7 @@ import { ingest } from '../src/core/ingest.js';
 import MatNode from '../src/datamodel/node/container/MatNode.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
-import { CLASS, cellVar, matFile, numericVar } from './tools/matBytes.js';
+import { CLASS, MI, cellVar, charVar, matFile, numericVar } from './tools/matBytes.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -186,10 +186,12 @@ describe('a .mat file cell holding a complex member whose imaginary part is 0, w
   }
 
   // The controls: an imaginary part that is not 0, however small, is not 0. exp(1i*pi)'s is
-  // 1.2246467991473532e-16, and 5e-324 is the least double above 0; NaN is not 0 either. The
-  // literal reads such a member back as itself, so the cell keeps its editor, and the literal with
-  // only the 5 retyped keeps the member complex.
-  const notZero: [number, number][] = [[1, 0.5], [Math.cos(Math.PI), Math.sin(Math.PI)], [1, 1e-16], [1, 5e-324], [1, NaN]];
+  // 1.2246467991473532e-16, and 5e-324 is the least double above 0; NaN is not 0 either. Nor is
+  // a negative one, with the real part 0 or not. The literal reads such a member back as itself,
+  // so the cell keeps its editor, and the literal with only the 5 retyped keeps the member complex.
+  const notZero: [number, number][] = [
+    [1, 0.5], [Math.cos(Math.PI), Math.sin(Math.PI)], [1, 1e-16], [1, 5e-324], [1, NaN], [1, -2], [0, -2],
+  ];
   const notZeroFile = (): ArrayBuffer => matFile(notZero.map(([re, im], k) => cellVar(`s${k}`, [dbl([re], [im]), dbl([5])])));
 
   for (const nodeCeiling of [0, Number.MAX_SAFE_INTEGER]) {
@@ -207,6 +209,23 @@ describe('a .mat file cell holding a complex member whose imaginary part is 0, w
         expect(cell.displayValue, label).toBe(retyped);
         expect(rows(cell), label).toEqual([['double (complex)', member], ['double', '6']]);
       });
+    });
+  }
+
+  // The control: a char member whose text reads like a complex number with imaginary part 0 is
+  // not a complex number. The literal reads it back as the char it is, so the cell keeps its
+  // editor, and the literal with only the 5 retyped keeps the member a char.
+  const charFile = (): ArrayBuffer => matFile([cellVar('k', [charVar('', '1+0i', MI.UTF8), dbl([5])])]);
+
+  for (const nodeCeiling of [0, Number.MAX_SAFE_INTEGER]) {
+    it(`node ceiling ${nodeCeiling}: a char member that reads like 1+0i keeps the editor, and the literal keeps it a char`, () => {
+      const root = (MatNode.fromParsed as any)(parseMat(charFile()), 'f.mat', { nodeCeiling });
+      const cell = root.children.find((v: any) => v.name === 'k');
+      expect(cell.displayValue).toBe("{'1+0i', 5}");
+      expect(cell.valueEditable).toBe(true);
+      expect(cell.setProperty('Value', "{'1+0i', 6}")).toBe(true);
+      expect(cell.displayValue).toBe("{'1+0i', 6}");
+      expect(rows(cell)).toEqual([['char', "'1+0i'"], ['double', '6']]);
     });
   }
 });
