@@ -1,0 +1,2659 @@
+{"version":"27.1.0.3409468 (R2027a) Prerelease","release":"2027a","date":"2026-10-18",
+"cases": [
+ {
+  "id": "h_written",
+  "kind": "hand",
+  "what": "as written",
+  "edit": {},
+  "sha256": "4606886c3c7fe0135ea2fbfedaf73cc45bd34f691ceb9ae4e0245c48acd3444f"
+ },
+ {
+  "id": "h_name_1bad",
+  "kind": "hand",
+  "what": "vbN's Name '1bad'",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "Name": "1bad"
+   }
+  },
+  "sha256": "3a526f4daf9a88744dd459b5c388739de2ba725cddc293bf53ff9573c1eaec63"
+ },
+ {
+  "id": "h_name_rtX",
+  "kind": "hand",
+  "what": "vbN's Name 'rtX'",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "Name": "rtX"
+   }
+  },
+  "sha256": "d3dfe45e908b3e5f13005fff3d25f9c7dbd687c11b2474a5dbdce521cac44b8f"
+ },
+ {
+  "id": "h_name_number",
+  "kind": "hand",
+  "what": "vbN's Name a number",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "Name": 5
+   }
+  },
+  "sha256": "2c721e790d8fe10628e4cf3ca4ebee94c571aca7eece97e5ad9f15960373cb7d"
+ },
+ {
+  "id": "h_desc_number",
+  "kind": "hand",
+  "what": "vbN's Description a number",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "Description": 5
+   }
+  },
+  "sha256": "5baf2f02eb2a7b476f5024f7a849fbeb8a94f42ae6650f80913eb86430997b46"
+ },
+ {
+  "id": "h_all_1bad",
+  "kind": "hand",
+  "what": "vbN's AllChoicesCoderInfo '1bad'",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "AllChoicesCoderInfo": "1bad"
+   }
+  },
+  "sha256": "0b5f159b32402c39a5909b705a883858caafa6c5f161db7c602118ddf9ffce67"
+ },
+ {
+  "id": "h_active_1bad",
+  "kind": "hand",
+  "what": "vbN's ActiveChoiceCoderInfo '1bad'",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "ActiveChoiceCoderInfo": "1bad"
+   }
+  },
+  "sha256": "fa8ac6a336685831684360bd6038022fb10cd93947ed07a8e1200836270a0027"
+ },
+ {
+  "id": "h_all_number",
+  "kind": "hand",
+  "what": "vbN's AllChoicesCoderInfo a number",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "AllChoicesCoderInfo": 5
+   }
+  },
+  "sha256": "717b3c1696ab7c65554f70599fd23fa3bcb7df9bc6d5f985cba38ae3d17bc4a1"
+ },
+ {
+  "id": "h_cond_unspaced",
+  "kind": "hand",
+  "what": "vbN's condition 'V==1'",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "VariantConditions": {
+     "_array_type": "Cell",
+     "_dimensions": [
+      1,
+      2
+     ],
+     "_elements": [
+      "V==1",
+      "V == 2"
+     ]
+    }
+   }
+  },
+  "sha256": "148da6ab0a2ef2b4abcfd90281c3402ffe1b7c38b0e4ed11d261c8a04b95f5f6"
+ },
+ {
+  "id": "h_cond_unparsable",
+  "kind": "hand",
+  "what": "vbN's condition 'V =='",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "VariantConditions": {
+     "_array_type": "Cell",
+     "_dimensions": [
+      1,
+      2
+     ],
+     "_elements": [
+      "V == 1",
+      "V =="
+     ]
+    }
+   }
+  },
+  "sha256": "7491e2f0dad466be8c219c09e034a3640fcb23d54ba540794e42542936728423"
+ },
+ {
+  "id": "h_cond_enum",
+  "kind": "hand",
+  "what": "vbN's condition 'V == E.A'",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "VariantConditions": {
+     "_array_type": "Cell",
+     "_dimensions": [
+      1,
+      2
+     ],
+     "_elements": [
+      "V == 1",
+      "V == E.A"
+     ]
+    }
+   }
+  },
+  "sha256": "65151c48c96959e92620eb271c1588d9c7e1e2e1c2b8ab089d93c8a22e1c1ca5"
+ },
+ {
+  "id": "h_cond_empty",
+  "kind": "hand",
+  "what": "vbN's condition ''",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "VariantConditions": {
+     "_array_type": "Cell",
+     "_dimensions": [
+      1,
+      2
+     ],
+     "_elements": [
+      "V == 1",
+      ""
+     ]
+    }
+   }
+  },
+  "sha256": "c35b2d5fe467050420f934f0bc97a916931d9d80d57226f35e293096930ffbde"
+ },
+ {
+  "id": "h_cond_number",
+  "kind": "hand",
+  "what": "vbN's condition a number",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "VariantConditions": {
+     "_array_type": "Cell",
+     "_dimensions": [
+      1,
+      2
+     ],
+     "_elements": [
+      "V == 1",
+      2
+     ]
+    }
+   }
+  },
+  "sha256": "16872def5917b30fb891d67d2171e7d794405f092c9fd215db34553566a75124"
+ },
+ {
+  "id": "h_cond_int32",
+  "kind": "hand",
+  "what": "vbN's condition 'V == 2147483648'",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "VariantConditions": {
+     "_array_type": "Cell",
+     "_dimensions": [
+      1,
+      2
+     ],
+     "_elements": [
+      "V == 1",
+      "V == 2147483648"
+     ]
+    }
+   }
+  },
+  "sha256": "cbbb01d0dc19e3944ff8038112a646a0ad770e44e65a25dcba129b9d29aeabc6"
+ },
+ {
+  "id": "h_conds_char",
+  "kind": "hand",
+  "what": "vbN's VariantConditions the char 'V==1'",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "VariantConditions": "V==1"
+   }
+  },
+  "sha256": "4b5724b525e1e0dbffdf9db9d9010459a643f8b09bc5f8e606323131fb94e7d6"
+ },
+ {
+  "id": "h_conds_number",
+  "kind": "hand",
+  "what": "vbN's VariantConditions a number",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "VariantConditions": 5
+   }
+  },
+  "sha256": "baed79a4d4a7d7b67116fbe48f64126d1af3727c2ac4506f185710fb5177d00c"
+ },
+ {
+  "id": "h_conds_2x1",
+  "kind": "hand",
+  "what": "vbN's VariantConditions a 2x1 cell",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "VariantConditions": {
+     "_array_type": "Cell",
+     "_dimensions": [
+      2,
+      1
+     ],
+     "_elements": [
+      "V == 1",
+      "V == 2"
+     ]
+    }
+   }
+  },
+  "sha256": "c0e8ab59b90a44d36fa2584d08bca007e631f8d5bc68f3e7558d6bcd452161b2"
+ },
+ {
+  "id": "h_vb1_all_ciB",
+  "kind": "hand",
+  "what": "vb1's AllChoicesCoderInfo 'ciB', before its BankCoderInfo 'ciA'",
+  "edit": {
+   "entries": [
+    "vb1"
+   ],
+   "set": {
+    "AllChoicesCoderInfo": "ciB"
+   }
+  },
+  "sha256": "285b0c7b1a4c3f0ff5875535cf6e7b424d8ee63ec436597b8ea3eb17bd3a7f35"
+ },
+ {
+  "id": "h_vb1_all_ciB_after",
+  "kind": "hand",
+  "what": "vb1's AllChoicesCoderInfo 'ciB', after its BankCoderInfo 'ciA'",
+  "edit": {
+   "entries": [
+    "vb1"
+   ],
+   "set": {
+    "AllChoicesCoderInfo": "ciB"
+   },
+   "order": [
+    "BankCoderInfo"
+   ]
+  },
+  "sha256": "ca90337eff4a34c9892da93a10dd396a97ef922034018f1f8db3e6baec811b49"
+ },
+ {
+  "id": "h_vb1_active_ciB",
+  "kind": "hand",
+  "what": "vb1's ActiveChoiceCoderInfo 'ciB', before its BankCoderInfo 'ciA'",
+  "edit": {
+   "entries": [
+    "vb1"
+   ],
+   "set": {
+    "ActiveChoiceCoderInfo": "ciB"
+   }
+  },
+  "sha256": "f6f6aacb49e067ff5861cac92840df2e559731be4781d552761fc6da7246e312"
+ },
+ {
+  "id": "h_vb1_bank_empty",
+  "kind": "hand",
+  "what": "vb1's BankCoderInfo ''",
+  "edit": {
+   "entries": [
+    "vb1"
+   ],
+   "set": {
+    "BankCoderInfo": ""
+   }
+  },
+  "sha256": "262484f8782f455c3dce0490d45fe35d7f2f35f742d48401635ceade20a0151c"
+ },
+ {
+  "id": "h_vb1_bank_ciB",
+  "kind": "hand",
+  "what": "vb1's BankCoderInfo 'ciB'",
+  "edit": {
+   "entries": [
+    "vb1"
+   ],
+   "set": {
+    "BankCoderInfo": "ciB"
+   }
+  },
+  "sha256": "042b45ebea8375cd841d3adadd4f530866de56956fecf22a12821deba067f74b"
+ },
+ {
+  "id": "h_vb1_bank_1bad",
+  "kind": "hand",
+  "what": "vb1's BankCoderInfo '1bad'",
+  "edit": {
+   "entries": [
+    "vb1"
+   ],
+   "set": {
+    "BankCoderInfo": "1bad"
+   }
+  },
+  "sha256": "9a4def0b310419f156bcb8c2455ab320a63cef6a83c7d15a4d456dbdc899b502"
+ },
+ {
+  "id": "h_no_bank",
+  "kind": "hand",
+  "what": "no bank has a BankCoderInfo",
+  "edit": {
+   "entries": [
+    "vbN",
+    "vb1",
+    "vbD"
+   ],
+   "drop": [
+    "BankCoderInfo"
+   ]
+  },
+  "sha256": "88169f0655203aa027085b6d6aceccd2e5e9f361cf345aabbe0e6b5c423b1078"
+ },
+ {
+  "id": "h_no_desc",
+  "kind": "hand",
+  "what": "vbN has no Description",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "drop": [
+    "Description"
+   ]
+  },
+  "sha256": "eb83941ff7eafb842caaa3af9d998d5abad7291a6cf9986ff2436f3cfd131f7c"
+ },
+ {
+  "id": "h_no_name",
+  "kind": "hand",
+  "what": "vbN has no Name",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "drop": [
+    "Name"
+   ]
+  },
+  "sha256": "dc9994fcfa031d6979aadce37e4747cbb3d8f74e384750977441711b7b8fc40a"
+ },
+ {
+  "id": "h_no_conds",
+  "kind": "hand",
+  "what": "vbN has no VariantConditions",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "drop": [
+    "VariantConditions"
+   ]
+  },
+  "sha256": "3b1e01884b53caf08a2d16f26c43af867e95f4881b87d12caf038867b100e8b6"
+ },
+ {
+  "id": "h_name_first",
+  "kind": "hand",
+  "what": "vbN's Name first, then the rest",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "order": [
+    "Name",
+    "VariantConditions"
+   ]
+  },
+  "sha256": "990b9d6e80f05c6d032d6f7a9201836916c5e036516ea14e2d5833424a736070"
+ },
+ {
+  "id": "h_value_key",
+  "kind": "hand",
+  "what": "vbN has a Value 'x'",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "Value": "x"
+   }
+  },
+  "sha256": "e6ef72f7f6c834cf129fb5b199a236c16370d1a4679861932711e5147a14542b"
+ },
+ {
+  "id": "h_unknown_key",
+  "kind": "hand",
+  "what": "vbN has a property Foo",
+  "edit": {
+   "entries": [
+    "vbN"
+   ],
+   "set": {
+    "Foo": 1
+   }
+  },
+  "sha256": "baa2dd9a0542deb212ce67bc93e66407e556702e38aae0fcf52178892062de77"
+ },
+ {
+  "id": "s_vbD_every_field",
+  "kind": "save",
+  "what": "every field of the default bank vbD edited",
+  "edits": [
+   [
+    "vbD",
+    "bankName",
+    "bankZ"
+   ],
+   [
+    "vbD",
+    "Description",
+    "two\nlines, it's"
+   ],
+   [
+    "vbD",
+    "variantConditions",
+    "{'A==1','A==2';'A==3','A==4'}"
+   ],
+   [
+    "vbD",
+    "allChoicesCoderInfo",
+    "ciA"
+   ],
+   [
+    "vbD",
+    "activeChoiceCoderInfo",
+    "ciB"
+   ]
+  ],
+  "wrote": {
+   "vbD": {
+    "_id": "1",
+    "_properties": {
+     "ActiveChoiceCoderInfo": "ciB",
+     "AllChoicesCoderInfo": "ciA",
+     "BankCoderInfo": "",
+     "Description": "two\nlines, it's",
+     "Name": "bankZ",
+     "VariantConditions": {
+      "_array_type": "Cell",
+      "_dimensions": [
+       1,
+       4
+      ],
+      "_elements": [
+       "A == 1",
+       "A == 3",
+       "A == 2",
+       "A == 4"
+      ]
+     }
+    }
+   }
+  }
+ },
+ {
+  "id": "s_vbN_cleared",
+  "kind": "save",
+  "what": "every field of vbN cleared",
+  "edits": [
+   [
+    "vbN",
+    "bankName",
+    ""
+   ],
+   [
+    "vbN",
+    "Description",
+    ""
+   ],
+   [
+    "vbN",
+    "variantConditions",
+    "{}"
+   ],
+   [
+    "vbN",
+    "allChoicesCoderInfo",
+    ""
+   ],
+   [
+    "vbN",
+    "activeChoiceCoderInfo",
+    ""
+   ]
+  ],
+  "wrote": {
+   "vbN": {
+    "_id": "1",
+    "_properties": {
+     "ActiveChoiceCoderInfo": "",
+     "AllChoicesCoderInfo": "",
+     "BankCoderInfo": "",
+     "Description": "",
+     "Name": "",
+     "VariantConditions": {
+      "_array_type": "Cell",
+      "_dimensions": [
+       1,
+       0
+      ],
+      "_elements": []
+     }
+    }
+   }
+  }
+ },
+ {
+  "id": "s_vbN_string_array",
+  "kind": "save",
+  "what": "vbN's conditions typed as a string array",
+  "edits": [
+   [
+    "vbN",
+    "variantConditions",
+    "[\"V==3\",\"W~=1\"]"
+   ]
+  ],
+  "wrote": {
+   "vbN": {
+    "_id": "1",
+    "_properties": {
+     "ActiveChoiceCoderInfo": "ciB",
+     "AllChoicesCoderInfo": "ciA",
+     "BankCoderInfo": "",
+     "Description": "desc A",
+     "Name": "bankA",
+     "VariantConditions": {
+      "_array_type": "Cell",
+      "_dimensions": [
+       1,
+       2
+      ],
+      "_elements": [
+       "V == 3",
+       "W ~= 1"
+      ]
+     }
+    }
+   }
+  }
+ },
+ {
+  "id": "s_vb1_all_ciB",
+  "kind": "save",
+  "what": "vb1's AllChoicesCoderInfo edited to 'ciB', beside its BankCoderInfo 'ciA'",
+  "edits": [
+   [
+    "vb1",
+    "allChoicesCoderInfo",
+    "ciB"
+   ]
+  ],
+  "wrote": {
+   "vb1": {
+    "_id": "1",
+    "_properties": {
+     "ActiveChoiceCoderInfo": "ciA",
+     "AllChoicesCoderInfo": "ciB",
+     "BankCoderInfo": "ciA",
+     "Description": "two\nlines, it's",
+     "Name": "bankOne",
+     "VariantConditions": {
+      "_array_type": "Cell",
+      "_dimensions": [
+       1,
+       1
+      ],
+      "_elements": [
+       "W > 0 && ~X"
+      ]
+     }
+    }
+   }
+  }
+ }
+],
+"rows": [
+  {
+    "id": "h_written",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_name_1bad",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_name_rtX",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_name_number",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_desc_number",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_all_1bad",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_active_1bad",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_all_number",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_cond_unspaced",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_cond_unparsable",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_cond_enum",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == E.A"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_cond_empty",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_cond_number",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_cond_int32",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_conds_char",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_conds_number",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_conds_2x1",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_vb1_all_ciB",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciB",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_vb1_all_ciB_after",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciB",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_vb1_active_ciB",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_vb1_bank_empty",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": ""
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_vb1_bank_ciB",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciB"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_vb1_bank_1bad",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": ""
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_no_bank",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": ""
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_no_desc",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_no_name",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_no_conds",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_name_first",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_value_key",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "h_unknown_key",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "s_vbD_every_field",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankZ",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            4
+          ],
+          "elements": [
+            "A == 1",
+            "A == 3",
+            "A == 2",
+            "A == 4"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "s_vbN_cleared",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "s_vbN_string_array",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 3",
+            "W ~= 1"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  },
+  {
+    "id": "s_vb1_all_ciB",
+    "warning": "",
+    "reads": {
+      "vbN": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankA",
+        "Description": "desc A",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "elements": [
+            "V == 1",
+            "V == 2"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciA",
+        "ActiveChoiceCoderInfo": "ciB",
+        "BankCoderInfo": ""
+      },
+      "vb1": {
+        "class": "Simulink.VariantBank",
+        "Name": "bankOne",
+        "Description": "two\nlines, it's",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            1
+          ],
+          "elements": [
+            "W > 0 && ~X"
+          ]
+        },
+        "AllChoicesCoderInfo": "ciB",
+        "ActiveChoiceCoderInfo": "ciA",
+        "BankCoderInfo": "ciA"
+      },
+      "vbD": {
+        "class": "Simulink.VariantBank",
+        "Name": "",
+        "Description": "",
+        "VariantConditions": {
+          "class": "cell",
+          "size": [
+            1,
+            0
+          ],
+          "elements": []
+        },
+        "AllChoicesCoderInfo": "",
+        "ActiveChoiceCoderInfo": "",
+        "BankCoderInfo": ""
+      }
+    }
+  }
+]}

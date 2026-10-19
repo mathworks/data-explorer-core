@@ -41,11 +41,13 @@ const LEAVES = [
   { cls: 'CustomObject', Node: CustomObjectNode, prop: 'Description', icon: 'ws3d', kind: 'CustomObject' },
 ] as const;
 
-// The classes whose one property MATLAB's class does not have, so the node shows a key a file
-// already carries but takes no edit of it: Simulink.VariantBank has no Value, and nor has
-// Simulink.VariantBankCoderInfo (R2027a; the 2026-10-16 ruling, group E, C-168 and C-169).
-// test/variantBankNoValue.test.ts covers both over the entries MATLAB wrote.
-const READ_ONLY = new Set<string>(['Simulink.VariantBank', 'Simulink.VariantBankCoderInfo']);
+// The classes whose one property MATLAB's class does not have, so the node takes no edit of a key
+// a file already carries and writes it back as read: Simulink.VariantBank has no Value, and nor
+// has Simulink.VariantBankCoderInfo (R2027a; the 2026-10-16 ruling, group E, C-168 and C-169).
+// test/variantBankNoValue.test.ts covers both over the entries MATLAB wrote. Nor has
+// Simulink.VariantConfigurations, whichever name it is stored under (R2027a; B-19,
+// test/variantConfigurationsNoValue.test.ts).
+const READ_ONLY = new Set<string>(['Simulink.VariantBank', 'Simulink.VariantBankCoderInfo', 'Simulink.VariantConfigurationData']);
 
 // The `_array_class` a NEW entry is written with, where it differs from the class the node
 // reports for a parsed one. Exactly one class differs, and it differs for a reason MATLAB

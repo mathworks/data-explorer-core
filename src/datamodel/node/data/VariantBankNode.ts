@@ -36,6 +36,14 @@ const CLASS_NAME = 'Simulink.VariantBank';
 // whose Name, coder info names or any condition its setter would refuse loads the WHOLE bank
 // as defaults, with no warning (measured). A file a hand edit left like that is shown as read,
 // with a warning, and saved as read.
+//
+// A text dictionary R2026b wrote holds a bank as plain properties, with no envelope, as it holds
+// a coder info (VariantBankCoderInfoNode). R2027a reads that spelling property by property,
+// through the setters, with no warning: a value one refuses is read as that property's default
+// alone, not the whole bank's, a char VariantConditions (which the setter refuses) as no
+// conditions, and BankCoderInfo independently of the two coder infos (measured:
+// test/parity/matlab/probe_variantbank_plain.m). So there the fields are read from, and an edit
+// written into, the plain property, and the warnings say what MATLAB does there.
 
 // The envelope fields this node shows, by node property, with MATLAB's name for each.
 const FIELDS: Record<string, string> = {
@@ -108,27 +116,46 @@ function quoted(text: string): string {
 
 const WHOLE_BANK = 'which MATLAB reads as a bank with every property at its default';
 
-// What MATLAB does not read as written in a bank's envelope, one clause each, for the
-// dictionary's warnings: empty for a bank MATLAB reads as it is. Measured by the LOAD lines of
+// A field as the file holds it: in the saveobj envelope R2027a writes, or, where the bag has no
+// envelope, the plain property a text dictionary R2026b wrote (VariantBankCoderInfoNode's
+// `fieldOf`). Undefined for a field the file does not have, which takes no edit (there is nowhere
+// to write one).
+function fieldOf(props: Record<string, unknown> | undefined, key: string): unknown {
+    if (!props) {
+        return undefined;
+    }
+    if (SAVEOBJ_KEY in props) {
+        return readSaveobjField(props, key);
+    }
+    return Object.prototype.hasOwnProperty.call(props, key) ? props[key] : undefined;
+}
+
+// What MATLAB does not read as written in a bank, one clause each, for the dictionary's warnings:
+// empty for a bank MATLAB reads as it is. From the envelope, measured by the LOAD lines of
 // make_variantbank_r2027a.m: a value the setter refuses makes MATLAB read the whole bank as
 // defaults, a Name or Description that is not text is read as '', and a VariantConditions that
 // is neither a cell nor text as no conditions. A char VariantConditions is read as a cell of that
 // one condition, and an unspaced condition is read in MATLAB's own spelling, so neither is said;
 // nor is a condition outside the editor's language that MATLAB can parse (conditionCannotParse).
+// From R2026b's plain properties, measured by probe_variantbank_plain.m, each through its setter:
+// a value it refuses is read as that property's default alone ('' for a name, no conditions for
+// VariantConditions), a char VariantConditions included.
 function unreadFields(props: Record<string, unknown>): string[] {
     const found: string[] = [];
-    const name = readSaveobjField(props, 'Name');
+    const plain = !(SAVEOBJ_KEY in props);
+    const refused = (byDefault: string): string => (plain ? `which MATLAB reads as ${byDefault}` : WHOLE_BANK);
+    const name = fieldOf(props, 'Name');
     if (typeof name === 'string' && !nameIsValid(name)) {
-        found.push(`its Name ${quoted(name)} is not a valid C identifier that does not start with "rt", ${WHOLE_BANK}`);
+        found.push(`its Name ${quoted(name)} is not a valid C identifier that does not start with "rt", ${refused("''")}`);
     } else if (name !== undefined && typeof name !== 'string') {
         found.push(`its Name is not text, which MATLAB reads as ''`);
     }
-    const description = readSaveobjField(props, 'Description');
+    const description = fieldOf(props, 'Description');
     if (description !== undefined && typeof description !== 'string') {
         found.push(`its Description is not text, which MATLAB reads as ''`);
     }
-    const vc = readSaveobjField(props, 'VariantConditions') as Record<string, unknown> | undefined;
-    if (typeof vc === 'string') {
+    const vc = fieldOf(props, 'VariantConditions') as Record<string, unknown> | undefined;
+    if (typeof vc === 'string' && !plain) {
         if (conditionCannotParse(vc)) {
             found.push(`its condition ${quoted(vc)} does not parse, ${WHOLE_BANK}`);
         }
@@ -138,21 +165,21 @@ function unreadFields(props: Record<string, unknown>): string[] {
         } else {
             (vc._elements as unknown[]).forEach((c, i) => {
                 if (typeof c !== 'string') {
-                    found.push(`its condition at position ${i + 1} is not text, ${WHOLE_BANK}`);
+                    found.push(`its condition at position ${i + 1} is not text, ${refused('no conditions')}`);
                 } else if (c.trim() === '') {
-                    found.push(`its condition at position ${i + 1} is empty, ${WHOLE_BANK}`);
+                    found.push(`its condition at position ${i + 1} is empty, ${refused('no conditions')}`);
                 } else if (conditionCannotParse(c)) {
-                    found.push(`its condition ${quoted(c)} does not parse, ${WHOLE_BANK}`);
+                    found.push(`its condition ${quoted(c)} does not parse, ${refused('no conditions')}`);
                 }
             });
         }
     }
     for (const field of ['AllChoicesCoderInfo', 'ActiveChoiceCoderInfo', 'BankCoderInfo']) {
-        const value = readSaveobjField(props, field);
+        const value = fieldOf(props, field);
         if (typeof value === 'string' && !coderInfoIsValid(value)) {
-            found.push(`its ${field} ${quoted(value)} is not a valid variable name, ${WHOLE_BANK}`);
+            found.push(`its ${field} ${quoted(value)} is not a valid variable name, ${refused("''")}`);
         } else if (value !== undefined && typeof value !== 'string') {
-            found.push(`its ${field} is not text`);
+            found.push(plain ? `its ${field} is not text, which MATLAB reads as ''` : `its ${field} is not text`);
         }
     }
     return found;
@@ -168,29 +195,31 @@ export default class VariantBankNode extends SimulinkObjectNode {
     // Whether the file carried a Value key at all. MATLAB's own banks never do, and showing
     // their absent one as `''` implied a char value the class does not have.
     readonly _valueInFile: boolean;
-    // The envelope's fields, as shown (Description is DataNode's). The char fields hold their
-    // text; VariantConditions holds the cell as read, or as an edit wrote it.
+    // The envelope's fields, or R2026b's plain properties, as shown (Description is DataNode's).
+    // The char fields hold their text; VariantConditions holds the cell as read, or as an edit
+    // wrote it.
     BankName: string;
     VariantConditions: unknown;
     AllChoicesCoderInfo: string;
     ActiveChoiceCoderInfo: string;
-    // The envelope fields an edit has set, by MATLAB name, with the value each is written as.
+    // The fields an edit has set, by MATLAB name, with the value each is written as.
     // Only these are written over what the file held (_mergeProps).
     _editedFields: Map<string, unknown>;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>) {
         super(name, parent, serial);
         this._valueInFile = props.Value !== undefined;
         this.Value = this._valueInFile ? props.Value : '';
-        this.BankName = textOf(readSaveobjField(props, 'Name'));
-        // From the envelope, where MATLAB writes it. A Description key beside the envelope, which
-        // no writer leaves and MATLAB does not read, is shown when the envelope has none, rather
-        // than hidden: the Description row claims that key, so "Other" does not list it.
-        const description = readSaveobjField(props, 'Description');
+        this.BankName = textOf(fieldOf(props, 'Name'));
+        // From the envelope, where MATLAB writes it, or R2026b's plain property. A Description key
+        // beside the envelope, which no writer leaves and MATLAB does not read, is shown when the
+        // envelope has none, rather than hidden: the Description row claims that key, so "Other"
+        // does not list it.
+        const description = fieldOf(props, 'Description');
         this.Description = description !== undefined ? textOf(description) : textOf(props.Description);
-        const vc = readSaveobjField(props, 'VariantConditions');
+        const vc = fieldOf(props, 'VariantConditions');
         this.VariantConditions = vc === undefined ? VariantBankNode._emptyCell() : vc;
-        this.AllChoicesCoderInfo = textOf(readSaveobjField(props, 'AllChoicesCoderInfo'));
-        this.ActiveChoiceCoderInfo = textOf(readSaveobjField(props, 'ActiveChoiceCoderInfo'));
+        this.AllChoicesCoderInfo = textOf(fieldOf(props, 'AllChoicesCoderInfo'));
+        this.ActiveChoiceCoderInfo = textOf(fieldOf(props, 'ActiveChoiceCoderInfo'));
         this._editedFields = new Map();
     }
     get icon(): string { return 'wsParameters_bank'; }
@@ -245,9 +274,10 @@ export default class VariantBankNode extends SimulinkObjectNode {
             invalidValue: stringValue,
             validValue: this.getPropInfo(prop).displayValue,
         });
-        // An edit is written into the envelope's own field (writeIntoSaveobj), so a field the
-        // envelope does not have, which only a hand edit leaves, has nowhere to go.
-        if (readSaveobjField(this.serial._properties as Record<string, unknown>, field) === undefined) {
+        // An edit is written into the field the file holds (the envelope's, or R2026b's plain
+        // property), so a field the file does not have, which only a hand edit leaves, has
+        // nowhere to go.
+        if (fieldOf(this.serial._properties as Record<string, unknown>, field) === undefined) {
             return refuse(`'${this.displayName}' was read with no ${field} in its saved form, so a ${prop.displayName} edit has nowhere to be saved.`);
         }
         let written: unknown = stringValue;
@@ -297,10 +327,20 @@ export default class VariantBankNode extends SimulinkObjectNode {
     _serializedOverrides(): Record<string, unknown> { return {}; }
     // Both save paths merge through here (SimulinkObjectNode), so the edited fields are written
     // into the envelope here, and only there: an override would also be written beside it by
-    // `_mergeProps`, which is the invented key C-168(a) removed. Every other field is the file's.
+    // `_mergeProps`, which is the invented key C-168(a) removed. Or, in a bag with no envelope,
+    // into the plain property R2026b wrote, as VariantBankCoderInfoNode writes its own. Every
+    // other field is the file's.
     _mergeProps(propOverrides: Record<string, unknown>): Record<string, unknown> {
         const merged = super._mergeProps(propOverrides);
-        if (this._editedFields.size === 0 || !(SAVEOBJ_KEY in merged)) {
+        if (this._editedFields.size === 0) {
+            return merged;
+        }
+        if (!(SAVEOBJ_KEY in merged)) {
+            for (const [field, value] of this._editedFields) {
+                if (Object.prototype.hasOwnProperty.call(merged, field)) {
+                    merged[field] = value;
+                }
+            }
             return merged;
         }
         let envelope = merged[SAVEOBJ_KEY];

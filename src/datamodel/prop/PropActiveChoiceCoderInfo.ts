@@ -10,8 +10,9 @@ export default class PropActiveChoiceCoderInfo {
     static displayName = 'Active Choice Coder Info';
     static editor = 'text';
     static column = 'activeChoiceCoderInfo';
-    // Read out of the saveobj envelope, so the "Other" group does not list the envelope again.
-    static sourceKeys = [SAVEOBJ_KEY];
+    // Read out of the saveobj envelope, or the plain property a text dictionary R2026b wrote, so
+    // the "Other" group lists neither again.
+    static sourceKeys = [SAVEOBJ_KEY, 'ActiveChoiceCoderInfo'];
 
     static format = formatText;
 }

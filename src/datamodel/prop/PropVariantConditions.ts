@@ -39,8 +39,9 @@ export default class PropVariantConditions {
     static displayName = 'Variant Conditions';
     static editor = 'text';
     static column = 'variantConditions';
-    // Read out of the saveobj envelope, so the "Other" group does not list the envelope again.
-    static sourceKeys = [SAVEOBJ_KEY];
+    // Read out of the saveobj envelope, or the plain property a text dictionary R2026b wrote, so
+    // the "Other" group lists neither again.
+    static sourceKeys = [SAVEOBJ_KEY, 'VariantConditions'];
 
     static format(value: unknown): string {
         if (typeof value === 'string') {

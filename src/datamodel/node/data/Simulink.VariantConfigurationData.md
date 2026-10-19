@@ -5,7 +5,8 @@
 **Node class:** `VariantConfigurationDataNode` (`src/datamodel/node/data/VariantConfigurationDataNode.ts`)
 **MATLAB class:** `Simulink.VariantConfigurationData` (className dynamically read from `_array_class`)
 **Editable in our UI:** no (`valueEditable` explicitly returns `false`)
-**Verified against:** not probed (no params.sldd fixture instantiates this class)
+**Verified against:** not probed (no params.sldd fixture instantiates this class); the class's
+properties measured in R2027a by `test/parity/matlab/probe_variantconfigurations_value.m`
 
 ## Overview
 
@@ -27,6 +28,15 @@ The node has a `createDefault` static for constructing minimal instances.
 |------------|--------|--------------------------|-------------------------------|
 | Name       | text   | entry name               | MATLAB identifier             |
 | DataType   | label  | (className display)      | Read-only label               |
+
+## No Value
+
+MATLAB's class has no Value (R2027a: under either name the object built is a
+`Simulink.VariantConfigurations`, `isprop(…, 'Value')` is 0, and setting one fails with
+"Unrecognized property 'Value' for class 'Simulink.VariantConfigurations'."). So, as for
+Simulink.VariantBank, `setProperty('Value', …)` is refused and no save writes a Value
+(`_serializedOverrides` is empty); a Value key a file already carries is written back as read.
+`test/variantConfigurationsNoValue.test.ts` covers it.
 
 ## Read-only / no-fixture status
 

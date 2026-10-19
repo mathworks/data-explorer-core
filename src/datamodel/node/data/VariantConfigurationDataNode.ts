@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import { objectValueClassOf } from '../DataNode.js';
+import type { SetPropertyResult } from '../DataNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
 import PropName from '../../prop/PropName.js';
@@ -18,9 +19,33 @@ export default class VariantConfigurationDataNode extends SimulinkObjectNode {
     get valueEditable(): boolean { return false; }
     getProperties(): PropClass[] { return [PropName, PropDataType]; }
     // PI layout: schema-driven "General" group (classes/variantConfigurationData.json).
-    // UNGATED. (VariantBankNode's Value was too, until it stopped writing one at all: MATLAB's
-    // Simulink.VariantBank has no Value.)
-    _serializedOverrides(): Record<string, unknown> { return { Value: this.Value }; }
+    // MATLAB's Simulink.VariantConfigurations has no Value, as Simulink.VariantBank has none
+    // (R2027a, test/parity/matlab/probe_variantconfigurations_value.m: under either name the
+    // object built is a Simulink.VariantConfigurations, `isprop(…, 'Value')` is 0, none of the
+    // ten properties its metaclass lists is a Value, and setting one fails with "Unrecognized
+    // property 'Value' for class 'Simulink.VariantConfigurations'."). So a Value edit is refused,
+    // in VariantBankNode's words, rather than taken by DataNode's generic tail, which kept the
+    // text, marked the entry Modified and had both save paths write it. One still in the encoded
+    // stream it was read from keeps that refusal's own reason.
+    setProperty(propName: string, stringValue: string): true | SetPropertyResult {
+        if (this._resolveProperty(propName) !== 'Value') {
+            return super.setProperty(propName, stringValue);
+        }
+        return (
+            this._refuseInlineBagEdit(propName, stringValue) ??
+            this._refuseEncodedEdit(propName, stringValue) ?? {
+                error: true,
+                reason: `'${this.displayName}' is a ${this.className}, which has no Value, so none can be set on it.`,
+                invalidValue: stringValue,
+                validValue: this.displayValue,
+            }
+        );
+    }
+    // Nothing beside the envelope, or into a bag held with none: the bag is written as it was
+    // read, so a file's own Value key (only ever this package's) passes through `_mergeProps`
+    // unchanged, and no new one is ever written. The `{ Value: '' }` this used to return reached
+    // the file wherever there was no envelope to drop it under, an unedited save included.
+    _serializedOverrides(): Record<string, unknown> { return {}; }
     static get defaultName(): string { return 'VariantConfigurationData'; }
 
     // The one entry the Add gallery produced that MATLAB REFUSED to load, in both formats:

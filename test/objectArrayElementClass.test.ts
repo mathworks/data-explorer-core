@@ -601,9 +601,7 @@ describe('a text dictionary\'s object value of one element of another class', ()
 
   it('keeps the file\'s spelling on an untouched save, in a copy, and in an edited save', () => {
     const { entry, saved } = openText();
-    // Not the VariantConfigurations: its node writes a Value its element does not hold, whatever
-    // the element's class.
-    for (const [name, value] of Object.entries(VALUES).filter(([name]) => name !== 'configurations')) {
+    for (const [name, value] of Object.entries(VALUES)) {
       expect(JSON.stringify(saved().find((e: any) => e.name === name).value), name).toBe(JSON.stringify(value));
       expect(JSON.stringify(entry(name).serialize().value), name).toBe(JSON.stringify(value));
     }
