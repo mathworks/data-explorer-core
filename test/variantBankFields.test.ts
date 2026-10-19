@@ -1073,7 +1073,7 @@ describe('VariantBankCoderInfo fields: a coder info R2026b wrote, as plain prope
 // So the coder info is shown as read, with one warning that names 'undefined' and says what
 // MATLAB does, and it is saved as read. An edit of one of its five has nowhere to be saved, as
 // for any field the file does not have.
-type UndefinedCase = { id: string; format: Format; entries: string[]; beside?: boolean; sha256: string };
+type UndefinedCase = { id: string; format: Format; entries: string[]; beside?: boolean; shape?: 'envelope-beside' | 'empty' | 'other'; sha256: string };
 type CoderInfoRead = Record<string, string>;
 const UNDEFINED_TRUTH: { release: string; cases: UndefinedCase[]; rows: { id: string; warning: string; reads: Record<string, CoderInfoRead> }[] } = JSON.parse(
   readFileSync(fileURLToPath(new URL('./parity/matlab/coderinfo_undefined.truth.json', import.meta.url)), 'utf8'),
@@ -1095,7 +1095,16 @@ function undefinedCaseFile(id: string): Uint8Array | string {
         const element = coderInfoXml(edited, entry);
         const at = edited.indexOf(element);
         expect(element.startsWith(`<Element Class="Simulink.VariantBankCoderInfo">\n${' '.repeat(16)}${ENVELOPE_XML}`), entry).toBe(true);
-        edited = edited.slice(0, at) + element.replace(ENVELOPE_XML, UNDEFINED_XML) + edited.slice(at + element.length);
+        // The envelope kept, and an 'undefined' struct of other values after it.
+        const close = `${' '.repeat(16)}</P>\n${' '.repeat(12)}</Element>`;
+        expect(element.includes(close), entry).toBe(true);
+        const sibling = [`${' '.repeat(16)}${UNDEFINED_XML}`, `${' '.repeat(20)}<Element>`,
+          ...CI_FIELDS.map((f) => `${' '.repeat(24)}<P Name="${f}" Class="char">${OTHER_VALUES[f as keyof typeof OTHER_VALUES]}</P>`),
+          `${' '.repeat(20)}</Element>`, `${' '.repeat(16)}</P>`, ''].join('\n');
+        const changed = c.shape === 'envelope-beside'
+          ? element.replace(close, `${' '.repeat(16)}</P>\n${sibling}${' '.repeat(12)}</Element>`)
+          : element.replace(ENVELOPE_XML, UNDEFINED_XML);
+        edited = edited.slice(0, at) + changed + edited.slice(at + element.length);
       }
       return edited;
     });
@@ -1107,7 +1116,11 @@ function undefinedCaseFile(id: string): Uint8Array | string {
     if (c.entries.includes(entry.name)) {
       const envelope = entry.value._elements[0]._custom_save;
       const own = c.beside ? Object.fromEntries(Object.keys(envelope._elements[0]).sort().map((k) => [k, envelope._elements[0][k]])) : {};
-      entry.value._elements[0] = { _id: '1', _properties: { ...own, undefined: c.beside ? { ...envelope, _elements: [OTHER_VALUES] } : envelope } };
+      entry.value._elements[0] = c.shape === 'envelope-beside'
+        ? { _custom_save: envelope, _id: '1', _properties: { undefined: { ...envelope, _elements: [OTHER_VALUES] } } }
+        : c.shape !== undefined
+          ? { _id: '1', _properties: c.shape === 'empty' ? {} : { Foo: 'x' } }
+          : { _id: '1', _properties: { ...own, undefined: c.beside ? { ...envelope, _elements: [OTHER_VALUES] } : envelope } };
     }
   }
   const text = JSON.stringify(json, null, '\t');
@@ -1135,10 +1148,19 @@ describe('VariantBankCoderInfo fields: a coder info whose envelope is spelled <P
     { id: 'b_both_undefined', damaged: ['ciA', 'ciB'] },
     { id: 't_ciA_undefined', damaged: ['ciA'] },
   ];
+  // Not this: an 'undefined' beside the envelope MATLAB wrote, which MATLAB reads the envelope of,
+  // and a plain bag with neither the five nor an 'undefined', which MATLAB reads as every
+  // default. Neither is warned of, by MATLAB or here.
+  const CONTROLS = [
+    { id: 'b_ciA_envelope_beside', read: CI_WROTE.ciA, shown: CI_SHOWN.ciA, other: ['Other.undefined'] },
+    { id: 't_ciA_envelope_beside', read: CI_WROTE.ciA, shown: CI_SHOWN.ciA, other: ['Other.undefined'] },
+    { id: 't_ciA_empty_bag', read: CI_DEFAULTS, shown: BLANK, other: [] },
+    { id: 't_ciA_other_bag', read: CI_DEFAULTS, shown: BLANK, other: ['Other.Foo'] },
+  ];
 
   it('is a case MATLAB was given, each graded here, and MATLAB warned of none of them', () => {
     expect(UNDEFINED_TRUTH.release).toBe('2027a');
-    expect(UNDEFINED_TRUTH.cases.map((c) => c.id).sort()).toEqual(['b_written', 't_ciA_undefined_beside', ...DAMAGED.map((d) => d.id)].sort());
+    expect(UNDEFINED_TRUTH.cases.map((c) => c.id).sort()).toEqual(['b_written', 't_ciA_undefined_beside', ...DAMAGED.map((d) => d.id), ...CONTROLS.map((c) => c.id)].sort());
     expect(UNDEFINED_TRUTH.rows.map((r) => r.warning).filter((w) => w !== '')).toEqual([]);
     // The binary fixture, as MATLAB wrote it, is read as written: the cases differ from it only
     // where they say.
@@ -1193,6 +1215,22 @@ describe('VariantBankCoderInfo fields: a coder info whose envelope is spelled <P
     expect(source.warnings).toBeUndefined();
     expect(shownCoderInfo(entryIn(source, 'ciA'))).toEqual(CI_SHOWN.ciA);
     expect(saved(session, source)).toBe(text);
+  });
+
+  it.each(CONTROLS)('$id: is read as MATLAB reads it, and not warned of', ({ id, read, shown, other }) => {
+    expect(undefinedRead(id)).toEqual({ ciA: asRead(read), ciB: asRead(CI_WROTE.ciB) });
+    const content = undefinedCaseFile(id);
+    const { session, source } = open(content);
+    expect(source.warnings).toBeUndefined();
+    const node = entryIn(source, 'ciA');
+    expect(shownCoderInfo(node)).toEqual(shown);
+    expect(Object.keys(pi(node).values).filter((k) => k.startsWith('Other.'))).toEqual(other);
+    const out = saved(session, source);
+    if (typeof content === 'string') {
+      expect(out).toBe(content);
+    } else {
+      expect(chunkXml(out as Uint8Array)).toBe(chunkXml(content));
+    }
   });
 });
 

@@ -1,4 +1,4 @@
-{"version":"27.1.0.3409468 (R2027a) Prerelease","release":"2027a","date":"2026-10-18",
+{"version":"27.1.0.3409468 (R2027a) Prerelease","release":"2027a","date":"2026-10-19",
 "cases": [
  {
   "id": "b_written",
@@ -39,6 +39,42 @@
   ],
   "beside": true,
   "sha256": "eacc4e8f14d16114e0a1d88b2d0bcaea5400216b9d916a9b5047c555b5c2eae3"
+ },
+ {
+  "id": "b_ciA_envelope_beside",
+  "format": "binary",
+  "entries": [
+   "ciA"
+  ],
+  "shape": "envelope-beside",
+  "sha256": "736ec5cc7437464c9da61776804ee1d5cd9218837c18e6add58e0b8d69956240"
+ },
+ {
+  "id": "t_ciA_envelope_beside",
+  "format": "text",
+  "entries": [
+   "ciA"
+  ],
+  "shape": "envelope-beside",
+  "sha256": "376cc8b8765ebf8a437368b020b3d91d2bbfd3c636c86081a3158f29513228ea"
+ },
+ {
+  "id": "t_ciA_empty_bag",
+  "format": "text",
+  "entries": [
+   "ciA"
+  ],
+  "shape": "empty",
+  "sha256": "07c46a724c0ddc6538de0e6d119e2a0e1b626d6b2badd3e185f0b146017d5ce7"
+ },
+ {
+  "id": "t_ciA_other_bag",
+  "format": "text",
+  "entries": [
+   "ciA"
+  ],
+  "shape": "other",
+  "sha256": "5aa46794fc40942aa21b40a6a1410f84007584ea83be0675949ac35d15a09699"
  }
 ],
 "rows": [
@@ -126,6 +162,94 @@
         "PreStatement": "pre",
         "PostStatement": "post",
         "Qualifier": "Const"
+      },
+      "ciB": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      }
+    }
+  },
+  {
+    "id": "b_ciA_envelope_beside",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "h.h",
+        "DefinitionFile": "d.c",
+        "PreStatement": "pre",
+        "PostStatement": "post",
+        "Qualifier": "Const"
+      },
+      "ciB": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      }
+    }
+  },
+  {
+    "id": "t_ciA_envelope_beside",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "h.h",
+        "DefinitionFile": "d.c",
+        "PreStatement": "pre",
+        "PostStatement": "post",
+        "Qualifier": "Const"
+      },
+      "ciB": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      }
+    }
+  },
+  {
+    "id": "t_ciA_empty_bag",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      },
+      "ciB": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      }
+    }
+  },
+  {
+    "id": "t_ciA_other_bag",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
       },
       "ciB": {
         "class": "Simulink.VariantBankCoderInfo",

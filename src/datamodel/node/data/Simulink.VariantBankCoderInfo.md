@@ -165,6 +165,14 @@ warnings carry one `part-unreadable` for it that names `undefined` and says what
 it in that format. An edit of one of the five has nowhere to be written, as for any field the
 file does not have, and is refused so. A bag with the five beside its `undefined` is not reported.
 
+Measured as controls in the same run (2026-10-19), each also with no warning from MATLAB, and none
+reported here:
+
+- The envelope MATLAB wrote with an `undefined` struct of other values beside it, in either
+  format, is read from the envelope, and the `undefined` is ignored.
+- A text dictionary's plain bag with neither the five nor an `undefined` (no property at all, or
+  only a `Foo`) is read as every default.
+
 ## Description: the class has none
 
 `properties(Simulink.VariantBankCoderInfo)` lists the five above and no Description. The row used
