@@ -3,8 +3,8 @@
 // How a block is IDENTIFIED and how it is LABELLED — two facts that Simulink keeps
 // apart and that this package used to conflate, taking the name for both.
 //
-// A block NAME is unique within its own system and nowhere else. `f14.slx` (the
-// shipped demo) holds four blocks named `Gain`, three named `Gain3`, two named
+// A block NAME is unique within its own system and nowhere else. A shipped Simulink
+// demo model holds four blocks named `Gain`, three named `Gain3`, two named
 // `Gain1` — one per subsystem, each with its own gain expression. Keying a block by
 // its name therefore MERGED them: the model's `Gain` row read
 // `Gain=Mq, Gain=Zw, Gain=Kf, Gain=Zw` — four blocks' parameters on one row, with

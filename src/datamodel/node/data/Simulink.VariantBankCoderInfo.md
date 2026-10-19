@@ -126,10 +126,10 @@ each field back as written.
 
 A text dictionary R2026b wrote holds a coder info as the five plain properties, with no
 envelope: `"_elements": [{"_id": "1", "_properties": {"DefinitionFile": "", "HeaderFile": "",
-"PostStatement": "", "PreStatement": "", "Qualifier": "None"}}]` (`~/delite/textsldd/dd.sldd` and
-`~/delite/mix/dd_json.sldd`; its binary dictionaries already hold the envelope). R2027a reads that
+"PostStatement": "", "PreStatement": "", "Qualifier": "None"}}]` (seen in two text dictionaries
+R2026b wrote; the binary dictionaries it wrote already hold the envelope). R2027a reads that
 spelling property by property, through the setters (the `r2026b` LOAD lines, which respell `ciA`
-so, and a copy of `~/delite/textsldd/dd.sldd` edited by hand): a Qualifier `const` is read as `Const` and
+so, and a copy of one of those two dictionaries edited by hand): a Qualifier `const` is read as `Const` and
 `foo` as `None`, and a HeaderFile `a.c`, a DefinitionFile `a b.c`, a HeaderFile `5` or a
 HeaderFile of 256 characters as `''`, with every other property as written. So where a bag has no envelope the node reads the five
 from, and writes an edit into, the plain properties, in MATLAB's spelling, and invents no

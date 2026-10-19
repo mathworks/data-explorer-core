@@ -6,8 +6,8 @@
 // that is that DOUBLE: single(3.3) is the double 3.299999952316284, and showed so — in a
 // .mat, in an MCOS object's property (a .mat, a model workspace, a binary dictionary's
 // hex) and in a text dictionary's MAT stream — where both dictionaries hold MATLAB's own
-// text for the same value, 3.3 (the corpus twins param_vars.mat / param_json.sldd,
-// P30_TypeMaxUnitDesc, and the plain SingleRowVec).
+// text for the same value, 3.3 (a .mat and a text dictionary in the corpus that one MATLAB
+// script wrote, P30_TypeMaxUnitDesc, and the plain SingleRowVec).
 //
 // The reader now keeps, for a value of class single, the decimal MATLAB spells it with,
 // measured (R2027a, both dictionary formats): C's `%.6g` where that is the same float32,

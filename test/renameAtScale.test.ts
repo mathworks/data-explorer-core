@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 //
 // F1-23: renaming every entry of a large dictionary, one rename at a time. A corpus file of a
-// real shape (binsldd/dd140000.sldd: 140,000 entries, all in Design Data) took more than 300 s
+// real shape (a binary dictionary of 140,000 entries, all in Design Data) took more than 300 s
 // to rename whole, and the profile named two costs, one per route a host renames through:
 //
 //   1. setProperty('Name') — what a host that edits nodes directly calls, inside mutateSubtree.

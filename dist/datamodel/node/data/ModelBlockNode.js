@@ -17,11 +17,11 @@ export default class ModelBlockNode extends BaseNode {
      * `…/blocks/65` — the SID, not the name.
      *
      * The one place a block's id is formed, and the reason blockIdentity exists: a name
-     * is unique per SYSTEM, so `f14.slx` alone has four blocks named `Gain` and the
-     * inherited id gave all four `f14.slx/blocks/Gain`. A node id is what findNodeById
+     * is unique per SYSTEM, so a shipped demo model alone has four blocks named `Gain` and the
+     * inherited id gave all four `<model>.slx/blocks/Gain`. A node id is what findNodeById
      * resolves, what a row is keyed by and what a selection is remembered as, so four
      * blocks sharing one was four blocks the host could not tell apart — and a name that
-     * is BLANK (see blockLabel) made the id `f14.slx/blocks/` with nothing after the
+     * is BLANK (see blockLabel) made the id `<model>.slx/blocks/` with nothing after the
      * slash at all.
      *
      * Falls back to the name for a file with no SIDs, which is the id those files always

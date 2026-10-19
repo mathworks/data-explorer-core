@@ -454,7 +454,7 @@ describe('a host carries a function rename with the barrel', () => {
 
   // The catalog member of a compressed-binary dictionary with a service interface, copied from
   // functionElementRename.test.ts: the shape of the corpus's one binary dictionary that has one
-  // (example/dd1.sldd, R2027a). A ServiceInterface with f and g, where g has an argument named
+  // (R2027a). A ServiceInterface with f and g, where g has an argument named
   // g, beside a data interface named f.
   const FN_XML = (name: string, prototype: string, args: string[]) =>
     `\n        <p_FunctionElements type="systemcomposer.architecture.model.swarch.FunctionElement" uuid="fe-${name}">${args.map((a) =>

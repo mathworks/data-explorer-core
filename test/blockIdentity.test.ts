@@ -18,7 +18,7 @@ describe('blockKey — which block this is', () => {
   });
 
   it('tells two same-named blocks apart, and is what a name could not do', () => {
-    // f14.slx's four `Gain` blocks, which a name-keyed model merged into one row.
+    // The four `Gain` blocks of a shipped demo model, which a name-keyed model merged into one row.
     expect(blockKey('Gain', '15')).not.toBe(blockKey('Gain', '24'));
   });
 
@@ -43,7 +43,7 @@ describe('blockLabel — what a block reads as', () => {
   });
 
   it('stands in with `<SID: 65>` for a name the user cleared', () => {
-    // `Name="&#xA;"` in f14.slx — one line break, which normalizes to ''. The block is
+    // `Name="&#xA;"` in a shipped demo model — one line break, which normalizes to ''. The block is
     // real and holds a real parameter, so the cell has to name something.
     expect(blockLabel('', '65')).toBe('<SID: 65>');
   });

@@ -490,7 +490,7 @@ describe('the mask workspace — a scope inside the model', () => {
 // their own code — so agreement here is agreement about the RULE, not about one call site.
 describe('identity — a link reaches one block, named by its SID', () => {
   it('keeps same-named blocks in ONE model apart', () => {
-    // f14.slx's shape: `Gain` in two subsystems, both reading the same parameter. Keyed by
+    // A shipped demo model's shape: `Gain` in two subsystems, both reading the same parameter. Keyed by
     // name they merged into a single row and a single link, so a user could reach only
     // whichever of them the merge happened to keep.
     const files = [
@@ -512,7 +512,7 @@ describe('identity — a link reaches one block, named by its SID', () => {
   });
 
   it('names a block whose label the user cleared after its SID', () => {
-    // `Name="&#xA;"` — f14.slx's Constant reading `Uo`. Two engines, one stand-in: a cell
+    // `Name="&#xA;"` — that demo's Constant reading `Uo`. Two engines, one stand-in: a cell
     // with no text is a link nobody can click, and an empty label in one engine and a SID
     // in the other is the same defect one step later.
     const files = [

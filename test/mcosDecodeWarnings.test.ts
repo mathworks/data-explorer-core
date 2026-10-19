@@ -16,7 +16,7 @@
 // lost bytes that no object addresses change nothing on screen and say nothing.
 //
 // The null object is not a refusal: MATLAB writes ids [0] for a handle that saved no state
-// (a delite .mat holds two Simulink.ModelWorkspace handles that way), and it stays quiet.
+// (a MATLAB-written .mat holds two Simulink.ModelWorkspace handles that way), and it stays quiet.
 //
 // A refused variable of a class the data model knows is the plain opaque it is with no
 // decode, not an empty typed node of the declared class (C-229).

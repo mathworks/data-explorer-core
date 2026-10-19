@@ -236,7 +236,7 @@ export default class ModelNode extends ContainerNode {
     // Populate blocks section from blockParamUsages — ONE ROW PER BLOCK, keyed by the
     // block's SID and not by its name. A name is unique within a system only, so
     // grouping on it merged every same-named block in the model into a single row:
-    // f14.slx's four `Gain` blocks arrived as one row reading
+    // a shipped demo model's four `Gain` blocks arrived as one row reading
     // `Gain=Mq, Gain=Zw, Gain=Kf, Gain=Zw`, four blocks' parameters under one name with
     // a duplicate that was really two blocks. See blockIdentity.
     //

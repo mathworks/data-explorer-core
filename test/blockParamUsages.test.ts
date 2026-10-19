@@ -168,7 +168,7 @@ describe('block param usage extraction (blocklist + identifier gate)', () => {
   });
 
   // Every usage carries the block's SID, because a name does not identify a block: it is
-  // unique within its own system only, and f14.slx holds four blocks called `Gain`.
+  // unique within its own system only, and a shipped demo model holds four blocks called `Gain`.
   describe('the block SID', () => {
     it('reads the SID attribute, verbatim, onto every usage of the block', () => {
       const usages = usagesFor(

@@ -109,8 +109,8 @@ the custom-class scoping guard).
   so before the override every Parameter in every dictionary showed a blank cell.
 - **An absent `DataType` key means `'auto'`**, MATLAB's default, not "unknown". A text
   sldd omits the key for a default-typed Parameter; a binary one writes
-  `DataType="auto"` explicitly. Verified on the matched pair `~/delite/mix/param_json.sldd`
-  / `param_bin.sldd`: `P01_Default` has no key in the text file and `"auto"` in the
+  `DataType="auto"` explicitly. Verified on a matched pair of MATLAB-written dictionaries, one
+  text and one binary, made by the same script: `P01_Default` has no key in the text file and `"auto"` in the
   binary one. The default is display-only — `_getSerializedProperties` copies the on-disk
   properties, so nothing writes `auto` back into a file that did not have it.
 - Free-form text: builtins (`int16`), a type defined elsewhere in the dictionary
