@@ -19,6 +19,7 @@
 // through the session as a host makes it, on the same entry of the same MATLAB-written file.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { fileURLToPath } from 'node:url';
 import { createSession, ingest } from '../src/index.js';
 import '../src/datamodel/node/data/NodeClassMap.js';
@@ -241,6 +242,91 @@ describe('MATLAB reads each of core\'s saves with the Dimensions and Complexity 
         expect(shapeRead(q.after), q.file).toEqual(shapeRead(rowOf(q.id).after));
       }
       expect(cases.find((c: any) => c.id === q.id)!.saved, q.file).toEqual([rowOf(q.id).after.dimensions, rowOf(q.id).after.complexity]);
+    });
+  }
+});
+
+describe('a Parameter whose file holds no Dimensions, or no Complexity, is saved without it after an edit of its Value', () => {
+  // Only a key the file holds is set from the Value (_followValueShape): MATLAB itself writes
+  // binary Parameters with Dimensions and no Complexity, and core's own text dictionaries, as
+  // typeLink.sldd is, hold a Parameter with no Dimensions. A save that wrote the Value's shape into
+  // one would write a property the file never carried.
+  type Key = 'Dimensions' | 'Complexity';
+  const other = (key: Key): Key => (key === 'Dimensions' ? 'Complexity' : 'Dimensions');
+  const after = (id: string, key: Key) => (key === 'Dimensions' ? rowOf(id).after.dimensions : rowOf(id).after.complexity);
+  const propsOf = (entry: any): Record<string, unknown> => entry.serializeValue()._elements[0]._properties;
+
+  /** complex_binary.sldd with pRow's `key` taken out of its object: the same Parameter, saved by a writer that left it out. */
+  function binaryWithout(key: Key): ArrayBuffer {
+    const parts = unzipSync(readRel('test/fixtures/mcos/complex_binary.sldd'));
+    const xml = strFromU8(parts['data/chunk0.xml']);
+    const at = xml.indexOf('<P Name="Name" Class="char">pRow</P>');
+    const end = xml.indexOf('</Object>', at);
+    const tag = xml.indexOf(`<P Name="${key}" `, at);
+    if (at < 0 || tag < 0 || tag > end) {
+      throw new Error(`complex_binary.sldd: no ${key} in pRow`);
+    }
+    const from = xml.lastIndexOf('\n', tag);
+    const close = xml.indexOf('</P>', tag) + '</P>'.length;
+    parts['data/chunk0.xml'] = strToU8(xml.slice(0, from) + xml.slice(close));
+    return arrayBuffer(zipSync(parts));
+  }
+
+  for (const key of ['Complexity', 'Dimensions'] as Key[]) {
+    for (const id of ['typed_real_row', 'typed_complex', 'add_row', 'cut_row_to_2', 'elements_all_real']) {
+      it(`binary, no ${key}: ${id} writes none, and ${other(key)} as MATLAB's edit leaves it`, () => {
+        const { session, root } = open('complex_binary.sldd', binaryWithout(key));
+        expect(Object.keys(propsOf(entryOf(root, 'pRow'))), 'as read').not.toContain(key);
+        expect(propsOf(entryOf(root, 'pRow'))[other(key)], 'as read').toEqual(key === 'Dimensions' ? 'complex' : [1, 3]);
+        for (const step of plan.rows[id].steps) {
+          apply(session, root, 'pRow', step);
+        }
+        const edited = propsOf(entryOf(root, 'pRow'));
+        expect(Object.keys(edited), 'after the edit').not.toContain(key);
+        expect(edited[other(key)], 'after the edit').toEqual(after(id, other(key)));
+        const back = propsOf(reopened(session, root, 'pRow'));
+        expect(Object.keys(back), 'reopened').not.toContain(key);
+        expect(back[other(key)], 'reopened').toEqual(after(id, other(key)));
+      });
+    }
+  }
+
+  /** The text dictionary `file`, its entry `name`'s properties as the session's save writes them. */
+  const textProps = (session: any, root: any, name: string): Record<string, unknown> => {
+    const saved = session.serializeSource(root.name);
+    expect(saved.kind).toBe('text');
+    const entries: any[] = JSON.parse(saved.text).__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+    return entries.find((x) => x.name === name).value._elements[0]._properties;
+  };
+
+  for (const [typed, complexity] of [
+    ['[1 2 3]', 'real'],
+    ['3+4i', 'complex'],
+  ]) {
+    it(`text, no Dimensions (typeLink.sldd Kp): ${typed} typed in writes none, and Complexity ${complexity}`, () => {
+      const { session, root } = open('typeLink.sldd', arrayBuffer(readRel('test/fixtures/typeLink.sldd')));
+      expect(Object.keys(textProps(session, root, 'Kp')), 'as written').not.toContain('Dimensions');
+      apply(session, root, 'Kp', ['typed', typed]);
+      const saved = textProps(session, root, 'Kp');
+      expect(Object.keys(saved)).not.toContain('Dimensions');
+      expect(saved.Complexity).toBe(complexity);
+    });
+  }
+
+  for (const [typed, dims] of [
+    ['[1 2; 3 4]', [2, 2]],
+    ['3+4i', [1, 1]],
+  ] as [string, number[]][]) {
+    it(`text, no Complexity (typed_mcos.sldd pDoubleRow): ${typed} typed in writes none, and Dimensions [${dims.join(' ')}]`, () => {
+      const doc = JSON.parse(strFromU8(readRel('test/fixtures/mcos/typed_mcos.sldd')));
+      const entries: any[] = doc.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries;
+      delete entries.find((x) => x.name === 'pDoubleRow').value._elements[0]._properties.Complexity;
+      const { session, root } = open('typed_mcos.sldd', arrayBuffer(strToU8(JSON.stringify(doc, null, '\t'))));
+      expect(Object.keys(textProps(session, root, 'pDoubleRow')), 'as written').not.toContain('Complexity');
+      apply(session, root, 'pDoubleRow', ['typed', typed]);
+      const saved = textProps(session, root, 'pDoubleRow');
+      expect(Object.keys(saved)).not.toContain('Complexity');
+      expect(saved.Dimensions).toEqual(dims);
     });
   }
 });
