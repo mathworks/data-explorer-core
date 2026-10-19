@@ -12,9 +12,13 @@
       ],
       "place": "entry",
       "name": "e_HS03",
-      "spelling": "<P Name=\"Value\" Class=\"string\" Dimension=\"0*3\"/>",
+      "spelling": "<P Name=\"Value\"><Element Class=\"string\"><P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\" Dimension=\"0*3\"></P></Element></P>",
       "reads": {
-        "error": "Invalid string returned."
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
       }
     },
     {
@@ -26,9 +30,13 @@
       ],
       "place": "cell",
       "name": "c_HS03",
-      "spelling": "<Element Class=\"string\" Dimension=\"0*3\"/>",
+      "spelling": "<Element><Element Class=\"string\"><P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\" Dimension=\"0*3\"></P></Element></Element>",
       "reads": {
-        "error": "Invalid string returned."
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
       }
     },
     {
@@ -40,9 +48,13 @@
       ],
       "place": "field",
       "name": "s_HS03",
-      "spelling": "<P Name=\"f\" Class=\"string\" Dimension=\"0*3\"/>",
+      "spelling": "<P Name=\"f\"><Element Class=\"string\"><P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\" Dimension=\"0*3\"></P></Element></P>",
       "reads": {
-        "error": "Invalid string returned."
+        "class": "string",
+        "size": [
+          0,
+          3
+        ]
       }
     },
     {
@@ -90,9 +102,13 @@
       ],
       "place": "entry",
       "name": "e_HS00",
-      "spelling": "<P Name=\"Value\" Class=\"string\" Dimension=\"0*0\"/>",
+      "spelling": "<P Name=\"Value\"><Element Class=\"string\"><P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\" Dimension=\"0*0\"></P></Element></P>",
       "reads": {
-        "error": "Invalid string returned."
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
       }
     },
     {
@@ -104,9 +120,13 @@
       ],
       "place": "cell",
       "name": "c_HS00",
-      "spelling": "<Element Class=\"string\" Dimension=\"0*0\"/>",
+      "spelling": "<Element><Element Class=\"string\"><P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\" Dimension=\"0*0\"></P></Element></Element>",
       "reads": {
-        "error": "Invalid string returned."
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
       }
     },
     {
@@ -118,9 +138,13 @@
       ],
       "place": "field",
       "name": "s_HS00",
-      "spelling": "<P Name=\"f\" Class=\"string\" Dimension=\"0*0\"/>",
+      "spelling": "<P Name=\"f\"><Element Class=\"string\"><P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\" Dimension=\"0*0\"></P></Element></P>",
       "reads": {
-        "error": "Invalid string returned."
+        "class": "string",
+        "size": [
+          0,
+          0
+        ]
       }
     },
     {
@@ -168,9 +192,13 @@
       ],
       "place": "entry",
       "name": "e_HS10",
-      "spelling": "<P Name=\"Value\" Class=\"string\" Dimension=\"1*0\"/>",
+      "spelling": "<P Name=\"Value\"><Element Class=\"string\"><P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\" Dimension=\"1*0\"></P></Element></P>",
       "reads": {
-        "error": "Invalid string returned."
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
       }
     },
     {
@@ -182,9 +210,13 @@
       ],
       "place": "cell",
       "name": "c_HS10",
-      "spelling": "<Element Class=\"string\" Dimension=\"1*0\"/>",
+      "spelling": "<Element><Element Class=\"string\"><P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\" Dimension=\"1*0\"></P></Element></Element>",
       "reads": {
-        "error": "Invalid string returned."
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
       }
     },
     {
@@ -196,9 +228,13 @@
       ],
       "place": "field",
       "name": "s_HS10",
-      "spelling": "<P Name=\"f\" Class=\"string\" Dimension=\"1*0\"/>",
+      "spelling": "<P Name=\"f\"><Element Class=\"string\"><P Source=\"saveobj\" PropertyType=\"any\" Class=\"cell\" Dimension=\"1*0\"></P></Element></P>",
       "reads": {
-        "error": "Invalid string returned."
+        "class": "string",
+        "size": [
+          1,
+          0
+        ]
       }
     },
     {

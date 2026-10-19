@@ -3135,6 +3135,17 @@ export default class MatlabVariableNode extends DataNode {
     }
 
     if (rows === 0 || cols === 0 || (!this._sparse && this._elements.length === 0 && this.children.length === 0)) {
+      // A host's empty string, `{_type: 'string', _emptyDims}`, of rank 2 (a trailing 1 is no
+      // extent): the String bag's envelope, as _serializeStringXml writes the bag itself and the
+      // property writer this same value (MatWriter.emptyDimsHeldForm). The bare tag below,
+      // `Class="string" Dimension="0*3"/>`, MATLAB cannot read at an entry, a cell's element or a
+      // struct field ("Invalid string returned."), where it reads the envelope back as the string
+      // it is (test/parity/matlab/host_string_empties_binary.truth.json, R2027a). The binary
+      // reader's own empty, held under its header, is still written as it was read.
+      const two = effectiveDims(dims);
+      if (type === 'string' && (this._rawInput as Record<string, unknown> | undefined)?._emptyDims && two.length === 2 && elementCount(two) === 0) {
+        return DataNode._stringXml(tagName, attrStr, [], two, indent);
+      }
       return (
         p + '<' + tagName + attrStr + ' Class="' + escapeXml(type || 'double') + '" Dimension="' + dimAttr + '"/>'
       );

@@ -2,8 +2,10 @@
 % each place a value can stand? (PR #147's review, round 1, measured 2026-10-18.)
 %
 % A host hands an empty string in as `{_type: 'string', _emptyDims: [r, c]}`. Pasted into a binary
-% dictionary, core writes it `Class="string" Dimension="r*c"` with no body at an entry's value, a
-% cell's element and a struct field, as before PR #147. At a Simulink.Parameter's Value and at an
+% dictionary, core wrote it `Class="string" Dimension="r*c"` with no body at an entry's value, a
+% cell's element and a struct field, as before PR #147, which MATLAB read as "Invalid string
+% returned."; it writes the String bag's envelope there now, and the truth was re-measured so
+% (2026-10-18, the host rows at those places). At a Simulink.Parameter's Value and at an
 % object's property, where it was `Class="double" Dimension="0*0"`, MatWriter.emptyDimsHeldForm
 % hands it on as the String bag, which the binary writer spells as MATLAB's own saveobj envelope;
 % at that PR's first head it was the bare tag there too. MATLAB itself writes a string's empty in a
