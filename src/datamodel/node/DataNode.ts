@@ -1346,6 +1346,19 @@ export default class DataNode extends BaseNode {
     // gone. A nested object's spelling carries no _dimensions.
     if (!nested) {
       this._spellableOrRefuse(rawVal._dimensions, rawVal._array_class as string);
+      // And one element under dims that count another number, [2,1], [1,0] or [1,2]: it was
+      // written as a scalar object, its dims gone. Every extent must be 1, as [2,0.5] multiplies
+      // to 1 too. An array of more than one element is ObjectNode's to write; one of none is
+      // left as it was.
+      const dims = rawVal._dimensions;
+      const elements = rawVal._elements;
+      if (dims !== undefined && Array.isArray(elements) && elements.length === 1 && !everyExtent(dims, (x) => x === 1)) {
+        const where = this._whereWritten();
+        throw new MatWriteError(
+          'Cannot write "' + where.entry + '": ' + where.path + ' is ' + classPhrase(rawVal._array_class as string) + ' declaring dimensions ' +
+            dimsText(dims) + ' and holding 1 element, which no Dimension spells. Nothing was written.',
+        );
+      }
     }
     const props = this._xmlProperties();
 
