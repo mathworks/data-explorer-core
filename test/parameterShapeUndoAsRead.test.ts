@@ -190,3 +190,65 @@ describe('text: a hand-edited Parameter is given back its Dimensions and Complex
     });
   }
 });
+
+// A Parameter that holds neither Dimensions nor Complexity: paramArray(1) of
+// object_array_binary.sldd and object_array_text.sldd, which holds a Value (10), a Description
+// and, in the text file, a DataType. The undo puts back each of the two only where the file
+// holds it (_shapeRestorer), so it adds neither, and the edits after it, which set them from the
+// Value only where they are held (_followValueShape), write neither. Were both put back whether
+// held or not, the undo would leave the two keys on the Parameter, and the save would write
+// Dimensions and Complexity (after the next cut, [1 2] and 'real'): data nobody changed.
+type ParamStep = ['cut', number] | ['add'] | ['element', number, string] | ['row', string] | ['typed', string];
+
+/** `step` made on the Parameter `param` through the session, as apply makes it on an entry. */
+function applyOn(session: any, root: any, param: any, step: ParamStep): void {
+  const value = param._valueNode;
+  let done: boolean;
+  if (step[0] === 'cut') {
+    done = session.deleteNodeById(value.children[step[1]].id) === true;
+  } else if (step[0] === 'add') {
+    done = session.addChildTo(value.id) !== null;
+  } else {
+    const node = step[0] === 'typed' ? param : step[0] === 'row' ? value : value.children[step[1]];
+    session.setActive(root, node);
+    done = session.editProperty(node.id, 'Value', step[step.length - 1]) === true;
+  }
+  if (!done) {
+    throw new Error(`${param.name}: ${JSON.stringify(step)} was refused`);
+  }
+}
+
+/** The keys of paramArray's element `k` (0-based) as the session's save of `root` writes them, read from its bytes. */
+function savedElementKeys(session: any, root: any, k: number): string[] {
+  const out = session.serializeSource(root.name);
+  if (out.kind === 'text') {
+    return Object.keys(textEntries(JSON.parse(out.text)).find((x) => x.name === 'paramArray').value._elements[k]._properties);
+  }
+  const xml = strFromU8(unzipSync(out.bytes)['data/chunk0.xml']);
+  const object = xml.split('<Object Class="DD.ENTRY">').find((o) => o.includes('<P Name="Name" Class="char">paramArray</P>'))!;
+  const element = object.split('<Element Class="Simulink.Parameter">')[k + 1].split('</Element>')[0];
+  return [...element.matchAll(/<P Name="(\w+)"/g)].map((m) => m[1]);
+}
+
+describe('a Parameter that holds neither Dimensions nor Complexity: an undo adds neither, and no edit after it writes them', () => {
+  const steps: ParamStep[] = [['cut', 2], ['add'], ['element', 0, '7'], ['row', '[4 5]'], ['typed', '[4 5]']];
+  for (const file of ['object_array_binary.sldd', 'object_array_text.sldd']) {
+    for (const step of steps) {
+      it(`${file}, paramArray(1): a Value typed in, then ${JSON.stringify(step)}, undone and made again`, () => {
+        const session = createSession();
+        const root: any = ingest(session, arrayBuffer(new Uint8Array(readFileSync(here(`./fixtures/${file}`)))), { filename: file });
+        const param = entryOf(root, 'paramArray').children[0];
+        const asRead = savedElementKeys(session, root, 0);
+        expect(asRead, 'as read, saved').not.toEqual(expect.arrayContaining(['Dimensions']));
+        expect(asRead, 'as read, saved').not.toEqual(expect.arrayContaining(['Complexity']));
+        applyOn(session, root, param, ['typed', '[1 2 3]']);
+        applyOn(session, root, param, step);
+        session.setActive(root, param);
+        session.undo();
+        expect(savedElementKeys(session, root, 0), 'undone, saved').toEqual(asRead);
+        applyOn(session, root, param, step);
+        expect(savedElementKeys(session, root, 0), 'made again, saved').toEqual(asRead);
+      });
+    }
+  }
+});
