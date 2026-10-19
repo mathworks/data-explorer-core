@@ -1296,12 +1296,31 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number, 
                         // after it moved up one in that field and not in the others: element 3's
                         // value showed as element 2's, and nothing said so. A tag the end of the
                         // bytes cuts is not this: it is a cut, and the elements before it are
-                        // kept, as for a struct array cut anywhere else. In a 1x1 such a slot
-                        // only leaves its field out, and nothing moves.
+                        // kept, as for a struct array cut anywhere else. A 1x1's is below.
                         result.value = undecodedValue(dimensions, className);
                         result.undecoded = 'element ' + (e + 1) + "'s field " + fn
                             + ' is not a matrix (a data element of type ' + fieldMatrixSub.type + ')';
                         return result;
+                    } else if (fieldStart + 8 <= end) {
+                        // The same slot in a 1x1, where nothing can move: it is kept as its
+                        // field, in its place, as a value that was not decoded, with the reason,
+                        // which parseMat reports (collectUndecoded). Stepped over, the field was
+                        // left out, the struct showed its other fields only, and nothing was
+                        // said (theme 1: warn and show what was read). It is of no class or size
+                        // the bytes say, so it is spelled as the MCOS decoder spells a cell slot
+                        // that is not a matrix (MatlabVariableNode._createUnreadSlot), and it has
+                        // no bytes of a matrix to be written from, so it keeps none: its copy,
+                        // and the copy of what holds it, are refused (_undecodedRefusal).
+                        setOwn<MatVariable | MatVariable[]>(fields, fn, {
+                            name: '',
+                            className: 'unknown',
+                            dimensions: [1, 1],
+                            isComplex: false,
+                            isLogical: false,
+                            value: '<unknown, not decoded>',
+                            fields: null,
+                            undecoded: 'it is not a matrix (a data element of type ' + fieldMatrixSub.type + ')',
+                        });
                     }
                     offset += fieldMatrixSub.totalSize;
                 }
