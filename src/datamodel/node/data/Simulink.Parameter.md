@@ -152,8 +152,13 @@ Exceptions:
 
 `ParameterNode._followValueShape` sets both from the Value after every edit: an Add, a removal,
 a Value typed on the Parameter, on its Value row or on one of its elements, and the undo or redo
-of each. Each is set only where the file holds it. The undo of a Value typed in puts back what
-the two held (`_restorerFor`). Test: `test/parameterShape.test.ts`.
+of each. Each is set only where the file holds it. The undo of each edit then puts back what
+the two held before it: for a Value typed in, `_restorerFor`; for an Add, a removal or an edit of
+the Value row or of an element, `childStructureRestorer`, which the undo calls through
+`childEdit.holdersRestorer`. For a file MATLAB wrote that is the restored Value's shape. A
+hand-edited file can hold another (MATLAB refuses that state), and its undo gives back what was
+read: pRow with `[1 5]` for its three elements, cut to two and undone, is `[1 5]` again, where it
+came back as `[1 3]`. Tests: `test/parameterShape.test.ts`, `test/parameterShapeUndoAsRead.test.ts`.
 
 ## Allowed values (enums / comboboxes)
 

@@ -142,6 +142,14 @@ export default class BaseNode {
     // the value has something to expand into (see ParameterNode), so an edit two
     // levels down can add or remove that row.
     childStructureChanged(_child) { }
+    // What puts back, as it is now, what this node sets from `child` when told of a change to it
+    // (childStructureChanged), or null where it sets nothing. Asked before an edit at or under
+    // `child`, and called by the edit's undo once the undone change has been reported
+    // (childEdit.holdersRestorer): setting it again from the restored child need not give what it
+    // was. A Simulink.Parameter's Dimensions and Complexity are the one case (ParameterNode).
+    childStructureRestorer(_child) {
+        return null;
+    }
     canAddChild() {
         return false;
     }

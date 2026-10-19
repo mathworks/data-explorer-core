@@ -43,6 +43,25 @@ function notifyParent(node: ChildEditableNode<BaseNode>): void {
   node.parent?.childStructureChanged(node as unknown as BaseNode);
 }
 
+// What puts back, as it is now, what every node above `node` sets from it (its
+// childStructureRestorer), or null where none sets anything: held before an edit of `node` or
+// of a node under it, and called by the edit's undo after the undone change is reported. The
+// report sets it again from what the undo restored, and for a Simulink.Parameter that is the
+// Value's shape, not the Dimensions and Complexity a hand-edited file held (ParameterNode). The
+// edit's redo reports as the edit did, which sets it as the edit set it.
+export function holdersRestorer(node: BaseNode): (() => void) | null {
+  const restorers: (() => void)[] = [];
+  let child = node;
+  for (let holder = node.parent; holder; holder = holder.parent) {
+    const restore = holder.childStructureRestorer(child);
+    if (restore) {
+      restorers.push(restore);
+    }
+    child = holder;
+  }
+  return restorers.length === 0 ? null : () => restorers.forEach((restore) => restore());
+}
+
 export interface ChildUndoRedo {
   undo: () => void;
   redo: () => void;
@@ -60,6 +79,7 @@ export function addChildUndoable<C extends BaseNode>(node: ChildEditableNode<C>)
   if (!node.canAddChild()) {
     return null;
   }
+  const holders = holdersRestorer(node as unknown as BaseNode);
   const child = node.addChildNode();
   // A second refusal, after the fact: a bus subclass that does not implement
   // _createElementNode accepts children in principle (canAddChild is
@@ -74,6 +94,7 @@ export function addChildUndoable<C extends BaseNode>(node: ChildEditableNode<C>)
     undo: () => {
       node.removeChildNode(child);
       notifyParent(node);
+      holders?.();
     },
     redo: () => {
       node.restoreChildNode(child, index);
@@ -93,12 +114,14 @@ export function removeChildUndoable(node: ChildEditableNode, child?: BaseNode): 
   if (index < 0) {
     return null;
   }
+  const holders = holdersRestorer(node as unknown as BaseNode);
   node.removeChildNode(child);
   notifyParent(node);
   return {
     undo: () => {
       node.restoreChildNode(child, index);
       notifyParent(node);
+      holders?.();
     },
     redo: () => {
       node.removeChildNode(child);

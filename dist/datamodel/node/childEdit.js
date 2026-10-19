@@ -10,6 +10,24 @@
 function notifyParent(node) {
     node.parent?.childStructureChanged(node);
 }
+// What puts back, as it is now, what every node above `node` sets from it (its
+// childStructureRestorer), or null where none sets anything: held before an edit of `node` or
+// of a node under it, and called by the edit's undo after the undone change is reported. The
+// report sets it again from what the undo restored, and for a Simulink.Parameter that is the
+// Value's shape, not the Dimensions and Complexity a hand-edited file held (ParameterNode). The
+// edit's redo reports as the edit did, which sets it as the edit set it.
+export function holdersRestorer(node) {
+    const restorers = [];
+    let child = node;
+    for (let holder = node.parent; holder; holder = holder.parent) {
+        const restore = holder.childStructureRestorer(child);
+        if (restore) {
+            restorers.push(restore);
+        }
+        child = holder;
+    }
+    return restorers.length === 0 ? null : () => restorers.forEach((restore) => restore());
+}
 // Add one child and return the closures that reverse and re-apply it, or null when
 // the node refuses. `redo` restores the SAME child node at its original index
 // rather than minting a fresh one, so a node reference held by the undo stack stays
@@ -18,6 +36,7 @@ export function addChildUndoable(node) {
     if (!node.canAddChild()) {
         return null;
     }
+    const holders = holdersRestorer(node);
     const child = node.addChildNode();
     // A second refusal, after the fact: a bus subclass that does not implement
     // _createElementNode accepts children in principle (canAddChild is
@@ -32,6 +51,7 @@ export function addChildUndoable(node) {
         undo: () => {
             node.removeChildNode(child);
             notifyParent(node);
+            holders?.();
         },
         redo: () => {
             node.restoreChildNode(child, index);
@@ -50,12 +70,14 @@ export function removeChildUndoable(node, child) {
     if (index < 0) {
         return null;
     }
+    const holders = holdersRestorer(node);
     node.removeChildNode(child);
     notifyParent(node);
     return {
         undo: () => {
             node.restoreChildNode(child, index);
             notifyParent(node);
+            holders?.();
         },
         redo: () => {
             node.removeChildNode(child);
