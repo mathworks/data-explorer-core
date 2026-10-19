@@ -89,8 +89,20 @@ export default class MatlabVariableNode extends DataNode {
      * Nor when an element is an object that takes no editor of its own, whatever its token: an
      * enumeration value shows `GearMode.Reverse` (ObjectNode.displayValue), and `{1,
      * GearMode.Reverse}` reads back as a cell holding that char.
+     *
+     * Nor when an element is a complex number whose imaginary part is 0 (_isZeroImaginaryComplex).
      */
     _literalRoundTrips(): boolean;
+    /**
+     * Is this a complex scalar whose imaginary part is 0 (or -0), such as a file's complex(1, 0)?
+     * It shows `1+0i`, and a cell literal reads that text as the real double MATLAB makes of it
+     * (MatlabValueParser's zeroImaginaryAsReal): `{1+0i, 5}` is {1, 5} in MATLAB. So a cell
+     * holding one is not its literal: with only the 5 retyped, the literal set back wrote the
+     * member nobody changed as a real 1, in both formats. Its elements are edited one at a time.
+     */
+    _isZeroImaginaryComplex(): boolean;
+    /** Does this cell hold such an element (_isZeroImaginaryComplex), itself or in a nested cell? */
+    _holdsZeroImaginaryElement(): boolean;
     /** `asMeasured`: the text the length guard measures (_guardText), not the one shown. */
     _formatString(asMeasured?: boolean): string;
     /**

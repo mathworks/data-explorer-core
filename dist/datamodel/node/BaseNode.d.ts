@@ -166,6 +166,7 @@ export default class BaseNode {
     get fixesChildNames(): boolean;
     get nameEditable(): boolean;
     childStructureChanged(_child: BaseNode): void;
+    childStructureRestorer(_child: BaseNode): (() => void) | null;
     canAddChild(): boolean;
     addChildNode(): BaseNode | null;
     addChild(child: BaseNode, index?: number): BaseNode;

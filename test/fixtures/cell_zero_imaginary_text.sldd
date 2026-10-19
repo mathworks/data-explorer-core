@@ -1,0 +1,124 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "cTwoI",
+						"metadata": {
+							"uuid": "a48d7eaa-6052-42e4-bdbd-ba5d43124c23",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T075328.984843",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								2
+							],
+							"_elements": [
+								{
+									"_type": "cdata",
+									"_value": "  %)30     .    2     8    (    !@@        %    \"     $    !     0         )    \"            / _\"0    @             0 \u0000\u0000\u0000"
+								},
+								5
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cZero",
+						"metadata": {
+							"uuid": "9d7683a8-afa7-4548-9695-f9a2989db715",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T075328.984505",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								2
+							],
+							"_elements": [
+								{
+									"_type": "cdata",
+									"_value": "  %)30     .    2     8    (    !@@        %    \"     $    !     0         )    \"            / _\"0    @               \u0000\u0000\u0000"
+								},
+								5
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cZeroNeg",
+						"metadata": {
+							"uuid": "f057a1a6-538a-40e2-9279-e7814bf4892a",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T075328.984640",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								2
+							],
+							"_elements": [
+								{
+									"_type": "cdata",
+									"_value": "  %)30     .    2     8    (    !@@        %    \"     $    !     0         )    \"             ! \"0    @             @ \u0000\u0000\u0000"
+								},
+								5
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "cZeroNest",
+						"metadata": {
+							"uuid": "a6981708-5e90-4bab-8ca6-d4249dbd7f8e",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T075328.984742",
+							"modifiedby": "fixture",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Cell",
+							"_dimensions": [
+								1,
+								2
+							],
+							"_elements": [
+								{
+									"_array_type": "Cell",
+									"_dimensions": [
+										1,
+										1
+									],
+									"_elements": [
+										{
+											"_type": "cdata",
+											"_value": "  %)30     .    2     8    (    !@@        %    \"     $    !     0         )    \"            / _\"0    @               \u0000\u0000\u0000"
+										}
+									]
+								},
+								5
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

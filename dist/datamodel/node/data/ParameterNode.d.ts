@@ -27,6 +27,8 @@ export default class ParameterNode extends DataNode {
     _adoptValueNode(rawValue: unknown, edited?: boolean): void;
     static _needsValueRow(valueNode: BaseNode): boolean;
     childStructureChanged(child: BaseNode): void;
+    childStructureRestorer(child: BaseNode): (() => void) | null;
+    _shapeRestorer(): () => void;
     _followValueShape(): void;
     _shapeFromValue(): {
         dims: number[];

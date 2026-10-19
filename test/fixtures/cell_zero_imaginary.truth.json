@@ -1,0 +1,218 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "files": [
+    {
+      "file": "cell_zero_imaginary_binary.sldd",
+      "entries": [
+        {
+          "name": "cZero",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 1 +0i",
+            "double real 5"
+          ]
+        },
+        {
+          "name": "cZeroNeg",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 2 -0i",
+            "double real 5"
+          ]
+        },
+        {
+          "name": "cZeroNest",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "{double complex 1 +0i}",
+            "double real 5"
+          ]
+        },
+        {
+          "name": "cTwoI",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 1 +2i",
+            "double real 5"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cell_zero_imaginary_text.sldd",
+      "entries": [
+        {
+          "name": "cZero",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 1 +0i",
+            "double real 5"
+          ]
+        },
+        {
+          "name": "cZeroNeg",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 2 -0i",
+            "double real 5"
+          ]
+        },
+        {
+          "name": "cZeroNest",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "{double complex 1 +0i}",
+            "double real 5"
+          ]
+        },
+        {
+          "name": "cTwoI",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 1 +2i",
+            "double real 5"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cell_zero_imaginary_core_binary.sldd",
+      "entries": [
+        {
+          "name": "cZero",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 1 +0i",
+            "double real 6"
+          ]
+        },
+        {
+          "name": "cZeroNeg",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 2 -0i",
+            "double real 6"
+          ]
+        },
+        {
+          "name": "cZeroNest",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "{double complex 1 +0i}",
+            "double real 6"
+          ]
+        },
+        {
+          "name": "cTwoI",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 1 +2i",
+            "double real 6"
+          ]
+        }
+      ]
+    },
+    {
+      "file": "cell_zero_imaginary_core_text.sldd",
+      "entries": [
+        {
+          "name": "cZero",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 1 +0i",
+            "double real 6"
+          ]
+        },
+        {
+          "name": "cZeroNeg",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 2 -0i",
+            "double real 6"
+          ]
+        },
+        {
+          "name": "cZeroNest",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "{double complex 1 +0i}",
+            "double real 6"
+          ]
+        },
+        {
+          "name": "cTwoI",
+          "class": "cell",
+          "size": [
+            1,
+            2
+          ],
+          "members": [
+            "double complex 1 +2i",
+            "double real 6"
+          ]
+        }
+      ]
+    }
+  ]
+}

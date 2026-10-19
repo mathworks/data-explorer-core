@@ -303,6 +303,29 @@ export default class ParameterNode extends DataNode {
         }
         this._followValueShape();
     }
+    // For the undo of an edit of the Value node or of a node under it, an Add, a removal or an
+    // element edit (childEdit.holdersRestorer): the Dimensions and Complexity as they are now,
+    // put back after the undone change is reported. That report sets them from the Value it
+    // restored (_followValueShape), which gives what was read for a file MATLAB wrote, where they
+    // are the Value's. A hand-edited file's need not be (MATLAB refuses that state): pRow with
+    // [1 5] for its three elements, cut to two and undone, came back [1 3] and was saved so.
+    childStructureRestorer(child) {
+        return child === this._valueNode ? this._shapeRestorer() : null;
+    }
+    // What puts back the Dimensions and Complexity as they are now, each the file holds.
+    _shapeRestorer() {
+        const sp = this.serial._properties;
+        const held = sp ? ['Dimensions', 'Complexity'].filter((key) => Object.prototype.hasOwnProperty.call(sp, key)) : [];
+        const shape = held.map((key) => [key, sp[key]]);
+        return () => {
+            const now = this.serial._properties;
+            if (now) {
+                for (const [key, value] of shape) {
+                    now[key] = value;
+                }
+            }
+        };
+    }
     // MATLAB keeps a Parameter's Dimensions and Complexity as its Value's: it refuses a numeric
     // Dimensions other than its size (UDDData_CannotSetCustomDimensions) and any Complexity set
     // (UDDData_CannotSetComplexity), and after an edit of the Value they are its size and its
@@ -316,8 +339,10 @@ export default class ParameterNode extends DataNode {
     //   - keeps both for an empty Value: [] typed over pRow leaves [1 3] and 'complex';
     //   - keeps the Complexity of a struct Value: [] and then a struct typed over pRow leaves
     //     'complex'.
-    // An undo puts back the Value, and these with it: an Add's or a removal's by this same
-    // rule, a Value typed in by what it held (_restorerFor).
+    // An undo puts back the Value, and these with it as they were before the edit, by what it
+    // held: a Value typed in (_restorerFor), and an Add, a removal or an edit of the Value row or
+    // of an element (childStructureRestorer). Set from the restored Value, a hand-edited file's
+    // came back as the Value's shape.
     _followValueShape() {
         const sp = this.serial._properties;
         const shape = sp ? this._shapeFromValue() : null;
@@ -566,17 +591,10 @@ export default class ParameterNode extends DataNode {
             return null;
         }
         const restore = this._ownStateRestorer(RESTORE_LEAVES);
-        const sp = this.serial._properties;
-        const held = sp ? ['Dimensions', 'Complexity'].filter((key) => Object.prototype.hasOwnProperty.call(sp, key)) : [];
-        const shape = held.map((key) => [key, sp[key]]);
+        const shape = this._shapeRestorer();
         return () => {
             restore();
-            const now = this.serial._properties;
-            if (now) {
-                for (const [key, value] of shape) {
-                    now[key] = value;
-                }
-            }
+            shape();
         };
     }
     _getSerializedProperties() {

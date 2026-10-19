@@ -20,6 +20,7 @@ import { maskDefining } from '../datamodel/maskScope.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 import RowCellPool from '../datamodel/node/RowCellPool.js';
 import { propNamed } from '../datamodel/node/BaseNode.js';
+import { holdersRestorer } from '../datamodel/node/childEdit.js';
 // The session's own vocabulary — what a caller passes in and what these functions hand
 // back — and the compiler that turns one of those types, FindNodesQuery, into the tests
 // findNodes runs. Both used to be written out in this file, above createSession; neither
@@ -1616,6 +1617,11 @@ export function createSession(opts = {}) {
         // Unless the node can put the value back itself, which the undo then has it do: the text
         // it shows is not always its value (an empty's `[ ]` is a 0x0 double, whatever it was).
         const restore = propertyRestorer(node, propertyName);
+        // And what a node above it sets from it, put back after the undo has it set again from the
+        // value restored (childEdit.holdersRestorer): a Simulink.Parameter's Dimensions and Complexity,
+        // which an edit of its Value row or of an element sets from the Value, and which a hand-edited
+        // file holds otherwise.
+        const holders = holdersRestorer(node);
         const { result, indexed } = editInEntry(node, () => node.setProperty(propertyName, newValue));
         if (result !== true) {
             return result || false;
@@ -1640,6 +1646,7 @@ export function createSession(opts = {}) {
                         else {
                             node.setProperty(propertyName, priorValue);
                         }
+                        holders?.();
                     });
                     publish('node/edited', { source: 'undo', nodeId: node.id, kind });
                     if (kind === 'rename') {

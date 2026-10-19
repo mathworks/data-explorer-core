@@ -8,6 +8,7 @@ export interface ChildEditableNode<C extends BaseNode = BaseNode> {
     removeChildNode(child: BaseNode): void;
     restoreChildNode(child: BaseNode, index: number): void;
 }
+export declare function holdersRestorer(node: BaseNode): (() => void) | null;
 export interface ChildUndoRedo {
     undo: () => void;
     redo: () => void;
