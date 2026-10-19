@@ -23,8 +23,12 @@
 //                     struct holding other values
 //   t_ciA_partial_definition  ciA's DefinitionFile and Qualifier in the bag, and after them an
 //                     'undefined' struct holding other values
-// The last six are controls: an 'undefined' beside an envelope, a plain bag that has neither
-// the five properties nor an 'undefined', and an 'undefined' beside some of the five.
+//   t_ciA_partial_definition_alone, t_ciA_partial_qualifier, t_ciA_partial_pre, t_ciA_partial_post
+//                     ciA's DefinitionFile, Qualifier, PreStatement or PostStatement alone in the
+//                     bag, and after it an 'undefined' struct holding other values
+// The last ten are controls: an 'undefined' beside an envelope, a plain bag that has neither
+// the five properties nor an 'undefined', and an 'undefined' beside some of the five, among them
+// each of the five alone.
 // Each is written alone to <outdir>/<id>.sldd. <outdir>/names.json lists them, with the sha256 of
 // the part edited (a binary file's data/chunk0.xml, a text file's whole text), which the test's own
 // copy must match: the zip around a chunk carries the time it was made.
@@ -137,6 +141,10 @@ const CASES = [
   { id: 't_ciA_other_bag', format: 'text', entries: ['ciA'], shape: 'other' },
   { id: 't_ciA_partial_header', format: 'text', entries: ['ciA'], shape: 'partial', fields: ['HeaderFile'] },
   { id: 't_ciA_partial_definition', format: 'text', entries: ['ciA'], shape: 'partial', fields: ['DefinitionFile', 'Qualifier'] },
+  { id: 't_ciA_partial_definition_alone', format: 'text', entries: ['ciA'], shape: 'partial', fields: ['DefinitionFile'] },
+  { id: 't_ciA_partial_qualifier', format: 'text', entries: ['ciA'], shape: 'partial', fields: ['Qualifier'] },
+  { id: 't_ciA_partial_pre', format: 'text', entries: ['ciA'], shape: 'partial', fields: ['PreStatement'] },
+  { id: 't_ciA_partial_post', format: 'text', entries: ['ciA'], shape: 'partial', fields: ['PostStatement'] },
 ];
 
 const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');

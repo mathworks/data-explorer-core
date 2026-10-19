@@ -4,7 +4,8 @@
 % under theme 1, warn and show what was read, and theme 2, follow MATLAB, measured 2026-10-18.)
 % And, as controls (measured 2026-10-19): an 'undefined' struct beside the envelope MATLAB wrote,
 % and a text dictionary's plain bag with neither the five properties nor an 'undefined'; and
-% (measured 2026-10-19 too) one with an 'undefined' beside only some of the five.
+% (measured 2026-10-19 too) one with an 'undefined' beside only some of the five, among them each
+% of the five alone.
 %
 % This opens, for each dictionary coderinfo_undefined.mjs makes from the R2027a fixture, what
 % MATLAB reads of its two coder infos, ciA and ciB, and the last warning the open gave.

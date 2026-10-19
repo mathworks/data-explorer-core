@@ -1070,7 +1070,8 @@ describe('VariantBankCoderInfo fields: a coder info R2026b wrote, as plain prope
 //   - a text dictionary's plain bag holding only that struct is read as a coder info with every
 //     property at its default;
 //   - and one holding the five properties too is read from those, the 'undefined' ignored, as is
-//     one holding only some of the five (a control below), the others at their defaults.
+//     one holding only some of the five, or one of them alone (controls below), the others at
+//     their defaults.
 // So the coder info is shown as read, with one warning that names 'undefined' and says what
 // MATLAB does, and it is saved as read. An edit of one of its five has nowhere to be saved, as
 // for any field the file does not have.
@@ -1157,8 +1158,9 @@ describe('VariantBankCoderInfo fields: a coder info whose envelope is spelled <P
   // Not this: an 'undefined' beside the envelope MATLAB wrote, which MATLAB reads the envelope of;
   // a plain bag with neither the five nor an 'undefined', which MATLAB reads as every default;
   // and a plain bag with an 'undefined' beside only some of the five, which MATLAB reads from
-  // those it holds, every other at its default. None is warned of, by MATLAB or here. The two
-  // partial bags hold no field in common, so each of the five is absent from one of them.
+  // those it holds, every other at its default. None is warned of, by MATLAB or here. Each of the
+  // five is held alone in one of the partial bags, so a check that leaves any of them out warns of
+  // that one.
   const CONTROLS = [
     { id: 'b_ciA_envelope_beside', read: CI_WROTE.ciA, shown: CI_SHOWN.ciA, other: ['Other.undefined'] },
     { id: 't_ciA_envelope_beside', read: CI_WROTE.ciA, shown: CI_SHOWN.ciA, other: ['Other.undefined'] },
@@ -1169,6 +1171,13 @@ describe('VariantBankCoderInfo fields: a coder info whose envelope is spelled <P
       id: 't_ciA_partial_definition', read: { ...CI_DEFAULTS, DefinitionFile: 'd.c', Qualifier: 'Const' },
       shown: { ...BLANK, definitionFile: 'd.c', qualifier: 'Const' }, other: ['Other.undefined'],
     },
+    {
+      id: 't_ciA_partial_definition_alone', read: { ...CI_DEFAULTS, DefinitionFile: 'd.c' },
+      shown: { ...BLANK, definitionFile: 'd.c' }, other: ['Other.undefined'],
+    },
+    { id: 't_ciA_partial_qualifier', read: { ...CI_DEFAULTS, Qualifier: 'Const' }, shown: { ...BLANK, qualifier: 'Const' }, other: ['Other.undefined'] },
+    { id: 't_ciA_partial_pre', read: { ...CI_DEFAULTS, PreStatement: 'pre' }, shown: { ...BLANK, preStatement: 'pre' }, other: ['Other.undefined'] },
+    { id: 't_ciA_partial_post', read: { ...CI_DEFAULTS, PostStatement: 'post' }, shown: { ...BLANK, postStatement: 'post' }, other: ['Other.undefined'] },
   ];
 
   it('is a case MATLAB was given, each graded here, and MATLAB warned of none of them', () => {

@@ -174,8 +174,8 @@ reported here:
 - A text dictionary's plain bag with neither the five nor an `undefined` (no property at all, or
   only a `Foo`) is read as every default.
 - A text dictionary's plain bag with an `undefined` struct of other values beside only some of the
-  five (`HeaderFile` alone, or `DefinitionFile` and `Qualifier`) is read from those it holds, each
-  other property at its default, and the `undefined` is ignored.
+  five (each of the five alone, or `DefinitionFile` and `Qualifier`) is read from those it holds,
+  each other property at its default, and the `undefined` is ignored.
 
 ## Description: the class has none
 
