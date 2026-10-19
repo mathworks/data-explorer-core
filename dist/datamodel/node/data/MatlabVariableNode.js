@@ -3054,7 +3054,9 @@ export default class MatlabVariableNode extends DataNode {
         else if (!why && v && v.value === null && !v.fields && !v.isSparse && !v.isOpaque) {
             why = 'it declares ' + v.dimensions.reduce((a, b) => a * b, 1) + ' element(s) and holds no data';
         }
-        const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + this._scalarType + ' that was not decoded' + (why ? ' (' + why + ')' : '');
+        // Named as its row is (MatParser's placeholder, `<3x4 sparse double, not decoded>`): a sparse
+        // array the reader did not decode is not a full one, and its node holds no non-zeros to say so.
+        const what = 'a ' + effectiveDims(this._dims).join('x') + ' ' + (v?.isSparse ? 'sparse ' : '') + this._scalarType + ' that was not decoded' + (why ? ' (' + why + ')' : '');
         return this._budgetFailure(new MatBudgetError(what + ' was not written', '', what, undefined, 'not-decoded'));
     }
     /**

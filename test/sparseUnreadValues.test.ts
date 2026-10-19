@@ -220,14 +220,54 @@ describe('through a session, as a host opens it', () => {
     ]);
     expect(mat.children.map((n: any) => n.isSparse)).toEqual([false, false, false, true]);
     // Before: S's copy was sparse(3,4), all zeros, which pasted and saved as a value the file
-    // never held. A value that was not decoded has nothing to copy (F1-10).
+    // never held. A value that was not decoded has nothing to copy (F1-10). The refusal names it
+    // as its row does, a sparse array (B-13): it said "a 3x4 double".
     const [e] = thrownBy(() => mat.children[0].serialize());
     expect([e?.name, e instanceof MatBudgetError && e.reason, e?.message]).toEqual([
       'MatBudgetError',
       'not-decoded',
-      `Cannot write "S": S is a 3x4 double that was not decoded (${widthless(MI.UTF8)}), so there is no value of it to write. Nothing was written.`,
+      `Cannot write "S": S is a 3x4 sparse double that was not decoded (${widthless(MI.UTF8)}), so there is no value of it to write. Nothing was written.`,
     ]);
     expect(copyOf(mat.children[3])).toEqual(copyOf(opened([sparseVar(worked)]).children[0]));
+  });
+
+  // B-13 (group H). The refusal of a copy said "a 3x4 double" of an array whose row says
+  // `<3x4 sparse double, not decoded>`: a full array, which the file does not hold. It names
+  // what the row names now, in each class a sparse array has and where one is held; a full
+  // array the reader did not decode is named as it was.
+  it('its copy is refused naming what its row shows, a sparse array, in each class and where one is held', () => {
+    const noWidth = [element(MI.UTF8, new Uint8Array(32))];
+    const one = (n: number) => numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [n] });
+    const damaged = withParts(noWidth, { name: '' });
+    const mat = opened([
+      withParts(noWidth, { name: 'L', logical: true }),
+      withParts([f64([10, 11, 20, 30]), ...noWidth], { name: 'Z', complex: true }),
+      matrix([arrayFlags(CLASS.SINGLE, { sparse: true, nzmax: 4 }), dims([3, 4]), varName('F'), numericData(MI.INT32, IR), numericData(MI.INT32, JC), ...noWidth]),
+      structVar('s', ['S', 'g'], [{ S: damaged, g: one(7) }]),
+      cellVar('c', [damaged, one(8)]),
+      matrix([arrayFlags(CLASS.DOUBLE), dims([3, 4]), varName('D'), ...noWidth]),
+    ]);
+    const [L, Z, F, s, c, D] = mat.children;
+    const refusal = (entry: string, path: string, what: string, why: string) =>
+      `Cannot write "${entry}": ${path} is ${what} that was not decoded (${why}), so there is no value of it to write. Nothing was written.`;
+    const seen = (n: any) => {
+      const [e] = thrownBy(() => n.serialize());
+      return [n.displayValue, e instanceof MatBudgetError && e.reason, e?.message];
+    };
+    // Before: "a 3x4 logical", "a 3x4 double", "a 3x4 single", and "a 3x4 double" at s.S and c{1}.
+    expect([L, Z, F, s.children[0], c.children[0]].map(seen)).toEqual([
+      ['<3x4 sparse logical, not decoded>', 'not-decoded', refusal('L', 'L', 'a 3x4 sparse logical', widthless(MI.UTF8))],
+      [NOT_DECODED, 'not-decoded', refusal('Z', 'Z', 'a 3x4 sparse double', widthless(MI.UTF8, 'imaginary part'))],
+      ['<3x4 sparse single, not decoded>', 'not-decoded', refusal('F', 'F', 'a 3x4 sparse single', widthless(MI.UTF8))],
+      [NOT_DECODED, 'not-decoded', refusal('s', 's.S', 'a 3x4 sparse double', widthless(MI.UTF8))],
+      [NOT_DECODED, 'not-decoded', refusal('c', 'c{1}', 'a 3x4 sparse double', widthless(MI.UTF8))],
+    ]);
+    // A full array the reader did not decode: no `sparse` in its row, so none in its refusal.
+    expect(seen(D)).toEqual([
+      '<3x4 double, not decoded>',
+      'not-decoded',
+      refusal('D', 'D', 'a 3x4 double', 'its real part is of MAT data type 16, which has no element width, so none of its 12 elements can be read'),
+    ]);
   });
 
   it('in a text dictionary\'s cdata and a binary one\'s hex: not decoded, and saved as it was read', () => {

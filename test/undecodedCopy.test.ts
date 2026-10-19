@@ -251,8 +251,8 @@ describe('as XML, a value with nothing to write but its placeholder is refused, 
       null,
     );
     // Before: `<P Name="Value" Class="double">&lt;10000000x2 sparse double, not decoded&gt;</P>`.
-    expect(thrown(() => node.serializeXml('P', { Name: 'Value' }, 2))).toEqual(refused('spTall', 'spTall', 'a 10000000x2 double', 'too large'));
-    expect(thrown(() => node.serializeValue())).toEqual(refused('spTall', 'spTall', 'a 10000000x2 double', 'too large'));
+    expect(thrown(() => node.serializeXml('P', { Name: 'Value' }, 2))).toEqual(refused('spTall', 'spTall', 'a 10000000x2 sparse double', 'too large'));
+    expect(thrown(() => node.serializeValue())).toEqual(refused('spTall', 'spTall', 'a 10000000x2 sparse double', 'too large'));
   });
 });
 
@@ -318,14 +318,16 @@ describe('what is written as it was', () => {
 // stream from one that reads back. So the copy stays refused, naming the member, as the ruling F1-10
 // refuses the member's own copy (theme 1: a save the writer cannot spell is refused rather than
 // written wrong).
-const SPARSE_UNREAD: { key: 'absent' | 'widthless' | 'short'; label: string; why: string }[] = [
-  { key: 'absent', label: 'a 3x4 sparse double whose values are absent', why: 'its indices place 4 non-zero(s) and its bytes end before their real part' },
+// Each refusal names it as its row does, a sparse array (B-13).
+const SPARSE_UNREAD: { key: 'absent' | 'widthless' | 'short'; label: string; why: string; what: string }[] = [
+  { key: 'absent', label: 'a 3x4 sparse double whose values are absent', why: 'its indices place 4 non-zero(s) and its bytes end before their real part', what: 'a 3x4 sparse double' },
   {
     key: 'widthless',
     label: 'a 3x4 sparse double whose values are of a type with no width',
     why: 'its real part is of MAT data type 16, which has no element width, so none of its 4 elements can be read',
+    what: 'a 3x4 sparse double',
   },
-  { key: 'short', label: 'a 3x4 sparse double holding 2 of its 4 values', why: 'its real part holds 2 of the 4 values its indices place' },
+  { key: 'short', label: 'a 3x4 sparse double holding 2 of its 4 values', why: 'its real part holds 2 of the 4 values its indices place', what: 'a 3x4 sparse double' },
 ];
 
 /** What a copy of `node` threw, after checking it is the refusal of a write of `path` in `entry` for a value not decoded for `why`. */
@@ -340,7 +342,7 @@ function refusedAt(node: any, entry: string, path: string, why: string): unknown
 describe('an N-D cell or struct holding a value the reader did not decode: its copy is refused at that value, never written as its MAT stream (B-11)', () => {
   const builds = [
     ...KINDS.map((k) => ({ label: k.label, build: () => k.build(''), why: k.why(false) as string, what: k.what })),
-    ...SPARSE_UNREAD.map((k) => ({ label: k.label, build: members(matBytes)[k.key], why: k.why, what: null })),
+    ...SPARSE_UNREAD.map((k) => ({ label: k.label, build: members(matBytes)[k.key], why: k.why, what: k.what })),
   ];
   for (const k of builds) {
     it(`${k.label}, element 2 of a 1x1x2 cell and of a 1x1x2 struct out of a .mat and a model workspace: each copy is refused at it`, () => {
@@ -490,7 +492,7 @@ describe('a struct holding a value the reader did not decode, edited at a siblin
 
   const held = [
     ...KINDS.map((k) => ({ label: k.label, build: () => k.build(''), why: k.why(false) as string, what: k.what as string | null, sparse: false })),
-    ...SPARSE_UNREAD.map((k) => ({ label: k.label, build: members(matBytes)[k.key], why: k.why, what: null, sparse: true })),
+    ...SPARSE_UNREAD.map((k) => ({ label: k.label, build: members(matBytes)[k.key], why: k.why, what: k.what as string | null, sparse: true })),
   ];
   for (const k of held) {
     it(`${k.label} at f of a text dictionary's struct, pasted into a binary one: g takes an edit, and the save is refused at f, naming it`, () => {
