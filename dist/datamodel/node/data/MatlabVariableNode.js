@@ -442,8 +442,9 @@ export default class MatlabVariableNode extends DataNode {
         if (this._cutByCeiling && this._kind === 'cell' && needsSummary(this._dims)) {
             return false;
         }
-        // A cell whose literal shows an element as a summary (_literalRoundTrips): the
-        // literal is not the cell's value, so it is not an editor's seed.
+        // A cell whose literal shows an element as a summary, or a complex element whose
+        // imaginary part is 0 (_literalRoundTrips): the literal is not the cell's value, so it is
+        // not an editor's seed.
         if (this._kind === 'cell' && !this._literalRoundTrips()) {
             return false;
         }
@@ -785,6 +786,8 @@ export default class MatlabVariableNode extends DataNode {
      * Nor when an element is an object that takes no editor of its own, whatever its token: an
      * enumeration value shows `GearMode.Reverse` (ObjectNode.displayValue), and `{1,
      * GearMode.Reverse}` reads back as a cell holding that char.
+     *
+     * Nor when an element is a complex number whose imaginary part is 0 (_isZeroImaginaryComplex).
      */
     _literalRoundTrips() {
         // Of a cell the node ceiling built without its rows, as of its elements rebuilt alone.
@@ -799,8 +802,32 @@ export default class MatlabVariableNode extends DataNode {
             if (!(c instanceof MatlabVariableNode) && !c.valueEditable) {
                 return false;
             }
+            if (c instanceof MatlabVariableNode && c._isZeroImaginaryComplex()) {
+                return false;
+            }
             return !(c instanceof MatlabVariableNode && c._kind === 'cell') || c._literalRoundTrips();
         });
+    }
+    /**
+     * Is this a complex scalar whose imaginary part is 0 (or -0), such as a file's complex(1, 0)?
+     * It shows `1+0i`, and a cell literal reads that text as the real double MATLAB makes of it
+     * (MatlabValueParser's zeroImaginaryAsReal): `{1+0i, 5}` is {1, 5} in MATLAB. So a cell
+     * holding one is not its literal: with only the 5 retyped, the literal set back wrote the
+     * member nobody changed as a real 1, in both formats. Its elements are edited one at a time.
+     */
+    _isZeroImaginaryComplex() {
+        if (this._scalarType !== 'complex' || typeof this._scalarValue !== 'string') {
+            return false;
+        }
+        const parts = parseComplexNum(this._scalarValue);
+        return parts !== null && Number(parts.im) === 0;
+    }
+    /** Does this cell hold such an element (_isZeroImaginaryComplex), itself or in a nested cell? */
+    _holdsZeroImaginaryElement() {
+        if (this._cutByCeiling && this._matVar) {
+            return this._withCeilingTwin(true, (t) => t._holdsZeroImaginaryElement());
+        }
+        return this.children.some((c) => c instanceof MatlabVariableNode && (c._isZeroImaginaryComplex() || (c._kind === 'cell' && c._holdsZeroImaginaryElement())));
     }
     /** `asMeasured`: the text the length guard measures (_guardText), not the one shown. */
     _formatString(asMeasured = false) {
@@ -979,7 +1006,9 @@ export default class MatlabVariableNode extends DataNode {
             if (this._kind === 'cell' && !this._literalRoundTrips()) {
                 return {
                     error: true,
-                    reason: 'This cell shows an element as a summary, which is not its value. Edit the element instead.',
+                    reason: this._holdsZeroImaginaryElement()
+                        ? 'This cell holds a complex element whose imaginary part is 0, which its text sets as a real number. Edit the element instead.'
+                        : 'This cell shows an element as a summary, which is not its value. Edit the element instead.',
                     invalidValue: stringValue,
                     validValue: this.displayValue,
                 };
