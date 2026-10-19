@@ -163,7 +163,8 @@ made from the R2027a fixtures by `coderinfo_undefined.mjs`), with no warning in 
 Following theme 1, such a coder info is shown as read and saved as read, and the dictionary's
 warnings carry one `part-unreadable` for it that names `undefined` and says what MATLAB does with
 it in that format. An edit of one of the five has nowhere to be written, as for any field the
-file does not have, and is refused so. A bag with the five beside its `undefined` is not reported.
+file does not have, and is refused so. A bag with any of the five beside its `undefined` is not
+reported.
 
 Measured as controls in the same run (2026-10-19), each also with no warning from MATLAB, and none
 reported here:
@@ -172,6 +173,9 @@ reported here:
   format, is read from the envelope, and the `undefined` is ignored.
 - A text dictionary's plain bag with neither the five nor an `undefined` (no property at all, or
   only a `Foo`) is read as every default.
+- A text dictionary's plain bag with an `undefined` struct of other values beside only some of the
+  five (`HeaderFile` alone, or `DefinitionFile` and `Qualifier`) is read from those it holds, each
+  other property at its default, and the `undefined` is ignored.
 
 ## Description: the class has none
 

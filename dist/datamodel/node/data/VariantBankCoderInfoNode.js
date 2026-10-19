@@ -143,9 +143,10 @@ const WHOLE_CODER_INFO = 'which MATLAB reads as a coder info with every property
 // R2027a (probe_coderinfo_undefined.m): a binary dictionary gives no coder info for that entry at
 // all ("Data dictionary unable to create an object of class 'Simulink.VariantBankCoderInfo'."),
 // and a text dictionary's plain bag so spelled is read as every default, both with no warning. A
-// bag that holds the five as well is read from them, the 'undefined' ignored, so it is not this;
+// bag that holds any of the five as well is read from those it holds, the 'undefined' ignored
+// (measured with all five, HeaderFile alone, and DefinitionFile and Qualifier), so it is not this;
 // nor is an envelope with an 'undefined' beside it, which MATLAB reads from the envelope, nor a
-// plain bag with no 'undefined' (measured too: neither is warned of, by MATLAB or here).
+// plain bag with no 'undefined' (measured too: none is warned of, by MATLAB or here).
 const UNDEFINED_KEY = 'undefined';
 function heldUnderUndefined(props) {
     const own = (key) => Object.prototype.hasOwnProperty.call(props, key);

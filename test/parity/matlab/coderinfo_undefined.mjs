@@ -19,8 +19,12 @@
 //                     plain bag whose one property, 'undefined', holds other values
 //   t_ciA_empty_bag   the text fixture, ciA held as a plain bag with no property at all
 //   t_ciA_other_bag   the text fixture, ciA held as a plain bag whose one property, Foo, is 'x'
-// The last four are controls: an 'undefined' beside an envelope, and a plain bag that has neither
-// the five properties nor an 'undefined'.
+//   t_ciA_partial_header      ciA's HeaderFile alone in the bag, and after it an 'undefined'
+//                     struct holding other values
+//   t_ciA_partial_definition  ciA's DefinitionFile and Qualifier in the bag, and after them an
+//                     'undefined' struct holding other values
+// The last six are controls: an 'undefined' beside an envelope, a plain bag that has neither
+// the five properties nor an 'undefined', and an 'undefined' beside some of the five.
 // Each is written alone to <outdir>/<id>.sldd. <outdir>/names.json lists them, with the sha256 of
 // the part edited (a binary file's data/chunk0.xml, a text file's whole text), which the test's own
 // copy must match: the zip around a chunk carries the time it was made.
@@ -102,16 +106,20 @@ function besideEnvelopeChunk(xml, entries) {
  * The text fixture with each coder info in `entries` in another shape: `envelope-beside`, its
  * envelope as MATLAB wrote it and beside it a plain bag whose one property, 'undefined', holds
  * OTHER_VALUES; `empty`, a plain bag with no property; `other`, a plain bag whose one property is
- * Foo 'x'.
+ * Foo 'x'; `partial`, a plain bag of only the properties in `fields`, as the envelope holds them,
+ * and after them an 'undefined' struct holding OTHER_VALUES.
  */
-function shapedText(text, entries, shape) {
+function shapedText(text, entries, shape, fields = []) {
   const json = JSON.parse(text);
   for (const entry of json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries) {
     if (entries.includes(entry.name)) {
       const envelope = entry.value._elements[0]._custom_save;
+      const some = Object.fromEntries(fields.map((k) => [k, envelope._elements[0][k]]));
       entry.value._elements[0] = shape === 'envelope-beside'
         ? { _custom_save: envelope, _id: '1', _properties: { undefined: { ...envelope, _elements: [OTHER_VALUES] } } }
-        : { _id: '1', _properties: shape === 'empty' ? {} : { Foo: 'x' } };
+        : shape === 'partial'
+          ? { _id: '1', _properties: { ...some, undefined: { ...envelope, _elements: [OTHER_VALUES] } } }
+          : { _id: '1', _properties: shape === 'empty' ? {} : { Foo: 'x' } };
     }
   }
   return JSON.stringify(json, null, '\t');
@@ -127,6 +135,8 @@ const CASES = [
   { id: 't_ciA_envelope_beside', format: 'text', entries: ['ciA'], shape: 'envelope-beside' },
   { id: 't_ciA_empty_bag', format: 'text', entries: ['ciA'], shape: 'empty' },
   { id: 't_ciA_other_bag', format: 'text', entries: ['ciA'], shape: 'other' },
+  { id: 't_ciA_partial_header', format: 'text', entries: ['ciA'], shape: 'partial', fields: ['HeaderFile'] },
+  { id: 't_ciA_partial_definition', format: 'text', entries: ['ciA'], shape: 'partial', fields: ['DefinitionFile', 'Qualifier'] },
 ];
 
 const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
@@ -143,7 +153,7 @@ const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex')
       parts['data/chunk0.xml'] = strToU8(edited);
       bytes = zipSync(parts);
     } else {
-      edited = c.shape ? shapedText(strFromU8(fixture('text')), c.entries, c.shape) : damagedText(strFromU8(fixture('text')), c.entries, c.beside);
+      edited = c.shape ? shapedText(strFromU8(fixture('text')), c.entries, c.shape, c.fields) : damagedText(strFromU8(fixture('text')), c.entries, c.beside);
       bytes = strToU8(edited);
     }
     writeFileSync(`${out}/${c.id}.sldd`, bytes);

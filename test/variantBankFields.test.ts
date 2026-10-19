@@ -1069,11 +1069,12 @@ describe('VariantBankCoderInfo fields: a coder info R2026b wrote, as plain prope
 //     while the dictionary and its other entries open as written;
 //   - a text dictionary's plain bag holding only that struct is read as a coder info with every
 //     property at its default;
-//   - and one holding the five properties too is read from those, the 'undefined' ignored.
+//   - and one holding the five properties too is read from those, the 'undefined' ignored, as is
+//     one holding only some of the five (a control below), the others at their defaults.
 // So the coder info is shown as read, with one warning that names 'undefined' and says what
 // MATLAB does, and it is saved as read. An edit of one of its five has nowhere to be saved, as
 // for any field the file does not have.
-type UndefinedCase = { id: string; format: Format; entries: string[]; beside?: boolean; shape?: 'envelope-beside' | 'empty' | 'other'; sha256: string };
+type UndefinedCase = { id: string; format: Format; entries: string[]; beside?: boolean; shape?: 'envelope-beside' | 'empty' | 'other' | 'partial'; fields?: string[]; sha256: string };
 type CoderInfoRead = Record<string, string>;
 const UNDEFINED_TRUTH: { release: string; cases: UndefinedCase[]; rows: { id: string; warning: string; reads: Record<string, CoderInfoRead> }[] } = JSON.parse(
   readFileSync(fileURLToPath(new URL('./parity/matlab/coderinfo_undefined.truth.json', import.meta.url)), 'utf8'),
@@ -1116,9 +1117,14 @@ function undefinedCaseFile(id: string): Uint8Array | string {
     if (c.entries.includes(entry.name)) {
       const envelope = entry.value._elements[0]._custom_save;
       const own = c.beside ? Object.fromEntries(Object.keys(envelope._elements[0]).sort().map((k) => [k, envelope._elements[0][k]])) : {};
+      // `partial`: only the properties the case names, as the envelope holds them, then an
+      // 'undefined' struct of other values.
+      const some = Object.fromEntries((c.fields ?? []).map((k) => [k, envelope._elements[0][k]]));
       entry.value._elements[0] = c.shape === 'envelope-beside'
         ? { _custom_save: envelope, _id: '1', _properties: { undefined: { ...envelope, _elements: [OTHER_VALUES] } } }
-        : c.shape !== undefined
+        : c.shape === 'partial'
+          ? { _id: '1', _properties: { ...some, undefined: { ...envelope, _elements: [OTHER_VALUES] } } }
+          : c.shape !== undefined
           ? { _id: '1', _properties: c.shape === 'empty' ? {} : { Foo: 'x' } }
           : { _id: '1', _properties: { ...own, undefined: c.beside ? { ...envelope, _elements: [OTHER_VALUES] } : envelope } };
     }
@@ -1148,14 +1154,21 @@ describe('VariantBankCoderInfo fields: a coder info whose envelope is spelled <P
     { id: 'b_both_undefined', damaged: ['ciA', 'ciB'] },
     { id: 't_ciA_undefined', damaged: ['ciA'] },
   ];
-  // Not this: an 'undefined' beside the envelope MATLAB wrote, which MATLAB reads the envelope of,
-  // and a plain bag with neither the five nor an 'undefined', which MATLAB reads as every
-  // default. Neither is warned of, by MATLAB or here.
+  // Not this: an 'undefined' beside the envelope MATLAB wrote, which MATLAB reads the envelope of;
+  // a plain bag with neither the five nor an 'undefined', which MATLAB reads as every default;
+  // and a plain bag with an 'undefined' beside only some of the five, which MATLAB reads from
+  // those it holds, every other at its default. None is warned of, by MATLAB or here. The two
+  // partial bags hold no field in common, so each of the five is absent from one of them.
   const CONTROLS = [
     { id: 'b_ciA_envelope_beside', read: CI_WROTE.ciA, shown: CI_SHOWN.ciA, other: ['Other.undefined'] },
     { id: 't_ciA_envelope_beside', read: CI_WROTE.ciA, shown: CI_SHOWN.ciA, other: ['Other.undefined'] },
     { id: 't_ciA_empty_bag', read: CI_DEFAULTS, shown: BLANK, other: [] },
     { id: 't_ciA_other_bag', read: CI_DEFAULTS, shown: BLANK, other: ['Other.Foo'] },
+    { id: 't_ciA_partial_header', read: { ...CI_DEFAULTS, HeaderFile: 'h.h' }, shown: { ...BLANK, headerFile: 'h.h' }, other: ['Other.undefined'] },
+    {
+      id: 't_ciA_partial_definition', read: { ...CI_DEFAULTS, DefinitionFile: 'd.c', Qualifier: 'Const' },
+      shown: { ...BLANK, definitionFile: 'd.c', qualifier: 'Const' }, other: ['Other.undefined'],
+    },
   ];
 
   it('is a case MATLAB was given, each graded here, and MATLAB warned of none of them', () => {

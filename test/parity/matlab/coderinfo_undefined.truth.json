@@ -75,6 +75,31 @@
   ],
   "shape": "other",
   "sha256": "5aa46794fc40942aa21b40a6a1410f84007584ea83be0675949ac35d15a09699"
+ },
+ {
+  "id": "t_ciA_partial_header",
+  "format": "text",
+  "entries": [
+   "ciA"
+  ],
+  "shape": "partial",
+  "fields": [
+   "HeaderFile"
+  ],
+  "sha256": "454a1c43e069a544a97c9a4e0fb89ef90573179d3d462721ae41def74a0ea5d5"
+ },
+ {
+  "id": "t_ciA_partial_definition",
+  "format": "text",
+  "entries": [
+   "ciA"
+  ],
+  "shape": "partial",
+  "fields": [
+   "DefinitionFile",
+   "Qualifier"
+  ],
+  "sha256": "f6e4248b89904abbfb424ffe07eef1c2b0e0b0c88568659e121480df4ce7dceb"
  }
 ],
 "rows": [
@@ -250,6 +275,50 @@
         "PreStatement": "",
         "PostStatement": "",
         "Qualifier": "None"
+      },
+      "ciB": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      }
+    }
+  },
+  {
+    "id": "t_ciA_partial_header",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "h.h",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      },
+      "ciB": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "None"
+      }
+    }
+  },
+  {
+    "id": "t_ciA_partial_definition",
+    "warning": "",
+    "reads": {
+      "ciA": {
+        "class": "Simulink.VariantBankCoderInfo",
+        "HeaderFile": "",
+        "DefinitionFile": "d.c",
+        "PreStatement": "",
+        "PostStatement": "",
+        "Qualifier": "Const"
       },
       "ciB": {
         "class": "Simulink.VariantBankCoderInfo",
