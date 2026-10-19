@@ -1,0 +1,373 @@
+{
+  "about": "Core's edit for each row of probe_parameter_shape.m that core's tree can make, on the same entry of the same file: cut k removes the element row k (0-based), add is Add on the Value row, element k sets the element row k's Value, typed sets the Parameter's Value. leftOut names the rows core cannot make, and why. readsDiffer names the rows whose save MATLAB reads with another Dimensions or Complexity than its own edit leaves, and why. Read by ../../parameterShape.test.ts and parameter_shape.mjs.",
+  "files": {
+    "complex_binary.sldd": "test/fixtures/mcos/complex_binary.sldd",
+    "symbolic_dims.sldd": {
+      "from": "test/fixtures/mcos/complex_binary.sldd",
+      "entry": "pRow",
+      "replace": "<P Name=\"Dimensions\" Class=\"double\" Dimension=\"1*2\">1.0 3.0</P>",
+      "with": "<P Name=\"Dimensions\" Class=\"char\">[1,N]</P>",
+      "why": "the fixture with pRow's Dimensions spelled as MATLAB spells the symbolic '[1,N]' (the probe's MAKE, symbolicDimensionsTag in the truth). Made here and not kept: MATLAB's own save of it respells every entry and names the user who saved it, and a binary fixture in the tree is held to the M9 read-back (m9MergedSaves.truth.test.ts)."
+    }
+  },
+  "rows": {
+    "cut_row_to_2": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "cut",
+          2
+        ]
+      ]
+    },
+    "cut_row_to_1": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "cut",
+          2
+        ],
+        [
+          "cut",
+          1
+        ]
+      ]
+    },
+    "cut_col_to_2": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "cut",
+          2
+        ]
+      ]
+    },
+    "cut_int16_to_2": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "cut",
+          2
+        ]
+      ]
+    },
+    "add_row": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "add"
+        ]
+      ]
+    },
+    "add_col": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "add"
+        ]
+      ]
+    },
+    "add_int16": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "add"
+        ]
+      ]
+    },
+    "add_then_cut": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "add"
+        ],
+        [
+          "cut",
+          3
+        ]
+      ]
+    },
+    "element_one_real": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "element",
+          0,
+          "7"
+        ]
+      ]
+    },
+    "elements_all_real": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "element",
+          0,
+          "7"
+        ],
+        [
+          "element",
+          1,
+          "8"
+        ],
+        [
+          "element",
+          2,
+          "9"
+        ]
+      ]
+    },
+    "typed_real_row": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[1 2 3 4]"
+        ]
+      ]
+    },
+    "typed_real_col": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[1; 2; 3]"
+        ]
+      ]
+    },
+    "typed_matrix": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[1 2; 3 4]"
+        ]
+      ]
+    },
+    "typed_scalar": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "5"
+        ]
+      ]
+    },
+    "typed_complex": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "3+4i"
+        ]
+      ]
+    },
+    "typed_empty": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[]"
+        ]
+      ]
+    },
+    "typed_empty_char": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "''"
+        ]
+      ]
+    },
+    "typed_empty_string": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "\"\""
+        ]
+      ]
+    },
+    "typed_empty_on_real": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[1 2]"
+        ],
+        [
+          "typed",
+          "[]"
+        ]
+      ]
+    },
+    "typed_empty_on_struct": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[]"
+        ]
+      ]
+    },
+    "typed_empty_then_row": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[]"
+        ],
+        [
+          "typed",
+          "[1 2 3 4]"
+        ]
+      ]
+    },
+    "typed_char": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "'abc'"
+        ]
+      ]
+    },
+    "typed_string": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "\"abc\""
+        ]
+      ]
+    },
+    "typed_logical_row": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[true false]"
+        ]
+      ]
+    },
+    "typed_logical": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "true"
+        ]
+      ]
+    },
+    "typed_over_scalar": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[1 2 3 4]"
+        ]
+      ]
+    },
+    "typed_over_struct": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[1 2 3 4]"
+        ]
+      ]
+    },
+    "typed_then_add": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[1 2 3]"
+        ],
+        [
+          "add"
+        ]
+      ]
+    },
+    "typed_then_cut": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "typed",
+          "[1 2 3]"
+        ],
+        [
+          "cut",
+          2
+        ]
+      ]
+    },
+    "struct_add_field": {
+      "file": "complex_binary.sldd",
+      "steps": [
+        [
+          "add"
+        ]
+      ]
+    },
+    "symbolic_set": {
+      "file": "symbolic_dims.sldd",
+      "steps": []
+    },
+    "symbolic_cut": {
+      "file": "symbolic_dims.sldd",
+      "steps": [
+        [
+          "cut",
+          2
+        ]
+      ]
+    },
+    "symbolic_add": {
+      "file": "symbolic_dims.sldd",
+      "steps": [
+        [
+          "add"
+        ]
+      ]
+    },
+    "symbolic_typed": {
+      "file": "symbolic_dims.sldd",
+      "steps": [
+        [
+          "typed",
+          "[1 2 3 4]"
+        ]
+      ]
+    },
+    "symbolic_typed_scalar": {
+      "file": "symbolic_dims.sldd",
+      "steps": [
+        [
+          "typed",
+          "5"
+        ]
+      ]
+    },
+    "symbolic_typed_empty": {
+      "file": "symbolic_dims.sldd",
+      "steps": [
+        [
+          "typed",
+          "[]"
+        ]
+      ]
+    }
+  },
+  "leftOut": {
+    "typed_zero_imag": "MATLAB evaluates 1+0i to the real 1; core holds the typed literal as the complex 1+0i, and writes it so, with Complexity complex to agree with it. The Value's class is not this row's question.",
+    "typed_empty_then_struct": "core has no way to make a struct Value of another one: MatlabValueParser reads no struct(...), and an empty Value has no row to Add on.",
+    "typed_struct_over_complex": "as typed_empty_then_struct.",
+    "dimensions_set_other": "MATLAB refuses it (UDDData_CannotSetCustomDimensions); core shows Dimensions as a label, with no editor.",
+    "complexity_set_real": "MATLAB refuses it (UDDData_CannotSetComplexity); core shows Complexity as a label, with no editor."
+  },
+  "readsDiffer": {
+    "elements_all_real": "not the shape: core's binary writer spells a complex array whose elements are all real now as <P Name=\"Value\" Class=\"double\" IsComplex=\"1\">[7.0, 8.0, 9.0]</P>, with no Dimension (as on main 38c20de), which MATLAB reads as a 1x1 complex Value, and gives that Value's [1 1] and complex."
+  }
+}

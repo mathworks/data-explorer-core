@@ -1,0 +1,364 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-10-18",
+  "rows": [
+    {
+      "file": "bus_one_element_text.sldd",
+      "entry": "OneBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.Bus",
+        "elementClass": "Simulink.BusElement",
+        "names": [
+          "x"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "bus_one_element_text.sldd",
+      "entry": "OneConnBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.ConnectionBus",
+        "elementClass": "Simulink.ConnectionElement",
+        "names": [
+          "c1"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "bus_one_element_text.sldd",
+      "entry": "OneServiceBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.ServiceBus",
+        "elementClass": "Simulink.FunctionElement",
+        "names": [
+          "svc"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "self_added.sldd",
+      "entry": "OneBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.Bus",
+        "elementClass": "Simulink.BusElement",
+        "names": [
+          "x",
+          "a"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "self_added.sldd",
+      "entry": "OneConnBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.ConnectionBus",
+        "elementClass": "Simulink.ConnectionElement",
+        "names": [
+          "c1",
+          "a"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "self_added.sldd",
+      "entry": "OneServiceBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.ServiceBus",
+        "elementClass": "Simulink.FunctionElement",
+        "names": [
+          "svc",
+          "f1"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "self_added_removed.sldd",
+      "entry": "OneBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.Bus",
+        "elementClass": "Simulink.BusElement",
+        "names": [
+          "x"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "self_added_removed.sldd",
+      "entry": "OneConnBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.ConnectionBus",
+        "elementClass": "Simulink.ConnectionElement",
+        "names": [
+          "c1"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "self_added_removed.sldd",
+      "entry": "OneServiceBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.ServiceBus",
+        "elementClass": "Simulink.FunctionElement",
+        "names": [
+          "svc"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "self_added_removed_first.sldd",
+      "entry": "OneBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.Bus",
+        "elementClass": "Simulink.BusElement",
+        "names": [
+          "a"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "self_added_removed_first.sldd",
+      "entry": "OneConnBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.ConnectionBus",
+        "elementClass": "Simulink.ConnectionElement",
+        "names": [
+          "a"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "self_added_removed_first.sldd",
+      "entry": "OneServiceBus",
+      "fragment": "",
+      "reads": {
+        "class": "Simulink.ServiceBus",
+        "elementClass": "Simulink.FunctionElement",
+        "names": [
+          "f1"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added.sldd",
+      "entry": "OneBus",
+      "fragment": "{\"_array_class\":\"Simulink.BusElement\",\"_dimensions\":[2,1],\"_elements\":[{\"_id\":\"2\",\"_properties\":{\"Complexity\":\"real\",\"Dimensions\":1,\"DimensionsMode\":\"Fixed\",\"DocUnits\":\"\",\"Name\":\"x\"}},{\"_id\":\"3\",\"_properties\":{\"Name\":\"a\"}}]}",
+      "reads": {
+        "class": "Simulink.Bus",
+        "elementClass": "Simulink.BusElement",
+        "names": [
+          "x",
+          "a"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added.sldd",
+      "entry": "OneConnBus",
+      "fragment": "{\"_array_class\":\"Simulink.ConnectionElement\",\"_dimensions\":[2,1],\"_elements\":[{\"_id\":\"2\",\"_properties\":{\"Description\":\"\",\"Name\":\"c1\",\"Type_internal\":\"Connection: <domain name>\"}},{\"_id\":\"3\",\"_properties\":{\"Name\":\"a\"}}]}",
+      "reads": {
+        "class": "Simulink.ConnectionBus",
+        "elementClass": "Simulink.ConnectionElement",
+        "names": [
+          "c1",
+          "a"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added.sldd",
+      "entry": "OneServiceBus",
+      "fragment": "{\"_array_class\":\"Simulink.FunctionElement\",\"_dimensions\":[2,1],\"_elements\":[{\"_id\":\"2\",\"_properties\":{\"Arguments\":[],\"Asynchronous\":false,\"Name\":\"svc\",\"Prototype\":\"y = svc(u,v)\"}},{\"_id\":\"3\",\"_properties\":{\"Arguments\":{\"_array_class\":\"Simulink.BusElement\",\"_dimensions\":[3,1],\"_elements\":[{\"_id\":\"4\",\"_properties\":{\"Complexity\":\"real\",\"Dimensions\":1,\"DimensionsMode\":\"Fixed\",\"DocUnits\":\"\",\"Name\":\"u\"}},{\"_id\":\"5\",\"_properties\":{\"Complexity\":\"real\",\"Dimensions\":1,\"DimensionsMode\":\"Fixed\",\"DocUnits\":\"\",\"Name\":\"v\"}},{\"_id\":\"6\",\"_properties\":{\"Complexity\":\"real\",\"Dimensions\":1,\"DimensionsMode\":\"Fixed\",\"DocUnits\":\"\",\"Name\":\"y\"}}]},\"Asynchronous\":false,\"Name\":\"f1\",\"Prototype\":\"y = f1(u,v)\"}}]}",
+      "reads": {
+        "class": "Simulink.ServiceBus",
+        "elementClass": "Simulink.FunctionElement",
+        "names": [
+          "svc",
+          "f1"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added_removed.sldd",
+      "entry": "OneBus",
+      "fragment": "{\"_id\":\"2\",\"_object_class\":\"Simulink.BusElement\",\"_properties\":{\"Complexity\":\"real\",\"Dimensions\":1,\"DimensionsMode\":\"Fixed\",\"DocUnits\":\"\",\"Name\":\"x\"}}",
+      "reads": {
+        "class": "Simulink.Bus",
+        "elementClass": "Simulink.BusElement",
+        "names": [
+          "x"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added_removed.sldd",
+      "entry": "OneConnBus",
+      "fragment": "{\"_id\":\"2\",\"_object_class\":\"Simulink.ConnectionElement\",\"_properties\":{\"Description\":\"\",\"Name\":\"c1\",\"Type_internal\":\"Connection: <domain name>\"}}",
+      "reads": {
+        "class": "Simulink.ConnectionBus",
+        "elementClass": "Simulink.ConnectionElement",
+        "names": [
+          "c1"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added_removed.sldd",
+      "entry": "OneServiceBus",
+      "fragment": "{\"_id\":\"2\",\"_object_class\":\"Simulink.FunctionElement\",\"_properties\":{\"Arguments\":[],\"Asynchronous\":false,\"Name\":\"svc\",\"Prototype\":\"y = svc(u,v)\"}}",
+      "reads": {
+        "class": "Simulink.ServiceBus",
+        "elementClass": "Simulink.FunctionElement",
+        "names": [
+          "svc"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added_removed_first.sldd",
+      "entry": "OneBus",
+      "fragment": "{\"_id\":\"3\",\"_object_class\":\"Simulink.BusElement\",\"_properties\":{\"Name\":\"a\"}}",
+      "reads": {
+        "class": "Simulink.Bus",
+        "elementClass": "Simulink.BusElement",
+        "names": [
+          "a"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added_removed_first.sldd",
+      "entry": "OneConnBus",
+      "fragment": "{\"_id\":\"3\",\"_object_class\":\"Simulink.ConnectionElement\",\"_properties\":{\"Name\":\"a\"}}",
+      "reads": {
+        "class": "Simulink.ConnectionBus",
+        "elementClass": "Simulink.ConnectionElement",
+        "names": [
+          "a"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added_removed_first.sldd",
+      "entry": "OneServiceBus",
+      "fragment": "{\"_id\":\"3\",\"_object_class\":\"Simulink.FunctionElement\",\"_properties\":{\"Arguments\":{\"_array_class\":\"Simulink.BusElement\",\"_dimensions\":[3,1],\"_elements\":[{\"_id\":\"4\",\"_properties\":{\"Complexity\":\"real\",\"Dimensions\":1,\"DimensionsMode\":\"Fixed\",\"DocUnits\":\"\",\"Name\":\"u\"}},{\"_id\":\"5\",\"_properties\":{\"Complexity\":\"real\",\"Dimensions\":1,\"DimensionsMode\":\"Fixed\",\"DocUnits\":\"\",\"Name\":\"v\"}},{\"_id\":\"6\",\"_properties\":{\"Complexity\":\"real\",\"Dimensions\":1,\"DimensionsMode\":\"Fixed\",\"DocUnits\":\"\",\"Name\":\"y\"}}]},\"Asynchronous\":false,\"Name\":\"f1\",\"Prototype\":\"y = f1(u,v)\"}}",
+      "reads": {
+        "class": "Simulink.ServiceBus",
+        "elementClass": "Simulink.FunctionElement",
+        "names": [
+          "f1"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added_undone.sldd",
+      "entry": "OneBus",
+      "fragment": "{\"_id\":\"2\",\"_object_class\":\"Simulink.BusElement\",\"_properties\":{\"Complexity\":\"real\",\"Dimensions\":1,\"DimensionsMode\":\"Fixed\",\"DocUnits\":\"\",\"Name\":\"x\"}}",
+      "reads": {
+        "class": "Simulink.Bus",
+        "elementClass": "Simulink.BusElement",
+        "names": [
+          "x"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added_undone.sldd",
+      "entry": "OneConnBus",
+      "fragment": "{\"_id\":\"2\",\"_object_class\":\"Simulink.ConnectionElement\",\"_properties\":{\"Description\":\"\",\"Name\":\"c1\",\"Type_internal\":\"Connection: <domain name>\"}}",
+      "reads": {
+        "class": "Simulink.ConnectionBus",
+        "elementClass": "Simulink.ConnectionElement",
+        "names": [
+          "c1"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_added_undone.sldd",
+      "entry": "OneServiceBus",
+      "fragment": "{\"_id\":\"2\",\"_object_class\":\"Simulink.FunctionElement\",\"_properties\":{\"Arguments\":[],\"Asynchronous\":false,\"Name\":\"svc\",\"Prototype\":\"y = svc(u,v)\"}}",
+      "reads": {
+        "class": "Simulink.ServiceBus",
+        "elementClass": "Simulink.FunctionElement",
+        "names": [
+          "svc"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_noop.sldd",
+      "entry": "OneBus",
+      "fragment": "{\"_id\":\"2\",\"_object_class\":\"Simulink.BusElement\",\"_properties\":{\"Complexity\":\"real\",\"Dimensions\":1,\"DimensionsMode\":\"Fixed\",\"DocUnits\":\"\",\"Name\":\"x\"}}",
+      "reads": {
+        "class": "Simulink.Bus",
+        "elementClass": "Simulink.BusElement",
+        "names": [
+          "x"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_noop.sldd",
+      "entry": "OneConnBus",
+      "fragment": "{\"_id\":\"2\",\"_object_class\":\"Simulink.ConnectionElement\",\"_properties\":{\"Description\":\"\",\"Name\":\"c1\",\"Type_internal\":\"Connection: <domain name>\"}}",
+      "reads": {
+        "class": "Simulink.ConnectionBus",
+        "elementClass": "Simulink.ConnectionElement",
+        "names": [
+          "c1"
+        ],
+        "warning": ""
+      }
+    },
+    {
+      "file": "core_noop.sldd",
+      "entry": "OneServiceBus",
+      "fragment": "{\"_id\":\"2\",\"_object_class\":\"Simulink.FunctionElement\",\"_properties\":{\"Arguments\":[],\"Asynchronous\":false,\"Name\":\"svc\",\"Prototype\":\"y = svc(u,v)\"}}",
+      "reads": {
+        "class": "Simulink.ServiceBus",
+        "elementClass": "Simulink.FunctionElement",
+        "names": [
+          "svc"
+        ],
+        "warning": ""
+      }
+    }
+  ]
+}

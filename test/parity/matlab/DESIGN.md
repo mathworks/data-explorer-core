@@ -41,7 +41,7 @@ can.
 
 | case | display | note |
 |---|---|---|
-| empty numeric, any class, shape and complexity | `[ ]` | MATLAB's Workspace browser's own text, space inside (`mat2str` says `[]`). An int-backed enumeration's empty too: MATLAB counts it numeric. Not a sparse double's: see the next row |
+| empty numeric, any class, shape and complexity | `[ ]` | MATLAB's Workspace browser's own text, space inside (`mat2str` says `[]`). An int-backed enumeration's empty too, as a text dictionary holds it: MATLAB counts it numeric. A binary dictionary's and a `.mat`'s is not `[ ]`: see the kept list below. Not a sparse double's: see the next row |
 | empty sparse double | `<0x0 sparse double>`, `<2x0 sparse double>` | **a deliberate deviation from MATLAB**, whose browser shows `[ ]` (measured at 0x0 and 2x0). See "The sparse empty keeps its summary" below |
 | empty cell | `{}` at 0x0, `<0x3 cell>` at any other empty shape | the browser's `{}` and `{0×3 cell}` |
 | a text dictionary's `"value": null` | `[ ]`, a 1x0 double, with no parse warning | what MATLAB reads the entry back as; MATLAB writes `null` for a value it could not save in a text dictionary (a 2x2x2 string), and opens the file again without complaint. It read as `0` (P8 of the 2026-10-16 list) |
@@ -104,13 +104,35 @@ logical-backed enumeration. A complex scalar is its own class (`int16`, not
 `double`), and so is each element of a complex array. getWorkspaceDisplay's own
 Class (`complex double`) is a different spelling; the browser's is the one shown.
 
-**Only the rows above that cite the browser follow it so far.** Whether the rest
-follow MATLAB is pending the maintainer's rulings on numeric precision (P1),
-the summary's spelling (Q1: MATLAB writes `0×3 string`, `{0×3 cell}`, with no
-angle brackets), and H1-H6 (the Parameter row, the edit seed, 1x1 cells, char
-control characters, length bounds), in the 2026-10-15 display study
-(data-explorer-vscode `docs/deep-work/2026-10-15-decided-items/display-study/`,
-`proposed-open-questions.md` and `not-followable-*.md`).
+**The rest differs from the browser on purpose, as recorded deviations.** The
+maintainer's ruling of 2026-10-15 (evening, group B, display alignment): "if our
+display makes more sense than MATLAB, keep ours. For example, to be consistent, we
+always use `<m x n className>` for summary, then keep it. Only fix our display that
+could cause confusion to user." A display that could mislead (a wrong class, size,
+shape or value, a value that looks like a different one, or `null` / `unknown` where
+the file holds the information) was fixed: P1-P8 and P10 of the 2026-10-16 list.
+The rows below are kept. The browser's side of each was measured in R2027a by the
+2026-10-15 display study (data-explorer-vscode
+`docs/deep-work/2026-10-15-decided-items/display-study/`, `not-followable-*.md` and
+`vs-matlab.md`). Q1, P1 and H1-H6 are that study's ids, so the study's P1 is
+precision, not the 2026-10-16 list's P1.
+
+| kept | here | MATLAB's Workspace browser | why |
+|---|---|---|---|
+| Q1, a summary's spelling | `<1x11 int8>`, `<0x3 cell>` | `1×11 int8`, `{0×3 cell}` | one spelling for every summary. The angle brackets are the italic signal, and the host withholds the in-place editor on them |
+| P1 (the study's), precision | full JS round-trip precision, `3.141592653589793` | the user's `format`, short by default: `3.1416`, so `pi` and `3.14159` look the same, and `[1e-10 1]` is `[0,1]` | the host filters and compares on the cell text |
+| H1, a Parameter's entry row | its value: `500`, `DispColor.Green` | `1×1 Parameter`, whatever the value is | a Parameter with a scalar value has no Value row of its own, so its entry cell is the only place the value shows and is edited |
+| H2, the edit text | none of its own: the cell text seeds the editor | a separate text, in `format long` (`FormatDataUtils.getDisplayEditValue`) | the cell is already a valid literal at full precision |
+| H4, a 1x1 cell | `{1}` | `1` | the browser tells `{1}` from `1` only by the Class column, which the host hides by default |
+| H6, the length guard | a summary past `SUMMARY_MAX_CHARS = 1000` (see "Threshold rule") | the whole text, up to 99,999 characters | a runaway guard against a 100 KB grid cell |
+| logical | `true` / `false` | `1` / `0` | |
+| quotes in char and string | doubled: `'it''s'`, `"say ""hi"""` | as they are: `'it's'`, `"say "hi""` | the browser's text is no literal; this one is |
+| cell elements | comma-separated: `{1, 'two', [3 4]}` | space-separated: `{1  'two'  [3 4]}` | |
+| P9 of the 2026-10-16 list, a `.mat` `Simulink.VariantExpression` | `<1x1 Simulink.Variant>`, Class `Simulink.Variant` | Class `Simulink.VariantExpression` | the class name the `.mat` itself records, and the class's documented former name. A dictionary's reads as a VariantExpression, with its condition. No fixture of this repo holds one |
+| an int-backed enumeration's empty, from a binary dictionary or a `.mat` | `<1x0 DispLevel>`, `<0x0 DispColor>` | `[ ]` | read there as an enumeration value (an ObjectNode), it keeps the summary every empty object array has. It names the class and the size, so nothing on it misleads. A text dictionary's is `[ ]` (the first row above) |
+
+H3 is the evidence for the study's P1. H5, control characters, is not kept: it is P7
+of the 2026-10-16 list, fixed (the char row above).
 
 ### A property sheet is not a table cell
 

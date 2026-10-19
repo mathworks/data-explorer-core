@@ -123,7 +123,9 @@ produce a file MATLAB will not load.
   which reads the legal set off the prop atom's `readOptions` — the same call the dropdown
   is built from, so the offered choices and the accepted values cannot drift — and returns
   `{error, reason: "There is no enumerated value named 'X'."}`. `''` is a CLEAR, not a
-  rejection; see the BusElement doc for the full rationale.
+  rejection; see the BusElement doc for the full rationale. The field's spelling
+  (`Complexity`, `DimensionsMode`) is the same property and takes the same check.
+  Test: `test/enumFieldSpelling.test.ts`.
   Test: `test/valueTypeValueProps.test.ts`.
 
 - No additional validation for Description (any string accepted).

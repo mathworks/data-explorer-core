@@ -1,0 +1,769 @@
+{
+	"__MW_TEXT_COREPROPERTIES__": {
+		"release": "R2027a"
+	},
+	"__MW_TEXT_PARTS__": {
+		"__MW_TEXT_PART__/data/chunk0": {
+			"__MW_TEXT_content": {
+				"entries": [
+					{
+						"name": "sE00",
+						"metadata": {
+							"uuid": "4e7876e5-399b-4a22-be29-31007668dc7d",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T030832.502587",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "struct",
+							"_value": "[]"
+						}
+					},
+					{
+						"name": "sE002",
+						"metadata": {
+							"uuid": "7fd87c02-0923-4d6d-9214-1bdc8dfc2951",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T030832.505428",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "struct",
+							"_value": "[]"
+						}
+					},
+					{
+						"name": "sE02",
+						"metadata": {
+							"uuid": "b52c5ea8-593b-4372-a7b9-83d3ab45b86f",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T030832.505069",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "struct",
+							"_value": "[]"
+						}
+					},
+					{
+						"name": "sE10ab",
+						"metadata": {
+							"uuid": "9a6707de-258e-4094-9d11-19a2a7238113",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T030832.505616",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "struct",
+							"_value": "[]"
+						}
+					},
+					{
+						"name": "sE20",
+						"metadata": {
+							"uuid": "90827797-fc7e-4bf5-826f-5a81d5efbf82",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T030832.505228",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_type": "struct",
+							"_value": "[]"
+						}
+					},
+					{
+						"name": "sHolds",
+						"metadata": {
+							"uuid": "8733824d-6e2e-4e4b-915f-f3155ac74b6c",
+							"namespace": "dacaf35e-55a5-454d-a7c1-93db038a210e",
+							"lastmod": "20261019T030832.505772",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_type": "Struct",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"e": {
+										"_type": "struct",
+										"_value": "[]"
+									},
+									"none": {
+										"_type": "struct",
+										"_value": "[]"
+									},
+									"x": 1
+								}
+							],
+							"_fields": [
+								"x",
+								"e",
+								"none"
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "csAutosar",
+						"metadata": {
+							"uuid": "185eb70b-104e-43a5-a0f3-3aa84b46ca2e",
+							"namespace": "a3b2532e-8e6e-47f5-94fb-b15daf666a84",
+							"lastmod": "20261019T030832.510190",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.ConfigSet",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Components": {
+											"_array_class": "Simulink.ConfigComponent",
+											"_dimensions": [
+												9,
+												1
+											],
+											"_elements": [
+												{
+													"_id": "2",
+													"_object_class": "Simulink.SolverCC",
+													"_properties": {
+														"SolverName": "VariableStepAuto",
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "3",
+													"_object_class": "Simulink.DataIOCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "4",
+													"_object_class": "Simulink.OptimizationCC",
+													"_properties": {
+														"DefaultParameterBehavior": "Inlined",
+														"DifferentSizesBufferReuse": "on",
+														"EfficientTunableParamExpr": "on",
+														"EnhancedBackFolding": "on",
+														"OptimizationCustomize": "off",
+														"OptimizeBlockOrder": "speed",
+														"PassReuseOutputArgsAs": "Individual arguments",
+														"RemoveInternalMemoryZeroInit": "on",
+														"RemoveRootLevelIOMemoryZeroInit": "on",
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "5",
+													"_object_class": "Simulink.DebuggingCC",
+													"_properties": {
+														"ParameterTunabilityLossMsg": "error",
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "6",
+													"_object_class": "Simulink.HardwareCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "7",
+													"_object_class": "Simulink.ModelReferenceCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "8",
+													"_object_class": "Simulink.SFSimCC",
+													"_properties": {
+														"CustomCodeFunctionArrayLayout": [],
+														"MATLABDynamicMemAlloc": "off",
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "9",
+													"_object_class": "Simulink.RTWCC",
+													"_properties": {
+														"BuildConfiguration": "Faster Builds",
+														"Components": {
+															"_array_class": "Simulink.ConfigComponent",
+															"_dimensions": [
+																2,
+																1
+															],
+															"_elements": [
+																{
+																	"_id": "10",
+																	"_object_class": "Simulink.CodeAppCC",
+																	"_properties": {
+																		"ForceParamTrailComments": "on",
+																		"IgnoreCustomStorageClasses": "off",
+																		"InsertBlockDesc": "on",
+																		"OperatorAnnotations": "on",
+																		"SFDataObjDesc": "on",
+																		"ShowEliminatedStatement": "on",
+																		"SimulinkDataObjDesc": "on",
+																		"Version": "27.0.0"
+																	}
+																},
+																{
+																	"_dynamic_properties": {
+																		"AutosarCompilerAbstraction": "off",
+																		"AutosarMatrixIOAsArray": "off",
+																		"AutosarMaxShortNameLength": 128,
+																		"AutosarSchemaVersion": "R23-11",
+																		"DisableAUTOSARRoutinesHostLibrary": "off"
+																	},
+																	"_id": "11",
+																	"_object_class": "Simulink.STFCustomTargetCC",
+																	"_properties": {
+																		"AutosarCompliant": "on",
+																		"CPPClassGenCompliant": "off",
+																		"CombineOutputUpdateFcns": "on",
+																		"CombineSignalStateStructs": "on",
+																		"CompOptLevelCompliant": "on",
+																		"Components": {
+																			"_id": "12",
+																			"_object_class": "Simulink.ERTTargetCC",
+																			"_properties": {
+																				"AutosarCompliant": "on",
+																				"BooleanFalseId": "FALSE",
+																				"BooleanTrueId": "TRUE",
+																				"CPPClassGenCompliant": "off",
+																				"CombineOutputUpdateFcns": "on",
+																				"CombineSignalStateStructs": "on",
+																				"CompOptLevelCompliant": "on",
+																				"ConcurrentExecutionCompliant": "off",
+																				"ConvertIfToSwitch": "on",
+																				"ERTCustomFileBanners": "on",
+																				"GRTInterface": "off",
+																				"GenerateAllocFcn": "off",
+																				"GenerateSampleERTMain": "off",
+																				"IncludeMdlTerminateFcn": "off",
+																				"LUTObjectStructOrderEvenSpacing": "Size,Table,Breakpoints",
+																				"LookupTableObjectStructAxisOrder": "2,1,3,4,...",
+																				"MATLABClassNameForMDSCustomization": "Simulink.SoftwareTarget.ERTCustomization",
+																				"MatFileLogging": "off",
+																				"MaxIdInt16": "",
+																				"MaxIdInt32": "",
+																				"MaxIdInt64": "",
+																				"MaxIdInt8": "",
+																				"MaxIdUint16": "",
+																				"MaxIdUint32": "",
+																				"MaxIdUint64": "",
+																				"MaxIdUint8": "",
+																				"MinIdInt16": "",
+																				"MinIdInt32": "",
+																				"MinIdInt64": "",
+																				"MinIdInt8": "",
+																				"ModelReferenceCompliant": "on",
+																				"ModelStepFunctionPrototypeControlCompliant": "off",
+																				"MultiwordLength": 256,
+																				"ParMdlRefBuildCompliant": "on",
+																				"RemoveResetFunc": "on",
+																				"SupportComplex": "off",
+																				"SupportContinuousTime": "off",
+																				"SupportNonFinite": "off",
+																				"SupportNonInlinedSFcns": "off",
+																				"SuppressErrorStatus": "on",
+																				"SuppressUnreachableDefaultCases": "on",
+																				"UseToolchainInfoCompliant": "on",
+																				"Version": "27.0.0"
+																			}
+																		},
+																		"ConcurrentExecutionCompliant": "off",
+																		"ERTCustomFileBanners": "on",
+																		"GRTInterface": "off",
+																		"GenerateAllocFcn": "off",
+																		"GenerateSampleERTMain": "off",
+																		"IncludeMdlTerminateFcn": "off",
+																		"LUTObjectStructOrderEvenSpacing": "Size,Table,Breakpoints",
+																		"LookupTableObjectStructAxisOrder": "2,1,3,4,...",
+																		"MATLABClassNameForMDSCustomization": "Simulink.SoftwareTarget.ERTCustomization",
+																		"MatFileLogging": "off",
+																		"ModelReferenceCompliant": "on",
+																		"ModelStepFunctionPrototypeControlCompliant": "off",
+																		"MultiwordLength": 256,
+																		"ParMdlRefBuildCompliant": "on",
+																		"RemoveResetFunc": "on",
+																		"SupportComplex": "off",
+																		"SupportContinuousTime": "off",
+																		"SupportNonFinite": "off",
+																		"SupportNonInlinedSFcns": "off",
+																		"SuppressErrorStatus": "on",
+																		"SystemTargetFile": "autosar.tlc",
+																		"UseToolchainInfoCompliant": "on",
+																		"Version": "27.0.0"
+																	}
+																}
+															]
+														},
+														"DataTypeReplacement": "CDataTypesFixedWidth",
+														"Description": "AUTOSAR",
+														"GenCodeOnly": "on",
+														"SystemTargetFile": "autosar.tlc",
+														"TemplateMakefile": "ert_default_tmf",
+														"Toolchain": "Automatically locate an installed toolchain",
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "13",
+													"_object_class": "SlCovCC.ConfigComp",
+													"_properties": {
+														"CovEnable": "off",
+														"CovIncludeTopModel": "on",
+														"CovModelRefEnable": "off",
+														"CovScope": "EntireSystem",
+														"Description": "Simulink Coverage Configuration Component",
+														"Version": "27.0.0"
+													}
+												}
+											]
+										},
+										"ConfigPrmDlgPosition": [
+											0,
+											0,
+											0,
+											0
+										],
+										"CurrentDlgPage": "",
+										"ExtraOptions": "",
+										"Name": "csAutosar",
+										"Version": "27.0.0"
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "csSimscape",
+						"metadata": {
+							"uuid": "9ea55741-afc2-4183-b145-87155f8f40dd",
+							"namespace": "a3b2532e-8e6e-47f5-94fb-b15daf666a84",
+							"lastmod": "20261019T030832.520987",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "Simulink.ConfigSet",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Components": {
+											"_array_class": "Simulink.ConfigComponent",
+											"_dimensions": [
+												10,
+												1
+											],
+											"_elements": [
+												{
+													"_id": "2",
+													"_object_class": "Simulink.SolverCC",
+													"_properties": {
+														"SolverName": "VariableStepAuto",
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "3",
+													"_object_class": "Simulink.DataIOCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "4",
+													"_object_class": "Simulink.OptimizationCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "5",
+													"_object_class": "Simulink.DebuggingCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "6",
+													"_object_class": "Simulink.HardwareCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "7",
+													"_object_class": "Simulink.ModelReferenceCC",
+													"_properties": {
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "8",
+													"_object_class": "Simulink.SFSimCC",
+													"_properties": {
+														"CustomCodeFunctionArrayLayout": [],
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "9",
+													"_object_class": "Simulink.RTWCC",
+													"_properties": {
+														"BuildConfiguration": "Faster Builds",
+														"Components": {
+															"_array_class": "Simulink.ConfigComponent",
+															"_dimensions": [
+																2,
+																1
+															],
+															"_elements": [
+																{
+																	"_id": "10",
+																	"_object_class": "Simulink.CodeAppCC",
+																	"_properties": {
+																		"Version": "27.0.0"
+																	}
+																},
+																{
+																	"_id": "11",
+																	"_object_class": "Simulink.GRTTargetCC",
+																	"_properties": {
+																		"CPPClassGenCompliant": "on",
+																		"CombineOutputUpdateFcns": "on",
+																		"CompOptLevelCompliant": "on",
+																		"ConcurrentExecutionCompliant": "on",
+																		"ERTCustomFileBanners": "off",
+																		"GRTInterface": "off",
+																		"GenerateAllocFcn": "off",
+																		"GenerateSampleERTMain": "off",
+																		"MATLABClassNameForMDSCustomization": "Simulink.SoftwareTarget.GRTCustomization",
+																		"MatFileLogging": "on",
+																		"ModelReferenceCompliant": "on",
+																		"ModelStepFunctionPrototypeControlCompliant": "off",
+																		"MultiwordLength": 2048,
+																		"ParMdlRefBuildCompliant": "on",
+																		"SupportContinuousTime": "on",
+																		"SupportNonFinite": "on",
+																		"SupportNonInlinedSFcns": "on",
+																		"UseToolchainInfoCompliant": "on",
+																		"Version": "27.0.0"
+																	}
+																}
+															]
+														},
+														"Description": "Generic Real-Time Target",
+														"SystemTargetFile": "grt.tlc",
+														"Toolchain": "Automatically locate an installed toolchain",
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "12",
+													"_object_class": "SlCovCC.ConfigComp",
+													"_properties": {
+														"CovEnable": "off",
+														"CovIncludeTopModel": "on",
+														"CovModelRefEnable": "off",
+														"CovScope": "EntireSystem",
+														"Description": "Simulink Coverage Configuration Component",
+														"Version": "27.0.0"
+													}
+												},
+												{
+													"_id": "13",
+													"_object_class": "SSC.SimscapeCC",
+													"_properties": {
+														"Components": {
+															"_id": "14",
+															"_object_class": "simmechanics.ConfigurationSet",
+															"_properties": {
+																"Components": {
+																	"_array_class": "Simulink.CustomCC",
+																	"_dimensions": [
+																		2,
+																		1
+																	],
+																	"_elements": [
+																		{
+																			"_id": "15",
+																			"_object_class": "simmechanics.DiagnosticsConfigSet",
+																			"_properties": {
+																				"SimMechanicsConflictingReferenceFrames": "warning",
+																				"SimMechanicsCrossSectionNullEdge": "warning",
+																				"SimMechanicsInvalidVisualProperty": "warning",
+																				"SimMechanicsJointTargetOverSpecification": "error",
+																				"SimMechanicsRedundantBlock": "warning",
+																				"SimMechanicsRigidlyBoundBlock": "error",
+																				"SimMechanicsUnconnectedFramePorts": "warning",
+																				"SimMechanicsUnconnectedGeometryPorts": "warning",
+																				"SimMechanicsUnsatisfiedHighPriorityTargets": "warning",
+																				"Version": "27.0.0"
+																			}
+																		},
+																		{
+																			"_id": "16",
+																			"_object_class": "simmechanics.ExplorerConfigSet",
+																			"_properties": {
+																				"InternalSimMechanicsExplorerSettings": "",
+																				"InternalSimMechanicsPlaybackDataRate": "30",
+																				"InternalSimMechanicsSavePlaybackData": "none",
+																				"InternalSimMechanicsSavePlaybackDataVariable": "smplaybacklog",
+																				"SimMechanicsOpenEditorOnUpdate": "on",
+																				"Version": "27.0.0"
+																			}
+																		}
+																	]
+																},
+																"Version": "27.0.0"
+															}
+														},
+														"EditingMode": "Full",
+														"ExplicitSolverDiagnosticOptions": "warning",
+														"GlobalZcOffDiagnosticOptions": "warning",
+														"SelectedTab": "",
+														"SimscapeAutoSelectReusableComponents": "on",
+														"SimscapeCacheCompileArtifacts": "on",
+														"SimscapeCompileArtifactsDiskCache": "off",
+														"SimscapeCompileComponentReuse": "off",
+														"SimscapeLogDataHistory": 10000,
+														"SimscapeLogDecimation": 1,
+														"SimscapeLogLimitData": "on",
+														"SimscapeLogName": "simlog",
+														"SimscapeLogOpenViewer": "off",
+														"SimscapeLogSimulationStatistics": "off",
+														"SimscapeLogType": "all",
+														"SimscapeMultithreadedCompilation": "on",
+														"SimscapeNominalValues": "[{\"value\":\"1\",\"unit\":\"A\"},{\"value\":\"1\",\"unit\":\"bar\"},{\"value\":\"1\",\"unit\":\"cm^2\"},{\"value\":\"1\",\"unit\":\"cm^3/s\"},{\"value\":\"1\",\"unit\":\"kJ/kg\"},{\"value\":\"1\",\"unit\":\"kW\"},{\"value\":\"1\",\"unit\":\"l\"},{\"value\":\"1\",\"unit\":\"N\"},{\"value\":\"1\",\"unit\":\"N*m\"},{\"value\":\"1\",\"unit\":\"V\"},{\"value\":\"0.001\",\"unit\":\"Wb\"}]",
+														"SimscapeNormalizeSystem": "off",
+														"SimscapeOperatingPoint": "",
+														"SimscapeUseEnergyAccounting": "off",
+														"SimscapeUseOperatingPoints": "off",
+														"Version": "27.0.0"
+													}
+												}
+											]
+										},
+										"ConfigPrmDlgPosition": [
+											0,
+											0,
+											0,
+											0
+										],
+										"CurrentDlgPage": "",
+										"ExtraOptions": "",
+										"Name": "csSimscape",
+										"Version": "27.0.0"
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "holdsBase",
+						"metadata": {
+							"uuid": "bf293156-5cd5-4341-ad52-ec7964744b09",
+							"namespace": "42516768-0ace-4981-8ac7-0a9b32cba471",
+							"lastmod": "20261019T030832.509844",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "NdHolder",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Kids": {
+											"_array_class": "Simulink.Signal",
+											"_dimensions": [
+												1,
+												2
+											],
+											"_elements": [
+												{
+													"_id": "2",
+													"_properties": {
+														"CoderInfo": {
+															"_id": "4",
+															"_object_class": "Simulink.CoderInfo",
+															"_properties": {
+																"CSCPackageName": "Simulink",
+																"CustomAttributes": {
+																	"_id": "5",
+																	"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+																	"_properties": {}
+																},
+																"CustomStorageClass": "Default",
+																"ParameterOrSignal": "Signal",
+																"StorageClass": "Auto"
+															}
+														},
+														"LoggingInfo": {
+															"_id": "3",
+															"_object_class": "Simulink.LoggingInfo",
+															"_properties": {}
+														}
+													}
+												},
+												{
+													"_id": "6",
+													"_object_class": "dexdata.DerivedSignal",
+													"_properties": {
+														"CoderInfo": {
+															"_id": "8",
+															"_object_class": "Simulink.CoderInfo",
+															"_properties": {
+																"CSCPackageName": "Simulink",
+																"CustomAttributes": {
+																	"_id": "9",
+																	"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+																	"_properties": {}
+																},
+																"CustomStorageClass": "Default",
+																"ParameterOrSignal": "Signal",
+																"StorageClass": "Auto"
+															}
+														},
+														"LoggingInfo": {
+															"_id": "7",
+															"_object_class": "Simulink.LoggingInfo",
+															"_properties": {}
+														}
+													}
+												}
+											]
+										},
+										"Tag": "base"
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					},
+					{
+						"name": "holdsMixed",
+						"metadata": {
+							"uuid": "969ed16c-ddf7-4f08-a565-78ba997a999c",
+							"namespace": "42516768-0ace-4981-8ac7-0a9b32cba471",
+							"lastmod": "20261019T030832.509126",
+							"modifiedby": "weiwang",
+							"isderived": "0"
+						},
+						"value": {
+							"_array_class": "NdHolder",
+							"_dimensions": [
+								1,
+								1
+							],
+							"_elements": [
+								{
+									"_id": "1",
+									"_properties": {
+										"Kids": {
+											"_array_class": "Simulink.Signal",
+											"_dimensions": [
+												1,
+												2
+											],
+											"_elements": [
+												{
+													"_id": "2",
+													"_object_class": "dexdata.DerivedSignal",
+													"_properties": {
+														"CoderInfo": {
+															"_id": "4",
+															"_object_class": "Simulink.CoderInfo",
+															"_properties": {
+																"CSCPackageName": "Simulink",
+																"CustomAttributes": {
+																	"_id": "5",
+																	"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+																	"_properties": {}
+																},
+																"CustomStorageClass": "Default",
+																"ParameterOrSignal": "Signal",
+																"StorageClass": "Auto"
+															}
+														},
+														"LoggingInfo": {
+															"_id": "3",
+															"_object_class": "Simulink.LoggingInfo",
+															"_properties": {}
+														}
+													}
+												},
+												{
+													"_id": "6",
+													"_properties": {
+														"CoderInfo": {
+															"_id": "8",
+															"_object_class": "Simulink.CoderInfo",
+															"_properties": {
+																"CSCPackageName": "Simulink",
+																"CustomAttributes": {
+																	"_id": "9",
+																	"_object_class": "SimulinkCSC.AttribClass_Simulink_Default",
+																	"_properties": {}
+																},
+																"CustomStorageClass": "Default",
+																"ParameterOrSignal": "Signal",
+																"StorageClass": "Auto"
+															}
+														},
+														"LoggingInfo": {
+															"_id": "7",
+															"_object_class": "Simulink.LoggingInfo",
+															"_properties": {}
+														}
+													}
+												}
+											]
+										},
+										"Tag": "mixed"
+									}
+								}
+							],
+							"_mw_element_type": "MATLABArray"
+						}
+					}
+				],
+				"Dictionary References": [],
+				"AllowAccessBWS": false
+			}
+		}
+	}
+}

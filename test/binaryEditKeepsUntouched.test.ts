@@ -19,11 +19,13 @@
 //     (D1);
 //   * an edit and its undo give back the bytes with only the LastMod line new (D2);
 //   * what cannot be merged with certainty is written from the model whole, as every edited
-//     entry was: markup the scan cannot read, a duplicate name, an origin left in the text;
+//     entry was: markup the scan cannot read, a duplicate name, an origin left in the text, and a
+//     merge that, read again on its own, is not the model's text;
 //   * no origin the writers spell for the merge reaches a saved file;
 //   * the merge of a 5 MB entry costs a small multiple of writing it from the model;
-//   * and the three functions a host that splices chunk text needs: spliceEntryObject,
-//     keptPartsViolations and readEntryFragment.
+//   * and the three functions a host that splices chunk text needs: spliceEntryObject, which
+//     lays what it writes from the model out as the chunk is, keptPartsViolations, each rule it
+//     holds a write to, and readEntryFragment.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -448,6 +450,48 @@ describe('what cannot be merged with certainty is written from the model whole',
     expect(out).toBe(regenerated(entry));
     expect(out).not.toContain('dex-core-origin');
   });
+
+  it('a merge that, read again on its own, is not the model\'s text: here, one that reads as no entry', () => {
+    // A struct entry with its Name line moved after its Value, as a hand edit may leave it, and a
+    // sibling MATLAB spelled `1.0E+6`. The reader reads both, and pairs each with its bytes: the
+    // first `<P Name="Name"` in s's bytes is its own Name line.
+    const moved = (object: string): string => {
+      const lines = object.split('\n');
+      const name = lines.splice(1, 1)[0];
+      lines.splice(lines.length - 2, 0, name);
+      return lines.join('\n');
+    };
+    const value = '<P Name="Value" Class="struct">\n            <Element>\n                <P Name="a" Class="double">1.0E+6</P>\n            </Element>\n        </P>';
+    const xml = chunk(moved(entryXml('s', 'u-s', value)) + entryXml('t', 'u-t', '<P Name="Value" Class="double">1.0E+6</P>'));
+    expect(objectOf(xml, 's').indexOf('<P Name="Name"')).toBeGreaterThan(objectOf(xml, 's').indexOf('<P Name="Value"'));
+    // The control: renamed, s keeps its bytes, the Name line where the file has it.
+    {
+      const { session, root } = fromChunk(xml);
+      expect(entrySource.entrySourceOf(entryNamed(root, 's'))?.fragment).toBe(objectOf(xml, 's'));
+      expect(entryNamed(root, 's').setProperty('Name', 'sRenamed')).toBe(true);
+      expect(objectOf(savedChunk(session, root), 'sRenamed')).toBe(renamedAndStamped(objectOf(xml, 's'), 'sRenamed'));
+    }
+    // A field named `Name` added to the struct. Merged, it would sit in the Value, before the
+    // entry's own Name line, and the reader, which pairs an entry with its bytes by the first Name
+    // line in them, would pair the merge with no entry: read again, it is not the model's text.
+    // So the entry is written from the model whole, its own Name line first.
+    const { session, root } = fromChunk(xml);
+    const s = entryNamed(root, 's');
+    const field = session.addChildTo(s.id);
+    expect(field).not.toBeNull();
+    expect(field.setProperty('Name', 'Name')).toBe(true);
+    expect(s.children.map((c: any) => c.name)).toEqual(['a', 'Name']);
+    const saved = savedChunk(session, root);
+    expect(objectOf(saved, 's')).toBe(regenerated(s));
+    expect(objectOf(saved, 's')).not.toContain('1.0E+6');
+    expect(objectOf(saved, 't')).toBe(objectOf(xml, 't'));
+    // Which keeps the saved chunk one the reader pairs: reopened, t, renamed, still keeps its
+    // bytes. Had the merge been written, no entry of the reopened chunk would have had any.
+    const again = fromChunk(saved);
+    expect(entrySource.entrySourceOf(entryNamed(again.root, 's'))?.fragment).toBe(objectOf(saved, 's'));
+    expect(entryNamed(again.root, 't').setProperty('Name', 'tRenamed')).toBe(true);
+    expect(objectOf(savedChunk(again.session, again.root), 'tRenamed')).toBe(renamedAndStamped(objectOf(xml, 't'), 'tRenamed'));
+  });
 });
 
 function binaryDictionaries(): string[] {
@@ -586,6 +630,28 @@ describe('for a host that splices chunk text (D12)', () => {
     });
   }
 
+  it('spliceEntryObject lays out what it writes from the model as the chunk is: a bus element added, CRLF and two spaces', () => {
+    // The same bus, in the fixture's LF and four spaces and in CRLF and two spaces, given the same
+    // new element: the element is written from the model, which writes LF and four spaces, so only
+    // the chunk's own layout, read off it, makes the two splices one text in two layouts.
+    const { xml: lf } = open(fixture('bus_types_binary.sldd'));
+    const spliced = (xml: string): string => {
+      const { session, root } = fromChunk(xml);
+      const bus = entryNamed(root, 'btBus');
+      expect(session.addChildTo(bus.id)).not.toBeNull();
+      expect(bus.children.length).toBe(5);
+      const out = core.spliceEntryObject(xml, bus);
+      expect(out).not.toBeNull();
+      return out!;
+    };
+    const inLf = spliced(lf);
+    const inCrlf = spliced(crlf(lf));
+    expect(objectOf(inLf, 'btBus').split('<Element Class="Simulink.BusElement">').length - 1).toBe(5);
+    expect(inLf).not.toContain('\r');
+    expect(inCrlf).toBe(crlf(inLf));
+    expect(inCrlf.replace(/\r\n/g, '')).not.toContain('\n');
+  });
+
   it('spliceEntryObject answers null for an entry the chunk does not hold', () => {
     const { root, xml } = open(fixture('cellarr_binary.sldd'));
     expect(core.spliceEntryObject(xml, entries(root)[0], 'noSuchEntry')).toBeNull();
@@ -612,6 +678,75 @@ describe('for a host that splices chunk text (D12)', () => {
     expect(core.keptPartsViolations(entry, written.replace('<P Name="UUID" Class="char">', '<P Name="UUID" Class="char">x'))).toEqual(['P[UUID]']);
     // The regenerated entry, whose cell open tag the writers spell otherwise than the file, changes an untouched part.
     expect(core.keptPartsViolations(entry, regenerated(entry))).toEqual(['P[Value] (open tag)']);
+  });
+
+  // Each rule keptPartsViolations holds a write to, on a write that breaks only that one. A
+  // Simulink.Parameter with its Min edited, whose siblings the model did not change.
+  const parameter = (): { entry: any; written: string } => {
+    const value = [
+      '<P Name="Value">',
+      '            <Element Class="Simulink.Parameter">',
+      '                <P Name="Value" Class="double">1.0E-5</P>',
+      '                <P Name="Min" Class="double">-1.0E-5</P>',
+      '                <P Name="Max" Class="double">1.0E+10</P>',
+      '                <P Name="Description" Class="char">kept</P>',
+      '            </Element>',
+      '        </P>',
+    ].join('\n');
+    const { session, root } = fromChunk(chunk(entryXml('p', 'u-p', value)));
+    const entry = entryNamed(root, 'p');
+    expect(entry.setProperty('Min', '-2')).toBe(true);
+    const written = objectOf(savedChunk(session, root), 'p');
+    expect(written).toContain('<P Name="Min" Class="double">-2.0</P>');
+    expect(core.keptPartsViolations(entry, written)).toEqual([]);
+    return { entry, written };
+  };
+  const MAX = '\n                <P Name="Max" Class="double">1.0E+10</P>';
+  const DESCRIPTION = '\n                <P Name="Description" Class="char">kept</P>';
+
+  it('keptPartsViolations: a child written twice, or with no name, where the model writes each once', () => {
+    const { entry, written } = parameter();
+    const twice = written.replace(DESCRIPTION, DESCRIPTION + DESCRIPTION);
+    expect(core.keptPartsViolations(entry, twice)).toEqual(['P[Value]/Element[0]: a child of it is written twice or cannot be named']);
+    const unnamed = written.replace(DESCRIPTION, DESCRIPTION + '\n                <P Class="char">kept</P>');
+    expect(core.keptPartsViolations(entry, unnamed)).toEqual(['P[Value]/Element[0]: a child of it is written twice or cannot be named']);
+  });
+
+  it('keptPartsViolations: a child the model did not change, not written', () => {
+    const { entry, written } = parameter();
+    expect(written).toContain(MAX);
+    expect(core.keptPartsViolations(entry, written.replace(MAX, ''))).toEqual(['P[Value]/Element[0]/P[Max] (not written)']);
+    // The one the model changed may go: what is written there is the model's to say.
+    expect(core.keptPartsViolations(entry, written.replace('\n                <P Name="Min" Class="double">-2.0</P>', ''))).toEqual([]);
+  });
+
+  it('keptPartsViolations: a property the reader does not read, not kept (D13)', () => {
+    const unread = '\n        <P Name="Unread" Class="char">kept as read</P>';
+    const xml = chunk(entryXml('a', 'u-a', '<P Name="Value" Class="double">1.0E+6</P>').replace('\n        <P Name="IsDerived"', unread + '\n        <P Name="IsDerived"'));
+    const { session, root } = fromChunk(xml);
+    const entry = entryNamed(root, 'a');
+    expect(entry.setProperty('Name', 'aRenamed')).toBe(true);
+    const written = objectOf(savedChunk(session, root), 'aRenamed');
+    expect(written).toContain(unread);
+    expect(core.keptPartsViolations(entry, written)).toEqual([]);
+    expect(core.keptPartsViolations(entry, written.replace(unread, ''))).toEqual(['P[Unread] (not read, and not kept)']);
+    expect(core.keptPartsViolations(entry, written.replace('kept as read', 'changed'))).toEqual(['P[Unread] (not read, and not kept)']);
+  });
+
+  it('keptPartsViolations: a bus written with more or fewer elements than the model holds', () => {
+    const { xml } = open(fixture('bus_types_binary.sldd'));
+    const { session, root } = fromChunk(xml);
+    const bus = entryNamed(root, 'btBus');
+    expect(session.deleteNodeById(bus.children[1].id)).toBe(true);
+    expect(bus.children.length).toBe(3);
+    const written = objectOf(savedChunk(session, root), 'btBus');
+    expect(core.keptPartsViolations(bus, written)).toEqual([]);
+    const at = written.lastIndexOf('<Element Class="Simulink.BusElement">');
+    const last = written.slice(written.lastIndexOf('\n', at), written.indexOf('</Element>', at) + '</Element>'.length);
+    expect(last).toContain('<P Name="Name" Class="char">matrix</P>');
+    const path = 'P[Value]/Element[0]/P[Elements_internal]';
+    expect(core.keptPartsViolations(bus, written.replace(last, ''))).toEqual([`${path}: written with 2 elements where the model holds 3`]);
+    expect(core.keptPartsViolations(bus, written.replace(last, last + last))).toEqual([`${path}: written with 4 elements where the model holds 3`]);
   });
 
   it('readEntryFragment rebuilds an entry with the bytes it came from, as an undo that rebuilds from text does', () => {

@@ -463,9 +463,11 @@ export default class SectionNode extends ContainerNode {
   // holding the infinity that JSON.parse makes of a hand-typed 1e400, and complex text with no
   // MAT stream to be instead, both of which a save writes back as read. Without the option, the
   // text that was accepted when the file was opened was refused once re-read, and so was the
-  // entry's copy (F1-22). It is for that re-read alone, never for a paste, a drop or an undo
-  // record, whose value is not the file's text. In a binary dictionary it records nothing, as
-  // that dictionary's read records nothing.
+  // entry's copy (F1-22). Nor is the re-read refused as a paste is for a MAT stream MatWriter
+  // cannot write: the file's read holds such a value as it reads it (a hand-typed bag of an N-D
+  // cell holding a string), and so does the re-read. It is for that re-read alone, never for a
+  // paste, a drop or an undo record, whose value is not the file's text. In a binary dictionary
+  // it records nothing, as that dictionary's read records nothing.
   parseEntry(rawEntry: Record<string, unknown>, systemComposer?: SystemComposerCatalog | null, options?: { asRead?: boolean }): DataNode {
     const text = (this.parent as { sourceFormat?: unknown } | null)?.sourceFormat === 'json';
     // An entry handed in with metadata that names no namespace — core's own API takes
@@ -534,7 +536,9 @@ export default class SectionNode extends ContainerNode {
       }
     }
     const node = this._readEntry(rawEntry, systemComposer);
-    if (text) {
+    // Not for a re-read of the file's own text, which the file's read holds as it reads it: a
+    // save writes it back as read, and refuses it once it is edited (F1-22).
+    if (text && !options?.asRead) {
       const refusal = oneWrite(() => node._unwritableStream());
       if (refusal) {
         this.removeChild(node);
