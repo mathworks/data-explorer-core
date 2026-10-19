@@ -1,0 +1,2142 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-10-18",
+  "originals": [
+    {
+      "file": "orig_dispcat_bin.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 76,
+      "notSelfEqual": [],
+      "shapes": [
+        {
+          "key": "design|c_newline",
+          "shape": "char[1 3]"
+        },
+        {
+          "key": "design|c_nul",
+          "shape": "char[1 3]"
+        },
+        {
+          "key": "design|c_tab",
+          "shape": "char[1 3]"
+        },
+        {
+          "key": "design|cell_1",
+          "shape": "cell[1 1]"
+        },
+        {
+          "key": "design|cell_of_param",
+          "shape": "cell[1 1]"
+        },
+        {
+          "key": "design|dx_cell_0x0",
+          "shape": "cell[0 0]"
+        },
+        {
+          "key": "design|dx_cell_0x3",
+          "shape": "cell[0 3]"
+        },
+        {
+          "key": "design|dx_cell_1x0",
+          "shape": "cell[1 0]"
+        },
+        {
+          "key": "design|dx_char_0x0",
+          "shape": "char[0 0]"
+        },
+        {
+          "key": "design|dx_char_0x2",
+          "shape": "char[0 2]"
+        },
+        {
+          "key": "design|dx_char_1x0",
+          "shape": "char[1 0]"
+        },
+        {
+          "key": "design|dx_complex_0x0",
+          "shape": "double[0 0]"
+        },
+        {
+          "key": "design|dx_complex_1x0",
+          "shape": "double[1 0]"
+        },
+        {
+          "key": "design|dx_complex_int16",
+          "shape": "int16[1 1]"
+        },
+        {
+          "key": "design|dx_complex_int16_1x0",
+          "shape": "int16[1 0]"
+        },
+        {
+          "key": "design|dx_complex_scalar",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|dx_complex_vector",
+          "shape": "double[1 2]"
+        },
+        {
+          "key": "design|dx_double_0x0",
+          "shape": "double[0 0]"
+        },
+        {
+          "key": "design|dx_double_0x0x2",
+          "shape": "double[0 0 2]"
+        },
+        {
+          "key": "design|dx_double_0x1",
+          "shape": "double[0 1]"
+        },
+        {
+          "key": "design|dx_double_0x3",
+          "shape": "double[0 3]"
+        },
+        {
+          "key": "design|dx_double_1x0",
+          "shape": "double[1 0]"
+        },
+        {
+          "key": "design|dx_enum_0x0",
+          "shape": "matlab.lang.OnOffSwitchState[0 0]"
+        },
+        {
+          "key": "design|dx_enum_1x0",
+          "shape": "matlab.lang.OnOffSwitchState[1 0]"
+        },
+        {
+          "key": "design|dx_int8_0x3",
+          "shape": "int8[0 3]"
+        },
+        {
+          "key": "design|dx_logical_1x0",
+          "shape": "logical[1 0]"
+        },
+        {
+          "key": "design|dx_param_complex_1x0",
+          "shape": "Simulink.Parameter[1 1]"
+        },
+        {
+          "key": "design|dx_param_empty",
+          "shape": "Simulink.Parameter[1 1]"
+        },
+        {
+          "key": "design|dx_single_0x0",
+          "shape": "single[0 0]"
+        },
+        {
+          "key": "design|dx_sparse_0x0",
+          "shape": "double[0 0]"
+        },
+        {
+          "key": "design|dx_sparse_2x0",
+          "shape": "double[2 0]"
+        },
+        {
+          "key": "design|dx_string_0x0",
+          "shape": "string[0 0]"
+        },
+        {
+          "key": "design|dx_string_1x0",
+          "shape": "string[1 0]"
+        },
+        {
+          "key": "design|dx_string_empty_1x1",
+          "shape": "string[1 1]"
+        },
+        {
+          "key": "design|dx_struct_0x0",
+          "shape": "struct[0 0]{}"
+        },
+        {
+          "key": "design|dx_struct_0x0_fields",
+          "shape": "struct[0 0]{a}"
+        },
+        {
+          "key": "design|dx_struct_1x0",
+          "shape": "struct[1 0]{a}"
+        },
+        {
+          "key": "design|e_logical_0x0",
+          "shape": "logical[0 0]"
+        },
+        {
+          "key": "design|e_logical_0x3",
+          "shape": "logical[0 3]"
+        },
+        {
+          "key": "design|e_single_complex_1x0",
+          "shape": "single[1 0]"
+        },
+        {
+          "key": "design|e_sparse_logical_0x0",
+          "shape": "logical[0 0]"
+        },
+        {
+          "key": "design|e_uint64_0x0",
+          "shape": "uint64[0 0]"
+        },
+        {
+          "key": "design|en_i32_empty",
+          "shape": "DispLevel[1 0]"
+        },
+        {
+          "key": "design|en_i32_high",
+          "shape": "DispLevel[1 1]"
+        },
+        {
+          "key": "design|en_i32_vec",
+          "shape": "DispLevel[1 2]"
+        },
+        {
+          "key": "design|en_off",
+          "shape": "matlab.lang.OnOffSwitchState[1 1]"
+        },
+        {
+          "key": "design|en_on",
+          "shape": "matlab.lang.OnOffSwitchState[1 1]"
+        },
+        {
+          "key": "design|en_onoff_vec",
+          "shape": "matlab.lang.OnOffSwitchState[1 3]"
+        },
+        {
+          "key": "design|en_sl_empty",
+          "shape": "DispColor[0 0]"
+        },
+        {
+          "key": "design|en_sl_red",
+          "shape": "DispColor[1 1]"
+        },
+        {
+          "key": "design|en_sl_vec",
+          "shape": "DispColor[1 2]"
+        },
+        {
+          "key": "design|enumdef",
+          "shape": "Simulink.data.dictionary.EnumTypeDefinition[1 1]"
+        },
+        {
+          "key": "design|fi_vec",
+          "shape": "embedded.fi[1 3]"
+        },
+        {
+          "key": "design|i8_1x10",
+          "shape": "int8[1 10]"
+        },
+        {
+          "key": "design|i8_1x11",
+          "shape": "int8[1 11]"
+        },
+        {
+          "key": "design|l_1x10",
+          "shape": "logical[1 10]"
+        },
+        {
+          "key": "design|l_1x11",
+          "shape": "logical[1 11]"
+        },
+        {
+          "key": "design|p_enum",
+          "shape": "Simulink.Parameter[1 1]"
+        },
+        {
+          "key": "design|sp_complex",
+          "shape": "double[1 2]"
+        },
+        {
+          "key": "design|sp_complex_scalar",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|sp_logical",
+          "shape": "logical[1 3]"
+        },
+        {
+          "key": "design|sp_logical_scalar",
+          "shape": "logical[1 1]"
+        },
+        {
+          "key": "design|sp_scalar",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|sp_vec",
+          "shape": "double[1 3]"
+        },
+        {
+          "key": "design|str_0x3",
+          "shape": "string[0 3]"
+        },
+        {
+          "key": "design|str_newline",
+          "shape": "string[1 1]"
+        },
+        {
+          "key": "design|z_1x11",
+          "shape": "double[1 11]"
+        },
+        {
+          "key": "design|z_int16",
+          "shape": "int16[1 1]"
+        },
+        {
+          "key": "design|z_int16_vec",
+          "shape": "int16[1 2]"
+        },
+        {
+          "key": "design|z_int8_vec",
+          "shape": "int8[1 2]"
+        },
+        {
+          "key": "design|z_scalar",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|z_single",
+          "shape": "single[1 1]"
+        },
+        {
+          "key": "design|z_uint8",
+          "shape": "uint8[1 1]"
+        },
+        {
+          "key": "design|z_vector",
+          "shape": "double[1 2]"
+        },
+        {
+          "key": "other|cat_ab",
+          "shape": "categorical[1 2]"
+        },
+        {
+          "key": "other|tbl_2x2",
+          "shape": "table[2 2]"
+        }
+      ]
+    },
+    {
+      "file": "orig_cases.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 73,
+      "notSelfEqual": [],
+      "shapes": [
+        {
+          "key": "design|aBus",
+          "shape": "Simulink.Bus[1 1]"
+        },
+        {
+          "key": "design|aLookup",
+          "shape": "Simulink.LookupTable[1 1]"
+        },
+        {
+          "key": "design|aParam",
+          "shape": "Simulink.Parameter[1 1]"
+        },
+        {
+          "key": "design|aSignal",
+          "shape": "Simulink.Signal[1 1]"
+        },
+        {
+          "key": "design|aVariant",
+          "shape": "Simulink.VariantVariable[1 1]"
+        },
+        {
+          "key": "design|bigD",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|boolF",
+          "shape": "logical[1 1]"
+        },
+        {
+          "key": "design|boolT",
+          "shape": "logical[1 1]"
+        },
+        {
+          "key": "design|boolVec",
+          "shape": "logical[1 3]"
+        },
+        {
+          "key": "design|cell2x3",
+          "shape": "cell[2 3]"
+        },
+        {
+          "key": "design|cellEmpty",
+          "shape": "cell[0 0]"
+        },
+        {
+          "key": "design|cellFlat",
+          "shape": "cell[1 3]"
+        },
+        {
+          "key": "design|cellNd",
+          "shape": "cell[2 3 2]"
+        },
+        {
+          "key": "design|cellNest",
+          "shape": "cell[1 2]"
+        },
+        {
+          "key": "design|charStr",
+          "shape": "char[1 4]"
+        },
+        {
+          "key": "design|colVec",
+          "shape": "double[3 1]"
+        },
+        {
+          "key": "design|cplxScalar",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|cplxVec",
+          "shape": "double[1 2]"
+        },
+        {
+          "key": "design|eleven",
+          "shape": "double[1 11]"
+        },
+        {
+          "key": "design|emptyD",
+          "shape": "double[0 0]"
+        },
+        {
+          "key": "design|exactly10",
+          "shape": "double[1 10]"
+        },
+        {
+          "key": "design|hugeChar",
+          "shape": "char[1 1500]"
+        },
+        {
+          "key": "design|i16Vec",
+          "shape": "int16[1 3]"
+        },
+        {
+          "key": "design|i64Unsafe",
+          "shape": "int64[1 1]"
+        },
+        {
+          "key": "design|i64Vec",
+          "shape": "int64[1 3]"
+        },
+        {
+          "key": "design|infN",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|infP",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|kp",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|long30",
+          "shape": "double[1 30]"
+        },
+        {
+          "key": "design|longChar",
+          "shape": "char[1 300]"
+        },
+        {
+          "key": "design|mat2x3",
+          "shape": "double[2 3]"
+        },
+        {
+          "key": "design|maxU64",
+          "shape": "uint64[1 1]"
+        },
+        {
+          "key": "design|max_int16",
+          "shape": "int16[1 1]"
+        },
+        {
+          "key": "design|max_int32",
+          "shape": "int32[1 1]"
+        },
+        {
+          "key": "design|max_int64",
+          "shape": "int64[1 1]"
+        },
+        {
+          "key": "design|max_int8",
+          "shape": "int8[1 1]"
+        },
+        {
+          "key": "design|max_uint16",
+          "shape": "uint16[1 1]"
+        },
+        {
+          "key": "design|max_uint32",
+          "shape": "uint32[1 1]"
+        },
+        {
+          "key": "design|max_uint8",
+          "shape": "uint8[1 1]"
+        },
+        {
+          "key": "design|min_int16",
+          "shape": "int16[1 1]"
+        },
+        {
+          "key": "design|min_int32",
+          "shape": "int32[1 1]"
+        },
+        {
+          "key": "design|min_int64",
+          "shape": "int64[1 1]"
+        },
+        {
+          "key": "design|min_int8",
+          "shape": "int8[1 1]"
+        },
+        {
+          "key": "design|min_uint16",
+          "shape": "uint16[1 1]"
+        },
+        {
+          "key": "design|min_uint32",
+          "shape": "uint32[1 1]"
+        },
+        {
+          "key": "design|min_uint64",
+          "shape": "uint64[1 1]"
+        },
+        {
+          "key": "design|min_uint8",
+          "shape": "uint8[1 1]"
+        },
+        {
+          "key": "design|nanV",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|nd2x3x2",
+          "shape": "double[2 3 2]"
+        },
+        {
+          "key": "design|negD",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|nonFinVec",
+          "shape": "double[1 5]"
+        },
+        {
+          "key": "design|rowVec",
+          "shape": "double[1 3]"
+        },
+        {
+          "key": "design|s_int16",
+          "shape": "int16[1 1]"
+        },
+        {
+          "key": "design|s_int32",
+          "shape": "int32[1 1]"
+        },
+        {
+          "key": "design|s_int64",
+          "shape": "int64[1 1]"
+        },
+        {
+          "key": "design|s_int8",
+          "shape": "int8[1 1]"
+        },
+        {
+          "key": "design|s_uint16",
+          "shape": "uint16[1 1]"
+        },
+        {
+          "key": "design|s_uint32",
+          "shape": "uint32[1 1]"
+        },
+        {
+          "key": "design|s_uint64",
+          "shape": "uint64[1 1]"
+        },
+        {
+          "key": "design|s_uint8",
+          "shape": "uint8[1 1]"
+        },
+        {
+          "key": "design|scalarD",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|scalarS",
+          "shape": "single[1 1]"
+        },
+        {
+          "key": "design|strArray",
+          "shape": "string[1 3]"
+        },
+        {
+          "key": "design|strMat",
+          "shape": "string[2 3]"
+        },
+        {
+          "key": "design|strScalar",
+          "shape": "string[1 1]"
+        },
+        {
+          "key": "design|struct1x3",
+          "shape": "struct[1 3]{a,b}"
+        },
+        {
+          "key": "design|struct2x3",
+          "shape": "struct[2 3]{a}"
+        },
+        {
+          "key": "design|structEmpty",
+          "shape": "struct[0 0]{}"
+        },
+        {
+          "key": "design|structNd",
+          "shape": "struct[2 3 2]{a}"
+        },
+        {
+          "key": "design|structNest",
+          "shape": "struct[1 1]{a}"
+        },
+        {
+          "key": "design|structScalar",
+          "shape": "struct[1 1]{a,b}"
+        },
+        {
+          "key": "design|tinyD",
+          "shape": "double[1 1]"
+        },
+        {
+          "key": "design|u64Vec",
+          "shape": "uint64[1 3]"
+        }
+      ]
+    },
+    {
+      "file": "orig_old_saves_r2027a_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 10,
+      "notSelfEqual": [
+        "config|csAutosar"
+      ],
+      "shapes": [
+        {
+          "key": "design|sE00",
+          "shape": "struct[0 0]{}"
+        },
+        {
+          "key": "design|sE002",
+          "shape": "struct[0 0 2]{}"
+        },
+        {
+          "key": "design|sE02",
+          "shape": "struct[0 2]{}"
+        },
+        {
+          "key": "design|sE10ab",
+          "shape": "struct[1 0]{a,b}"
+        },
+        {
+          "key": "design|sE20",
+          "shape": "struct[2 0]{}"
+        },
+        {
+          "key": "design|sHolds",
+          "shape": "struct[1 1]{x,e,none}"
+        },
+        {
+          "key": "other|holdsBase",
+          "shape": "NdHolder[1 1]"
+        },
+        {
+          "key": "other|holdsMixed",
+          "shape": "NdHolder[1 1]"
+        },
+        {
+          "key": "config|csAutosar",
+          "shape": "Simulink.ConfigSet[1 1]"
+        },
+        {
+          "key": "config|csSimscape",
+          "shape": "Simulink.ConfigSet[1 1]"
+        }
+      ]
+    },
+    {
+      "file": "orig_old_saves_r2027a_text.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 10,
+      "notSelfEqual": [
+        "config|csAutosar"
+      ],
+      "shapes": [
+        {
+          "key": "design|sE00",
+          "shape": "struct[0 0]{}"
+        },
+        {
+          "key": "design|sE002",
+          "shape": "struct[0 0]{}"
+        },
+        {
+          "key": "design|sE02",
+          "shape": "struct[0 0]{}"
+        },
+        {
+          "key": "design|sE10ab",
+          "shape": "struct[0 0]{}"
+        },
+        {
+          "key": "design|sE20",
+          "shape": "struct[0 0]{}"
+        },
+        {
+          "key": "design|sHolds",
+          "shape": "struct[1 1]{x,e,none}"
+        },
+        {
+          "key": "other|holdsBase",
+          "shape": "NdHolder[1 1]"
+        },
+        {
+          "key": "other|holdsMixed",
+          "shape": "NdHolder[1 1]"
+        },
+        {
+          "key": "config|csAutosar",
+          "shape": "Simulink.ConfigSet[1 1]"
+        },
+        {
+          "key": "config|csSimscape",
+          "shape": "Simulink.ConfigSet[1 1]"
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "kind": "old save",
+      "build": "pre93",
+      "fixture": "fixtures/display/dispcat_bin.sldd",
+      "file": "pre93_dispcat_bin.sldd",
+      "original": "orig_dispcat_bin.sldd",
+      "sha": {
+        "save": "c3c34f9ace2a1aec5bc41babdd58a8855ccec482803e09abd3f1ed50e7c4cce7",
+        "original": "043c5c7bc7c136e96284580dae7401e394b0e1bc3f338ae0043e7a94020ff1f1"
+      },
+      "dynamic": [],
+      "emptyStructs": [
+        {
+          "entry": "dx_struct_0x0",
+          "dims": [
+            0,
+            0
+          ],
+          "fields": []
+        },
+        {
+          "entry": "dx_struct_0x0_fields",
+          "dims": [
+            0,
+            0
+          ],
+          "fields": [
+            "a"
+          ]
+        },
+        {
+          "entry": "dx_struct_1x0",
+          "dims": [
+            1,
+            0
+          ],
+          "fields": [
+            "a"
+          ]
+        }
+      ],
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": false,
+        "entries": {
+          "checked": 76,
+          "same": 62,
+          "differ": [
+            "design|dx_cell_0x3: isequaln 0, sig 0: cell[0 0]{} | wanted cell[0 3]{}",
+            "design|dx_cell_1x0: isequaln 0, sig 0: cell[0 0]{} | wanted cell[1 0]{}",
+            "design|dx_char_0x2: isequaln 0, sig 0: char[0 0]='' | wanted char[0 2]=''",
+            "design|dx_char_1x0: isequaln 0, sig 0: char[0 0]='' | wanted char[1 0]=''",
+            "design|dx_string_0x0: isequaln 0, sig 0: string[1 1]{\"\"} | wanted string[0 0]{}",
+            "design|dx_string_1x0: isequaln 0, sig 0: string[1 1]{\"\"} | wanted string[1 0]{}",
+            "design|dx_struct_0x0_fields: isequaln 0, sig 0: struct[0 0]<>{} | wanted struct[0 0]<a>{}",
+            "design|dx_struct_1x0: isequaln 0, sig 0: struct[1 0]<>{} | wanted struct[1 0]<a>{}",
+            "design|en_i32_high: isequaln 0, sig 0: DispLevel[0 0]=[] | wanted DispLevel[1 1]=High",
+            "design|en_i32_vec: isequaln 0, sig 0: DispLevel[0 0]=[] | wanted DispLevel[1 2]=Low,High",
+            "design|en_sl_red: isequaln 0, sig 0: DispColor[0 0]=[] | wanted DispColor[1 1]=Red",
+            "design|en_sl_vec: isequaln 0, sig 0: DispColor[0 0]=[] | wanted DispColor[1 2]=Red,Blue",
+            "design|p_enum: isequaln 0, sig 0: Simulink.Parameter[1 1]{Value:DispColor[0 0]=[],Complexity:char[1 4]='real',Dimensions:double[1 2]=0,0,CoderInfo:Simulink.CoderInfo[1 1]{StorageClass:char[1 4]='Auto',TypeQualifier:char[0 0]='',Identifier:char[0 0]='',Alignment:int32[1 1]=-1,CustomStorageClass:char[1 7]='Default',CustomAttributes:SimulinkCSC.AttribClass_Simulink_Default[1 1]{disp:SimulinkCSC.AttribClass_Simulink_Default <a href=\"m ...(600 chars) | wanted Simulink.Parameter[1 1]{Value:DispColor[1 1]=Green,Complexity:char[1 4]='real',Dimensions:double[1 2]=1,1,CoderInfo:Simulink.CoderInfo[1 1]{StorageClass:char[1 4]='Auto',TypeQualifier:char[0 0]='',Identifier:char[0 0]='',Alignment:int32[1 1]=-1,CustomStorageClass:char[1 7]='Default',CustomAttributes:SimulinkCSC.AttribClass_Simulink_Default[1 1]{disp:SimulinkCSC.AttribClass_Simulink_Default <a href ...(603 chars)",
+            "design|str_0x3: isequaln 0, sig 0: string[1 1]{\"\"} | wanted string[0 3]{}"
+          ]
+        },
+        "dynamic": [],
+        "emptyStructs": [
+          {
+            "entry": "dx_struct_0x0",
+            "shape": "struct[0 0]{}"
+          },
+          {
+            "entry": "dx_struct_0x0_fields",
+            "shape": "struct[0 0]{}"
+          },
+          {
+            "entry": "dx_struct_1x0",
+            "shape": "struct[1 0]{}"
+          }
+        ],
+        "pasted": [],
+        "error": ""
+      }
+    },
+    {
+      "kind": "old save",
+      "build": "pre93",
+      "fixture": "parity/artifacts/binary/cases.sldd",
+      "file": "pre93_cases.sldd",
+      "original": "orig_cases.sldd",
+      "sha": {
+        "save": "fd4e8e3c5cae301bb2d0666f9dfd962e783b012da2becf51f2028eded902894a",
+        "original": "ac37f72df80b998b05f40fe615fb05b84f19712d07fbf46a618b06c5b317b435"
+      },
+      "dynamic": [],
+      "emptyStructs": {
+        "entry": "structEmpty",
+        "dims": [
+          0,
+          0
+        ],
+        "fields": []
+      },
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": true,
+        "entries": {
+          "checked": 73,
+          "same": 73,
+          "differ": []
+        },
+        "dynamic": [],
+        "emptyStructs": [
+          {
+            "entry": "structEmpty",
+            "shape": "struct[0 0]{}"
+          }
+        ],
+        "pasted": [],
+        "error": ""
+      }
+    },
+    {
+      "kind": "old save",
+      "build": "pre93",
+      "fixture": "parity/oldsaves/old_saves_r2027a_binary.sldd",
+      "file": "pre93_old_saves_r2027a_binary.sldd",
+      "original": "orig_old_saves_r2027a_binary.sldd",
+      "sha": {
+        "save": "5c956637c2ff60aca5754acc458c0575255f2147ba1dc113a33ba45d3a2a2fba",
+        "original": "f3f744bd51813831b3c679aa8a93c5c4e3e31be355ed5f484c6fd39edb977692"
+      },
+      "dynamic": [
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarMatrixIOAsArray",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarCompilerAbstraction",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarMaxShortNameLength",
+          "value": "128.0"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "DisableAUTOSARRoutinesHostLibrary",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarSchemaVersion",
+          "value": "R23-11"
+        }
+      ],
+      "emptyStructs": [
+        {
+          "entry": "sE00",
+          "dims": [
+            0,
+            0
+          ],
+          "fields": []
+        },
+        {
+          "entry": "sE002",
+          "dims": [
+            0,
+            0,
+            2
+          ],
+          "fields": []
+        },
+        {
+          "entry": "sE02",
+          "dims": [
+            0,
+            2
+          ],
+          "fields": []
+        },
+        {
+          "entry": "sE10ab",
+          "dims": [
+            1,
+            0
+          ],
+          "fields": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "entry": "sE20",
+          "dims": [
+            2,
+            0
+          ],
+          "fields": []
+        }
+      ],
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": false,
+        "entries": {
+          "checked": 10,
+          "same": 4,
+          "differ": [
+            "design|sE10ab: isequaln 0, sig 0: struct[1 0]<>{} | wanted struct[1 0]<a,b>{}",
+            "design|sHolds: isequaln 0, sig 0: struct[1 1]<x,e,none>{x:double[1 1]=1,e:struct[0 0]<>{},none:struct[0 0]<>{}} | wanted struct[1 1]<x,e,none>{x:double[1 1]=1,e:struct[0 0]<a>{},none:struct[0 0]<>{}}",
+            "other|holdsBase: isequaln 0, sig 1: ',Min:double[0 0]=[],Max:double[0 0]=[],Unit:char[0 0]=''},Tag:char[1 4]='base'} | wanted ',Min:double[0 0]=[],Max:double[0 0]=[],Unit:char[0 0]=''},Tag:char[1 4]='base'}",
+            "other|holdsMixed: isequaln 0, sig 0: NdHolder[1 1]{Kids:dexdata.DerivedSignal[1 2]{Routing:char[1 3]='bus',Priority:int32[1 1]=5,Dimensions:double[1 1]=-1,DimensionsMode:char[1 4]='auto',Complexity:char[1 4]='auto',SampleTime:double[1 1]=-1,SamplingMode:char[1 4]='auto',InitialValue:char[0 0]='',LoggingInfo:Simulink.LoggingInfo[1 1]{DataLogging:logical[1 1]=false,NameMode:logical[1 1]=false,LoggingName:char[0 0]='',DecimateData:logic ...(1951 chars) | wanted NdHolder[1 1]{Kids:Simulink.Signal[1 2]{Dimensions:double[1 1]=-1,DimensionsMode:char[1 4]='auto',Complexity:char[1 4]='auto',SampleTime:double[1 1]=-1,SamplingMode:char[1 4]='auto',InitialValue:char[0 0]='',LoggingInfo:Simulink.LoggingInfo[1 1]{DataLogging:logical[1 1]=false,NameMode:logical[1 1]=false,LoggingName:char[0 0]='',DecimateData:logical[1 1]=false,Decimation:double[1 1]=2,LimitDataPoin ...(1853 chars)",
+            "config|csAutosar: isequaln 1, sig 0: mponents:Simulink.ConfigComponent[9 1]{Name:char[1 6]='Solver',Description:char[1 41]='Simulink Coverage Configuration Component',Components:double[0 0]=[],Name:char[1 18]='Data Import/Export',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 12]='Optimization',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 11]='Diagnostics',Description:char[0 0]='',Components:double[0 ...(1090 chars) | wanted mponents:Simulink.ConfigComponent[9 1]{Name:char[1 6]='Solver',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 18]='Data Import/Export',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 12]='Optimization',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 11]='Diagnostics',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 23]='Hardware Implement ...(6172 chars)",
+            "config|csSimscape: isequaln 0, sig 0: ,Path:char[0 0]='',Description:char[0 0]='',Components:Simulink.ConfigComponent[9 1]{Name:char[1 6]='Solver',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 18]='Data Import/Export',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 12]='Optimization',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 11]='Diagnostics',Description:char[0 0]='',Components:doub ...(1094 chars) | wanted ,Path:char[0 0]='',Description:char[0 0]='',Components:Simulink.ConfigComponent[10 1]{Name:char[1 6]='Solver',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 18]='Data Import/Export',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 12]='Optimization',Description:char[0 0]='',Components:double[0 0]=[],Name:char[1 11]='Diagnostics',Description:char[0 0]='',Components:dou ...(1466 chars)"
+          ]
+        },
+        "dynamic": [
+          {
+            "entry": "csAutosar",
+            "name": "AutosarMatrixIOAsArray",
+            "original": "off",
+            "save": "<configset:diagnostics:PropNotExist>",
+            "dynamicInSave": false
+          },
+          {
+            "entry": "csAutosar",
+            "name": "AutosarCompilerAbstraction",
+            "original": "off",
+            "save": "<configset:diagnostics:PropNotExist>",
+            "dynamicInSave": false
+          },
+          {
+            "entry": "csAutosar",
+            "name": "AutosarMaxShortNameLength",
+            "original": "128",
+            "save": "<configset:diagnostics:PropNotExist>",
+            "dynamicInSave": false
+          },
+          {
+            "entry": "csAutosar",
+            "name": "DisableAUTOSARRoutinesHostLibrary",
+            "original": "off",
+            "save": "<configset:diagnostics:PropNotExist>",
+            "dynamicInSave": false
+          },
+          {
+            "entry": "csAutosar",
+            "name": "AutosarSchemaVersion",
+            "original": "R23-11",
+            "save": "<configset:diagnostics:PropNotExist>",
+            "dynamicInSave": false
+          }
+        ],
+        "emptyStructs": [
+          {
+            "entry": "sE00",
+            "shape": "struct[0 0]{}"
+          },
+          {
+            "entry": "sE002",
+            "shape": "struct[0 0 2]{}"
+          },
+          {
+            "entry": "sE02",
+            "shape": "struct[0 2]{}"
+          },
+          {
+            "entry": "sE10ab",
+            "shape": "struct[1 0]{}"
+          },
+          {
+            "entry": "sE20",
+            "shape": "struct[2 0]{}"
+          }
+        ],
+        "pasted": [],
+        "error": ""
+      }
+    },
+    {
+      "kind": "old save",
+      "build": "pre69664b0",
+      "fixture": "fixtures/display/dispcat_bin.sldd",
+      "file": "pre69664b0_dispcat_bin.sldd",
+      "original": "orig_dispcat_bin.sldd",
+      "sha": {
+        "save": "470a691f7d0eaaa0fe4bc98d60c22c355dfe7167607aa9efeb95bc4dd948347e",
+        "original": "043c5c7bc7c136e96284580dae7401e394b0e1bc3f338ae0043e7a94020ff1f1"
+      },
+      "dynamic": [],
+      "emptyStructs": [
+        {
+          "entry": "dx_struct_0x0",
+          "dims": [
+            0,
+            0
+          ],
+          "fields": []
+        },
+        {
+          "entry": "dx_struct_0x0_fields",
+          "dims": [
+            0,
+            0
+          ],
+          "fields": [
+            "a"
+          ]
+        },
+        {
+          "entry": "dx_struct_1x0",
+          "dims": [
+            1,
+            0
+          ],
+          "fields": [
+            "a"
+          ]
+        }
+      ],
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": false,
+        "entries": {
+          "checked": 76,
+          "same": 62,
+          "differ": [
+            "design|dx_cell_0x3: isequaln 0, sig 0: cell[0 0]{} | wanted cell[0 3]{}",
+            "design|dx_cell_1x0: isequaln 0, sig 0: cell[0 0]{} | wanted cell[1 0]{}",
+            "design|dx_char_0x2: isequaln 0, sig 0: char[0 0]='' | wanted char[0 2]=''",
+            "design|dx_char_1x0: isequaln 0, sig 0: char[0 0]='' | wanted char[1 0]=''",
+            "design|dx_string_0x0: isequaln 0, sig 0: string[1 1]{\"\"} | wanted string[0 0]{}",
+            "design|dx_string_1x0: isequaln 0, sig 0: string[1 1]{\"\"} | wanted string[1 0]{}",
+            "design|dx_struct_0x0_fields: isequaln 0, sig 0: struct[0 0]<>{} | wanted struct[0 0]<a>{}",
+            "design|dx_struct_1x0: isequaln 0, sig 0: struct[1 0]<>{} | wanted struct[1 0]<a>{}",
+            "design|en_i32_high: isequaln 0, sig 0: DispLevel[0 0]=[] | wanted DispLevel[1 1]=High",
+            "design|en_i32_vec: isequaln 0, sig 0: DispLevel[0 0]=[] | wanted DispLevel[1 2]=Low,High",
+            "design|en_sl_red: isequaln 0, sig 0: DispColor[0 0]=[] | wanted DispColor[1 1]=Red",
+            "design|en_sl_vec: isequaln 0, sig 0: DispColor[0 0]=[] | wanted DispColor[1 2]=Red,Blue",
+            "design|p_enum: isequaln 0, sig 0: Simulink.Parameter[1 1]{Value:DispColor[0 0]=[],Complexity:char[1 4]='real',Dimensions:double[1 2]=0,0,CoderInfo:Simulink.CoderInfo[1 1]{StorageClass:char[1 4]='Auto',TypeQualifier:char[0 0]='',Identifier:char[0 0]='',Alignment:int32[1 1]=-1,CustomStorageClass:char[1 7]='Default',CustomAttributes:SimulinkCSC.AttribClass_Simulink_Default[1 1]{disp:SimulinkCSC.AttribClass_Simulink_Default <a href=\"m ...(600 chars) | wanted Simulink.Parameter[1 1]{Value:DispColor[1 1]=Green,Complexity:char[1 4]='real',Dimensions:double[1 2]=1,1,CoderInfo:Simulink.CoderInfo[1 1]{StorageClass:char[1 4]='Auto',TypeQualifier:char[0 0]='',Identifier:char[0 0]='',Alignment:int32[1 1]=-1,CustomStorageClass:char[1 7]='Default',CustomAttributes:SimulinkCSC.AttribClass_Simulink_Default[1 1]{disp:SimulinkCSC.AttribClass_Simulink_Default <a href ...(603 chars)",
+            "design|str_0x3: isequaln 0, sig 0: string[1 1]{\"\"} | wanted string[0 3]{}"
+          ]
+        },
+        "dynamic": [],
+        "emptyStructs": [
+          {
+            "entry": "dx_struct_0x0",
+            "shape": "struct[0 0]{}"
+          },
+          {
+            "entry": "dx_struct_0x0_fields",
+            "shape": "struct[0 0]{}"
+          },
+          {
+            "entry": "dx_struct_1x0",
+            "shape": "struct[1 0]{}"
+          }
+        ],
+        "pasted": [],
+        "error": ""
+      }
+    },
+    {
+      "kind": "old save",
+      "build": "pre69664b0",
+      "fixture": "parity/artifacts/binary/cases.sldd",
+      "file": "pre69664b0_cases.sldd",
+      "original": "orig_cases.sldd",
+      "sha": {
+        "save": "40e67f7ebcdf253487b189f7817fe44d59ddfbf2ae5b34905758d73a0dd42a30",
+        "original": "ac37f72df80b998b05f40fe615fb05b84f19712d07fbf46a618b06c5b317b435"
+      },
+      "dynamic": [],
+      "emptyStructs": {
+        "entry": "structEmpty",
+        "dims": [
+          0,
+          0
+        ],
+        "fields": []
+      },
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": true,
+        "entries": {
+          "checked": 73,
+          "same": 73,
+          "differ": []
+        },
+        "dynamic": [],
+        "emptyStructs": [
+          {
+            "entry": "structEmpty",
+            "shape": "struct[0 0]{}"
+          }
+        ],
+        "pasted": [],
+        "error": ""
+      }
+    },
+    {
+      "kind": "old save",
+      "build": "pre69664b0",
+      "fixture": "parity/oldsaves/old_saves_r2027a_binary.sldd",
+      "file": "pre69664b0_old_saves_r2027a_binary.sldd",
+      "original": "orig_old_saves_r2027a_binary.sldd",
+      "sha": {
+        "save": "ddfbdce7976c4dbdc1e1f1b9e9df5a63db511401f892ece3732d96ad8ff46b46",
+        "original": "f3f744bd51813831b3c679aa8a93c5c4e3e31be355ed5f484c6fd39edb977692"
+      },
+      "dynamic": [
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarMatrixIOAsArray",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarCompilerAbstraction",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarMaxShortNameLength",
+          "value": "128.0"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "DisableAUTOSARRoutinesHostLibrary",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarSchemaVersion",
+          "value": "R23-11"
+        }
+      ],
+      "emptyStructs": [
+        {
+          "entry": "sE00",
+          "dims": [
+            0,
+            0
+          ],
+          "fields": []
+        },
+        {
+          "entry": "sE002",
+          "dims": [
+            0,
+            0,
+            2
+          ],
+          "fields": []
+        },
+        {
+          "entry": "sE02",
+          "dims": [
+            0,
+            2
+          ],
+          "fields": []
+        },
+        {
+          "entry": "sE10ab",
+          "dims": [
+            1,
+            0
+          ],
+          "fields": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "entry": "sE20",
+          "dims": [
+            2,
+            0
+          ],
+          "fields": []
+        }
+      ],
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": false,
+        "entries": {
+          "checked": 10,
+          "same": 8,
+          "differ": [
+            "design|sE10ab: isequaln 0, sig 0: struct[1 0]<>{} | wanted struct[1 0]<a,b>{}",
+            "design|sHolds: isequaln 0, sig 0: struct[1 1]<x,e,none>{x:double[1 1]=1,e:struct[0 0]<>{},none:struct[0 0]<>{}} | wanted struct[1 1]<x,e,none>{x:double[1 1]=1,e:struct[0 0]<a>{},none:struct[0 0]<>{}}"
+          ]
+        },
+        "dynamic": [
+          {
+            "entry": "csAutosar",
+            "name": "AutosarMatrixIOAsArray",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosar",
+            "name": "AutosarCompilerAbstraction",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosar",
+            "name": "AutosarMaxShortNameLength",
+            "original": "128",
+            "save": "128",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosar",
+            "name": "DisableAUTOSARRoutinesHostLibrary",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosar",
+            "name": "AutosarSchemaVersion",
+            "original": "R23-11",
+            "save": "R23-11",
+            "dynamicInSave": true
+          }
+        ],
+        "emptyStructs": [
+          {
+            "entry": "sE00",
+            "shape": "struct[0 0]{}"
+          },
+          {
+            "entry": "sE002",
+            "shape": "struct[0 0 2]{}"
+          },
+          {
+            "entry": "sE02",
+            "shape": "struct[0 2]{}"
+          },
+          {
+            "entry": "sE10ab",
+            "shape": "struct[1 0]{}"
+          },
+          {
+            "entry": "sE20",
+            "shape": "struct[2 0]{}"
+          }
+        ],
+        "pasted": [],
+        "error": ""
+      }
+    },
+    {
+      "kind": "old save",
+      "build": "pre90caf06",
+      "fixture": "fixtures/display/dispcat_bin.sldd",
+      "file": "pre90caf06_dispcat_bin.sldd",
+      "original": "orig_dispcat_bin.sldd",
+      "sha": {
+        "save": "aaa3809dab7124b097a092f2110db92a187aaae6158ac46c25823defa5f9379f",
+        "original": "043c5c7bc7c136e96284580dae7401e394b0e1bc3f338ae0043e7a94020ff1f1"
+      },
+      "dynamic": [],
+      "emptyStructs": [
+        {
+          "entry": "dx_struct_0x0",
+          "dims": [
+            0,
+            0
+          ],
+          "fields": []
+        },
+        {
+          "entry": "dx_struct_0x0_fields",
+          "dims": [
+            0,
+            0
+          ],
+          "fields": [
+            "a"
+          ]
+        },
+        {
+          "entry": "dx_struct_1x0",
+          "dims": [
+            1,
+            0
+          ],
+          "fields": [
+            "a"
+          ]
+        }
+      ],
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": false,
+        "entries": {
+          "checked": 76,
+          "same": 68,
+          "differ": [
+            "design|dx_cell_0x3: isequaln 0, sig 0: cell[0 0]{} | wanted cell[0 3]{}",
+            "design|dx_cell_1x0: isequaln 0, sig 0: cell[0 0]{} | wanted cell[1 0]{}",
+            "design|dx_char_1x0: isequaln 0, sig 0: char[0 0]='' | wanted char[1 0]=''",
+            "design|dx_string_0x0: isequaln 0, sig 0: string[1 1]{\"\"} | wanted string[0 0]{}",
+            "design|dx_string_1x0: isequaln 0, sig 0: string[1 1]{\"\"} | wanted string[1 0]{}",
+            "design|dx_struct_0x0_fields: isequaln 0, sig 0: struct[0 0]<>{} | wanted struct[0 0]<a>{}",
+            "design|dx_struct_1x0: isequaln 0, sig 0: struct[1 0]<>{} | wanted struct[1 0]<a>{}",
+            "design|str_0x3: isequaln 0, sig 0: string[1 1]{\"\"} | wanted string[0 3]{}"
+          ]
+        },
+        "dynamic": [],
+        "emptyStructs": [
+          {
+            "entry": "dx_struct_0x0",
+            "shape": "struct[0 0]{}"
+          },
+          {
+            "entry": "dx_struct_0x0_fields",
+            "shape": "struct[0 0]{}"
+          },
+          {
+            "entry": "dx_struct_1x0",
+            "shape": "struct[1 0]{}"
+          }
+        ],
+        "pasted": [],
+        "error": ""
+      }
+    },
+    {
+      "kind": "old save",
+      "build": "pre90caf06",
+      "fixture": "parity/artifacts/binary/cases.sldd",
+      "file": "pre90caf06_cases.sldd",
+      "original": "orig_cases.sldd",
+      "sha": {
+        "save": "fd4e8e3c5cae301bb2d0666f9dfd962e783b012da2becf51f2028eded902894a",
+        "original": "ac37f72df80b998b05f40fe615fb05b84f19712d07fbf46a618b06c5b317b435"
+      },
+      "dynamic": [],
+      "emptyStructs": {
+        "entry": "structEmpty",
+        "dims": [
+          0,
+          0
+        ],
+        "fields": []
+      },
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": true,
+        "entries": {
+          "checked": 73,
+          "same": 73,
+          "differ": []
+        },
+        "dynamic": [],
+        "emptyStructs": [
+          {
+            "entry": "structEmpty",
+            "shape": "struct[0 0]{}"
+          }
+        ],
+        "pasted": [],
+        "error": ""
+      }
+    },
+    {
+      "kind": "old save",
+      "build": "pre90caf06",
+      "fixture": "parity/oldsaves/old_saves_r2027a_binary.sldd",
+      "file": "pre90caf06_old_saves_r2027a_binary.sldd",
+      "original": "orig_old_saves_r2027a_binary.sldd",
+      "sha": {
+        "save": "227c527959d33d47b8b71454f74985f6a85debfa73f9db48263c1ee43e15fbb9",
+        "original": "f3f744bd51813831b3c679aa8a93c5c4e3e31be355ed5f484c6fd39edb977692"
+      },
+      "dynamic": [
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarMatrixIOAsArray",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarCompilerAbstraction",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarMaxShortNameLength",
+          "value": "128.0"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "DisableAUTOSARRoutinesHostLibrary",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosar",
+          "name": "AutosarSchemaVersion",
+          "value": "R23-11"
+        }
+      ],
+      "emptyStructs": [
+        {
+          "entry": "sE00",
+          "dims": [
+            0,
+            0
+          ],
+          "fields": []
+        },
+        {
+          "entry": "sE002",
+          "dims": [
+            0,
+            0,
+            2
+          ],
+          "fields": []
+        },
+        {
+          "entry": "sE02",
+          "dims": [
+            0,
+            2
+          ],
+          "fields": []
+        },
+        {
+          "entry": "sE10ab",
+          "dims": [
+            1,
+            0
+          ],
+          "fields": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "entry": "sE20",
+          "dims": [
+            2,
+            0
+          ],
+          "fields": []
+        }
+      ],
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": false,
+        "entries": {
+          "checked": 10,
+          "same": 8,
+          "differ": [
+            "design|sE10ab: isequaln 0, sig 0: struct[1 0]<>{} | wanted struct[1 0]<a,b>{}",
+            "design|sHolds: isequaln 0, sig 0: struct[1 1]<x,e,none>{x:double[1 1]=1,e:struct[0 0]<>{},none:struct[0 0]<>{}} | wanted struct[1 1]<x,e,none>{x:double[1 1]=1,e:struct[0 0]<a>{},none:struct[0 0]<>{}}"
+          ]
+        },
+        "dynamic": [
+          {
+            "entry": "csAutosar",
+            "name": "AutosarMatrixIOAsArray",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosar",
+            "name": "AutosarCompilerAbstraction",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosar",
+            "name": "AutosarMaxShortNameLength",
+            "original": "128",
+            "save": "128",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosar",
+            "name": "DisableAUTOSARRoutinesHostLibrary",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosar",
+            "name": "AutosarSchemaVersion",
+            "original": "R23-11",
+            "save": "R23-11",
+            "dynamicInSave": true
+          }
+        ],
+        "emptyStructs": [
+          {
+            "entry": "sE00",
+            "shape": "struct[0 0]{}"
+          },
+          {
+            "entry": "sE002",
+            "shape": "struct[0 0 2]{}"
+          },
+          {
+            "entry": "sE02",
+            "shape": "struct[0 2]{}"
+          },
+          {
+            "entry": "sE10ab",
+            "shape": "struct[1 0]{}"
+          },
+          {
+            "entry": "sE20",
+            "shape": "struct[2 0]{}"
+          }
+        ],
+        "pasted": [],
+        "error": ""
+      }
+    },
+    {
+      "kind": "paste",
+      "file": "paste_1.sldd",
+      "original": "orig_old_saves_r2027a_text.sldd",
+      "source": "orig_old_saves_r2027a_binary.sldd",
+      "pasted": {
+        "section": "other",
+        "from": "holdsMixed",
+        "to": "holdsMixedPasted"
+      },
+      "dynamic": [],
+      "sha": "be48b525f16c2cd582cc00993b3a372ab4214ff19b91850817a22e52c93f4f89",
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": true,
+        "entries": {
+          "checked": 10,
+          "same": 10,
+          "differ": []
+        },
+        "dynamic": [],
+        "emptyStructs": [],
+        "pasted": [
+          {
+            "to": "holdsMixedPasted",
+            "same": true,
+            "why": "",
+            "shape": "NdHolder[1 1]",
+            "kids": "Simulink.Signal[1 2]{dexdata.DerivedSignal,Simulink.Signal}",
+            "sourceKids": "Simulink.Signal[1 2]{dexdata.DerivedSignal,Simulink.Signal}"
+          }
+        ],
+        "error": ""
+      }
+    },
+    {
+      "kind": "paste",
+      "file": "paste_2.sldd",
+      "original": "orig_old_saves_r2027a_text.sldd",
+      "source": "orig_old_saves_r2027a_binary.sldd",
+      "pasted": {
+        "section": "other",
+        "from": "holdsBase",
+        "to": "holdsBasePasted"
+      },
+      "dynamic": [],
+      "sha": "5261643b7b4b81dbe1ec6e049a78d9a584b53d78ff98ba60215a2b8bbee9ac04",
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": true,
+        "entries": {
+          "checked": 10,
+          "same": 10,
+          "differ": []
+        },
+        "dynamic": [],
+        "emptyStructs": [],
+        "pasted": [
+          {
+            "to": "holdsBasePasted",
+            "same": true,
+            "why": "",
+            "shape": "NdHolder[1 1]",
+            "kids": "Simulink.Signal[1 2]{Simulink.Signal,dexdata.DerivedSignal}",
+            "sourceKids": "Simulink.Signal[1 2]{Simulink.Signal,dexdata.DerivedSignal}"
+          }
+        ],
+        "error": ""
+      }
+    },
+    {
+      "kind": "paste",
+      "file": "paste_3.sldd",
+      "original": "orig_old_saves_r2027a_text.sldd",
+      "source": "orig_old_saves_r2027a_binary.sldd",
+      "pasted": {
+        "section": "config",
+        "from": "csAutosar",
+        "to": "csAutosarPasted"
+      },
+      "dynamic": [
+        {
+          "entry": "csAutosar",
+          "to": "csAutosarPasted",
+          "name": "AutosarMatrixIOAsArray",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosarPasted",
+          "name": "AutosarCompilerAbstraction",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosarPasted",
+          "name": "AutosarMaxShortNameLength",
+          "value": "128.0"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosarPasted",
+          "name": "DisableAUTOSARRoutinesHostLibrary",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosarPasted",
+          "name": "AutosarSchemaVersion",
+          "value": "R23-11"
+        }
+      ],
+      "sha": "b4a26ff8826b2a1f6450ae943ef4df7831e3694acf9c79b44ea9ea758e53741d",
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": true,
+        "entries": {
+          "checked": 10,
+          "same": 10,
+          "differ": []
+        },
+        "dynamic": [
+          {
+            "entry": "csAutosarPasted",
+            "name": "AutosarMatrixIOAsArray",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosarPasted",
+            "name": "AutosarCompilerAbstraction",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosarPasted",
+            "name": "AutosarMaxShortNameLength",
+            "original": "128",
+            "save": "128",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosarPasted",
+            "name": "DisableAUTOSARRoutinesHostLibrary",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosarPasted",
+            "name": "AutosarSchemaVersion",
+            "original": "R23-11",
+            "save": "R23-11",
+            "dynamicInSave": true
+          }
+        ],
+        "emptyStructs": [],
+        "pasted": [
+          {
+            "to": "csAutosarPasted",
+            "same": true,
+            "why": "",
+            "shape": "Simulink.ConfigSet[1 1]",
+            "kids": "Simulink.ConfigComponent[9 1]{Simulink.SolverCC,Simulink.DataIOCC,Simulink.OptimizationCC,Simulink.DebuggingCC,Simulink.HardwareCC,Simulink.ModelReferenceCC,Simulink.SFSimCC,Simulink.RTWCC,SlCovCC.ConfigComp}",
+            "sourceKids": "Simulink.ConfigComponent[9 1]{Simulink.SolverCC,Simulink.DataIOCC,Simulink.OptimizationCC,Simulink.DebuggingCC,Simulink.HardwareCC,Simulink.ModelReferenceCC,Simulink.SFSimCC,Simulink.RTWCC,SlCovCC.ConfigComp}"
+          }
+        ],
+        "error": ""
+      }
+    },
+    {
+      "kind": "paste",
+      "file": "paste_4.sldd",
+      "original": "orig_old_saves_r2027a_text.sldd",
+      "source": "orig_old_saves_r2027a_binary.sldd",
+      "pasted": {
+        "section": "config",
+        "from": "csSimscape",
+        "to": "csSimscapePasted"
+      },
+      "dynamic": [],
+      "sha": "faac406a16d238fb6f083290eda776a30a5dc1c90a63f0e42619fa0078fbdb67",
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": true,
+        "entries": {
+          "checked": 10,
+          "same": 10,
+          "differ": []
+        },
+        "dynamic": [],
+        "emptyStructs": [],
+        "pasted": [
+          {
+            "to": "csSimscapePasted",
+            "same": true,
+            "why": "",
+            "shape": "Simulink.ConfigSet[1 1]",
+            "kids": "Simulink.ConfigComponent[10 1]{Simulink.SolverCC,Simulink.DataIOCC,Simulink.OptimizationCC,Simulink.DebuggingCC,Simulink.HardwareCC,Simulink.ModelReferenceCC,Simulink.SFSimCC,Simulink.RTWCC,SlCovCC.ConfigComp,SSC.SimscapeCC}",
+            "sourceKids": "Simulink.ConfigComponent[10 1]{Simulink.SolverCC,Simulink.DataIOCC,Simulink.OptimizationCC,Simulink.DebuggingCC,Simulink.HardwareCC,Simulink.ModelReferenceCC,Simulink.SFSimCC,Simulink.RTWCC,SlCovCC.ConfigComp,SSC.SimscapeCC}"
+          }
+        ],
+        "error": ""
+      }
+    },
+    {
+      "kind": "paste",
+      "file": "paste_5.sldd",
+      "original": "orig_old_saves_r2027a_text.sldd",
+      "source": "orig_old_saves_r2027a_binary.sldd",
+      "pasted": [
+        {
+          "section": "other",
+          "from": "holdsMixed",
+          "to": "holdsMixedPasted"
+        },
+        {
+          "section": "other",
+          "from": "holdsBase",
+          "to": "holdsBasePasted"
+        },
+        {
+          "section": "config",
+          "from": "csAutosar",
+          "to": "csAutosarPasted"
+        },
+        {
+          "section": "config",
+          "from": "csSimscape",
+          "to": "csSimscapePasted"
+        }
+      ],
+      "dynamic": [
+        {
+          "entry": "csAutosar",
+          "to": "csAutosarPasted",
+          "name": "AutosarMatrixIOAsArray",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosarPasted",
+          "name": "AutosarCompilerAbstraction",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosarPasted",
+          "name": "AutosarMaxShortNameLength",
+          "value": "128.0"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosarPasted",
+          "name": "DisableAUTOSARRoutinesHostLibrary",
+          "value": "off"
+        },
+        {
+          "entry": "csAutosar",
+          "to": "csAutosarPasted",
+          "name": "AutosarSchemaVersion",
+          "value": "R23-11"
+        }
+      ],
+      "sha": "a900b4ac24796f3a8c4f725ccb4b41945a7d8d712fe3ba7c5cb67becdbf7fdb2",
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": true,
+        "entries": {
+          "checked": 10,
+          "same": 10,
+          "differ": []
+        },
+        "dynamic": [
+          {
+            "entry": "csAutosarPasted",
+            "name": "AutosarMatrixIOAsArray",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosarPasted",
+            "name": "AutosarCompilerAbstraction",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosarPasted",
+            "name": "AutosarMaxShortNameLength",
+            "original": "128",
+            "save": "128",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosarPasted",
+            "name": "DisableAUTOSARRoutinesHostLibrary",
+            "original": "off",
+            "save": "off",
+            "dynamicInSave": true
+          },
+          {
+            "entry": "csAutosarPasted",
+            "name": "AutosarSchemaVersion",
+            "original": "R23-11",
+            "save": "R23-11",
+            "dynamicInSave": true
+          }
+        ],
+        "emptyStructs": [],
+        "pasted": [
+          {
+            "to": "holdsMixedPasted",
+            "same": true,
+            "why": "",
+            "shape": "NdHolder[1 1]",
+            "kids": "Simulink.Signal[1 2]{dexdata.DerivedSignal,Simulink.Signal}",
+            "sourceKids": "Simulink.Signal[1 2]{dexdata.DerivedSignal,Simulink.Signal}"
+          },
+          {
+            "to": "holdsBasePasted",
+            "same": true,
+            "why": "",
+            "shape": "NdHolder[1 1]",
+            "kids": "Simulink.Signal[1 2]{Simulink.Signal,dexdata.DerivedSignal}",
+            "sourceKids": "Simulink.Signal[1 2]{Simulink.Signal,dexdata.DerivedSignal}"
+          },
+          {
+            "to": "csAutosarPasted",
+            "same": true,
+            "why": "",
+            "shape": "Simulink.ConfigSet[1 1]",
+            "kids": "Simulink.ConfigComponent[9 1]{Simulink.SolverCC,Simulink.DataIOCC,Simulink.OptimizationCC,Simulink.DebuggingCC,Simulink.HardwareCC,Simulink.ModelReferenceCC,Simulink.SFSimCC,Simulink.RTWCC,SlCovCC.ConfigComp}",
+            "sourceKids": "Simulink.ConfigComponent[9 1]{Simulink.SolverCC,Simulink.DataIOCC,Simulink.OptimizationCC,Simulink.DebuggingCC,Simulink.HardwareCC,Simulink.ModelReferenceCC,Simulink.SFSimCC,Simulink.RTWCC,SlCovCC.ConfigComp}"
+          },
+          {
+            "to": "csSimscapePasted",
+            "same": true,
+            "why": "",
+            "shape": "Simulink.ConfigSet[1 1]",
+            "kids": "Simulink.ConfigComponent[10 1]{Simulink.SolverCC,Simulink.DataIOCC,Simulink.OptimizationCC,Simulink.DebuggingCC,Simulink.HardwareCC,Simulink.ModelReferenceCC,Simulink.SFSimCC,Simulink.RTWCC,SlCovCC.ConfigComp,SSC.SimscapeCC}",
+            "sourceKids": "Simulink.ConfigComponent[10 1]{Simulink.SolverCC,Simulink.DataIOCC,Simulink.OptimizationCC,Simulink.DebuggingCC,Simulink.HardwareCC,Simulink.ModelReferenceCC,Simulink.SFSimCC,Simulink.RTWCC,SlCovCC.ConfigComp,SSC.SimscapeCC}"
+          }
+        ],
+        "error": ""
+      }
+    },
+    {
+      "kind": "paste",
+      "file": "paste_6.sldd",
+      "original": "orig_old_saves_r2027a_text.sldd",
+      "source": "orig_old_saves_r2027a_binary.sldd",
+      "pasted": [
+        {
+          "section": "design",
+          "from": "sE00",
+          "to": "sE00Pasted"
+        },
+        {
+          "section": "design",
+          "from": "sE02",
+          "to": "sE02Pasted"
+        },
+        {
+          "section": "design",
+          "from": "sE20",
+          "to": "sE20Pasted"
+        },
+        {
+          "section": "design",
+          "from": "sE002",
+          "to": "sE002Pasted"
+        },
+        {
+          "section": "design",
+          "from": "sE10ab",
+          "to": "sE10abPasted"
+        },
+        {
+          "section": "design",
+          "from": "sHolds",
+          "to": "sHoldsPasted"
+        }
+      ],
+      "dynamic": [],
+      "sha": "c5538b5710fb679deaa27182d20d7ab969cbc887b052a19c825b058e26566fc2",
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": false,
+        "entries": {
+          "checked": 10,
+          "same": 10,
+          "differ": []
+        },
+        "dynamic": [],
+        "emptyStructs": [],
+        "pasted": [
+          {
+            "to": "sE00Pasted",
+            "same": true,
+            "why": "",
+            "shape": "struct[0 0]{}",
+            "kids": "",
+            "sourceKids": ""
+          },
+          {
+            "to": "sE02Pasted",
+            "same": true,
+            "why": "",
+            "shape": "struct[0 2]{}",
+            "kids": "",
+            "sourceKids": ""
+          },
+          {
+            "to": "sE20Pasted",
+            "same": true,
+            "why": "",
+            "shape": "struct[2 0]{}",
+            "kids": "",
+            "sourceKids": ""
+          },
+          {
+            "to": "sE002Pasted",
+            "same": false,
+            "why": "isequaln 1, sig 0: struct[0 0]<>{} | wanted struct[0 0 2]<>{}",
+            "shape": "struct[0 0]{}",
+            "kids": "",
+            "sourceKids": ""
+          },
+          {
+            "to": "sE10abPasted",
+            "same": true,
+            "why": "",
+            "shape": "struct[1 0]{a,b}",
+            "kids": "",
+            "sourceKids": ""
+          },
+          {
+            "to": "sHoldsPasted",
+            "same": true,
+            "why": "",
+            "shape": "struct[1 1]{x,e,none}",
+            "kids": "",
+            "sourceKids": ""
+          }
+        ],
+        "error": ""
+      }
+    },
+    {
+      "kind": "paste",
+      "file": "paste_7.sldd",
+      "original": "orig_old_saves_r2027a_text.sldd",
+      "source": "pre90caf06_old_saves_r2027a_binary.sldd",
+      "pasted": [
+        {
+          "section": "design",
+          "from": "sE00",
+          "to": "sE00Pasted"
+        },
+        {
+          "section": "design",
+          "from": "sE02",
+          "to": "sE02Pasted"
+        },
+        {
+          "section": "design",
+          "from": "sE20",
+          "to": "sE20Pasted"
+        },
+        {
+          "section": "design",
+          "from": "sE002",
+          "to": "sE002Pasted"
+        },
+        {
+          "section": "design",
+          "from": "sE10ab",
+          "to": "sE10abPasted"
+        },
+        {
+          "section": "design",
+          "from": "sHolds",
+          "to": "sHoldsPasted"
+        }
+      ],
+      "dynamic": [],
+      "sha": "2ce0350c00d68c2e0b61906ee6755f941cf2cb58d2f539298010d0066cd2592f",
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asOriginal": false,
+        "entries": {
+          "checked": 10,
+          "same": 10,
+          "differ": []
+        },
+        "dynamic": [],
+        "emptyStructs": [],
+        "pasted": [
+          {
+            "to": "sE00Pasted",
+            "same": true,
+            "why": "",
+            "shape": "struct[0 0]{}",
+            "kids": "",
+            "sourceKids": ""
+          },
+          {
+            "to": "sE02Pasted",
+            "same": true,
+            "why": "",
+            "shape": "struct[0 2]{}",
+            "kids": "",
+            "sourceKids": ""
+          },
+          {
+            "to": "sE20Pasted",
+            "same": true,
+            "why": "",
+            "shape": "struct[2 0]{}",
+            "kids": "",
+            "sourceKids": ""
+          },
+          {
+            "to": "sE002Pasted",
+            "same": false,
+            "why": "isequaln 1, sig 0: struct[0 0]<>{} | wanted struct[0 0 2]<>{}",
+            "shape": "struct[0 0]{}",
+            "kids": "",
+            "sourceKids": ""
+          },
+          {
+            "to": "sE10abPasted",
+            "same": true,
+            "why": "",
+            "shape": "struct[1 0]{}",
+            "kids": "",
+            "sourceKids": ""
+          },
+          {
+            "to": "sHoldsPasted",
+            "same": true,
+            "why": "",
+            "shape": "struct[1 1]{x,e,none}",
+            "kids": "",
+            "sourceKids": ""
+          }
+        ],
+        "error": ""
+      }
+    }
+  ]
+}
