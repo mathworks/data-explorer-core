@@ -245,30 +245,97 @@ describe('serialization of Elements_internal', () => {
     expect(props.Elements_internal).toEqual([]);
   });
 
-  it('always emits the canonical _array_class form even when the source used _object_class', () => {
-    // The serializer branch that writes _elements expects _array_class; if it
-    // got the _object_class form back, MATLAB would fail to load the file.
-    const raw = {
-      _array_class: 'Simulink.Bus',
-      _array_type: 'MATLABArray',
-      _dimensions: [1, 1],
-      _mw_element_type: 'MATLABArray',
-      _elements: [{
-        _id: '1',
-        _properties: {
-          Elements_internal: {
-            _object_class: 'Simulink.BusElement',
-            _properties: { Name: 'solo' },
-          },
+  // MATLAB's text dictionary writes a bus of one element with its Elements_internal as that
+  // element, `{_id, _object_class, _properties}` (test/parity/artifacts/text/params.sldd's
+  // MyConnBus), and this used to rebuild it as the array, `{_array_class, _dimensions: [1, 1],
+  // _elements}`, so a save that changed nothing changed the file there (A4, D3). It is written
+  // back in the form it was read in while the bus holds one element; the array form is for more
+  // (or for a bag read as one). Byte for byte against MATLAB's own spelling after the same edits
+  // in ../busOneElementText.test.ts.
+  const singleRaw = (): Record<string, unknown> => ({
+    _array_class: 'Simulink.Bus',
+    _array_type: 'MATLABArray',
+    _dimensions: [1, 1],
+    _mw_element_type: 'MATLABArray',
+    _elements: [{
+      _id: '1',
+      _properties: {
+        Elements_internal: {
+          _id: '2',
+          _object_class: 'Simulink.BusElement',
+          _properties: { Name: 'solo' },
         },
-      }],
-    };
-    const bus = BusNode.parse(raw, 'B', null);
+      },
+    }],
+  });
+  const writtenElements = (bus: BusNode): unknown => {
     const sv = bus.serializeValue() as Record<string, unknown>;
-    const props = (sv._elements as Record<string, unknown>[])[0]._properties as Record<string, unknown>;
-    const ei = props.Elements_internal as Record<string, unknown>;
-    expect(ei._array_class).toBe('Simulink.BusElement');
-    expect(ei._elements).toBeDefined();
+    return ((sv._elements as Record<string, unknown>[])[0]._properties as Record<string, unknown>).Elements_internal;
+  };
+  const readElements = (raw: Record<string, unknown>): unknown =>
+    ((raw._elements as Record<string, unknown>[])[0]._properties as Record<string, unknown>).Elements_internal;
+
+  it('writes a one-element Elements_internal read as the element itself back in that form', () => {
+    // The pin this replaces held that MATLAB would fail to load the file. That is true of
+    // `_elements` written under `_object_class`, which this does not write: it writes the element
+    // as read, the spelling MATLAB itself writes for a bus of one element (A4).
+    const raw = singleRaw();
+    expect(writtenElements(BusNode.parse(raw, 'B', null))).toStrictEqual(readElements(raw));
+  });
+
+  it('writes the array form once an element is added, and the read form again when the bus is back to one', () => {
+    const raw = singleRaw();
+    const bus = BusNode.parse(raw, 'B', null);
+    const added = bus.execAddChild()!;
+    // MATLAB's array holds its elements with no `_object_class` of the array's class.
+    expect(writtenElements(bus)).toStrictEqual({
+      _array_class: 'Simulink.BusElement',
+      _dimensions: [2, 1],
+      _elements: [{ _id: '2', _properties: { Name: 'solo' } }, { _id: '3', _properties: { Name: 'a' } }],
+    });
+    expect(bus.execRemoveChild(added.node)).not.toBeNull();
+    expect(writtenElements(bus)).toStrictEqual(readElements(raw));
+  });
+
+  it('writes the read form again when an add is undone', () => {
+    const raw = singleRaw();
+    const bus = BusNode.parse(raw, 'B', null);
+    const added = bus.execAddChild()!;
+    added.undo();
+    expect(writtenElements(bus)).toStrictEqual(readElements(raw));
+    added.redo();
+    expect(((writtenElements(bus) as Record<string, unknown>)._dimensions)).toEqual([2, 1]);
+  });
+
+  it('writes the one element left in the read form with its class, when it is not the one read', () => {
+    // The element added holds `{_id, _properties}`; in the element's own form it carries its class
+    // where MATLAB puts it, after its _id.
+    const bus = BusNode.parse(singleRaw(), 'B', null);
+    bus.execAddChild();
+    expect(bus.execRemoveChild(bus.children[0])).not.toBeNull();
+    const ei = writtenElements(bus);
+    expect(ei).toStrictEqual({ _id: '3', _object_class: 'Simulink.BusElement', _properties: { Name: 'a' } });
+    expect(Object.keys(ei as object)).toEqual(['_id', '_object_class', '_properties']);
+  });
+
+  it('a connection bus read so is written back so too', () => {
+    const raw = singleRaw();
+    raw._array_class = 'Simulink.ConnectionBus';
+    const ei = readElements(raw) as Record<string, unknown>;
+    ei._object_class = 'Simulink.ConnectionElement';
+    ei._properties = { Description: '', Name: 'c1', Type_internal: 'Connection: <domain name>' };
+    expect(writtenElements(ConnectionBusNode.parse(raw, 'C', null) as unknown as BusNode)).toStrictEqual(readElements(raw));
+  });
+
+  it('keeps the array form of a one-element Elements_internal read as the array', () => {
+    const raw = busRaw([busElem('2', 'solo')]);
+    expect(writtenElements(BusNode.parse(raw, 'B', null))).toStrictEqual(readElements(raw));
+  });
+
+  it('writes a bag read as the element itself `[]` once its element is removed, as before', () => {
+    const bus = BusNode.parse(singleRaw(), 'B', null);
+    bus.removeChild(bus.children[0]);
+    expect(writtenElements(bus)).toEqual([]);
   });
 });
 

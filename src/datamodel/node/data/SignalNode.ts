@@ -110,7 +110,9 @@ export default class SignalNode extends DataNode {
         // Complexity and DimensionsMode take only the Signal's own enumerals, as MATLAB does;
         // the shared check reads the set off the atom the dropdown is built from. Only these
         // two: Storage Class is a select too, and the schema path refuses it in its own words.
-        if (ENUM_ATOMS.has(propName)) {
+        // By the prop the name resolves to, so the field's spelling ('Complexity') is checked too.
+        const prop = this._propFor(propName);
+        if (prop && ENUM_ATOMS.get(prop.key) === prop) {
             const notAnEnumeral = this._rejectUnknownEnumeral(propName, stringValue);
             if (notAnEnumeral) {
                 return notAnEnumeral;

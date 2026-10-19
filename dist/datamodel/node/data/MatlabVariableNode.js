@@ -1261,6 +1261,7 @@ export default class MatlabVariableNode extends DataNode {
                 parent._syncElementFromChild(this);
                 parent._rawInput = undefined;
                 this._markModified();
+                parent.parent?.childStructureChanged(parent);
                 return true;
             }
         }
@@ -1315,6 +1316,11 @@ export default class MatlabVariableNode extends DataNode {
         parent._syncElementFromChild(this);
         parent._rawInput = undefined;
         this._markModified();
+        // What holds the array is told, as it is of an Add or a removal (childEdit.ts): the array's
+        // complexity may have changed with the element, and a Simulink.Parameter keeps its
+        // Complexity as its Value's, which MATLAB makes 'real' once every element is
+        // (ParameterNode._followValueShape). Nothing else reacts.
+        parent.parent?.childStructureChanged(parent);
         return true;
     }
     // Every edit routes through _markModified (DataNode), so this is the one place

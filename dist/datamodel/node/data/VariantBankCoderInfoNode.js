@@ -136,6 +136,23 @@ function quoted(text) {
     return `'${text.length > 40 ? text.slice(0, 40) + '...' : text}'`;
 }
 const WHOLE_CODER_INFO = 'which MATLAB reads as a coder info with every property at its default';
+// An earlier version of this package wrote a saveobj envelope back as `<P Name="undefined"
+// Class="struct">`, in place of MATLAB's `<P Source="saveobj" PropertyType="any" Class="struct">`
+// (DataNode.pxAttrs), so a dictionary it saved can hold a coder info whose five properties are in
+// a property named 'undefined', with no envelope and none of the five beside it. Measured on
+// R2027a (probe_coderinfo_undefined.m): a binary dictionary gives no coder info for that entry at
+// all ("Data dictionary unable to create an object of class 'Simulink.VariantBankCoderInfo'."),
+// and a text dictionary's plain bag so spelled is read as every default, both with no warning. A
+// bag that holds any of the five as well is read from those it holds, the 'undefined' ignored
+// (measured with all five, each of the five alone, and DefinitionFile and Qualifier), so it is
+// not this; nor is an envelope with an 'undefined' beside it, which MATLAB reads from the
+// envelope, nor a plain bag with no 'undefined' (measured too: none is warned of, by MATLAB or
+// here).
+const UNDEFINED_KEY = 'undefined';
+function heldUnderUndefined(props) {
+    const own = (key) => Object.prototype.hasOwnProperty.call(props, key);
+    return !(SAVEOBJ_KEY in props) && own(UNDEFINED_KEY) && !FIELDS.some(own);
+}
 // What MATLAB does not read as written in a coder info, one clause each, for the dictionary's
 // warnings: empty for one MATLAB reads as it is. Measured by the coder info LOAD lines of
 // make_variantbank_r2027a.m. From the envelope: a file name the setter refuses makes MATLAB read
@@ -144,9 +161,15 @@ const WHOLE_CODER_INFO = 'which MATLAB reads as a coder info with every property
 // setter takes, is read as 'None'. From R2026b's plain properties, each through its setter: a
 // value it refuses is read as that property's default alone, and a Qualifier in any case as
 // MATLAB's own, which is not reported. A file name MATLAB takes that an edit would not write is
-// not reported either.
-function unreadFields(props) {
+// not reported either. One whose properties are held under 'undefined' (heldUnderUndefined) is
+// said so, as MATLAB reads it in a binary dictionary (`binary`) or a text one.
+function unreadFields(props, binary) {
     const found = [];
+    if (heldUnderUndefined(props)) {
+        found.push(binary
+            ? `its properties are held in a property named '${UNDEFINED_KEY}' instead of the saveobj envelope MATLAB reads, so MATLAB cannot read it at all (getting its value fails)`
+            : `its properties are held in a property named '${UNDEFINED_KEY}' instead of as its own, ${WHOLE_CODER_INFO}`);
+    }
     const plain = !(SAVEOBJ_KEY in props);
     for (const [field, what] of [['HeaderFile', 'header file name'], ['DefinitionFile', 'definition file name']]) {
         const value = fieldOf(props, field);
@@ -319,7 +342,7 @@ export default class VariantBankCoderInfoNode extends SimulinkObjectNode {
     static parse(rawVal, name, parent) {
         const props = VariantBankCoderInfoNode._propsOf(rawVal);
         const node = new VariantBankCoderInfoNode(name, parent, props, { _rawVal: rawVal, _properties: props });
-        const unread = unreadFields(props);
+        const unread = unreadFields(props, node._ownerFormat() === 'xml');
         if (unread.length > 0) {
             recordPartialDecode(`"${name}" holds a ${CLASS_NAME} MATLAB does not read as written: ${unread.join('; ')}. `
                 + 'It is shown as read, and saved as read unless edited.');

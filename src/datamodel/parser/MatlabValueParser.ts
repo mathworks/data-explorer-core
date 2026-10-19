@@ -356,6 +356,23 @@ function parseImaginaryFirst(str: string): ParsedValue | null {
     return m ? { type: 'complex', value: formatComplexNum(complexPart(m[3], m[4]), complexPart(m[1], m[2])) } : null;
 }
 
+// A complex literal whose imaginary part is zero, as the real double MATLAB makes of it, or
+// null. MATLAB R2027a holds `{0i}`, `{1 + 0i}` and `{0i + 1}` as the doubles 0, 1 and 1: its
+// arithmetic drops an imaginary part that is all zero, and a lone `0i` is real too. The real
+// part is MATLAB's sum, so a -0 is kept as it does: `-0 + 0i` is 0, `-0 - 0i` is -0, `-0i` (the
+// minus of 0i) is -0 and `-0i + 0` is 0 (probe_cell_sign_literals.m). Only a cell's member
+// is read this way (tokenizeCellElements); the top level is what an element of a complex
+// array takes, which stays complex.
+function zeroImaginaryAsReal(str: string): number | null {
+    const m = COMPLEX_LITERAL.exec(str);
+    if (m) {
+        if (complexPart(m[3] ?? m[4], m[5]) !== 0) { return null; }
+        return m[2] === undefined ? complexPart(m[4], '0') : complexPart(m[1], m[2]) + complexPart(m[3], '0');
+    }
+    const f = IMAGINARY_FIRST.exec(str);
+    return f && complexPart(f[1], f[2]) === 0 ? complexPart(f[1], '0') + complexPart(f[3], f[4]) : null;
+}
+
 function parseArray(str: string): ParsedValue | null {
     str = str.trim();
     if (str.length < 2 || str.charAt(0) !== '[' || str.charAt(str.length - 1) !== ']') {
@@ -746,12 +763,17 @@ function tokenizeCellElements(rowStr: string): unknown[] | null {
             // still a rejection of the whole cell. So is a span joined at a `+` or `-` that
             // is not a complex literal (`1 + 2`, `a + b`, `'a' + 1`): MATLAB adds the terms,
             // this parser does no arithmetic, and the text held as a char is a value MATLAB
-            // never makes of it ({3}, a sum, {98}).
-            if (ch === '[' || ch === '{' || ch === "'" || ch === '"' || joined) { return null; }
+            // never makes of it ({3}, a sum, {98}). Unspaced, it is the same arithmetic, and so is
+            // a sign on a name: `{1+2}`, `{a+b}`, `{2i+3i}`, `{2*3}`, `{-a}` were each held as one
+            // char, where the spaced form beside them was refused. A bare word holds no operator.
+            if (ch === '[' || ch === '{' || ch === "'" || ch === '"' || joined || /[-+*/\\^]/.test(span)) { return null; }
             elements.push(span);
             continue;
         }
-        elements.push(cellElementRaw(parsed));
+        // A complex member whose imaginary part is zero is the real double MATLAB makes of it.
+        // Held as complex, `{1 + 0i}` was a complex 1+0i, which MATLAB never makes of the text.
+        const real = parsed.type === 'complex' ? zeroImaginaryAsReal(span) : null;
+        elements.push(real !== null ? real : cellElementRaw(parsed));
     }
     return elements.length > 0 ? elements : null;
 }

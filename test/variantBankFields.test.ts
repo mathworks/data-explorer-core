@@ -29,6 +29,7 @@
 // column ids the table sends), `toRow`, `toPIObject`, `editProperty`/`undo`, and
 // `serializeSource`, whose bytes are read back.
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
@@ -305,6 +306,12 @@ const REFUSED = [
   { column: 'variantConditions', typed: 'V==1', reason: MSG_NOT_CELL },
   { column: 'variantConditions', typed: '{1,2}', reason: MSG_NOT_STRING },
   { column: 'variantConditions', typed: "{{'V==1'}}", reason: MSG_NOT_STRING },
+  // MATLAB makes a cell of one number of each ({1+1i}, {1+1i}, {-2}: probe_cell_sign_literals.m),
+  // so its member is not text, as {1,2}'s are. A reader that did not take the imaginary-first or
+  // the spaced-sign form as one value would answer "must be a cell array" instead.
+  { column: 'variantConditions', typed: '{i+1}', reason: MSG_NOT_STRING },
+  { column: 'variantConditions', typed: '{i + 1}', reason: MSG_NOT_STRING },
+  { column: 'variantConditions', typed: '{- 2}', reason: MSG_NOT_STRING },
   { column: 'variantConditions', typed: "{''}", reason: MSG_EMPTY },
   { column: 'variantConditions', typed: "{'V==2147483648'}", reason: MSG_RANGE('2147483648', 'V==2147483648') },
   { column: 'variantConditions', typed: "{'V==-2147483649'}", reason: MSG_RANGE('-2147483649', 'V==-2147483649') },
@@ -635,7 +642,8 @@ describe.each(FORMATS)('VariantBankCoderInfo fields (%s): a MATLAB-written coder
 // Each edit, by the column id the table sends: what it is typed as, the field it writes, and
 // what is written there (and shown after). The odd-looking ones are MATLAB's own edges: it keeps
 // a leading space, takes any '.'-separated parts after the first, takes a header file name of up
-// to 255 characters (in each part of a path), and takes a definition file of any extension or none.
+// to 255 characters (in each part of a path), and takes a definition file of any extension or none,
+// and of any length: the header file's 255 is not a rule for it.
 const CI_EDITS = [
   { column: 'headerFile', typed: 'x.h', field: 'HeaderFile', written: 'x.h' },
   { column: 'headerFile', typed: 'x.hpp', field: 'HeaderFile', written: 'x.hpp' },
@@ -660,6 +668,9 @@ const CI_EDITS = [
   { column: 'definitionFile', typed: 'a.1', field: 'DefinitionFile', written: 'a.1' },
   { column: 'definitionFile', typed: 'int', field: 'DefinitionFile', written: 'int' },
   { column: 'definitionFile', typed: '', field: 'DefinitionFile', written: '' },
+  // 302 characters, which MATLAB takes (the coder info SET lines), where a header file of that
+  // length is refused (CI_REFUSED).
+  { column: 'definitionFile', typed: 'a'.repeat(300) + '.c', field: 'DefinitionFile', written: 'a'.repeat(300) + '.c' },
   { column: 'preStatement', typed: '#pragma x', field: 'PreStatement', written: '#pragma x' },
   { column: 'preStatement', typed: 'a\nb', field: 'PreStatement', written: 'a\nb' },
   { column: 'preStatement', typed: '  x  ', field: 'PreStatement', written: '  x  ' },
@@ -1038,5 +1049,441 @@ describe('VariantBankCoderInfo fields: a coder info R2026b wrote, as plain prope
       expect(warnings[0].message).not.toContain(WHOLE_CODER_INFO);
     }
     expect(saved(session, source)).toBe(text);
+  });
+});
+
+// ─── A saveobj envelope spelled <P Name="undefined"> ──────────────────────────────────────────
+
+// An earlier version of this package wrote a saveobj envelope back as `<P Name="undefined"
+// Class="struct">` (its absent Name keyed under the string 'undefined'; DataNode.pxAttrs), in place
+// of MATLAB's `<P Source="saveobj" PropertyType="any" Class="struct">`, and a dictionary saved so
+// still holds a coder info that way. The node reads the five properties from the envelope, or
+// from R2026b's plain properties, and found neither there, so the coder info showed blank, with
+// its state only as an `Other.undefined` row and no warning (S1-26, theme 1).
+//
+// What R2027a (27.1.0.3409468) makes of it, measured by test/parity/matlab/probe_coderinfo_undefined.m
+// on files made from the R2027a fixtures (coderinfo_undefined.mjs), whose truth is read here, with
+// no warning in any case:
+//   - in a binary dictionary it cannot make the coder info at all: the entry's value fails with
+//     "Data dictionary unable to create an object of class 'Simulink.VariantBankCoderInfo'.",
+//     while the dictionary and its other entries open as written;
+//   - a text dictionary's plain bag holding only that struct is read as a coder info with every
+//     property at its default;
+//   - and one holding the five properties too is read from those, the 'undefined' ignored, as is
+//     one holding only some of the five, or one of them alone (controls below), the others at
+//     their defaults.
+// So the coder info is shown as read, with one warning that names 'undefined' and says what
+// MATLAB does, and it is saved as read. An edit of one of its five has nowhere to be saved, as
+// for any field the file does not have.
+type UndefinedCase = { id: string; format: Format; entries: string[]; beside?: boolean; shape?: 'envelope-beside' | 'empty' | 'other' | 'partial'; fields?: string[]; sha256: string };
+type CoderInfoRead = Record<string, string>;
+const UNDEFINED_TRUTH: { release: string; cases: UndefinedCase[]; rows: { id: string; warning: string; reads: Record<string, CoderInfoRead> }[] } = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./parity/matlab/coderinfo_undefined.truth.json', import.meta.url)), 'utf8'),
+);
+const ENVELOPE_XML = '<P Source="saveobj" PropertyType="any" Class="struct">';
+const UNDEFINED_XML = '<P Name="undefined" Class="struct">';
+const OTHER_VALUES = { DefinitionFile: 'u.c', HeaderFile: 'u.h', PostStatement: 'upost', PreStatement: 'upre', Qualifier: 'Volatile' };
+// The file a case of the truth names, made as coderinfo_undefined.mjs made it, and checked to be
+// the one MATLAB opened (a binary file by its chunk, as the zip around it carries the time it was
+// made).
+function undefinedCaseFile(id: string): Uint8Array | string {
+  const c = UNDEFINED_TRUTH.cases.find((k) => k.id === id)!;
+  const sha = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+  if (c.format === 'binary') {
+    let edited = '';
+    const bytes = c.entries.length === 0 ? fixture('binary') : withXml((xml) => {
+      edited = xml;
+      for (const entry of c.entries) {
+        const element = coderInfoXml(edited, entry);
+        const at = edited.indexOf(element);
+        expect(element.startsWith(`<Element Class="Simulink.VariantBankCoderInfo">\n${' '.repeat(16)}${ENVELOPE_XML}`), entry).toBe(true);
+        // The envelope kept, and an 'undefined' struct of other values after it.
+        const close = `${' '.repeat(16)}</P>\n${' '.repeat(12)}</Element>`;
+        expect(element.includes(close), entry).toBe(true);
+        const sibling = [`${' '.repeat(16)}${UNDEFINED_XML}`, `${' '.repeat(20)}<Element>`,
+          ...CI_FIELDS.map((f) => `${' '.repeat(24)}<P Name="${f}" Class="char">${OTHER_VALUES[f as keyof typeof OTHER_VALUES]}</P>`),
+          `${' '.repeat(20)}</Element>`, `${' '.repeat(16)}</P>`, ''].join('\n');
+        const changed = c.shape === 'envelope-beside'
+          ? element.replace(close, `${' '.repeat(16)}</P>\n${sibling}${' '.repeat(12)}</Element>`)
+          : element.replace(ENVELOPE_XML, UNDEFINED_XML);
+        edited = edited.slice(0, at) + changed + edited.slice(at + element.length);
+      }
+      return edited;
+    });
+    expect(sha(chunkXml(bytes)), `${id} is the file MATLAB read`).toBe(c.sha256);
+    return bytes;
+  }
+  const json = JSON.parse(fixtureText());
+  for (const entry of json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries) {
+    if (c.entries.includes(entry.name)) {
+      const envelope = entry.value._elements[0]._custom_save;
+      const own = c.beside ? Object.fromEntries(Object.keys(envelope._elements[0]).sort().map((k) => [k, envelope._elements[0][k]])) : {};
+      // `partial`: only the properties the case names, as the envelope holds them, then an
+      // 'undefined' struct of other values.
+      const some = Object.fromEntries((c.fields ?? []).map((k) => [k, envelope._elements[0][k]]));
+      entry.value._elements[0] = c.shape === 'envelope-beside'
+        ? { _custom_save: envelope, _id: '1', _properties: { undefined: { ...envelope, _elements: [OTHER_VALUES] } } }
+        : c.shape === 'partial'
+          ? { _id: '1', _properties: { ...some, undefined: { ...envelope, _elements: [OTHER_VALUES] } } }
+          : c.shape !== undefined
+          ? { _id: '1', _properties: c.shape === 'empty' ? {} : { Foo: 'x' } }
+          : { _id: '1', _properties: { ...own, undefined: c.beside ? { ...envelope, _elements: [OTHER_VALUES] } : envelope } };
+    }
+  }
+  const text = JSON.stringify(json, null, '\t');
+  expect(sha(text), `${id} is the file MATLAB read`).toBe(c.sha256);
+  return text;
+}
+const undefinedRead = (id: string) => UNDEFINED_TRUTH.rows.find((r) => r.id === id)!.reads;
+const asRead = (ci: Record<string, unknown>) => ({ class: 'Simulink.VariantBankCoderInfo', ...ci });
+const CI_DEFAULTS = CI_WROTE.ciB;
+const NO_OBJECT = "Data dictionary unable to create an object of class 'Simulink.VariantBankCoderInfo'.";
+const shownCoderInfo = (node: DataNode) => Object.fromEntries(CI_COLUMNS.map((c) => [c, cellText(rowOf(node), c)]));
+const CI_SHOWN: Record<string, Record<string, string>> = {
+  ciA: { headerFile: 'h.h', definitionFile: 'd.c', preStatement: 'pre', postStatement: 'post', qualifier: 'Const' },
+  ciB: { headerFile: '', definitionFile: '', preStatement: '', postStatement: '', qualifier: 'None' },
+};
+const BLANK = { headerFile: '', definitionFile: '', preStatement: '', postStatement: '', qualifier: '' };
+const UNDEFINED_SAYS = {
+  binary: "its properties are held in a property named 'undefined' instead of the saveobj envelope MATLAB reads, so MATLAB cannot read it at all (getting its value fails)",
+  text: "its properties are held in a property named 'undefined' instead of as its own, which MATLAB reads as a coder info with every property at its default",
+};
+
+describe('VariantBankCoderInfo fields: a coder info whose envelope is spelled <P Name="undefined">', () => {
+  const DAMAGED = [
+    { id: 'b_ciA_undefined', damaged: ['ciA'] },
+    { id: 'b_both_undefined', damaged: ['ciA', 'ciB'] },
+    { id: 't_ciA_undefined', damaged: ['ciA'] },
+  ];
+  // Not this: an 'undefined' beside the envelope MATLAB wrote, which MATLAB reads the envelope of;
+  // a plain bag with neither the five nor an 'undefined', which MATLAB reads as every default;
+  // and a plain bag with an 'undefined' beside only some of the five, which MATLAB reads from
+  // those it holds, every other at its default. None is warned of, by MATLAB or here. Each of the
+  // five is held alone in one of the partial bags, so a check that leaves any of them out warns of
+  // that one.
+  const CONTROLS = [
+    { id: 'b_ciA_envelope_beside', read: CI_WROTE.ciA, shown: CI_SHOWN.ciA, other: ['Other.undefined'] },
+    { id: 't_ciA_envelope_beside', read: CI_WROTE.ciA, shown: CI_SHOWN.ciA, other: ['Other.undefined'] },
+    { id: 't_ciA_empty_bag', read: CI_DEFAULTS, shown: BLANK, other: [] },
+    { id: 't_ciA_other_bag', read: CI_DEFAULTS, shown: BLANK, other: ['Other.Foo'] },
+    { id: 't_ciA_partial_header', read: { ...CI_DEFAULTS, HeaderFile: 'h.h' }, shown: { ...BLANK, headerFile: 'h.h' }, other: ['Other.undefined'] },
+    {
+      id: 't_ciA_partial_definition', read: { ...CI_DEFAULTS, DefinitionFile: 'd.c', Qualifier: 'Const' },
+      shown: { ...BLANK, definitionFile: 'd.c', qualifier: 'Const' }, other: ['Other.undefined'],
+    },
+    {
+      id: 't_ciA_partial_definition_alone', read: { ...CI_DEFAULTS, DefinitionFile: 'd.c' },
+      shown: { ...BLANK, definitionFile: 'd.c' }, other: ['Other.undefined'],
+    },
+    { id: 't_ciA_partial_qualifier', read: { ...CI_DEFAULTS, Qualifier: 'Const' }, shown: { ...BLANK, qualifier: 'Const' }, other: ['Other.undefined'] },
+    { id: 't_ciA_partial_pre', read: { ...CI_DEFAULTS, PreStatement: 'pre' }, shown: { ...BLANK, preStatement: 'pre' }, other: ['Other.undefined'] },
+    { id: 't_ciA_partial_post', read: { ...CI_DEFAULTS, PostStatement: 'post' }, shown: { ...BLANK, postStatement: 'post' }, other: ['Other.undefined'] },
+  ];
+
+  it('is a case MATLAB was given, each graded here, and MATLAB warned of none of them', () => {
+    expect(UNDEFINED_TRUTH.release).toBe('2027a');
+    expect(UNDEFINED_TRUTH.cases.map((c) => c.id).sort()).toEqual(['b_written', 't_ciA_undefined_beside', ...DAMAGED.map((d) => d.id), ...CONTROLS.map((c) => c.id)].sort());
+    expect(UNDEFINED_TRUTH.rows.map((r) => r.warning).filter((w) => w !== '')).toEqual([]);
+    // The binary fixture, as MATLAB wrote it, is read as written: the cases differ from it only
+    // where they say.
+    expect(undefinedRead('b_written')).toEqual({ ciA: asRead(CI_WROTE.ciA), ciB: asRead(CI_WROTE.ciB) });
+    const { source } = open(undefinedCaseFile('b_written'));
+    expect(source.warnings).toBeUndefined();
+  });
+
+  it.each(DAMAGED)('$id: is shown as read, warned of by name, and saved as read', ({ id, damaged }) => {
+    const content = undefinedCaseFile(id);
+    const format: Format = typeof content === 'string' ? 'text' : 'binary';
+    // What MATLAB read: no coder info at all from a binary dictionary, every default from a text one.
+    const reads = undefinedRead(id);
+    for (const entry of ['ciA', 'ciB']) {
+      const read = damaged.includes(entry) ? (format === 'binary' ? { error: NO_OBJECT } : asRead(CI_DEFAULTS)) : asRead(CI_WROTE[entry]);
+      expect(reads[entry], `MATLAB's ${entry}`).toEqual(read);
+    }
+    const { session, source } = open(content);
+    // Shown as read: the five are not in the file, and the struct is listed under Other.
+    for (const entry of ['ciA', 'ciB']) {
+      const node = entryIn(source, entry);
+      expect(shownCoderInfo(node), entry).toEqual(damaged.includes(entry) ? BLANK : CI_SHOWN[entry]);
+      expect(Object.keys(pi(node).values).filter((k) => k.startsWith('Other.')), entry).toEqual(damaged.includes(entry) ? ['Other.undefined'] : []);
+    }
+    // One warning for each, naming 'undefined', and saying what MATLAB does with it.
+    const warnings: ParseWarning[] = source.warnings ?? [];
+    expect(warnings.map((w) => [w.part, w.code])).toEqual(damaged.map((entry) => [entry, 'part-unreadable']));
+    for (const [k, entry] of damaged.entries()) {
+      expect(warnings[k].message).toBe(
+        `"${entry}" holds a Simulink.VariantBankCoderInfo MATLAB does not read as written: ${UNDEFINED_SAYS[format]}. `
+          + 'It is shown as read, and saved as read unless edited.',
+      );
+    }
+    // An edit has nowhere to be saved, and the file is saved as read.
+    const node = entryIn(source, damaged[0]);
+    expect(node.setProperty('headerFile', 'x.h')).toMatchObject({
+      error: true,
+      reason: `'${damaged[0]}' was read with no HeaderFile in its saved form, so a Header File edit has nowhere to be saved.`,
+    });
+    const out = saved(session, source);
+    if (typeof content === 'string') {
+      expect(out).toBe(content);
+    } else {
+      expect(chunkXml(out as Uint8Array)).toBe(chunkXml(content));
+    }
+  });
+
+  it('one that holds its own five properties too is read from them, as MATLAB reads it, with no warning', () => {
+    expect(undefinedRead('t_ciA_undefined_beside')).toEqual({ ciA: asRead(CI_WROTE.ciA), ciB: asRead(CI_WROTE.ciB) });
+    const text = undefinedCaseFile('t_ciA_undefined_beside') as string;
+    const { session, source } = open(text);
+    expect(source.warnings).toBeUndefined();
+    expect(shownCoderInfo(entryIn(source, 'ciA'))).toEqual(CI_SHOWN.ciA);
+    expect(saved(session, source)).toBe(text);
+  });
+
+  it.each(CONTROLS)('$id: is read as MATLAB reads it, and not warned of', ({ id, read, shown, other }) => {
+    expect(undefinedRead(id)).toEqual({ ciA: asRead(read), ciB: asRead(CI_WROTE.ciB) });
+    const content = undefinedCaseFile(id);
+    const { session, source } = open(content);
+    expect(source.warnings).toBeUndefined();
+    const node = entryIn(source, 'ciA');
+    expect(shownCoderInfo(node)).toEqual(shown);
+    expect(Object.keys(pi(node).values).filter((k) => k.startsWith('Other.'))).toEqual(other);
+    const out = saved(session, source);
+    if (typeof content === 'string') {
+      expect(out).toBe(content);
+    } else {
+      expect(chunkXml(out as Uint8Array)).toBe(chunkXml(content));
+    }
+  });
+});
+
+// ═══ A Simulink.VariantBank in R2026b's spelling ═════════════════════════════════════════════
+//
+// A text dictionary R2026b wrote holds a bank as plain properties too, with no envelope, as it
+// holds a coder info (above). The bank used to be read out of the envelope alone, so there its
+// four Variant Bank cells showed their defaults ('' and {}), the file's values showed only as
+// Other rows, and every edit was refused, as having nowhere to be saved (S1-24; C-168, with
+// #141's "the same fix shape C-169B uses").
+//
+// What MATLAB does with that spelling, measured on R2027a (27.1.0.3409468) by
+// test/parity/matlab/probe_variantbank_plain.m, whose truth is read here: it reads the bag
+// property by property, each through its setter, and gives no warning. A value a setter refuses
+// is read as that property's default ALONE ('' for a name, no conditions for VariantConditions),
+// not the whole bank as from an envelope; and a char VariantConditions, which the setter refuses,
+// as no conditions, where an envelope's is read as a cell of that one condition. A field the bag
+// does not have is read as its default, BankCoderInfo is read independently of the two coder
+// infos, and a Value key or a key the class does not have is ignored. MATLAB also read back as
+// written core's own saves of such a bank (the truth's save cases).
+//
+// The probe opened the text this helper makes (the R2027a fixture with its banks and coder infos
+// respelled so, then one hand edit), which the sha256 its truth records pins.
+type PlainEdit = { entries?: string[]; set?: Record<string, unknown>; drop?: string[]; order?: string[] };
+type PlainRead = { class: string; Name: string; Description: string; VariantConditions: { class: string; size: number[]; elements: unknown[] }; AllChoicesCoderInfo: string; ActiveChoiceCoderInfo: string; BankCoderInfo: string };
+type PlainCase = { id: string; kind: 'hand' | 'save'; what: string; edit?: PlainEdit; sha256?: string; edits?: [string, string, string][]; wrote?: Record<string, any> };
+const PLAIN_TRUTH: { release: string; cases: PlainCase[]; rows: { id: string; warning: string; reads: Record<string, PlainRead> }[] } = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./parity/matlab/variantbank_plain.truth.json', import.meta.url)), 'utf8'),
+);
+const plainCase = (id: string) => PLAIN_TRUTH.cases.find((c) => c.id === id)!;
+const matlabRead = (id: string) => PLAIN_TRUTH.rows.find((r) => r.id === id)!;
+
+function plainBanks(edit: PlainEdit = {}): string {
+  const json = JSON.parse(fixtureText());
+  for (const entry of json.__MW_TEXT_PARTS__['__MW_TEXT_PART__/data/chunk0'].__MW_TEXT_content.entries) {
+    if (entry.value?._array_class !== 'Simulink.VariantBank' && entry.value?._array_class !== 'Simulink.VariantBankCoderInfo') {
+      continue;
+    }
+    let bag: Record<string, unknown> = { ...entry.value._elements[0]._custom_save._elements[0] };
+    if ((edit.entries ?? []).includes(entry.name)) {
+      Object.assign(bag, edit.set ?? {});
+      for (const field of edit.drop ?? []) {
+        delete bag[field];
+      }
+      if (edit.order) {
+        const order = edit.order;
+        bag = Object.fromEntries([...order.filter((k) => k in bag), ...Object.keys(bag).filter((k) => !order.includes(k))].map((k) => [k, bag[k]]));
+      }
+    }
+    entry.value._elements[0] = { _id: '1', _properties: bag };
+  }
+  return JSON.stringify(json, null, '\t');
+}
+// The hand case `id`'s text, checked to be the one MATLAB opened.
+function plainCaseText(id: string): string {
+  const c = plainCase(id);
+  const text = plainBanks(c.edit);
+  expect(createHash('sha256').update(text, 'utf8').digest('hex'), `${id} is the file MATLAB read`).toBe(c.sha256);
+  return text;
+}
+// A bank as MATLAB reads it: its fields, its conditions as the 1xN cell it holds.
+function asMatlabReads(bank: Record<string, unknown>): Record<string, unknown> {
+  return { ...bank, VariantConditions: cell(...(((bank.VariantConditions as any)._elements ?? []) as string[])) };
+}
+function readOf(read: PlainRead): Record<string, unknown> {
+  expect(read.class).toBe('Simulink.VariantBank');
+  expect(read.VariantConditions.class).toBe('cell');
+  expect(read.VariantConditions.size).toEqual([1, read.VariantConditions.elements.length]);
+  return {
+    Name: read.Name, Description: read.Description, VariantConditions: cell(...(read.VariantConditions.elements as string[])),
+    AllChoicesCoderInfo: read.AllChoicesCoderInfo, ActiveChoiceCoderInfo: read.ActiveChoiceCoderInfo, BankCoderInfo: read.BankCoderInfo,
+  };
+}
+const BANK_COLUMNS = ['Description', 'bankName', 'variantConditions', 'allChoicesCoderInfo', 'activeChoiceCoderInfo'];
+const shownCells = (node: DataNode) => Object.fromEntries(BANK_COLUMNS.map((c) => [c, cellText(rowOf(node), c)]));
+// What a MATLAB-written bank shows (the first describe above), which the same bank in R2026b's
+// spelling shows too.
+const SHOWN: Record<string, Record<string, string>> = {
+  vbN: { Description: 'desc A', bankName: 'bankA', variantConditions: "{'V == 1','V == 2'}", allChoicesCoderInfo: 'ciA', activeChoiceCoderInfo: 'ciB' },
+  vb1: { Description: "two\nlines, it's", bankName: 'bankOne', variantConditions: "{'W > 0 && ~X'}", allChoicesCoderInfo: 'ciA', activeChoiceCoderInfo: 'ciA' },
+  vbD: { Description: '', bankName: '', variantConditions: '{}', allChoicesCoderInfo: '', activeChoiceCoderInfo: '' },
+};
+
+describe('VariantBank fields: a bank R2026b wrote, as plain properties', () => {
+  // Each hand case of the truth, on vbN unless named: the cell it shows (the rest of the bank
+  // showing as written), the clause its warning carries (null: MATLAB reads it as written), and
+  // what MATLAB read of the bank where it is not what the R2027a fixture holds, which the truth
+  // must agree with. A bank whose bag has no such field takes no edit of it (`noEdit`).
+  const NONE = cell();
+  const PLAIN_HAND = [
+    { id: 'h_name_1bad', column: 'bankName', shown: '1bad', says: `its Name '1bad' is not a valid C identifier that does not start with "rt", which MATLAB reads as ''`, matlab: { Name: '' } },
+    { id: 'h_name_rtX', column: 'bankName', shown: 'rtX', says: `its Name 'rtX' is not a valid C identifier that does not start with "rt", which MATLAB reads as ''`, matlab: { Name: '' } },
+    { id: 'h_name_number', column: 'bankName', shown: '5', says: "its Name is not text, which MATLAB reads as ''", matlab: { Name: '' } },
+    { id: 'h_desc_number', column: 'Description', shown: '5', says: "its Description is not text, which MATLAB reads as ''", matlab: { Description: '' } },
+    { id: 'h_all_1bad', column: 'allChoicesCoderInfo', shown: '1bad', says: "its AllChoicesCoderInfo '1bad' is not a valid variable name, which MATLAB reads as ''", matlab: { AllChoicesCoderInfo: '' } },
+    { id: 'h_active_1bad', column: 'activeChoiceCoderInfo', shown: '1bad', says: "its ActiveChoiceCoderInfo '1bad' is not a valid variable name, which MATLAB reads as ''", matlab: { ActiveChoiceCoderInfo: '' } },
+    { id: 'h_all_number', column: 'allChoicesCoderInfo', shown: '5', says: "its AllChoicesCoderInfo is not text, which MATLAB reads as ''", matlab: { AllChoicesCoderInfo: '' } },
+    { id: 'h_cond_unspaced', column: 'variantConditions', shown: "{'V==1','V == 2'}", says: null, matlab: {} },
+    { id: 'h_cond_unparsable', column: 'variantConditions', shown: "{'V == 1','V =='}", says: "its condition 'V ==' does not parse, which MATLAB reads as no conditions", matlab: { VariantConditions: NONE } },
+    { id: 'h_cond_enum', column: 'variantConditions', shown: "{'V == 1','V == E.A'}", says: null, matlab: { VariantConditions: cell('V == 1', 'V == E.A') } },
+    { id: 'h_cond_empty', column: 'variantConditions', shown: "{'V == 1',''}", says: 'its condition at position 2 is empty, which MATLAB reads as no conditions', matlab: { VariantConditions: NONE } },
+    { id: 'h_cond_number', column: 'variantConditions', shown: "{'V == 1',2}", says: 'its condition at position 2 is not text, which MATLAB reads as no conditions', matlab: { VariantConditions: NONE } },
+    { id: 'h_conds_char', column: 'variantConditions', shown: "'V==1'", says: 'its VariantConditions is not a cell, which MATLAB reads as no conditions', matlab: { VariantConditions: NONE } },
+    { id: 'h_conds_number', column: 'variantConditions', shown: '5', says: 'its VariantConditions is not a cell, which MATLAB reads as no conditions', matlab: { VariantConditions: NONE } },
+    { id: 'h_conds_2x1', column: 'variantConditions', shown: "{'V == 1';'V == 2'}", says: null, matlab: {} },
+    { id: 'h_vb1_all_ciB', entry: 'vb1', column: 'allChoicesCoderInfo', shown: 'ciB', says: null, matlab: { AllChoicesCoderInfo: 'ciB' } },
+    { id: 'h_vb1_all_ciB_after', entry: 'vb1', column: 'allChoicesCoderInfo', shown: 'ciB', says: null, matlab: { AllChoicesCoderInfo: 'ciB' } },
+    { id: 'h_vb1_active_ciB', entry: 'vb1', column: 'activeChoiceCoderInfo', shown: 'ciB', says: null, matlab: { ActiveChoiceCoderInfo: 'ciB' } },
+    { id: 'h_vb1_bank_empty', entry: 'vb1', column: 'allChoicesCoderInfo', shown: 'ciA', says: null, matlab: { BankCoderInfo: '' } },
+    { id: 'h_vb1_bank_ciB', entry: 'vb1', column: 'allChoicesCoderInfo', shown: 'ciA', says: null, matlab: { BankCoderInfo: 'ciB' } },
+    { id: 'h_vb1_bank_1bad', entry: 'vb1', column: 'allChoicesCoderInfo', shown: 'ciA', says: "its BankCoderInfo '1bad' is not a valid variable name, which MATLAB reads as ''", matlab: { BankCoderInfo: '' } },
+    { id: 'h_no_bank', entry: 'vb1', column: 'allChoicesCoderInfo', shown: 'ciA', says: null, matlab: { BankCoderInfo: '' } },
+    { id: 'h_no_desc', column: 'Description', shown: '', says: null, matlab: { Description: '' }, noEdit: ['Description', 'Description'] },
+    { id: 'h_no_name', column: 'bankName', shown: '', says: null, matlab: { Name: '' }, noEdit: ['bankName', 'Name'] },
+    { id: 'h_no_conds', column: 'variantConditions', shown: '{}', says: null, matlab: { VariantConditions: NONE }, noEdit: ['variantConditions', 'VariantConditions'] },
+    { id: 'h_name_first', column: 'bankName', shown: 'bankA', says: null, matlab: {} },
+    { id: 'h_value_key', column: 'bankName', shown: 'bankA', says: null, matlab: {} },
+    { id: 'h_unknown_key', column: 'bankName', shown: 'bankA', says: null, matlab: {} },
+  ];
+  // Not graded: MATLAB's setter refuses an integer past int32 ('V == 2147483648' is read as no
+  // conditions), which the reader does not check in either spelling (conditionCannotParse), so
+  // it is not warned of. A follow-up for both spellings, not this one's own.
+  const NOT_GRADED = ['h_written', 'h_cond_int32'];
+
+  it('is shown from them, as MATLAB reads it, with no warning, the Hidden BankCoderInfo under Other', () => {
+    // Every hand case MATLAB was given is graded below, and MATLAB warned of none of them.
+    expect(PLAIN_TRUTH.release).toBe('2027a');
+    const hand = PLAIN_TRUTH.cases.filter((c) => c.kind === 'hand').map((c) => c.id);
+    expect(hand.filter((id) => !NOT_GRADED.includes(id)).sort()).toEqual(PLAIN_HAND.map((h) => h.id).sort());
+    expect(PLAIN_TRUTH.rows.map((r) => r.warning).filter((w) => w !== '')).toEqual([]);
+    const { source } = open(plainCaseText('h_written'));
+    expect(source.warnings).toBeUndefined();
+    for (const entry of Object.keys(MATLAB_WROTE)) {
+      expect(readOf(matlabRead('h_written').reads[entry]), `MATLAB's ${entry}`).toEqual(MATLAB_WROTE[entry]);
+      const node = entryIn(source, entry);
+      expect(shownCells(node), entry).toEqual(SHOWN[entry]);
+      // BankCoderInfo has no row, as MATLAB hides it; held in plain sight, it is listed under
+      // Other, read-only, as read (inside an envelope it is not listed at all).
+      const { values } = pi(node);
+      expect(Object.entries(values).filter(([k]) => k.startsWith('Other.')), entry).toEqual([['Other.BankCoderInfo', MATLAB_WROTE[entry].BankCoderInfo]]);
+    }
+    expect(pi(entryIn(source, 'vbN')).values).toMatchObject({ Description: 'desc A', BankName: 'bankA', VariantConditions: "{'V == 1','V == 2'}", AllChoicesCoderInfo: 'ciA', ActiveChoiceCoderInfo: 'ciB' });
+  });
+
+  it('takes an edit into the plain property, in MATLAB\'s spelling, and invents no envelope', () => {
+    const text = plainCaseText('h_written');
+    const { session, source } = open(text);
+    expect(saved(session, source)).toBe(text);
+    const node = entryIn(source, 'vbN');
+    expect(node.setProperty('bankName', 'bankB')).toBe(true);
+    expect(node.setProperty('Description', 'a new description')).toBe(true);
+    expect(node.setProperty('variantConditions', "{'V==3';'W~=1'}")).toBe(true);
+    expect(node.setProperty('allChoicesCoderInfo', 'ciB')).toBe(true);
+    expect(node.setProperty('activeChoiceCoderInfo', '')).toBe(true);
+    // Refused by MATLAB's own rules, as from an envelope.
+    expect(node.setProperty('bankName', 'rtX')).toMatchObject({ error: true, reason: MSG_NAME });
+    expect(node.setProperty('variantConditions', "'V==1'")).toMatchObject({ error: true, reason: MSG_NOT_CELL });
+    const out = saved(session, source) as string;
+    const element = plainOf(out, 'vbN');
+    expect(element).not.toHaveProperty('_custom_save');
+    expect(Object.keys(element._properties)).toEqual(Object.keys(plainOf(text, 'vbN')._properties));
+    expect(element._properties).toEqual({
+      ...MATLAB_WROTE.vbN, Name: 'bankB', Description: 'a new description', VariantConditions: cell('V == 3', 'W ~= 1'), AllChoicesCoderInfo: 'ciB', ActiveChoiceCoderInfo: '',
+    });
+    for (const entry of ['vb1', 'vbD', 'ciA', 'ciB']) {
+      expect(plainOf(out, entry), entry).toEqual(plainOf(text, entry));
+    }
+    expect(shownCells(entryIn(open(out).source, 'vbN'))).toEqual({
+      Description: 'a new description', bankName: 'bankB', variantConditions: "{'V == 3','W ~= 1'}", allChoicesCoderInfo: 'ciB', activeChoiceCoderInfo: '',
+    });
+  });
+
+  it('an edit is undone to the plain property as read', () => {
+    const text = plainCaseText('h_conds_char');
+    const { session, source } = open(text);
+    const node = entryIn(source, 'vbN');
+    session.setActiveContext(source);
+    session.setActive(source, node);
+    expect(session.editProperty(node.id, 'variantConditions', "{'V==3'}")).toBe(true);
+    expect(cellText(rowOf(node), 'variantConditions')).toBe("{'V == 3'}");
+    session.undo();
+    expect(cellText(rowOf(node), 'variantConditions')).toBe("'V==1'");
+    // The bank as read; the entry keeps the edit's lastmod, as from an envelope.
+    expect(plainOf(saved(session, source) as string, 'vbN')).toEqual(plainOf(text, 'vbN'));
+  });
+
+
+  it.each(PLAIN_HAND)('hand-edited, $id, is shown as read and saved as read, warned as MATLAB reads it', ({ id, entry = 'vbN', column, shown, says, matlab, noEdit }) => {
+    const reads = matlabRead(id).reads;
+    for (const bank of Object.keys(MATLAB_WROTE)) {
+      expect(readOf(reads[bank]), `MATLAB's ${bank}`).toEqual(bank === entry ? { ...MATLAB_WROTE[bank], ...matlab } : MATLAB_WROTE[bank]);
+    }
+    const text = plainCaseText(id);
+    const { session, source } = open(text);
+    const node = entryIn(source, entry);
+    expect(shownCells(node)).toEqual({ ...SHOWN[entry], [column]: shown });
+    const warnings: ParseWarning[] = source.warnings ?? [];
+    if (says === null) {
+      expect(warnings).toEqual([]);
+    } else {
+      expect(warnings.map((w) => [w.part, w.code])).toEqual([[entry, 'part-unreadable']]);
+      expect(warnings[0].message).toContain(`"${entry}" holds a Simulink.VariantBank MATLAB does not read as written: ${says}.`);
+    }
+    if (noEdit) {
+      expect(node.setProperty(noEdit[0], 'x')).toMatchObject({
+        error: true,
+        reason: `'${entry}' was read with no ${noEdit[1]} in its saved form, so a ${noEdit[1] === 'Name' ? 'Bank Name' : noEdit[1] === 'VariantConditions' ? 'Variant Conditions' : 'Description'} edit has nowhere to be saved.`,
+      });
+    }
+    expect(saved(session, source)).toBe(text);
+  });
+
+  it.each(PLAIN_TRUTH.cases.filter((c) => c.kind === 'save'))('saved by core, $id, is read back by MATLAB as written', ({ id, edits, wrote }) => {
+    const text = plainBanks();
+    const { session, source } = open(text);
+    for (const [entry, column, typed] of edits!) {
+      expect(entryIn(source, entry).setProperty(column, typed), `${entry}.${column}`).toBe(true);
+    }
+    const out = saved(session, source) as string;
+    const reads = matlabRead(id).reads;
+    for (const entry of Object.keys(MATLAB_WROTE)) {
+      const element = plainOf(out, entry);
+      expect(element, entry).not.toHaveProperty('_custom_save');
+      if (entry in wrote!) {
+        // What core writes now is what it wrote for MATLAB, which MATLAB read as written.
+        expect(element, entry).toEqual(wrote![entry]);
+        expect(readOf(reads[entry]), `MATLAB's ${entry}`).toEqual(asMatlabReads(element._properties));
+      } else {
+        expect(element, entry).toEqual(plainOf(text, entry));
+        expect(readOf(reads[entry]), `MATLAB's ${entry}`).toEqual(MATLAB_WROTE[entry]);
+      }
+    }
   });
 });

@@ -148,7 +148,9 @@ value.
   prop atom's `readOptions` — the same call the dropdown is built from, so the offered
   choices and the accepted values cannot drift — and returns
   `{error, reason: "There is no enumerated value named 'X'."}`.
-  Test: `test/busElementEnumEdit.test.ts`.
+  Test: `test/busElementEnumEdit.test.ts`. The field's spelling
+  (`'Complexity'|'DimensionsMode'`) is the same property and takes the same check.
+  Test: `test/enumFieldSpelling.test.ts`.
 
 ## Round-trip coverage
 

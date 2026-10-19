@@ -54,17 +54,17 @@ const OWN: { name: string; text: string; refused: [string, string] }[] = [
 ];
 
 /** sparse_text.sldd with the OWN entries added, as text, and each one's element as that text holds it. */
-function textDictionary(): { file: string; elementOf: (name: string) => string } {
+function textDictionary(own: { name: string; text: string }[] = OWN): { file: string; elementOf: (name: string) => string } {
   const json = JSON.parse(strFromU8(new Uint8Array(sparseFixture(TEXT))));
   const entries = entriesOf(json);
   const metadata = entries.find((e: any) => e.name === 'dRow').metadata;
   const element = new Map<string, string>();
-  OWN.forEach(({ name, text }, i) => {
+  own.forEach(({ name, text }, i) => {
     const entry = { name, metadata: { ...metadata, uuid: `00000000-0000-4000-f122-${String(i + 1).padStart(12, '0')}` }, value: `@@${name}@@` };
     entries.push(entry);
     element.set(name, JSON.stringify(entry, null, '\t').replace(`"@@${name}@@"`, text));
   });
-  const file = OWN.reduce((t, { name, text }) => t.replace(`"@@${name}@@"`, text), JSON.stringify(json, null, '\t'));
+  const file = own.reduce((t, { name, text }) => t.replace(`"@@${name}@@"`, text), JSON.stringify(json, null, '\t'));
   return { file, elementOf: (name) => element.get(name)! };
 }
 
@@ -141,5 +141,90 @@ describe('a text dictionary\'s own entry re-read from its text, as a host showin
     const text = open(textDictionary().file, TEXT);
     const pasted = records.map((record) => replaced(text.root, text.design, record));
     expect(pasted.map(copyOf)).toEqual(OWN.map(({ refused: [reason, said], name }) => ['MatBudgetError', reason, `Cannot write "${name}": ${said}`]));
+  });
+});
+
+// A text dictionary holds a cell, a struct or a string of rank >= 3 only as its MAT stream, and
+// MatWriter has no MAT class for a string, so such a value holding a string has no stream. One
+// typed into the file as its bag, a hand edit, opens as what was read, and a save writes it back
+// as read until it is edited; the save of it edited is refused (serializeNdCdata.test.ts). A
+// paste of the same value is refused at the paste (the maintainer's ruling A1). The re-read of
+// the file's own text was refused as the paste is, so the same text that opened could not be
+// re-read from the JSON view (F1-22: kept as read, not refused).
+const STREAMLESS_STRING = '{"_array_type":"String","_dimensions":[1,2],"_elements":["ab","cd"],"_mw_element_type":"MATLABArray"}';
+const STREAMLESS_CELL = `{"_array_type":"Cell","_dimensions":[2,2,2],"_elements":[${STREAMLESS_STRING},2,3,4,5,6,7,8],"_mw_element_type":"MATLABArray"}`;
+const NO_STRING_CLASS = ', which a text dictionary holds only as its MAT stream, and that stream cannot be written: no MAT class for "string". Nothing was written.';
+// The paste's refusal of the N-D string names its class as the char MatWriter is handed for a
+// string read from JSON (_buildVarObject); that word is not what this file is about, so it is not
+// pinned here.
+const STREAMLESS: { name: string; text: string; refused: unknown }[] = [
+  { name: 'ownNdCell', text: STREAMLESS_CELL, refused: 'Cannot write "ownNdCell": ownNdCell is a 2x2x2 cell' + NO_STRING_CLASS },
+  {
+    name: 'ownNdString',
+    text: '{"_array_type":"String","_dimensions":[1,2,2],"_elements":["a","b","c","d"],"_mw_element_type":"MATLABArray"}',
+    refused: expect.stringMatching(/^Cannot write "ownNdString": ownNdString is a 1x2x2 \w+, which a text dictionary holds only as its MAT stream, and that stream cannot be written: no MAT class for "string"\. Nothing was written\.$/),
+  },
+  {
+    name: 'ownNdField',
+    text: `{"_array_type":"Struct","_dimensions":[1,1],"_elements":[{"f":${STREAMLESS_CELL}}],"_fields":["f"]}`,
+    refused: 'Cannot write "ownNdField": ownNdField.f is a 2x2x2 cell' + NO_STRING_CLASS,
+  },
+];
+
+describe('a text dictionary\'s own value that has no MAT stream, re-read from its text (F1-22, kept as read, not refused)', () => {
+  const element = (node: any, label: string) => node.children.find((c: any) => c.displayName === label);
+  const thrownAs = (f: () => unknown) => {
+    const [thrown] = thrownBy(f);
+    return thrown ? [thrown.name, thrown.message] : null;
+  };
+
+  it('with { asRead: true }: held as the file\'s read holds it, and its copy and the save are what they are as opened', () => {
+    const { file, elementOf } = textDictionary(STREAMLESS);
+    const read = open(file, TEXT);
+    const asOpened = STREAMLESS.map(({ name }) => copyOf(read.design.children.find((e: any) => e.name === name)));
+    // The file read accepts every one of them, and the copy and the save write each back as read.
+    expect(asOpened).toEqual(STREAMLESS.map(({ text }) => JSON.parse(text)));
+    const savedAsOpened = savedOwn(read.session, read.root);
+    expect(savedAsOpened).toEqual(STREAMLESS.map(({ name, text }) => [name, JSON.parse(text)]));
+
+    const reread = open(file, TEXT);
+    const fresh = STREAMLESS.map(({ name }) => {
+      const [thrown] = thrownBy(() => replaced(reread.root, reread.design, JSON.parse(elementOf(name)), { asRead: true }));
+      expect(thrown && [thrown.name, thrown.message], name).toBeNull();
+      return reread.design.children.find((e: any) => e.name === name);
+    });
+    expect(fresh.map(copyOf)).toEqual(asOpened);
+    expect(savedOwn(reread.session, reread.root)).toEqual(savedAsOpened);
+    expect(element(fresh[0], 'ownNdCell{1,1,1}').className, 'the member is read as the string it is').toBe('string');
+  });
+
+  it('edited after the re-read: the save is refused, naming the entry and the reason, as the same edit of the entry as opened is', () => {
+    const { file, elementOf } = textDictionary(STREAMLESS);
+    const editedSave = (d: ReturnType<typeof open>) => {
+      expect(element(d.design.children.find((e: any) => e.name === 'ownNdCell'), 'ownNdCell{2,1,1}').setProperty('Value', '7')).toBe(true);
+      return thrownAs(() => d.session.serializeSource(d.root.name));
+    };
+    const read = open(file, TEXT);
+    const asOpened = editedSave(read);
+    expect(asOpened).toEqual(['MatWriteError', STREAMLESS[0].refused]);
+    const reread = open(file, TEXT);
+    replaced(reread.root, reread.design, JSON.parse(elementOf('ownNdCell')), { asRead: true });
+    expect(editedSave(reread)).toEqual(asOpened);
+  });
+
+  it('without it, as a paste, a drop or an undo record is re-read: refused at the parse and not added, as before (ruling A1)', () => {
+    const { file, elementOf } = textDictionary(STREAMLESS);
+    const savedAsOpened = (() => {
+      const read = open(file, TEXT);
+      return savedOwn(read.session, read.root);
+    })();
+    for (const options of [undefined, {}, { asRead: false }]) {
+      const pasted = open(file, TEXT);
+      const count = pasted.design.children.length;
+      const refused = STREAMLESS.map(({ name }) => thrownAs(() => replaced(pasted.root, pasted.design, JSON.parse(elementOf(name)), options)));
+      expect(refused, JSON.stringify(options)).toEqual(STREAMLESS.map(({ refused: said }) => ['MatWriteError', said]));
+      expect(pasted.design.children.length, JSON.stringify(options)).toBe(count);
+      expect(savedOwn(pasted.session, pasted.root), JSON.stringify(options)).toEqual(savedAsOpened);
+    }
   });
 });

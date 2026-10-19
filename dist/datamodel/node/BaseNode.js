@@ -28,6 +28,19 @@ export function encodedHolderOf(node) {
     }
     return null;
 }
+/**
+ * The prop in `props` that an edit naming `name` is an edit of: the one whose key or column is
+ * `name`, which is how an edit committed in the 'Value' column reaches the atom that owns it (a
+ * Variant's Condition/Specification), or else the one whose node field (`nodeProperty`) is
+ * `name`. The field is the same property under MATLAB's spelling (`Complexity` for the
+ * `complexity` column), so an edit by that name is checked, and its undo captured, as the
+ * column's is (C-030). Key and column first, so a prop's own name wins over another's field.
+ * One rule for DataNode._propFor, which every per-property gate asks, and for the session's
+ * capture of the value an edit replaces (DataModel.readPropertyValue).
+ */
+export function propNamed(props, name) {
+    return props.find((p) => p.key === name || p.column === name) ?? props.find((p) => p.nodeProperty === name);
+}
 export default class BaseNode {
     constructor(name, parent) {
         this.name = name;

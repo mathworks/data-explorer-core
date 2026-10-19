@@ -12,6 +12,10 @@
 // after a term (`{[1] - 2}` is {-1}, `{'a' - 2}` is {95}). An imaginary term then a real one
 // (`i + 1`, `2i - 3`) is one complex value, as the real-first `1 + 1i` is. This parser does
 // no arithmetic, so a member it would have to compute stays refused.
+//
+// A member whose imaginary part is zero (`{0i}`, `{1 + 0i}`, `{0i + 1}`) is a real double in
+// MATLAB, which drops an imaginary part that is all zero. It was held as a complex member
+// (`1+0i`); under the same ruling it is now the double MATLAB makes (ZERO_IMAGINARY).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -135,16 +139,176 @@ const MATLAB_COMPUTES: { literal: string; matlab: string }[] = [
   { literal: '{i + -1}', matlab: 'cell [1 1] {double complex [1 1] [-1,1i]}' },
   { literal: '{1 + -2i}', matlab: 'cell [1 1] {double complex [1 1] [1,-2i]}' },
   { literal: '{Infi + 1}', matlab: "ERROR Unrecognized function or variable 'Infi'." },
+  // Unspaced, the same arithmetic. Each was held as one char member ('1+2', '-a'), a value MATLAB
+  // never makes of it, where the spaced form beside it was refused.
+  { literal: '{1+2}', matlab: 'cell [1 1] {double [1 1] [3]}' },
+  { literal: '{1-2}', matlab: 'cell [1 1] {double [1 1] [-1]}' },
+  { literal: '{a+b}', matlab: "ERROR Unrecognized function or variable 'a'." },
+  { literal: '{a-b}', matlab: "ERROR Unrecognized function or variable 'a'." },
+  { literal: '{2i+3i}', matlab: 'cell [1 1] {double complex [1 1] [0,5i]}' },
+  { literal: '{1+2+3i}', matlab: 'cell [1 1] {double complex [1 1] [3,3i]}' },
+  { literal: '{-a}', matlab: "ERROR Unrecognized function or variable 'a'." },
+  { literal: '{+a}', matlab: "ERROR Unrecognized function or variable 'a'." },
+  { literal: '{-pi}', matlab: 'cell [1 1] {double [1 1] [-3.1415926535897931]}' },
+  { literal: '{-true}', matlab: 'cell [1 1] {double [1 1] [-1]}' },
+  { literal: '{2*3}', matlab: 'cell [1 1] {double [1 1] [6]}' },
+  { literal: '{6/2}', matlab: 'cell [1 1] {double [1 1] [3]}' },
+  { literal: '{6\\2}', matlab: 'cell [1 1] {double [1 1] [0.33333333333333331]}' },
+  { literal: '{2^3}', matlab: 'cell [1 1] {double [1 1] [8]}' },
+  { literal: '{2.*3}', matlab: 'cell [1 1] {double [1 1] [6]}' },
+  { literal: '{1, 2+3}', matlab: 'cell [1 2] {double [1 1] [1] ; double [1 1] [5]}' },
+  { literal: '{2+3, 1}', matlab: 'cell [1 2] {double [1 1] [5] ; double [1 1] [1]}' },
+  { literal: '{1+2; 3}', matlab: 'cell [2 1] {double [1 1] [3] ; double [1 1] [3]}' },
 ];
 
-/** Read as before: a sign with whitespace before it and none after starts a member. */
+/**
+ * Read as before: a sign with whitespace before it and none after starts a member, and a sign
+ * inside one literal (an exponent's, a complex part's, a leading one) is that literal's own.
+ */
 const READ_AS_BEFORE: { literal: string; dims: number[]; members: Member[] }[] = [
   // LIT {-2}             -> cell [1 1] {double [1 1] [-2]}
   { literal: '{-2}', dims: [1, 1], members: [-2] },
+  // LIT {1e+3}           -> cell [1 1] {double [1 1] [1000]}
+  { literal: '{1e+3}', dims: [1, 1], members: [1000] },
+  // LIT {1e-3}           -> cell [1 1] {double [1 1] [0.001]}
+  { literal: '{1e-3}', dims: [1, 1], members: [0.001] },
+  // LIT {1+2i}           -> cell [1 1] {double complex [1 1] [1,2i]}
+  { literal: '{1+2i}', dims: [1, 1], members: [{ re: 1, im: 2 }] },
+  // LIT {-2i}            -> cell [1 1] {double complex [1 1] [-0,-2i]}
+  { literal: '{-2i}', dims: [1, 1], members: [{ re: -0, im: -2 }] },
   // LIT {i +1}           -> cell [1 2] {double complex [1 1] [0,1i] ; double [1 1] [1]}
   { literal: '{i +1}', dims: [1, 2], members: [{ re: 0, im: 1 }, 1] },
   // LIT {2i -3}          -> cell [1 2] {double complex [1 1] [0,2i] ; double [1 1] [-3]}
   { literal: '{2i -3}', dims: [1, 2], members: [{ re: 0, im: 2 }, -3] },
+];
+
+/**
+ * A member whose imaginary part is zero: MATLAB holds it as a real double. Its arithmetic drops
+ * an imaginary part that is all zero (`1 + 0i`, `0i + 1`), and a lone `0i` is real too. The real
+ * part is MATLAB's sum, -0 included: `-0 + 0i` is 0, `-0 - 0i` is -0, `-0i` is -0 (the unary
+ * minus of 0i) and `-0i + 0` is 0. This parser held each as a complex member (`1+0i`, `0+0i`).
+ * The measured rows are probe_cell_sign_literals.m's. Its last two rows are controls, whose
+ * imaginary part is not zero; they stay complex.
+ */
+const ZERO_IMAGINARY: { literal: string; dims: number[]; members: Member[] }[] = [
+  // LIT {0i}             -> cell [1 1] {double [1 1] [0]}
+  { literal: '{0i}', dims: [1, 1], members: [0] },
+  // LIT {0j}             -> cell [1 1] {double [1 1] [0]}
+  { literal: '{0j}', dims: [1, 1], members: [0] },
+  // LIT {-0i}            -> cell [1 1] {double [1 1] [-0]}
+  { literal: '{-0i}', dims: [1, 1], members: [-0] },
+  // LIT {+0i}            -> cell [1 1] {double [1 1] [0]}
+  { literal: '{+0i}', dims: [1, 1], members: [0] },
+  // LIT {- 0i}           -> cell [1 1] {double [1 1] [-0]}
+  { literal: '{- 0i}', dims: [1, 1], members: [-0] },
+  // LIT {+ 0i}           -> cell [1 1] {double [1 1] [0]}
+  { literal: '{+ 0i}', dims: [1, 1], members: [0] },
+  // LIT {0.0i}           -> cell [1 1] {double [1 1] [0]}
+  { literal: '{0.0i}', dims: [1, 1], members: [0] },
+  // LIT {.0i}            -> cell [1 1] {double [1 1] [0]}
+  { literal: '{.0i}', dims: [1, 1], members: [0] },
+  // LIT {0.i}            -> cell [1 1] {double [1 1] [0]}
+  { literal: '{0.i}', dims: [1, 1], members: [0] },
+  // LIT {0e3i}           -> cell [1 1] {double [1 1] [0]}
+  { literal: '{0e3i}', dims: [1, 1], members: [0] },
+  // LIT {0e-3i}          -> cell [1 1] {double [1 1] [0]}
+  { literal: '{0e-3i}', dims: [1, 1], members: [0] },
+  // LIT {1e-400i}        -> cell [1 1] {double [1 1] [0]}
+  { literal: '{1e-400i}', dims: [1, 1], members: [0] },
+  // LIT {1 + 0i}         -> cell [1 1] {double [1 1] [1]}
+  { literal: '{1 + 0i}', dims: [1, 1], members: [1] },
+  // LIT {1+0i}           -> cell [1 1] {double [1 1] [1]}
+  { literal: '{1+0i}', dims: [1, 1], members: [1] },
+  // LIT {1 - 0i}         -> cell [1 1] {double [1 1] [1]}
+  { literal: '{1 - 0i}', dims: [1, 1], members: [1] },
+  // LIT {1-0i}           -> cell [1 1] {double [1 1] [1]}
+  { literal: '{1-0i}', dims: [1, 1], members: [1] },
+  // LIT {-1 + 0i}        -> cell [1 1] {double [1 1] [-1]}
+  { literal: '{-1 + 0i}', dims: [1, 1], members: [-1] },
+  // LIT {- 1 + 0i}       -> cell [1 1] {double [1 1] [-1]}
+  { literal: '{- 1 + 0i}', dims: [1, 1], members: [-1] },
+  // LIT {-1-0i}          -> cell [1 1] {double [1 1] [-1]}
+  { literal: '{-1-0i}', dims: [1, 1], members: [-1] },
+  // LIT {0 + 0i}         -> cell [1 1] {double [1 1] [0]}
+  { literal: '{0 + 0i}', dims: [1, 1], members: [0] },
+  // LIT {0+0i}           -> cell [1 1] {double [1 1] [0]}
+  { literal: '{0+0i}', dims: [1, 1], members: [0] },
+  // LIT {-0 + 0i}        -> cell [1 1] {double [1 1] [0]}
+  { literal: '{-0 + 0i}', dims: [1, 1], members: [0] },
+  // LIT {-0+0i}          -> cell [1 1] {double [1 1] [0]}
+  { literal: '{-0+0i}', dims: [1, 1], members: [0] },
+  // LIT {-0 - 0i}        -> cell [1 1] {double [1 1] [-0]}
+  { literal: '{-0 - 0i}', dims: [1, 1], members: [-0] },
+  // LIT {-0-0i}          -> cell [1 1] {double [1 1] [-0]}
+  { literal: '{-0-0i}', dims: [1, 1], members: [-0] },
+  // LIT {- 0 - 0i}       -> cell [1 1] {double [1 1] [-0]}
+  { literal: '{- 0 - 0i}', dims: [1, 1], members: [-0] },
+  // LIT {Inf + 0i}       -> cell [1 1] {double [1 1] [Inf]}
+  { literal: '{Inf + 0i}', dims: [1, 1], members: [Infinity] },
+  // LIT {-Inf - 0i}      -> cell [1 1] {double [1 1] [-Inf]}
+  { literal: '{-Inf - 0i}', dims: [1, 1], members: [-Infinity] },
+  // LIT {NaN + 0i}       -> cell [1 1] {double [1 1] [NaN]}
+  { literal: '{NaN + 0i}', dims: [1, 1], members: [NaN] },
+  // LIT {NaN - 0i}       -> cell [1 1] {double [1 1] [NaN]}
+  { literal: '{NaN - 0i}', dims: [1, 1], members: [NaN] },
+  // LIT {1 + 0j}         -> cell [1 1] {double [1 1] [1]}
+  { literal: '{1 + 0j}', dims: [1, 1], members: [1] },
+  // LIT {2.5 - 0.0i}     -> cell [1 1] {double [1 1] [2.5]}
+  { literal: '{2.5 - 0.0i}', dims: [1, 1], members: [2.5] },
+  // LIT {1e3 + 0e2i}     -> cell [1 1] {double [1 1] [1000]}
+  { literal: '{1e3 + 0e2i}', dims: [1, 1], members: [1000] },
+  // LIT {1 + 1e-400i}    -> cell [1 1] {double [1 1] [1]}
+  { literal: '{1 + 1e-400i}', dims: [1, 1], members: [1] },
+  // LIT {1 +0i}          -> cell [1 2] {double [1 1] [1] ; double [1 1] [0]}
+  { literal: '{1 +0i}', dims: [1, 2], members: [1, 0] },
+  // LIT {0i + 1}         -> cell [1 1] {double [1 1] [1]}
+  { literal: '{0i + 1}', dims: [1, 1], members: [1] },
+  // LIT {0i+1}           -> cell [1 1] {double [1 1] [1]}
+  { literal: '{0i+1}', dims: [1, 1], members: [1] },
+  // LIT {0i - 1}         -> cell [1 1] {double [1 1] [-1]}
+  { literal: '{0i - 1}', dims: [1, 1], members: [-1] },
+  // LIT {0i-1}           -> cell [1 1] {double [1 1] [-1]}
+  { literal: '{0i-1}', dims: [1, 1], members: [-1] },
+  // LIT {-0i + 1}        -> cell [1 1] {double [1 1] [1]}
+  { literal: '{-0i + 1}', dims: [1, 1], members: [1] },
+  // LIT {- 0i + 1}       -> cell [1 1] {double [1 1] [1]}
+  { literal: '{- 0i + 1}', dims: [1, 1], members: [1] },
+  // LIT {-0i - 1}        -> cell [1 1] {double [1 1] [-1]}
+  { literal: '{-0i - 1}', dims: [1, 1], members: [-1] },
+  // LIT {0i + 0}         -> cell [1 1] {double [1 1] [0]}
+  { literal: '{0i + 0}', dims: [1, 1], members: [0] },
+  // LIT {0i - 0}         -> cell [1 1] {double [1 1] [0]}
+  { literal: '{0i - 0}', dims: [1, 1], members: [0] },
+  // LIT {-0i - 0}        -> cell [1 1] {double [1 1] [-0]}
+  { literal: '{-0i - 0}', dims: [1, 1], members: [-0] },
+  // LIT {-0i + 0}        -> cell [1 1] {double [1 1] [0]}
+  { literal: '{-0i + 0}', dims: [1, 1], members: [0] },
+  // LIT {0i + Inf}       -> cell [1 1] {double [1 1] [Inf]}
+  { literal: '{0i + Inf}', dims: [1, 1], members: [Infinity] },
+  // LIT {0i - Inf}       -> cell [1 1] {double [1 1] [-Inf]}
+  { literal: '{0i - Inf}', dims: [1, 1], members: [-Infinity] },
+  // LIT {0i + NaN}       -> cell [1 1] {double [1 1] [NaN]}
+  { literal: '{0i + NaN}', dims: [1, 1], members: [NaN] },
+  // LIT {0j + 2}         -> cell [1 1] {double [1 1] [2]}
+  { literal: '{0j + 2}', dims: [1, 1], members: [2] },
+  // LIT {0.0i + .5}      -> cell [1 1] {double [1 1] [0.5]}
+  { literal: '{0.0i + .5}', dims: [1, 1], members: [0.5] },
+  // LIT {0i +1}          -> cell [1 2] {double [1 1] [0] ; double [1 1] [1]}
+  { literal: '{0i +1}', dims: [1, 2], members: [0, 1] },
+  // LIT {1, 0i}          -> cell [1 2] {double [1 1] [1] ; double [1 1] [0]}
+  { literal: '{1, 0i}', dims: [1, 2], members: [1, 0] },
+  // LIT {0i, 1 + 0i}     -> cell [1 2] {double [1 1] [0] ; double [1 1] [1]}
+  { literal: '{0i, 1 + 0i}', dims: [1, 2], members: [0, 1] },
+  // LIT {0i; 1 + 0i}     -> cell [2 1] {double [1 1] [0] ; double [1 1] [1]}
+  { literal: '{0i; 1 + 0i}', dims: [2, 1], members: [0, 1] },
+  // LIT {1 + 0i, 2i + 1} -> cell [1 2] {double [1 1] [1] ; double complex [1 1] [1,2i]}
+  { literal: '{1 + 0i, 2i + 1}', dims: [1, 2], members: [1, { re: 1, im: 2 }] },
+  // LIT {1, - 0i}        -> cell [1 2] {double [1 1] [1] ; double [1 1] [-0]}
+  { literal: '{1, - 0i}', dims: [1, 2], members: [1, -0] },
+  // LIT {1 + 0.5i}       -> cell [1 1] {double complex [1 1] [1,0.5i]}
+  { literal: '{1 + 0.5i}', dims: [1, 1], members: [{ re: 1, im: 0.5 }] },
+  // LIT {0.5i + 1}       -> cell [1 1] {double complex [1 1] [1,0.5i]}
+  { literal: '{0.5i + 1}', dims: [1, 1], members: [{ re: 1, im: 0.5 }] },
 ];
 
 /**
@@ -201,6 +365,76 @@ describe('a cell member that opens with a sign or its imaginary part is what MAT
     expect(parsed, literal).not.toBeNull();
     expect(parsed!.dims).toEqual(dims);
     expect((parsed!.value as unknown[]).map(memberOf)).toEqual(members.map(expected));
+  });
+
+  it('refuses a lone sign, which MATLAB cannot read either', () => {
+    // LIT {-}              -> ERROR Error: Unexpected '}'. When calling a function or indexing a variable, use parentheses. Otherwise, check for mismatched delimiters.
+    // LIT {+}              -> (the same)
+    // Held as the char '-' or '+' before, a value MATLAB never makes of the text.
+    for (const literal of ['{-}', '{+}']) {
+      expect(MatlabValueParser.parse(literal), literal).toBeNull();
+    }
+  });
+
+  it('keeps a bare word, which holds no operator, as the text it was', () => {
+    // LIT {abc}            -> ERROR Unrecognized function or variable 'abc'.
+    // MATLAB looks the name up. This reader holds it as text the table can show, as it always
+    // has (cellElementShape.test.ts); only a span that would have to be computed is refused.
+    expect(MatlabValueParser.parse('{abc}')).toEqual({ type: 'cell', value: ['abc'], dims: [1, 1] });
+    expect(MatlabValueParser.parse('{a_b, c1}')).toEqual({ type: 'cell', value: ['a_b', 'c1'], dims: [1, 2] });
+    // The operator check is on the bare member alone, not on the row it sits in: a word beside a
+    // member that holds a sign, an exponent, a quoted '-' or a signed array element is still text,
+    // and that member is read as it always was.
+    expect(MatlabValueParser.parse('{abc, -2}')).toEqual({ type: 'cell', value: ['abc', -2], dims: [1, 2] });
+    expect(MatlabValueParser.parse('{abc, 1e-3}')).toEqual({ type: 'cell', value: ['abc', 0.001], dims: [1, 2] });
+    expect(MatlabValueParser.parse("{abc, 'x-y'}")).toEqual({ type: 'cell', value: ['abc', 'x-y'], dims: [1, 2] });
+    expect(MatlabValueParser.parse('{abc, [1 -2]}')).toEqual({ type: 'cell', value: ['abc', [1, -2]], dims: [1, 2] });
+    expect(MatlabValueParser.parse('{-2, abc}')).toEqual({ type: 'cell', value: [-2, 'abc'], dims: [1, 2] });
+  });
+
+  it.each(ZERO_IMAGINARY)('$literal holds the real double MATLAB makes of a zero imaginary part', ({ literal, dims, members }) => {
+    const parsed = MatlabValueParser.parse(literal);
+    expect(parsed, literal).not.toBeNull();
+    expect(parsed!.dims).toEqual(dims);
+    // A real member is a number, compared exactly: a -0 is MATLAB's -0.
+    expect((parsed!.value as unknown[]).map(memberOf)).toEqual(members.map(expected));
+  });
+
+  it('holds a zero imaginary part in a nested cell as a real double too', () => {
+    // LIT {{0i}}           -> cell [1 1] {cell [1 1] {double [1 1] [0]}}
+    // LIT {{1 + 0i}}       -> cell [1 1] {cell [1 1] {double [1 1] [1]}}
+    // LIT {{0i + 1}}       -> cell [1 1] {cell [1 1] {double [1 1] [1]}}
+    for (const [literal, real] of [['{{0i}}', 0], ['{{1 + 0i}}', 1], ['{{0i + 1}}', 1]] as const) {
+      expect((MatlabValueParser.parse(literal)!.value as unknown[])[0], literal).toEqual({
+        _array_type: 'Cell',
+        _dimensions: [1, 1],
+        _elements: [real],
+        _mw_element_type: 'MATLABArray',
+      });
+    }
+  });
+
+  it('leaves a zero imaginary part at the top level as it was, and a complex array member refused', () => {
+    // LIT 0i               -> double [1 1] [0]
+    // LIT -0i              -> double [1 1] [-0]
+    // LIT 1 + 0i           -> double [1 1] [1]
+    // LIT 1+0i             -> double [1 1] [1]
+    // LIT 0i + 1           -> double [1 1] [1]
+    // MATLAB makes a real double at the top level too. The change is for a cell's member only:
+    // the top level is what an element of a complex array takes (MatlabVariableNode.
+    // _setConstrainedValue), which has to stay complex, and what a complex value shown as
+    // `1+0i` is set back from (complexNegativeZeroShown.test.ts).
+    expect(MatlabValueParser.parse('0i')).toEqual({ type: 'complex', value: '0+0i' });
+    expect(MatlabValueParser.parse('-0i')).toEqual({ type: 'complex', value: '0+0i' });
+    expect(MatlabValueParser.parse('1 + 0i')).toEqual({ type: 'complex', value: '1+0i' });
+    expect(MatlabValueParser.parse('1+0i')).toEqual({ type: 'complex', value: '1+0i' });
+    expect(MatlabValueParser.parse('0i + 1')).toBeNull();
+    // LIT {[0i 1]}         -> cell [1 1] {double [1 2] [0 1]}
+    // LIT {[1+0i 2]}       -> cell [1 1] {double [1 2] [1 2]}
+    // An array literal holds no complex element in this parser (parseArray), so these were
+    // refused before, and still are.
+    expect(MatlabValueParser.parse('{[0i 1]}')).toBeNull();
+    expect(MatlabValueParser.parse('{[1+0i 2]}')).toBeNull();
   });
 
   it('leaves the top level and arrays as they were: refused, not read', () => {
@@ -337,8 +571,41 @@ for (const { format, file } of FORMATS) {
       }
     });
 
+    it.each(ZERO_IMAGINARY)('$literal, typed as the Value, holds a zero imaginary part as MATLAB does', ({ literal, dims, members }) => {
+      const { session, entry } = openCCplx(file);
+      expect(session.editProperty(entry.id, 'Value', literal), literal).toBe(true);
+      expect(entry.children).toHaveLength(dims[0] * dims[1]);
+      expect(rows(entry)).toEqual(members.map(shownAs));
+    });
+
+    // A real member is written as every real member is: bare in a text dictionary, and
+    // `<Element Class="double">` in a binary one, `-0.0` for a -0. MATLAB read those spellings
+    // back as these doubles above (`{1, - 2, ...}` and the `- 0` of cStr).
+    it('saves {0i + 1, - 0i, 1 + 0i, 2i + 1} with the real members MATLAB makes, and reopens it the same', () => {
+      const { session, root, entry } = openCCplx(file);
+      expect(session.editProperty(entry.id, 'Value', '{0i + 1, - 0i, 1 + 0i, 2i + 1}')).toBe(true);
+      const shown = [['double', '1'], ['double', '0'], ['double', '1'], ['double (complex)', '1+2i']];
+      expect(rows(entry)).toEqual(shown);
+
+      const { saved, reopened } = saveAndReopen(session, root, file);
+      if (format === 'text') {
+        // The text form writes a -0 as 0, as MATLAB does there.
+        const elements = textValue(saved, 'cCplx')._elements;
+        expect(elements.slice(0, 3)).toEqual([1, 0, 1]);
+        expect(elements[3]._type).toBe('cdata');
+      } else {
+        expect(binaryValue(saved.bytes, 'cCplx').match(/<Element[\s\S]*?<\/Element>/g)).toEqual([
+          '<Element Class="double">1.0</Element>',
+          '<Element Class="double">-0.0</Element>',
+          '<Element Class="double">1.0</Element>',
+          '<Element Class="double" IsComplex="1">1.0+2.0i</Element>',
+        ]);
+      }
+      expect(rows(entryOf(reopened, 'cCplx'))).toEqual(shown);
+    });
+
     it('refuses a sign after a term and a member it would have to compute, leaving the value as it was', () => {
-      for (const literal of ['{[1] - 2}', "{'a' - 2}", '{- 2 - 3}', '{i + 1i}', '{- -2}']) {
+      for (const literal of ['{[1] - 2}', "{'a' - 2}", '{- 2 - 3}', '{i + 1i}', '{- -2}', '{1+2}', '{a+b}', '{-a}', '{2i+3i}']) {
         const { session, entry } = openCCplx(file);
         const result = session.editProperty(entry.id, 'Value', literal);
         expect(result, literal).toMatchObject({ error: true, reason: 'Invalid MATLAB expression' });

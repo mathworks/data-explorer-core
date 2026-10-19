@@ -9,7 +9,8 @@ read-only, and a Value edit is refused: the MATLAB class has no Value.
 **Verified against:** MATLAB R2027a (27.1.0.3409468), 2026-10-16 and 2026-10-18: the bank `vbD`
 MATLAB wrote into `test/fixtures/classes_r2027a_{text,binary}.sldd` (`make_classes_r2027a.m`), and
 the banks `vbN`, `vb1` and `vbD` in `test/fixtures/variantbank_r2027a_{text,binary}.sldd`
-(`make_variantbank_r2027a.m`, which also prints every setter rule and load result below)
+(`make_variantbank_r2027a.m`, which also prints every setter rule and load result below); and,
+2026-10-18, R2026b's plain spelling of those banks (`test/parity/matlab/probe_variantbank_plain.m`)
 
 ## Overview
 
@@ -41,7 +42,9 @@ dictionary, and nothing beside it.
 
 The Property Inspector shows Description last under General (as ConfigSet's) and the other four
 under "Variant Bank" (`classes/variantBank.json`). The four declare the envelope as their source
-key, so the PI no longer lists it as a stray `Other._saveobj` row.
+key, so the PI no longer lists it as a stray `Other._saveobj` row; and their plain property
+(R2026b's spelling, below), so the PI lists none of those as `Other` rows either. A plain Hidden
+BankCoderInfo, which no row shows, is listed under `Other`, read-only, as read.
 
 ## The rules, measured
 
@@ -124,16 +127,52 @@ Following MATLAB (the 2026-10-16 ruling, group E, C-168), as a bus element does
 Locked by `test/variantBankNoValue.test.ts` (both formats, and `createDefault`) and the
 `READ_ONLY` row of `test/variantLeafNodes.test.ts`.
 
+## R2026b's spelling: plain properties
+
+A text dictionary R2026b wrote holds a bank as plain properties, with no envelope, as it holds a
+coder info (`Simulink.VariantBankCoderInfo.md`): `"_elements": [{"_id": "1", "_properties":
+{...}}]`. The node used to read the bank out of the envelope alone, so there the four Variant Bank
+cells showed their defaults (`''` and `{}`), the file's own values showed only as `Other` rows,
+and every edit, the Description's included, was refused as having nowhere to be saved.
+
+What R2027a reads of that spelling was measured on synthetic files: the R2027a text fixture with
+its banks and coder infos respelled so, each with one hand edit
+(`test/parity/matlab/variantbank_plain.mjs` makes them, `probe_variantbank_plain.m` opens them,
+`variantbank_plain.truth.json` records what MATLAB read). MATLAB reads the bag property by
+property, through the setters, and gives no warning:
+
+- As written, a bank is read as written, in MATLAB's spelling (`V==1` as `V == 1`, a 2x1 cell as
+  1x2), and the order of the keys does not matter.
+- A value a setter refuses is read as that property's default **alone**, not the whole bank as
+  from an envelope: a Name `1bad`, `rtX` or `5` as `''`, an AllChoicesCoderInfo `1bad` or `5`, an
+  ActiveChoiceCoderInfo `1bad` and a BankCoderInfo `1bad` as `''`, a Description `5` as `''`; a
+  condition that does not parse, is empty, is not text or is past int32 as no conditions.
+- A char VariantConditions (`'V==1'`), which the setter refuses, is read as no conditions, where
+  an envelope's is read as a cell of that one condition; a number as no conditions too.
+- BankCoderInfo is read independently of the two coder infos: an AllChoicesCoderInfo `ciB` beside
+  a BankCoderInfo `ciA`, before it or after it, is read as `ciB`, and a BankCoderInfo `''` or
+  `ciB` beside two `ciA` leaves them `ciA`.
+- A field the bag does not have is read as its default; a Value key, or a key the class does not
+  have, is ignored.
+
+So, as for a coder info, where a bag has no envelope the node reads the five (and BankCoderInfo)
+from, and writes an edit into, the plain properties, in MATLAB's spelling, and invents no
+envelope. The edit rules are the envelope's. A field the bag does not have takes no edit, as
+from an envelope. The warnings say what MATLAB does there: one property's default, not the whole
+bank's, and a char VariantConditions is reported as not a cell. MATLAB read core's own saves of
+such a bank back as written (2026-10-18: every field of the default bank edited, with a 2x2 cell
+of four conditions and a two-line Description; vbN's fields cleared; conditions typed as a string
+array; and vb1's AllChoicesCoderInfo edited beside its BankCoderInfo).
+
+Locked by `test/variantBankFields.test.ts`, which grades its reading of each case against the
+truth.
+
 ## Open questions / deferred
 
 - C-168 option (b) is done for the saveobj envelope R2027a writes. The vscode table needs four
   columns for the bank's own properties (`bankName`, `variantConditions`, `allChoicesCoderInfo`,
   `activeChoiceCoderInfo`) before they can be edited there.
-- R2026b's spelling is not read yet. A text dictionary R2026b wrote holds a bank as plain
-  properties with no envelope (`~/delite/textsldd/dd.sldd`, `textsldd/ddCopy.sldd` and
-  `mix/dd_json.sldd`, all three at the defaults). There the four Variant Bank cells show their
-  defaults (`''` and `{}`), the file's own values show only as `Other` rows (its Name in none),
-  and an edit of any of them, the Description's included, is refused, as having nowhere to be
-  saved; the bank is saved as read. `VariantBankCoderInfoNode` reads the same spelling
-  (`Simulink.VariantBankCoderInfo.md`), and the bank should too, after measuring how R2027a reads
-  a bank so spelled, which was not measured here. A follow-up item.
+- A condition holding an integer past int32 (`V == 2147483648`), which MATLAB's setter refuses,
+  is not warned of in either spelling: `conditionCannotParse` does not check the range. MATLAB
+  reads it from an envelope as the whole bank's defaults (the SET lines), and from R2026b's plain
+  properties as no conditions (`probe_variantbank_plain.m`, `h_cond_int32`). A follow-up item.

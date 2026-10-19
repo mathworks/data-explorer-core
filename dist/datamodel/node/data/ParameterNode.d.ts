@@ -12,10 +12,6 @@ export default class ParameterNode extends DataNode {
     Max: number | undefined;
     Unit: string;
     Description: string;
-    _preCollapseShape: {
-        of: BaseNode;
-        props: Record<string, unknown>;
-    } | null;
     constructor(name: string, parent: BaseNode | null, props: Record<string, unknown>, serial: Record<string, unknown>);
     get icon(): string;
     get className(): string;
@@ -31,8 +27,11 @@ export default class ParameterNode extends DataNode {
     _adoptValueNode(rawValue: unknown, edited?: boolean): void;
     static _needsValueRow(valueNode: BaseNode): boolean;
     childStructureChanged(child: BaseNode): void;
-    _collapseShape(valueNode: BaseNode): void;
-    _restoreShape(valueNode: BaseNode): void;
+    _followValueShape(): void;
+    _shapeFromValue(): {
+        dims: number[];
+        complexity: string | null;
+    } | null;
     get isObjectPropertyBag(): boolean;
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;

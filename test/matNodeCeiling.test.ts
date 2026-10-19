@@ -11,15 +11,17 @@
 //
 // Every case opens the file through MatNode.fromParsed, the path addMatSource takes, twice:
 // once under the ceiling the case is about and once with no ceiling it can reach, which is the
-// tree every file opened as before. What a cut tree shows is graded against that one.
+// tree every file opened as before. What a cut tree shows is graded against that one. The last
+// case opens other files after a .mat one, to see that the ceiling was armed for that file alone.
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deflateSync } from 'node:zlib';
-import { createSession } from '../src/index.js';
+import { createSession, ingest } from '../src/index.js';
 import MatNode from '../src/datamodel/node/container/MatNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
+import { buildUnderCeiling } from '../src/datamodel/node/data/matNodeCeiling.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { encodeMatStream } from '../src/datamodel/parser/MatWriter.js';
 import { MAT_NODE_CEILING } from '../src/datamodel/display/DisplayConvention.js';
@@ -367,5 +369,45 @@ describe('a .mat file past its node ceiling', () => {
     // And its copy is the whole struct.
     const value = JSON.parse(copied(big)).value;
     expect([value._dimensions, value._elements.length, value._elements[299_999]]).toEqual([[1, 300_000], 300_000, { v: 299_999 }]);
+  });
+
+  it('is armed only while a .mat file is built: what opens after one used up, or after a build that threw, is whole', () => {
+    // matNodeCeiling arms the ceiling for one .mat file's tree and sets it back in a finally.
+    // Nothing else is built under it: a text dictionary's cdata and a binary one's hex, each a
+    // value read out of a MAT stream, and a model's workspace. Each holds sparse arrays, built
+    // with their rows as a .mat file's are. A ceiling left armed, used up, would build them
+    // with none.
+    // Each opened on its own: how many nodes, how many of them a MAT stream's value built with
+    // rows, and which have none (`_cutByCeiling`).
+    const others = (): [string, number, number, string[]][] =>
+      ['sparse_text.sldd', 'sparse_binary.sldd', 'sparse_ws.slx'].map((name) => {
+        const u8 = new Uint8Array(readFileSync(fileURLToPath(new URL('fixtures/sparse/' + name, import.meta.url))));
+        const source: Any = ingest(createSession(), u8.buffer as ArrayBuffer, { filename: name });
+        const nodes = nodesUnder(source);
+        const withRows = nodes.filter((n) => n._matVar && n.children.length > 0).length;
+        return [name, nodes.length, withRows, nodes.filter((n) => n._cutByCeiling).map((n) => n.matlabPath)];
+      });
+    const before = others();
+    for (const [name, , withRows, cut] of before) {
+      expect([name, withRows > 0, cut]).toEqual([name, true, []]);
+    }
+
+    // A .mat file whose ceiling is used up: everything after its first variable has no rows.
+    const { root, warnings } = open(everyKind(), 21);
+    expect([shownWithoutContents(root).length, warnings.map((w) => w.code)]).toEqual([12, ['part-not-expanded']]);
+    expect(others()).toEqual(before);
+
+    // A build that throws after it used up its ceiling: the throw reaches the caller, and the
+    // ceiling is not left armed.
+    const parsed = parseMat(everyKind());
+    const thrown = (): unknown =>
+      buildUnderCeiling(21, () => {
+        const node = new MatNode('threw.mat');
+        MatNode._addVariables(node, parsed);
+        expect(shownWithoutContents(node).length).toBe(12);
+        throw new Error('the build failed');
+      });
+    expect(thrown).toThrow('the build failed');
+    expect(others()).toEqual(before);
   });
 });

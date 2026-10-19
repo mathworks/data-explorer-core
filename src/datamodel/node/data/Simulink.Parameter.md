@@ -136,6 +136,25 @@ the custom-class scoping guard).
   **"There is no enumerated value named 'X'."**
   Not currently exposed in our UI editor.
 
+### Dimensions and Complexity follow the Value
+
+MATLAB keeps both as the Value's. It refuses a numeric Dimensions other than the Value's size
+(`Simulink:Data:UDDData_CannotSetCustomDimensions`) and any Complexity set
+(`Simulink:Data:UDDData_CannotSetComplexity`). After an edit of the Value, both are the Value's
+size and complexity. Measured for every edit core makes by
+`test/parity/matlab/probe_parameter_shape.m` (R2027a, truth `parameter_shape.truth.json`).
+Exceptions:
+
+- a symbolic Dimensions (`'[1,N]'`) is kept;
+- an empty Value keeps both: `[]` typed over a `[1 3]` complex row leaves `[1 3]` and `complex`;
+- a struct Value keeps its Complexity;
+- text is a string scalar: `'abc'` and `''` give `[1 1]` and `real`.
+
+`ParameterNode._followValueShape` sets both from the Value after every edit: an Add, a removal,
+a Value typed on the Parameter, on its Value row or on one of its elements, and the undo or redo
+of each. Each is set only where the file holds it. The undo of a Value typed in puts back what
+the two held (`_restorerFor`). Test: `test/parameterShape.test.ts`.
+
 ## Allowed values (enums / comboboxes)
 
 | Property     | Accepted set                 | Rejection message |

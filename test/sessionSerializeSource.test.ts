@@ -362,6 +362,17 @@ describe('a textual .sldd save that changes nothing is the file it read', () => 
     expect(savedText('bus_types_text.sldd')).toBe(textOf('bus_types_text.sldd'));
   });
 
+  it('saves params.sldd, untouched, as the bytes of the file', () => {
+    // MATLAB-written. Its MyConnBus holds one element, which MATLAB writes as the element itself,
+    // `{_id, _object_class, _properties}`, and the save rebuilt as the array, `{_array_class,
+    // _dimensions: [1, 1], _elements}`: the save differed from the file at byte 4731 (B-24).
+    const input = readFileSync(fileURLToPath(new URL('./parity/artifacts/text/params.sldd', import.meta.url)), 'utf8');
+    const s = createSession();
+    ingest(s, new TextEncoder().encode(input).buffer as ArrayBuffer, { filename: 'params.sldd' });
+    const out = s.serializeSource('params.sldd')!;
+    expect(out.kind === 'text' ? out.text : '').toBe(input);
+  });
+
   it('adds no _mw_element_type to a text bus that is edited, and keeps one that was read', () => {
     // arch.sldd's buses were read without the key; typeLink.sldd's with it.
     const arch = load('arch.sldd');

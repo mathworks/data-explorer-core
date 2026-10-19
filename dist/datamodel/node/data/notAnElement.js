@@ -22,6 +22,9 @@ function spelled(v) {
     if (typeof v === 'string') {
         return v.length <= 24 ? JSON.stringify(v) : 'a string';
     }
+    if (typeof v === 'object') {
+        return 'an object';
+    }
     return String(v);
 }
 /**
@@ -49,5 +52,17 @@ export function reportNotElements(elements, name, noun, owner) {
         + `(${found.join(', ')}); ${one ? 'it is' : 'they are'} not shown, and an edit to the ${owner} `
         + `drops ${one ? 'it' : 'them'} from the file.`);
     return true;
+}
+/**
+ * Say that the entry `name` holds `value`, which is not a list (an array), where its list of
+ * elements belongs: a hand edit can leave a number, a string, an object or a `null` there, which
+ * MATLAB never writes. Read as a list, any but the `null` failed the whole dictionary (`forEach is
+ * not a function`), and the `null` opened with nothing said and an untouched save wrote the list
+ * as `[]`. The reader shows no element for it, and keeps the value as read, as reportNotElements
+ * says; recorded the same way, so it is one `part-unreadable` warning against the entry.
+ */
+export function reportNotAList(value, name, noun, owner) {
+    recordPartialDecode(`"${name}" holds ${spelled(value)} where its list of ${noun}s belongs; it is not shown, `
+        + `and an edit to the ${owner} drops it from the file.`);
 }
 //# sourceMappingURL=notAnElement.js.map

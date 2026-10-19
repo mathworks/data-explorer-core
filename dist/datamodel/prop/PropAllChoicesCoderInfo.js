@@ -8,8 +8,9 @@ export default class PropAllChoicesCoderInfo {
     static { this.displayName = 'All Choices Coder Info'; }
     static { this.editor = 'text'; }
     static { this.column = 'allChoicesCoderInfo'; }
-    // Read out of the saveobj envelope, so the "Other" group does not list the envelope again.
-    static { this.sourceKeys = [SAVEOBJ_KEY]; }
+    // Read out of the saveobj envelope, or the plain property a text dictionary R2026b wrote, so
+    // the "Other" group lists neither again.
+    static { this.sourceKeys = [SAVEOBJ_KEY, 'AllChoicesCoderInfo']; }
     static { this.format = formatText; }
 }
 //# sourceMappingURL=PropAllChoicesCoderInfo.js.map

@@ -13,7 +13,7 @@ import PropDataType from '../../prop/PropDataType.js';
 import PropDescription from '../../prop/PropDescription.js';
 import PropKind from '../../prop/PropKind.js';
 import PropClassAtom from '../../prop/PropClass.js';
-import { isElement, reportNotElements } from './notAnElement.js';
+import { isElement, reportNotAList, reportNotElements } from './notAnElement.js';
 import { elementOriginAt, originOf, recordElementOrigins, recordOrigin, taggingOrigins } from '../../parser/EntrySource.js';
 
 const CLASS_NAME = 'Simulink.data.dictionary.EnumTypeDefinition';
@@ -176,7 +176,7 @@ export class EnumTypeNode extends DataNode {
         const enumerals = ((props.Enumerals) || {}) as Record<string, unknown>;
         const serial = { _rawVal: rawVal, _properties: props, _rawEnumerals: enumerals };
         const node = new EnumTypeNode(name, parent, props, serial as Record<string, unknown>);
-        if (enumerals._elements) {
+        if (Array.isArray(enumerals._elements)) {
             (enumerals._elements as Record<string, unknown>[]).forEach(function (en, index) {
                 // An enumeral that is not one (a hand-edited `null`, number or string) gets no
                 // row; reported after the loop.
@@ -192,6 +192,11 @@ export class EnumTypeNode extends DataNode {
             if (reportNotElements(enumerals._elements as unknown[], name, 'enumeral', 'enumeration')) {
                 node._keepNullElement(rawVal);
             }
+        } else if (enumerals._elements !== undefined) {
+            // A list of enumerals that is not a list (a hand-edited number, string, object or
+            // `null`): no row, said once, and the value kept as read (C-190).
+            reportNotAList(enumerals._elements, name, 'enumeral', 'enumeration');
+            node._keepNullElement(rawVal);
         }
         return node;
     }
