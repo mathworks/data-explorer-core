@@ -642,7 +642,8 @@ describe.each(FORMATS)('VariantBankCoderInfo fields (%s): a MATLAB-written coder
 // Each edit, by the column id the table sends: what it is typed as, the field it writes, and
 // what is written there (and shown after). The odd-looking ones are MATLAB's own edges: it keeps
 // a leading space, takes any '.'-separated parts after the first, takes a header file name of up
-// to 255 characters (in each part of a path), and takes a definition file of any extension or none.
+// to 255 characters (in each part of a path), and takes a definition file of any extension or none,
+// and of any length: the header file's 255 is not a rule for it.
 const CI_EDITS = [
   { column: 'headerFile', typed: 'x.h', field: 'HeaderFile', written: 'x.h' },
   { column: 'headerFile', typed: 'x.hpp', field: 'HeaderFile', written: 'x.hpp' },
@@ -667,6 +668,9 @@ const CI_EDITS = [
   { column: 'definitionFile', typed: 'a.1', field: 'DefinitionFile', written: 'a.1' },
   { column: 'definitionFile', typed: 'int', field: 'DefinitionFile', written: 'int' },
   { column: 'definitionFile', typed: '', field: 'DefinitionFile', written: '' },
+  // 302 characters, which MATLAB takes (the coder info SET lines), where a header file of that
+  // length is refused (CI_REFUSED).
+  { column: 'definitionFile', typed: 'a'.repeat(300) + '.c', field: 'DefinitionFile', written: 'a'.repeat(300) + '.c' },
   { column: 'preStatement', typed: '#pragma x', field: 'PreStatement', written: '#pragma x' },
   { column: 'preStatement', typed: 'a\nb', field: 'PreStatement', written: 'a\nb' },
   { column: 'preStatement', typed: '  x  ', field: 'PreStatement', written: '  x  ' },
