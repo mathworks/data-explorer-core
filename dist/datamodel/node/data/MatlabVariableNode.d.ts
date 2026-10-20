@@ -240,7 +240,7 @@ export default class MatlabVariableNode extends DataNode {
     _shapeAfter(parsed: ParsedValue): ValueShape;
     _isConstrainedChild(): boolean;
     _setConstrainedValue(stringValue: string): true | SetPropertyResult;
-    _markModified(): void;
+    _markModified(edit?: 'value' | 'name'): void;
     _syncElementFromChild(child: BaseNode): void;
     _applyParsed(parsed: {
         type: string;

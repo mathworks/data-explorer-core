@@ -133,6 +133,23 @@ export declare function encodeMatStream(v: MatVariable): Uint8Array;
  */
 export declare function matStreamOfElement(raw: Uint8Array): Uint8Array | null;
 /**
+ * The miMATRIX element `raw` holds as read, named `name`: the inverse of ownElement, for a
+ * variable of a MAT-file, which carries its name in its element as a stream's value does not.
+ * Every byte but the name subelement's is copied, and the element's size restated, so a
+ * variable renamed and saved is the value it was, byte for byte, whatever this writer would
+ * write for it. Null when the bytes are not a whole element whose name this can find.
+ *
+ * An MCOS object's element (class 17) is renamed as well: its name comes straight after its
+ * array flags, with no dimensions before it, and then the type system's name and the object's
+ * class, which are kept. Measured against MATLAB R2027a: the file's subsystem holds no
+ * variable's name, so an object variable renamed this way loads as the same object, a
+ * Simulink.Parameter and a string alike.
+ *
+ * The name is written as MATLAB writes one, miINT8 with its UTF-8 bytes, in the small form
+ * when it is 1 to 4 bytes long (element).
+ */
+export declare function elementNamed(raw: Uint8Array, name: string): Uint8Array | null;
+/**
  * A complex value's plain-text form — `{_type: 'cdata', _value: '1+2i 5+6i 3+4i 7+8i',
  * _dimensions, _class?}`, what BinarySlddParser reads out of a binary dictionary and
  * McosParser.complexPropertyValue builds — as the variable it stands for, or null when it

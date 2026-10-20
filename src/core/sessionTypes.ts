@@ -52,8 +52,8 @@ export interface CreateSessionOptions {
  *
  * `sourceFormat` is the source node's OWN format string — the same vocabulary
  * SourceDTO.sourceFormat publishes ('json' for a textual `.sldd`, 'xml' for a
- * compressed-binary one) — so a consumer can correlate the two without a mapping
- * table of its own.
+ * compressed-binary one, 'mat' for a MAT-file, which is always `binary`) — so a
+ * consumer can correlate the two without a mapping table of its own.
  */
 export type SerializedSource =
   | { kind: 'binary'; sourceFormat: string; bytes: Uint8Array }

@@ -468,7 +468,7 @@ export default class DataNode extends BaseNode {
             // Class="double" element, which made MATLAB refuse to open the whole file.
             const encoded = this._encoded;
             const raw = this._rawInput;
-            this._markModified();
+            this._markModified('name');
             this._encoded = encoded;
             this._rawInput = raw;
             return true;
@@ -657,7 +657,11 @@ export default class DataNode extends BaseNode {
     // edit below it on save. A value read from a stream is read-only (_refuseEncodedEdit and
     // BaseNode's editability), so nothing should reach here from inside one; this is the
     // second line, for whatever does. The rename that keeps it is DataNode.setProperty's.
-    _markModified() {
+    //
+    // `edit` is 'name' for that rename, and only for it. An entry's own rename leaves its value
+    // as it was, and every other edit marks the entry `_valueEdited`; so does the rename of
+    // anything under it, a struct's field, which changes the entry's value.
+    _markModified(edit = 'value') {
         const entry = this.owningEntry;
         for (let node = this; node && node !== entry; node = node.parent) {
             if (node._rawInput !== undefined) {
@@ -669,6 +673,9 @@ export default class DataNode extends BaseNode {
         }
         if (entry) {
             entry.status = 'Modified';
+            if (edit !== 'name' || entry !== this) {
+                entry._valueEdited = true;
+            }
             if (entry._rawInput !== undefined) {
                 entry._rawInput = undefined;
             }

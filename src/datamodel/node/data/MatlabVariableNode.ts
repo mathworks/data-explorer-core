@@ -1607,7 +1607,7 @@ export default class MatlabVariableNode extends DataNode {
   // every MatlabVariableNode above it, because the save path reads `_var` from the
   // TOP-LEVEL variable: a struct field's edit has to make the STRUCT's snapshot
   // stale, not just the field's own. See the _var getter for why.
-  _markModified(): void {
+  _markModified(edit: 'value' | 'name' = 'value'): void {
     let node: BaseNode | null = this;
     while (node instanceof MatlabVariableNode) {
       node._varStale = true;
@@ -1619,7 +1619,7 @@ export default class MatlabVariableNode extends DataNode {
       }
       node = node.parent;
     }
-    super._markModified();
+    super._markModified(edit);
   }
 
   // Push an edited element's new value into this container's _elements slot.

@@ -308,6 +308,13 @@ export default class DataNode extends BaseNode {
   // long as it is still the value: see _adoptEncoded. Undefined on every node but the one
   // a binary dictionary's `Encoding="hex"` element decoded into.
   _encoded?: EncodedValue;
+  // Set on an entry by every edit under it but the entry's own rename (_markModified), and
+  // never cleared, an undo included. `status` is 'Modified' after either, so this is what
+  // tells an entry that was only renamed, whose value is still the bytes it was read from,
+  // from one whose value changed: a MAT-file save writes the first as those bytes with the
+  // new name in them, and the second fresh (MatFileWriter). Left set by an undo, it writes
+  // a value equal to the one read, fresh, which is the safe side.
+  _valueEdited?: boolean;
   rawXml?: string;
   // A semantic classification token (e.g. 'DataInterface', 'StructType') set at
   // parse time for entries the source classifies beyond their Class (currently
@@ -563,7 +570,7 @@ export default class DataNode extends BaseNode {
       // Class="double" element, which made MATLAB refuse to open the whole file.
       const encoded = this._encoded;
       const raw = this._rawInput;
-      this._markModified();
+      this._markModified('name');
       this._encoded = encoded;
       this._rawInput = raw;
       return true;
@@ -755,7 +762,11 @@ export default class DataNode extends BaseNode {
   // edit below it on save. A value read from a stream is read-only (_refuseEncodedEdit and
   // BaseNode's editability), so nothing should reach here from inside one; this is the
   // second line, for whatever does. The rename that keeps it is DataNode.setProperty's.
-  _markModified(): void {
+  //
+  // `edit` is 'name' for that rename, and only for it. An entry's own rename leaves its value
+  // as it was, and every other edit marks the entry `_valueEdited`; so does the rename of
+  // anything under it, a struct's field, which changes the entry's value.
+  _markModified(edit: 'value' | 'name' = 'value'): void {
     const entry = this.owningEntry;
     for (let node: BaseNode | null = this; node && node !== entry; node = node.parent) {
       if ((node as DataNode)._rawInput !== undefined) {
@@ -767,6 +778,9 @@ export default class DataNode extends BaseNode {
     }
     if (entry) {
       entry.status = 'Modified';
+      if (edit !== 'name' || entry !== this) {
+        entry._valueEdited = true;
+      }
       if (entry._rawInput !== undefined) {
         entry._rawInput = undefined;
       }

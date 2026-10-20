@@ -9,6 +9,7 @@ import { parseModel } from '../datamodel/parser/ModelParser.js';
 import { parseMat } from '../datamodel/parser/MatParser.js';
 import { parseProject } from '../datamodel/parser/ProjectParser.js';
 import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js';
+import { serializeMatFile } from '../datamodel/parser/MatFileWriter.js';
 import { catalogFunctionRenames, catalogRenames, scJsonTextWithRenames } from '../datamodel/parser/ScCatalog.js';
 // The name reductions and the expression reading, from the leaf modules that hold the
 // single copy of each. This file used to spell all three itself; the usage index needs
@@ -2049,16 +2050,18 @@ export function createSession(opts = {}) {
      *
      * Null for two distinct absences, deliberately given the same answer: a srcId the
      * session does not hold (the same answer getDataSource gives the same question), and
-     * a source whose format HAS no write path. `.slx`, `.mdl`, `.mat` and `.prj` are
-     * read-only in this package — only `.sldd` has a writer, and only that writer has a
-     * live MATLAB gate behind it. Null rather than a throw because a consumer enumerating
-     * every open source to find the saveable ones should not need a try/catch per source,
-     * and because there is nothing exceptional about a project file not being writable.
+     * a source whose format HAS no write path. `.slx`, `.mdl` and `.prj` are read-only in
+     * this package — `.sldd` and `.mat` have writers. Null rather than a throw because a
+     * consumer enumerating every open source to find the saveable ones should not need a
+     * try/catch per source, and because there is nothing exceptional about a project file
+     * not being writable.
      *
      * Throws for a value in it that no writer may write: one past the unbacked-bytes budget, as
      * a MatBudgetError naming the entry, the path in it and the budget (MatWriter.budgetFailure).
      * Nothing is returned then — no part of a file — and nothing in the session changes, so the
-     * save after the value is fixed or removed is the save there would have been.
+     * save after the value is fixed or removed is the save there would have been. A `.mat` save
+     * throws a MatWriteError the same way, naming the variable or the file, for anything it
+     * cannot write as what it is (MatFileWriter.serializeMatFile).
      *
      * The flavour follows the FILE, not a default: a `.sldd` that arrived as a
      * compressed-binary package is answered with zip bytes and one that arrived as JSON
@@ -2070,6 +2073,13 @@ export function createSession(opts = {}) {
         const source = dataSources.get(srcId);
         if (!source) {
             return null;
+        }
+        // A MAT-file is written as its own records, what was edited written fresh, and is
+        // binary whatever its records are, compressed (`-v7`) or not (`-v6`). An instanceof
+        // for the reason the dictionary's is below: serializeMatFile reaches for the records
+        // and the node bound to each, which only a MatNode built from a parse holds.
+        if (source instanceof MatNode) {
+            return { kind: 'binary', sourceFormat: source.sourceFormat, bytes: serializeMatFile(source) };
         }
         // An instanceof rather than a duck test on serializeJson: serializeBinarySldd
         // reaches for _zipMetadata and _dataSourceAttrs, so a lookalike that merely

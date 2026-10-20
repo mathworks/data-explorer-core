@@ -128,18 +128,29 @@ describe('session.serializeSource', () => {
   });
 
   it('returns null for a read-only format instead of throwing', () => {
-    // .slx / .mdl / .mat / .prj have no write path at all (see docs/TODO.md, "Not
-    // gaps"). A consumer enumerating every open source must not need a try/catch per
-    // source to find that out, and must never be handed bytes that only look like a
-    // file — ModelNode.serialize(), for one, returns a summary object, not a model.
+    // .slx / .mdl / .prj have no write path at all (see docs/TODO.md, "Not gaps"). A
+    // consumer enumerating every open source must not need a try/catch per source to
+    // find that out, and must never be handed bytes that only look like a file —
+    // ModelNode.serialize(), for one, returns a summary object, not a model.
     const s = createSession();
     s.addModelSource('model_with_refs.slx', bytes('model_with_refs.slx'));
-    s.addMatSource('strings.mat', bytes('strings.mat'));
     s.addProjectSource('MyProj.prj', PRJ_STORE);
 
     expect(s.serializeSource('model_with_refs.slx')).toBeNull();
-    expect(s.serializeSource('strings.mat')).toBeNull();
     expect(s.serializeSource('MyProj.prj')).toBeNull();
+  });
+
+  it('answers a MAT-file with its bytes, which unedited are the file it was read from', () => {
+    // A `.mat` is written as its own records, what was edited written fresh
+    // (test/matFileSave.test.ts holds every edit to that), so with nothing edited it is
+    // the file, byte for byte.
+    const s = createSession();
+    const input = bytes('strings.mat');
+    s.addMatSource('strings.mat', input);
+
+    const out = s.serializeSource('strings.mat')!;
+    expect([out.kind, out.sourceFormat]).toEqual(['binary', 'mat']);
+    expect(out.kind === 'binary' ? [...out.bytes] : null).toEqual([...new Uint8Array(input)]);
   });
 
   it('returns null for a srcId the session does not hold', () => {

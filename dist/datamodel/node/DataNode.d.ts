@@ -125,6 +125,7 @@ export default class DataNode extends BaseNode {
     Description?: string;
     _rawInput?: unknown;
     _encoded?: EncodedValue;
+    _valueEdited?: boolean;
     rawXml?: string;
     classification?: string;
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
@@ -165,7 +166,7 @@ export default class DataNode extends BaseNode {
     execAddChild(): ChildAddEdit | null;
     execRemoveChild(_child?: BaseNode): ChildUndoRedo | null;
     _renameField(from: string, to: string): void;
-    _markModified(): void;
+    _markModified(edit?: 'value' | 'name'): void;
     _stampLastModified(): void;
     /**
      * What puts this node back as it stands now: every own field but those in `leaves`, and its
