@@ -43,6 +43,12 @@
 // opened without them. And before the bytes are handed back they are read again, and a record
 // that does not read back as planned refuses the save as well (selfCheck), as does one that breaks
 // a rule MATLAB loads a file by that the file it was read from did not break (MatFileCheck).
+//
+// The editor takes none of the edits refused for what a variable is or where it stands: its gate
+// (MatNode._editRefusal) is built of the refusals exported here (unsavableRefusal,
+// structureRefusal, freshRefusal, renameWhy, PAST_SUBSYSTEM, duplicateWhy), so that an edit it takes
+// is one a save writes, and the two cannot come to disagree. What is left to refuse at the save is
+// what only a value's bytes say: MatWriter's budget, and the two checks of what was written.
 
 import { zlibSync } from 'fflate';
 import { inflateZlib } from './Inflate.js';
@@ -69,9 +75,40 @@ const MI_COMPRESSED = 15;
  */
 export function serializeMatFile(matNode: MatNode): Uint8Array {
   const file = matNode.name;
+  const unsavable = unsavableRefusal(matNode);
+  if (unsavable) {
+    throw unsavable;
+  }
+  const records = matNode.records!;
+  const headerBytes = matNode.headerBytes!;
+
+  const subsystem = subsystemOf(matNode, records);
+  const plan = planOf(matNode, records, subsystem);
+  // Nothing deleted, renamed, edited or added: the file, as it was read.
+  if (plan.length === records.length && plan.every((p, i) => p.kind === 'verbatim' && p.record === records[i])) {
+    return concat([headerBytes, ...records.map((r) => r.bytes)]);
+  }
+  const structure = structureRefusal(matNode, records, subsystem);
+  if (structure) {
+    throw structure;
+  }
+  const assembled = assemble(headerBytes, plan, subsystem);
+  selfCheck(file, assembled.bytes, plan, assembled, headerBytes);
+  refuseWorse(file, assembled.bytes, plan, headerBytes, records);
+  return assembled.bytes;
+}
+
+/**
+ * The refusal of every save of `matNode`, an unedited one included, or null: a tree opened
+ * without the records a save writes back, one whose bytes the host has since handed away, and
+ * a file whose records do not tile it. Asked first by serializeMatFile, and by the editor, which
+ * takes no edit of a file no save can write (MatNode._editRefusal).
+ */
+export function unsavableRefusal(matNode: MatNode): MatWriteError | null {
+  const file = matNode.name;
   const { records, headerBytes } = matNode;
   if (!records || !headerBytes) {
-    throw new MatWriteError(
+    return new MatWriteError(
       'Cannot save "' + file + '": it was opened without the records a save writes back, so a save would lose every one '
         + 'this package did not read. Nothing was written.',
     );
@@ -80,7 +117,7 @@ export function serializeMatFile(matNode: MatNode): Uint8Array {
   // them to a worker afterwards empties: what was not edited would be written as nothing.
   const gone = headerBytes.byteLength !== 128 ? { offset: 0, length: 128, bytes: headerBytes } : records.find((r) => r.bytes.byteLength !== r.length);
   if (gone) {
-    throw new MatWriteError(
+    return new MatWriteError(
       'Cannot save "' + file + '": the bytes it was read from are no longer held (the ' + (gone.offset === 0 ? 'header' : 'record at byte ' + gone.offset)
         + ' holds ' + gone.bytes.byteLength + ' of its ' + gone.length + '), so what was not edited could not be written as it was. '
         + 'Nothing was written.',
@@ -89,24 +126,13 @@ export function serializeMatFile(matNode: MatNode): Uint8Array {
   if (!matNode.framed) {
     const at = matNode.unframed?.at ?? 128;
     const unframedBytes = headerBytes.buffer.byteLength - headerBytes.byteOffset - at;
-    throw new MatWriteError(
+    return new MatWriteError(
       'Cannot save "' + file + '": this package could not frame ' + unframedBytes + ' byte(s) of it, from byte ' + at
         + (matNode.unframed ? ' (' + matNode.unframed.reason + ')' : '')
         + ', so a save could not keep them as they are. Nothing was written.',
     );
   }
-
-  const subsystem = subsystemOf(matNode, records);
-  const plan = planOf(matNode, records, subsystem);
-  // Nothing deleted, renamed, edited or added: the file, as it was read.
-  if (plan.length === records.length && plan.every((p, i) => p.kind === 'verbatim' && p.record === records[i])) {
-    return concat([headerBytes, ...records.map((r) => r.bytes)]);
-  }
-  refuseStructure(matNode, records, subsystem);
-  const assembled = assemble(headerBytes, plan, subsystem);
-  selfCheck(file, assembled.bytes, plan, assembled, headerBytes);
-  refuseWorse(file, assembled.bytes, plan, headerBytes, records);
-  return assembled.bytes;
+  return null;
 }
 
 // ---- The plan: what each record of the file becomes -----------------------------------------
@@ -125,11 +151,11 @@ type Planned =
 type Edit = 'none' | 'name' | 'value';
 
 // The record `matNode`'s header says its subsystem starts at, or null when it says there is none,
-// or names a byte where no unnamed record starts (refuseStructure). By offset, and not by which
+// or names a byte where no unnamed record starts (structureRefusal). By offset, and not by which
 // record has no name: a matrix too short for its own flags reads as unnamed too. And unnamed,
 // because a variable the header points at is a variable, whose edit is written or refused as
 // any other's, and not passed over as the subsystem it is not.
-function subsystemOf(matNode: MatNode, records: MatRecord[]): MatRecord | null {
+export function subsystemOf(matNode: MatNode, records: MatRecord[]): MatRecord | null {
   if (matNode.subsystemOffset === 0) {
     return null;
   }
@@ -171,11 +197,7 @@ function planOf(matNode: MatNode, records: MatRecord[], subsystem: MatRecord | n
     if (edit === 'none') {
       plan.push({ kind: 'verbatim', record });
     } else if (pastSubsystem) {
-      throw refusal(
-        node.name,
-        'it is stored after the file\'s objects, where MATLAB does not read it, so it would not be read written there, '
-          + 'and moved, it would change what MATLAB loads of the file',
-      );
+      throw refusal(node.name, PAST_SUBSYSTEM);
     } else if (edit === 'name') {
       plan.push(renamedOf(node, record));
     } else {
@@ -202,16 +224,24 @@ function editOf(node: BaseNode, record: MatRecord): Edit {
   return node.name !== record.name ? 'name' : 'none';
 }
 
-// A save of a file with an unnamed record that is not its subsystem, or whose header puts its
-// subsystem where no unnamed record starts, cannot place what it writes where MATLAB reads it:
-// measured against MATLAB R2027a, MATLAB lists no variable past the first unnamed record, and a
-// header offset that is not the subsystem's fails the whole load. Asked only of a save that
-// changes the file: one that does not hands back the bytes it was read from.
-function refuseStructure(matNode: MatNode, records: MatRecord[], subsystem: MatRecord | null): void {
+/** Why the edit of a variable stored after the subsystem is refused (planOf, and the editor's gate). */
+export const PAST_SUBSYSTEM =
+  "it is stored after the file's objects, where MATLAB does not read it, so it would not be read written there, "
+  + 'and moved, it would change what MATLAB loads of the file';
+
+/**
+ * The refusal of a save of a file with an unnamed record that is not its subsystem, or whose
+ * header puts its subsystem where no unnamed record starts, or null: such a save cannot place
+ * what it writes where MATLAB reads it. Measured against MATLAB R2027a, MATLAB lists no variable
+ * past the first unnamed record, and a header offset that is not the subsystem's fails the whole
+ * load. Asked only of a save that changes the file: one that does not hands back the bytes it was
+ * read from. So the editor asks it of every edit (MatNode._editRefusal).
+ */
+export function structureRefusal(matNode: MatNode, records: MatRecord[], subsystem: MatRecord | null): MatWriteError | null {
   const file = matNode.name;
   const offset = matNode.subsystemOffset;
   if (offset !== 0 && !subsystem) {
-    throw new MatWriteError(
+    return new MatWriteError(
       'Cannot save "' + file + '": its header places the file\'s objects at byte ' + offset + ', where '
         + (records.some((r) => r.offset === offset) ? 'a variable is' : 'no record starts') + ', so a save cannot say where they are. '
         + 'Nothing was written.',
@@ -219,12 +249,13 @@ function refuseStructure(matNode: MatNode, records: MatRecord[], subsystem: MatR
   }
   const stray = records.find((r) => r.anonymous && r !== subsystem);
   if (stray) {
-    throw new MatWriteError(
+    return new MatWriteError(
       'Cannot save "' + file + '": the record at byte ' + stray.offset + ' holds a value with no name that is not the '
         + 'file\'s objects, and MATLAB reads no variable past one, so a save cannot place an edit where MATLAB reads it. '
         + 'Nothing was written.',
     );
   }
+  return null;
 }
 
 // Two records of one name: MATLAB loads one of them (measured against MATLAB R2027a: `load f`
@@ -238,9 +269,14 @@ function refuseDuplicates(plan: Planned[]): void {
   }
   for (const p of plan) {
     if (p.kind !== 'verbatim' && count.get(p.name)! > 1) {
-      throw refusal(p.name, 'the file holds another variable named "' + p.name + '", and MATLAB loads only one of them');
+      throw refusal(p.name, duplicateWhy(p.name));
     }
   }
+}
+
+/** Why a variable is not written under `name`, which another variable of the file has (refuseDuplicates, and the editor's gate). */
+export function duplicateWhy(name: string): string {
+  return 'the file holds another variable named "' + name + '", and MATLAB loads only one of them';
 }
 
 // The refusal of a save for variable `name`, worded as every refused write is (MatWriter's
@@ -268,13 +304,31 @@ function refuseName(name: string): void {
 function renamedOf(node: BaseNode, record: MatRecord): Planned {
   const name = node.name;
   refuseName(name);
-  const element = elementOfRecord(record);
-  const named = element ? elementNamed(element, name) : null;
-  if (!named) {
-    throw refusal(name, 'the record it was read from, at byte ' + record.offset + ', is not a whole element whose name can be replaced, so it cannot be renamed');
+  const why = renameWhy(record);
+  if (why) {
+    throw refusal(name, why);
   }
+  const named = elementNamed(elementOfRecord(record)!, name)!;
   return { kind: 'renamed', record, name, bytes: recordBytes(named, record.compressed) };
 }
+
+/**
+ * Why the variable read from `record` cannot be renamed, or null where it can: its record is not
+ * one whole element whose name can be replaced (elementOfRecord, MatWriter.elementNamed), which a
+ * record MATLAB writes always is. Asked by renamedOf, and by a rename before it is made
+ * (MatNode._renameRefusal), once a record: the records never change, and asking inflates one.
+ */
+export function renameWhy(record: MatRecord): string | null {
+  let can = renamable.get(record);
+  if (can === undefined) {
+    const element = elementOfRecord(record);
+    can = !!element && elementNamed(element, '') !== null;
+    renamable.set(record, can);
+  }
+  return can ? null : 'the record it was read from, at byte ' + record.offset + ', is not a whole element whose name can be replaced, so it cannot be renamed';
+}
+
+const renamable = new WeakMap<MatRecord, boolean>();
 
 // The record of a value written fresh: `node`'s, an edited variable read from `record` or one
 // added since, named, and compressed when the file holds any compressed record, so that a `-v6`
@@ -286,18 +340,59 @@ function renamedOf(node: BaseNode, record: MatRecord): Planned {
 // the record's own bytes, which are the only thing it could write, are no longer the value.
 function freshOf(node: BaseNode, record: MatRecord | null, compress: boolean): Planned {
   const name = node.name;
-  refuseName(name);
-  const was = record?.variable ? notPlain(record.variable) : null;
-  const value = valueNodeOf(node);
-  if (was || !value) {
-    const what = was ?? classPhrase(String((node as DataNode).className || 'object'));
-    throw refusal(name, 'it is ' + what + ', which a MAT-file save writes only as it was read, or renamed, so its edit cannot be saved');
+  const refused = freshRefusal(node, record);
+  if (refused) {
+    throw refused;
   }
+  const value = valueNodeOf(node)!;
   const named = elementNamed(freshElement(value), name);
   if (!named) {
     throw refusal(name, 'the element written for it has no name to replace');
   }
   return { kind: 'fresh', record, node: value, name, bytes: recordBytes(named, compress) };
+}
+
+/**
+ * The refusal a save throws for writing `node` fresh, the variable `record` became or one added
+ * since (no record), or null where nothing about what it is refuses it: what an edit of anything
+ * of it but its own name asks of a save. A name that is no MATLAB name by the rule a rename is
+ * held to; a variable that was not a plain value, or whose node is a typed object's (freshOf); one
+ * holding what this writer cannot write at any depth (unwritableIn); one with no form at all, a
+ * container none of whose elements could be read (_heldNone) or a size that is no count
+ * (_refuseNoSize).
+ *
+ * One rule for freshOf, which throws it, and for the editor, which takes no edit a save would
+ * refuse so (MatNode._editRefusal): the two cannot come to disagree. What it does not judge is
+ * what only the value's bytes say, MatWriter's budget among them, which freshElement meets.
+ */
+export function freshRefusal(node: BaseNode, record: MatRecord | null): MatWriteError | null {
+  const name = node.name;
+  const nameError = validateMatlabName(name);
+  if (nameError) {
+    return refusal(name, 'it is not a name MATLAB can load (' + nameError + ')');
+  }
+  const was = record?.variable ? notPlain(record.variable) : null;
+  const value = valueNodeOf(node);
+  if (was || !value) {
+    const what = was ?? classPhrase(String((node as DataNode).className || 'object'));
+    return refusal(name, 'it is ' + what + ', which a MAT-file save writes only as it was read, or renamed, so its edit cannot be saved');
+  }
+  const unwritable = unwritableIn(value);
+  if (unwritable) {
+    return refusal(name, unwritable.path + ' is ' + unwritable.what + ', which this package cannot write into a MAT-file');
+  }
+  if (value._heldNone()) {
+    return value._heldNoneRefusal();
+  }
+  try {
+    value._refuseNoSize();
+  } catch (e) {
+    if (e instanceof MatWriteError) {
+      return e;
+    }
+    throw e;
+  }
+  return null;
 }
 
 // `node` as the node of a plain MATLAB value, or null for a node of another class: a typed
@@ -326,20 +421,10 @@ function notPlain(v: MatVariable): string | null {
 // The miMATRIX element `node`'s value is, with the empty name a stream's value has: the stream it
 // is written as in a dictionary (_matStream), which writes a sparse array no element row edited
 // and a struct array with no element rows as the bytes they were read from, and anything else as
-// MatWriter writes it. Refused, naming what in it this writer cannot write, when it holds what
-// MatWriter has no variable for or would write as what it is not (_matWritable): an object, a
-// string, a function handle, a value not decoded. And refused, finally, as a dictionary's save
-// refuses it, for a value with no form at all (_heldNone, _refuseNoSize) or past MatWriter's
-// budget, restated naming the variable (_budgetFailure).
+// MatWriter writes it, once freshRefusal has found nothing in it this writer cannot write. Refused
+// as a dictionary's save refuses it past MatWriter's budget, restated naming the variable
+// (_budgetFailure), and for any other refusal of MatWriter's.
 function freshElement(node: MatlabVariableNode): Uint8Array {
-  const unwritable = unwritableIn(node);
-  if (unwritable) {
-    throw refusal(node.name, unwritable.path + ' is ' + unwritable.what + ', which this package cannot write into a MAT-file');
-  }
-  if (node._heldNone()) {
-    throw node._heldNoneRefusal();
-  }
-  node._refuseNoSize();
   const stream = node._matStream();
   if (stream) {
     return stream.subarray(8);
@@ -360,15 +445,29 @@ function freshElement(node: MatlabVariableNode): Uint8Array {
   throw refusal(node.name, 'no MAT element could be written for it');
 }
 
-// The first node at or under `node` that MatWriter cannot write as what it is (the rule of
-// MatlabVariableNode._matWritable), with its MATLAB path and what it is, or null for none.
-function unwritableIn(at: BaseNode): { path: string; what: string } | null {
+/**
+ * The first node at or under `at` that MatWriter cannot write as what it is (the rule of
+ * MatlabVariableNode._matWritable), with its MATLAB path and what it is, or null for none. Asked
+ * by freshRefusal, and by the editor of a value about to be typed in (MatNode._valueRefusal).
+ *
+ * A container the node ceiling built without its rows (_cutByCeiling) is written as the variable
+ * it was read as (MatlabVariableNode._var), so that variable is what is asked of it, and not its
+ * rows, which _matWritable would find none of to refuse: a cell of function handles, cut, said
+ * nothing, and its edit was refused by MatWriter at the save.
+ */
+export function unwritableIn(at: BaseNode): { path: string; what: string } | null {
+  const found = unwritableAt(at);
+  if (found) {
+    return found;
+  }
+  const node = valueNodeOf(at)!;
+  return node._matWritable() ? null : { path: node.matlabPath, what: 'a value MatWriter has no variable for' };
+}
+
+function unwritableAt(at: BaseNode): { path: string; what: string } | null {
   const node = valueNodeOf(at);
   if (!node) {
     return { path: at.matlabPath, what: classPhrase(String((at as DataNode).className || 'object')) };
-  }
-  if (node._matWritable()) {
-    return null;
   }
   if (node._isOpaque) {
     return { path: node.matlabPath, what: classPhrase(node._opaqueClassName || 'object') };
@@ -379,13 +478,54 @@ function unwritableIn(at: BaseNode): { path: string; what: string } | null {
   if (node._scalarType === 'string' || node._scalarType === 'function_handle') {
     return { path: node.matlabPath, what: node._scalarType === 'string' ? 'a string' : 'a function handle' };
   }
-  for (const child of node.children) {
-    const below = unwritableIn(child);
-    if (below) {
-      return below;
+  if (node._cutByCeiling && node._matVar) {
+    return notPlainIn(node._matVar, node.matlabPath);
+  }
+  // Only a cell and a struct hold values of their own: an array's rows are its elements.
+  if (node._kind === 'cell' || node._scalarType === 'struct') {
+    for (const child of node.children) {
+      const below = unwritableAt(child);
+      if (below) {
+        return below;
+      }
     }
   }
-  return { path: node.matlabPath, what: 'a value MatWriter has no variable for' };
+  return null;
+}
+
+// The first member at or under the variable `v`, at `path`, that is not a plain MATLAB value
+// (notPlain), with its path, or null: the members of a cell and the fields of a struct, at any
+// depth, as MatParser holds them.
+function notPlainIn(v: MatVariable | null | undefined, path: string): { path: string; what: string } | null {
+  if (!v) {
+    return null;
+  }
+  const what = notPlain(v);
+  if (what) {
+    return { path, what };
+  }
+  if (v.className === 'cell') {
+    const members = flatValues(v.value) as (MatVariable | null)[];
+    for (let i = 0; i < members.length; i++) {
+      const below = notPlainIn(members[i], path + '{' + (i + 1) + '}');
+      if (below) {
+        return below;
+      }
+    }
+  }
+  if (v.className === 'struct' && v.fields) {
+    for (const name of Object.keys(v.fields)) {
+      const held = v.fields[name];
+      const elements = Array.isArray(held) ? held : [held];
+      for (let e = 0; e < elements.length; e++) {
+        const below = notPlainIn(elements[e], path + (Array.isArray(held) ? '(' + (e + 1) + ')' : '') + '.' + name);
+        if (below) {
+          return below;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 // The miMATRIX element a record holds: its own bytes for a plain one, its payload inflated for a

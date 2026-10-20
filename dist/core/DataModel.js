@@ -20,7 +20,7 @@ import { blockKey, blockLabel, joinBlockPath } from '../datamodel/blockIdentity.
 import { maskDefining } from '../datamodel/maskScope.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 import RowCellPool from '../datamodel/node/RowCellPool.js';
-import { propNamed } from '../datamodel/node/BaseNode.js';
+import { propNamed, sourceEditRefusal } from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
 // The session's own vocabulary — what a caller passes in and what these functions hand
 // back — and the compiler that turns one of those types, FindNodesQuery, into the tests
@@ -1615,6 +1615,21 @@ export function createSession(opts = {}) {
         if (typeof newValue === 'string' && newValue === priorValue) {
             return true;
         }
+        // An edit the node's source would not write is refused before any setter is asked
+        // (BaseNode.sourceEditRefusal): a MAT-file's object, say, takes a rename and nothing else.
+        // Every setter asks the same rule (DataNode._refuseEncodedEdit); this is for one that does
+        // not, of a class a file can hold.
+        const prop = propNamed(node.getProperties(), propertyName);
+        const isName = propertyName === 'Name' || prop?.key === 'Name';
+        const refused = sourceEditRefusal(node, isName ? 'Name' : prop?.key ?? propertyName);
+        if (refused) {
+            return {
+                error: true,
+                reason: refused,
+                invalidValue: String(newValue),
+                validValue: isName ? node.name : typeof priorValue === 'string' ? priorValue : node.displayValue,
+            };
+        }
         // Unless the node can put the value back itself, which the undo then has it do: the text
         // it shows is not always its value (an empty's `[ ]` is a 0x0 double, whatever it was).
         const restore = propertyRestorer(node, propertyName);
@@ -1670,13 +1685,17 @@ export function createSession(opts = {}) {
     // entry is named `entryName`, or the class's default name, with a counter appended if
     // that name is taken. Returns null, and adds nothing and records no undo step, when
     // there is no active dictionary, no section takes the class, or the name is not one
-    // MATLAB can load (see SectionNode.addEntry): the same rule a rename applies.
+    // MATLAB can load (see SectionNode.addEntry): the same rule a rename applies. A MAT-file
+    // takes a plain variable, the double 0 named `var` (MatNode.execAddEntry), and nothing its
+    // save could not write.
     function addEntry(sectionKey, className, entryName) {
         const slddNode = getActiveSlddNode();
         if (!slddNode) {
             return null;
         }
-        let section = slddNode.getSection(sectionKey);
+        // A MAT-file has no sections: its variables are its own children, so it takes the entry
+        // itself, whatever `sectionKey` says (MatNode.execAddEntry: a plain variable, `0`).
+        let section = slddNode instanceof MatNode ? slddNode : slddNode.getSection(sectionKey);
         if (!section) {
             // When at root (sectionKey='sldd'), find the section that accepts this className
             for (const child of slddNode.children) {

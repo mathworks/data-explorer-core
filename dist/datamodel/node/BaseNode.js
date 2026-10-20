@@ -29,6 +29,29 @@ export function encodedHolderOf(node) {
     return null;
 }
 /**
+ * Why the source `node` is in refuses an edit of `key` at `node`, in words, or null where it
+ * takes it. `key` is 'Name' for the node's own name, and the property's key for anything else,
+ * 'Value' for a child added or removed.
+ *
+ * A source answers for itself, through the first container above the node, which an entry is a
+ * child of: a MAT-file, whose save writes only some edits (MatNode._editRefusal). A dictionary's
+ * section and a model's do not answer, and take every edit their nodes take. Asked by every
+ * editability getter below, by the structural gates (DataNode._encodedReadOnly), by the setters
+ * (DataNode._refuseEncodedEdit, the rename) and by the session's editProperty, so that what the
+ * table offers and what an edit is taken for are one answer. Duck-typed, as encodedHolderOf is:
+ * this class imports no container.
+ */
+export function sourceEditRefusal(node, key) {
+    let entry = null;
+    let n = node;
+    while (n && !n.isContainer) {
+        entry = n;
+        n = n.parent;
+    }
+    const refuse = n?._editRefusal;
+    return entry && typeof refuse === 'function' ? refuse.call(n, entry, node, key) : null;
+}
+/**
  * The prop in `props` that an edit naming `name` is an edit of: the one whose key or column is
  * `name`, which is how an edit committed in the 'Value' column reaches the atom that owns it (a
  * Variant's Condition/Specification), or else the one whose node field (`nodeProperty`) is
@@ -133,7 +156,8 @@ export default class BaseNode {
         if (this.parent?.fixesChildNames) {
             return false;
         }
-        return true;
+        // Nor a name its source would not write (sourceEditRefusal).
+        return !sourceEditRefusal(this, 'Name');
     }
     // Called on a node after a structural edit added or removed a child of `child`
     // — i.e. one of ITS children changed shape, not this node's own list. Every node
@@ -416,7 +440,8 @@ export default class BaseNode {
         if (v && v.charAt(0) === '<' && v.charAt(v.length - 1) === '>') {
             return false;
         }
-        return true;
+        // Nor a value its source would not write (sourceEditRefusal).
+        return !sourceEditRefusal(this, 'Value');
     }
     // Whether a Description typed onto this row could be SAVED — the third member of the
     // nameEditable/valueEditable family, and one for the same reason: the Description
@@ -433,7 +458,7 @@ export default class BaseNode {
     // Parameter whose value displays as a `<1x12 double>` summary takes no value editor
     // and can still be described.
     get descriptionEditable() {
-        return !encodedHolderOf(this);
+        return !encodedHolderOf(this) && !sourceEditRefusal(this, 'Description');
     }
     getPropInfo(PropClassRef) {
         const key = PropClassRef.key;
@@ -464,6 +489,12 @@ export default class BaseNode {
         // ones included (Storage Class, Data Type…): they are all inside the stream. The Name
         // was answered above, by nameEditable.
         if (key !== 'Name' && encodedHolderOf(this)) {
+            editable = false;
+        }
+        // And any its source would not write (sourceEditRefusal), the Name included: asked last,
+        // and only of a property every rule above leaves editable, as it is the one that walks to
+        // the source.
+        if (editable && sourceEditRefusal(this, key)) {
             editable = false;
         }
         return {

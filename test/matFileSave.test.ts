@@ -484,11 +484,15 @@ describe('the marker that tells a rename from a value edit (DataNode._valueEdite
     expect([by('kp2').status, by('kp2')._valueEdited, by('p2').status, by('p2')._valueEdited]).toEqual(['Modified', undefined, 'Modified', undefined]);
   });
 
-  it("is set by a value edit, an element's, and an object's property edit", () => {
+  it("is set by a value edit, an element's, and an object's property edit, which the editor takes none of", () => {
     const { by, edit } = casesMat();
     expect(edit(by('kp'), 'Value', '2')).toBe(true);
     expect(edit(by('mat2x3').children[3], 'Value', '2')).toBe(true);
-    expect(edit(by('aParam'), 'Value', '3')).toBe(true);
+    // A MAT-file takes no edit of an object's properties (MatNode._editRefusal, test/matEditGate.test.ts),
+    // and one refused marks nothing. Made around the editor, it marks the object.
+    expect(edit(by('aParam'), 'Value', '3')).toMatchObject({ error: true });
+    expect(by('aParam')._valueEdited).toBeUndefined();
+    by('aParam')._markModified();
     expect(['kp', 'mat2x3', 'aParam'].map((n) => by(n)._valueEdited)).toEqual([true, true, true]);
     // On the entry only.
     expect(by('mat2x3').children[3]._valueEdited).toBeUndefined();
@@ -497,7 +501,11 @@ describe('the marker that tells a rename from a value edit (DataNode._valueEdite
   it("is set by the rename of anything under the entry, a bus element's, which changes the entry's value", () => {
     const { by, edit, save } = casesMat();
     const element = by('aBus').children[0];
-    expect(edit(element, 'Name', 'renamedElement')).toBe(true);
+    // Refused by the editor, as every edit of an object of a MAT-file but its own rename is; made
+    // around it, as DataNode.setProperty's rename makes one.
+    expect(edit(element, 'Name', 'renamedElement')).toMatchObject({ error: true });
+    element.name = 'renamedElement';
+    element._markModified('name');
     expect([by('aBus').status, by('aBus')._valueEdited]).toEqual(['Modified', true]);
     // And a bus is an object, whose edit this writer cannot write.
     expect(thrownBy(save).message).toBe(
@@ -506,13 +514,17 @@ describe('the marker that tells a rename from a value edit (DataNode._valueEdite
   });
 });
 
+// The editor takes none of the edits below (MatNode._editRefusal, test/matEditGate.test.ts): each is
+// made around it, by the marks every edit leaves (DataNode._markModified), so that the writer's own
+// refusal, which the editor's is built from, is held to as well.
 describe('a save that cannot write a variable as what it is is refused, naming it, and nothing is written', () => {
   const editRefused = (name: string, what: string) =>
     `Cannot write "${name}": it is ${what}, which a MAT-file save writes only as it was read, or renamed, so its edit cannot be saved. Nothing was written.`;
 
   it("an object's property edited; the variable deleted, the file saves", () => {
     const { by, edit, remove, save } = opened(fixture(CASES), 'cases.mat');
-    expect(edit(by('aParam'), 'Value', '7')).toBe(true);
+    expect(edit(by('aParam'), 'Value', '7')).toMatchObject({ error: true });
+    by('aParam')._markModified();
     const thrown = thrownBy(save);
     expect([thrown instanceof MatWriteError, thrown.message]).toEqual([true, editRefused('aParam', 'a Simulink.Parameter')]);
     expect(remove(by('aParam'))).toBe(true);
@@ -521,14 +533,16 @@ describe('a save that cannot write a variable as what it is is refused, naming i
 
   it('a string edited', () => {
     const { by, edit, save } = opened(fixture(CASES), 'cases.mat');
-    expect(edit(by('strScalar'), 'Value', '"xyz"')).toBe(true);
+    expect(edit(by('strScalar'), 'Value', '"xyz"')).toMatchObject({ error: true });
+    by('strScalar')._markModified();
     expect(thrownBy(save).message).toBe(editRefused('strScalar', 'a string'));
   });
 
   it('a struct holding an object, edited at another field', () => {
     const { by, edit, save } = opened(fixture('fixtures/mcos/complex_objects.mat'), 'complex_objects.mat');
     const z = by('s').children.find((c: any) => c.name === 'z');
-    expect(edit(z, 'Value', '5')).toBe(true);
+    expect(edit(z, 'Value', '5')).toMatchObject({ error: true });
+    z._markModified();
     expect(thrownBy(save).message).toBe(
       'Cannot write "s": s.p is a Simulink.Parameter, which this package cannot write into a MAT-file. Nothing was written.',
     );
@@ -562,7 +576,12 @@ describe('a save that cannot write a variable as what it is is refused, naming i
     it('renamed or edited, refuses the save', () => {
       for (const [prop, value] of [['Name', 'late2'], ['Value', '5']]) {
         const { by, edit, save } = opened(late());
-        expect(edit(by('late'), prop, value)).toBe(true);
+        const node = by('late');
+        expect(edit(node, prop, value)).toMatchObject({ error: true });
+        if (prop === 'Name') {
+          node.name = value;
+        }
+        node._markModified(prop === 'Name' ? 'name' : 'value');
         expect(thrownBy(save).message).toBe(
           `Cannot write "${by(prop === 'Name' ? 'late2' : 'late').name}": it is stored after the file's objects, where MATLAB does not read it, `
             + 'so it would not be read written there, and moved, it would change what MATLAB loads of the file. Nothing was written.',
@@ -600,7 +619,8 @@ describe('a save that cannot write a variable as what it is is refused, naming i
     const refusal = `Cannot save "f.mat": this package could not frame 8 byte(s) of it, from byte ${at} (${root.unframed.reason}), `
       + 'so a save could not keep them as they are. Nothing was written.';
     expect(thrownBy(save).message).toBe(refusal);
-    expect(edit(by('a'), 'Value', '3')).toBe(true);
+    expect(edit(by('a'), 'Value', '3')).toMatchObject({ error: true });
+    by('a')._markModified();
     expect(thrownBy(save).message).toBe(refusal);
   });
 
@@ -630,7 +650,8 @@ describe('a save that cannot write a variable as what it is is refused, naming i
     new DataView(bytes.buffer).setBigUint64(116, 200n, true);
     const { by, edit, save } = opened(arrayBufferOf(bytes), 'cases.mat');
     expect(sameBytes(save(), bytes)).toBe(true);
-    expect(edit(by('kp'), 'Value', '3')).toBe(true);
+    expect(edit(by('kp'), 'Value', '3')).toMatchObject({ error: true });
+    by('kp')._markModified();
     expect(thrownBy(save).message).toBe(
       'Cannot save "cases.mat": its header places the file\'s objects at byte 200, where no record starts, so a save cannot say where they are. Nothing was written.',
     );
@@ -643,7 +664,8 @@ describe('a save that cannot write a variable as what it is is refused, naming i
     new DataView(bytes.buffer).setBigUint64(116, BigInt(at), true);
     const again = opened(arrayBufferOf(bytes));
     expect(sameBytes(again.save(), bytes)).toBe(true);
-    expect(again.edit(again.by('b'), 'Value', '5')).toBe(true);
+    expect(again.edit(again.by('b'), 'Value', '5')).toMatchObject({ error: true });
+    again.by('b')._markModified();
     expect(thrownBy(again.save).message).toBe(
       `Cannot save "f.mat": its header places the file's objects at byte ${at}, where a variable is, so a save cannot say where they are. `
         + 'Nothing was written.',
@@ -655,7 +677,8 @@ describe('a save that cannot write a variable as what it is is refused, naming i
 
   it('an unnamed record that is not the subsystem', () => {
     const { root, by, edit, save } = opened(matFile([scalar('a', 1), scalar('', 2), scalar('b', 3)]));
-    expect(edit(by('a'), 'Value', '5')).toBe(true);
+    expect(edit(by('a'), 'Value', '5')).toMatchObject({ error: true });
+    by('a')._markModified();
     expect(thrownBy(save).message).toBe(
       `Cannot save "f.mat": the record at byte ${root.records[1].offset} holds a value with no name that is not the file's objects, `
         + 'and MATLAB reads no variable past one, so a save cannot place an edit where MATLAB reads it. Nothing was written.',
@@ -679,7 +702,9 @@ describe('a save that cannot write a variable as what it is is refused, naming i
       ['kp', 'the file holds another variable named "kp", and MATLAB loads only one of them'],
     ]) {
       const { root, save } = opened(fixture(CASES), 'cases.mat');
-      root.execAddEntry(undefined, name);
+      // Refused by the editor (MatNode.execAddEntry); added around it, under its own name.
+      expect(root.execAddEntry(undefined, name), name).toBeNull();
+      root.execAddEntry().node.name = name;
       expect(thrownBy(save).message, name).toBe(`Cannot write "${name}": ${why}. Nothing was written.`);
     }
   });

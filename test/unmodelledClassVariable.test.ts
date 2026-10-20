@@ -309,9 +309,12 @@ describe('a real value of a class the reader does not model is shown as not deco
     const s = structVar('s', ['a', 'b'], [{ a: damagedReal('', 0x12), b: five() }]);
     const mat = openedMat('nested.mat', [ok(), c, s, tail()]);
     // Before: c was `{null, 5}` with an editor, and c{1} and s.a each `null`, editable, of class unknown.
+    // The 5 beside each is as read, and takes no edit: a save of the file writes c and s fresh or
+    // not at all, and has nothing to write the element it did not decode from (MatNode._editRefusal).
     const [, cRow, sRow] = mat.children.map(row);
-    expect(cRow).toEqual(['c', '{<1x1 unknown, not decoded>, 5}', 'cell', false, [notDecoded('1', '1x1', 'unknown'), fiveRow('2')]]);
-    expect(sRow).toEqual(['s', '<1x1 struct>', 'struct', false, [notDecoded('a', '1x1', 'unknown'), fiveRow('b')]]);
+    const readOnlyFive = (name: string) => [name, '5', 'double', false, []];
+    expect(cRow).toEqual(['c', '{<1x1 unknown, not decoded>, 5}', 'cell', false, [notDecoded('1', '1x1', 'unknown'), readOnlyFive('2')]]);
+    expect(sRow).toEqual(['s', '<1x1 struct>', 'struct', false, [notDecoded('a', '1x1', 'unknown'), readOnlyFive('b')]]);
     // The reader's warning names the element; it is the only one.
     expect(mat.warnings).toEqual([notModelled('c{1}'), notModelled('s.a')]);
     const [, cNode, sNode] = mat.children;

@@ -363,11 +363,19 @@ export default class DataNode extends BaseNode {
      */
     _shapeAfterChildEdit(_op: 'add' | 'remove'): ValueShape | null;
     /**
-     * Is this node at or under one whose value is still an encoded stream? The structural
-     * gates (canAddChild, canRemoveChild) of every class that has them ask this, for the
-     * reason _refuseEncodedEdit gives: a child added or removed there could not reach the file.
+     * Is this node at or under one whose value is still an encoded stream, or one whose source
+     * would not write a change to it (BaseNode.sourceEditRefusal: a MAT-file's object, say)? The
+     * structural gates (canAddChild, canRemoveChild) of every class that has them ask this, for
+     * the reason _refuseEncodedEdit gives: a child added or removed there could not reach the file.
      */
     get _encodedReadOnly(): boolean;
+    /**
+     * The refusal of an edit of `propName` at or under a value still in the encoded stream it was
+     * read from, but for the holder's own name, or of one this node's source would not write
+     * (BaseNode.sourceEditRefusal), in its words; null where the edit may go ahead. Asked first by
+     * the setter of every class that has one, so that no setter takes what the table offers no
+     * editor for.
+     */
     _refuseEncodedEdit(propName: string, stringValue: string): SetPropertyResult | null;
     /**
      * Does this object's value hold its properties beside its class, with no element (SER-TE)?

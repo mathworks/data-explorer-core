@@ -14,6 +14,19 @@ import type { MatRecord, ParsedMat } from '../../parser/MatParser.js';
 import PropName from '../../prop/PropName.js';
 import { MAT_NODE_CEILING } from '../../display/DisplayConvention.js';
 import { buildUnderCeiling, buildUncut, chargeNodes } from '../data/matNodeCeiling.js';
+import {
+  PAST_SUBSYSTEM,
+  duplicateWhy,
+  freshRefusal,
+  renameWhy,
+  structureRefusal,
+  subsystemOf,
+  unsavableRefusal,
+  unwritableIn,
+} from '../../parser/MatFileWriter.js';
+import type { MatWriteError } from '../../parser/MatWriter.js';
+import { validateMatlabName } from '../../matlabName.js';
+import { basenameOf } from '../../fileKinds.js';
 
 // What MatNode.fromParsed builds a tree from: a parse of this package's (ParsedMat), or a
 // host's, whose parse may be an older one's, without the records a save splices.
@@ -22,7 +35,7 @@ export type MatParse = Pick<ParsedMat, 'header' | 'variables'> &
 
 export default class MatNode extends ContainerNode {
   header: string;
-  dirty: boolean;
+  _dirty: boolean;
   _anonymousElements: MatVariable[];
   // The file as a save splices it (ParsedMat's fields of the same names): its header's 128
   // bytes, every record in it, the subsystem's offset, and whether the records are the file.
@@ -44,11 +57,22 @@ export default class MatNode extends ContainerNode {
   // node back. So a record's node, in the tree or not, is what became of the record.
   _recordNodes: Map<MatRecord, BaseNode>;
   _nodeRecords: Map<BaseNode, MatRecord>;
+  // What the gate of the editor (_editRefusal) has found, kept until the next edit: the
+  // refusal of the file as a whole (undefined until asked), the subsystem's record, the
+  // refusal of each variable's value, and how many variables hold each name. Every edit
+  // marks the file dirty, and setting `dirty` forgets all but the first two, which no edit
+  // changes.
+  _fileVerdict: string | null | undefined;
+  _subsystem: MatRecord | null | undefined;
+  _valueVerdicts: Map<BaseNode, string | null>;
+  _nameCounts: Map<string, number> | null;
 
   constructor(name: string) {
     super(name, null);
     this.header = '';
-    this.dirty = false;
+    this._dirty = false;
+    this._valueVerdicts = new Map();
+    this._nameCounts = null;
     this._anonymousElements = [];
     this.headerBytes = null;
     this.records = null;
@@ -80,8 +104,172 @@ export default class MatNode extends ContainerNode {
     return this.name;
   }
 
+  // Saved by serializeSource (MatFileWriter), so a file is read-only only when no save of it
+  // can be written: opened without its records, its bytes handed away since, its records not
+  // tiling it, or its subsystem not where its header says (_fileRefusal).
   get readOnly(): boolean {
-    return true;
+    return this._fileRefusal() !== null;
+  }
+
+  // Every edit sets it (BaseNode._markSourceDirty, and this class's own add and remove), so it
+  // is where what the gate found of the tree as it was is forgotten (_editRefusal).
+  get dirty(): boolean {
+    return this._dirty;
+  }
+
+  set dirty(value: boolean) {
+    this._dirty = value;
+    this._valueVerdicts.clear();
+    this._nameCounts = null;
+  }
+
+  // ---- The edits a save of this file can write ----------------------------------------------
+  //
+  // The editor takes no edit a save of this file would then refuse (MatFileWriter), so that none
+  // is made that cannot be kept: the baseline is that no edit taken is one a save then refuses,
+  // or writes as something else. One rule, this one, asked by every path an edit takes
+  // (BaseNode.sourceEditRefusal): the editors of the table and of the Property Inspector
+  // (BaseNode.getPropInfo, nameEditable, valueEditable, descriptionEditable), the gates of a
+  // child added or removed (DataNode._encodedReadOnly), each class's setter
+  // (DataNode._refuseEncodedEdit, DataNode's rename), and the session's editProperty. Built of the
+  // writer's own refusals (unsavableRefusal, structureRefusal, freshRefusal, PAST_SUBSYSTEM,
+  // duplicateWhy), so that the two cannot come to disagree.
+
+  /**
+   * Why an edit of `key` at `node`, which is `entry` or a node under it, is refused, as a
+   * message naming the variable or the file, or null where a save of this file writes it.
+   * `key` is 'Name' for `node`'s own name, and a property's key for anything else: 'Value'
+   * for a value typed in, a child added or removed, and an element's or a field's edit.
+   *
+   *   - every edit, of a file no save of which can be written (_fileRefusal), its variables'
+   *     delete and the addition of one included (execRemoveEntry, execAddEntry);
+   *   - every edit of a variable stored after the subsystem, its name included: MATLAB does
+   *     not read it there, and moved, what MATLAB loads would change. It can be deleted;
+   *   - a variable's own name: taken, and written as its record with the name replaced;
+   *   - anything else, which writes the variable fresh: refused where the writer refuses that
+   *     (freshRefusal: an object's typed node, a string, a function handle, a value not
+   *     decoded, and a variable holding one at any depth), or where another variable of the
+   *     file has its name;
+   *   - and Add ('Add', MatlabVariableNode.canAddChild) on a struct that is not 1x1 or is an
+   *     element of one, which is written, but not as the tree shows it. Add gives a struct a
+   *     field row of its own: the rows of a struct array are its elements, so the row was an
+   *     element of no fields the save did not write; a 0x0 struct's field was written with no
+   *     element to hold it, which reads back as no field; and a field added to one element of
+   *     a struct array is written into every element, as MATLAB adds one, `[]` in the others,
+   *     which the tree did not show.
+   *
+   * Phase 2 of the MAT-file save widens the last of these, for the properties of an object it
+   * writes into the subsystem.
+   */
+  _editRefusal(entry: BaseNode, node: BaseNode, key: string): string | null {
+    const file = this._fileRefusal();
+    if (file) {
+      return file;
+    }
+    const record = this.recordOf(entry);
+    const subsystem = this._subsystemRecord();
+    if (record && subsystem && record.offset > subsystem.offset) {
+      return cannotEdit(entry.name, PAST_SUBSYSTEM);
+    }
+    if (node === entry && (key === 'Name' || key === 'name')) {
+      return null;
+    }
+    let verdict = this._valueVerdicts.get(entry);
+    if (verdict === undefined) {
+      const refused = freshRefusal(entry, record);
+      verdict = refused
+        ? editRefusalOf(refused)
+        : this._namespaceHolds(entry.name) > 1
+          ? cannotEdit(entry.name, duplicateWhy(entry.name))
+          : null;
+      this._valueVerdicts.set(entry, verdict);
+    }
+    if (!verdict && key === 'Add') {
+      const array = [node, node.parent].find((n) => isStruct(n) && n._dims.reduce((a, b) => a * b, 1) !== 1) as MatlabVariableNode | undefined;
+      if (array) {
+        return cannotEdit(
+          entry.name,
+          array.matlabPath + ' is a ' + array._dims.join('x') + ' struct, whose fields a save writes into every element of it or none, '
+            + 'and Add gives one struct a field of its own',
+        );
+      }
+    }
+    return verdict;
+  }
+
+  /**
+   * Why `value`, a node built of the text an edit typed in for `node`, of `entry`, cannot be
+   * written into this file, or null where it can: a string, which MatWriter has no MAT class
+   * for. Asked of the edit before it is made (MatlabVariableNode.setProperty), so that a value
+   * that would leave the variable one a save refuses (freshRefusal) is never taken.
+   */
+  _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null {
+    const unwritable = unwritableIn(value);
+    if (!unwritable) {
+      return null;
+    }
+    const is = unwritable.path === value.matlabPath ? ' would be ' : ' would hold ';
+    return cannotEdit(entry.name, (node.matlabPath || entry.name) + is + unwritable.what + ', which this package cannot write into a MAT-file');
+  }
+
+  /**
+   * Why `node`, a variable of this file, cannot be renamed, or null where it can: its record is not
+   * one whole element whose name a save can replace (MatFileWriter.renameWhy), which only a damaged
+   * file holds. Asked by the rename itself (DataNode.setProperty) and not by the editability
+   * getters, as finding out inflates the record: a rename refused so is refused before it is made.
+   */
+  _renameRefusal(node: BaseNode): string | null {
+    const record = this.recordOf(node);
+    const why = record ? renameWhy(record) : null;
+    return why ? cannotEdit(node.name, why) : null;
+  }
+
+  /** Why no edit of this file is taken, or null (unsavableRefusal, structureRefusal). */
+  _fileRefusal(): string | null {
+    // A host that hands the bytes away empties every view of them at once, the header's
+    // first, so a verdict of none is asked again only once that happened.
+    const gone = this.headerBytes !== null && this.headerBytes.byteLength !== 128;
+    if (this._fileVerdict === undefined || (gone && this._fileVerdict === null)) {
+      const refused = unsavableRefusal(this) ?? structureRefusal(this, this.records!, this._subsystemRecord());
+      this._fileVerdict = refused ? editRefusalOf(refused) : null;
+    }
+    return this._fileVerdict;
+  }
+
+  /** The subsystem's record (MatFileWriter.subsystemOf), found once: the records never change. */
+  _subsystemRecord(): MatRecord | null {
+    if (this._subsystem === undefined) {
+      this._subsystem = this.records ? subsystemOf(this, this.records) : null;
+    }
+    return this._subsystem;
+  }
+
+  /**
+   * How many variables of the file a save writes under `name`: the variables in the tree, and
+   * each record that became none (one the reader dropped) under its own name, as a save writes
+   * it (MatFileWriter.refuseDuplicates). A rename into a name another holds is refused for it
+   * (DataNode.setProperty), naming this file (_namespaceLabel).
+   */
+  _namespaceHolds(name: string): number {
+    if (!this._nameCounts) {
+      const counts = new Map<string, number>();
+      const add = (n: string) => counts.set(n, (counts.get(n) ?? 0) + 1);
+      for (const child of this.children) {
+        add(child.name);
+      }
+      for (const record of this.records ?? []) {
+        if (record.name && !this.nodeOf(record)) {
+          add(record.name);
+        }
+      }
+      this._nameCounts = counts;
+    }
+    return this._nameCounts.get(name) ?? 0;
+  }
+
+  /** Where a rename into a name already held is said to collide (DataNode.setProperty): this file. */
+  get _namespaceLabel(): string {
+    return basenameOf(this.name) || this.name;
   }
 
   // The format an out-of-process host is told this source is, since SourceDTO carries
@@ -117,7 +305,18 @@ export default class MatNode extends ContainerNode {
     return null;
   }
 
-  execAddEntry(_className?: string, entryName?: string): { node: BaseNode; undo: () => void; redo: () => void } {
+  // A new variable is the double 0, named `entryName`, or `var` with a counter appended if that
+  // is taken. The only class it takes is a plain variable's: a save writes no object (freshRefusal).
+  // Null, adding nothing, for a file no save of which can be written (_fileRefusal), for any other
+  // class, and for a name that is no MATLAB name or one the file holds already, by the rule a rename
+  // is held to: a save would refuse each.
+  execAddEntry(className?: string, entryName?: string): { node: BaseNode; undo: () => void; redo: () => void } | null {
+    if (this._fileRefusal() || (className && !PLAIN_VARIABLE_CLASSES.has(className))) {
+      return null;
+    }
+    if (entryName && (validateMatlabName(entryName) || this._namespaceHolds(entryName) > 0)) {
+      return null;
+    }
     const name = entryName || this._uniqueName('var');
     const node = MatlabVariableNode.createDefault(name, this);
     this.addChild(node);
@@ -135,21 +334,23 @@ export default class MatNode extends ContainerNode {
     };
   }
 
+  // Not a name any variable of the file holds, a record the reader dropped included (_namespaceHolds).
   _uniqueName(baseName: string): string {
-    const names = new Set(this.children.map((c) => c.name));
-    if (!names.has(baseName)) {
+    if (this._namespaceHolds(baseName) === 0) {
       return baseName;
     }
     let i = 1;
-    while (names.has(baseName + i)) {
+    while (this._namespaceHolds(baseName + i) > 0) {
       i++;
     }
     return baseName + i;
   }
 
+  // A delete is written by any save, of any variable, one stored after the subsystem and an object
+  // included; refused only in a file no save of which can be written (_fileRefusal).
   execRemoveEntry(node: BaseNode): { undo: () => void; redo: () => void } | null {
     const index = this.children.indexOf(node);
-    if (index < 0) {
+    if (index < 0 || this._fileRefusal()) {
       return null;
     }
     this.removeChild(node);
@@ -284,6 +485,24 @@ export default class MatNode extends ContainerNode {
       add(variableNodeOf(variable, node, parsed.warnings));
     }
   }
+}
+
+// The classes a variable added to a file may be asked for as (execAddEntry): none, the one a
+// dictionary's plain variable is added as, and a double's.
+const PLAIN_VARIABLE_CLASSES = new Set(['MatlabVariable', 'double']);
+
+// A refusal of the writer's, `Cannot save "f.mat": …. Nothing was written.`, as the editor says
+// it of an edit it does not take: `Cannot edit "f.mat": ….`
+function editRefusalOf(e: MatWriteError): string {
+  return e.message.replace(/^Cannot (?:save|write) /, 'Cannot edit ').replace(/ Nothing was written\.$/, '');
+}
+
+function isStruct(node: BaseNode | null): node is MatlabVariableNode {
+  return node instanceof MatlabVariableNode && node._kind === 'scalar' && node._scalarType === 'struct';
+}
+
+function cannotEdit(name: string, why: string): string {
+  return 'Cannot edit "' + name + '": ' + why + '.';
 }
 
 // The records of `parsed` a save can splice, or null: none for a host's parse that carries

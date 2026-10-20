@@ -1,0 +1,637 @@
+// Copyright 2026 The MathWorks, Inc.
+//
+// The edits a `.mat` takes are the edits its save writes (MatNode._editRefusal, the one rule
+// BaseNode.sourceEditRefusal asks for every path an edit takes). Swept over every Level-5 fixture
+// and MATLAB's verdict corpus, both ways:
+//
+//   - the gate is the writer: for every variable, an edit forced around the gate (its value, its
+//     name) is refused by the save exactly where the gate refuses it;
+//   - every cell the editor offers takes an edit, and the save of that edit is written and reads
+//     back as the tree shows it; every child Add or Delete it offers saves too;
+//   - every cell it does not offer for the save's sake has no editor anywhere a host looks (the
+//     table row, the Property Inspector, the DTO, the getters), and its setter refuses it, as do
+//     the session's editProperty and the structural gates, leaving the file unchanged.
+//
+// Then each refusal by itself, in its own words, and what a MAT-file's save adds to the session:
+// readOnly, addEntry, the rename's duplicate message.
+
+import { describe, it, expect } from 'vitest';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { MatWriteError } from '../src/datamodel/parser/MatWriter.js';
+import { parseMat } from '../src/datamodel/parser/MatParser.js';
+import { sourceEditRefusal } from '../src/datamodel/node/BaseNode.js';
+import MatNode from '../src/datamodel/node/container/MatNode.js';
+import { toDTO } from '../src/core/dto.js';
+import { createSession } from '../src/index.js';
+import { zlibSync } from 'fflate';
+import { CLASS, matFile, numericVar, u32le } from './tools/matBytes.js';
+
+const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
+const MAT_CHECK = join(TEST_ROOT, 'fixtures', 'mat-check');
+
+function matFilesUnder(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const abs = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (abs !== MAT_CHECK) {
+        out.push(...matFilesUnder(abs));
+      }
+    } else if (entry.isFile() && entry.name.endsWith('.mat') && entry.name !== 'strings_v73.mat') {
+      out.push(abs);
+    }
+  }
+  return out.sort();
+}
+
+const FIXTURES = matFilesUnder(TEST_ROOT);
+const shown = (abs: string) => abs.slice(TEST_ROOT.length);
+
+function arrayBufferOf(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+const fileBytes = (abs: string) => arrayBufferOf(new Uint8Array(readFileSync(abs)));
+const sameBytes = (a: Uint8Array, b: Uint8Array) => a.byteLength === b.byteLength && a.every((x, i) => x === b[i]);
+const scalar = (name: string, value: number) => numericVar({ name, cls: CLASS.DOUBLE, dimensions: [1, 1], real: [value] });
+
+/** A MatNode opened through the session, as a host opens one, and what a host does to it. */
+function opened(bytes: ArrayBuffer, name = 'f.mat') {
+  const session = createSession();
+  const root: any = session.addMatSource(name, bytes);
+  const by = (n: string) => root.children.find((c: any) => c.name === n);
+  const edit = (node: any, prop: string, value: string) => {
+    session.setActive(root, node);
+    return session.editProperty(node.id, prop, value);
+  };
+  const save = (): Uint8Array => (session.serializeSource(name) as { bytes: Uint8Array }).bytes;
+  return { session, root, by, edit, save };
+}
+
+/** Every node under `node`, depth first, with its path of child indices from the file. */
+function nodesWithPaths(root: any): { node: any; path: number[] }[] {
+  const out: { node: any; path: number[] }[] = [];
+  const walk = (n: any, path: number[]) => {
+    n.children.forEach((c: any, i: number) => {
+      out.push({ node: c, path: [...path, i] });
+      walk(c, [...path, i]);
+    });
+  };
+  walk(root, []);
+  return out;
+}
+
+const at = (root: any, path: number[]) => path.reduce((n, i) => n?.children[i], root);
+
+/**
+ * `nodes` thinned to what a sweep can afford: of the elements of one array, which are one class
+ * and take one edit, the first two and the last; and of a tree still past 2,500 nodes (the shared
+ * object graphs, of 30,000), an even stride through it.
+ */
+function sampled<T extends { node: any }>(nodes: T[]): T[] {
+  const kept = nodes.filter(({ node }) => {
+    const parent = node.parent;
+    if (!parent || (parent._kind !== 'array' && parent._kind !== 'string')) {
+      return true;
+    }
+    const i = parent.children.indexOf(node);
+    return i < 2 || i === parent.children.length - 1;
+  });
+  if (kept.length <= 2500) {
+    return kept;
+  }
+  const stride = Math.ceil(kept.length / 2500);
+  return kept.filter((_, i) => i % stride === 0);
+}
+
+/**
+ * What a variable shows, everywhere a value is: each node's label, value and class, by path. Two
+ * things a save writes as they are and the tree shows otherwise until the file is read again are
+ * left out of it. A complex part `+0i`: an element of a complex array added or set to a real
+ * number shows as that number, and reads back as the same element with the imaginary part 0
+ * MATLAB gives it (`x(3) = 0` of a complex `x` is `0+0i`). And a sparse array's row set to 0: it
+ * keeps its row, so that the row still names it (MatlabVariableNode._syncElementFromChild), and a
+ * zero is no non-zero once read again; the rows of a sparse array are said by their subscripts.
+ */
+function shownAs(node: any): string[] {
+  const out: string[] = [];
+  const walk = (n: any, path: string) => {
+    out.push(`${path} ${n.displayName} = ${String(n.displayValue).replace(/(\d|Inf|NaN)\+0i/g, '$1')} (${n.className})`);
+    n.children.forEach((c: any, i: number) => {
+      if (n._sparse && /^(0|false|0\+0i)$/.test(c.displayValue)) {
+        return;
+      }
+      walk(c, path + '/' + (n._sparse ? c.displayName : i));
+    });
+  };
+  walk(node, '');
+  return out;
+}
+
+/** The bytes of a save, read again, and the variable at `entry` there, as it shows. */
+function readBack(bytes: Uint8Array, entry: number): string[] {
+  const { root } = opened(arrayBufferOf(bytes), 'saved.mat');
+  return shownAs(root.children[entry]);
+}
+
+/** The thrown error of `fn`, or null. */
+function thrownBy(fn: () => unknown): Error | null {
+  try {
+    fn();
+  } catch (e) {
+    return e as Error;
+  }
+  return null;
+}
+
+/** An edit `node` takes for its Value, by what it is, and whether it took it. */
+function valueEdit(edit: (prop: string, value: string) => unknown, node: any): string | null {
+  const parent = node.parent;
+  const inArray = parent && parent._kind === 'array';
+  const candidates =
+    inArray && parent._scalarType === 'logical'
+      ? ['false', 'true']
+      : inArray
+        ? ['7', '8']
+        : node.className === 'char'
+          ? ["'zz'", '7']
+          : node._kind === 'cell'
+            ? ['{7, 8}', '7']
+            : node.className === 'logical'
+              ? ['false', 'true', '7']
+              : ['7', '8', "'zz'", '[1 2 3]', '{7}', 'true'];
+  for (const value of candidates) {
+    if (value === node.displayValue) {
+      continue;
+    }
+    if (edit('Value', value) === true) {
+      return value;
+    }
+  }
+  return null;
+}
+
+/**
+ * Every top-level variable of `bytes`, each with an edit of its value and of its name forced
+ * around the gate: the save refuses the first exactly where the gate refuses a value edit, and
+ * the second exactly where it refuses a rename. Answers how many of each were written.
+ */
+function gateIsWriter(bytes: ArrayBuffer, file: string): { values: number; names: number } {
+  let values = 0;
+  let names = 0;
+  const count = opened(bytes).root.children.length;
+  for (let i = 0; i < count; i++) {
+    for (const what of ['value', 'name'] as const) {
+      const { root, save } = opened(bytes);
+      const node = root.children[i];
+      // A rename is asked of the record too, as the rename itself asks it (MatNode._renameRefusal).
+      const refused = what === 'name' ? sourceEditRefusal(node, 'Name') ?? root._renameRefusal(node) : sourceEditRefusal(node, 'Value');
+      const label = `${file}: ${node.name} (${what})`;
+      if (what === 'name') {
+        // A name no variable of the file holds, made around the session's rename.
+        node.name = 'gateRenamed' + i;
+        node._markModified('name');
+      } else {
+        node._markModified();
+      }
+      const thrown = thrownBy(save);
+      if (refused) {
+        expect(thrown, label + ': the gate refuses it, ' + refused).toBeInstanceOf(MatWriteError);
+      } else {
+        expect(thrown?.message, label).toBeUndefined();
+        expect(readBack(save(), i), label).toEqual(shownAs(node));
+        what === 'name' ? names++ : values++;
+      }
+    }
+  }
+  return { values, names };
+}
+
+describe('the gate is the writer: an edit forced around it is refused by the save exactly where it is refused', () => {
+  const totals = { values: 0, names: 0 };
+  for (const file of FIXTURES) {
+    it(shown(file), { timeout: 60_000 }, () => {
+      const { values, names } = gateIsWriter(fileBytes(file), shown(file));
+      totals.values += values;
+      totals.names += names;
+    });
+  }
+
+  it("MATLAB's verdict corpus (test/fixtures/mat-check), the files it loads and the ones it does not", { timeout: 60_000 }, () => {
+    const verdicts: { file: string }[] = JSON.parse(readFileSync(join(MAT_CHECK, 'verdicts.json'), 'utf8'));
+    let opened = 0;
+    for (const { file } of verdicts) {
+      let bytes: ArrayBuffer;
+      try {
+        bytes = fileBytes(join(MAT_CHECK, file));
+        parseMat(bytes);
+      } catch {
+        continue;
+      }
+      gateIsWriter(bytes, file);
+      opened++;
+    }
+    expect(opened).toBeGreaterThanOrEqual(60);
+  });
+
+  it('writes most variables of the fixtures, fresh and renamed: the gate refuses only what it must', () => {
+    expect(totals.values).toBeGreaterThanOrEqual(150);
+    expect(totals.names).toBeGreaterThanOrEqual(300);
+  });
+});
+
+describe('every cell the editor offers takes an edit, and its save reads back as the tree shows it', () => {
+  for (const file of FIXTURES) {
+    it(shown(file), { timeout: 60_000 }, () => {
+      const bytes = fileBytes(file);
+      const { root: probe } = opened(bytes);
+      let edits = 0;
+      for (const { node: seen, path } of sampled(nodesWithPaths(probe))) {
+        const offered = seen.getProperties().filter((p: any) => seen.getPropInfo(p).editable).map((p: any) => p.key);
+        for (const key of offered) {
+          const { root, edit, save } = opened(bytes);
+          const node = at(root, path);
+          const label = `${shown(file)}: ${node.matlabPath} ${key}`;
+          let made: string | null;
+          if (key === 'Name') {
+            made = 'cellRenamed' + edits;
+            expect(edit(node, 'Name', made), label).toBe(true);
+          } else {
+            made = valueEdit((prop, value) => edit(node, prop, value), node);
+            expect(made, label + ': no edit taken').not.toBeNull();
+          }
+          const saved = thrownBy(save);
+          expect(saved?.message, label + ' = ' + made).toBeUndefined();
+          expect(readBack(save(), path[0]), label + ' = ' + made).toEqual(shownAs(root.children[path[0]]));
+          edits++;
+        }
+        for (const op of ['add', 'remove'] as const) {
+          if (op === 'add' ? !seen.canAddChild() : !(seen.canRemoveChild?.() && seen.children.length > 0)) {
+            continue;
+          }
+          const { session, root, save } = opened(bytes);
+          const node = at(root, path);
+          const label = `${shown(file)}: ${node.matlabPath} ${op}`;
+          if (op === 'add') {
+            expect(session.addChildTo(node.id), label).not.toBeNull();
+          } else {
+            const last = node.children[node.children.length - 1];
+            session.setActive(root, last);
+            expect(session.deleteNodeById(last.id), label).toBe(true);
+          }
+          expect(thrownBy(save)?.message, label).toBeUndefined();
+          expect(readBack(save(), path[0]), label).toEqual(shownAs(root.children[path[0]]));
+          edits++;
+        }
+      }
+      // Every variable can be deleted, and the file saves without it.
+      for (let i = 0; i < probe.children.length; i++) {
+        const { session, root, save } = opened(bytes);
+        const node = root.children[i];
+        session.setActive(root, node);
+        expect(session.deleteNodeById(node.id), node.name).toBe(true);
+        expect(thrownBy(save)?.message, node.name).toBeUndefined();
+      }
+      if (probe.children.some((c: any) => !sourceEditRefusal(c, 'Value'))) {
+        expect(edits).toBeGreaterThan(0);
+      }
+    });
+  }
+});
+
+describe('every cell the save would refuse has no editor anywhere a host looks, and every path refuses its edit', () => {
+  for (const file of FIXTURES) {
+    it(shown(file), { timeout: 60_000 }, () => {
+      const bytes = fileBytes(file);
+      const original = new Uint8Array(bytes);
+      const { session, root, edit, save } = opened(bytes);
+      let refused = 0;
+      for (const { node } of sampled(nodesWithPaths(root))) {
+        const label = `${shown(file)}: ${node.matlabPath}`;
+        const row = node.toRow();
+        const dto = toDTO(node);
+        // What a host reads is one answer, the getters' and getPropInfo's.
+        expect(row.Name.editable, label).toBe(node.getPropInfo(node.getProperties().find((p: any) => p.key === 'Name')).editable);
+        expect(row._valueEditable, label).toBe(node.getProperties().some((p: any) => p.key === 'Value') ? node.getPropInfo(node.getProperties().find((p: any) => p.key === 'Value')).editable : node.valueEditable);
+        expect(row._descriptionEditable, label).toBe(node.descriptionEditable);
+        dto.props.forEach((p: any, k: number) => expect(p.editable, label + ' ' + p.key).toBe(node.getPropInfo(node.getProperties()[k]).editable));
+        const frozenValue = sourceEditRefusal(node, 'Value');
+        const frozenName = sourceEditRefusal(node, 'Name');
+        if (frozenName) {
+          expect([node.nameEditable, row.Name.editable], label).toEqual([false, false]);
+          const answer: any = edit(node, 'Name', 'refusedName');
+          expect(answer, label).toMatchObject({ error: true, reason: frozenName });
+          expect(node.setProperty('Name', 'refusedName'), label).toMatchObject({ error: true });
+          refused++;
+        }
+        if (frozenValue) {
+          for (const p of node.getProperties()) {
+            if (p.key !== 'Name') {
+              expect(node.getPropInfo(p).editable, label + ' ' + p.key).toBe(false);
+            }
+          }
+          expect([node.valueEditable, row._valueEditable, node.descriptionEditable], label).toEqual([false, false, false]);
+          expect([node.canAddChild(), node.canRemoveChild?.() ?? false], label).toEqual([false, false]);
+          expect(session.addChildTo(node.id), label).toBeNull();
+          for (const value of ['7', "'zz'", '{1}']) {
+            if (value === node.displayValue) {
+              continue;
+            }
+            expect(edit(node, 'Value', value), label + ' = ' + value).toMatchObject({ error: true });
+            expect(node.setProperty('Value', value), label + ' = ' + value).toMatchObject({ error: true });
+          }
+          if (node.parent !== root) {
+            session.setActive(root, node);
+            expect(session.deleteNodeById(node.id), label).toBe(false);
+          }
+          refused++;
+        }
+      }
+      // Nothing it refused changed the file.
+      expect(root.dirty).toBe(false);
+      expect(sameBytes(save(), original)).toBe(true);
+      if (refused === 0) {
+        expect(root.children.every((c: any) => !sourceEditRefusal(c, 'Value'))).toBe(true);
+      }
+    });
+  }
+});
+
+const CASES = join(TEST_ROOT, 'parity/artifacts/mat/cases.mat');
+const fixture = (rel: string) => fileBytes(join(TEST_ROOT, rel));
+
+describe('what each kind of variable of a .mat takes', () => {
+  const editRefused = (name: string, what: string) =>
+    `Cannot edit "${name}": it is ${what}, which a MAT-file save writes only as it was read, or renamed, so its edit cannot be saved.`;
+
+  it("an object's typed node: renamed and deleted, and nothing else, at any depth", () => {
+    // ParamMat.mat's Simulink.Parameter holds a 2x3 matrix: a Value row, and a row per element.
+    const deep = opened(fixture('fixtures/mcos/ParamMat.mat')).root.children[0];
+    expect(deep.flatten().length).toBe(8);
+    for (const node of deep.flatten()) {
+      const offered = node.getProperties().filter((p: any) => node.getPropInfo(p).editable).map((p: any) => p.key);
+      expect([offered, node.canAddChild(), node.canRemoveChild?.() ?? false], node.matlabPath).toEqual([node === deep ? ['Name'] : [], false, false]);
+    }
+    const { session, root, by, edit, save } = opened(fileBytes(CASES), 'cases.mat');
+    const param = by('aParam');
+    expect(param.constructor.name).toBe('ParameterNode');
+    const under = param.flatten();
+    expect(param.nameEditable).toBe(true);
+    for (const node of under) {
+      expect(node.getProperties().filter((p: any) => node.getPropInfo(p).editable).map((p: any) => p.key), node.matlabPath).toEqual(
+        node === param ? ['Name'] : [],
+      );
+    }
+    // Every property, refused in the save's own words, by the session and by the node.
+    for (const prop of ['Value', 'Description', 'DataType', 'Min', 'Unit']) {
+      expect(edit(param, prop, '3'), prop).toEqual({ error: true, reason: editRefused('aParam', 'a Simulink.Parameter'), invalidValue: '3', validValue: expect.any(String) });
+      expect(param.setProperty(prop, '3'), prop).toMatchObject({ error: true, reason: editRefused('aParam', 'a Simulink.Parameter') });
+    }
+    expect([param.status, root.dirty]).toEqual(['', false]);
+    expect(edit(param, 'Name', 'renamedParam')).toBe(true);
+    expect(readBack(save(), root.children.indexOf(param))).toEqual(shownAs(param));
+    session.setActive(root, param);
+    expect(session.deleteNodeById(param.id)).toBe(true);
+    expect(opened(arrayBufferOf(save())).by('renamedParam')).toBeUndefined();
+  });
+
+  it('a string, a function handle, a value not decoded: renamed and deleted, their values not edited', () => {
+    const z = numericVar({ name: 'z', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [3], imag: [4] });
+    z[16] = 0xff;
+    const cases: [ArrayBuffer, string, string][] = [
+      [fileBytes(CASES), 'strScalar', 'a string'],
+      [fixture('fixtures/display/dispcat_opaque.mat'), 'fh_sin', 'a function handle'],
+      [matFile([scalar('a', 1), z]), 'z', 'a value that was not decoded'],
+    ];
+    for (const [bytes, name, what] of cases) {
+      const { root, by, edit, save } = opened(bytes);
+      const node = by(name);
+      expect([node.nameEditable, node.valueEditable, node.toRow()._valueEditable], name).toEqual([true, false, false]);
+      expect(edit(node, 'Value', '5'), name).toMatchObject({ error: true });
+      expect(node.setProperty('Value', '5'), name).toMatchObject({ error: true });
+      expect(sourceEditRefusal(node, 'Value'), name).toBe(editRefused(name, what));
+      expect(root.dirty, name).toBe(false);
+      expect(edit(node, 'Name', name + 'R'), name).toBe(true);
+      const index = root.children.indexOf(node);
+      expect(readBack(save(), index), name).toEqual(shownAs(node));
+    }
+  });
+
+  it('a plain variable holding an object, at any depth: renamed and deleted, nothing in it edited', () => {
+    const { root, by, edit, save } = opened(fixture('fixtures/mcos/complex_objects.mat'));
+    const s = by('s');
+    const z = s.children.find((c: any) => c.name === 'z');
+    const why = 'Cannot edit "s": s.p is a Simulink.Parameter, which this package cannot write into a MAT-file.';
+    expect([s.valueEditable, z.valueEditable, z.nameEditable, s.canAddChild()]).toEqual([false, false, false, false]);
+    expect(edit(z, 'Value', '5')).toMatchObject({ error: true, reason: why });
+    expect(sourceEditRefusal(z, 'Value')).toBe(why);
+    expect(root.dirty).toBe(false);
+    expect(edit(s, 'Name', 'sR')).toBe(true);
+    expect(readBack(save(), root.children.indexOf(s))).toEqual(shownAs(s));
+  });
+
+  it('a plain variable: every cell, and Add and Delete of its rows, as the table offers them', () => {
+    const { by } = opened(fileBytes(CASES), 'cases.mat');
+    expect([by('kp').nameEditable, by('kp').valueEditable]).toEqual([true, true]);
+    expect(by('mat2x3').children.every((c: any) => c.valueEditable)).toBe(true);
+    expect([by('cellFlat').canAddChild(), by('structScalar').canAddChild(), by('rowVec').canAddChild()]).toEqual([true, true, true]);
+  });
+
+  it('a struct array, and each element of one, takes no Add: a save writes a field into every element or none', () => {
+    const { session, root, by, save } = opened(fileBytes(CASES), 'cases.mat');
+    const array = by('struct1x3');
+    const original = new Uint8Array(fileBytes(CASES));
+    for (const node of [array, array.children[0]]) {
+      expect(node.canAddChild(), node.matlabPath).toBe(false);
+      expect(session.addChildTo(node.id), node.matlabPath).toBeNull();
+      expect(sourceEditRefusal(node, 'Add')).toBe(
+        'Cannot edit "struct1x3": struct1x3 is a 1x3 struct, whose fields a save writes into every element of it or none, and Add gives one struct a field of its own.',
+      );
+    }
+    // Its elements' fields take their edits, as before.
+    expect(array.children[0].children[0].valueEditable).toBe(true);
+    expect([root.dirty, sameBytes(save(), original)]).toEqual([false, true]);
+  });
+
+  it("a value typed in that a save cannot write, a string, is refused before it is made", () => {
+    const { root, by, edit, save } = opened(fileBytes(CASES), 'cases.mat');
+    const original = new Uint8Array(fileBytes(CASES));
+    for (const [node, typed, why] of [
+      [by('kp'), '"abc"', 'Cannot edit "kp": kp would be a string, which this package cannot write into a MAT-file.'],
+      [by('kp'), '["a" "b"]', 'Cannot edit "kp": kp would be a string, which this package cannot write into a MAT-file.'],
+      [by('cellFlat').children[0], '{1, "a"}', 'Cannot edit "cellFlat": cellFlat{1} would hold a string, which this package cannot write into a MAT-file.'],
+      [by('structScalar').children[0], '"x"', 'Cannot edit "structScalar": structScalar.a would be a string, which this package cannot write into a MAT-file.'],
+    ] as [any, string, string][]) {
+      const was = shownAs(node);
+      expect(edit(node, 'Value', typed), typed).toEqual({ error: true, reason: why, invalidValue: typed, validValue: node.displayValue });
+      expect(shownAs(node), typed).toEqual(was);
+    }
+    // Nothing was edited: the file is not dirty, and saves as itself.
+    expect([root.dirty, by('kp').status, sameBytes(save(), original)]).toEqual([false, '', true]);
+    // A char is a value a save writes.
+    expect(edit(by('kp'), 'Value', "'abc'")).toBe(true);
+    expect(readBack(save(), root.children.indexOf(by('kp')))).toEqual(shownAs(by('kp')));
+  });
+
+  it('a container the node ceiling built without its rows is judged by what it was read as', () => {
+    // nested_handles.mat's c_fh is a cell of function handles. Built with no rows, it showed no
+    // handle to refuse, and took an edit the save then refused.
+    const bytes = fixture('fixtures/display/nested_handles.mat');
+    const cut: any = MatNode.fromParsed(parseMat(bytes), 'f.mat', { nodeCeiling: 0 });
+    const cFh = cut.children.find((c: any) => c.name === 'c_fh');
+    expect([cFh._cutByCeiling > 0, cFh.children.length]).toEqual([true, 0]);
+    expect(sourceEditRefusal(cFh, 'Value')).toBe('Cannot edit "c_fh": c_fh{1} is a function handle, which this package cannot write into a MAT-file.');
+    expect(cFh.valueEditable).toBe(false);
+  });
+});
+
+describe('what a file, or where a variable stands in it, refuses of every edit', () => {
+  it('a variable stored after the subsystem: neither renamed nor edited, and deleted', () => {
+    const late = arrayBufferOf(new Uint8Array([...new Uint8Array(fixture('fixtures/mcos/Param.mat')), ...scalar('late', 4)]));
+    const { session, root, by, edit, save } = opened(late);
+    const node = by('late');
+    const why =
+      'Cannot edit "late": it is stored after the file\'s objects, where MATLAB does not read it, so it would not be read written there, '
+      + 'and moved, it would change what MATLAB loads of the file.';
+    expect([node.nameEditable, node.valueEditable, node.toRow().Name.editable]).toEqual([false, false, false]);
+    expect(edit(node, 'Name', 'late2')).toMatchObject({ error: true, reason: why });
+    expect(edit(node, 'Value', '5')).toMatchObject({ error: true, reason: why });
+    expect(node.setProperty('Name', 'late2')).toMatchObject({ error: true, reason: why });
+    expect(root.dirty).toBe(false);
+    // The variable before the subsystem is as any other.
+    expect(by('Param').nameEditable).toBe(true);
+    session.setActive(root, node);
+    expect(session.deleteNodeById(node.id)).toBe(true);
+    expect(parseMat(arrayBufferOf(save())).records.map((r) => r.name)).toEqual(['Param', '']);
+  });
+
+  it('two variables of one name: neither value edited until one is renamed away', () => {
+    const { root, edit, save } = opened(matFile([scalar('a', 1), scalar('a', 2), scalar('b', 3)]));
+    const [first, second] = root.children;
+    const why = 'Cannot edit "a": the file holds another variable named "a", and MATLAB loads only one of them.';
+    // The session takes no edit of either, by an id two nodes answer to (DataModel.idIsShared);
+    // the nodes' own setters are asked here.
+    for (const node of [first, second]) {
+      expect([node.valueEditable, sourceEditRefusal(node, 'Value')]).toEqual([false, why]);
+      expect(edit(node, 'Value', '5')).toBe(false);
+      expect(node.setProperty('Value', '5')).toMatchObject({ error: true, reason: why });
+    }
+    expect(second.setProperty('Name', 'a2')).toBe(true);
+    expect([first.valueEditable, second.valueEditable]).toEqual([true, true]);
+    expect(edit(first, 'Value', '5')).toBe(true);
+    expect(parseMat(arrayBufferOf(save())).variables.map((v) => [v.name, v.value])).toEqual([['a', 5], ['a2', 2], ['b', 3]]);
+  });
+
+  it('a name the file holds as a record the reader dropped is taken: no rename or addition into it', () => {
+    // A record that is not a matrix (an miINT32 at the top level) is dropped by the reader, and
+    // kept by every save as its bytes; its name is still the file's.
+    const { root, edit } = opened(matFile([scalar('a', 1), scalar('b', 2)]));
+    expect(root._namespaceHolds('a')).toBe(1);
+    expect(edit(root.children[1], 'Name', 'a')).toEqual({ error: true, reason: "'a' already exists in f.mat", invalidValue: 'a', validValue: 'b' });
+  });
+
+  it('a variable whose record holds bytes past its element: no rename, refused as it is made; its value is written fresh', () => {
+    // A compressed record whose stream inflates to the element and 8 bytes more: the reader reads
+    // the element, and a save has no element of the record's own to put a new name in.
+    const stream = zlibSync(new Uint8Array([...scalar('a', 1), ...new Uint8Array(8)]));
+    const record = new Uint8Array([...u32le(15), ...u32le(stream.length), ...stream]);
+    const { root, by, edit, save } = opened(matFile([record, scalar('b', 2)]));
+    const node = by('a');
+    expect([root.framed, node.nameEditable]).toEqual([true, true]);
+    const why = `Cannot edit "a": the record it was read from, at byte 128, is not a whole element whose name can be replaced, so it cannot be renamed.`;
+    expect(edit(node, 'Name', 'a2')).toEqual({ error: true, reason: why, invalidValue: 'a2', validValue: 'a' });
+    expect([node.name, root.dirty]).toEqual(['a', false]);
+    expect(edit(node, 'Value', '5')).toBe(true);
+    expect(parseMat(arrayBufferOf(save())).variables.map((v) => [v.name, v.value])).toEqual([['a', 5], ['b', 2]]);
+  });
+
+  it('a file no save of which can be written is read-only, and takes no edit, addition or delete', () => {
+    const z = new Uint8Array(8);
+    const files: [string, () => any, RegExp][] = [
+      ['unframed', () => opened(matFile([scalar('a', 1), scalar('b', 2)], { trailing: z })), /^Cannot edit "f\.mat": this package could not frame 8 byte\(s\) of it/],
+      ['an unnamed record that is not the subsystem', () => opened(matFile([scalar('a', 1), scalar('', 2), scalar('b', 3)])), /^Cannot edit "f\.mat": the record at byte \d+ holds a value with no name/],
+      [
+        "a host's parse that carries no records",
+        () => {
+          const session = createSession();
+          const { header, variables } = parseMat(fileBytes(CASES));
+          const root: any = session.addMatSourceParsed('f.mat', { header, variables });
+          return {
+            session,
+            root,
+            edit: (node: any, prop: string, value: string) => {
+              session.setActive(root, node);
+              return session.editProperty(node.id, prop, value);
+            },
+          };
+        },
+        /^Cannot edit "f\.mat": it was opened without the records a save writes back/,
+      ],
+    ];
+    for (const [what, open, why] of files) {
+      const { session, root, edit } = open();
+      expect(root.readOnly, what).toBe(true);
+      const node = root.children[0];
+      expect([node.nameEditable, node.valueEditable], what).toEqual([false, false]);
+      expect(edit(node, 'Value', '5').reason, what).toMatch(why);
+      expect(edit(node, 'Name', 'renamed').reason, what).toMatch(why);
+      session.setActive(root, node);
+      expect(session.deleteNodeById(node.id), what).toBe(false);
+      expect(session.addEntry('', 'MatlabVariable'), what).toBeNull();
+      expect([root.children[0], root.dirty], what).toEqual([node, false]);
+    }
+  });
+
+  it('a file whose bytes the host has since handed away becomes read-only', () => {
+    const input = fileBytes(CASES);
+    const { root, by } = opened(input, 'cases.mat');
+    expect([root.readOnly, by('kp').valueEditable]).toEqual([false, true]);
+    structuredClone(input, { transfer: [input] });
+    expect([root.readOnly, by('kp').valueEditable, by('kp').nameEditable]).toEqual([true, false, false]);
+  });
+});
+
+describe('the session, on a .mat', () => {
+  it('a file a save can write is not read-only', () => {
+    for (const file of FIXTURES) {
+      expect(opened(fileBytes(file)).root.readOnly, shown(file)).toBe(false);
+    }
+  });
+
+  it('addEntry adds the double 0, named var, before the subsystem, and its undo and redo are saved', () => {
+    const { session, root, save } = opened(fileBytes(CASES), 'cases.mat');
+    session.setActiveContext(root);
+    const added: any = session.addEntry('', 'MatlabVariable');
+    expect([added.name, added.displayValue, added.className, added.parent]).toEqual(['var', '0', 'double', root]);
+    expect(session.getEntryNode()).toBe(added);
+    const again: any = session.addEntry('', 'MatlabVariable');
+    expect(again.name).toBe('var1');
+    let parsed = parseMat(arrayBufferOf(save()));
+    expect(parsed.records.slice(-3).map((r) => r.name)).toEqual(['var', 'var1', '']);
+    expect(parsed.variables.find((v) => v.name === 'var')).toMatchObject({ className: 'double', dimensions: [1, 1], value: 0 });
+    session.undo();
+    session.undo();
+    expect(root.children.includes(added)).toBe(false);
+    expect(parseMat(arrayBufferOf(save())).records.map((r) => r.name)).not.toContain('var');
+    session.redo();
+    parsed = parseMat(arrayBufferOf(save()));
+    expect(parsed.records.slice(-2).map((r) => r.name)).toEqual(['var', '']);
+    // An entry named by the caller, and what a save could not write.
+    expect(session.addEntry('', 'MatlabVariable', 'myVar').name).toBe('myVar');
+    expect(session.addEntry('', 'MatlabVariable', 'kp')).toBeNull();
+    expect(session.addEntry('', 'MatlabVariable', '1bad')).toBeNull();
+    expect(session.addEntry('', 'Simulink.Parameter')).toBeNull();
+    expect(parseMat(arrayBufferOf(save())).records.slice(-3).map((r) => r.name)).toEqual(['var', 'myVar', '']);
+  });
+
+  it("a rename into a name the file holds names the file; a dictionary's keeps its wording", () => {
+    const { by, edit } = opened(fileBytes(CASES), 'cases.mat');
+    expect(edit(by('kp'), 'Name', 'scalarD')).toEqual({ error: true, reason: "'scalarD' already exists in cases.mat", invalidValue: 'scalarD', validValue: 'kp' });
+    // A host's srcId that is a path names the file by its basename.
+    const session = createSession();
+    const root: any = session.addMatSource('/some/where/cases.mat', fileBytes(CASES));
+    expect(root.children.find((c: any) => c.name === 'kp').setProperty('Name', 'scalarD').reason).toBe("'scalarD' already exists in cases.mat");
+  });
+});

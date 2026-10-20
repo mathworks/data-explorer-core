@@ -416,6 +416,24 @@ const editableIn = (p: unknown): unknown[] => {
   return seen;
 };
 const withoutEditable = (p: unknown): unknown => JSON.parse(JSON.stringify(p, (k, v) => (EDITABLE_KEYS.has(k) ? undefined : v)));
+// And the way the .mat's own may: its save writes an object only as it was read, so every row of
+// an object there is shown and not edited (MatNode._editRefusal), where a model workspace and a
+// binary dictionary edit it. So what it presents is compared with every editor taken out: the
+// flags, the Name and Value cells' own, and an editable column's cell (BaseNode.toRow), which is
+// its text when it takes none.
+const EDITABILITY_KEYS = new Set(['valueEditable', '_valueEditable', '_descriptionEditable']);
+const withoutEditability = (p: unknown): unknown =>
+  JSON.parse(
+    JSON.stringify(p, (k, v) => {
+      if (EDITABILITY_KEYS.has(k)) {
+        return undefined;
+      }
+      if (v && typeof v === 'object' && !Array.isArray(v) && 'editable' in v) {
+        return k === 'Name' || k === 'Value' ? { ...v, editable: undefined } : v.text;
+      }
+      return v;
+    }),
+  );
 
 describe('every value presents the same in the .mat as in each other venue that holds it', () => {
   const mat = MAT.variables();
@@ -443,7 +461,7 @@ describe('every value presents the same in the .mat as in each other venue that 
         const a = nodeAt(mat, path);
         const b = nodeAt(variables, path);
         const text = fx.file === 'complex.sldd';
-        const shown = (n: any) => (text ? withoutEditable(presentation(n, n.displayName)) : presentation(n, n.displayName));
+        const shown = (n: any) => withoutEditability(text ? withoutEditable(presentation(n, n.displayName)) : presentation(n, n.displayName));
         if (text) {
           expect(editableIn(presentation(b, b.displayName)), `${path}: a MAT stream, display-only`).not.toContain(true);
         }

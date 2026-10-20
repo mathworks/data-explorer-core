@@ -152,8 +152,11 @@ describe('a damaged column count in an MCOS-held sparse array opens, as what its
         ['Value(9999999,2)', '8', false],
       ],
     ]);
-    // Not hex: the rows are read-only for this array's own sake, and say why.
-    expect(value.children[0].setProperty('Value', '9')).toMatchObject({ error: true, reason: expect.stringMatching(/cannot be written once edited/) });
+    // Not hex: the rows are read-only for this array's own sake (_sparseRefusal), and in a .mat for
+    // its object's too, which the file's save writes as it was read: the file says so first
+    // (MatNode._editRefusal).
+    expect(value._sparseRefusal()).toEqual(expect.any(String));
+    expect(value.children[0].setProperty('Value', '9')).toMatchObject({ error: true, reason: expect.stringMatching(/^Cannot edit "pTall": it is a Simulink\.Parameter/) });
     expect(mat.warnings?.map((w: any) => w.part)).toEqual(['pTall.Value']);
     // A copy into a dictionary: its Value is the element it was read from.
     const copied = JSON.parse(JSON.stringify(pTall.serializeValue()))._elements[0]._properties.Value;
@@ -245,10 +248,13 @@ describe('a sparse MCOS property of a class nothing writes sparse shows what its
         ['Value(9999999,2)', '8', false],
       ],
     ]);
-    // Not hex: read-only because nothing could write an edit of an int8 sparse array.
+    // Not hex: read-only because nothing could write an edit of an int8 sparse array
+    // (_sparseRefusal), and in a .mat because its save writes the object as it was read, which
+    // the refusal says first (MatNode._editRefusal).
+    expect(pTall._valueNode._sparseRefusal()).toBe('no sparse MAT class for "int8"');
     expect(pTall._valueNode.children[0].setProperty('Value', '9')).toMatchObject({
       error: true,
-      reason: expect.stringMatching(/no sparse MAT class for "int8"/),
+      reason: expect.stringMatching(/^Cannot edit "pTall": it is a Simulink\.Parameter/),
     });
     const copied = JSON.parse(JSON.stringify(pTall.serializeValue()))._elements[0]._properties.Value;
     expect(copied._type).toBe('cdata');
