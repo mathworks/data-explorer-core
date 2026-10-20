@@ -36,6 +36,7 @@ import { fileURLToPath } from 'node:url';
 import { loadFile } from './parity/loadFile.js';
 import { nodeAt } from './tools/matlabPath.js';
 import { parseComplexNum } from '../src/datamodel/parser/XmlUtils.js';
+import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { uudecode } from '../src/datamodel/parser/CdataCodec.js';
 import { matStreamPrefix } from '../src/datamodel/parser/EncodedValue.js';
 import { readMxArrayRecords } from '../src/datamodel/parser/MxArrayParser.js';
@@ -128,9 +129,21 @@ function columnMajor(node: any, size: number[]): unknown[] {
 
 const numberText = (n: number): string => (Number.isNaN(n) ? 'NaN' : n === Infinity ? 'Inf' : n === -Infinity ? '-Inf' : String(n));
 
+/**
+ * `re` with the sign of its zero, which a truth's JSON cannot carry (numberOf), as MATLAB's own
+ * bytes hold it: the non-zero `k` of `path` in sparse_values.mat, which MATLAB wrote. Its `-3i`
+ * is complex(-0, -3), and its real part reads `-0`, as a binary dictionary's `-0.0-3.0i` reads.
+ */
+const MATLAB_MAT = parseMat(new Uint8Array(readFileSync(fileURLToPath(new URL('./fixtures/sparse/sparse_values.mat', import.meta.url)))).buffer as ArrayBuffer);
+function signedZero(path: string, k: number, re: number): number {
+  const v = MATLAB_MAT.variables.find((x) => x.name === path);
+  return re === 0 && v?.sparse && Object.is(v.sparse.re[k], -0) ? -0 : re;
+}
+
 function elementText(t: ValueTruth, re: number, im: number): string {
   if (t.class === 'logical') return re ? 'true' : 'false';
-  if (!t.isreal) return numberText(re) + (im >= 0 ? '+' : '') + numberText(im) + 'i';
+  // A real part of -0 is shown as it is (XmlUtils.shownComplexText), an imaginary one with a `+`.
+  if (!t.isreal) return (Object.is(re, -0) ? '-0' : numberText(re)) + (im >= 0 ? '+' : '') + numberText(im) + 'i';
   return numberText(re);
 }
 
@@ -202,7 +215,7 @@ function expectNonzeroRows(node: any, t: ValueTruth, label: string): void {
     // a complex one's `re+imi`, in this package's spelling of the numbers MATLAB recorded.
     expect([c.className, c.displayValue], `${label} row ${k + 1} shown`).toEqual([
       t.class,
-      elementText(t, numberOf(nz.real[k]), numberOf(nz.imag[k])),
+      elementText(t, signedZero(label.slice(label.indexOf(' ') + 1), k, numberOf(nz.real[k])), numberOf(nz.imag[k])),
     ]);
   });
   expect(node.children.length, `${label} nnz`).toBe(t.nnz);
@@ -217,14 +230,13 @@ const isValueTruth = (t: PathTruth): boolean => 'real' in t || 'fullOmitted' in 
 const OMITTED_AT_DEFAULT = new Set(['text numAlias.K']);
 
 // Where two venues spell one value differently on screen, and why. Not ours to change
-// here: both are about how a FULL value is written, which this suite holds only as the
-// dense control beside each sparse one.
+// here: it is about how a FULL value is written, which this suite holds only as the dense
+// control beside each sparse one.
+//
+// No longer dComplex's complex(-0, -3): the binary dictionary's text `-0.0-3.0i` reads `-0-3i`,
+// and the same -0 read out of MAT bytes, the .mat's and the text dictionary's stream, keeps its
+// sign too (SparseData.complexElement), where it printed as 0 and was written again as 0.
 const SPELLED_DIFFERENTLY: Record<string, string> = {
-  // MATLAB's binary dictionary writes the element complex(-0, -3) as `-0.0-3.0i`, and this
-  // package's complex text keeps the sign; the .mat and the text dictionary's cdata hold
-  // the same -0 as a double, which prints as 0. The numbers are equal (the per-venue check
-  // above says so); the spelling of the zero is not.
-  dComplex: 'binary -0-3i, elsewhere 0-3i',
   // OMITTED_AT_DEFAULT: the text dictionary has no K.
   numAlias: 'text has no K',
 };

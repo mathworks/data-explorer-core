@@ -1,0 +1,2047 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "date": "2026-10-20",
+  "cases": [
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_0x0_fields",
+      "edited": false,
+      "place": "entry",
+      "entry": "e0ue",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[0,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_0x0_fields",
+      "edited": false,
+      "place": "field",
+      "entry": "e0uf",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[0,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_0x0_fields",
+      "edited": false,
+      "place": "cell",
+      "entry": "e0uc",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[0,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_0x0_fields",
+      "edited": true,
+      "place": "entry",
+      "entry": "e0me",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[0,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_0x0_fields",
+      "edited": true,
+      "place": "field",
+      "entry": "e0mf",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[0,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_0x0_fields",
+      "edited": true,
+      "place": "cell",
+      "entry": "e0mc",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[0,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_1x0",
+      "edited": false,
+      "place": "entry",
+      "entry": "e1ue",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[1,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_1x0",
+      "edited": false,
+      "place": "field",
+      "entry": "e1uf",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[1,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_1x0",
+      "edited": false,
+      "place": "cell",
+      "entry": "e1uc",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[1,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_1x0",
+      "edited": true,
+      "place": "entry",
+      "entry": "e1me",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[1,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_1x0",
+      "edited": true,
+      "place": "field",
+      "entry": "e1mf",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[1,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_struct_1x0",
+      "edited": true,
+      "place": "cell",
+      "entry": "e1mc",
+      "fragment": "{\"_array_type\":\"Struct\",\"_dimensions\":[1,0],\"_elements\":[],\"_fields\":[\"a\"],\"_mw_element_type\":\"MATLABArray\"}",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_0x0",
+      "edited": false,
+      "place": "entry",
+      "entry": "e2ue",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"                0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_0x0",
+      "edited": false,
+      "place": "field",
+      "entry": "e2uf",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"                0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_0x0",
+      "edited": false,
+      "place": "cell",
+      "entry": "e2uc",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"                0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_0x0",
+      "edited": true,
+      "place": "entry",
+      "entry": "e2me",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"                0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_0x0",
+      "edited": true,
+      "place": "field",
+      "entry": "e2mf",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"                0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_0x0",
+      "edited": true,
+      "place": "cell",
+      "entry": "e2mc",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"                0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_1x0",
+      "edited": false,
+      "place": "entry",
+      "entry": "e3ue",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"     $          0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_1x0",
+      "edited": false,
+      "place": "field",
+      "entry": "e3uf",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"     $          0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_1x0",
+      "edited": false,
+      "place": "cell",
+      "entry": "e3uc",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"     $          0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_1x0",
+      "edited": true,
+      "place": "entry",
+      "entry": "e3me",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"     $          0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_1x0",
+      "edited": true,
+      "place": "field",
+      "entry": "e3mf",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"     $          0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_1x0",
+      "edited": true,
+      "place": "cell",
+      "entry": "e3mc",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !@@        %    \\\"     $          0         )          D         \\u0000\"}",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_int16_1x0",
+      "edited": false,
+      "place": "entry",
+      "entry": "e4ue",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"@@        %    \\\"     $          0         #          ,         \\u0000\"}",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_int16_1x0",
+      "edited": false,
+      "place": "field",
+      "entry": "e4uf",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"@@        %    \\\"     $          0         #          ,         \\u0000\"}",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_int16_1x0",
+      "edited": false,
+      "place": "cell",
+      "entry": "e4uc",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"@@        %    \\\"     $          0         #          ,         \\u0000\"}",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_int16_1x0",
+      "edited": true,
+      "place": "entry",
+      "entry": "e4me",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"@@        %    \\\"     $          0         #          ,         \\u0000\"}",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_int16_1x0",
+      "edited": true,
+      "place": "field",
+      "entry": "e4mf",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"@@        %    \\\"     $          0         #          ,         \\u0000\"}",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "dx_complex_int16_1x0",
+      "edited": true,
+      "place": "cell",
+      "entry": "e4mc",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    \\\"@@        %    \\\"     $          0         #          ,         \\u0000\"}",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "e_single_complex_1x0",
+      "edited": false,
+      "place": "entry",
+      "entry": "e5ue",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !P@        %    \\\"     $          0         '          <         \\u0000\"}",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "e_single_complex_1x0",
+      "edited": false,
+      "place": "field",
+      "entry": "e5uf",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !P@        %    \\\"     $          0         '          <         \\u0000\"}",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "e_single_complex_1x0",
+      "edited": false,
+      "place": "cell",
+      "entry": "e5uc",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !P@        %    \\\"     $          0         '          <         \\u0000\"}",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "e_single_complex_1x0",
+      "edited": true,
+      "place": "entry",
+      "entry": "e5me",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !P@        %    \\\"     $          0         '          <         \\u0000\"}",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "e_single_complex_1x0",
+      "edited": true,
+      "place": "field",
+      "entry": "e5mf",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !P@        %    \\\"     $          0         '          <         \\u0000\"}",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_text.sldd",
+      "format": "text",
+      "variable": "e_single_complex_1x0",
+      "edited": true,
+      "place": "cell",
+      "entry": "e5mc",
+      "fragment": "{\"_type\":\"cdata\",\"_value\":\"  %)30     .    .     8    (    !P@        %    \\\"     $          0         '          <         \\u0000\"}",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_0x0_fields",
+      "edited": false,
+      "place": "entry",
+      "entry": "e0ue",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Dimension=\"0*0\"> <Field Name=\"a\"/> </P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_0x0_fields",
+      "edited": false,
+      "place": "field",
+      "entry": "e0uf",
+      "fragment": "<P Name=\"f\" Class=\"struct\" Dimension=\"0*0\"> <Field Name=\"a\"/> </P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_0x0_fields",
+      "edited": false,
+      "place": "cell",
+      "entry": "e0uc",
+      "fragment": "<Element Class=\"struct\" Dimension=\"0*0\"> <Field Name=\"a\"/> </Element>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_0x0_fields",
+      "edited": true,
+      "place": "entry",
+      "entry": "e0me",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Dimension=\"0*0\"> <Field Name=\"a\"/> </P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_0x0_fields",
+      "edited": true,
+      "place": "field",
+      "entry": "e0mf",
+      "fragment": "<P Name=\"f\" Class=\"struct\" Dimension=\"0*0\"> <Field Name=\"a\"/> </P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_0x0_fields",
+      "edited": true,
+      "place": "cell",
+      "entry": "e0mc",
+      "fragment": "<Element Class=\"struct\" Dimension=\"0*0\"> <Field Name=\"a\"/> </Element>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_1x0",
+      "edited": false,
+      "place": "entry",
+      "entry": "e1ue",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Dimension=\"1*0\"> <Field Name=\"a\"/> </P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_1x0",
+      "edited": false,
+      "place": "field",
+      "entry": "e1uf",
+      "fragment": "<P Name=\"f\" Class=\"struct\" Dimension=\"1*0\"> <Field Name=\"a\"/> </P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_1x0",
+      "edited": false,
+      "place": "cell",
+      "entry": "e1uc",
+      "fragment": "<Element Class=\"struct\" Dimension=\"1*0\"> <Field Name=\"a\"/> </Element>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_1x0",
+      "edited": true,
+      "place": "entry",
+      "entry": "e1me",
+      "fragment": "<P Name=\"Value\" Class=\"struct\" Dimension=\"1*0\"> <Field Name=\"a\"/> </P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_1x0",
+      "edited": true,
+      "place": "field",
+      "entry": "e1mf",
+      "fragment": "<P Name=\"f\" Class=\"struct\" Dimension=\"1*0\"> <Field Name=\"a\"/> </P>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_struct_1x0",
+      "edited": true,
+      "place": "cell",
+      "entry": "e1mc",
+      "fragment": "<Element Class=\"struct\" Dimension=\"1*0\"> <Field Name=\"a\"/> </Element>",
+      "matlab": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      },
+      "loaded": {
+        "class": "struct",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": [
+          "a"
+        ]
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_0x0",
+      "edited": false,
+      "place": "entry",
+      "entry": "e2ue",
+      "fragment": "<P Name=\"Value\" Class=\"double\" IsComplex=\"1\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_0x0",
+      "edited": false,
+      "place": "field",
+      "entry": "e2uf",
+      "fragment": "<P Name=\"f\" Class=\"double\" IsComplex=\"1\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_0x0",
+      "edited": false,
+      "place": "cell",
+      "entry": "e2uc",
+      "fragment": "<Element Class=\"double\" IsComplex=\"1\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_0x0",
+      "edited": true,
+      "place": "entry",
+      "entry": "e2me",
+      "fragment": "<P Name=\"Value\" Class=\"double\" IsComplex=\"1\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_0x0",
+      "edited": true,
+      "place": "field",
+      "entry": "e2mf",
+      "fragment": "<P Name=\"f\" Class=\"double\" IsComplex=\"1\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_0x0",
+      "edited": true,
+      "place": "cell",
+      "entry": "e2mc",
+      "fragment": "<Element Class=\"double\" IsComplex=\"1\" Dimension=\"0*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          0,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_1x0",
+      "edited": false,
+      "place": "entry",
+      "entry": "e3ue",
+      "fragment": "<P Name=\"Value\" Class=\"double\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_1x0",
+      "edited": false,
+      "place": "field",
+      "entry": "e3uf",
+      "fragment": "<P Name=\"f\" Class=\"double\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_1x0",
+      "edited": false,
+      "place": "cell",
+      "entry": "e3uc",
+      "fragment": "<Element Class=\"double\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_1x0",
+      "edited": true,
+      "place": "entry",
+      "entry": "e3me",
+      "fragment": "<P Name=\"Value\" Class=\"double\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_1x0",
+      "edited": true,
+      "place": "field",
+      "entry": "e3mf",
+      "fragment": "<P Name=\"f\" Class=\"double\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_1x0",
+      "edited": true,
+      "place": "cell",
+      "entry": "e3mc",
+      "fragment": "<Element Class=\"double\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "double",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_int16_1x0",
+      "edited": false,
+      "place": "entry",
+      "entry": "e4ue",
+      "fragment": "<P Name=\"Value\" Class=\"int16\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_int16_1x0",
+      "edited": false,
+      "place": "field",
+      "entry": "e4uf",
+      "fragment": "<P Name=\"f\" Class=\"int16\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_int16_1x0",
+      "edited": false,
+      "place": "cell",
+      "entry": "e4uc",
+      "fragment": "<Element Class=\"int16\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_int16_1x0",
+      "edited": true,
+      "place": "entry",
+      "entry": "e4me",
+      "fragment": "<P Name=\"Value\" Class=\"int16\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_int16_1x0",
+      "edited": true,
+      "place": "field",
+      "entry": "e4mf",
+      "fragment": "<P Name=\"f\" Class=\"int16\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "dx_complex_int16_1x0",
+      "edited": true,
+      "place": "cell",
+      "entry": "e4mc",
+      "fragment": "<Element Class=\"int16\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "int16",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "e_single_complex_1x0",
+      "edited": false,
+      "place": "entry",
+      "entry": "e5ue",
+      "fragment": "<P Name=\"Value\" Class=\"single\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "e_single_complex_1x0",
+      "edited": false,
+      "place": "field",
+      "entry": "e5uf",
+      "fragment": "<P Name=\"f\" Class=\"single\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "e_single_complex_1x0",
+      "edited": false,
+      "place": "cell",
+      "entry": "e5uc",
+      "fragment": "<Element Class=\"single\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "e_single_complex_1x0",
+      "edited": true,
+      "place": "entry",
+      "entry": "e5me",
+      "fragment": "<P Name=\"Value\" Class=\"single\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "e_single_complex_1x0",
+      "edited": true,
+      "place": "field",
+      "entry": "e5mf",
+      "fragment": "<P Name=\"f\" Class=\"single\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    },
+    {
+      "file": "empty_copies_sparse_binary.sldd",
+      "format": "binary",
+      "variable": "e_single_complex_1x0",
+      "edited": true,
+      "place": "cell",
+      "entry": "e5mc",
+      "fragment": "<Element Class=\"single\" IsComplex=\"1\" Dimension=\"1*0\"/>",
+      "matlab": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      },
+      "loaded": {
+        "class": "single",
+        "size": [
+          1,
+          0
+        ],
+        "isreal": false,
+        "fields": []
+      }
+    }
+  ]
+}

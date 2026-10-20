@@ -134,6 +134,7 @@ directory, because `Simulink.data.dictionary.open` rejects a relative one with
 | `probe_m9_merged_reopen.m` + `m9_merged_saves.mjs` | does MATLAB reopen S2's merged saves of a binary dictionary (an edited entry saved as its bytes, with only what the edit changed written from the model) and read every entry as it should (M9)? In every compressed-binary fixture under `test/fixtures` and `test/parity/artifacts`, and in a copy of each as an earlier core save left it (1x1 cells spelled `Dimension="1*1"`, so that the merge differs from writing the entry whole), one entry of each kind is renamed, has its Description set, and where it is cheap a bus element's Description or a struct field edited, each through `session.editProperty` and saved by `serializeSource` into a file of its own. MATLAB opens each save and a copy of its original: every unedited entry must read as in the original (class, `isequaln`, `fullsig`), the edited one as the original with the same edit made in MATLAB, with no error or warning. Opens only the copies and the saves in `$M9_OUT`; graded by `../m9MergedSaves.truth.test.ts`. Ends `M9_MERGED_REOPEN OK` | `$M9_OUT` | `m9_merged_saves.truth.json` (here), written by `27.1.0.3409468 (R2027a) Prerelease` |
 | `probe_old_saves_readback.m` + `old_saves.mjs` | what does MATLAB read of a binary dictionary core saved before two of its fixes, and of what core copies now from a binary dictionary into a text one (M4, M7, D15)? `../oldsaves/` holds untouched saves, by core built at `50549bd^`, `69664b0^` and `90caf06^`, of every binary fixture holding a dynamic property or a struct entry of no element, and of `old_saves_r2027a_binary.sldd` (`make_old_saves_r2027a.m`: an AUTOSAR config set, a config set holding an `SSC.SimscapeCC`, a `dexdata.DerivedSignal` beside a `Simulink.Signal`, and empty structs of five shapes); the `.mjs` makes them once per build (`save`), and the pastes into the text twin with this checkout (`cases`). MATLAB opens each save and paste and a copy of its original: every entry as in the original, each dynamic property by `get_param`, each empty struct's shape. Opens only the files in `$OLD_SAVES_OUT`; graded by `../oldSaves.truth.test.ts`. Ends `OLD_SAVES_READBACK OK` | `$OLD_SAVES_OUT` | `old_saves_readback.truth.json` (here), written by `27.1.0.3409468 (R2027a) Prerelease` |
 | `probe_fieldless_struct_readback.m` + `fieldless_struct_readback.mjs` | does MATLAB read back core's one-stream spelling of a field-less `repmat(struct(),1e4,1e4)` (a 132-byte cdata in text, a 72-byte hex stream in binary), as an entry, a struct field and a cell's element, where its own spelling is 1e8 elements? (F1-9; graded by `../../fieldlessStructReadback.test.ts`). Ends `FIELDLESS_STRUCT_READBACK OK` | `$FIELDLESS_OUT` | `fieldless_struct_readback.truth.json` (here), from `../../fixtures/mcos/fieldless_1e4x1e4.mat` (MATLAB's `save`), written by `27.1.0.3409468 (R2027a) Prerelease` |
+| `probe_empty_copies_readback.m` + `empty_copies_readback.mjs` | does MATLAB read back core's copy of a struct array of no element with fields (`struct('a', {})`, 0x0 and 1x0) and of a complex empty (double 0x0 and 1x0, int16 and single 1x0), dispcat.mat's own, pasted into a text and a binary dictionary as an entry, a struct field and a cell's element, as read and once marked edited, as `load` reads the variable? Yes for all 72: field names, size, class and complexity kept (a text dictionary's bag `{"_elements": [], "_fields": ["a"]}` and a complex empty's MAT stream; a binary one's `<Field Name="a"/>` and `IsComplex="1"`, MATLAB's own spelling). Graded by `../../emptyCopiesReadback.test.ts`. Opens only the files the `.mjs` writes. Ends `EMPTY_COPIES_READBACK OK` | `$EMPTY_COPIES_OUT` | `empty_copies_readback.truth.json` (here), written by `27.1.0.3409468 (R2027a) Prerelease` |
 | `probe_nd_undecoded_copy_readback.m` + `nd_undecoded_copy_readback.mjs` | does MATLAB read back, as `load` reads the `.mat` variable, the MAT stream a 1x1x2 cell or struct holding a sparse array core did not decode (values absent, of no width, or 2 of 4) used to copy as, pasted into a text and a binary dictionary? Not for a struct whose member's values are absent (a 1x0 double in text, an error in binary), so the copy stays refused (B-11; graded by `../../undecodedCopy.test.ts`). Opens only the files the `.mjs` writes. Ends `ND_UNDECODED_COPY_READBACK OK` | `$ND_UNDECODED_OUT` | `nd_undecoded_copy_readback.truth.json` (here), written by `27.1.0.3409468 (R2027a) Prerelease` |
 | `probe_short_array_copy_readback.m` + `short_array_copy_readback.mjs` | does MATLAB read back, as the padded value core shows, the copy of a `.mat` struct array or cell whose bytes hold fewer elements than it declares (some held, none held, rank 2 and N-D, a struct cut inside an element; one holding every element as the control), pasted into a text and a binary dictionary? Yes for each holding some, and for an N-D one holding none; not for a rank-2 struct array holding none (a struct with no fields), nor a rank-2 cell holding none in a binary dictionary (a 0x0 cell), so those copies are refused (B-26; graded by `../../shortArrayCopy.test.ts`). `load` refuses every damaged file. Opens only the files the `.mjs` writes. Ends `SHORT_ARRAY_COPY_READBACK OK` | `$SHORT_COPY_OUT` | `short_array_copy_readback.truth.json` (here), written by `27.1.0.3409468 (R2027a) Prerelease` |
 | `probe_text_empty_readback.m` | how does MATLAB read back a classed or shaped EMPTY out of a text dictionary, at an entry, a cell, a struct field, a Parameter's Value and an object's property, in each candidate spelling; and how does it spell one there itself? (1A-TEXT, CELL-EMPTIES-87, D8; graded by `test/textEmptyReadback.test.ts`). Ends `TEXT_EMPTY_READBACK OK` | `$TEXT_EMPTY_OUT` or `tempdir/textempty` | `text_empty_readback.truth.json` (here) and `../../fixtures/text_empty_readback_binary.sldd`, written by `27.1.0.3409468 (R2027a) Prerelease` |
@@ -278,8 +279,11 @@ each saved file **the same edit as MATLAB statements** on a struct `S` loaded fr
 the statements make of it, so the two halves describe one edit. `probe_mat_writeback.m` then
 loads the original, makes the edit in MATLAB, loads the save, and compares:
 
-- the same variables in the same order (load's, and `whos -file`'s class and size of each);
-- each variable to the leaf: class, size, sparsity, complexity, `isequaln` on every value,
+- the same variables in the same order (load's, and `whos -file`'s class, size and global flag
+  of each);
+- each variable to the leaf: class, size, sparsity, complexity, `isequaln` on every value and
+  the bits of every double and single (the sign of a zero, which `isequaln` does not see; a
+  NaN's payload apart),
   field names in order, every element of a cell or a struct array, every readable property
   of an object, a function handle's text and an anonymous one's workspace, and handle
   sharing (one object held twice is still one object);
@@ -303,21 +307,29 @@ The fixtures are `cases.mat`, `dispcat.mat`, `dispcat_opaque.mat` (function hand
 enumerations, `fi`, `categorical`, `table`), `nested_objects.mat`, `strings.mat`,
 `strings_mixed.mat`, `sparse_values.mat`, `sparse_cases.mat`, `complex_inf.mat` (no subsystem),
 `dag4.mat` (a handle DAG), the two `-v6` files `nested_handles.mat` and `hexobj_values.mat`, and
-one file the JS half assembles from `dispcat.mat`'s own elements, an empty complex array and an
-empty struct array with a field held in a struct and a cell beside a value to edit. The MATLAB
+two files the JS half assembles: one of `dispcat.mat`'s own elements, an empty complex array and
+an empty struct array with a field held in a struct and a cell beside a value to edit; and one
+built by hand as MATLAB writes each part, of what no fixture holds: a struct of no element with two
+fields in a cell, `complex(zeros(0,3,'single'))` alone and in a struct, empty structs with a field
+in each element of a struct array, a variable saved as global, and a complex row whose zero parts
+are -0, each beside a value to edit. The MATLAB
 half puts the classes those need on the path (`../../fixtures/display`, `../../fixtures/sparse`,
 `../../fixtures/mcos/shared`, and `DispColor` by `Simulink.defineIntEnumType`).
 
-Twelve cases are **negative controls**: MATLAB's half makes one change more than the save does
+Thirteen cases are **negative controls**: MATLAB's half makes one change more than the save does
 (a value, a class, complexity, a Parameter's `Value` and its `CoderInfo.StorageClass`, a
 string, the variables' order, a struct's field order, handle sharing, an anonymous handle's
-text, an enumeration member, a `categorical`), and each passes only when the comparison
-reports that difference. They are what makes a PASS mean the comparison looked.
+text, an enumeration member, a `categorical`, a complex zero's -0 parts made +0), and each
+passes only when the comparison reports that difference. They are what makes a PASS mean the
+comparison looked.
 
 `matWriteback.live.test.ts` runs both halves (Tier 2, below). `matWritebackDefects.test.ts`
-holds, without MATLAB, the two defects the first run found: a complex empty written fresh loads
-real, and an empty struct array written fresh loads with no field, which an edit of a field or
-a cell member beside it is enough to cause.
+holds, without MATLAB, the two losses the first run found, fixed: a complex empty written fresh
+loaded real, and an empty struct array written fresh loaded with no field, which an edit of a
+field or a cell member beside it was enough to cause. Neither was visible to core, whose reader
+carried the same loss; `../../matFreshFidelity.test.ts` now holds every plain variable of every
+fixture, written fresh, to the file's own element, read by a walker of its own
+(`../../tools/matElements.ts`).
 
 ## The catalog
 

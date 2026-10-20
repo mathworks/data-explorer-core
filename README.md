@@ -119,7 +119,10 @@ record the reader could not read; the header keeps its text. A variable only
 renamed is its own bytes with the new name in them. One whose value was edited,
 and one added, is written from the model, after the last variable and before the
 objects, and compressed only if the file already holds a compressed record, so a
-`-v6` file stays one. Before the bytes are handed back they are read again, and
+`-v6` file stays one. Written from the model, a variable is still the one it was
+read as in every part it holds: a struct array of no element keeps its field
+names, an empty its complexity, a zero its sign, and a variable saved as global
+stays global. Before the bytes are handed back they are read again, and
 held to the rules MATLAB loads a file by: a save that breaks one the file as read
 did not break is refused, with a `MatWriteError` naming the variable, and nothing
 is written.
@@ -137,6 +140,9 @@ These take a rename and a delete and nothing else:
 - a plain variable holding any of these, or a cell or struct array the reader
   read short (holding fewer elements than it declares, which a save would write
   as empty), at any depth: neither its value nor any row under it;
+- a plain variable stored in a form MATLAB does not load as it is (char data in
+  `miUINT8` or `miUTF32`, a numeric class in another class's type, a matrix its
+  parts do not fill), whose value as read is this package's guess at it;
 - either of two variables of one name, until one is renamed: MATLAB loads only
   one of them.
 

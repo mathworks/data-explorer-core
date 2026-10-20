@@ -1,22 +1,24 @@
 // Copyright 2026 The MathWorks, Inc.
 //
-// Two defects of the MAT-file save that the live gate (probe_mat_writeback.{mjs,m}) found, held
-// here without MATLAB so that they stay in sight on every run until they are fixed. Neither is
-// visible to core: its reader carries neither thing either, so the save's own re-parse
-// (MatFileWriter's self-check) agrees with what it wrote, and the strict checker breaks no load
-// rule. Only MATLAB, loading the save beside the original, reads a different value.
+// Two losses of the MAT-file save that the live gate (probe_mat_writeback.{mjs,m}) found, held
+// here without MATLAB, fixed. Neither was visible to core: its reader carried neither thing
+// either, so the save's own re-parse (MatFileWriter's self-check) agreed with what it wrote, and
+// the strict checker broke no load rule. Only MATLAB, loading the save beside the original, read
+// a different value. test/matFreshFidelity.test.ts now holds every variable of every fixture to
+// the file's own element, by a walker that does not use the package's reader.
 //
-// Each test states the defect AS IT IS: the bytes the save writes today, beside the bytes
-// MATLAB's own element holds. A fix makes it fail; it should then assert the bytes MATLAB
-// wrote, and the gate's three failing cases (fresh_dispcat, sibling_struct_field,
-// sibling_cell_member) pass.
-//
-// Measured against MATLAB R2027a (27.1.0.3409468):
-//   A. complex(zeros(0,0)) and the other complex empties of dispcat.mat, written fresh, load
-//      real: isreal is true where the original's is false.
-//   B. a 0x0 or 1x0 struct array with a field `a`, written fresh, loads with no field:
-//      fieldnames is {} where the original's is {'a'}. A struct field or a cell member edited
-//      beside one writes it fresh, so an ordinary edit loses the names.
+// Measured against MATLAB R2027a (27.1.0.3409468), before the fix:
+//   A. complex(zeros(0,0)) and the other complex empties of dispcat.mat, written fresh, loaded
+//      real: isreal was true where the original's is false. The node rebuilt its variable from
+//      its elements, and an empty has none to be complex (MatlabVariableNode._isComplexValue).
+//   B. a 0x0 or 1x0 struct array with a field `a`, written fresh, loaded with no field:
+//      fieldnames was {} where the original's is {'a'}. The reader held `fields: {}` for a
+//      struct array of no element (MatParser), and a struct field or a cell member edited
+//      beside one wrote it fresh, so an ordinary edit lost the names.
+// Each test asks for MATLAB's own element: what the save writes for each is the element MATLAB
+// wrote, byte for byte but for the storage type of an empty double's two parts (MATLAB's
+// miUINT8, MatWriter's miDOUBLE, which MATLAB loads as the same complex empty: the gate's
+// sibling cases).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { unzlibSync } from 'fflate';
@@ -77,46 +79,69 @@ function fieldElement(structElement: Uint8Array, index: number): Uint8Array {
 /** An element's complex bit: byte 1 of its array-flags data. */
 const complexOf = (el: Uint8Array) => (subElementsOf(el)[0].data[1] & 0x08) !== 0;
 
-describe('KNOWN DEFECTS of the MAT-file save, found by the live gate', () => {
-  it('A: a complex empty, its node marked edited, is written real', () => {
+describe('the losses of the MAT-file save the live gate found, fixed', () => {
+  it('A: a complex empty, its node marked edited, is written complex', () => {
     const session = createSession();
     const root: any = session.addMatSource('dispcat.mat', DISPCAT);
-    const node = root.children.find((c: any) => c.name === 'dx_complex_0x0');
-    expect(complexOf(elementOf(DISPCAT, 'dx_complex_0x0'))).toBe(true);
-    // The state an edit leaves the node in (DataNode._valueEdited, MatlabVariableNode's stale
-    // _var), which MatFileWriter writes fresh. The node rebuilds its variable from its
-    // elements, and an empty has none to be complex: _isComplexValue() is false, so the
-    // variable's isComplex is, though _elementType still says 'complex' (the Class column
-    // reads that, and says complex).
-    node._markModified();
-    expect(node._var.isComplex).toBe(false);
+    const names = ['dx_complex_0x0', 'dx_complex_1x0', 'dx_complex_int16_1x0', 'e_single_complex_1x0'];
+    // The state an edit leaves a node in (DataNode._valueEdited, MatlabVariableNode's stale
+    // _var), which MatFileWriter writes fresh.
+    for (const name of names) {
+      const node = root.children.find((c: any) => c.name === name);
+      expect(complexOf(elementOf(DISPCAT, name)), name).toBe(true);
+      node._markModified();
+      expect([name, node._var.isComplex, node._classColumn()]).toEqual([name, true, expect.stringContaining('(complex)')]);
+    }
     const saved = (session.serializeSource('dispcat.mat') as { bytes: Uint8Array }).bytes;
-    expect(complexOf(elementOf(saved, 'dx_complex_0x0'))).toBe(false);
+    for (const name of names) {
+      // Its class, flags, dims and name as MATLAB wrote them, and its two parts, empty.
+      const [was, is] = [subElementsOf(elementOf(DISPCAT, name)), subElementsOf(elementOf(saved, name))];
+      expect(is.slice(0, 3), name).toEqual(was.slice(0, 3));
+      expect(is.slice(3).map((p) => p.data.byteLength), name).toEqual([0, 0]);
+      expect(complexOf(elementOf(saved, name)), name).toBe(true);
+    }
+    // The int16 and the single ones are MATLAB's bytes exactly: MATLAB stores their parts in their
+    // own class's type, as MatWriter does.
+    for (const name of ['dx_complex_int16_1x0', 'e_single_complex_1x0']) {
+      expect(elementOf(saved, name), name).toEqual(elementOf(DISPCAT, name));
+    }
   });
 
-  it('B: an empty struct array with a field, written fresh beside an edited field, keeps no field name', () => {
-    // MATLAB's own element first, so that the reader below is seen to read names at all.
-    expect(fieldNamesOf(elementOf(DISPCAT, 'dx_struct_0x0_fields'))).toEqual(['a']);
+  it("B: an empty struct array with a field, written fresh, keeps its field names, as MATLAB's own element has them", () => {
+    // Written fresh itself: MATLAB's own element, byte for byte.
+    const session = createSession();
+    const root: any = session.addMatSource('dispcat.mat', DISPCAT);
+    for (const name of ['dx_struct_0x0_fields', 'dx_struct_1x0']) {
+      root.children.find((c: any) => c.name === name)._markModified();
+    }
+    const fresh = (session.serializeSource('dispcat.mat') as { bytes: Uint8Array }).bytes;
+    for (const name of ['dx_struct_0x0_fields', 'dx_struct_1x0']) {
+      expect(fieldNamesOf(elementOf(DISPCAT, name)), name).toEqual(['a']);
+      expect(elementOf(fresh, name), name).toEqual(elementOf(DISPCAT, name));
+    }
 
+    // And written fresh beside an edited field, as the gate's sibling_struct_field case writes it.
     const empty = structVar('', ['inner'], [], [0, 0]);
     const x = numericVar({ name: '', cls: CLASS.DOUBLE, dimensions: [1, 1], real: [1] });
     const file = matFile([structVar('s', ['es', 'x'], [{ es: empty, x }])]);
-    const session = createSession();
-    const root: any = session.addMatSource('f.mat', file);
-    const field = root.children[0].children.find((c: any) => c.name === 'x');
-    session.setActive(root, field);
-    expect(session.editProperty(field.id, 'Value', '2')).toBe(true);
-    const saved = (session.serializeSource('f.mat') as { bytes: Uint8Array }).bytes;
+    const edited = createSession();
+    const top: any = edited.addMatSource('f.mat', file);
+    const field = top.children[0].children.find((c: any) => c.name === 'x');
+    edited.setActive(top, field);
+    expect(edited.editProperty(field.id, 'Value', '2')).toBe(true);
+    const saved = (edited.serializeSource('f.mat') as { bytes: Uint8Array }).bytes;
 
-    // es as the file holds it, and as the save writes it: a 0x0 struct both times, whose
-    // field-name table the save leaves empty. The reader holds `fields: {}` for an empty struct
-    // array, its names dropped, and the writer writes what the reader holds.
+    // es as the file holds it, and as the save writes it: a 0x0 struct with the field `inner`
+    // both times.
     const esOf = (file_: Uint8Array | ArrayBuffer) => {
       const s = elementOf(file_, 's');
       expect(fieldNamesOf(s)).toEqual(['es', 'x']);
       return fieldElement(s, 0);
     };
     expect([fieldNamesOf(esOf(file)), subElementsOf(esOf(file))[1].data]).toEqual([['inner'], new Uint8Array(8)]);
-    expect([fieldNamesOf(esOf(saved)), subElementsOf(esOf(saved))[1].data]).toEqual([[], new Uint8Array(8)]);
+    expect([fieldNamesOf(esOf(saved)), subElementsOf(esOf(saved))[1].data]).toEqual([['inner'], new Uint8Array(8)]);
+    // And the reader reads the names back, as it reads them out of the file.
+    const es = parseMat(arrayBufferOf(saved)).variables[0].fields!.es as { fields: Record<string, unknown> };
+    expect(Object.keys(es.fields)).toEqual(['inner']);
   });
 });

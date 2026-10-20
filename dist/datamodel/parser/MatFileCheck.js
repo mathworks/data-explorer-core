@@ -216,6 +216,36 @@ export function checkMatFile(bytes, options = {}) {
     return check.out.sort((a, b) => a.at - b.at);
 }
 /**
+ * What one variable's miMATRIX element (its tag and body, as a record holds it inflated) breaks
+ * of the rules MATLAB reads a matrix by, at any depth: its char data, its storage, how its
+ * sub-elements fill it, its name. Not the rules of a file (its header, framing, compression,
+ * placement), which only a whole file has: those are checkMatFile's. Every `at` is 0, the
+ * element's own start, and each message says where in the element. Asked of a variable as it was
+ * read, whose element is in memory already, so nothing is inflated; and like checkMatFile it never
+ * throws, and stops at its budget with a `budget` note.
+ */
+export function checkMatElement(element, options = {}) {
+    const check = new Check(options);
+    const view = new DataView(element.buffer, element.byteOffset, element.byteLength);
+    const space = { view, fileAt: () => 0, where: (o) => `Byte ${o} of its element` };
+    try {
+        if (element.byteLength < 8) {
+            check.file('element', 0, `The element holds ${element.byteLength} byte(s), fewer than one element's tag.`);
+        }
+        else if (view.getUint32(0, true) !== MI_MATRIX) {
+            check.file('element', 0, `The element is a data element of ${typeName(view.getUint32(0, true))}, not a matrix.`);
+        }
+        else {
+            topMatrix(check, space, 0, 8, Math.min(8 + view.getUint32(4, true), element.byteLength));
+        }
+    }
+    catch (err) {
+        const why = err instanceof OutOfBudget ? err.message : `an error in the check itself (${reasonOf(err)})`;
+        check.file('budget', 0, `The check of the element stopped at ${why}, so nothing from there on was checked.`, check.variable);
+    }
+    return check.out;
+}
+/**
  * The violations of `after` that `before` does not have: what a rewrite of a file added to it.
  *
  * Matched by code and variable, never by offset or message, which an edit anywhere before a

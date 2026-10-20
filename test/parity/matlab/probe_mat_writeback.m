@@ -17,9 +17,10 @@
 %   2. S  = load(original) with the case's MATLAB statements applied, which must differ from
 %      S0 for a case that edits and equal it for one that does not;
 %   3. T  = load(saved), which must load with no warning and print nothing;
-%   4. T must be S: the same variables in the same order (load's, and whos -file's class and
-%      size of each), and each variable the same to the leaf (dcmp below: class, size,
-%      sparsity, complexity, isequaln on every value, field names in order, every element of
+%   4. T must be S: the same variables in the same order (load's, and whos -file's class,
+%      size and global flag of each), and each variable the same to the leaf (dcmp below: class,
+%      size, sparsity, complexity, isequaln on every value and the bits of every double and
+%      single but a NaN's payload, field names in order, every element of
 %      a cell or struct array, every readable property of an object, a function handle's text
 %      and an anonymous one's workspace), and its handles shared as S's are (the same object
 %      held twice is still one object);
@@ -164,6 +165,15 @@ else
             why{end + 1} = sprintf('whos -file says %s is %s %s, load gives %s %s', w(i).name, ...
                 w(i).class, mat2str(w(i).size), class(v), mat2str(size(v))); %#ok<AGROW>
         end
+    end
+end
+% And global where the original's variable of that name was global: `save` marks a variable
+% declared global, which is the variable's and not its value's, so load's struct does not show it.
+wo = whos('-file', e.original);
+for i = 1:numel(w)
+    o = wo(strcmp({wo.name}, w(i).name));
+    if (isempty(o) && w(i).global) || (~isempty(o) && o(1).global ~= w(i).global)
+        why{end + 1} = sprintf('whos -file says %s is global %d, where the original''s is %d', w(i).name, w(i).global, ~isempty(o) && o(1).global); %#ok<AGROW>
     end
 end
 
@@ -333,7 +343,34 @@ elseif isobject(a) || isa(a, 'handle')
     end
 elseif ~isequaln(a, b)
     d{end + 1} = sprintf('%s: %s vs %s', path, show(a), show(b));
+elseif (isa(a, 'double') || isa(a, 'single')) && ~issparse(a) && ~sameBits(a, b)
+    % isequaln holds -0 and 0 equal; the bits of a double or a single do not.
+    d{end + 1} = sprintf('%s: equal, but not bit for bit (the sign of a zero): %s vs %s', path, bitsShown(a), bitsShown(b));
 end
+end
+
+% Whether two doubles or singles of one size hold the same bits, part by part: the sign of a
+% zero included, a NaN's payload not (MATLAB's own NaN and the one a JavaScript writer stores
+% differ in it, and nothing MATLAB computes on a NaN reads it).
+function same = sameBits(a, b)
+cls = 'uint64';
+if isa(a, 'single')
+    cls = 'uint32';
+end
+same = true;
+parts = {@real, @imag};
+for i = 1:2
+    pa = parts{i}(a(:));
+    pb = parts{i}(b(:));
+    keep = ~isnan(pa) & ~isnan(pb);
+    if any(keep)
+        same = same && isequal(typecast(pa(keep), cls), typecast(pb(keep), cls));
+    end
+end
+end
+
+function s = bitsShown(v)
+s = mat2str(1 ./ [real(v(:)); imag(v(:))]');
 end
 
 % Every readable property of every element, and whether there was one. The elements are the
