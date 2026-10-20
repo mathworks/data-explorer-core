@@ -33,10 +33,13 @@ import {
 const ROOTS = ['fixtures', join('parity', 'artifacts')].map((d) => fileURLToPath(new URL(`./${d}/`, import.meta.url)));
 const CELLSWAP = fileURLToPath(new URL('./fixtures/mat-cellswap/', import.meta.url));
 
+// Not test/fixtures/mat-check: copies of MATLAB-written files edited to break MATLAB's load rules
+// on purpose (test/matFileCheck.test.ts), whose subsystems are not ones MATLAB wrote.
 function filesUnder(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
-    return statSync(path).isDirectory() ? filesUnder(path) : [path];
+    if (!statSync(path).isDirectory()) return [path];
+    return name === 'mat-check' ? [] : filesUnder(path);
   });
 }
 
