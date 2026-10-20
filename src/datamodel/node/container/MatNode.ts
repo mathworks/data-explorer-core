@@ -26,6 +26,7 @@ import {
 } from '../../parser/MatFileWriter.js';
 import type { MatWriteError } from '../../parser/MatWriter.js';
 import { validateMatlabName } from '../../matlabName.js';
+import { owningEntryOf } from '../DataNode.js';
 import { basenameOf } from '../../fileKinds.js';
 
 // What MatNode.fromParsed builds a tree from: a parse of this package's (ParsedMat), or a
@@ -35,7 +36,7 @@ export type MatParse = Pick<ParsedMat, 'header' | 'variables'> &
 
 export default class MatNode extends ContainerNode {
   header: string;
-  _dirty: boolean;
+  dirty: boolean;
   _anonymousElements: MatVariable[];
   // The file as a save splices it (ParsedMat's fields of the same names): its header's 128
   // bytes, every record in it, the subsystem's offset, and whether the records are the file.
@@ -57,22 +58,30 @@ export default class MatNode extends ContainerNode {
   // node back. So a record's node, in the tree or not, is what became of the record.
   _recordNodes: Map<MatRecord, BaseNode>;
   _nodeRecords: Map<BaseNode, MatRecord>;
-  // What the gate of the editor (_editRefusal) has found, kept until the next edit: the
-  // refusal of the file as a whole (undefined until asked), the subsystem's record, the
-  // refusal of each variable's value, and how many variables hold each name. Every edit
-  // marks the file dirty, and setting `dirty` forgets all but the first two, which no edit
-  // changes.
+  // What the gate of the editor (_editRefusal) has found: the refusal of the file as a whole
+  // (undefined until asked) and the subsystem's record, which no edit changes; what a save would
+  // refuse of each variable's value written fresh, kept until an edit of that variable
+  // (_nodeEdited) or its leaving or joining the file (addChild, removeChild); and how many
+  // variables hold each name, moved with every variable added, removed or renamed, as of
+  // `_entriesVersion` (_namespaceHolds).
   _fileVerdict: string | null | undefined;
   _subsystem: MatRecord | null | undefined;
-  _valueVerdicts: Map<BaseNode, string | null>;
+  _valueVerdicts: WeakMap<BaseNode, string | null>;
   _nameCounts: Map<string, number> | null;
+  _countedAt: number;
+  // Moved by every change to which variables this file holds and what they are called, as a
+  // dictionary's section's is (SectionNode._entriesVersion): BaseNode._replaceWith moves it too,
+  // so that a slot that changes hands has its names counted again.
+  _entriesVersion: number;
 
   constructor(name: string) {
     super(name, null);
     this.header = '';
-    this._dirty = false;
-    this._valueVerdicts = new Map();
+    this.dirty = false;
+    this._valueVerdicts = new WeakMap();
     this._nameCounts = null;
+    this._countedAt = -1;
+    this._entriesVersion = 0;
     this._anonymousElements = [];
     this.headerBytes = null;
     this.records = null;
@@ -111,16 +120,62 @@ export default class MatNode extends ContainerNode {
     return this._fileRefusal() !== null;
   }
 
-  // Every edit sets it (BaseNode._markSourceDirty, and this class's own add and remove), so it
-  // is where what the gate found of the tree as it was is forgotten (_editRefusal).
-  get dirty(): boolean {
-    return this._dirty;
+  // An edit of `node`, which is a variable of this file or a node under one (BaseNode.
+  // _markSourceDirty): what the gate found of that variable's value is forgotten, and of no other,
+  // since nothing a save refuses of a value written fresh is about another variable
+  // (freshRefusal). Which names two of them share is counted apart (_namespaceHolds). Forgetting
+  // every variable's at every edit re-walked every variable a table showed after each, and each
+  // of N renames counted N names again.
+  _nodeEdited(node: BaseNode): void {
+    const entry = owningEntryOf(node);
+    if (entry && entry.parent === this) {
+      this._valueVerdicts.delete(entry);
+    }
   }
 
-  set dirty(value: boolean) {
-    this._dirty = value;
-    this._valueVerdicts.clear();
-    this._nameCounts = null;
+  addChild(child: BaseNode, index?: number): BaseNode {
+    super.addChild(child, index);
+    this._valueVerdicts.delete(child);
+    this._entriesMoved(null, child.name);
+    return child;
+  }
+
+  removeChild(child: BaseNode): void {
+    const before = this.children.length;
+    super.removeChild(child);
+    if (this.children.length < before) {
+      this._valueVerdicts.delete(child);
+      this._entriesMoved(child.name, null);
+    }
+  }
+
+  // One of my variables renamed (DataNode.setProperty): its name's count moves with it.
+  _entryRenamed(oldName: string, newName: string): void {
+    this._entriesMoved(oldName, newName);
+  }
+
+  // A variable of this file stopped being called `gone`, and one started being called `came`
+  // (either null): one removed, added or renamed. The version moves, and the counts, when they
+  // are of the version before, move with it and go on holding.
+  _entriesMoved(gone: string | null, came: string | null): void {
+    const held = this._nameCounts !== null && this._countedAt === this._entriesVersion;
+    this._entriesVersion++;
+    if (!held) {
+      return;
+    }
+    const counts = this._nameCounts!;
+    if (gone !== null) {
+      const left = (counts.get(gone) ?? 0) - 1;
+      if (left > 0) {
+        counts.set(gone, left);
+      } else {
+        counts.delete(gone);
+      }
+    }
+    if (came !== null) {
+      counts.set(came, (counts.get(came) ?? 0) + 1);
+    }
+    this._countedAt = this._entriesVersion;
   }
 
   // ---- The edits a save of this file can write ----------------------------------------------
@@ -177,12 +232,11 @@ export default class MatNode extends ContainerNode {
     let verdict = this._valueVerdicts.get(entry);
     if (verdict === undefined) {
       const refused = freshRefusal(entry, record);
-      verdict = refused
-        ? editRefusalOf(refused)
-        : this._namespaceHolds(entry.name) > 1
-          ? cannotEdit(entry.name, duplicateWhy(entry.name))
-          : null;
+      verdict = refused ? editRefusalOf(refused) : null;
       this._valueVerdicts.set(entry, verdict);
+    }
+    if (!verdict && this._namespaceHolds(entry.name) > 1) {
+      verdict = cannotEdit(entry.name, duplicateWhy(entry.name));
     }
     if (!verdict && key === 'Add') {
       const array = [node, node.parent].find((n) => isStruct(n) && n._dims.reduce((a, b) => a * b, 1) !== 1) as MatlabVariableNode | undefined;
@@ -249,9 +303,20 @@ export default class MatNode extends ContainerNode {
    * each record that became none (one the reader dropped) under its own name, as a save writes
    * it (MatFileWriter.refuseDuplicates). A rename into a name another holds is refused for it
    * (DataNode.setProperty), naming this file (_namespaceLabel).
+   *
+   * Counted when first asked, and moved with every variable added, removed or renamed after
+   * (_entriesMoved), so that a rename costs a lookup and not a count of every name: as a
+   * dictionary's are (SectionNode._namespaceHolds, F1-23).
+   *
+   * A record the reader dropped without a name, one that does not inflate or holds no matrix,
+   * is counted under none: what it would be called is not known, so an added or renamed
+   * variable is not held to it (MatFileWriter.refuseDuplicates, likewise). Every such record
+   * already breaks a rule MATLAB loads a file by (MatFileCheck: `compressed-wrapper`,
+   * `top-level-type`), and for all of them but one past the inflate ceiling that is a rule
+   * MATLAB fails the whole load on: no variable of the file is loaded beside it, whatever its name.
    */
   _namespaceHolds(name: string): number {
-    if (!this._nameCounts) {
+    if (!this._nameCounts || this._countedAt !== this._entriesVersion) {
       const counts = new Map<string, number>();
       const add = (n: string) => counts.set(n, (counts.get(n) ?? 0) + 1);
       for (const child of this.children) {
@@ -263,6 +328,7 @@ export default class MatNode extends ContainerNode {
         }
       }
       this._nameCounts = counts;
+      this._countedAt = this._entriesVersion;
     }
     return this._nameCounts.get(name) ?? 0;
   }

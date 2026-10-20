@@ -451,9 +451,14 @@ export default class BaseNode {
     while (root.parent) {
       root = root.parent;
     }
-    const source = root as unknown as { dirty?: boolean };
+    const source = root as unknown as { dirty?: boolean; _nodeEdited?: (node: BaseNode) => void };
     if (source.dirty !== undefined) {
       source.dirty = true;
+    }
+    // And a source that keeps what it found of each of its entries is told which node changed,
+    // so that it forgets what it found of that node's entry, and of no other (MatNode._nodeEdited).
+    if (typeof source._nodeEdited === 'function') {
+      source._nodeEdited(this);
     }
     // Every mutation reaches here, so this is where a rename — the edit that actually moves
     // a link — is caught. A value edit drops the index too, needlessly; the rebuild rides
