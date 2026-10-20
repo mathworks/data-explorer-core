@@ -1,0 +1,833 @@
+[
+  {
+    "file": "matlab-plain.mat",
+    "probe": "base_plain",
+    "matlab": "loads",
+    "what": "MATLAB -v7 save of 17 plain variables: numeric, logical, complex, char, empty, struct, struct array, cell, sparse",
+    "codes": []
+  },
+  {
+    "file": "matlab-objects.mat",
+    "probe": "base_obj",
+    "matlab": "loads",
+    "what": "MATLAB -v7 save of four plain variables and four objects (string, containers.Map, a handle class, Simulink.Parameter), then the subsystem",
+    "codes": []
+  },
+  {
+    "file": "matlab-two-handles.mat",
+    "probe": "base_twoobj",
+    "matlab": "loads",
+    "what": "MATLAB -v7 save of two handle objects and two doubles",
+    "codes": []
+  },
+  {
+    "file": "matlab-shared-handle.mat",
+    "probe": "base_shared",
+    "matlab": "loads",
+    "what": "MATLAB -v7 save of two variables holding one handle, and a double",
+    "codes": []
+  },
+  {
+    "file": "matlab-strings.mat",
+    "probe": "base_strings",
+    "matlab": "loads",
+    "what": "MATLAB -v7 save of two strings and two plain variables",
+    "codes": []
+  },
+  {
+    "file": "matlab-one-double.mat",
+    "probe": "base_none",
+    "matlab": "loads",
+    "what": "MATLAB -v7 save of one double, no subsystem",
+    "codes": []
+  },
+  {
+    "file": "matlab-append-objects-replaced.mat",
+    "probe": "step05",
+    "matlab": "loads",
+    "what": "MATLAB save -append run five times, replacing objects: orphaned objects in the subsystem",
+    "codes": []
+  },
+  {
+    "file": "matlab-append-v6-onto-v7.mat",
+    "probe": "step13",
+    "matlab": "loads",
+    "what": "MATLAB save -append -v6 onto a -v7 file: plain records at unaligned offsets after compressed ones",
+    "codes": []
+  },
+  {
+    "file": "matlab-append-onto-uncompressed.mat",
+    "probe": "C_dex_raw_appended",
+    "matlab": "loads",
+    "what": "MATLAB save -append of a new variable onto a file of uncompressed records",
+    "codes": []
+  },
+  {
+    "file": "matlab-append-replacing-variable.mat",
+    "probe": "C_dex_raw_replace_d_int",
+    "matlab": "loads",
+    "what": "MATLAB save -append replacing a variable in a file of uncompressed records",
+    "codes": []
+  },
+  {
+    "file": "matlab-append-revives-hidden-variable.mat",
+    "probe": "C_hidden_after_subsys_appended",
+    "matlab": "loads",
+    "what": "MATLAB save -append onto a file holding a variable after its subsystem: MATLAB moves it before the new subsystem",
+    "codes": []
+  },
+  {
+    "file": "matlab-append-onto-orphans.mat",
+    "probe": "C_orphan_appended",
+    "matlab": "loads",
+    "what": "MATLAB save -append onto a file whose subsystem holds an orphaned object",
+    "codes": []
+  },
+  {
+    "file": "plain-uncompressed.mat",
+    "probe": "B1_base_plain_allraw",
+    "matlab": "loads",
+    "what": "matlab-plain.mat with every record inflated to a plain miMATRIX",
+    "codes": []
+  },
+  {
+    "file": "objects-uncompressed.mat",
+    "probe": "B1_base_obj_allraw",
+    "matlab": "loads",
+    "what": "matlab-objects.mat with every record inflated, the subsystem too, its offset recomputed",
+    "codes": []
+  },
+  {
+    "file": "plain-mixed-compression-unaligned.mat",
+    "probe": "B2a_plain_alternate",
+    "matlab": "loads",
+    "what": "matlab-plain.mat with records alternately compressed and plain, so plain ones sit at unaligned offsets",
+    "codes": []
+  },
+  {
+    "file": "objects-mixed-compression.mat",
+    "probe": "B2b_obj_alternate_subsys_z",
+    "matlab": "loads",
+    "what": "matlab-objects.mat with variables alternately plain and compressed, the subsystem compressed",
+    "codes": []
+  },
+  {
+    "file": "objects-plain-subsystem.mat",
+    "probe": "B2c_obj_vars_z_subsys_raw",
+    "matlab": "loads",
+    "what": "matlab-objects.mat with the subsystem inflated to a plain record",
+    "codes": []
+  },
+  {
+    "file": "objects-plain-variables.mat",
+    "probe": "B2d_obj_vars_raw_subsys_z",
+    "matlab": "loads",
+    "what": "matlab-objects.mat with every variable plain and the subsystem compressed",
+    "codes": []
+  },
+  {
+    "file": "plain-compressed-zero-padded.mat",
+    "probe": "B2e_plain_z_padded8",
+    "matlab": "fails",
+    "what": "matlab-plain.mat with each compressed record zero-padded to 8 bytes",
+    "matlabSays": "Unable to open MAT-file. File might be corrupt. (MATLAB:load:unableToReadMatFile)",
+    "codes": [
+      "framing"
+    ]
+  },
+  {
+    "file": "objects-compressed-zero-padded.mat",
+    "probe": "B2f_obj_z_padded8",
+    "matlab": "fails",
+    "what": "matlab-objects.mat with each compressed record zero-padded to 8 bytes, the offset recomputed",
+    "matlabSays": "Unable to open MAT-file. File might be corrupt. (MATLAB:load:unableToReadMatFile)",
+    "codes": [
+      "framing"
+    ]
+  },
+  {
+    "file": "plain-zlib-level0.mat",
+    "probe": "B3_base_plain_z0",
+    "matlab": "loads",
+    "what": "matlab-plain.mat recompressed at zlib level 0 (stored blocks)",
+    "codes": []
+  },
+  {
+    "file": "plain-zlib-level1.mat",
+    "probe": "B3_base_plain_z1",
+    "matlab": "loads",
+    "what": "matlab-plain.mat recompressed at zlib level 1",
+    "codes": []
+  },
+  {
+    "file": "plain-zlib-level9.mat",
+    "probe": "B3_base_plain_z9",
+    "matlab": "loads",
+    "what": "matlab-plain.mat recompressed at zlib level 9",
+    "codes": []
+  },
+  {
+    "file": "objects-zlib-level9.mat",
+    "probe": "B3_base_obj_z9",
+    "matlab": "loads",
+    "what": "matlab-objects.mat recompressed at zlib level 9",
+    "codes": []
+  },
+  {
+    "file": "header-text-other-writer.mat",
+    "probe": "B4a_text_dex",
+    "matlab": "loads",
+    "what": "matlab-objects.mat with header text \"MATLAB 5.0 MAT-file, written by data-explorer-core\"",
+    "codes": []
+  },
+  {
+    "file": "header-text-no-matlab-prefix.mat",
+    "probe": "B4b_text_noprefix",
+    "matlab": "loads",
+    "what": "header text not opening with \"MATLAB\"",
+    "codes": []
+  },
+  {
+    "file": "header-text-nul-padded.mat",
+    "probe": "B4d_text_nulpad",
+    "matlab": "loads",
+    "what": "header text padded with NUL bytes instead of spaces",
+    "codes": []
+  },
+  {
+    "file": "header-text-all-nul.mat",
+    "probe": "B4e_text_allnul",
+    "matlab": "fails",
+    "what": "header text all NUL bytes",
+    "matlabSays": "Unable to open MAT-file. File might be corrupt. (MATLAB:load:unableToReadMatFile)",
+    "codes": [
+      "level4-lookalike"
+    ]
+  },
+  {
+    "file": "deleted-variable-offset-recomputed.mat",
+    "probe": "B5_recompute",
+    "matlab": "loads",
+    "what": "matlab-objects.mat minus a plain variable, the subsystem offset recomputed",
+    "codes": []
+  },
+  {
+    "file": "stale-subsystem-offset.mat",
+    "probe": "B5_stale",
+    "matlab": "fails",
+    "what": "the same, with the subsystem offset left stale",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "anonymous-record",
+      "subsystem-offset"
+    ]
+  },
+  {
+    "file": "zero-subsystem-offset.mat",
+    "probe": "B5_zero",
+    "matlab": "fails",
+    "what": "the same, with the subsystem offset zeroed",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "anonymous-record",
+      "subsystem-offset"
+    ]
+  },
+  {
+    "file": "spaces-subsystem-offset.mat",
+    "probe": "B5_spaces",
+    "matlab": "fails",
+    "what": "the same, with the subsystem offset eight spaces",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "anonymous-record",
+      "subsystem-offset"
+    ]
+  },
+  {
+    "file": "subsystem-offset-at-first-variable.mat",
+    "probe": "B5_off128",
+    "matlab": "fails",
+    "what": "the same, with the subsystem offset pointing at the first variable",
+    "matlabSays": "Unable to read file (MATLAB:load:notBinaryFile)",
+    "codes": [
+      "anonymous-record",
+      "subsystem-offset"
+    ]
+  },
+  {
+    "file": "deleted-object-orphan.mat",
+    "probe": "B6_base_obj_minus_ph",
+    "matlab": "loads",
+    "what": "matlab-objects.mat minus one object variable, the subsystem verbatim (an orphan)",
+    "codes": []
+  },
+  {
+    "file": "deleted-every-object-variable.mat",
+    "probe": "B6_base_obj_minus_s1_mp_ph_sparam",
+    "matlab": "loads",
+    "what": "matlab-objects.mat minus all four object variables, the subsystem verbatim",
+    "codes": []
+  },
+  {
+    "file": "deleted-one-of-two-handles.mat",
+    "probe": "B6_base_twoobj_minus_o1",
+    "matlab": "loads",
+    "what": "matlab-two-handles.mat minus one handle",
+    "codes": []
+  },
+  {
+    "file": "deleted-shared-handle-copy.mat",
+    "probe": "B6_base_shared_minus_q1",
+    "matlab": "loads",
+    "what": "matlab-shared-handle.mat minus one of the two variables holding the handle",
+    "codes": []
+  },
+  {
+    "file": "deleted-one-string.mat",
+    "probe": "B6_base_strings_minus_s1",
+    "matlab": "loads",
+    "what": "matlab-strings.mat minus one string",
+    "codes": []
+  },
+  {
+    "file": "deleted-objects-and-subsystem.mat",
+    "probe": "B6_base_obj_plain_only_nosubsys",
+    "matlab": "loads",
+    "what": "matlab-objects.mat minus every object and the subsystem, the offset zeroed",
+    "codes": []
+  },
+  {
+    "file": "renamed-plain-variable.mat",
+    "probe": "B7_rename_d_int",
+    "matlab": "loads",
+    "what": "a plain variable renamed by rewriting only its name, recompressed",
+    "codes": []
+  },
+  {
+    "file": "renamed-object-variable.mat",
+    "probe": "B7_rename_ph",
+    "matlab": "loads",
+    "what": "an object variable renamed by rewriting only its name, recompressed",
+    "codes": []
+  },
+  {
+    "file": "renamed-parameter.mat",
+    "probe": "B7_rename_sparam",
+    "matlab": "loads",
+    "what": "a Simulink.Parameter variable renamed to a one-letter name",
+    "codes": []
+  },
+  {
+    "file": "renamed-uncompressed-object-variable.mat",
+    "probe": "B7_rename_twoobj_o1",
+    "matlab": "loads",
+    "what": "a handle variable renamed and written as a plain record",
+    "codes": []
+  },
+  {
+    "file": "reordered-variables.mat",
+    "probe": "B8a_reversed",
+    "matlab": "loads",
+    "what": "matlab-objects.mat with its variables reversed, the subsystem last",
+    "codes": []
+  },
+  {
+    "file": "variable-after-subsystem.mat",
+    "probe": "B8b_plain_after_subsys",
+    "matlab": "drops",
+    "what": "a plain variable moved after the subsystem, the offset recomputed",
+    "matlabSays": "loads; d_scalar silently missing (whos -file still lists it)",
+    "codes": [
+      "subsystem-not-last"
+    ]
+  },
+  {
+    "file": "subsystem-first.mat",
+    "probe": "B8c_subsys_first",
+    "matlab": "drops",
+    "what": "the subsystem moved first, the offset 128",
+    "matlabSays": "loads no variables, with no error",
+    "codes": [
+      "subsystem-not-last"
+    ]
+  },
+  {
+    "file": "objects-first-reordered.mat",
+    "probe": "B8d_objects_first_reversed",
+    "matlab": "loads",
+    "what": "object variables first, then plain ones, the subsystem last",
+    "codes": []
+  },
+  {
+    "file": "subsystem-in-middle.mat",
+    "probe": "B8e_subsys_middle",
+    "matlab": "drops",
+    "what": "the subsystem moved after three plain variables, the offset recomputed",
+    "matlabSays": "loads only the three variables before the subsystem",
+    "codes": [
+      "subsystem-not-last"
+    ]
+  },
+  {
+    "file": "added-variable-after-subsystem.mat",
+    "probe": "B9a_append_after_subsys",
+    "matlab": "drops",
+    "what": "a new plain variable appended after the subsystem",
+    "matlabSays": "loads; \"added\" silently missing",
+    "codes": [
+      "subsystem-not-last"
+    ]
+  },
+  {
+    "file": "added-variable-before-subsystem.mat",
+    "probe": "B9b_insert_before_subsys",
+    "matlab": "loads",
+    "what": "a new plain variable inserted before the subsystem, the offset recomputed",
+    "codes": []
+  },
+  {
+    "file": "added-variable-stale-offset.mat",
+    "probe": "B9c_insert_before_subsys_stale",
+    "matlab": "fails",
+    "what": "a new plain variable inserted before the subsystem, the offset left stale",
+    "matlabSays": "Unable to read file (MATLAB:load:notBinaryFile)",
+    "codes": [
+      "anonymous-record",
+      "subsystem-offset"
+    ]
+  },
+  {
+    "file": "added-variable-no-subsystem.mat",
+    "probe": "B9d_append_to_plain",
+    "matlab": "loads",
+    "what": "a new plain variable appended to a file with no subsystem",
+    "codes": []
+  },
+  {
+    "file": "duplicate-name-later-copy.mat",
+    "probe": "B10a_dup_last",
+    "matlab": "loads",
+    "what": "a second d_scalar (99) appended after the first (3.5)",
+    "matlabSays": "loads d_scalar = 99: load(f) keeps the last copy",
+    "codes": [
+      "duplicate-name"
+    ],
+    "deliberate": "ambiguous: load(f) keeps the last copy and load(f, name) the first"
+  },
+  {
+    "file": "duplicate-name-earlier-copy.mat",
+    "probe": "B10b_dup_first",
+    "matlab": "loads",
+    "what": "a second d_scalar (99) placed before the first (3.5)",
+    "matlabSays": "loads d_scalar = 3.5: load(f) keeps the last copy",
+    "codes": [
+      "duplicate-name"
+    ],
+    "deliberate": "ambiguous: load(f) keeps the last copy and load(f, name) the first"
+  },
+  {
+    "file": "duplicate-object-names.mat",
+    "probe": "B10c_dup_object_names",
+    "matlab": "loads",
+    "what": "two string variables of one name",
+    "matlabSays": "loads the later one",
+    "codes": [
+      "duplicate-name"
+    ],
+    "deliberate": "ambiguous: load(f) keeps the last copy and load(f, name) the first"
+  },
+  {
+    "file": "name-63-chars.mat",
+    "probe": "B11a_name63",
+    "matlab": "loads",
+    "what": "a variable name of 63 characters",
+    "codes": []
+  },
+  {
+    "file": "name-70-chars.mat",
+    "probe": "B11c_name70",
+    "matlab": "loads",
+    "what": "a variable name of 70 characters (namelengthmax is 2048 in this MATLAB)",
+    "codes": []
+  },
+  {
+    "file": "name-leading-digit.mat",
+    "probe": "B11d_name_digit",
+    "matlab": "fails",
+    "what": "a variable named '1abc'",
+    "matlabSays": "S = load(f): Invalid field name: '1abc'. (MATLAB:AddField:InvalidFieldName); load(f) skips it",
+    "codes": [
+      "name"
+    ]
+  },
+  {
+    "file": "name-with-space.mat",
+    "probe": "B11e_name_space",
+    "matlab": "fails",
+    "what": "a variable named 'has space'",
+    "matlabSays": "S = load(f): Invalid field name: 'has space'. (MATLAB:AddField:InvalidFieldName)",
+    "codes": [
+      "name"
+    ]
+  },
+  {
+    "file": "name-non-ascii-utf8.mat",
+    "probe": "F1_name_utf8",
+    "matlab": "fails",
+    "what": "a variable named 'café' in UTF-8",
+    "matlabSays": "S = load(f): Invalid field name: 'café'. (MATLAB:AddField:InvalidFieldName)",
+    "codes": [
+      "name"
+    ]
+  },
+  {
+    "file": "name-empty.mat",
+    "probe": "B11f_name_empty",
+    "matlab": "drops",
+    "what": "a plain variable with an empty name, after a named one",
+    "matlabSays": "loads only the named variable; whos -file omits the unnamed one",
+    "codes": [
+      "anonymous-record"
+    ]
+  },
+  {
+    "file": "name-keyword.mat",
+    "probe": "B11g_name_keyword",
+    "matlab": "alters",
+    "what": "a variable named 'end'",
+    "matlabSays": "loads it as end_, warning MATLAB:load:loadingKeywordVariable",
+    "codes": [
+      "name"
+    ]
+  },
+  {
+    "file": "non-utf8-name.mat",
+    "probe": "B11h_name_latin1",
+    "matlab": "fails",
+    "what": "a variable named 'caf' and the Latin-1 byte e9: not UTF-8",
+    "matlabSays": "MATLAB crashes (an assertion on a non-UTF-8 string), in S = load(f) and in whos -file",
+    "codes": [
+      "name"
+    ]
+  },
+  {
+    "file": "double-integer-storage-types.mat",
+    "probe": "B12_numeric_types",
+    "matlab": "loads",
+    "what": "doubles stored as miDOUBLE, miINT32, miINT16 and miUINT8, plain records",
+    "codes": []
+  },
+  {
+    "file": "double-integer-storage-types-compressed.mat",
+    "probe": "B12z_numeric_types",
+    "matlab": "loads",
+    "what": "the same, compressed",
+    "codes": []
+  },
+  {
+    "file": "struct-wide-field-names.mat",
+    "probe": "B13_struct_fnlen",
+    "matlab": "loads",
+    "what": "a struct with field-name length 3, 8, 32, 64 and 128",
+    "codes": []
+  },
+  {
+    "file": "struct-field-name-length-too-small.mat",
+    "probe": "B13b_struct_fnlen_too_small",
+    "matlab": "loads",
+    "what": "a struct with field-name length 2, leaving no room for the NUL after \"bb\"",
+    "codes": []
+  },
+  {
+    "file": "char-ascii-utf8.mat",
+    "probe": "B14_ch_utf8",
+    "matlab": "loads",
+    "what": "'abc' as miUTF8",
+    "codes": []
+  },
+  {
+    "file": "char-ascii-uint16.mat",
+    "probe": "B14_ch_u16",
+    "matlab": "loads",
+    "what": "'abc' as miUINT16",
+    "codes": []
+  },
+  {
+    "file": "char-ascii-utf16.mat",
+    "probe": "B14_ch_utf16",
+    "matlab": "loads",
+    "what": "'abc' as miUTF16",
+    "codes": []
+  },
+  {
+    "file": "char-ascii-utf32.mat",
+    "probe": "B14_ch_utf32",
+    "matlab": "fails",
+    "what": "'abc' as miUTF32",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "char-latin1-utf8.mat",
+    "probe": "B14_ch_na_utf8",
+    "matlab": "loads",
+    "what": "'héllo' as miUTF8",
+    "codes": []
+  },
+  {
+    "file": "char-latin1-uint16.mat",
+    "probe": "B14_ch_na_u16",
+    "matlab": "loads",
+    "what": "'héllo' as miUINT16",
+    "codes": []
+  },
+  {
+    "file": "char-latin1-utf16.mat",
+    "probe": "B14_ch_na_utf16",
+    "matlab": "loads",
+    "what": "'héllo' as miUTF16",
+    "codes": []
+  },
+  {
+    "file": "char-latin1-utf32.mat",
+    "probe": "B14_ch_na_utf32",
+    "matlab": "fails",
+    "what": "'héllo' as miUTF32",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "char-cjk-utf8.mat",
+    "probe": "B14_ch_cjk_utf8",
+    "matlab": "loads",
+    "what": "three CJK characters as miUTF8",
+    "codes": []
+  },
+  {
+    "file": "char-cjk-uint16.mat",
+    "probe": "B14_ch_cjk_u16",
+    "matlab": "alters",
+    "what": "three CJK characters as miUINT16",
+    "matlabSays": "loads char codes [229 44 158], the low byte of each unit, with no warning",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "char-cjk-utf16.mat",
+    "probe": "B14_ch_cjk_utf16",
+    "matlab": "loads",
+    "what": "three CJK characters as miUTF16",
+    "codes": []
+  },
+  {
+    "file": "char-cjk-utf32.mat",
+    "probe": "B14_ch_cjk_utf32",
+    "matlab": "fails",
+    "what": "three CJK characters as miUTF32",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "char-emoji-utf8.mat",
+    "probe": "B14_ch_emoji_utf8",
+    "matlab": "loads",
+    "what": "'a', U+1F600, 'b' as miUTF8 (dims [1 4], in UTF-16 units)",
+    "codes": []
+  },
+  {
+    "file": "char-emoji-uint16.mat",
+    "probe": "B14_ch_emoji_u16",
+    "matlab": "fails",
+    "what": "'a', U+1F600, 'b' as miUINT16 (a surrogate pair)",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "char-emoji-utf16.mat",
+    "probe": "B14_ch_emoji_utf16",
+    "matlab": "loads",
+    "what": "'a', U+1F600, 'b' as miUTF16",
+    "codes": []
+  },
+  {
+    "file": "char-emoji-utf32.mat",
+    "probe": "B14_ch_emoji_utf32",
+    "matlab": "fails",
+    "what": "'a', U+1F600, 'b' as miUTF32",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "char-every-encoding.mat",
+    "probe": "B14_char_encodings",
+    "matlab": "fails",
+    "what": "the 16 char variables above in one file",
+    "matlabSays": "S = load(f) and load(f) fail; load(f, \"ch_utf8\") works: one bad variable fails the whole-file load",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "char-latin1-uint8.mat",
+    "probe": "F4_char_u8",
+    "matlab": "fails",
+    "what": "'héllo' as miUINT8 Latin-1 bytes",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "char-latin1-int8.mat",
+    "probe": "F4_char_i8",
+    "matlab": "fails",
+    "what": "'héllo' as miINT8 Latin-1 bytes",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "char-ascii-uint8.mat",
+    "probe": "F4_char_u8ascii",
+    "matlab": "fails",
+    "what": "'hello' as miUINT8",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "char-ascii-int8.mat",
+    "probe": "F4_char_i8ascii",
+    "matlab": "fails",
+    "what": "'hello' as miINT8",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "char-type"
+    ]
+  },
+  {
+    "file": "header-only.mat",
+    "probe": "B15a_header_only_zero",
+    "matlab": "loads",
+    "what": "a 128-byte header and no records",
+    "matlabSays": "loads a struct with no fields",
+    "codes": []
+  },
+  {
+    "file": "header-only-offset-spaces.mat",
+    "probe": "B15b_header_only_spaces",
+    "matlab": "loads",
+    "what": "a header only, its subsystem offset eight spaces",
+    "matlabSays": "loads a struct with no fields",
+    "codes": []
+  },
+  {
+    "file": "trailing-3-zeros.mat",
+    "probe": "B16a_trailing3",
+    "matlab": "fails",
+    "what": "matlab-plain.mat and 3 zero bytes",
+    "matlabSays": "Unable to open MAT-file. File might be corrupt. (MATLAB:load:unableToReadMatFile)",
+    "codes": [
+      "framing"
+    ]
+  },
+  {
+    "file": "trailing-8-zeros.mat",
+    "probe": "B16a_trailing8",
+    "matlab": "fails",
+    "what": "matlab-plain.mat and 8 zero bytes",
+    "matlabSays": "Unable to open MAT-file. File might be corrupt. (MATLAB:load:unableToReadMatFile)",
+    "codes": [
+      "framing"
+    ]
+  },
+  {
+    "file": "uncompressed-trailing-8-zeros.mat",
+    "probe": "F5_raw_trailing8",
+    "matlab": "fails",
+    "what": "plain-uncompressed.mat and 8 zero bytes",
+    "matlabSays": "Unable to open MAT-file. File might be corrupt. (MATLAB:load:unableToReadMatFile)",
+    "codes": [
+      "framing"
+    ]
+  },
+  {
+    "file": "trailing-zeros-after-subsystem.mat",
+    "probe": "B16b_obj_trailing8",
+    "matlab": "loads",
+    "what": "matlab-objects.mat and 8 zero bytes after the subsystem",
+    "codes": [
+      "framing"
+    ],
+    "deliberate": "bytes that are no record, after the subsystem: MATLAB's load stops at the subsystem and never reads them, but MATLAB writes nothing there"
+  },
+  {
+    "file": "final-pad-cut.mat",
+    "probe": "B16c_trunc_pad_keep_size",
+    "matlab": "fails",
+    "what": "a last plain record with its final 4 pad bytes cut off, its size unchanged",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "framing"
+    ]
+  },
+  {
+    "file": "final-pad-cut-size-fixed.mat",
+    "probe": "B16d_trunc_pad_fix_size",
+    "matlab": "fails",
+    "what": "the same, its size reduced by 4 to match",
+    "matlabSays": "Unable to open file (MATLAB:load:cantReadFile)",
+    "codes": [
+      "framing",
+      "nbytes"
+    ]
+  },
+  {
+    "file": "small-tags.mat",
+    "probe": "B17_small_tags",
+    "matlab": "loads",
+    "what": "a variable whose name and data both use the small (4-byte) tag",
+    "codes": []
+  },
+  {
+    "file": "version-0x0000.mat",
+    "probe": "F11_v0000",
+    "matlab": "fails",
+    "what": "header version 0x0000",
+    "matlabSays": "Unable to read file (MATLAB:load:notBinaryFile)",
+    "codes": [
+      "not-level5"
+    ]
+  },
+  {
+    "file": "version-0x0200.mat",
+    "probe": "F11_v0200",
+    "matlab": "fails",
+    "what": "header version 0x0200, on a Level-5 file",
+    "matlabSays": "Unable to read file (MATLAB:load:notBinaryFile), after an HDF5 error",
+    "codes": [
+      "not-level5"
+    ]
+  },
+  {
+    "file": "sparse-without-sparse-flag.mat",
+    "probe": "F12_sparse_no1000",
+    "matlab": "loads",
+    "what": "a sparse array without the 0x1000 flag bit",
+    "codes": []
+  }
+]
