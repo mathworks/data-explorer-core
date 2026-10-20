@@ -777,6 +777,25 @@ describe("MATLAB's verdict corpus (test/fixtures/mat-check): a save adds nothing
 });
 
 describe('the strict check, of the bytes about to be handed back (MatFileCheck)', () => {
+  it("a file that breaks a rule as read is saved renamed, its variable's violation matched under the old name", () => {
+    // char-latin1-uint8.mat holds a char stored as miUINT8, which MATLAB fails to load
+    // (`char-type`). Renamed, the record is its own bytes but for the name, so the violation is
+    // the one the file had: matched as the variable's under the name the file gave it (the map
+    // violationsAdded takes runs from the new name to the old), the save is not refused.
+    const FILE = join(MAT_CHECK, 'char-latin1-uint8.mat');
+    const input = arrayBufferOf(new Uint8Array(readFileSync(FILE)));
+    const before = checkMatFile(new Uint8Array(input));
+    expect(before.map((v) => v.code)).toEqual(['char-type']);
+    const { root, edit } = opened(input, 'char-latin1-uint8.mat');
+    const [node] = root.children;
+    const was = node.name;
+    expect(edit(node, 'Name', 'renamedChar')).toBe(true);
+    const after = checkMatFile(serializeMatFile(root));
+    expect(after.map((v) => [v.code, v.variable])).toEqual([['char-type', 'renamedChar']]);
+    expect(violationsAdded(before, after, new Map([['renamedChar', was]]))).toEqual([]);
+    expect(violationsAdded(before, after).map((v) => v.code)).toEqual(['char-type']);
+  });
+
   it('refuses a save whose bytes break a rule the file read did not, though they read back as written', () => {
     const { by, edit, save } = opened(fixture(CASES), 'cases.mat');
     expect(edit(by('charStr'), 'Value', "'中文'")).toBe(true);
