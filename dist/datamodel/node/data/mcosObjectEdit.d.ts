@@ -11,6 +11,7 @@ export interface McosObjectState {
     asRead: ReadonlyMap<string, MatVariable>;
     late: boolean;
     fingerprint: string;
+    dataType: string;
 }
 /** The node of an object at or above `node`, up to and including `entry`, or null for none. */
 export declare function objectNodeAt(entry: BaseNode, node: BaseNode): BaseNode | null;
@@ -89,8 +90,57 @@ export declare function objectEditsOf(state: McosObjectState, node: BaseNode, pe
 } | {
     why: string;
 };
+/**
+ * The DataType the Simulink.Parameter at `node` loads with once saved, as its node is to show it
+ * (ParameterNode._followSourceDataType): the text the save co-writes into its DataType cell with an
+ * edit of its Value, as MATLAB's own `p.Value = v` re-derives it (McosEditRules: an int16 v makes
+ * it 'int16', a double v over an int16 Value 'auto'), or else the DataType as it was read. Null for
+ * another class, or where the node's edits cannot be written, which the save refuses anyway.
+ *
+ * Only a DataType the object holds a cell for is co-written. One it holds none for is at its class
+ * default, which MATLAB re-derives from the Value as it loads the object, and is shown as read, as a
+ * file read again shows it.
+ */
+export declare function shownDataType(state: McosObjectState, node: BaseNode): string | null;
 /** What a node holds that a save does not write, as text to compare: see the file header. */
 export declare function fingerprintOf(node: BaseNode): string;
+/** The nodes of a file that are one object, two variables holding one handle (`r = h`), say. */
+export interface McosTwinGroup {
+    members: McosTwin[];
+    master: BaseNode | null;
+    diverged: string | null;
+}
+/** One node of an object other nodes are too, and what it shows of the object as read (twinOf). */
+export interface McosTwin {
+    node: BaseNode;
+    state: McosObjectState;
+    shown: ReadonlyMap<string, MatVariable | string>;
+}
+/** A node of the object `state` describes, as one of its twins, showing what the file holds of it. */
+export declare function twinOf(node: BaseNode, state: McosObjectState): McosTwin;
+/**
+ * Brings the nodes `members` of one object back in step after an edit at or under one of them
+ * (MatNode._mirrorTwins). The first edit of the object makes the node it reached the group's master
+ * (the first in the tree, of two an edit made around the session reached at once); then each
+ * property another node holds a value of the master does not is copied from the master into it
+ * (copyObjectProperty), and it is marked edited (DataNode._markModified), as it is: what MATLAB
+ * loads of it changed, and if the master is deleted, it still carries the edit to the save. Answers
+ * the nodes copied into. With the master out of the tree (its variable deleted), nothing is copied.
+ *
+ * A copy is made only where it reads back as the value copied, as the save reads both
+ * (nodePropertyValue); one that would not is not made, said in `group.diverged`, and tried again
+ * after the next edit.
+ */
+export declare function mirrorTwins(group: McosTwinGroup, members: readonly McosTwin[]): BaseNode[];
+/**
+ * Copies `property` of the object at `from` into `to`, another node of the same object, as `from`
+ * holds it, or answers why it does not, as a clause, having changed nothing: a bound or text by its
+ * field; a Simulink.Parameter's Value as the node its Value is (built from what that node writes,
+ * NodeRegistry.parseValue, the form both nodes were built of when read), with the Dimensions,
+ * Complexity and DataType that follow it (ParameterNode._followValueShape). Not where the copy would
+ * not read back as the value it copies.
+ */
+export declare function copyObjectProperty(from: BaseNode, to: BaseNode, property: string): string | null;
 /** One cell an edit of objects writes, for the save's self-check. */
 export interface McosPlannedCell {
     objectId: number;

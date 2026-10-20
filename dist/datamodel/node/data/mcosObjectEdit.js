@@ -19,6 +19,14 @@ import { hasEditRules, objectEditCells, propertyEditRefusal, propertyValueRefusa
 // whose handle names the object by id, and which element of the handle it is. Two variables that
 // hold one handle are two nodes of one object, and their edits are one object's (objectSubsystemEdit).
 //
+// ONE OBJECT, ONE STATE. Simulink.Parameter and Simulink.Signal are handle classes: after `r = h`
+// MATLAB holds one object, and `h.Value = 7` is r's Value too. So the nodes of one object show one
+// state (mirrorTwins): the first of them an edit is made at or under is the one every later edit of
+// the object is made through (McosTwinGroup.master), and after each, by whatever path, the session
+// copies what it holds of each property into the others, which are then edited as well and carry
+// the edit to the save, which writes it once. The others take no edit of their own: a copy replaces
+// the rows of a Value, and an undo of an edit made at one of those rows would undo nothing.
+//
 // WHAT CHANGED. Each property a node holds an editor's value of is read off the node as the
 // variable a save writes (nodePropertyValue), the converter this package already has for each: a
 // Value node's own variable (MatlabVariableNode._var), the one its Parameter would make of a Value
@@ -53,8 +61,9 @@ const DEFAULTS = {
     DataType: charOf('auto'),
 };
 // The fields of a node, and the keys of its property bag, that hold the properties above or follow
-// from them (a Parameter's Dimensions and Complexity follow its Value, ParameterNode._followValueShape),
-// or are where the node stands: what an edit a save writes changes, left out of the fingerprint.
+// from them (a Parameter's Dimensions and Complexity follow its Value, ParameterNode._followValueShape,
+// and so does its DataType in a MAT-file, shownDataType), or are where the node stands: what an edit a
+// save writes changes, left out of the fingerprint.
 const OWN_FIELDS_WRITTEN = new Set(['name', 'parent', 'children', 'metadata', 'serial', 'status', 'Value', 'Min', 'Max', 'Description', 'Unit']);
 const BAG_KEYS_WRITTEN = {
     [PARAMETER]: ['Value', 'Min', 'Max', 'Description', 'DocUnits', 'Dimensions', 'Complexity'],
@@ -170,7 +179,16 @@ export function objectStateOf(subsystem, node) {
             asRead.set(property, v);
         }
     }
-    return { objectId, held, cellIndex, exact, asRead, late: !!node._objectEdited, fingerprint: fingerprintOf(node) };
+    return {
+        objectId,
+        held,
+        cellIndex,
+        exact,
+        asRead,
+        late: !!node._objectEdited,
+        fingerprint: fingerprintOf(node),
+        dataType: String(node.DataType ?? ''),
+    };
 }
 /**
  * Why no edit of the object at `node` is taken at all, its class being one with no rules
@@ -368,12 +386,41 @@ export function objectEditsOf(state, node, pending) {
     }
     return { edits };
 }
+/**
+ * The DataType the Simulink.Parameter at `node` loads with once saved, as its node is to show it
+ * (ParameterNode._followSourceDataType): the text the save co-writes into its DataType cell with an
+ * edit of its Value, as MATLAB's own `p.Value = v` re-derives it (McosEditRules: an int16 v makes
+ * it 'int16', a double v over an int16 Value 'auto'), or else the DataType as it was read. Null for
+ * another class, or where the node's edits cannot be written, which the save refuses anyway.
+ *
+ * Only a DataType the object holds a cell for is co-written. One it holds none for is at its class
+ * default, which MATLAB re-derives from the Value as it loads the object, and is shown as read, as a
+ * file read again shows it.
+ */
+export function shownDataType(state, node) {
+    if (state.held.className !== PARAMETER) {
+        return null;
+    }
+    const found = objectEditsOf(state, node);
+    if ('why' in found) {
+        return null;
+    }
+    if (!found.edits.some((e) => e.property === 'Value')) {
+        return state.dataType;
+    }
+    const ruled = objectEditCells(state.held, found.edits, node.matlabPath);
+    if (!ruled.ok) {
+        return null;
+    }
+    const written = ruled.cells.find((c) => c.savedName === 'DataType');
+    return written && typeof written.value.value === 'string' ? written.value.value : state.dataType;
+}
 /** What a node holds that a save does not write, as text to compare: see the file header. */
 export function fingerprintOf(node) {
     const cls = classOf(node);
     const own = {};
     for (const key of Object.keys(node)) {
-        if (!key.startsWith('_') && !OWN_FIELDS_WRITTEN.has(key) && !(cls === SIGNAL && key === 'DataType')) {
+        if (!key.startsWith('_') && !OWN_FIELDS_WRITTEN.has(key) && key !== 'DataType') {
             own[key] = node[key];
         }
     }
@@ -387,6 +434,102 @@ export function fingerprintOf(node) {
     catch (e) {
         return 'not fingerprinted: ' + (e instanceof Error ? e.message : String(e));
     }
+}
+/** A node of the object `state` describes, as one of its twins, showing what the file holds of it. */
+export function twinOf(node, state) {
+    const shown = new Map();
+    for (const property of NODE_PROPERTIES[state.held.className] ?? []) {
+        const held = state.held.stored.get(savedNameOf(state.held.className, property));
+        shown.set(property, state.asRead.get(property) ?? (held ? held.value ?? nodePropertyValue(node, property) : DEFAULTS[property]));
+    }
+    return { node, state, shown };
+}
+/**
+ * Brings the nodes `members` of one object back in step after an edit at or under one of them
+ * (MatNode._mirrorTwins). The first edit of the object makes the node it reached the group's master
+ * (the first in the tree, of two an edit made around the session reached at once); then each
+ * property another node holds a value of the master does not is copied from the master into it
+ * (copyObjectProperty), and it is marked edited (DataNode._markModified), as it is: what MATLAB
+ * loads of it changed, and if the master is deleted, it still carries the edit to the save. Answers
+ * the nodes copied into. With the master out of the tree (its variable deleted), nothing is copied.
+ *
+ * A copy is made only where it reads back as the value copied, as the save reads both
+ * (nodePropertyValue); one that would not is not made, said in `group.diverged`, and tried again
+ * after the next edit.
+ */
+export function mirrorTwins(group, members) {
+    const cls = members[0].state.held.className;
+    const properties = NODE_PROPERTIES[cls] ?? [];
+    if (!group.master) {
+        const changed = members.find((m) => properties.some((p) => !sameHeld(nodePropertyValue(m.node, p), m.shown.get(p), p)));
+        group.master = changed ? changed.node : null;
+    }
+    const master = members.find((m) => m.node === group.master);
+    const copied = new Set();
+    if (master) {
+        group.diverged = null;
+        for (const property of properties) {
+            const want = nodePropertyValue(master.node, property);
+            for (const m of members) {
+                if (m === master || sameHeld(nodePropertyValue(m.node, property), want, property)) {
+                    continue;
+                }
+                const why = copyObjectProperty(master.node, m.node, property);
+                if (why) {
+                    group.diverged ??= m.node.matlabPath + ' could not be shown as ' + master.node.matlabPath + "'s edit leaves their object (" + why + '), and shows it as it was before';
+                    continue;
+                }
+                copied.add(m.node);
+            }
+        }
+    }
+    for (const node of copied) {
+        node._markModified();
+    }
+    return [...copied];
+}
+// Whether two readings of one property (nodePropertyValue) are one value.
+function sameHeld(a, b, property) {
+    if (typeof a === 'string' || typeof b === 'string' || a === undefined || b === undefined) {
+        return a === b;
+    }
+    return variableDifference(a, b, property) === null;
+}
+/**
+ * Copies `property` of the object at `from` into `to`, another node of the same object, as `from`
+ * holds it, or answers why it does not, as a clause, having changed nothing: a bound or text by its
+ * field; a Simulink.Parameter's Value as the node its Value is (built from what that node writes,
+ * NodeRegistry.parseValue, the form both nodes were built of when read), with the Dimensions,
+ * Complexity and DataType that follow it (ParameterNode._followValueShape). Not where the copy would
+ * not read back as the value it copies.
+ */
+export function copyObjectProperty(from, to, property) {
+    const source = from;
+    const target = to;
+    if (property !== 'Value') {
+        target[property] = source[property];
+        return null;
+    }
+    const want = nodePropertyValue(from, 'Value');
+    const fromValue = from._valueNode ?? null;
+    const raw = fromValue ? fromValue.serializeValue() : undefined;
+    const made = fromValue ? NodeRegistry.parseValue(raw, 'Value', null) : null;
+    const got = made ? valueVariable(made) : want;
+    const difference = typeof want === 'string' || typeof got === 'string' ? (want === got ? null : 'it holds no value a save writes') : variableDifference(got, want, 'Value');
+    if (difference) {
+        return difference;
+    }
+    const parameter = to;
+    if (fromValue) {
+        parameter._adoptValueNode(raw);
+    }
+    else {
+        parameter._valueNode = null;
+        parameter.children = [];
+    }
+    parameter.Value = source.Value;
+    parameter._followValueShape();
+    return null;
 }
 /**
  * The subsystem element with every edit of the objects at `nodes` written into its cells, and the
@@ -413,7 +556,8 @@ export function objectSubsystemEdit(subsystem, nodes, stateOf, entryOf) {
         if (!hasEditRules(s.held.className)) {
             refuse(node, propertyEditRefusal(s.held, 'Value', node.matlabPath));
         }
-        if (fingerprintOf(node) !== s.fingerprint) {
+        const followed = s.held.className === PARAMETER ? shownDataType(s, node) : null;
+        if (fingerprintOf(node) !== s.fingerprint || (followed !== null && node.DataType !== followed)) {
             refuse(node, node.matlabPath + ' holds an edit of a property a save does not write into ' + classPhrase(s.held.className));
         }
         const found = objectEditsOf(s, node);

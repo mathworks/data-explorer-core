@@ -156,13 +156,16 @@ file's objects that holds it, and every other byte of them and of the variable
 that holds the object as it was read. The cells MATLAB's own edit of the property
 changes go with it: a resized Value's Dimensions, and the DataType MATLAB derives
 from a Value of another class (a double typed over a `single` Parameter makes its
-DataType `auto`, as `p.Value = 7` does; the Data Type column shows it once the
-file is read again). It refuses what MATLAB would load as something else, or warn
-of on every load: a Min above its Max, a bound or a double Value outside the range
-of a builtin DataType, a property at its class default (the file holds no value
-for it), a sparse Value, a Parameter's DataType on its own, a Complexity, a
-storage class. Two variables holding one handle hold one object, and an edit of
-either is an edit of both, as MATLAB loads them.
+DataType `auto`, as `p.Value = 7` does, and the Data Type column shows it at once).
+It refuses what MATLAB would load as something else, or warn of on every load: a
+Min above its Max, a bound or a double Value outside the range of a builtin
+DataType, a property at its class default (the file holds no value for it), a
+sparse Value, a Parameter's DataType on its own, a Complexity, a storage class.
+Two variables holding one handle (`r = h`), or a struct field and a cell element
+holding it, hold one object, as MATLAB loads them: an edit of it is shown by every
+node of it, its undo and redo too, and the save writes it once. The first of them
+an edit is made through is the one every later edit of the object is made through
+until the file is read again; the others show it and take none of their own.
 
 A value typed in that would make a string (`"abc"`, `{1, "a"}`) is refused, and
 Add is not offered on a struct array or on an element of one. A variable stored

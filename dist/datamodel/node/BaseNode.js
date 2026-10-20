@@ -69,6 +69,40 @@ export function sourceJudgesValues(node) {
     const { entry, source } = sourceOf(node);
     return !!entry && typeof source?._editValueRefusal === 'function';
 }
+/**
+ * What the source `node` is in says the property `key` of `node` is, as its file will hold it once
+ * saved, where that follows from the node's other properties rather than from an edit of its own;
+ * undefined where it says nothing, which every source but a MAT-file does. Asked by a setter after
+ * an edit it follows: a Simulink.Parameter's DataType, which a MAT-file's save writes as MATLAB's
+ * own `p.Value = v` re-derives it (MatNode._followedProperty), so that the node shows what MATLAB
+ * will load.
+ */
+export function sourceFollowedProperty(node, key) {
+    const { entry, source } = sourceOf(node);
+    const follow = source?._followedProperty;
+    return entry && typeof follow === 'function' ? follow.call(source, entry, node, key) : undefined;
+}
+/**
+ * The nodes outside `node`'s subtree that the source `node` is in keeps in step with what is in it
+ * (sourceMirrorTwins): in a MAT-file, the other nodes of each object at, above or under `node`, two
+ * variables holding one handle, say (MatNode._twinsOutside). None for every other source. Asked by
+ * the session before an edit there, to keep its index of them as it keeps the edited subtree's.
+ */
+export function sourceTwinsOutside(node) {
+    const { entry, source } = sourceOf(node);
+    const twins = source?._twinsOutside;
+    return entry && typeof twins === 'function' ? twins.call(source, node) : [];
+}
+/**
+ * After an edit at or under `node`, has the source bring every node it keeps in step with one
+ * there back in step (MatNode._mirrorTwins: the other nodes of one object show the edit), and
+ * answers the nodes it changed so. Asked by the session after every edit it makes or wraps.
+ */
+export function sourceMirrorTwins(node) {
+    const { entry, source } = sourceOf(node);
+    const mirror = source?._mirrorTwins;
+    return entry && typeof mirror === 'function' ? mirror.call(source, node) : [];
+}
 // The entry `node` is in, and the container above it, as sourceEditRefusal walks to them.
 function sourceOf(node) {
     let entry = null;

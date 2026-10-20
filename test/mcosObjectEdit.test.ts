@@ -493,9 +493,15 @@ describe('what the session refuses of an object in a MAT-file, before the edit i
     expect(nested.object('s.p').setProperty('Name', 'q')).toMatchObject({ error: true });
   });
 
-  it('two variables of one handle, edited to two values', () => {
+  it('two variables of one handle, edited to two values around the session', () => {
+    // Through the session an edit of one is shown by both, and the other takes none of its own
+    // (test/mcosObjectTwins.test.ts); one made on a node's fields asks nobody, and the save will not
+    // choose between the two.
     const { object, edit, save } = opened(read(CELLSWAP, 'pv_shared.mat'));
-    expect([edit(object('h'), 'Value', '7'), edit(object('r'), 'Value', '8')]).toEqual([true, true]);
+    expect(edit(object('h'), 'Value', '7')).toBe(true);
+    object('r').Value = 8;
+    object('r')._markModified();
+    expect([object('h').displayValue, object('r').displayValue]).toEqual(['7', '8']);
     const thrown = thrownBy(save);
     expect([thrown instanceof MatWriteError, thrown?.message]).toEqual([
       true,

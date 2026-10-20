@@ -5,7 +5,7 @@ import type { SetPropertyResult } from '../DataNode.js';
 import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
-import { sourceJudgesValues, sourceValueRefusal } from '../BaseNode.js';
+import { sourceFollowedProperty, sourceJudgesValues, sourceValueRefusal } from '../BaseNode.js';
 import type MatlabVariableNode from './MatlabVariableNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { formatMatlabNum, formatMatrixSerial, isEnumBag, textEnumValueOf } from '../../parser/XmlUtils.js';
@@ -386,7 +386,10 @@ export default class ParameterNode extends DataNode {
     // held: a Value typed in (_restorerFor), and an Add, a removal or an edit of the Value row or
     // of an element (childStructureRestorer). Set from the restored Value, a hand-edited file's
     // came back as the Value's shape.
+    //
+    // And the DataType, where the source says what it follows to (_followSourceDataType).
     _followValueShape(): void {
+        this._followSourceDataType();
         const sp = this.serial._properties as Record<string, unknown> | undefined;
         const shape = sp ? this._shapeFromValue() : null;
         if (!sp || !shape) {
@@ -400,6 +403,20 @@ export default class ParameterNode extends DataNode {
         }
         if (has('Complexity') && shape.complexity !== null && sp.Complexity !== shape.complexity) {
             sp.Complexity = shape.complexity;
+        }
+    }
+
+    // MATLAB's `p.Value = v` re-derives the DataType from v's class (an int16 v makes it 'int16',
+    // a double v over an int16 Value 'auto'; measured against MATLAB R2027a), and a MAT-file's save
+    // writes the DataType so where the object holds one (McosEditRules). Shown as read, the
+    // DataType column said 'int16' of a Parameter MATLAB loads as 'auto' until the file was
+    // reopened. So it is set to what the source says the save leaves it (BaseNode.sourceFollowedProperty),
+    // after every edit of the Value and its undo; a dictionary says nothing, and its Parameters keep
+    // the DataType they hold, which the dictionary writes as it is.
+    _followSourceDataType(): void {
+        const dataType = sourceFollowedProperty(this, 'DataType');
+        if (typeof dataType === 'string' && dataType !== this.DataType) {
+            this.DataType = dataType;
         }
     }
 

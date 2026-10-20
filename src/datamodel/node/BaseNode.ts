@@ -237,6 +237,46 @@ export function sourceJudgesValues(node: BaseNode): boolean {
 /** A source's answer to sourceValueRefusal. */
 export type SourceValueRefusal = (entry: BaseNode, node: BaseNode, key: string, value: unknown) => string | null;
 
+/**
+ * What the source `node` is in says the property `key` of `node` is, as its file will hold it once
+ * saved, where that follows from the node's other properties rather than from an edit of its own;
+ * undefined where it says nothing, which every source but a MAT-file does. Asked by a setter after
+ * an edit it follows: a Simulink.Parameter's DataType, which a MAT-file's save writes as MATLAB's
+ * own `p.Value = v` re-derives it (MatNode._followedProperty), so that the node shows what MATLAB
+ * will load.
+ */
+export function sourceFollowedProperty(node: BaseNode, key: string): unknown {
+  const { entry, source } = sourceOf(node);
+  const follow = (source as unknown as { _followedProperty?: SourceFollowedProperty } | null)?._followedProperty;
+  return entry && typeof follow === 'function' ? follow.call(source, entry, node, key) : undefined;
+}
+
+/** A source's answer to sourceFollowedProperty. */
+export type SourceFollowedProperty = (entry: BaseNode, node: BaseNode, key: string) => unknown;
+
+/**
+ * The nodes outside `node`'s subtree that the source `node` is in keeps in step with what is in it
+ * (sourceMirrorTwins): in a MAT-file, the other nodes of each object at, above or under `node`, two
+ * variables holding one handle, say (MatNode._twinsOutside). None for every other source. Asked by
+ * the session before an edit there, to keep its index of them as it keeps the edited subtree's.
+ */
+export function sourceTwinsOutside(node: BaseNode): BaseNode[] {
+  const { entry, source } = sourceOf(node);
+  const twins = (source as unknown as { _twinsOutside?: (root: BaseNode) => BaseNode[] } | null)?._twinsOutside;
+  return entry && typeof twins === 'function' ? twins.call(source, node) : [];
+}
+
+/**
+ * After an edit at or under `node`, has the source bring every node it keeps in step with one
+ * there back in step (MatNode._mirrorTwins: the other nodes of one object show the edit), and
+ * answers the nodes it changed so. Asked by the session after every edit it makes or wraps.
+ */
+export function sourceMirrorTwins(node: BaseNode): BaseNode[] {
+  const { entry, source } = sourceOf(node);
+  const mirror = (source as unknown as { _mirrorTwins?: (root: BaseNode) => BaseNode[] } | null)?._mirrorTwins;
+  return entry && typeof mirror === 'function' ? mirror.call(source, node) : [];
+}
+
 // The entry `node` is in, and the container above it, as sourceEditRefusal walks to them.
 function sourceOf(node: BaseNode): { entry: BaseNode | null; source: BaseNode | null } {
   let entry: BaseNode | null = null;

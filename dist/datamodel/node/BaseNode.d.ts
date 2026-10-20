@@ -158,6 +158,30 @@ export declare function sourceJudgesValues(node: BaseNode): boolean;
 /** A source's answer to sourceValueRefusal. */
 export type SourceValueRefusal = (entry: BaseNode, node: BaseNode, key: string, value: unknown) => string | null;
 /**
+ * What the source `node` is in says the property `key` of `node` is, as its file will hold it once
+ * saved, where that follows from the node's other properties rather than from an edit of its own;
+ * undefined where it says nothing, which every source but a MAT-file does. Asked by a setter after
+ * an edit it follows: a Simulink.Parameter's DataType, which a MAT-file's save writes as MATLAB's
+ * own `p.Value = v` re-derives it (MatNode._followedProperty), so that the node shows what MATLAB
+ * will load.
+ */
+export declare function sourceFollowedProperty(node: BaseNode, key: string): unknown;
+/** A source's answer to sourceFollowedProperty. */
+export type SourceFollowedProperty = (entry: BaseNode, node: BaseNode, key: string) => unknown;
+/**
+ * The nodes outside `node`'s subtree that the source `node` is in keeps in step with what is in it
+ * (sourceMirrorTwins): in a MAT-file, the other nodes of each object at, above or under `node`, two
+ * variables holding one handle, say (MatNode._twinsOutside). None for every other source. Asked by
+ * the session before an edit there, to keep its index of them as it keeps the edited subtree's.
+ */
+export declare function sourceTwinsOutside(node: BaseNode): BaseNode[];
+/**
+ * After an edit at or under `node`, has the source bring every node it keeps in step with one
+ * there back in step (MatNode._mirrorTwins: the other nodes of one object show the edit), and
+ * answers the nodes it changed so. Asked by the session after every edit it makes or wraps.
+ */
+export declare function sourceMirrorTwins(node: BaseNode): BaseNode[];
+/**
  * The prop in `props` that an edit naming `name` is an edit of: the one whose key or column is
  * `name`, which is how an edit committed in the 'Value' column reaches the atom that owns it (a
  * Variant's Condition/Specification), or else the one whose node field (`nodeProperty`) is

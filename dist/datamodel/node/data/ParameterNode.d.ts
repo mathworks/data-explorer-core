@@ -30,6 +30,7 @@ export default class ParameterNode extends DataNode {
     childStructureRestorer(child: BaseNode): (() => void) | null;
     _shapeRestorer(): () => void;
     _followValueShape(): void;
+    _followSourceDataType(): void;
     _shapeFromValue(): {
         dims: number[];
         complexity: string | null;

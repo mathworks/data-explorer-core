@@ -26,8 +26,8 @@ import {
   unwritableIn,
 } from '../../parser/MatFileWriter.js';
 import { MatWriteError } from '../../parser/MatWriter.js';
-import { readMcosSubsystem, type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
-import { objectEditCells } from '../../parser/McosEditRules.js';
+import { objectIdOf, readMcosSubsystem, type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
+import { hasEditRules, objectEditCells } from '../../parser/McosEditRules.js';
 import {
   classRefusal,
   memberRefusal,
@@ -39,9 +39,15 @@ import {
   objectSubsystemEdit,
   propertyAt,
   propertyRefusal,
+  shownDataType,
+  twinOf,
+  mirrorTwins,
   type McosObjectState,
   type McosPlannedCell,
+  type McosTwin,
+  type McosTwinGroup,
 } from '../data/mcosObjectEdit.js';
+import { mcosPlaceOf } from '../mcosPlace.js';
 import { validateMatlabName } from '../../matlabName.js';
 import { basenameOf } from '../../fileKinds.js';
 
@@ -89,6 +95,8 @@ export default class MatNode extends ContainerNode {
   // node held then is what an edit is told from.
   _objects: { record: MatRecord; subsystem: McosSubsystem } | string | undefined;
   _objectStates: WeakMap<BaseNode, McosObjectState | string>;
+  // The nodes of each object two or more nodes of the file are (_twinGroups), found once.
+  _twins: McosTwinGroup[] | undefined;
 
   constructor(name: string) {
     super(name, null);
@@ -244,8 +252,152 @@ export default class MatNode extends ContainerNode {
       return cannotEdit(entry.name, state);
     }
     const at = propertyAt(object, node, key);
-    const refused = classRefusal(state, object) ?? ('why' in at ? at.why : propertyRefusal(state, object, at.property));
+    const refused = classRefusal(state, object) ?? ('why' in at ? at.why : propertyRefusal(state, object, at.property)) ?? this._twinRefusal(object);
     return refused ? cannotEdit(entry.name, refused) : null;
+  }
+
+  /**
+   * Why no edit of the object at `object` is taken for the other nodes that are the same object
+   * (_twinGroups), each of which an edit is copied into (_mirrorTwins), as a clause, or null: an
+   * edit of the object was made through another of them, its master, through which every later one
+   * is made; or one of them is in a variable no edit of which a save writes, stored after the
+   * subsystem, or one of two of one name.
+   */
+  _twinRefusal(object: BaseNode): string | null {
+    const group = this._twinGroupOf(object);
+    if (!group) {
+      return null;
+    }
+    const master = group.master;
+    if (master && master !== object) {
+      const shared = object.matlabPath + ' is one object with ' + master.matlabPath + ' (one handle), whose edits it shows';
+      const why = this._entryOf(master)
+        ? shared + ', and an edit of it is made through ' + master.matlabPath + ', which holds one'
+        : shared + ', and ' + master.matlabPath + ', which an edit of it was made through, is deleted: it takes none of its own until the file is read again';
+      return group.diverged ? why + ' (' + group.diverged + ')' : why;
+    }
+    const subsystem = this._subsystemRecord();
+    for (const { node } of group.members) {
+      const entry = this._entryOf(node);
+      if (node === object || !entry) {
+        continue;
+      }
+      const record = this.recordOf(entry);
+      const why = record && subsystem && record.offset > subsystem.offset
+        ? 'the variable ' + entry.name + ' holds it too, and ' + PAST_SUBSYSTEM
+        : this._namespaceHolds(entry.name) > 1
+          ? 'the variable ' + entry.name + ' holds it too, and ' + duplicateWhy(entry.name)
+          : null;
+      if (why) {
+        return object.matlabPath + ' is one object with ' + node.matlabPath + ' (one handle), and ' + why;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The nodes of each object two or more nodes of this file are, two variables holding one handle
+   * (`r = h`) or a struct holding it in two fields, of a class whose properties a save writes; found
+   * once, the first time an editor asks, which is before any edit of one: each node's state is made
+   * then (_objectState), and what it shows of the object (mcosObjectEdit.twinOf). A node a variable's
+   * delete takes out of the tree is still in its group, and is passed over while it is out
+   * (_attachedTwins).
+   */
+  _twinGroups(): McosTwinGroup[] {
+    if (this._twins === undefined) {
+      const byId = new Map<number, BaseNode[]>();
+      for (const node of objectNodesUnder(this)) {
+        const place = mcosPlaceOf(node)!;
+        const id = objectIdOf(place.variable.mcosHandle, place.index);
+        if (id !== null) {
+          byId.set(id, [...(byId.get(id) ?? []), node]);
+        }
+      }
+      this._twins = [];
+      for (const nodes of byId.values()) {
+        if (nodes.length < 2) {
+          continue;
+        }
+        const members: McosTwin[] = [];
+        for (const node of nodes) {
+          const state = this._objectState(node);
+          if (typeof state !== 'string' && hasEditRules(state.held.className)) {
+            members.push(twinOf(node, state));
+          }
+        }
+        if (members.length > 1) {
+          this._twins.push({ members, master: null, diverged: null });
+        }
+      }
+    }
+    return this._twins;
+  }
+
+  /** The group of the nodes that are the object `object` is, or null where no other node is it. */
+  _twinGroupOf(object: BaseNode): McosTwinGroup | null {
+    if (!mcosPlaceOf(object)) {
+      return null;
+    }
+    return this._twinGroups().find((g) => g.members.some((m) => m.node === object)) ?? null;
+  }
+
+  /** The members of `group` in the tree now, or none where fewer than two are. */
+  _attachedTwins(group: McosTwinGroup): McosTwin[] {
+    const attached = group.members.filter((m) => this._entryOf(m.node) !== null);
+    return attached.length > 1 ? attached : [];
+  }
+
+  /**
+   * The nodes an edit at or under `root` is copied into (_mirrorTwins) that are not at or under it:
+   * the other nodes of every object at or above or under `root`, for the session to keep its index of
+   * them as it keeps the index of `root` (DataModel.mutateSubtree).
+   */
+  _twinsOutside(root: BaseNode): BaseNode[] {
+    const out: BaseNode[] = [];
+    for (const group of this._twinsTouching(root)) {
+      for (const { node } of this._attachedTwins(group)) {
+        if (!isAtOrUnder(node, root)) {
+          out.push(node);
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * After an edit at or under `root`, made by any path: every other node of an object it reached
+   * shows the object as the edit left it (mcosObjectEdit.mirrorTwins), and is edited so. Answers the
+   * nodes copied into. Asked by the session after every edit it makes or wraps (DataModel.mutateSubtree,
+   * addChildTo, deleteNodeById, and the undo and redo of each).
+   */
+  _mirrorTwins(root: BaseNode): BaseNode[] {
+    const copied: BaseNode[] = [];
+    for (const group of this._twinsTouching(root)) {
+      const members = this._attachedTwins(group);
+      if (members.length > 1) {
+        copied.push(...mirrorTwins(group, members));
+      }
+    }
+    return copied;
+  }
+
+  // The groups with a node at or under `root`, or one `root` is at or under: the objects an edit
+  // there can reach. None before an editor asked about any object of the file (_twinGroups), which
+  // every edit of one does first: no group is made for an edit that reached none.
+  _twinsTouching(root: BaseNode): McosTwinGroup[] {
+    if (this._twins === undefined && !objectNodeAt(this._entryOf(root) ?? root, root) && objectNodesUnder(root).length === 0) {
+      return [];
+    }
+    return this._twinGroups().filter((g) => g.members.some((m) => isAtOrUnder(m.node, root) || isAtOrUnder(root, m.node)));
+  }
+
+  // The variable `node` is in, `node` itself for one, or null for a node not in this file's tree.
+  _entryOf(node: BaseNode): BaseNode | null {
+    let n: BaseNode = node;
+    while (n.parent && n.parent !== this) {
+      n = n.parent;
+    }
+    return n.parent === this && this.children.includes(n) ? n : null;
   }
 
   /**
@@ -278,6 +430,20 @@ export default class MatNode extends ContainerNode {
     }
     const ruled = objectEditCells(state.held, found.edits, object.matlabPath);
     return ruled.ok ? null : cannotEdit(entry.name, ruled.message);
+  }
+
+  /**
+   * What `key` of `node`, of `entry`, follows to once its edits are saved, for the node to show
+   * (BaseNode.sourceFollowedProperty), or undefined: the DataType of a Simulink.Parameter's node, as
+   * the save writes it with an edit of the Value (mcosObjectEdit.shownDataType). Nothing else, and
+   * nothing for a node that is no object's, or one whose object a save cannot find.
+   */
+  _followedProperty(entry: BaseNode, node: BaseNode, key: string): unknown {
+    if (key !== 'DataType' || objectNodeAt(entry, node) !== node) {
+      return undefined;
+    }
+    const state = this._objectState(node);
+    return typeof state === 'string' ? undefined : shownDataType(state, node) ?? undefined;
   }
 
   /**
@@ -659,6 +825,16 @@ function editRefusalOf(e: MatWriteError): string {
 
 function isStruct(node: BaseNode | null): node is MatlabVariableNode {
   return node instanceof MatlabVariableNode && node._kind === 'scalar' && node._scalarType === 'struct';
+}
+
+// Whether `node` is `root` or under it.
+function isAtOrUnder(node: BaseNode, root: BaseNode): boolean {
+  for (let n: BaseNode | null = node; n; n = n.parent) {
+    if (n === root) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function cannotEdit(name: string, why: string): string {

@@ -5,7 +5,7 @@ import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import type { MatRecord, ParsedMat } from '../../parser/MatParser.js';
 import { type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
-import { type McosObjectState, type McosPlannedCell } from '../data/mcosObjectEdit.js';
+import { type McosObjectState, type McosPlannedCell, type McosTwin, type McosTwinGroup } from '../data/mcosObjectEdit.js';
 export type MatParse = Pick<ParsedMat, 'header' | 'variables'> & Partial<Pick<ParsedMat, 'warnings' | 'headerBytes' | 'subsystemOffset' | 'records' | 'framed' | 'unframed'>>;
 export default class MatNode extends ContainerNode {
     header: string;
@@ -30,6 +30,7 @@ export default class MatNode extends ContainerNode {
         subsystem: McosSubsystem;
     } | string | undefined;
     _objectStates: WeakMap<BaseNode, McosObjectState | string>;
+    _twins: McosTwinGroup[] | undefined;
     constructor(name: string);
     /**
      * The record `node` was read from, or null for a node no record became: a variable added
@@ -85,6 +86,42 @@ export default class MatNode extends ContainerNode {
      */
     _objectKeyRefusal(entry: BaseNode, object: BaseNode, node: BaseNode, key: string): string | null;
     /**
+     * Why no edit of the object at `object` is taken for the other nodes that are the same object
+     * (_twinGroups), each of which an edit is copied into (_mirrorTwins), as a clause, or null: an
+     * edit of the object was made through another of them, its master, through which every later one
+     * is made; or one of them is in a variable no edit of which a save writes, stored after the
+     * subsystem, or one of two of one name.
+     */
+    _twinRefusal(object: BaseNode): string | null;
+    /**
+     * The nodes of each object two or more nodes of this file are, two variables holding one handle
+     * (`r = h`) or a struct holding it in two fields, of a class whose properties a save writes; found
+     * once, the first time an editor asks, which is before any edit of one: each node's state is made
+     * then (_objectState), and what it shows of the object (mcosObjectEdit.twinOf). A node a variable's
+     * delete takes out of the tree is still in its group, and is passed over while it is out
+     * (_attachedTwins).
+     */
+    _twinGroups(): McosTwinGroup[];
+    /** The group of the nodes that are the object `object` is, or null where no other node is it. */
+    _twinGroupOf(object: BaseNode): McosTwinGroup | null;
+    /** The members of `group` in the tree now, or none where fewer than two are. */
+    _attachedTwins(group: McosTwinGroup): McosTwin[];
+    /**
+     * The nodes an edit at or under `root` is copied into (_mirrorTwins) that are not at or under it:
+     * the other nodes of every object at or above or under `root`, for the session to keep its index of
+     * them as it keeps the index of `root` (DataModel.mutateSubtree).
+     */
+    _twinsOutside(root: BaseNode): BaseNode[];
+    /**
+     * After an edit at or under `root`, made by any path: every other node of an object it reached
+     * shows the object as the edit left it (mcosObjectEdit.mirrorTwins), and is edited so. Answers the
+     * nodes copied into. Asked by the session after every edit it makes or wraps (DataModel.mutateSubtree,
+     * addChildTo, deleteNodeById, and the undo and redo of each).
+     */
+    _mirrorTwins(root: BaseNode): BaseNode[];
+    _twinsTouching(root: BaseNode): McosTwinGroup[];
+    _entryOf(node: BaseNode): BaseNode | null;
+    /**
      * Why `value`, what an edit of `key` at `node` (of `entry`) is about to make the property hold,
      * as the node would hold it (a bound as a number or undefined, text as a string, a Value as the
      * value node the edit makes), cannot be written into this file, or null where it can, or where
@@ -94,6 +131,13 @@ export default class MatNode extends ContainerNode {
      * taken, rather than taken and then refused by the save.
      */
     _editValueRefusal(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null;
+    /**
+     * What `key` of `node`, of `entry`, follows to once its edits are saved, for the node to show
+     * (BaseNode.sourceFollowedProperty), or undefined: the DataType of a Simulink.Parameter's node, as
+     * the save writes it with an edit of the Value (mcosObjectEdit.shownDataType). Nothing else, and
+     * nothing for a node that is no object's, or one whose object a save cannot find.
+     */
+    _followedProperty(entry: BaseNode, node: BaseNode, key: string): unknown;
     /**
      * The subsystem of this file as a save swaps cells in it: its record, and its element read whole
      * (McosSubsystemEdit.readMcosSubsystem); or why no object's edit can be written, read once.
