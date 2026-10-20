@@ -57,7 +57,9 @@
 // WHAT IT IS FOR. The `.mat` save checks the file it writes, and refuses to return it if it has
 // a violation the original did not. A violation is therefore said with the variable it is in,
 // when that has a readable name, so two files can be compared by variable rather than by an
-// offset an edit moved (violationsAdded).
+// offset an edit moved (violationsAdded). And since what a record breaks is a function of its
+// own bytes, the save asks it only where it changed the file, with the same answer
+// (violationsAddedBySplice).
 //
 // BOUNDED. A file's bytes say how much work reading them is, and a hostile one can say a lot:
 // a few kilobytes of zlib inflate to gigabytes, and a cell can declare a billion elements. So
@@ -240,9 +242,9 @@ class OutOfBudget extends Error {
 }
 
 /**
- * The bytes a matrix is read out of: the file itself, or a compressed record's payload,
- * inflated. `fileAt` is the file offset a violation at `o` is reported at, and `where` says
- * where `o` is, in words.
+ * The bytes a matrix is read out of: a plain record's own (recordSpace), or a compressed
+ * record's payload, inflated. `fileAt` is the file offset a violation at `o` is reported at,
+ * and `where` says where `o` is, in words.
  */
 interface Space {
   view: DataView;
@@ -250,8 +252,9 @@ interface Space {
   where(o: number): string;
 }
 
-function fileSpace(view: DataView): Space {
-  return { view, fileAt: (o) => o, where: (o) => `Byte ${o}` };
+/** One top-level record's bytes, from its tag, as the record at byte `at` of its file. */
+function recordSpace(view: DataView, at: number): Space {
+  return { view, fileAt: (o) => at + o, where: (o) => `Byte ${at + o}` };
 }
 
 function payloadSpace(view: DataView, record: number): Space {
@@ -305,6 +308,12 @@ class Check {
   variable: string | undefined;
   /** Whether the walk is inside the subsystem's stream, which belongs to no variable. */
   inSubsystem = false;
+  /**
+   * Whether only what the placement rules need of a record is read (its name, and whether it
+   * holds the subsystem), and nothing past it: what a record kept as its own bytes is asked
+   * in a splice (violationsAddedBySplice), whose violations are the file's as read already.
+   */
+  headOnly = false;
 
   constructor(options: MatCheckOptions) {
     this.maxElements = options.maxElements ?? MAT_CHECK_ELEMENT_BUDGET;
@@ -351,9 +360,7 @@ export function checkMatFile(bytes: Uint8Array, options: MatCheckOptions = {}): 
   } catch (err) {
     // A budget run out, or, if this module has a defect, any other throw: either way the
     // check did not finish, and that is said rather than thrown, at the record it was in.
-    const at = err instanceof OutOfBudget ? err.at : check.cursor;
-    const why = err instanceof OutOfBudget ? err.message : `an error in the check itself (${reasonOf(err)})`;
-    check.file('budget', at, `The check stopped at byte ${at}, at ${why}, so nothing from there on was checked.`);
+    check.file('budget', ...stoppedAt(err, check.cursor));
   }
   // Stable, so the violations of one place keep the order they were found in.
   return check.out.sort((a, b) => a.at - b.at);
@@ -418,6 +425,230 @@ export function violationsAdded(
     }
   }
   return added;
+}
+
+/** A record of a file as read, for violationsAddedBySplice: its bytes, from its tag. */
+export interface MatReadRecord {
+  bytes: Uint8Array;
+  /**
+   * Its payload as `inflateZlib` inflated it, for a compressed record whose inflate the caller
+   * holds already (MatParser keeps it, MatVariable._rawBytes), so that it is not inflated again.
+   */
+  inflated?: Uint8Array | null;
+}
+
+/**
+ * A record of a file written from another (violationsAddedBySplice): a record of that file kept
+ * as its own bytes (`kept`, its index), or bytes written in place of one of its records
+ * (`replaces`, its index: a variable renamed or written fresh, and the subsystem, when a save
+ * writes it anew) or of none (`replaces` null: a variable added).
+ */
+export type MatSplicedRecord = { kept: number } | { written: Uint8Array; replaces: number | null };
+
+/** A Level-5 file as its 128-byte header and its records, back to back from byte 128. */
+export interface MatFileOfRecords<R> {
+  header: Uint8Array;
+  records: readonly R[];
+}
+
+/**
+ * What `written` adds to `read` by the rules MATLAB loads a file by, as
+ * `violationsAdded(checkMatFile(read), checkMatFile(written), renamed)` says it, where `written`
+ * is `read` with some of its records kept as their own bytes, the others deleted or written anew,
+ * and records added: worked out from what changed, rather than by checking both files whole.
+ *
+ * WHY IT IS THE SAME ANSWER. What a record breaks depends on its bytes alone (checkRecord, which
+ * checkMatFile walks every record with: `at` only places what is said). So a record kept as its
+ * own bytes breaks in `written` what it broke in `read`, under the same variable, and the two
+ * cancel, by rule and variable, as violationsAdded counts them. What is left to compare is the
+ * records written, the records they replace, the header, and the rules of where records stand
+ * (checkPlacement), which are asked of both files whole, from each record's name and whether it
+ * holds the subsystem: of a kept record, read without walking the rest of it (Check.headOnly).
+ * That holds where three things do, and where one does not both files are checked whole:
+ *
+ *   - both files walk as their records are given: every record's tag declares exactly the bytes
+ *     it is given, and opens with a nonzero byte, which the tag of a type that is a multiple of
+ *     256 does not, and which the walk then takes for padding;
+ *   - no record of `read` is kept twice, or kept and replaced;
+ *   - no kept record holds a name `renamed` maps, which violationsAdded would compare its
+ *     violations under the other name of.
+ *
+ * A record deleted is one more in `read` than in `written`, which can only take from what is
+ * added: it is checked only when something is.
+ *
+ * THE BUDGET (MatCheckOptions) is spent on what is checked, the records written and the ones
+ * they replace, and not on the records kept, which are not walked: so a file past it is still
+ * checked where it changed, where checkMatFile of it would stop. A `budget` note on the written
+ * side is added, as violationsAdded adds every one; one on the read side only leaves less for a
+ * written record's violations to be matched with. A kept record whose name cannot be read within
+ * the budget is a `budget` note on the written side: where it stands cannot be judged.
+ */
+export function violationsAddedBySplice(
+  read: MatFileOfRecords<MatReadRecord>,
+  written: MatFileOfRecords<MatSplicedRecord>,
+  renamed: ReadonlyMap<string, string> = new Map(),
+  options: MatCheckOptions = {},
+): MatViolation[] {
+  const readBytes = read.records.map((r) => r.bytes);
+  const writtenBytes = written.records.map((r) => {
+    if ('kept' in r && !read.records[r.kept]) {
+      throw new RangeError(`A record kept as record ${r.kept} of a file of ${read.records.length}.`);
+    }
+    return 'kept' in r ? read.records[r.kept].bytes : r.written;
+  });
+  const whole = () => violationsAdded(
+    checkMatFile(joined(read.header, readBytes), options),
+    checkMatFile(joined(written.header, writtenBytes), options),
+    renamed,
+  );
+  const taken = new Set<number>();
+  for (const r of written.records) {
+    const from = 'kept' in r ? r.kept : r.replaces;
+    if (from !== null) {
+      if (taken.has(from)) {
+        return whole();
+      }
+      taken.add(from);
+    }
+  }
+  if (read.header.byteLength !== 128 || written.header.byteLength !== 128 || ![...readBytes, ...writtenBytes].every(walksAsGiven)) {
+    return whole();
+  }
+  const readHeader = headerOf(read.header);
+  const writtenHeader = headerOf(written.header);
+  if (readHeader.walked !== writtenHeader.walked) {
+    return whole();
+  }
+  if (!writtenHeader.walked) {
+    // checkMatFile reads neither file past its header.
+    return violationsAdded(readHeader.violations, writtenHeader.violations, renamed);
+  }
+  const readAt = offsetsOf(readBytes);
+  const writtenAt = offsetsOf(writtenBytes);
+  const heads = read.records.map((r, i) => headOf(r, readAt[i], options));
+  for (const r of written.records) {
+    const head = 'kept' in r ? heads[r.kept] : null;
+    if (head && !(head instanceof OutOfBudget) && head.name && renamed.has(head.name)) {
+      return whole();
+    }
+  }
+
+  // The written side: its header, every record written, and where every record stands.
+  const after = new Check(options);
+  const writtenInfos: (RecordInfo | null)[] = [];
+  let walked = true;
+  try {
+    written.records.forEach((r, i) => {
+      if (!('kept' in r)) {
+        writtenInfos.push(checkRecord(after, r.written, writtenAt[i]));
+        return;
+      }
+      const head = heads[r.kept];
+      if (head instanceof OutOfBudget) {
+        throw new OutOfBudget(writtenAt[i], head.message);
+      }
+      writtenInfos.push(head && { ...head, at: writtenAt[i] });
+    });
+  } catch (err) {
+    walked = false;
+    after.file('budget', ...stoppedAt(err, after.cursor));
+  }
+  if (walked) {
+    checkPlacement(after, writtenInfos.filter((x): x is RecordInfo => x !== null), writtenHeader.offset, endOf(writtenAt, writtenBytes));
+  }
+  const afterAll = [...writtenHeader.violations, ...after.out].sort((a, b) => a.at - b.at);
+
+  // The read side: its header, where every record stood, the records replaced, and the records
+  // deleted only when what is added so far could be matched with one of theirs.
+  const before = new Check(options);
+  const readInfos = heads.map((h, i) => (h instanceof OutOfBudget ? { at: readAt[i], name: null, subsystem: false } : h));
+  checkPlacement(before, readInfos.filter((x): x is RecordInfo => x !== null), readHeader.offset, endOf(readAt, readBytes));
+  const checkRead = (which: number[]): boolean => {
+    try {
+      for (const i of which) {
+        checkRecord(before, read.records[i].bytes, readAt[i], read.records[i].inflated);
+      }
+      return true;
+    } catch (err) {
+      before.file('budget', ...stoppedAt(err, before.cursor));
+      return false;
+    }
+  };
+  const replaced = written.records.flatMap((r) => ('kept' in r || r.replaces === null ? [] : [r.replaces]));
+  const readOn = checkRead(replaced);
+  let added = violationsAdded([...readHeader.violations, ...before.out], afterAll, renamed);
+  const deleted = read.records.map((_, i) => i).filter((i) => !taken.has(i));
+  if (added.some((v) => v.code !== 'budget') && deleted.length > 0 && readOn) {
+    checkRead(deleted);
+    added = violationsAdded([...readHeader.violations, ...before.out], afterAll, renamed);
+  }
+  return added;
+}
+
+// Whether the walk of a file (walkRecords) reads `record` as the record it is given as: its tag
+// declares exactly its bytes, and it does not open with a zero byte, which the walk reads as
+// padding or as the end of the records.
+function walksAsGiven(record: Uint8Array): boolean {
+  return record.byteLength >= 8 && record[0] !== 0
+    && 8 + new DataView(record.buffer, record.byteOffset, 8).getUint32(4, true) === record.byteLength;
+}
+
+// What checkMatFile says of a header, whether it reads on past it, and the subsystem's offset it gives.
+function headerOf(header: Uint8Array): { violations: MatViolation[]; walked: boolean; offset: number } {
+  const check = new Check({});
+  const walked = checkHeader(check, header);
+  const offset = subsystemOffset(new DataView(header.buffer, header.byteOffset, header.byteLength), header);
+  return { violations: check.out, walked, offset };
+}
+
+// What the placement rules need of the record at byte `at`, read as checkRecord reads it but no
+// further (Check.headOnly), or the budget that stopped it. A compressed record whose inflate is
+// held is not inflated again, and spends none of the budget.
+function headOf(record: MatReadRecord, at: number, options: MatCheckOptions): RecordInfo | null | OutOfBudget {
+  const check = new Check(options);
+  check.headOnly = true;
+  if (record.inflated) {
+    check.inflateLeft = MAT_RECORD_INFLATE_CEILING;
+  }
+  try {
+    return checkRecord(check, record.bytes, at, record.inflated);
+  } catch (err) {
+    return err instanceof OutOfBudget ? err : new OutOfBudget(at, `an error in the check itself (${reasonOf(err)})`);
+  }
+}
+
+// The place and the words of the `budget` note of a check stopped by `err` in the record at
+// `cursor`: a budget run out (OutOfBudget, which says where), or a defect of the check's own.
+function stoppedAt(err: unknown, cursor: number): [number, string] {
+  const at = err instanceof OutOfBudget ? err.at : cursor;
+  const why = err instanceof OutOfBudget ? err.message : `an error in the check itself (${reasonOf(err)})`;
+  return [at, `The check stopped at byte ${at}, at ${why}, so nothing from there on was checked.`];
+}
+
+// Where each of `records` starts, back to back after a 128-byte header.
+function offsetsOf(records: readonly Uint8Array[]): number[] {
+  const out: number[] = [];
+  let at = 128;
+  for (const r of records) {
+    out.push(at);
+    at += r.byteLength;
+  }
+  return out;
+}
+
+function endOf(offsets: readonly number[], records: readonly Uint8Array[]): number {
+  return offsets.length === 0 ? 128 : offsets[offsets.length - 1] + records[records.length - 1].byteLength;
+}
+
+function joined(header: Uint8Array, records: readonly Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(header.byteLength + endOf(offsetsOf(records), records) - 128);
+  out.set(header, 0);
+  let at = header.byteLength;
+  for (const r of records) {
+    out.set(r, at);
+    at += r.byteLength;
+  }
+  return out;
 }
 
 function checkFile(check: Check, bytes: Uint8Array): void {
@@ -488,7 +719,6 @@ function subsystemOffset(view: DataView, bytes: Uint8Array): number {
  */
 function walkRecords(check: Check, view: DataView, bytes: Uint8Array, offset: number): RecordInfo[] {
   const records: RecordInfo[] = [];
-  const file = fileSpace(view);
   const length = bytes.byteLength;
   let at = 128;
   while (at < length) {
@@ -533,24 +763,43 @@ function walkRecords(check: Check, view: DataView, bytes: Uint8Array, offset: nu
       check.file('framing', at, `The file ends ${length - at} byte(s) into a record's tag: MATLAB fails the load.`);
       break;
     }
-    const type = view.getUint32(at, true);
     const n = view.getUint32(at + 4, true);
     if (at + 8 + n > length) {
       check.file('framing', at, `The record at byte ${at} declares ${n} bytes, and the file holds ${length - at - 8} `
         + 'after its tag: it is cut short, and MATLAB fails the load.');
       break;
     }
-    if (type === MI_MATRIX) {
-      records.push(plainRecord(check, file, at, n));
-    } else if (type === MI_COMPRESSED) {
-      records.push(compressedRecord(check, bytes.subarray(at + 8, at + 8 + n), at));
-    } else {
-      check.file('top-level-type', at, `The record at byte ${at} is a data element of ${typeName(type)}: a variable is `
-        + 'stored as an miMATRIX or an miCOMPRESSED, and MATLAB fails the load on anything else.');
+    const info = checkRecord(check, bytes.subarray(at, at + 8 + n), at);
+    if (info) {
+      records.push(info);
     }
     at += 8 + n;
   }
   return records;
+}
+
+/**
+ * One top-level record, its tag and the bytes it declares, as the record at byte `at` of its
+ * file: checked, and what the placement rules need of it, or null for a record they do not
+ * see, one that is no matrix. What it breaks depends on its bytes alone: `at` places what is
+ * said, and nothing else of the file is read. `inflated` is a compressed record's payload,
+ * inflated, when the caller holds that already (violationsAddedBySplice).
+ */
+function checkRecord(check: Check, record: Uint8Array, at: number, inflated?: Uint8Array | null): RecordInfo | null {
+  check.cursor = at;
+  check.variable = undefined;
+  const view = new DataView(record.buffer, record.byteOffset, record.byteLength);
+  const type = view.getUint32(0, true);
+  const n = view.getUint32(4, true);
+  if (type === MI_MATRIX) {
+    return plainRecord(check, recordSpace(view, at), at, n);
+  }
+  if (type === MI_COMPRESSED) {
+    return compressedRecord(check, record.subarray(8, 8 + n), at, inflated);
+  }
+  check.file('top-level-type', at, `The record at byte ${at} is a data element of ${typeName(type)}: a variable is `
+    + 'stored as an miMATRIX or an miCOMPRESSED, and MATLAB fails the load on anything else.');
+  return null;
 }
 
 function zeroRun(bytes: Uint8Array, at: number): number {
@@ -567,13 +816,14 @@ function typeName(type: number): string {
   return TYPE_NAMES[type] ?? `type ${type}`;
 }
 
-function plainRecord(check: Check, file: Space, at: number, n: number): RecordInfo {
+// A plain record, in a space that holds it from its tag (recordSpace).
+function plainRecord(check: Check, space: Space, at: number, n: number): RecordInfo {
   if (n === 0) {
     check.file('empty-matrix', at, `The record at byte ${at} is an miMATRIX of 0 bytes: MATLAB fails the load. `
       + 'Only a matrix inside another may be empty.');
     return { at, name: null, subsystem: false };
   }
-  const info = topMatrix(check, file, at, at + 8, at + 8 + n);
+  const info = topMatrix(check, space, at, 8, 8 + n);
   if (n % 8 !== 0) {
     check.file('framing', at, `The record at byte ${at} declares ${n} bytes, not a whole number of 8-byte words: `
       + 'a plain record ends padded to 8 bytes, so this one is missing its final pad, and MATLAB fails the load.',
@@ -585,8 +835,13 @@ function plainRecord(check: Check, file: Space, at: number, n: number): RecordIn
 /**
  * A compressed record: one zlib stream (RFC 1950) that inflates to one miMATRIX and nothing
  * else, and ends at the record's last byte. Its matrix is then checked in the inflated bytes.
+ *
+ * `given`, when there is one, is what `inflateZlib` made of `payload` for the caller already (MatParser
+ * keeps it, MatVariable._rawBytes), taken for the inflate rather than inflating the payload
+ * again: the same function of the same bytes, so the same bytes, spent from the budget as an
+ * inflate of them is. Nothing else of what the caller read is taken.
  */
-function compressedRecord(check: Check, payload: Uint8Array, at: number): RecordInfo {
+function compressedRecord(check: Check, payload: Uint8Array, at: number, given?: Uint8Array | null): RecordInfo {
   const unread: RecordInfo = { at, name: null, subsystem: false };
   // Said once the record's name is known, if it can be, and ahead of what its matrix breaks.
   const faults: string[] = [];
@@ -611,7 +866,10 @@ function compressedRecord(check: Check, payload: Uint8Array, at: number): Record
   const ceiling = Math.min(check.inflateLeft, MAT_RECORD_INFLATE_CEILING);
   let inflated: Uint8Array;
   try {
-    inflated = inflateZlib(payload, ceiling);
+    if (given && given.byteLength > ceiling) {
+      throw new InflateCeilingError(ceiling);
+    }
+    inflated = given ?? inflateZlib(payload, ceiling);
   } catch (err) {
     if (err instanceof InflateCeilingError) {
       if (ceiling < MAT_RECORD_INFLATE_CEILING) {
@@ -626,9 +884,10 @@ function compressedRecord(check: Check, payload: Uint8Array, at: number): Record
   check.inflateLeft -= inflated.byteLength;
   // The stream ends with the Adler-32 of what it inflates to, so a record whose last four
   // bytes are that checksum ends where its stream does. Anything else is bytes after the
-  // stream, which MATLAB's record never has, or a checksum that is wrong.
+  // stream, which MATLAB's record never has, or a checksum that is wrong. Not asked for a
+  // record's name alone (headOnly), which it does not change.
   const trailer = new DataView(payload.buffer, payload.byteOffset + payload.byteLength - 4, 4).getUint32(0, false);
-  if (trailer !== adler32(inflated)) {
+  if (!check.headOnly && trailer !== adler32(inflated)) {
     fault('does not end with its zlib stream\'s checksum: bytes follow the stream inside the record, or the '
       + 'checksum is wrong. MATLAB writes a record as exactly its stream');
   }
@@ -753,6 +1012,9 @@ function topMatrix(check: Check, space: Space, at: number, start: number, end: n
   info.name = recordName(check, at, head.name);
   const stream = info.name === '' ? subsystemStream(space, head, end) : null;
   info.subsystem = stream !== null;
+  if (check.headOnly) {
+    return info;
+  }
   const p = classBody(check, space, head, end, 0);
   if (p !== null) {
     fillsExactly(check, space, p, end);

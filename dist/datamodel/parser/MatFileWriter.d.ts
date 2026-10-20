@@ -1,5 +1,6 @@
 import type { MatRecord } from './MatParser.js';
 import { MatWriteError } from './MatWriter.js';
+import type { MatCheckOptions } from './MatFileCheck.js';
 import type BaseNode from '../node/BaseNode.js';
 import type MatNode from '../node/container/MatNode.js';
 /**
@@ -7,8 +8,11 @@ import type MatNode from '../node/container/MatNode.js';
  * everything else as the bytes it was read from. Throws MatWriteError, naming the variable or
  * the file and why, for anything it cannot write as what it is (see the file header), and
  * never hands back bytes that did not read back as planned.
+ *
+ * `check` is the budget of the check of what was written (MatFileCheck), its own by default:
+ * for tests, which cannot make a file a gigabyte past it.
  */
-export declare function serializeMatFile(matNode: MatNode): Uint8Array;
+export declare function serializeMatFile(matNode: MatNode, check?: MatCheckOptions): Uint8Array;
 /**
  * The refusal of every save of `matNode`, an unedited one included, or null: a tree opened
  * without the records a save writes back, one whose bytes the host has since handed away, and
@@ -66,4 +70,11 @@ export declare function unwritableIn(at: BaseNode): {
     path: string;
     what: string;
 } | null;
+/**
+ * The miCOMPRESSED record of `stream`, the zlib stream of the variable `name`'s element: its tag
+ * and the stream. Refused for a stream of 4 GiB or more, whose length the tag's 32 bits cannot
+ * say: written, its length would wrap, and the record would declare a few bytes of a stream that
+ * goes on. Exported for test/matFileSave.test.ts, which holds it to that without a stream so big.
+ */
+export declare function compressedRecordOf(stream: Uint8Array, name: string): Uint8Array;
 //# sourceMappingURL=MatFileWriter.d.ts.map

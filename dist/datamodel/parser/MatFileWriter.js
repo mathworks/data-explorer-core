@@ -41,9 +41,11 @@
 // reader did not decode, whose edit this writer cannot write; a variable stored in a form MATLAB
 // does not load as it is, whose value as read is this reader's guess at it; a variable stored
 // after the subsystem, where MATLAB does not read it; a file whose records do not tile it, or that was
-// opened without them. And before the bytes are handed back they are read again, and a record
-// that does not read back as planned refuses the save as well (selfCheck), as does one that breaks
-// a rule MATLAB loads a file by that the file it was read from did not break (MatFileCheck).
+// opened without them. And before the bytes are handed back, every record written anew is read
+// again, and one that does not read back as planned refuses the save as well (selfCheck), as does
+// a file that breaks a rule MATLAB loads a file by that the file it was read from did not break
+// (MatFileCheck). Both are asked of what the save changed, and of where every record stands: a
+// record written as its own bytes is the record it was read as, and breaks what that one broke.
 //
 // The editor takes none of the edits refused for what a variable is or where it stands: its gate
 // (MatNode._editRefusal) is built of the refusals exported here (unsavableRefusal,
@@ -54,7 +56,7 @@ import { zlibSync } from 'fflate';
 import { inflateZlib } from './Inflate.js';
 import { parseMat, functionHandleOf } from './MatParser.js';
 import { MatBudgetError, MatWriteError, classPhrase, elementNamed, encodeMatVariable } from './MatWriter.js';
-import { checkMatElement, checkMatFile, violationsAdded } from './MatFileCheck.js';
+import { checkMatElement, violationsAddedBySplice } from './MatFileCheck.js';
 import { integerConversion } from './XmlUtils.js';
 import { validateMatlabName } from '../matlabName.js';
 const MI_MATRIX = 14;
@@ -64,8 +66,11 @@ const MI_COMPRESSED = 15;
  * everything else as the bytes it was read from. Throws MatWriteError, naming the variable or
  * the file and why, for anything it cannot write as what it is (see the file header), and
  * never hands back bytes that did not read back as planned.
+ *
+ * `check` is the budget of the check of what was written (MatFileCheck), its own by default:
+ * for tests, which cannot make a file a gigabyte past it.
  */
-export function serializeMatFile(matNode) {
+export function serializeMatFile(matNode, check = {}) {
     const file = matNode.name;
     const unsavable = unsavableRefusal(matNode);
     if (unsavable) {
@@ -77,15 +82,15 @@ export function serializeMatFile(matNode) {
     const plan = planOf(matNode, records, subsystem);
     // Nothing deleted, renamed, edited or added: the file, as it was read.
     if (plan.length === records.length && plan.every((p, i) => p.kind === 'verbatim' && p.record === records[i])) {
-        return concat([headerBytes, ...records.map((r) => r.bytes)]);
+        return concat([headerBytes, ...records.map((r) => r.bytes)], fileTooBig(file));
     }
     const structure = structureRefusal(matNode, records, subsystem);
     if (structure) {
         throw structure;
     }
-    const assembled = assemble(headerBytes, plan, subsystem);
-    selfCheck(file, assembled.bytes, plan, assembled, headerBytes);
-    refuseWorse(file, assembled.bytes, plan, headerBytes, records);
+    const assembled = assemble(file, headerBytes, plan, subsystem);
+    selfCheck(file, assembled, plan, headerBytes);
+    refuseWorse(file, assembled, plan, headerBytes, records, check);
     return assembled.bytes;
 }
 /**
@@ -221,7 +226,8 @@ export function structureRefusal(matNode, records, subsystem) {
 }
 // Two records of one name: MATLAB loads one of them (measured against MATLAB R2027a: `load f`
 // keeps the last, `load f x` the first). A file that holds two keeps them, as it was read; a
-// rename or an addition that would make two is refused, naming the variable.
+// rename or an addition that would make two is refused, naming the variable. A record the reader
+// could not read a name out of is held to none (MatNode._namespaceHolds says why).
 function refuseDuplicates(plan) {
     const count = new Map();
     const nameOf = (p) => (p.kind === 'verbatim' ? p.record.name : p.name);
@@ -264,8 +270,8 @@ function renamedOf(node, record) {
     if (why) {
         throw refusal(name, why);
     }
-    const named = elementNamed(elementOfRecord(record), name);
-    return { kind: 'renamed', record, name, bytes: recordBytes(named, record.compressed) };
+    const element = elementOfRecord(record);
+    return { kind: 'renamed', record, name, bytes: recordBytes(elementNamed(element, name), record.compressed, name), element };
 }
 /**
  * Why the variable read from `record` cannot be renamed, or null where it can: its record is not
@@ -302,7 +308,7 @@ function freshOf(node, record, compress) {
     if (!named) {
         throw refusal(name, 'the element written for it has no name to replace');
     }
-    return { kind: 'fresh', record, node: value, name, bytes: recordBytes(named, compress) };
+    return { kind: 'fresh', record, node: value, name, bytes: recordBytes(named, compress, name) };
 }
 /**
  * The refusal a save throws for writing `node` fresh, the variable `record` became or one added
@@ -635,28 +641,36 @@ function elementOfRecord(record) {
     }
     return 8 + u32At(inflated, 4) === inflated.byteLength ? inflated : null;
 }
-// A top-level record of `element`: the element itself, which MatWriter pads to 8 bytes as a plain
-// record must be, or its zlib stream (RFC 1950, which MATLAB requires; level 6, MATLAB's default)
-// in an miCOMPRESSED tag, with no padding after it, as MATLAB writes one.
-function recordBytes(element, compress) {
-    if (!compress) {
-        return element;
+// A top-level record of `element`, the variable `name`'s: the element itself, which MatWriter pads
+// to 8 bytes as a plain record must be, or its zlib stream (RFC 1950, which MATLAB requires; level
+// 6, MATLAB's default) in an miCOMPRESSED tag, with no padding after it, as MATLAB writes one.
+function recordBytes(element, compress, name) {
+    return compress ? compressedRecordOf(zlibSync(element, { level: 6 }), name) : element;
+}
+/**
+ * The miCOMPRESSED record of `stream`, the zlib stream of the variable `name`'s element: its tag
+ * and the stream. Refused for a stream of 4 GiB or more, whose length the tag's 32 bits cannot
+ * say: written, its length would wrap, and the record would declare a few bytes of a stream that
+ * goes on. Exported for test/matFileSave.test.ts, which holds it to that without a stream so big.
+ */
+export function compressedRecordOf(stream, name) {
+    if (stream.byteLength > 0xffffffff) {
+        throw refusal(name, 'compressed, its element is a stream of ' + stream.byteLength + ' bytes, more than the 4 GiB a record can say it holds');
     }
-    const stream = zlibSync(element, { level: 6 });
-    return concat([u32le(MI_COMPRESSED), u32le(stream.byteLength), stream]);
+    return concat([u32le(MI_COMPRESSED), u32le(stream.byteLength), stream], (total) => refusal(name, 'its record would be ' + total + ' bytes, more than this runtime holds in one buffer'));
 }
 // The header and the planned records, back to back. The header is the file's own: its text
 // (bytes 0-115, which MATLAB keeps on `-append` and never reads), and its version and byte-order
 // mark (124-127). Bytes 116-123 are the subsystem's new offset, a little-endian uint64, or, in a
 // file with no subsystem, the file's own: zeros or spaces, both of which MATLAB reads as none.
-function assemble(headerBytes, plan, subsystem) {
+function assemble(file, headerBytes, plan, subsystem) {
     const header = headerBytes.slice();
     const parts = [header];
     const offsets = [];
     let subsystemAt = null;
     let at = header.byteLength;
     for (const p of plan) {
-        const bytes = p.kind === 'verbatim' ? p.record.bytes : p.bytes;
+        const bytes = bytesOf(p);
         offsets.push(at);
         if (p.kind === 'verbatim' && p.record === subsystem) {
             subsystemAt = at;
@@ -667,66 +681,77 @@ function assemble(headerBytes, plan, subsystem) {
     if (subsystemAt !== null) {
         new DataView(header.buffer, header.byteOffset, header.byteLength).setBigUint64(116, BigInt(subsystemAt), true);
     }
-    return { bytes: concat(parts), offsets, subsystemAt };
+    return { bytes: concat(parts, fileTooBig(file)), offsets, subsystemAt };
+}
+// The bytes a planned record is written as: a record of the file's own, or the ones written for it.
+function bytesOf(p) {
+    return p.kind === 'verbatim' ? p.record.bytes : p.bytes;
+}
+// The refusal of a file of `total` bytes, more than one buffer here holds (concat).
+function fileTooBig(file) {
+    return (total) => new MatWriteError('Cannot save "' + file + '": the file written for it would be ' + total + ' bytes, more than this runtime holds in one buffer. '
+        + 'Nothing was written.');
 }
 // ---- The self-check ---------------------------------------------------------------------------
 //
-// The bytes about to be handed back, read again by this package's reader, against the plan: the
-// header kept, and saying where the subsystem now is; the records the ones planned, at the offsets
-// planned, and every one of them framed; each record written as its own bytes those bytes; each
-// renamed one named as planned and, but for its name, its element byte for byte; each written
-// fresh named as planned and reading back as the value it was written from, its class, size and
-// every element. Any difference refuses the save.
+// The bytes about to be handed back, against the plan: the header kept, and saying where the
+// subsystem now is; the records the ones planned, back to back from byte 128 to the last byte,
+// each at the offset planned and framed as the reader frames one; and every record written anew
+// read again by this package's reader, alone: each renamed one named as planned and, but for its
+// name, its element byte for byte; each written fresh named as planned and reading back as the
+// value it was written from, its class, size and every element. Any difference refuses the save.
+//
+// A record written as its own bytes is not read again: it is the record the file was read as,
+// whole (unsavableRefusal: not one byte of it handed away since), copied by assemble at the
+// offset this checks. Reading it again would read the reader's own reading of the same bytes, at
+// the cost of inflating every compressed record of the file at every save.
 //
 // This proves what was written is what was planned, and not that MATLAB loads it: this reader
 // reads files MATLAB refuses. That is refuseWorse's to ask, of the other judge.
-function selfCheck(file, bytes, plan, assembled, headerBytes) {
+function selfCheck(file, assembled, plan, headerBytes) {
     const fail = (why) => {
         throw new MatWriteError('Cannot save "' + file + '": the file written for it did not read back as written: ' + why + '. Nothing was written.');
     };
-    let parsed;
-    try {
-        // `bytes` is the whole of its buffer (concat), which the reader may take as it is.
-        parsed = parseMat(bytes.buffer);
-    }
-    catch (e) {
-        return fail('it does not open (' + (e instanceof Error ? e.message : String(e)) + ')');
-    }
-    if (!parsed.framed) {
-        return fail('its records do not tile it (' + (parsed.unframed?.reason ?? '') + ')');
-    }
-    const head = parsed.headerBytes;
+    const { bytes, offsets } = assembled;
+    const head = bytes.subarray(0, 128);
     if (!sameBytes(head.subarray(0, 116), headerBytes.subarray(0, 116)) || !sameBytes(head.subarray(124), headerBytes.subarray(124))) {
         return fail('its header is not the one it was read with');
     }
     const subsystemSaid = assembled.subsystemAt ?? 0;
-    if (parsed.subsystemOffset !== subsystemSaid) {
-        return fail('its header places its objects at byte ' + parsed.subsystemOffset + ', and they are at byte ' + subsystemSaid);
+    const offsetSaid = head.subarray(116, 124).every((b) => b === 0x20) ? 0 : Number(new DataView(head.buffer, head.byteOffset + 116, 8).getBigUint64(0, true));
+    if (offsetSaid !== subsystemSaid) {
+        return fail('its header places its objects at byte ' + offsetSaid + ', and they are at byte ' + subsystemSaid);
     }
-    if (parsed.records.length !== plan.length) {
-        return fail('it holds ' + parsed.records.length + ' record(s) where ' + plan.length + ' were written');
+    let end = 128;
+    plan.forEach((p, i) => {
+        const record = bytesOf(p);
+        if (offsets[i] !== end) {
+            fail('a record was written at byte ' + offsets[i] + ', where the one before it ends at byte ' + end);
+        }
+        if (p.kind === 'verbatim' && record.byteLength !== p.record.length) {
+            fail('the record at byte ' + end + ' holds ' + record.byteLength + ' of the ' + p.record.length + ' bytes it was read as');
+        }
+        if (!framedAsRead(record) || u32At(bytes, end) !== u32At(record, 0) || u32At(bytes, end + 4) !== u32At(record, 4)) {
+            fail('the record at byte ' + end + ' is not framed as the record written there');
+        }
+        end += record.byteLength;
+    });
+    if (end !== bytes.byteLength) {
+        return fail('it is ' + bytes.byteLength + ' bytes, and its records end at byte ' + end);
     }
     plan.forEach((p, i) => {
-        const got = parsed.records[i];
-        const at = assembled.offsets[i];
-        if (got.offset !== at) {
-            fail('a record starts at byte ' + got.offset + ' where one was written at byte ' + at);
-        }
         if (p.kind === 'verbatim') {
-            if (!sameBytes(got.bytes, p.record.bytes)) {
-                fail('the record at byte ' + at + ' is not the bytes it was read from');
-            }
             return;
         }
-        if (got.status !== 'read' || got.anonymous || got.name !== p.name || got.variable?.name !== p.name) {
-            fail('the record at byte ' + at + ', written as "' + p.name + '", reads as ' + (got.status === 'read' ? '"' + got.name + '"' : 'no variable'));
+        const at = offsets[i];
+        const got = readAlone(file, head, bytes.subarray(at, at + p.bytes.byteLength));
+        if (!got || got.status !== 'read' || got.anonymous || got.name !== p.name || got.variable?.name !== p.name) {
+            fail('the record at byte ' + at + ', written as "' + p.name + '", reads as ' + (got?.status === 'read' ? '"' + got.name + '"' : 'no variable'));
         }
         if (p.kind === 'renamed') {
-            const before = elementOfRecord(p.record);
-            const after = elementOfRecord(got);
-            const unnamed = (e) => (e ? elementNamed(e, '') : null);
-            const was = unnamed(before);
-            const is = unnamed(after);
+            const unnamed = (e) => (e && wholeElement(e) ? elementNamed(e, '') : null);
+            const was = unnamed(p.element);
+            const is = unnamed(got.variable._rawBytes);
             if (!was || !is || !sameBytes(was, is)) {
                 fail('"' + p.name + '" is not, but for its name, the element it was read as');
             }
@@ -743,6 +768,38 @@ function selfCheck(file, bytes, plan, assembled, headerBytes) {
         }
     });
 }
+// Whether `record` is framed as MatParser frames a record of a file it calls framed: its tag's 8
+// bytes and exactly the bytes they declare, which for a plain record are a whole number of 8-byte
+// words; and a tag that is neither the zero one the reader stops at nor a small element's.
+function framedAsRead(record) {
+    if (record.byteLength < 8) {
+        return false;
+    }
+    const type = u32At(record, 0);
+    const n = u32At(record, 4);
+    if (8 + n !== record.byteLength) {
+        return false;
+    }
+    return type === MI_COMPRESSED || (n % 8 === 0 && !(type === 0 && n === 0) && !(type >>> 16 !== 0 && (type & 0xffff) !== 0));
+}
+// The one record of a file of `header` and `record`, as this package's reader reads it, or null
+// where it reads that file as anything else.
+function readAlone(file, header, record) {
+    // The whole of a buffer of its own (concat), which the reader may take as it is.
+    const alone = concat([header, record], fileTooBig(file));
+    let parsed;
+    try {
+        parsed = parseMat(alone.buffer);
+    }
+    catch {
+        return null;
+    }
+    return parsed.framed && parsed.records.length === 1 ? parsed.records[0] : null;
+}
+// Whether `element` is one miMATRIX element, its tag and exactly the bytes it declares.
+function wholeElement(element) {
+    return element.byteLength >= 8 && u32At(element, 0) === MI_MATRIX && 8 + u32At(element, 4) === element.byteLength;
+}
 // The bytes about to be handed back, judged by the rules MATLAB loads a file by (MatFileCheck),
 // which this package's reader does not hold a file to: the save is refused when they break a rule
 // the file they were read from did not break. A file that was read breaking one (two variables of
@@ -750,30 +807,42 @@ function selfCheck(file, bytes, plan, assembled, headerBytes) {
 // Compared by rule and variable, not by offset, which every edit before a record moves; a
 // variable renamed is compared under the name the file it was read from gave it.
 //
-// The file as read is checked once, and its violations kept with its records: they are the bytes
-// it was read from, and no edit changes them.
-function refuseWorse(file, bytes, plan, headerBytes, records) {
-    let before = originalViolations.get(records);
-    if (!before) {
-        before = checkMatFile(concat([headerBytes, ...records.map((r) => r.bytes)]));
-        originalViolations.set(records, before);
-    }
+// Judged where the save changed the file (violationsAddedBySplice): every record written anew and
+// the record it replaces, the header, and where every record stands. A record written as its own
+// bytes breaks what it broke as read, and the two are the same answer; so a save costs what it
+// changed, and a file too big for the check's budget whole can still be saved where its edits
+// are small. Phase 2, which writes the subsystem anew, hands it in as a record written in place of
+// the subsystem's (MatSplicedRecord `replaces`), and it is checked whole as every written one is.
+function refuseWorse(file, assembled, plan, headerBytes, records, check) {
+    const index = new Map(records.map((r, i) => [r, i]));
     const renamed = new Map();
-    for (const p of plan) {
-        if (p.kind !== 'verbatim' && p.record?.name && p.record.name !== p.name) {
+    const written = plan.map((p, i) => {
+        if (p.kind === 'verbatim') {
+            return { kept: index.get(p.record) };
+        }
+        if (p.record?.name && p.record.name !== p.name) {
             renamed.set(p.name, p.record.name);
         }
-    }
-    const added = violationsAdded(before, checkMatFile(bytes), renamed);
-    if (added.length > 0) {
-        const more = added.length - 1;
+        const at = assembled.offsets[i];
+        return { written: assembled.bytes.subarray(at, at + p.bytes.byteLength), replaces: p.record ? index.get(p.record) : null };
+    });
+    const added = violationsAddedBySplice(
+    // A compressed record's inflate, as the reader holds it (MatVariable._rawBytes): inflateZlib's
+    // of the record's own bytes, so that the check does not inflate the file again.
+    { header: headerBytes, records: records.map((r) => ({ bytes: r.bytes, inflated: r.compressed ? r.variable?._rawBytes : null })) }, { header: assembled.bytes.subarray(0, 128), records: written }, renamed, check);
+    const broken = added.filter((v) => v.code !== 'budget');
+    if (broken.length > 0) {
+        const more = broken.length - 1;
         throw new MatWriteError('Cannot save "' + file + '": the file written for it breaks a rule MATLAB loads a file by, which the file it was read '
-            + 'from does not: ' + added[0].message + (more > 0 ? ' It breaks ' + more + ' more as well.' : '') + ' Nothing was written.');
+            + 'from does not: ' + broken[0].message + (more > 0 ? ' It breaks ' + more + ' more as well.' : '') + ' Nothing was written.');
+    }
+    if (added.length > 0) {
+        // The check stopped before it had judged all of what the save wrote: nothing is known
+        // broken, and nothing is known to load.
+        throw new MatWriteError('Cannot save "' + file + '": the file written for it could not be verified within the check\'s budget against the rules '
+            + 'MATLAB loads a file by (' + added[0].message.replace(/\.$/, '') + '), so it is not known to load. Nothing was written.');
     }
 }
-// What MatFileCheck says of the file a MatNode was read from, by its records (MatNode.records),
-// which are that file's bytes for as long as the node is.
-const originalViolations = new WeakMap();
 // Where the value read back, `read`, is not the value `model` it was written from, in words, or
 // null where it is that value: the same class, complexity, storage and size, the same members of a
 // cell, the same fields of a struct in the same order, and each element the same number as its
@@ -935,12 +1004,24 @@ function flatValues(value) {
     return Array.isArray(value) ? value : [value];
 }
 // ---- Bytes ------------------------------------------------------------------------------------
-function concat(parts) {
+// `parts`, back to back in a buffer of their own; or, past the most bytes the runtime holds in one
+// buffer, `tooBig`'s refusal of that many, rather than the RangeError the runtime throws, which
+// says nothing of what was being written.
+function concat(parts, tooBig) {
     let total = 0;
     for (const p of parts) {
         total += p.byteLength;
     }
-    const out = new Uint8Array(total);
+    let out;
+    try {
+        out = new Uint8Array(total);
+    }
+    catch (e) {
+        if (e instanceof RangeError) {
+            throw tooBig(total);
+        }
+        throw e;
+    }
     let at = 0;
     for (const p of parts) {
         out.set(p, at);

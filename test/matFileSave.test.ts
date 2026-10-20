@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import type { MatRecord, ParsedMat } from '../src/datamodel/parser/MatParser.js';
 import { encodeMatStream, MatBudgetError, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
-import { serializeMatFile } from '../src/datamodel/parser/MatFileWriter.js';
+import { compressedRecordOf, serializeMatFile } from '../src/datamodel/parser/MatFileWriter.js';
 import { checkMatFile, violationsAdded } from '../src/datamodel/parser/MatFileCheck.js';
 import { createSession } from '../src/index.js';
 import { CLASS, MI, cellVar, matFile, numericVar, u32le } from './tools/matBytes.js';
@@ -702,6 +702,43 @@ describe('a save that cannot write a variable as what it is is refused, naming i
     const thrown = thrownBy(() => by('big')._matStream()) as MatBudgetError;
     expect([thrown instanceof MatBudgetError, thrown.entry, thrown.reason]).toEqual([true, 'big', 'budget']);
     expect(thrown.message).toMatch(/^Cannot write "big": big is a 1x600000 cell holding 1 of its 600000 elements, /);
+    // And met writing a variable a save writes fresh, it is the save's refusal, as MatWriter threw
+    // it: the stream of an edited variable stands in for one past the budget.
+    const edited = opened(fixture(CASES), 'cases.mat');
+    expect(edited.edit(edited.by('kp'), 'Value', '9')).toBe(true);
+    edited.by('kp')._matStream = () => {
+      throw thrown;
+    };
+    expect(thrownBy(() => serializeMatFile(edited.root))).toBe(thrown);
+  });
+
+  it('a file of more bytes than the runtime holds in one buffer, refused naming it, and not as its RangeError', () => {
+    for (const add of [false, true]) {
+      const { root } = opened(matFile([scalar('a', 1)]));
+      // A record standing in for one of 2^53 bytes, which no typed array is: the copy of the
+      // file unedited, and the file assembled around an addition, are each refused for it.
+      Object.assign(root.records[0], { length: 2 ** 53, bytes: { byteLength: 2 ** 53 } });
+      if (add) {
+        root.execAddEntry();
+      }
+      const thrown = thrownBy(() => serializeMatFile(root));
+      expect(thrown, String(add)).toBeInstanceOf(MatWriteError);
+      expect(thrown.message, String(add)).toMatch(
+        /^Cannot save "f\.mat": the file written for it would be \d{16} bytes, more than this runtime holds in one buffer\. Nothing was written\.$/,
+      );
+    }
+  });
+
+  it('a compressed stream of 4 GiB or more, whose length its record cannot say, is refused', () => {
+    // A stream standing in for one of 2^32 bytes: the record's tag says its length in 32 bits,
+    // and written, it would say 0.
+    const thrown = thrownBy(() => compressedRecordOf({ byteLength: 2 ** 32 } as Uint8Array, 'big'));
+    expect([thrown instanceof MatWriteError, thrown.message]).toEqual([
+      true,
+      'Cannot write "big": compressed, its element is a stream of 4294967296 bytes, more than the 4 GiB a record can say it holds. Nothing was written.',
+    ]);
+    // One that a tag can say is written as its tag and itself.
+    expect(Array.from(compressedRecordOf(new Uint8Array([7, 8]), 'small'))).toEqual([15, 0, 0, 0, 2, 0, 0, 0, 7, 8]);
   });
 
   it('a variable added under a name that is no MATLAB name, or one the file holds already', () => {
