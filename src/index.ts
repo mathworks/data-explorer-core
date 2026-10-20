@@ -148,6 +148,8 @@ export type {
 export type { ParsedSlx, BlockParamUsage } from './datamodel/parser/SlxParser.js';
 export type { ParsedMdl } from './datamodel/parser/MdlParser.js';
 export type { ParsedMat, MatVariable } from './datamodel/parser/MatParser.js';
+// One record of a MAT-file as ParsedMat.records holds it, and as MatNode keeps it for a save.
+export type { MatRecord } from './datamodel/parser/MatParser.js';
 // A sparse array's non-zeros, which is how MatVariable holds one (`sparse`): named for
 // the same reason, since a consumer reading a sparse variable reads this.
 export type { SparseData } from './datamodel/parser/SparseData.js';

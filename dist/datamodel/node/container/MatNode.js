@@ -14,6 +14,28 @@ export default class MatNode extends ContainerNode {
         this.header = '';
         this.dirty = false;
         this._anonymousElements = [];
+        this.headerBytes = null;
+        this.records = null;
+        this.subsystemOffset = 0;
+        this.framed = false;
+        this.unframed = null;
+        this._recordNodes = new Map();
+        this._nodeRecords = new Map();
+    }
+    /**
+     * The record `node` was read from, or null for a node no record became: a variable added
+     * since the file was read, or any node of a tree with no records (`records` null).
+     */
+    recordOf(node) {
+        return this._nodeRecords.get(node) ?? null;
+    }
+    /**
+     * The node `record` became, whether or not it is still in the tree (a deleted one's
+     * `parent` is not this), or null for a record that became no node: the subsystem or
+     * another unnamed element (`_anonymousElements`), and a record the reader dropped.
+     */
+    nodeOf(record) {
+        return this._recordNodes.get(record) ?? null;
     }
     get displayName() {
         return this.name;
@@ -123,37 +145,69 @@ export default class MatNode extends ContainerNode {
     // containers have no rows and names the first ('part-not-expanded'). A parse handed over with
     // no warnings array (an older host's) is given one for it, which is the array addMatSource
     // and addMatSourceParsed pass on: both read it after this returns.
+    //
+    // Each node built of a record is bound to it (recordOf, nodeOf), whatever node it is: a
+    // plain variable, an MCOS object's typed node, a function handle, one shown as not
+    // decoded. A parse with no records, or whose records do not cover its variables one for
+    // one, binds none and keeps none (`records` null).
     static fromParsed(parsed, filename, options = {}) {
         const node = new MatNode(filename);
         node.header = parsed.header;
+        const records = heldRecords(parsed);
         // A .mat file keeps the MCOS blob in an anonymous trailing element. Every opaque in
         // the file, nested or not, comes back carrying its own decode, and what the decoder
         // could not read of one is a warning on the file.
         const anonElement = parsed.variables.find((v) => v._anonymous);
         attachMcosDecoded(anonElement?._rawBytes, parsed.variables, parsed.warnings);
         const ceiling = options.nodeCeiling ?? MAT_NODE_CEILING;
-        const { cut, firstCut } = buildUnderCeiling(ceiling, () => MatNode._addVariables(node, parsed));
+        const recordOf = records ? new Map(records.filter((r) => r.variable).map((r) => [r.variable, r])) : null;
+        const { cut, firstCut } = buildUnderCeiling(ceiling, () => MatNode._addVariables(node, parsed, recordOf));
         if (cut > 0 && firstCut) {
             const warnings = parsed.warnings ?? (parsed.warnings = []);
             warnings.push(notExpandedWarning(firstCut.matlabPath, cut, ceiling));
         }
+        if (records && bindsEveryRecord(node, records, parsed.variables)) {
+            node.headerBytes = parsed.headerBytes;
+            node.records = records;
+            node.subsystemOffset = parsed.subsystemOffset ?? 0;
+            node.framed = parsed.framed === true;
+            node.unframed = parsed.unframed ?? null;
+        }
+        else {
+            node._recordNodes.clear();
+            node._nodeRecords.clear();
+        }
         return node;
+    }
+    _bindRecord(child, record) {
+        if (record) {
+            this._recordNodes.set(record, child);
+            this._nodeRecords.set(child, record);
+        }
     }
     // Every variable as a row of `node`, in the file's order, under the ceiling fromParsed arms:
     // all of them counted first, and none refused (matNodeCeiling.chargeNodes), so that the rows
     // under them are what is left, and a tree is never more nodes than the ceiling or the
     // variables, whichever is more.
-    static _addVariables(node, parsed) {
+    //
+    // `recordOf` is each variable's record, by identity (MatRecord.variable), and every node
+    // made of a variable is bound to it here, the one place all four kinds are made.
+    static _addVariables(node, parsed, recordOf = null) {
         chargeNodes(parsed.variables.filter((v) => !v._anonymous).length);
         for (const variable of parsed.variables) {
             if (variable._anonymous) {
                 node._anonymousElements.push(variable);
                 continue;
             }
+            const record = recordOf?.get(variable);
+            const add = (child) => {
+                node.addChild(child);
+                node._bindRecord(child, record);
+            };
             if (variable.isOpaque) {
                 const mcosNode = buildUncut(() => modelOpaqueMcosVariable(variable, mcosDecodedFor(variable), node, parsed.warnings));
                 if (mcosNode) {
-                    node.addChild(mcosNode);
+                    add(mcosNode);
                     continue;
                 }
             }
@@ -164,12 +218,37 @@ export default class MatNode extends ContainerNode {
             const handle = functionHandleOf(variable);
             if (handle) {
                 const value = handle.text === null ? 'Matrix(' + variable.dimensions.join(',') + ')' : handle.text;
-                node.addChild(MatlabVariableNode.parse({ _type: 'function_handle', _value: value }, variable.name, node));
+                add(MatlabVariableNode.parse({ _type: 'function_handle', _value: value }, variable.name, node));
                 continue;
             }
-            node.addChild(variableNodeOf(variable, node, parsed.warnings));
+            add(variableNodeOf(variable, node, parsed.warnings));
         }
     }
+}
+// The records of `parsed` a save can splice, or null: none for a host's parse that carries
+// none, and none for one whose header or records are not byte views as long as they say,
+// which no reader of this package hands over. Views are told by ArrayBuffer.isView, which
+// answers for one made in another realm (a worker's, structured-cloned here) as well.
+function heldRecords(parsed) {
+    const { headerBytes, records } = parsed;
+    if (!Array.isArray(records) || !ArrayBuffer.isView(headerBytes) || headerBytes.byteLength !== 128) {
+        return null;
+    }
+    const whole = records.every((r) => r && ArrayBuffer.isView(r.bytes) && r.bytes.byteLength === r.length);
+    return whole ? records : null;
+}
+// Whether the tree `node` was built as is bound one for one: every variable the variable of
+// exactly one record, and every node bound to the record of the variable it was made of (an
+// unnamed element is made into no node, and is in `_anonymousElements`). A parse whose
+// records were made apart from its variables, or whose variables a host changed since,
+// binds short, and its records are not this tree's to splice.
+function bindsEveryRecord(node, records, variables) {
+    const withVariable = records.filter((r) => r.variable);
+    const ofRecords = new Set(withVariable.map((r) => r.variable));
+    return (ofRecords.size === withVariable.length &&
+        ofRecords.size === variables.length &&
+        variables.every((v) => ofRecords.has(v)) &&
+        node._nodeRecords.size === node.children.length);
 }
 // The file's one word about its node ceiling, which is not a loss, as `duplicate-id` is not
 // (ParseWarning): every value in it is read, and copied whole. `part` is the first container

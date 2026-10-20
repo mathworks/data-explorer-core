@@ -25,6 +25,29 @@ export interface ParsedMat {
     header: string;
     variables: MatVariable[];
     warnings: ParseWarning[];
+    headerBytes: Uint8Array;
+    subsystemOffset: number;
+    records: MatRecord[];
+    framed: boolean;
+    unframed: {
+        at: number;
+        reason: string;
+    } | null;
+}
+/**
+ * One top-level record of a MAT-file, in the file's own bytes: a variable, the subsystem
+ * that holds the file's objects, or a record this reader did not read.
+ */
+export interface MatRecord {
+    offset: number;
+    length: number;
+    bytes: Uint8Array;
+    compressed: boolean;
+    name: string | null;
+    anonymous: boolean;
+    status: 'read' | 'dropped';
+    reason?: string;
+    variable: MatVariable | null;
 }
 export declare function undecodedValue(dimensions: number[], className: string): string;
 export declare const MAX_NESTING = 128;

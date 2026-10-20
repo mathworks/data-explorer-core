@@ -117,6 +117,62 @@ export interface ParsedMat {
     // back without it — see test/parseWarnings.test.ts, which pins the near-misses as
     // firmly as the warnings.
     warnings: ParseWarning[];
+    // What a save of this file splices (MatNode keeps them all): the header's 128 bytes,
+    // every record in it, and whether those records are the file, byte for byte.
+    //
+    // A view of the input, as every record's bytes are, so nothing is copied: what a save
+    // writes for a variable nobody edited is the bytes it was read from, and for a
+    // compressed one that is the only way to write it byte-identical. MATLAB deflates in
+    // a way a recompression does not reproduce: inflated and deflated again by fflate at
+    // level 6, 18 of the 78 records of test/parity/artifacts/mat/cases.mat came back as
+    // they were.
+    headerBytes: Uint8Array;
+    // Header bytes 116-123: the absolute offset of the subsystem record's tag, which MATLAB
+    // trusts without a scan (measured against MATLAB R2027a: a stale offset fails the
+    // whole load). 0 when the file has no subsystem, which 8 spaces also mean.
+    subsystemOffset: number;
+    // Every top-level record, in file order, the ones this reader read and the ones it
+    // could not or would not (`status`). A save that writes only the variables it holds
+    // drops the rest without a word, and a record that will not inflate here may still
+    // be one MATLAB reads.
+    records: MatRecord[];
+    // Whether the records tile [128, end of file) exactly as MATLAB frames them: a
+    // compressed record is its 8-byte tag and payload, with no padding after it, and a
+    // plain one is padded out to an 8-byte boundary (MatRecord.length). False for a
+    // record the file cuts short, for bytes after the last record, and for a stop at a
+    // zero tag with bytes left; `unframed` says where and why. Only bytes that are
+    // framed can be spliced: past the first byte that is not, the reader and MATLAB may
+    // not agree on what the records are.
+    framed: boolean;
+    unframed: { at: number; reason: string } | null;
+}
+
+/**
+ * One top-level record of a MAT-file, in the file's own bytes: a variable, the subsystem
+ * that holds the file's objects, or a record this reader did not read.
+ */
+export interface MatRecord {
+    // Where its tag starts, and how many bytes it covers: its tag and payload, and for a
+    // plain record its padding to the next 8-byte boundary, as far as the file holds them.
+    offset: number;
+    length: number;
+    // Those bytes, a view of the input.
+    bytes: Uint8Array;
+    // An miCOMPRESSED record, whose payload is a zlib stream of one miMATRIX.
+    compressed: boolean;
+    // The element's name, '' for an unnamed one (`anonymous`), and null when no element
+    // could be read out of the record.
+    name: string | null;
+    // An element with no name: the subsystem, which MATLAB writes unnamed and last, or
+    // one this reader read too little of to find its name.
+    anonymous: boolean;
+    // 'read' when the reader made a variable of it (`variable`); 'dropped' when it did
+    // not, with the warning's text for why.
+    status: 'read' | 'dropped';
+    reason?: string;
+    // The variable the reader made of it, the one in `ParsedMat.variables`, by identity:
+    // what MatNode looks a node's record up by. Null for a dropped record.
+    variable: MatVariable | null;
 }
 
 interface SubElement {
@@ -1418,6 +1474,22 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
     const readShort = new Set<MatVariable>();
     let offset = 128;
 
+    // The file's records as a save splices them (ParsedMat.records), and the first place
+    // they stop tiling the file, if they do. Kept beside the walk rather than by it: the
+    // walk steps 8 + nbytes past every record, as it always has, and that is MATLAB's step
+    // for every record but a plain one whose nbytes is not a multiple of 8, which MATLAB
+    // pads and the walk does not. No file MATLAB wrote under test/ holds one, an miMATRIX's
+    // nbytes counting its sub-elements' padding, so a file that does is left unframed
+    // rather than walked a second way.
+    const records: MatRecord[] = [];
+    let unframed: { at: number; reason: string } | null = null;
+    const unframe = (at: number, reason: string) => { unframed ??= { at, reason }; };
+    const dropped = (record: MatRecord, warning: ParseWarning) => {
+        record.status = 'dropped';
+        record.reason = warning.message;
+        warnings.push(warning);
+    };
+
     // The name to blame a short record on — empty for the unnamed element every MCOS
     // file carries, which has no name to give.
     const nameFor = (variable: MatVariable) => (variable._anonymous ? '' : variable.name);
@@ -1434,14 +1506,21 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
                 message: `The file ends with ${buf.length - offset} byte(s) where a record header needs 8, `
                     + 'so anything stored after the last variable read was not read.',
             });
+            unframe(offset, `the file ends ${buf.length - offset} byte(s) into a record's tag`);
             break;
         }
         const dataType = view.getUint32(offset, true);
         const numBytes = view.getUint32(offset + 4, true);
 
         // The format's own end-of-variables marker. NOT a warning: a file that ends
-        // where it says it ends has been read completely.
-        if (dataType === 0 && numBytes === 0) { break; }
+        // where it says it ends has been read completely. Not a record either, and the
+        // file is not framed: measured against MATLAB R2027a, a file whose last variable is
+        // followed by 8 zero bytes fails to load, as one followed by 3 or 100 does.
+        if (dataType === 0 && numBytes === 0) {
+            unframe(offset, `a zero tag at byte ${offset} is no record, and it and the ${buf.length - offset - 8} byte(s) `
+                + 'after it are not read');
+            break;
+        }
 
         // A record may declare more bytes than the file holds. Everything below clamps
         // rather than throwing (see readSubelement), so the variable still opens —
@@ -1451,7 +1530,41 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
         const missing = offset + 8 + numBytes - buf.length;
         let shortened = '';
 
-        if (dataType === MI_COMPRESSED) {
+        const isCompressed = dataType === MI_COMPRESSED;
+        const extent = 8 + (isCompressed ? numBytes : align8(numBytes));
+        const length = Math.min(extent, buf.length - offset);
+        const record: MatRecord = {
+            offset,
+            length,
+            bytes: buf.subarray(offset, offset + length),
+            compressed: isCompressed,
+            name: null,
+            anonymous: false,
+            status: 'read',
+            variable: null,
+        };
+        records.push(record);
+        if (length < extent) {
+            unframe(offset, `the record at byte ${offset} needs ${extent} bytes and the file holds ${length}`);
+        } else if (!isCompressed && numBytes % 8 !== 0) {
+            unframe(offset, `the plain record at byte ${offset} declares ${numBytes} bytes, which is not a whole `
+                + 'number of 8-byte words');
+        } else if ((dataType >>> 16) !== 0 && (dataType & 0xFFFF) !== 0) {
+            // Both halves of the type word set: a small data element's tag, the form a
+            // short sub-element is written in. This reader steps over it as 8 + its second
+            // word, which is not how that form is laid out, and MATLAB is not known to step
+            // over one at all at the top of a file.
+            unframe(offset, `the record at byte ${offset} has a small data element's tag`);
+        }
+        // The variable read out of this record, whose record it is (MatNode binds the
+        // node made of it to the record by it).
+        const readAs = (variable: MatVariable) => {
+            record.variable = variable;
+            record.name = variable._anonymous ? '' : variable.name;
+            record.anonymous = !!variable._anonymous;
+        };
+
+        if (isCompressed) {
             const compressed = buf.slice(offset + 8, offset + 8 + numBytes);
             let pako: Uint8Array;
             try {
@@ -1464,7 +1577,7 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
                 // one unreadable record is one variable, not the file. A record that would
                 // inflate past the ceiling for one record (MAT_RECORD_INFLATE_CEILING) is
                 // unreadable the same way, and is never read cut to the ceiling.
-                warnings.push({
+                dropped(record, {
                     code: 'part-unreadable',
                     message: err instanceof InflateCeilingError
                         ? `A compressed record at byte ${offset} inflates to more than the ${err.ceiling}-byte ceiling `
@@ -1485,7 +1598,7 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
             const innerType = tagged ? deView.getUint32(0, true) : 0;
             const innerBytes = tagged ? deView.getUint32(4, true) : 0;
             if (!tagged) {
-                warnings.push({
+                dropped(record, {
                     code: 'part-unreadable',
                     message: `A compressed record at byte ${offset} inflates to ${deView.byteLength} bytes, fewer than the 8 `
                         + "of a data element's tag, so the variable it holds was not read.",
@@ -1498,6 +1611,7 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
                 } else {
                     variables.push({ name: '', className: '', dimensions: [], isComplex: false, isLogical: false, value: null, fields: null, _rawBytes: new Uint8Array(pako.buffer, pako.byteOffset, pako.byteLength), _anonymous: true });
                 }
+                readAs(variables[variables.length - 1]);
                 shortened = nameFor(variables[variables.length - 1]);
                 // The record's warning below, one level in. The matrix's own tag in the
                 // payload may claim more bytes than the payload holds, as a record may claim
@@ -1519,7 +1633,7 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
                     warnings.push(short);
                 }
             } else {
-                warnings.push({
+                dropped(record, {
                     code: 'part-unreadable',
                     message: `A compressed record at byte ${offset} holds a data element of type `
                         + `${innerType} where a variable has to be a matrix, so it was not read.`,
@@ -1533,11 +1647,12 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
             } else {
                 variables.push({ name: '', className: '', dimensions: [], isComplex: false, isLogical: false, value: null, fields: null, _rawBytes: buf.slice(offset, offset + 8 + numBytes), _anonymous: true });
             }
+            readAs(variables[variables.length - 1]);
             shortened = nameFor(variables[variables.length - 1]);
         } else {
             // Only miCOMPRESSED and miMATRIX carry a variable at this level. Anything
             // else was skipped, and a whole variable's worth of file went with it.
-            warnings.push({
+            dropped(record, {
                 code: 'part-unreadable',
                 message: `A data element of type ${dataType} at byte ${offset} is not a variable, `
                     + 'so it was not read.',
@@ -1567,7 +1682,26 @@ export function parseMat(arrayBuffer: ArrayBuffer): ParsedMat {
         collectUndecoded(variable, variable.name || '<unnamed>', warnings, readShort);
     }
 
-    return { header, variables, warnings };
+    return {
+        header,
+        variables,
+        warnings,
+        headerBytes: buf.subarray(0, 128),
+        subsystemOffset: subsystemOffsetOf(buf, view),
+        records,
+        framed: unframed === null,
+        unframed,
+    };
+}
+
+// Header bytes 116-123 as a number: a little-endian uint64, or 0 when they are 8 spaces,
+// which MATLAB reads as no subsystem as it does 8 zero bytes. An offset past 2^53 is
+// past any file this reads, and is kept as the nearest double, which no record starts at.
+function subsystemOffsetOf(buf: Uint8Array, view: DataView): number {
+    if (buf.subarray(116, 124).every((b) => b === 0x20)) {
+        return 0;
+    }
+    return Number(view.getBigUint64(116, true));
 }
 
 /**

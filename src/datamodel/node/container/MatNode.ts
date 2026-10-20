@@ -10,20 +10,70 @@ import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import { reasonOf } from '../../parser/ParseWarning.js';
 import { functionHandleOf } from '../../parser/MatParser.js';
+import type { MatRecord, ParsedMat } from '../../parser/MatParser.js';
 import PropName from '../../prop/PropName.js';
 import { MAT_NODE_CEILING } from '../../display/DisplayConvention.js';
 import { buildUnderCeiling, buildUncut, chargeNodes } from '../data/matNodeCeiling.js';
+
+// What MatNode.fromParsed builds a tree from: a parse of this package's (ParsedMat), or a
+// host's, whose parse may be an older one's, without the records a save splices.
+export type MatParse = Pick<ParsedMat, 'header' | 'variables'> &
+  Partial<Pick<ParsedMat, 'warnings' | 'headerBytes' | 'subsystemOffset' | 'records' | 'framed' | 'unframed'>>;
 
 export default class MatNode extends ContainerNode {
   header: string;
   dirty: boolean;
   _anonymousElements: MatVariable[];
+  // The file as a save splices it (ParsedMat's fields of the same names): its header's 128
+  // bytes, every record in it, the subsystem's offset, and whether the records are the file.
+  //
+  // `records` is null, and so is `headerBytes`, when this tree was not built from records
+  // a save can trust: a host's parse that carries none (an older package's, handed to
+  // addMatSourceParsed), one whose records are not byte views, or one whose variables are
+  // not each the variable of one record. No save of such a tree is safe, and a writer
+  // that finds `records` null refuses it, rather than building one out of the variables
+  // alone, which loses every record the reader did not read.
+  headerBytes: Uint8Array | null;
+  records: MatRecord[] | null;
+  subsystemOffset: number;
+  framed: boolean;
+  unframed: { at: number; reason: string } | null;
+  // Which node each record became, and the other way round (nodeOf, recordOf). A node is
+  // the same object for as long as it is in the tree: an edit changes it in place, a
+  // delete takes it out (its `parent` is then no longer this), and its undo puts the same
+  // node back. So a record's node, in the tree or not, is what became of the record.
+  _recordNodes: Map<MatRecord, BaseNode>;
+  _nodeRecords: Map<BaseNode, MatRecord>;
 
   constructor(name: string) {
     super(name, null);
     this.header = '';
     this.dirty = false;
     this._anonymousElements = [];
+    this.headerBytes = null;
+    this.records = null;
+    this.subsystemOffset = 0;
+    this.framed = false;
+    this.unframed = null;
+    this._recordNodes = new Map();
+    this._nodeRecords = new Map();
+  }
+
+  /**
+   * The record `node` was read from, or null for a node no record became: a variable added
+   * since the file was read, or any node of a tree with no records (`records` null).
+   */
+  recordOf(node: BaseNode): MatRecord | null {
+    return this._nodeRecords.get(node) ?? null;
+  }
+
+  /**
+   * The node `record` became, whether or not it is still in the tree (a deleted one's
+   * `parent` is not this), or null for a record that became no node: the subsystem or
+   * another unnamed element (`_anonymousElements`), and a record the reader dropped.
+   */
+  nodeOf(record: MatRecord): BaseNode | null {
+    return this._recordNodes.get(record) ?? null;
   }
 
   get displayName(): string {
@@ -146,13 +196,15 @@ export default class MatNode extends ContainerNode {
   // containers have no rows and names the first ('part-not-expanded'). A parse handed over with
   // no warnings array (an older host's) is given one for it, which is the array addMatSource
   // and addMatSourceParsed pass on: both read it after this returns.
-  static fromParsed(
-    parsed: { header: string; variables: MatVariable[]; warnings?: ParseWarning[] },
-    filename: string,
-    options: { nodeCeiling?: number } = {},
-  ): MatNode {
+  //
+  // Each node built of a record is bound to it (recordOf, nodeOf), whatever node it is: a
+  // plain variable, an MCOS object's typed node, a function handle, one shown as not
+  // decoded. A parse with no records, or whose records do not cover its variables one for
+  // one, binds none and keeps none (`records` null).
+  static fromParsed(parsed: MatParse, filename: string, options: { nodeCeiling?: number } = {}): MatNode {
     const node = new MatNode(filename);
     node.header = parsed.header;
+    const records = heldRecords(parsed);
 
     // A .mat file keeps the MCOS blob in an anonymous trailing element. Every opaque in
     // the file, nested or not, comes back carrying its own decode, and what the decoder
@@ -161,29 +213,61 @@ export default class MatNode extends ContainerNode {
     attachMcosDecoded(anonElement?._rawBytes, parsed.variables, parsed.warnings);
 
     const ceiling = options.nodeCeiling ?? MAT_NODE_CEILING;
-    const { cut, firstCut } = buildUnderCeiling<void, MatlabVariableNode>(ceiling, () => MatNode._addVariables(node, parsed));
+    const recordOf = records ? new Map(records.filter((r) => r.variable).map((r) => [r.variable!, r])) : null;
+    const { cut, firstCut } = buildUnderCeiling<void, MatlabVariableNode>(ceiling, () =>
+      MatNode._addVariables(node, parsed, recordOf),
+    );
     if (cut > 0 && firstCut) {
       const warnings = parsed.warnings ?? (parsed.warnings = []);
       warnings.push(notExpandedWarning(firstCut.matlabPath, cut, ceiling));
     }
+    if (records && bindsEveryRecord(node, records, parsed.variables)) {
+      node.headerBytes = parsed.headerBytes!;
+      node.records = records;
+      node.subsystemOffset = parsed.subsystemOffset ?? 0;
+      node.framed = parsed.framed === true;
+      node.unframed = parsed.unframed ?? null;
+    } else {
+      node._recordNodes.clear();
+      node._nodeRecords.clear();
+    }
     return node;
+  }
+
+  _bindRecord(child: BaseNode, record: MatRecord | undefined): void {
+    if (record) {
+      this._recordNodes.set(record, child);
+      this._nodeRecords.set(child, record);
+    }
   }
 
   // Every variable as a row of `node`, in the file's order, under the ceiling fromParsed arms:
   // all of them counted first, and none refused (matNodeCeiling.chargeNodes), so that the rows
   // under them are what is left, and a tree is never more nodes than the ceiling or the
   // variables, whichever is more.
-  static _addVariables(node: MatNode, parsed: { variables: MatVariable[]; warnings?: ParseWarning[] }): void {
+  //
+  // `recordOf` is each variable's record, by identity (MatRecord.variable), and every node
+  // made of a variable is bound to it here, the one place all four kinds are made.
+  static _addVariables(
+    node: MatNode,
+    parsed: { variables: MatVariable[]; warnings?: ParseWarning[] },
+    recordOf: ReadonlyMap<MatVariable, MatRecord> | null = null,
+  ): void {
     chargeNodes(parsed.variables.filter((v) => !v._anonymous).length);
     for (const variable of parsed.variables) {
       if ((variable as unknown as { _anonymous?: boolean })._anonymous) {
         node._anonymousElements.push(variable);
         continue;
       }
+      const record = recordOf?.get(variable);
+      const add = (child: BaseNode) => {
+        node.addChild(child);
+        node._bindRecord(child, record);
+      };
       if (variable.isOpaque) {
         const mcosNode = buildUncut(() => modelOpaqueMcosVariable(variable, mcosDecodedFor(variable), node, parsed.warnings));
         if (mcosNode) {
-          node.addChild(mcosNode);
+          add(mcosNode);
           continue;
         }
       }
@@ -194,12 +278,41 @@ export default class MatNode extends ContainerNode {
       const handle = functionHandleOf(variable);
       if (handle) {
         const value = handle.text === null ? 'Matrix(' + variable.dimensions.join(',') + ')' : handle.text;
-        node.addChild(MatlabVariableNode.parse({ _type: 'function_handle', _value: value }, variable.name, node));
+        add(MatlabVariableNode.parse({ _type: 'function_handle', _value: value }, variable.name, node));
         continue;
       }
-      node.addChild(variableNodeOf(variable, node, parsed.warnings));
+      add(variableNodeOf(variable, node, parsed.warnings));
     }
   }
+}
+
+// The records of `parsed` a save can splice, or null: none for a host's parse that carries
+// none, and none for one whose header or records are not byte views as long as they say,
+// which no reader of this package hands over. Views are told by ArrayBuffer.isView, which
+// answers for one made in another realm (a worker's, structured-cloned here) as well.
+function heldRecords(parsed: MatParse): MatRecord[] | null {
+  const { headerBytes, records } = parsed;
+  if (!Array.isArray(records) || !ArrayBuffer.isView(headerBytes) || headerBytes.byteLength !== 128) {
+    return null;
+  }
+  const whole = records.every((r) => r && ArrayBuffer.isView(r.bytes) && r.bytes.byteLength === r.length);
+  return whole ? records : null;
+}
+
+// Whether the tree `node` was built as is bound one for one: every variable the variable of
+// exactly one record, and every node bound to the record of the variable it was made of (an
+// unnamed element is made into no node, and is in `_anonymousElements`). A parse whose
+// records were made apart from its variables, or whose variables a host changed since,
+// binds short, and its records are not this tree's to splice.
+function bindsEveryRecord(node: MatNode, records: MatRecord[], variables: MatVariable[]): boolean {
+  const withVariable = records.filter((r) => r.variable);
+  const ofRecords = new Set(withVariable.map((r) => r.variable));
+  return (
+    ofRecords.size === withVariable.length &&
+    ofRecords.size === variables.length &&
+    variables.every((v) => ofRecords.has(v)) &&
+    node._nodeRecords.size === node.children.length
+  );
 }
 
 // The file's one word about its node ceiling, which is not a loss, as `duplicate-id` is not
