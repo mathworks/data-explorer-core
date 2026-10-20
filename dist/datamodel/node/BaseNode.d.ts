@@ -145,6 +145,19 @@ export declare function sourceEditRefusal(node: BaseNode, key: string): string |
 /** A source's answer to sourceEditRefusal, for `node`, which is `entry` or a node under it. */
 export type SourceEditRefusal = (entry: BaseNode, node: BaseNode, key: string) => string | null;
 /**
+ * Why the source `node` is in refuses `value` as what an edit of `key` at `node` makes it hold, in
+ * words, or null where it writes it, or judges no value. The second half of sourceEditRefusal,
+ * asked by a setter once it knows what the edit makes, before it makes it: a MAT-file writes some
+ * values of an object's property and not others (MatNode._editValueRefusal), a Min above its Max,
+ * say. `value` is the property as the node would hold it. A dictionary's section and a model's do
+ * not answer.
+ */
+export declare function sourceValueRefusal(node: BaseNode, key: string, value: unknown): string | null;
+/** Whether the source `node` is in judges an edit's value at all (sourceValueRefusal), for a setter that must build it to ask. */
+export declare function sourceJudgesValues(node: BaseNode): boolean;
+/** A source's answer to sourceValueRefusal. */
+export type SourceValueRefusal = (entry: BaseNode, node: BaseNode, key: string, value: unknown) => string | null;
+/**
  * The prop in `props` that an edit naming `name` is an edit of: the one whose key or column is
  * `name`, which is how an edit committed in the 'Value' column reaches the atom that owns it (a
  * Variant's Condition/Specification), or else the one whose node field (`nodeProperty`) is

@@ -495,13 +495,16 @@ describe('an edit and its record', () => {
     expect(struct.status).toBe('Modified');
   });
 
-  it("an object's property edit is refused, and leaves its typed node as it was; one made around the editor makes it Modified", () => {
-    // A MAT-file's save writes an object only as it was read, or renamed (MatNode._editRefusal).
-    const { by, edit } = casesMat();
-    expect(edit(by('aParam'), 'Value', '[1 2 3]')).toMatchObject({ error: true });
-    expect(by('aParam').status).toBe('');
-    by('aParam')._markModified();
-    expect(by('aParam').status).toBe('Modified');
+  it("an object's property edit makes its typed node Modified, and its record is still the file's", () => {
+    // A MAT-file's save writes it into the subsystem, and the variable's record as it was read
+    // (MatNode._editRefusal, MatFileWriter).
+    const { root, by, edit } = casesMat();
+    const record = root.recordOf(by('aParam'));
+    expect(edit(by('aParam'), 'Value', '[1 2 3]')).toBe(true);
+    expect([by('aParam').status, root.recordOf(by('aParam'))]).toEqual(['Modified', record]);
+    // One it refuses leaves the node as it was.
+    expect(edit(by('aSignal'), 'Complexity', 'complex')).toMatchObject({ error: true });
+    expect(by('aSignal').status).toBe('');
   });
 
   it('a rename shows on the node, and the record keeps the name the file holds', () => {

@@ -484,18 +484,23 @@ describe('the marker that tells a rename from a value edit (DataNode._valueEdite
     expect([by('kp2').status, by('kp2')._valueEdited, by('p2').status, by('p2')._valueEdited]).toEqual(['Modified', undefined, 'Modified', undefined]);
   });
 
-  it("is set by a value edit, an element's, and an object's property edit, which the editor takes none of", () => {
+  it("is set by a value edit, an element's, and an object's property edit, which tell the save to write a plain value or an object's cells", () => {
     const { by, edit } = casesMat();
     expect(edit(by('kp'), 'Value', '2')).toBe(true);
     expect(edit(by('mat2x3').children[3], 'Value', '2')).toBe(true);
-    // A MAT-file takes no edit of an object's properties (MatNode._editRefusal, test/matEditGate.test.ts),
-    // and one refused marks nothing. Made around the editor, it marks the object.
-    expect(edit(by('aParam'), 'Value', '3')).toMatchObject({ error: true });
-    expect(by('aParam')._valueEdited).toBeUndefined();
-    by('aParam')._markModified();
-    expect(['kp', 'mat2x3', 'aParam'].map((n) => by(n)._valueEdited)).toEqual([true, true, true]);
-    // On the entry only.
+    // An object's property is written into the subsystem (DataNode._objectEdited), and its
+    // variable's record as it was; a plain value fresh (DataNode._plainEdited).
+    expect(edit(by('aParam'), 'Value', '3')).toBe(true);
+    expect(['kp', 'mat2x3', 'aParam'].map((n) => [by(n)._valueEdited, by(n)._plainEdited, by(n)._objectEdited])).toEqual([
+      [true, true, undefined],
+      [true, true, undefined],
+      [true, undefined, true],
+    ]);
+    // On the entry only, for a plain value.
     expect(by('mat2x3').children[3]._valueEdited).toBeUndefined();
+    // A refused edit marks nothing.
+    expect(edit(by('aSignal'), 'Max', '-100')).toMatchObject({ error: true });
+    expect([by('aSignal').status, by('aSignal')._valueEdited]).toEqual(['', undefined]);
   });
 
   it("is set by the rename of anything under the entry, a bus element's, which changes the entry's value", () => {
@@ -506,10 +511,10 @@ describe('the marker that tells a rename from a value edit (DataNode._valueEdite
     expect(edit(element, 'Name', 'renamedElement')).toMatchObject({ error: true });
     element.name = 'renamedElement';
     element._markModified('name');
-    expect([by('aBus').status, by('aBus')._valueEdited]).toEqual(['Modified', true]);
-    // And a bus is an object, whose edit this writer cannot write.
+    expect([by('aBus').status, by('aBus')._valueEdited, by('aBus')._objectEdited]).toEqual(['Modified', true, true]);
+    // And a bus is an object no edit of whose properties this writer can write.
     expect(thrownBy(save).message).toBe(
-      'Cannot write "aBus": it is a Simulink.Bus, which a MAT-file save writes only as it was read, or renamed, so its edit cannot be saved. Nothing was written.',
+      'Cannot write "aBus": aBus is a Simulink.Bus, whose properties this package does not write into a MAT-file. Nothing was written.',
     );
   });
 });
@@ -521,12 +526,16 @@ describe('a save that cannot write a variable as what it is is refused, naming i
   const editRefused = (name: string, what: string) =>
     `Cannot write "${name}": it is ${what}, which a MAT-file save writes only as it was read, or renamed, so its edit cannot be saved. Nothing was written.`;
 
-  it("an object's property edited; the variable deleted, the file saves", () => {
+  it("an object's property a save does not write, edited; the variable deleted, the file saves", () => {
     const { by, edit, remove, save } = opened(fixture(CASES), 'cases.mat');
-    expect(edit(by('aParam'), 'Value', '7')).toMatchObject({ error: true });
+    expect(edit(by('aParam'), 'DataType', 'int8')).toMatchObject({ error: true });
+    by('aParam').DataType = 'int8';
     by('aParam')._markModified();
     const thrown = thrownBy(save);
-    expect([thrown instanceof MatWriteError, thrown.message]).toEqual([true, editRefused('aParam', 'a Simulink.Parameter')]);
+    expect([thrown instanceof MatWriteError, thrown.message]).toEqual([
+      true,
+      'Cannot write "aParam": aParam holds an edit of a property a save does not write into a Simulink.Parameter. Nothing was written.',
+    ]);
     expect(remove(by('aParam'))).toBe(true);
     expect(reopened(save()).by('aParam')).toBeUndefined();
   });

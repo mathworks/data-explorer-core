@@ -5,6 +5,7 @@ import type { SetPropertyResult } from '../DataNode.js';
 import SimulinkObjectNode from '../SimulinkObjectNode.js';
 import type { PropClass } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
+import { sourceJudgesValues, sourceValueRefusal } from '../BaseNode.js';
 import type MatlabVariableNode from './MatlabVariableNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { formatMatlabNum, formatMatrixSerial, isEnumBag, textEnumValueOf } from '../../parser/XmlUtils.js';
@@ -463,6 +464,10 @@ export default class ParameterNode extends DataNode {
             if (streamRefusal) {
                 return streamRefusal;
             }
+            const sourceRefusal = this._refuseValueForSource(stringValue);
+            if (sourceRefusal) {
+                return sourceRefusal;
+            }
             // An enumeration value refuses a value set on it, as it does on a row of its own
             // (ObjectNode.setProperty), and as it takes no editor here (valueEditable). Taken, what
             // was typed replaced the enumeral, `2` with a double, and an undo did not put it back.
@@ -609,6 +614,29 @@ export default class ParameterNode extends DataNode {
             return this._setMinMax(propName, stringValue);
         }
         return DataNode.prototype.setProperty.call(this, propName, stringValue);
+    }
+
+    // The refusal of the Value `stringValue` makes by this Parameter's source, which may write some
+    // Values and not others (BaseNode.sourceValueRefusal: a MAT-file, whose save writes a Value into
+    // the object's cell, refuses one MATLAB loads with a warning, 300 under a DataType of 'uint8').
+    // Asked of the Value node the edit makes, made by this very setter on a twin of this Parameter
+    // that holds none of its Value and stands nowhere, so that what is judged is what the edit
+    // would hold, and nothing of this one changes for an edit refused. Null where the source judges
+    // no value, and where the twin refuses the text, as this setter then does.
+    _refuseValueForSource(stringValue: string): SetPropertyResult | null {
+        if (!sourceJudgesValues(this)) {
+            return null;
+        }
+        const raw = this.serial._rawVal as Record<string, unknown> | undefined;
+        const element = (raw?._elements as Record<string, unknown>[] | undefined)?.[0];
+        const props = { ...((element?._properties as Record<string, unknown> | undefined) ?? {}), Value: undefined };
+        const twin = ParameterNode.parse({ ...raw, _elements: [{ ...element, _properties: props }] }, this.name, null);
+        if (twin.setProperty('Value', stringValue) !== true || (twin.Value === undefined && !twin._valueNode)) {
+            return null;
+        }
+        const valueNode = twin._valueNode ?? NodeRegistry.parseValue(twin.Value === undefined ? [] : twin.Value, 'Value', null);
+        const refused = sourceValueRefusal(this, 'Value', valueNode);
+        return refused ? { error: true, reason: refused, invalidValue: stringValue, validValue: this.displayValue } : null;
     }
 
     // For DataModel.editProperty: what puts the Value back exactly as it is now, for the undo of

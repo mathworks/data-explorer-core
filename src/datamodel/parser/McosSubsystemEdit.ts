@@ -1,5 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
+import { parseMatrix } from './MatParser.js';
 import type { MatVariable } from './MatParser.js';
 import { encodeMatVariable } from './MatWriter.js';
 import { MCOS_HANDLE_MAGIC, objectHandleFromValue } from './McosHandle.js';
@@ -39,7 +40,8 @@ import { MCOS_HANDLE_MAGIC, objectHandleFromValue } from './McosHandle.js';
 // under a 2x3 Value loads [2 3], a Complexity left 'real' under 1+2i loads 'complex'), and
 // a setter with a side effect fires on every load: the 20th edit, a DataType of 'double'
 // over a single Value, loads with the Value converted and a warning, each time. Which
-// properties take an edit, and which other cells go with one, are the caller's to choose.
+// properties take an edit, and which other cells go with one, are the caller's to choose: a
+// MAT-file's save asks McosEditRules.
 //
 // WHAT IT REFUSES, rather than write bytes MATLAB could read as something else, is
 // McosEditRefusal below. The reader is strict where McosParser's is lenient: McosParser
@@ -758,30 +760,52 @@ export function editMcosSubsystem(
   objectId: number,
   edits: readonly McosCellEdit[],
 ): McosEditResult {
+  return editMcosObjects(subsystem, [{ objectId, edits }]);
+}
+
+/** The edits of one object, for editMcosObjects. */
+export interface McosObjectEdits {
+  objectId: number;
+  edits: readonly McosCellEdit[];
+}
+
+/**
+ * editMcosSubsystem for the edits of several objects at once, the subsystem re-emitted once around
+ * all of them; or why not, for the first edit refused (nothing is written then). An object named
+ * twice is refused, as one property edited twice is: its edits are one list.
+ */
+export function editMcosObjects(subsystem: Uint8Array | McosSubsystem, objects: readonly McosObjectEdits[]): McosEditResult {
   try {
     const s = subsystemOf(subsystem);
-    const { list, ownSave } = objectAt(s, objectId);
     const replaced = new Map<number, Uint8Array>();
-    const named = new Set<string>();
-    for (const { savedName, cell } of edits) {
-      if (named.has(savedName)) {
-        fail('duplicate-edit', `${savedName} is edited twice`, savedName);
+    const seen = new Set<number>();
+    for (const { objectId, edits } of objects) {
+      if (seen.has(objectId)) {
+        fail('duplicate-edit', `object ${objectId} is edited twice`);
       }
-      named.add(savedName);
-      const hits = list.filter((t) => s.strings[t.name] === savedName);
-      if (hits.length > 1) {
-        fail('malformed', `object ${objectId}'s property list holds ${savedName} ${hits.length} times`, savedName);
+      seen.add(objectId);
+      const { list, ownSave } = objectAt(s, objectId);
+      const named = new Set<string>();
+      for (const { savedName, cell } of edits) {
+        if (named.has(savedName)) {
+          fail('duplicate-edit', `${savedName} is edited twice`, savedName);
+        }
+        named.add(savedName);
+        const hits = list.filter((t) => s.strings[t.name] === savedName);
+        if (hits.length > 1) {
+          fail('malformed', `object ${objectId}'s property list holds ${savedName} ${hits.length} times`, savedName);
+        }
+        if (hits.length === 0) {
+          fail('not-stored', ownSave
+            ? `object ${objectId} saved itself as one payload, and holds no ${savedName} to replace`
+            : `object ${objectId} saved no value for ${savedName}: it is at its class default, and has no cell to replace`, savedName);
+        }
+        const refusal = swapRefusal(s, hits[0]) ?? newCellRefusal(cell, savedName);
+        if (refusal) {
+          throw new Refused(refusal);
+        }
+        replaced.set(hits[0].value + 2, cell);
       }
-      if (hits.length === 0) {
-        fail('not-stored', ownSave
-          ? `object ${objectId} saved itself as one payload, and holds no ${savedName} to replace`
-          : `object ${objectId} saved no value for ${savedName}: it is at its class default, and has no cell to replace`, savedName);
-      }
-      const refusal = swapRefusal(s, hits[0]) ?? newCellRefusal(cell, savedName);
-      if (refusal) {
-        throw new Refused(refusal);
-      }
-      replaced.set(hits[0].value + 2, cell);
     }
     return { ok: true, bytes: rebuild(s, replaced) };
   } catch (e) {
@@ -789,6 +813,23 @@ export function editMcosSubsystem(
       return e.refusal;
     }
     throw e;
+  }
+}
+
+/**
+ * What value cell `cellIndex` of the subsystem holds, read as MatParser reads a matrix (which is
+ * how McosParser reads the same cell into an object's property), or null for an index past the
+ * cells or a cell that does not read.
+ */
+export function cellValueAt(subsystem: McosSubsystem, cellIndex: number): MatVariable | null {
+  const cell = subsystem.cells[cellIndex];
+  if (!cell) {
+    return null;
+  }
+  try {
+    return parseMatrix(new DataView(subsystem.bytes.buffer, subsystem.bytes.byteOffset, subsystem.bytes.byteLength), cell.data, cell.bytes);
+  } catch {
+    return null;
   }
 }
 

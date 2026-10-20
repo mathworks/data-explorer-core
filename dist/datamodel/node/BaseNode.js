@@ -52,6 +52,34 @@ export function sourceEditRefusal(node, key) {
     return entry && typeof refuse === 'function' ? refuse.call(n, entry, node, key) : null;
 }
 /**
+ * Why the source `node` is in refuses `value` as what an edit of `key` at `node` makes it hold, in
+ * words, or null where it writes it, or judges no value. The second half of sourceEditRefusal,
+ * asked by a setter once it knows what the edit makes, before it makes it: a MAT-file writes some
+ * values of an object's property and not others (MatNode._editValueRefusal), a Min above its Max,
+ * say. `value` is the property as the node would hold it. A dictionary's section and a model's do
+ * not answer.
+ */
+export function sourceValueRefusal(node, key, value) {
+    const { entry, source } = sourceOf(node);
+    const refuse = source?._editValueRefusal;
+    return entry && typeof refuse === 'function' ? refuse.call(source, entry, node, key, value) : null;
+}
+/** Whether the source `node` is in judges an edit's value at all (sourceValueRefusal), for a setter that must build it to ask. */
+export function sourceJudgesValues(node) {
+    const { entry, source } = sourceOf(node);
+    return !!entry && typeof source?._editValueRefusal === 'function';
+}
+// The entry `node` is in, and the container above it, as sourceEditRefusal walks to them.
+function sourceOf(node) {
+    let entry = null;
+    let n = node;
+    while (n && !n.isContainer) {
+        entry = n;
+        n = n.parent;
+    }
+    return { entry, source: n };
+}
+/**
  * The prop in `props` that an edit naming `name` is an edit of: the one whose key or column is
  * `name`, which is how an edit committed in the 'Value' column reaches the atom that owns it (a
  * Variant's Condition/Specification), or else the one whose node field (`nodeProperty`) is

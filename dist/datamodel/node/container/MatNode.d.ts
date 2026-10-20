@@ -4,6 +4,8 @@ import type { PropClass, PIGroupDef } from '../BaseNode.js';
 import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import type { MatRecord, ParsedMat } from '../../parser/MatParser.js';
+import { type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
+import { type McosObjectState, type McosPlannedCell } from '../data/mcosObjectEdit.js';
 export type MatParse = Pick<ParsedMat, 'header' | 'variables'> & Partial<Pick<ParsedMat, 'warnings' | 'headerBytes' | 'subsystemOffset' | 'records' | 'framed' | 'unframed'>>;
 export default class MatNode extends ContainerNode {
     header: string;
@@ -23,6 +25,11 @@ export default class MatNode extends ContainerNode {
     _subsystem: MatRecord | null | undefined;
     _valueVerdicts: Map<BaseNode, string | null>;
     _nameCounts: Map<string, number> | null;
+    _objects: {
+        record: MatRecord;
+        subsystem: McosSubsystem;
+    } | string | undefined;
+    _objectStates: WeakMap<BaseNode, McosObjectState | string>;
     constructor(name: string);
     /**
      * The record `node` was read from, or null for a node no record became: a variable added
@@ -50,6 +57,11 @@ export default class MatNode extends ContainerNode {
      *   - every edit of a variable stored after the subsystem, its name included: MATLAB does
      *     not read it there, and moved, what MATLAB loads would change. It can be deleted;
      *   - a variable's own name: taken, and written as its record with the name replaced;
+     *   - a property of an MCOS object, at the top of the file, in a struct field or a cell, or an
+     *     element of an object array (anything at or under its node, mcosObjectEdit.objectNodeAt),
+     *     which a save writes into the subsystem cell that holds it and leaves the variable's
+     *     record as it was: taken where the rules for the object take it whatever its value
+     *     (_objectKeyRefusal; _editValueRefusal judges the value);
      *   - anything else, which writes the variable fresh: refused where the writer refuses that
      *     (freshRefusal: an object's typed node, a string, a function handle, a value not
      *     decoded, and a variable holding one at any depth), or where another variable of the
@@ -61,16 +73,62 @@ export default class MatNode extends ContainerNode {
      *     element to hold it, which reads back as no field; and a field added to one element of
      *     a struct array is written into every element, as MATLAB adds one, `[]` in the others,
      *     which the tree did not show.
-     *
-     * Phase 2 of the MAT-file save widens the last of these, for the properties of an object it
-     * writes into the subsystem.
      */
     _editRefusal(entry: BaseNode, node: BaseNode, key: string): string | null;
+    /**
+     * Why an edit of `key` at `node`, at or under `object`, the node of an MCOS object in `entry`, is
+     * refused whatever its value, or null where the value decides (_editValueRefusal): the edit of a
+     * variable one of two of one name (duplicateWhy), of a part of the object that is no property a
+     * save writes (mcosObjectEdit.propertyAt), of a file whose objects a save cannot read, of an
+     * object it cannot find in them, and of a property the rules refuse (propertyRefusal). The
+     * object's state is what this asks first, and is made then (_objectState).
+     */
+    _objectKeyRefusal(entry: BaseNode, object: BaseNode, node: BaseNode, key: string): string | null;
+    /**
+     * Why `value`, what an edit of `key` at `node` (of `entry`) is about to make the property hold,
+     * as the node would hold it (a bound as a number or undefined, text as a string, a Value as the
+     * value node the edit makes), cannot be written into this file, or null where it can, or where
+     * `node` is no object's. Judged with the object's other edits as the save will judge them
+     * (McosEditRules.objectEditCells): a Min above its Max, a Value out of its DataType's range.
+     * Asked by the setters before they set it (BaseNode.sourceValueRefusal), so that the edit is not
+     * taken, rather than taken and then refused by the save.
+     */
+    _editValueRefusal(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null;
+    /**
+     * The subsystem of this file as a save swaps cells in it: its record, and its element read whole
+     * (McosSubsystemEdit.readMcosSubsystem); or why no object's edit can be written, read once.
+     */
+    _mcosSubsystem(): {
+        record: MatRecord;
+        subsystem: McosSubsystem;
+    } | string;
+    /**
+     * What the file holds of the object at `object`, and what its node held the first time this was
+     * asked (mcosObjectEdit.objectStateOf), or why no edit of it can be written; made once a node,
+     * the first time the editor asks about the object, which every edit of it does before it is
+     * made, and kept.
+     */
+    _objectState(object: BaseNode): McosObjectState | string;
+    /**
+     * For the save (MatFileWriter): the subsystem's record and its element with every edit of an
+     * object under `entries` written into its cells, and the cells written; or null where none of
+     * them holds one. `entries` are the variables whose edits reached objects only, whose records are
+     * written as they were. Throws MatWriteError for an edit it cannot write
+     * (mcosObjectEdit.objectSubsystemEdit).
+     */
+    _objectSubsystemEdit(entries: readonly BaseNode[]): {
+        record: MatRecord;
+        element: Uint8Array;
+        cells: McosPlannedCell[];
+    } | null;
     /**
      * Why `value`, a node built of the text an edit typed in for `node`, of `entry`, cannot be
      * written into this file, or null where it can: a string, which MatWriter has no MAT class
      * for. Asked of the edit before it is made (MatlabVariableNode.setProperty), so that a value
-     * that would leave the variable one a save refuses (freshRefusal) is never taken.
+     * that would leave the variable one a save refuses (freshRefusal) is never taken. A value typed
+     * as a Simulink.Parameter's whole Value, on its Value row, is the object's, and judged as one
+     * (_editValueRefusal); one typed into a field of its struct Value, as what such a field may hold
+     * (mcosObjectEdit.memberRefusal).
      */
     _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null;
     /**

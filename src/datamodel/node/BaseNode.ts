@@ -215,6 +215,40 @@ export function sourceEditRefusal(node: BaseNode, key: string): string | null {
 export type SourceEditRefusal = (entry: BaseNode, node: BaseNode, key: string) => string | null;
 
 /**
+ * Why the source `node` is in refuses `value` as what an edit of `key` at `node` makes it hold, in
+ * words, or null where it writes it, or judges no value. The second half of sourceEditRefusal,
+ * asked by a setter once it knows what the edit makes, before it makes it: a MAT-file writes some
+ * values of an object's property and not others (MatNode._editValueRefusal), a Min above its Max,
+ * say. `value` is the property as the node would hold it. A dictionary's section and a model's do
+ * not answer.
+ */
+export function sourceValueRefusal(node: BaseNode, key: string, value: unknown): string | null {
+  const { entry, source } = sourceOf(node);
+  const refuse = (source as unknown as { _editValueRefusal?: SourceValueRefusal } | null)?._editValueRefusal;
+  return entry && typeof refuse === 'function' ? refuse.call(source, entry, node, key, value) : null;
+}
+
+/** Whether the source `node` is in judges an edit's value at all (sourceValueRefusal), for a setter that must build it to ask. */
+export function sourceJudgesValues(node: BaseNode): boolean {
+  const { entry, source } = sourceOf(node);
+  return !!entry && typeof (source as unknown as { _editValueRefusal?: unknown } | null)?._editValueRefusal === 'function';
+}
+
+/** A source's answer to sourceValueRefusal. */
+export type SourceValueRefusal = (entry: BaseNode, node: BaseNode, key: string, value: unknown) => string | null;
+
+// The entry `node` is in, and the container above it, as sourceEditRefusal walks to them.
+function sourceOf(node: BaseNode): { entry: BaseNode | null; source: BaseNode | null } {
+  let entry: BaseNode | null = null;
+  let n: BaseNode | null = node;
+  while (n && !(n as unknown as { isContainer?: boolean }).isContainer) {
+    entry = n;
+    n = n.parent;
+  }
+  return { entry, source: n };
+}
+
+/**
  * The prop in `props` that an edit naming `name` is an edit of: the one whose key or column is
  * `name`, which is how an edit committed in the 'Value' column reaches the atom that owns it (a
  * Variant's Condition/Specification), or else the one whose node field (`nodeProperty`) is

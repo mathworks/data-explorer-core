@@ -1,4 +1,4 @@
-import type { MatRecord } from './MatParser.js';
+import type { MatRecord, MatVariable } from './MatParser.js';
 import { MatWriteError } from './MatWriter.js';
 import type BaseNode from '../node/BaseNode.js';
 import type MatNode from '../node/container/MatNode.js';
@@ -65,4 +65,20 @@ export declare function unwritableIn(at: BaseNode): {
     path: string;
     what: string;
 } | null;
+/**
+ * The miMATRIX element `record` holds, inflated, or null where it holds no whole one
+ * (elementOfRecord): what the subsystem's cells are swapped in (MatNode._mcosSubsystem).
+ */
+export declare function subsystemElementOf(record: MatRecord): Uint8Array | null;
+/**
+ * Where the value read back, `read`, is not the value `model` it was written from, in words naming
+ * it under `at`, or null where it is that value: the same class, complexity, storage and size, the
+ * same members of a cell, the same fields of a struct in the same order, and each element the same
+ * number as its class holds it. MatWriter's own rules are taken as the model's meaning, not its
+ * result: an integer element as MATLAB converts it to the class, a single's as a float32, a member
+ * a cell or a struct does not hold as the empty double written for it. The self-check's (selfCheck)
+ * judge of a value written fresh, and the editor's of an object's property against the cell the
+ * file holds it in (mcosObjectEdit).
+ */
+export declare function variableDifference(model: MatVariable | null | undefined, read: MatVariable | null | undefined, at: string): string | null;
 //# sourceMappingURL=MatFileWriter.d.ts.map

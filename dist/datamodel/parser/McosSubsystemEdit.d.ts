@@ -126,6 +126,23 @@ export declare function storedProperties(subsystem: Uint8Array | McosSubsystem, 
  * written then). No edits is the subsystem re-emitted as it was read.
  */
 export declare function editMcosSubsystem(subsystem: Uint8Array | McosSubsystem, objectId: number, edits: readonly McosCellEdit[]): McosEditResult;
+/** The edits of one object, for editMcosObjects. */
+export interface McosObjectEdits {
+    objectId: number;
+    edits: readonly McosCellEdit[];
+}
+/**
+ * editMcosSubsystem for the edits of several objects at once, the subsystem re-emitted once around
+ * all of them; or why not, for the first edit refused (nothing is written then). An object named
+ * twice is refused, as one property edited twice is: its edits are one list.
+ */
+export declare function editMcosObjects(subsystem: Uint8Array | McosSubsystem, objects: readonly McosObjectEdits[]): McosEditResult;
+/**
+ * What value cell `cellIndex` of the subsystem holds, read as MatParser reads a matrix (which is
+ * how McosParser reads the same cell into an object's property), or null for an index past the
+ * cells or a cell that does not read.
+ */
+export declare function cellValueAt(subsystem: McosSubsystem, cellIndex: number): MatVariable | null;
 /**
  * The id of element `index` (0-based, column-major, MATLAB's order) of the objects a handle
  * names, or null when it names none there: an index past its elements, or the null object 0,

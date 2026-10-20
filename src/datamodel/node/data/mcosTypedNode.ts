@@ -4,6 +4,7 @@ import * as NodeRegistry from '../NodeRegistry.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { decodeMcosBlob, decodeMcosVariables, STRING_CLASS_NAME, unreadCellSlots, type McosDecodeIssue } from '../../parser/McosParser.js';
 import { mcosRefused, setMcosDecoded, setMcosRefused } from './mcosDecodedTable.js';
+import { setMcosPlace } from '../mcosPlace.js';
 import type BaseNode from '../BaseNode.js';
 import type DataNode from '../DataNode.js';
 import { shortArrayMessage, type MatVariable } from '../../parser/MatParser.js';
@@ -399,10 +400,34 @@ export function modelOpaqueMcosVariable(
     warnings,
   );
   if (typed) {
+    if (decoded) {
+      placeObjects(typed, variable, decoded);
+    }
     return typed;
   }
   if (decoded) {
     return MatlabVariableNode.createFromMcosDecoded(variable, decoded, parent, name);
   }
   return null;
+}
+
+// Records which object of the file each node of a decoded object is (mcosPlace.setMcosPlace):
+// a scalar's node is element 0 of its variable's handle, and an object array's element rows are
+// its elements in order, which is MATLAB's column-major order, the handle's and the decode's
+// (buildTypedNodeFromMcos). An array whose rows are not one per id the handle holds is placed
+// nowhere: no row of it could be told for which object it is.
+function placeObjects(typed: DataNode, variable: MatVariable, decoded: McosDecoded): void {
+  const ids = variable.mcosHandle?.ids;
+  if (!ids || ids.length === 0) {
+    return;
+  }
+  if (decoded.elements.length > 1) {
+    if (typed.children.length === ids.length && decoded.elements.length === ids.length) {
+      typed.children.forEach((element, k) => setMcosPlace(element, variable, k));
+    }
+    return;
+  }
+  if (ids.length === 1) {
+    setMcosPlace(typed, variable, 0);
+  }
 }

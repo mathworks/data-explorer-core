@@ -1323,8 +1323,15 @@ export default class MatlabVariableNode extends DataNode {
                     ? String(parsed.value)
                     : null;
             if (text !== null) {
+                const scalar = isIntegerClass(parent._scalarType) ? complexForIntegerClass(text, parent._scalarType) : text;
+                // And what holds the array may not write it: a Simulink.Parameter's in a MAT-file
+                // (DataNode._refuseSourceValue).
+                const sourceRefusal = this._refuseSourceValue('Value', { element: this, scalar }, stringValue);
+                if (sourceRefusal) {
+                    return sourceRefusal;
+                }
                 this._scalarType = 'complex';
-                this._scalarValue = isIntegerClass(parent._scalarType) ? complexForIntegerClass(text, parent._scalarType) : text;
+                this._scalarValue = scalar;
                 parent._syncElementFromChild(this);
                 parent._rawInput = undefined;
                 this._markModified();
@@ -1360,7 +1367,7 @@ export default class MatlabVariableNode extends DataNode {
         // elementClass, not 'double': the container fixes the element's class (this
         // method exists because of that), so re-stating 'double' here flipped an int32
         // element's Data Type column to double the moment its cell was committed.
-        this._scalarType = isArrayElement ? elementClass(parent._scalarType) : 'string';
+        const scalarType = isArrayElement ? elementClass(parent._scalarType) : 'string';
         // 1/0, never the boolean: _elements is the one representation the container's
         // display, its _var snapshot, and the typed literal all read, and the parsers
         // store a logical ARRAY as 1/0 (see parseTypedVector). An edited element must not
@@ -1370,11 +1377,19 @@ export default class MatlabVariableNode extends DataNode {
         // array's element is the one element that can be an integer no double holds, and an
         // integer class's element is the integer MATLAB converts the number to (int16 70000 is
         // 32767, 3.7 is 4); the container's class, read one line above, is what says so.
-        this._scalarValue = isLogicalElement
+        const scalar = isLogicalElement
             ? (parsed.value ? 1 : 0)
             : isArrayElement
-                ? valueForClass(parsed.value, this._scalarType)
+                ? valueForClass(parsed.value, scalarType)
                 : parsed.value;
+        // And what holds the array may not write it: a Simulink.Parameter's in a MAT-file, under a
+        // DataType whose range the number is out of (DataNode._refuseSourceValue).
+        const sourceRefusal = this._refuseSourceValue('Value', { element: this, scalar }, stringValue);
+        if (sourceRefusal) {
+            return sourceRefusal;
+        }
+        this._scalarType = scalarType;
+        this._scalarValue = scalar;
         if (!isArrayElement) {
             // A string-array element is a string-KIND node (see _makeStringElement), and
             // its own display and serialize paths read the text from _elements.

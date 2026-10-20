@@ -1,4 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
+import { parseMatrix } from './MatParser.js';
 import { encodeMatVariable } from './MatWriter.js';
 import { MCOS_HANDLE_MAGIC, objectHandleFromValue } from './McosHandle.js';
 const MI_INT8 = 1;
@@ -540,30 +541,45 @@ export function storedProperties(subsystem, objectId) {
  * written then). No edits is the subsystem re-emitted as it was read.
  */
 export function editMcosSubsystem(subsystem, objectId, edits) {
+    return editMcosObjects(subsystem, [{ objectId, edits }]);
+}
+/**
+ * editMcosSubsystem for the edits of several objects at once, the subsystem re-emitted once around
+ * all of them; or why not, for the first edit refused (nothing is written then). An object named
+ * twice is refused, as one property edited twice is: its edits are one list.
+ */
+export function editMcosObjects(subsystem, objects) {
     try {
         const s = subsystemOf(subsystem);
-        const { list, ownSave } = objectAt(s, objectId);
         const replaced = new Map();
-        const named = new Set();
-        for (const { savedName, cell } of edits) {
-            if (named.has(savedName)) {
-                fail('duplicate-edit', `${savedName} is edited twice`, savedName);
+        const seen = new Set();
+        for (const { objectId, edits } of objects) {
+            if (seen.has(objectId)) {
+                fail('duplicate-edit', `object ${objectId} is edited twice`);
             }
-            named.add(savedName);
-            const hits = list.filter((t) => s.strings[t.name] === savedName);
-            if (hits.length > 1) {
-                fail('malformed', `object ${objectId}'s property list holds ${savedName} ${hits.length} times`, savedName);
+            seen.add(objectId);
+            const { list, ownSave } = objectAt(s, objectId);
+            const named = new Set();
+            for (const { savedName, cell } of edits) {
+                if (named.has(savedName)) {
+                    fail('duplicate-edit', `${savedName} is edited twice`, savedName);
+                }
+                named.add(savedName);
+                const hits = list.filter((t) => s.strings[t.name] === savedName);
+                if (hits.length > 1) {
+                    fail('malformed', `object ${objectId}'s property list holds ${savedName} ${hits.length} times`, savedName);
+                }
+                if (hits.length === 0) {
+                    fail('not-stored', ownSave
+                        ? `object ${objectId} saved itself as one payload, and holds no ${savedName} to replace`
+                        : `object ${objectId} saved no value for ${savedName}: it is at its class default, and has no cell to replace`, savedName);
+                }
+                const refusal = swapRefusal(s, hits[0]) ?? newCellRefusal(cell, savedName);
+                if (refusal) {
+                    throw new Refused(refusal);
+                }
+                replaced.set(hits[0].value + 2, cell);
             }
-            if (hits.length === 0) {
-                fail('not-stored', ownSave
-                    ? `object ${objectId} saved itself as one payload, and holds no ${savedName} to replace`
-                    : `object ${objectId} saved no value for ${savedName}: it is at its class default, and has no cell to replace`, savedName);
-            }
-            const refusal = swapRefusal(s, hits[0]) ?? newCellRefusal(cell, savedName);
-            if (refusal) {
-                throw new Refused(refusal);
-            }
-            replaced.set(hits[0].value + 2, cell);
         }
         return { ok: true, bytes: rebuild(s, replaced) };
     }
@@ -572,6 +588,23 @@ export function editMcosSubsystem(subsystem, objectId, edits) {
             return e.refusal;
         }
         throw e;
+    }
+}
+/**
+ * What value cell `cellIndex` of the subsystem holds, read as MatParser reads a matrix (which is
+ * how McosParser reads the same cell into an object's property), or null for an index past the
+ * cells or a cell that does not read.
+ */
+export function cellValueAt(subsystem, cellIndex) {
+    const cell = subsystem.cells[cellIndex];
+    if (!cell) {
+        return null;
+    }
+    try {
+        return parseMatrix(new DataView(subsystem.bytes.buffer, subsystem.bytes.byteOffset, subsystem.bytes.byteLength), cell.data, cell.bytes);
+    }
+    catch {
+        return null;
     }
 }
 function concat(parts) {

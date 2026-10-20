@@ -131,14 +131,32 @@ editability core hands it (`getPropInfo(...).editable`, a row's `Name.editable`,
 setter and `editProperty` refuse the same edits, naming the variable and why.
 These take a rename and a delete and nothing else:
 
-- an object, of any class (a `Simulink.Parameter`, a bus, a signal, a class of
-  your own): none of its properties and none of the rows under it;
+- an object of any class but `Simulink.Parameter` and `Simulink.Signal` (a bus,
+  an `mpt.Parameter`, a class of your own): none of its properties and none of
+  the rows under it;
 - a string, a function handle, and a value the reader could not decode;
 - a plain variable holding any of these, or a cell or struct array the reader
   read short (holding fewer elements than it declares, which a save would write
   as empty), at any depth: neither its value nor any row under it;
 - either of two variables of one name, until one is renamed: MATLAB loads only
   one of them.
+
+A `Simulink.Parameter` or a `Simulink.Signal`, at the top of the file, in a
+struct field or a cell, or an element of an object array, takes an edit of each
+property the file holds a value for: a Parameter's Value (and a row of it, and a
+field of a struct Value), Min, Max, Description and Unit, a Signal's Min, Max,
+Description, Unit and DataType. The save writes it into the value cell of the
+file's objects that holds it, and every other byte of them and of the variable
+that holds the object as it was read. The cells MATLAB's own edit of the property
+changes go with it: a resized Value's Dimensions, and the DataType MATLAB derives
+from a Value of another class (a double typed over a `single` Parameter makes its
+DataType `auto`, as `p.Value = 7` does; the Data Type column shows it once the
+file is read again). It refuses what MATLAB would load as something else, or warn
+of on every load: a Min above its Max, a bound or a double Value outside the range
+of a builtin DataType, a property at its class default (the file holds no value
+for it), a sparse Value, a Parameter's DataType on its own, a Complexity, a
+storage class. Two variables holding one handle hold one object, and an edit of
+either is an edit of both, as MATLAB loads them.
 
 A value typed in that would make a string (`"abc"`, `{1, "a"}`) is refused, and
 Add is not offered on a struct array or on an element of one. A variable stored

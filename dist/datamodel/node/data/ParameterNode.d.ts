@@ -37,6 +37,7 @@ export default class ParameterNode extends DataNode {
     get isObjectPropertyBag(): boolean;
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _refuseValueForSource(stringValue: string): SetPropertyResult | null;
     _restorerFor(propName: string): (() => void) | null;
     _getSerializedProperties(): Record<string, unknown>;
     serializeValue(): unknown;
