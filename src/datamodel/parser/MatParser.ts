@@ -52,6 +52,13 @@ export interface MatVariable {
     // them. It is what MatWriter writes sparse storage on (encodeSparse), since writing the
     // array full would change the variable's storage in the file. Absent on everything else.
     isSparse?: boolean;
+    // The array flags' global bit (0x04 of the flags byte): `save` sets it on a variable declared
+    // global, on its top-level element and on no element nested in it (measured against MATLAB
+    // R2027a, test/fixtures/global/make_global_fixtures.m), and `load(f)` declares such a
+    // variable global again. It is the workspace variable's, not its value's, so no writer of a
+    // value writes it: the MAT-file save sets it on the element it writes for the variable that
+    // had it (MatFileWriter). Absent when the bit is clear.
+    isGlobal?: boolean;
     // A sparse array's non-zeros, which are all of it: a sparse array is never held as a
     // dense list, so what it costs is what it holds. Its `value` is its summary,
     // `<10000000x2 sparse double>`, which a host that renders values without knowing this
@@ -1076,6 +1083,9 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number, 
     const result: MatVariable = { name, className, dimensions, isComplex, isLogical, value: null, fields: null };
     if (isSparse) {
         result.isSparse = true;
+    }
+    if (flags & 0x04) {
+        result.isGlobal = true;
     }
 
     // Past MAX_NESTING levels a matrix is recorded with its class, size and name, and nothing in

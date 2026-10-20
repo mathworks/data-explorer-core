@@ -71,6 +71,10 @@ const COMPLEX_INF = 'test/fixtures/complex_inf/complex_inf.mat';
 const DAG = 'test/fixtures/mcos/shared/dag4.mat';
 const V6_HANDLES = 'test/fixtures/display/nested_handles.mat';
 const V6_HEXOBJ = 'test/fixtures/sparse/hexobj_values.mat';
+// MATLAB's own `save` of variables declared global (gD, gS, gC, gI) beside one that is not
+// (plain), -v7 and -v6 (test/fixtures/global/make_global_fixtures.m).
+const GLOBAL_V7 = 'test/fixtures/global/global_v7.mat';
+const GLOBAL_V6 = 'test/fixtures/global/global_v6.mat';
 
 const LONG_NAME = 'a' + 'b'.repeat(61) + 'c'; // 63 characters, the longest name core writes
 
@@ -688,6 +692,39 @@ add(
   'an element of a complex row edited beside elements whose zero parts are -0, which keep their sign',
   (f) => f.set(['nz', 'nz(2)'], '5', 'double', '5'),
   ['S.nz(2) = 5;'],
+);
+
+// ---- variables saved as global: written fresh, still global -----------------------------
+zero('zero_global_v7', GLOBAL_V7, 'a save with no edit is the file');
+zero('zero_global_v6', GLOBAL_V6, 'a save with no edit is the file');
+add('global_v7_element', GLOBAL_V7, 'an element of a global double: written fresh, and still global', (f) => f.set(['gD', 'gD(2)'], '20', 'double', '20'), [
+  'S.gD(2) = 20;',
+]);
+add(
+  'global_v7_struct_field',
+  GLOBAL_V7,
+  'a field of a global struct: the struct written fresh, global, and nothing nested in it global',
+  (f) => f.set(['gS', 'a'], '5', 'double', '5'),
+  ['S.gS.a = 5;'],
+);
+add('global_v6_cell_member', GLOBAL_V6, 'a member of a global cell in a -v6 file: still global, still uncompressed', (f) => f.set(['gC', 'gC{1}'], '40', 'double', '40'), [
+  'S.gC{1} = 40;',
+]);
+add('global_v6_int16', GLOBAL_V6, 'a global int16 typed into, which keeps its class and stays global', (f) => f.set(['gI'], '-8', 'int16', '-8'), [
+  'S.gI = int16(-8);',
+]);
+add('fresh_global_v7', GLOBAL_V7, 'every plain variable written fresh: the globals stay global, the other stays not', (f) => f.freshAll(), [], 'unchanged');
+add(
+  'global_rename_delete_add',
+  GLOBAL_V7,
+  'a global renamed (its bytes, renamed), another deleted, a field of a third edited, a variable added (not global)',
+  (f) => {
+    f.rename('gD', 'gD2');
+    f.remove('gI');
+    f.set(['gS', 'a'], '6', 'double', '6');
+    f.add('var');
+  },
+  ["S = renameStructField(S, 'gD', 'gD2');", "S = rmfield(S, 'gI');", 'S.gS.a = 6;', 'S.var = 0;'],
 );
 
 // ---- function handles, enumerations, fi, categorical, table -------------------------

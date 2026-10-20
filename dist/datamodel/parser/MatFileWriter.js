@@ -486,21 +486,20 @@ function notPlain(v) {
 }
 // Where an element's array flags keep its flags byte: past the element's tag and the flags' own,
 // which MATLAB and MatWriter both write in the long form (8 bytes of tag, then 8 of data), and
-// the byte after the class. Its bit 0x04 is MATLAB's global flag, which `save` sets on a variable
-// declared global.
+// the byte after the class; and its bit for global.
 const FLAGS_BYTE = 17;
 const GLOBAL_FLAG = 0x04;
-// `element`, written fresh for the variable `record` holds, global when that one was. The flag is
-// the workspace variable's and not its value's: no writer of a value sets it (MatWriter writes a
-// value as `getByteStreamFromArray` holds it), and nothing in the node layer holds it, so written
-// fresh a global variable was not one, and a rename splice alone kept it.
+// `element`, written fresh for the variable `record` holds, global when that one was
+// (MatVariable.isGlobal). The flag is the workspace variable's and not its value's, so no writer
+// of a value writes it, and written fresh a variable saved as global was not one: `load(f)` no
+// longer declared it global. A rename splice keeps it with the rest of the element. Only the
+// top-level element, the one MATLAB sets it on; and on a copy, since the element may be a view
+// of the bytes the file was read from (_matStream's own, which then hold it already).
 function globalAsRead(element, record) {
-    const read = record?.variable?._rawBytes;
-    const longFlags = (e) => e.byteLength > FLAGS_BYTE + 6 && u32At(e, 8) === 6 && u32At(e, 12) === 8;
-    if (!read || !longFlags(read) || !longFlags(element) || !(read[FLAGS_BYTE] & GLOBAL_FLAG) || element[FLAGS_BYTE] & GLOBAL_FLAG) {
+    const longFlags = element.byteLength > FLAGS_BYTE && u32At(element, 8) === 6 && u32At(element, 12) === 8;
+    if (!record?.variable?.isGlobal || !longFlags || element[FLAGS_BYTE] & GLOBAL_FLAG) {
         return element;
     }
-    // A copy: the element may be a view of the bytes the file was read from (_matStream's own).
     const out = element.slice();
     out[FLAGS_BYTE] |= GLOBAL_FLAG;
     return out;
@@ -736,6 +735,11 @@ function selfCheck(file, bytes, plan, assembled, headerBytes) {
         const difference = differs(p.node._var, got.variable, p.name);
         if (difference) {
             fail(difference);
+        }
+        // Global as the variable it was written for was (globalAsRead), and a variable added since not.
+        if (!!p.record?.variable?.isGlobal !== !!got.variable?.isGlobal) {
+            const is = got.variable?.isGlobal ? 'global, where the variable it was written for was not' : 'not global, where the variable it was written for was';
+            fail('"' + p.name + '" reads back ' + is);
         }
     });
 }

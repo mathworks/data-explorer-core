@@ -167,13 +167,32 @@ else
         end
     end
 end
-% And global where the original's variable of that name was global: `save` marks a variable
-% declared global, which is the variable's and not its value's, so load's struct does not show it.
+% And global as the original's variables were, renamed and deleted as the statements rename and
+% delete them: `save` marks a variable declared global, which is the variable's and not its
+% value's, so load's struct does not show it. Asked of whos -file, and of what a `load` inside a
+% function declares global.
 wo = whos('-file', e.original);
-for i = 1:numel(w)
-    o = wo(strcmp({wo.name}, w(i).name));
-    if (isempty(o) && w(i).global) || (~isempty(o) && o(1).global ~= w(i).global)
-        why{end + 1} = sprintf('whos -file says %s is global %d, where the original''s is %d', w(i).name, w(i).global, ~isempty(o) && o(1).global); %#ok<AGROW>
+row = @(c) reshape(sort(c), 1, []);
+expected = row({wo([wo.global]).name});
+if ~isempty(expected) || any([w.global])
+    for i = 1:numel(stmts)
+        r = regexp(stmts{i}, 'renameStructField\(S, ''(\w+)'', ''(\w+)''\)', 'tokens', 'once');
+        if ~isempty(r)
+            expected(strcmp(expected, r{1})) = r(2);
+        end
+        r = regexp(stmts{i}, 'rmfield\(S, ''(\w+)''\)', 'tokens', 'once');
+        if ~isempty(r)
+            expected(strcmp(expected, r{1})) = [];
+        end
+    end
+    expected = row(expected);
+    said = row({w([w.global]).name});
+    if ~isequal(said, expected)
+        why{end + 1} = sprintf('whos -file says [%s] are global, where [%s] should be', strjoin(said, ','), strjoin(expected, ','));
+    end
+    declared = globalsLoaded(e.saved);
+    if ~isequal(declared, expected)
+        why{end + 1} = sprintf('load inside a function declares [%s] global, where [%s] should be', strjoin(declared, ','), strjoin(expected, ','));
     end
 end
 
@@ -200,6 +219,16 @@ if ~isempty(fieldnames(T))
         end
     end
 end
+end
+
+% The variables a `load` inside a function declares global, sorted; the global workspace cleared
+% before and after, so that no case sees another's.
+function names = globalsLoaded(fileLoaded__)
+clear global
+evalc('load(fileLoaded__);');
+w__ = whos('global');
+names = reshape(sort({w__.name}), 1, []);
+clear global
 end
 
 % load, with what it warns or prints, and its error, instead of letting either escape.

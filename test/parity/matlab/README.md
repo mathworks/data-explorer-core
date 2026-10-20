@@ -280,7 +280,8 @@ the statements make of it, so the two halves describe one edit. `probe_mat_write
 loads the original, makes the edit in MATLAB, loads the save, and compares:
 
 - the same variables in the same order (load's, and `whos -file`'s class, size and global flag
-  of each);
+  of each, the globals renamed and deleted as the statements do, and the globals a `load` inside
+  a function declares);
 - each variable to the leaf: class, size, sparsity, complexity, `isequaln` on every value and
   the bits of every double and single (the sign of a zero, which `isequaln` does not see; a
   NaN's payload apart),
@@ -306,8 +307,9 @@ Its last line is `PROBE_MAT_WRITEBACK DONE pass=N fail=M`, with one
 The fixtures are `cases.mat`, `dispcat.mat`, `dispcat_opaque.mat` (function handles,
 enumerations, `fi`, `categorical`, `table`), `nested_objects.mat`, `strings.mat`,
 `strings_mixed.mat`, `sparse_values.mat`, `sparse_cases.mat`, `complex_inf.mat` (no subsystem),
-`dag4.mat` (a handle DAG), the two `-v6` files `nested_handles.mat` and `hexobj_values.mat`, and
-two files the JS half assembles: one of `dispcat.mat`'s own elements, an empty complex array and
+`dag4.mat` (a handle DAG), the two `-v6` files `nested_handles.mat` and `hexobj_values.mat`,
+`global_v7.mat` and `global_v6.mat` (variables MATLAB saved as global, beside one it did not;
+`../../fixtures/global/make_global_fixtures.m`), and two files the JS half assembles: one of `dispcat.mat`'s own elements, an empty complex array and
 an empty struct array with a field held in a struct and a cell beside a value to edit; and one
 built by hand as MATLAB writes each part, of what no fixture holds: a struct of no element with two
 fields in a cell, `complex(zeros(0,3,'single'))` alone and in a struct, empty structs with a field

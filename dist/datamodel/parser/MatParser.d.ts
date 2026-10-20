@@ -7,6 +7,7 @@ export interface MatVariable {
     isComplex: boolean;
     isLogical: boolean;
     isSparse?: boolean;
+    isGlobal?: boolean;
     sparse?: SparseData;
     value: unknown;
     fields: Record<string, MatVariable | MatVariable[]> | null;

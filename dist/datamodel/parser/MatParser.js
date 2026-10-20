@@ -913,6 +913,9 @@ export function parseMatrix(view, baseOffset, length, depth = 0) {
     if (isSparse) {
         result.isSparse = true;
     }
+    if (flags & 0x04) {
+        result.isGlobal = true;
+    }
     // Past MAX_NESTING levels a matrix is recorded with its class, size and name, and nothing in
     // it is read. What holds it keeps its bytes, as for every value this reader does not decode:
     // a struct field always, and a cell element when it is not decoded.
