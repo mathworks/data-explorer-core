@@ -417,8 +417,11 @@ const editableIn = (p: unknown): unknown[] => {
 };
 const withoutEditable = (p: unknown): unknown => JSON.parse(JSON.stringify(p, (k, v) => (EDITABLE_KEYS.has(k) ? undefined : v)));
 // And the way the .mat's own may: its save writes an object only as it was read, so every row of
-// an object there is shown and not edited (MatNode._editRefusal), where a model workspace and a
-// binary dictionary edit it. So what it presents is compared with every editor taken out: the
+// an object there, and of a variable holding one, is shown and not edited (MatNode._editRefusal),
+// where a model workspace and a binary dictionary edit it. So at such a path, and only there, the
+// .mat's side alone is taken as the file would present it without that rule (its gate answering
+// nothing, `ungated`), which the other venue is held to, editors and all, as it was before the
+// gate; and what the .mat presents is held to that with every editor taken out of both: the
 // flags, the Name and Value cells' own, and an editable column's cell (BaseNode.toRow), which is
 // its text when it takes none.
 const EDITABILITY_KEYS = new Set(['valueEditable', '_valueEditable', '_descriptionEditable']);
@@ -437,6 +440,13 @@ const withoutEditability = (p: unknown): unknown =>
 
 describe('every value presents the same in the .mat as in each other venue that holds it', () => {
   const mat = MAT.variables();
+  const ungated = MAT.variables();
+  ungated._editRefusal = () => null;
+  // Whether the variable `path` is in, or under, is an object or holds one, by MATLAB's record.
+  const holdsObject = (path: string) => {
+    const root = path.split(/[.({]/)[0];
+    return Object.entries(MAT.truth.paths).some(([p, t]) => t.isobject && (p === root || /^[.({]/.test(p.slice(root.length)) && p.startsWith(root)));
+  };
   for (const fx of FIXTURES.slice(1)) {
     const variables = fx.variables();
     const shared = Object.keys(fx.truth.paths).filter((p) => {
@@ -445,6 +455,9 @@ describe('every value presents the same in the .mat as in each other venue that 
     });
     it(`${fx.file} shares values with the .mat`, () => {
       expect(shared.length).toBeGreaterThan(0);
+      // Of objects, compared with the .mat as it would present them ungated, and plain values,
+      // compared with the .mat as it is.
+      expect([shared.some(holdsObject), shared.some((p) => !holdsObject(p))]).toEqual([true, true]);
     });
     for (const path of shared) {
       const pins = [pinnedAt(MAT.file, path), pinnedAt(fx.file, path)];
@@ -461,18 +474,26 @@ describe('every value presents the same in the .mat as in each other venue that 
         const a = nodeAt(mat, path);
         const b = nodeAt(variables, path);
         const text = fx.file === 'complex.sldd';
-        const shown = (n: any) => withoutEditability(text ? withoutEditable(presentation(n, n.displayName)) : presentation(n, n.displayName));
+        const shown = (n: any) => (text ? withoutEditable(presentation(n, n.displayName)) : presentation(n, n.displayName));
         if (text) {
           expect(editableIn(presentation(b, b.displayName)), `${path}: a MAT stream, display-only`).not.toContain(true);
+        }
+        // What the other venue is held to: the .mat as it presents, or at an object's path as it
+        // would without its save's rule, of which the .mat's own differs only by its editors.
+        let mine = a;
+        if (holdsObject(path)) {
+          mine = nodeAt(ungated, path);
+          expect(withoutEditability(shown(a)), `${path}: the .mat, but for its editors`).toEqual(withoutEditability(shown(mine)));
+          expect(editableIn(presentation(a, a.displayName)), `${path}: the .mat's value of an object, display-only`).not.toContain(true);
         }
         if (pins.some(Boolean)) {
           // A pinned venue is held to its pin, and an unpinned one has been graded against
           // MATLAB above; what is left to say is that the pin is still needed.
           [a, b].forEach((n, i) => pins[i] && expect(n.displayValue, path).toBe(pins[i]![2]));
-          expect(shown(b), `${path}: pinned, and no longer different`).not.toEqual(shown(a));
+          expect(shown(b), `${path}: pinned, and no longer different`).not.toEqual(shown(mine));
           return;
         }
-        expect(shown(b)).toEqual(shown(a));
+        expect(shown(b)).toEqual(shown(mine));
       });
     }
   }
