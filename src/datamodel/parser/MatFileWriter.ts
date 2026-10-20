@@ -55,12 +55,13 @@
 // MatWriteError naming it, and nothing is written: a function handle, a value the reader did not
 // decode, or a variable holding an object, edited anywhere but at an object's property, which this
 // writer has no encoder for; an object's property edited to what MATLAB would load otherwise, or
-// warn of; a variable stored after the subsystem, where MATLAB does not read it; a file whose
-// records do not tile it, or that was opened without them. And before the bytes are handed back
-// they are read again, and a record that does not read back as planned refuses the save as well
-// (selfCheck: the subsystem's every cell the bytes it was but those written, and those the values
-// written), as does one that breaks a rule MATLAB loads a file by that the file it was read from
-// did not break (MatFileCheck).
+// warn of; a variable stored in a form MATLAB does not load as it is, whose value as read is this
+// reader's guess at it; a variable stored after the subsystem, where MATLAB does not read it; a
+// file whose records do not tile it, or that was opened without them. And before the bytes are
+// handed back they are read again, and a record that does not read back as planned refuses the
+// save as well (selfCheck: the subsystem's every cell the bytes it was but those written, and
+// those the values written), as does one that breaks a rule MATLAB loads a file by that the file it
+// was read from did not break (MatFileCheck).
 //
 // The editor takes none of the edits refused for what a variable is or where it stands: its gate
 // (MatNode._editRefusal) is built of the refusals exported here (unsavableRefusal,
@@ -75,8 +76,8 @@ import { inflateZlib } from './Inflate.js';
 import { parseMat, functionHandleOf } from './MatParser.js';
 import type { MatRecord, MatVariable, ParsedMat } from './MatParser.js';
 import { MatBudgetError, MatWriteError, classPhrase, elementNamed, encodeMatVariable } from './MatWriter.js';
-import { checkMatFile, violationsAdded } from './MatFileCheck.js';
-import type { MatViolation } from './MatFileCheck.js';
+import { checkMatElement, checkMatFile, violationsAdded } from './MatFileCheck.js';
+import type { MatViolation, MatViolationCode } from './MatFileCheck.js';
 import { integerConversion } from './XmlUtils.js';
 import { cellValueAt, readMcosSubsystem } from './McosSubsystemEdit.js';
 import { mcosMetaTableOf } from './McosParser.js';
@@ -390,7 +391,7 @@ function freshOf(node: BaseNode, record: MatRecord | null, compress: boolean): P
     throw refused;
   }
   const value = valueNodeOf(node)!;
-  const named = elementNamed(freshElement(value), name);
+  const named = elementNamed(globalAsRead(freshElement(value), record), name);
   if (!named) {
     throw refusal(name, 'the element written for it has no name to replace');
   }
@@ -404,7 +405,8 @@ function freshOf(node: BaseNode, record: MatRecord | null, compress: boolean): P
  * held to; a variable that was not a plain value, or whose node is a typed object's (freshOf); one
  * holding what this writer cannot write at any depth (unwritableIn); one with no form at all, a
  * container none of whose elements could be read (_heldNone) or a size that is no count
- * (_refuseNoSize); and one holding a container read short at any depth (shortIn).
+ * (_refuseNoSize); one holding a container read short at any depth (shortIn); and one stored in
+ * a form MATLAB does not load as it is (storedRefusal).
  *
  * One rule for freshOf, which throws it, and for the editor, which takes no edit a save would
  * refuse so (MatNode._editRefusal): the two cannot come to disagree. What it does not judge is
@@ -441,7 +443,43 @@ export function freshRefusal(node: BaseNode, record: MatRecord | null): MatWrite
   if (short) {
     return refusal(name, short.path + ' is ' + short.what + ', and a save would write the ones it does not hold as empty');
   }
+  // And one stored in a form MATLAB does not load as it is (storedRefusal). Last, so that a
+  // refusal that says more of the same damage (a container read short, a value not decoded) is
+  // the one given.
+  const stored = record ? storedRefusal(record) : null;
+  if (stored) {
+    return refusal(name, 'it is stored in a form MATLAB does not load as it is (' + stored + '), so there is no value of it a save '
+      + 'can be held to: it is written only as it was read, or renamed');
+  }
   return null;
+}
+
+// The rules of MatFileCheck a variable's own element can break whose break says that what this
+// package read of it is not a value MATLAB loads: char data MATLAB does not read as text, or
+// reads otherwise (miUINT8 Latin-1 bytes, which this reader decodes as UTF-8, miUTF32, which it
+// decodes as UTF-8 too, and CJK in miUINT16, of which MATLAB keeps the low byte of each unit), a
+// char's UTF-8 that does not hold its count, a numeric class stored in another's type, a matrix
+// its sub-elements do not fill, one MATLAB cannot read where it stands, a data part holding more
+// or fewer elements than the dims say. Written fresh, each was this reader's guess at it, which
+// MATLAB then loaded in its place: measured on MATLAB's verdict corpus (test/fixtures/mat-check),
+// a 1x3 char stored as miUTF32 was written as the 1x12 of its bytes, and 'héllo' stored as miUINT8
+// as 'h\uFFFDllo'. Not a name (a fresh one is held to validateMatlabName), nor what only the file
+// breaks around the element.
+const VALUE_RULES: ReadonlySet<MatViolationCode> = new Set<MatViolationCode>(['char-type', 'utf8-count', 'int-storage', 'nbytes', 'element', 'data-size']);
+
+// What `record`'s own element breaks of VALUE_RULES, as checkMatElement says it, or null. Of the
+// element the reader read, which it holds whole (MatVariable._rawBytes), so nothing is inflated;
+// once per record, whose bytes never change.
+const storedVerdicts = new WeakMap<MatRecord, string | null>();
+function storedRefusal(record: MatRecord): string | null {
+  let verdict = storedVerdicts.get(record);
+  if (verdict === undefined) {
+    const element = record.variable?._rawBytes;
+    const broken = element ? checkMatElement(element).find((v) => VALUE_RULES.has(v.code)) : undefined;
+    verdict = broken ? broken.message.replace(/\.$/, '') : null;
+    storedVerdicts.set(record, verdict);
+  }
+  return verdict;
 }
 
 /**
@@ -545,6 +583,28 @@ function notPlain(v: MatVariable): string | null {
     return 'a value that was not decoded';
   }
   return null;
+}
+
+// Where an element's array flags keep its flags byte: past the element's tag and the flags' own,
+// which MATLAB and MatWriter both write in the long form (8 bytes of tag, then 8 of data), and
+// the byte after the class; and its bit for global.
+const FLAGS_BYTE = 17;
+const GLOBAL_FLAG = 0x04;
+
+// `element`, written fresh for the variable `record` holds, global when that one was
+// (MatVariable.isGlobal). The flag is the workspace variable's and not its value's, so no writer
+// of a value writes it, and written fresh a variable saved as global was not one: `load(f)` no
+// longer declared it global. A rename splice keeps it with the rest of the element. Only the
+// top-level element, the one MATLAB sets it on; and on a copy, since the element may be a view
+// of the bytes the file was read from (_matStream's own, which then hold it already).
+function globalAsRead(element: Uint8Array, record: MatRecord | null): Uint8Array {
+  const longFlags = element.byteLength > FLAGS_BYTE && u32At(element, 8) === 6 && u32At(element, 12) === 8;
+  if (!record?.variable?.isGlobal || !longFlags || element[FLAGS_BYTE] & GLOBAL_FLAG) {
+    return element;
+  }
+  const out = element.slice();
+  out[FLAGS_BYTE] |= GLOBAL_FLAG;
+  return out;
 }
 
 // The miMATRIX element `node`'s value is, with the empty name a stream's value has: the stream it
@@ -811,6 +871,11 @@ function selfCheck(file: string, bytes: Uint8Array, plan: Planned[], assembled: 
     const difference = differs(p.node._var, got.variable, p.name);
     if (difference) {
       fail(difference);
+    }
+    // Global as the variable it was written for was (globalAsRead), and a variable added since not.
+    if (!!p.record?.variable?.isGlobal !== !!got.variable?.isGlobal) {
+      const is = got.variable?.isGlobal ? 'global, where the variable it was written for was not' : 'not global, where the variable it was written for was';
+      fail('"' + p.name + '" reads back ' + is);
     }
   });
 }

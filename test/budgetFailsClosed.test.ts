@@ -130,9 +130,16 @@ describe('past the budget, a paste, a copy and a save fail, and nothing is writt
     // Unedited, each member is the bytes it was read from and costs nothing; edited, it is
     // encoded from its non-zeros, and 999 of its columns no data backs, 3,996 bytes apiece.
     const member = sparseVar({ name: '', dimensions: [1000, 1000], ir: [0], jc: [0, 1], real: [5], nzmax: 1, sparseFlag: true });
-    const c: any = createSession().addMatSource('c.mat', matFile([cellVar('c', Array.from({ length: 4199 }, () => member))])).children[0];
+    const mat: any = createSession().addMatSource('c.mat', matFile([cellVar('c', Array.from({ length: 4199 }, () => member))]));
+    const c: any = mat.children[0];
     expect(thrownBy(() => copyOf(c))[0]).toBeNull();
+    // Taken out of the .mat to be edited: a member's column index is short of its columns, which
+    // MATLAB does not load, so the file takes no edit of it (MatFileWriter.freshRefusal); on its
+    // own, the node takes it, and is put back to be copied.
+    expect(c.children[0].children[0].setProperty('Value', '7')).toMatchObject({ error: true });
+    mat.removeChild(c);
     for (const m of c.children) expect(m.children[0].setProperty('Value', '7')).toBe(true);
+    mat.addChild(c);
     const [thrown, ms] = thrownBy(() => copyOf(c));
     expect([thrown?.name, thrown?.message, ms < 5000]).toEqual([
       'MatBudgetError',

@@ -35,9 +35,15 @@ const HEAVY_TIMEOUT = 60_000;
 describe('a sparse member nothing has edited is written as the bytes it was read from', () => {
   it('in a cell out of a .mat, and an edited member alone is encoded again', () => {
     const members = [real(), bare(), real()];
-    const c: any = createSession().addMatSource('c.mat', matFile([cellVar('c', members)])).children[0];
+    const mat: any = createSession().addMatSource('c.mat', matFile([cellVar('c', members)]));
+    const c: any = mat.children[0];
     expect(encodeMatStream(c._var)).toEqual(new Uint8Array(streamOf(cellVar('', members))));
     // An element row of the first edited: that member is its non-zeros, the others their bytes.
+    // Taken out of the .mat to be edited: the damaged member is stored as MATLAB does not load
+    // it, so the file takes no edit of the cell (MatFileWriter.freshRefusal); on its own, the node
+    // takes it.
+    expect(c.children[0].children[1].setProperty('Value', '9')).toMatchObject({ error: true });
+    mat.removeChild(c);
     expect(c.children[0].children[1].setProperty('Value', '9')).toBe(true);
     const edited = encodeMatStream(c._var);
     const back = decodeMatStream(edited);

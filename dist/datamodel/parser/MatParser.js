@@ -913,6 +913,9 @@ export function parseMatrix(view, baseOffset, length, depth = 0) {
     if (isSparse) {
         result.isSparse = true;
     }
+    if (flags & 0x04) {
+        result.isGlobal = true;
+    }
     // Past MAX_NESTING levels a matrix is recorded with its class, size and name, and nothing in
     // it is read. What holds it keeps its bytes, as for every value this reader does not decode:
     // a struct field always, and a cell element when it is not decoded.
@@ -1232,7 +1235,14 @@ export function parseMatrix(view, baseOffset, length, depth = 0) {
             // elements had 10,000 empty rows, and a 104 KB file holding 1,000 of them ran a
             // 512 MB heap out while it opened. MATLAB writes every field of every element, so an
             // array it wrote has every list already.
-            if (totalElements > 1) {
+            //
+            // So is every field of an array of NO element, each with its empty list: its names
+            // are all there is of it, `struct('a', {})` being a 0x0 struct with a field `a`. It
+            // held `{}`, and a writer writes the names a variable holds, so a .mat save of one
+            // and a copy of one into a dictionary's stream wrote a struct of no field (measured
+            // against MATLAB R2027a: the 0x0 a .mat save wrote for it loaded with fieldnames {},
+            // where the file's had {'a'}).
+            if (totalElements !== 1) {
                 for (const fn of fieldNames) {
                     if (!Object.prototype.hasOwnProperty.call(fields, fn)) {
                         setOwn(fields, fn, []);

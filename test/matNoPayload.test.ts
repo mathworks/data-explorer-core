@@ -87,7 +87,10 @@ describe('a numeric MAT value with no data is shown as not decoded, with no edit
       notDecoded('b1', '1x1', 'logical'),
       notDecoded('i32', '3x2', 'int16'),
     ]);
-    expect(rows[7]).toEqual(['e0', '[ ]', 'double', true, []]);
+    // Shown as [], as before, and taking no edit: a matrix whose sub-elements end before its data
+    // is one MATLAB does not load, so a save writes it only as it was read, or renamed
+    // (MatFileWriter.freshRefusal).
+    expect(rows[7]).toEqual(['e0', '[ ]', 'double', false, []]);
     expect([rows[0], ...rows.slice(8)]).toEqual(control.children.map(row));
     // Before: no warning at all.
     expect(mat.warnings).toEqual([

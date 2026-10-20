@@ -351,14 +351,13 @@ export default class MatlabVariableNode extends DataNode {
     // The Class column says complex and sparse as MATLAB's Workspace browser does,
     // `int16 (complex)`, `double (sparse)` (DisplayConvention.classColumnText): className is
     // MATLAB's class(), which says neither. Complex is what the writers take it for
-    // (_isComplexValue), and for an empty, which has no element to say so, what it was read as
-    // (_elementType): a .mat's complex(zeros(1,0)), or a binary dictionary's IsComplex="1".
+    // (_isComplexValue), an empty's included: what it was read as, a .mat's complex(zeros(1,0)),
+    // or a binary dictionary's IsComplex="1".
     _classColumn() {
         if (this._isOpaque) {
             return super._classColumn();
         }
-        const complexEmpty = this._kind === 'array' && this._elementType === 'complex' && this._liveElements().length === 0;
-        return classColumnText(this.className, { complex: this._isComplexValue() || complexEmpty, sparse: !!this._sparse });
+        return classColumnText(this.className, { complex: this._isComplexValue(), sparse: !!this._sparse });
     }
     // A primitive variable's data type ('double', 'string', 'cell', …) is a real
     // data type and belongs in the DataType column. An opaque MCOS variable's
@@ -1455,6 +1454,8 @@ export default class MatlabVariableNode extends DataNode {
         this._matVar = null;
         // A value typed in whole is built with all its rows, whatever the file's node ceiling did.
         delete this._cutByCeiling;
+        // Nor is it the empty struct array it may have been (_emptyStructFields).
+        delete this._emptyStructFields;
         this._rawInput = undefined;
         // Nor is it what a removal left of a complex array any more (_complexClass).
         this._collapsedClass = null;
@@ -1781,7 +1782,8 @@ export default class MatlabVariableNode extends DataNode {
         return child;
     }
     _addStructField() {
-        const uniqueName = newFieldName(this.children.map((c) => c.name));
+        // Nor the name of a field a struct array of no element has without a row (_emptyStructFields).
+        const uniqueName = newFieldName([...(this._emptyStructFields ?? []), ...this.children.map((c) => c.name)]);
         const child = MatlabVariableNode._createScalar(0, 'double', uniqueName, this);
         this.addChild(child);
         this._markModified();
@@ -2162,6 +2164,12 @@ export default class MatlabVariableNode extends DataNode {
         // (_matStream), naming the entry and the reason, rather than written in the rank-2 form
         // below, which is not a form MATLAB writes there for it. Elsewhere it falls through as
         // before: a binary dictionary's XML spells it element by element.
+        //
+        // A complex array of no element too (_isComplexValue), whose stream says complex where
+        // `[]` cannot: MATLAB's own text dictionary spells one as the real empty, `[]` or
+        // `{"_type": "int16", "_value": "[]"}` (dispcat_text.sldd's dx_complex_0x0 and
+        // dx_complex_int16_1x0), so that a copy of one into it, or through it into a binary
+        // dictionary, whose spelling `IsComplex="1"` does say so (_serializeArrayXml), lost it.
         const nd = effectiveDims(this._dims).length > 2;
         if (this._sparse || nd || this._isComplexValue() || this._unexpandedStruct()) {
             const cdata = this._serializeCdata(nd && this._ownerFormat() === 'json');
@@ -2210,6 +2218,14 @@ export default class MatlabVariableNode extends DataNode {
             return false;
         }
         const elems = this._liveElements();
+        // An array of no element has none to say so, and is complex when it was read as one
+        // (_elementType): a .mat's complex(zeros(1,0)), a binary dictionary's IsComplex="1". Asked
+        // of its elements, it was real, and once anything marked it edited it was written so
+        // (_buildVarObject): measured against MATLAB R2027a, a .mat save of complex(zeros(0,0))
+        // loaded with isreal true.
+        if (elems.length === 0) {
+            return this._elementType === 'complex';
+        }
         // ANY element, not the first: the element editor takes only a real number, so after
         // x(1) = 7 the first element is the number 7 and the rest are still complex, and
         // asking the first alone wrote [7+0i NaN+0i 3-4i] out as the real [7 0 3].
@@ -2659,6 +2675,16 @@ export default class MatlabVariableNode extends DataNode {
     // unchanged.
     _serializeStructValue() {
         const dims = effectiveDims(this._dims);
+        // A struct array of no element, with fields (_emptyStructFields): the bag the binary reader
+        // makes of MATLAB's own spelling of one, `<P Class="struct" Dimension="0*0"><Field Name="a"/>`
+        // (BinarySlddParser.structValue), with no element and its names in `_fields`, which is where
+        // StructNode writes them back from, as those `<Field>`s. Built of its rows like any other, it
+        // named no field: a copy of a .mat's struct('a', {}) went into a binary dictionary as a
+        // struct of none.
+        const named = elementCount(dims) === 0 && this.children.length === 0 ? this._emptyStructFields ?? [] : [];
+        if (named.length > 0) {
+            return { _array_type: 'Struct', _dimensions: dims, _elements: [], _fields: named.slice(), _mw_element_type: 'MATLABArray' };
+        }
         // A .mat struct ARRAY hangs its ELEMENTS off this node (named 1..N, each a
         // struct-kind node whose own children are the fields); a 1x1 hangs the fields
         // directly. StructNode owns neither case on the .mat path, so both are here —
@@ -2957,7 +2983,11 @@ export default class MatlabVariableNode extends DataNode {
             if (type === 'string' && this._rawInput?._emptyDims && two.length === 2 && elementCount(two) === 0) {
                 return DataNode._stringXml(tagName, attrStr, [], two, indent);
             }
-            return (p + '<' + tagName + attrStr + ' Class="' + escapeXml(type || 'double') + '" Dimension="' + dimAttr + '"/>');
+            // A complex empty says so, as MATLAB's own does: `Class="double" IsComplex="1"
+            // Dimension="0*0"/>` and `Class="int16" IsComplex="1" Dimension="1*0"/>` (dispcat_bin.sldd).
+            // Without it, it was read back real.
+            const complex = !this._sparse && this._isComplexValue() ? ' IsComplex="1"' : '';
+            return (p + '<' + tagName + attrStr + ' Class="' + escapeXml(type || 'double') + '"' + complex + ' Dimension="' + dimAttr + '"/>');
         }
         // A sparse array reaches here only with no stream to be the hex of (_sparseFallback);
         // past what this package lays out densely, all there is to write is its summary,
@@ -3277,6 +3307,14 @@ export default class MatlabVariableNode extends DataNode {
                 }
             }
             else {
+                // An array of no element is its field names, each with no element, as MatParser reads
+                // one (_emptyStructFields): rebuilt from its rows, of which it has none, it was a
+                // struct of no field.
+                if (elementCount(this._dims) === 0) {
+                    for (const fname of this._emptyStructFields ?? []) {
+                        setOwn(fields, fname, []);
+                    }
+                }
                 for (const child of this.children) {
                     setOwn(fields, child.name, MatlabVariableNode._memberVar(child));
                 }
@@ -3682,6 +3720,12 @@ export default class MatlabVariableNode extends DataNode {
         }
         const fieldNames = Object.keys(variable.fields);
         const count = elementCount(node._dims);
+        // A struct array of no element has no row, and its field names nowhere but here
+        // (_emptyStructFields).
+        if (count === 0) {
+            node._emptyStructFields = fieldNames;
+            return node;
+        }
         if (count <= 1) {
             // Its fields are its rows, all of them or none past a .mat file's node ceiling
             // (matNodeCeiling).

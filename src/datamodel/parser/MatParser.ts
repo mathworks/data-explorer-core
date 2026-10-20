@@ -52,6 +52,13 @@ export interface MatVariable {
     // them. It is what MatWriter writes sparse storage on (encodeSparse), since writing the
     // array full would change the variable's storage in the file. Absent on everything else.
     isSparse?: boolean;
+    // The array flags' global bit (0x04 of the flags byte): `save` sets it on a variable declared
+    // global, on its top-level element and on no element nested in it (measured against MATLAB
+    // R2027a, test/fixtures/global/make_global_fixtures.m), and `load(f)` declares such a
+    // variable global again. It is the workspace variable's, not its value's, so no writer of a
+    // value writes it: the MAT-file save sets it on the element it writes for the variable that
+    // had it (MatFileWriter). Absent when the bit is clear.
+    isGlobal?: boolean;
     // A sparse array's non-zeros, which are all of it: a sparse array is never held as a
     // dense list, so what it costs is what it holds. Its `value` is its summary,
     // `<10000000x2 sparse double>`, which a host that renders values without knowing this
@@ -1077,6 +1084,9 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number, 
     if (isSparse) {
         result.isSparse = true;
     }
+    if (flags & 0x04) {
+        result.isGlobal = true;
+    }
 
     // Past MAX_NESTING levels a matrix is recorded with its class, size and name, and nothing in
     // it is read. What holds it keeps its bytes, as for every value this reader does not decode:
@@ -1388,7 +1398,14 @@ export function parseMatrix(view: DataView, baseOffset: number, length: number, 
             // elements had 10,000 empty rows, and a 104 KB file holding 1,000 of them ran a
             // 512 MB heap out while it opened. MATLAB writes every field of every element, so an
             // array it wrote has every list already.
-            if (totalElements > 1) {
+            //
+            // So is every field of an array of NO element, each with its empty list: its names
+            // are all there is of it, `struct('a', {})` being a 0x0 struct with a field `a`. It
+            // held `{}`, and a writer writes the names a variable holds, so a .mat save of one
+            // and a copy of one into a dictionary's stream wrote a struct of no field (measured
+            // against MATLAB R2027a: the 0x0 a .mat save wrote for it loaded with fieldnames {},
+            // where the file's had {'a'}).
+            if (totalElements !== 1) {
                 for (const fn of fieldNames) {
                     if (!Object.prototype.hasOwnProperty.call(fields, fn)) {
                         setOwn<MatVariable | MatVariable[]>(fields, fn, []);

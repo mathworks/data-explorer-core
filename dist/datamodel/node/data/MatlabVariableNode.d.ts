@@ -34,6 +34,7 @@ export default class MatlabVariableNode extends DataNode {
     _elementType: string | null;
     _readFromStream?: true;
     _cutByCeiling?: number;
+    _emptyStructFields?: string[];
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
     get Value(): unknown;
     set Value(v: unknown);

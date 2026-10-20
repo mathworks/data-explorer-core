@@ -70,6 +70,16 @@ export declare const MAT_CHECK_INFLATE_BUDGET: number;
  */
 export declare function checkMatFile(bytes: Uint8Array, options?: MatCheckOptions): MatViolation[];
 /**
+ * What one variable's miMATRIX element (its tag and body, as a record holds it inflated) breaks
+ * of the rules MATLAB reads a matrix by, at any depth: its char data, its storage, how its
+ * sub-elements fill it, its name. Not the rules of a file (its header, framing, compression,
+ * placement), which only a whole file has: those are checkMatFile's. Every `at` is 0, the
+ * element's own start, and each message says where in the element. Asked of a variable as it was
+ * read, whose element is in memory already, so nothing is inflated; and like checkMatFile it never
+ * throws, and stops at its budget with a `budget` note.
+ */
+export declare function checkMatElement(element: Uint8Array, options?: MatCheckOptions): MatViolation[];
+/**
  * The violations of `after` that `before` does not have: what a rewrite of a file added to it.
  *
  * Matched by code and variable, never by offset or message, which an edit anywhere before a

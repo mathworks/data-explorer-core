@@ -71,6 +71,10 @@ const COMPLEX_INF = 'test/fixtures/complex_inf/complex_inf.mat';
 const DAG = 'test/fixtures/mcos/shared/dag4.mat';
 const V6_HANDLES = 'test/fixtures/display/nested_handles.mat';
 const V6_HEXOBJ = 'test/fixtures/sparse/hexobj_values.mat';
+// MATLAB's own `save` of variables declared global (gD, gS, gC, gI) beside one that is not
+// (plain), -v7 and -v6 (test/fixtures/global/make_global_fixtures.m).
+const GLOBAL_V7 = 'test/fixtures/global/global_v7.mat';
+const GLOBAL_V6 = 'test/fixtures/global/global_v6.mat';
 
 const LONG_NAME = 'a' + 'b'.repeat(61) + 'c'; // 63 characters, the longest name core writes
 
@@ -156,6 +160,57 @@ function nestedEmpties() {
   ]);
 }
 const NESTED_EMPTIES = 'crafted/nested_empties.mat';
+
+// ---- and one of the shapes the fix of those two losses has to hold, byte by byte --------
+//
+// What no fixture MATLAB wrote holds, built by hand the way MATLAB writes each (a field-name
+// stride of 32, as MATLAB's own older saves have it; an empty part as an empty sub-element of
+// its class's type, as dispcat.mat's e_single_complex_1x0 has it):
+//   c2   a cell {struct('a', {}, 'b', {}), 1}: a struct of no element with two fields, beside a
+//        member to edit;
+//   z03  complex(zeros(0, 3, 'single')), and sz, a struct holding one beside a field to edit;
+//   sa   a 1x2 struct array whose elements each hold an empty struct with a field (a 0x0 and a
+//        1x0) beside a field to edit;
+//   g    a variable `save` marks global (bit 0x04 of its array flags), and h beside it, not;
+//   nz   [-3i, 1+2i, complex(-0, -0)], whose zero parts are -0 (MATLAB's `-3i` is complex(-0,
+//        -3)), beside an element to edit.
+const flagsOf = (cls, bits = 0) => sub(6, concat([u32(cls | (bits << 8)), u32(0)]));
+const emptyStruct = (dims, fields) => {
+  const len = 32;
+  const names = new Uint8Array(len * fields.length);
+  fields.forEach((f, i) => names.set(new TextEncoder().encode(f), i * len));
+  return miMatrix(concat([flagsOf(2), DIMS(dims), EMPTY_NAME, concat([u32(5 | (4 << 16)), u32(len)]), sub(1, names)]));
+};
+const singleComplexEmpty = (name) => miMatrix(concat([flagsOf(7, 0x08), DIMS([0, 3]), name ? NAME(name) : EMPTY_NAME, sub(7, new Uint8Array(0)), sub(7, new Uint8Array(0))]));
+const doubles = (values) => new Uint8Array(new Float64Array(values).buffer);
+function structArray(name, dims, fields, elements) {
+  const len = 32;
+  const names = new Uint8Array(len * fields.length);
+  fields.forEach((f, i) => names.set(new TextEncoder().encode(f), i * len));
+  return miMatrix(concat([flagsOf(2), DIMS(dims), NAME(name), concat([u32(5 | (4 << 16)), u32(len)]), sub(1, names), ...elements.flat()]));
+}
+function emptiesMore() {
+  const header = new Uint8Array(128).fill(0x20);
+  header.set(new TextEncoder().encode('MATLAB 5.0 MAT-file, assembled by probe_mat_writeback.mjs'));
+  header.set([0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x01, 0x49, 0x4d], 116);
+  return concat([
+    header,
+    cellVar('c2', [emptyStruct([0, 0], ['a', 'b']), doubleScalar(1)]),
+    singleComplexEmpty('z03'),
+    structVar('sz', [
+      ['z', singleComplexEmpty('')],
+      ['x', doubleScalar(1)],
+    ]),
+    structArray('sa', [1, 2], ['es', 'x'], [
+      [emptyStruct([0, 0], ['q']), doubleScalar(1)],
+      [emptyStruct([1, 0], ['q']), doubleScalar(2)],
+    ]),
+    miMatrix(concat([flagsOf(6, 0x04), DIMS([1, 2]), NAME('g'), sub(9, doubles([1, 2]))])),
+    miMatrix(concat([flagsOf(6), DIMS([1, 2]), NAME('h'), sub(9, doubles([3, 4]))])),
+    miMatrix(concat([flagsOf(6, 0x08), DIMS([1, 3]), NAME('nz'), sub(9, doubles([-0, 1, -0])), sub(9, doubles([-3, 2, -0]))])),
+  ]);
+}
+const EMPTIES_MORE = 'crafted/empties_more.mat';
 
 /**
  * A fixture opened through the session, as a host opens one, and the edits a host makes on
@@ -604,6 +659,74 @@ add(
   ['S.c{3} = 9;'],
 );
 
+crafted.set(EMPTIES_MORE, emptiesMore());
+zero('zero_empties_more', EMPTIES_MORE, 'a save with no edit is the file (and MATLAB loads the assembled file)');
+add(
+  'sibling_cell_two_fields',
+  EMPTIES_MORE,
+  'a cell member edited beside a struct of no element with two fields, written fresh with it',
+  (f) => f.set(['c2', 'c2{2}'], '9', 'double', '9'),
+  ['S.c2{2} = 9;'],
+);
+add('fresh_complex_single_0x3', EMPTIES_MORE, 'every plain variable written fresh: complex(zeros(0,3,\'single\')), and the rest of the file', (f) => f.freshAll(), [], 'unchanged');
+add(
+  'sibling_complex_single_0x3',
+  EMPTIES_MORE,
+  "a struct field edited beside complex(zeros(0,3,'single')), written fresh with it",
+  (f) => f.set(['sz', 'x'], '2', 'double', '2'),
+  ['S.sz.x = 2;'],
+);
+add(
+  'struct_array_nested_empty',
+  EMPTIES_MORE,
+  "a field of a struct array's element edited beside an empty struct with a field in each element",
+  (f) => f.set(['sa', 'sa(2)', 'x'], '5', 'double', '5'),
+  ['S.sa(2).x = 5;'],
+);
+add('global_element', EMPTIES_MORE, 'an element of a variable saved as global: written fresh, and still global', (f) => f.set(['g', 'g(2)'], '7', 'double', '7'), [
+  'S.g(2) = 7;',
+]);
+add(
+  'negative_zero_parts',
+  EMPTIES_MORE,
+  'an element of a complex row edited beside elements whose zero parts are -0, which keep their sign',
+  (f) => f.set(['nz', 'nz(2)'], '5', 'double', '5'),
+  ['S.nz(2) = 5;'],
+);
+
+// ---- variables saved as global: written fresh, still global -----------------------------
+zero('zero_global_v7', GLOBAL_V7, 'a save with no edit is the file');
+zero('zero_global_v6', GLOBAL_V6, 'a save with no edit is the file');
+add('global_v7_element', GLOBAL_V7, 'an element of a global double: written fresh, and still global', (f) => f.set(['gD', 'gD(2)'], '20', 'double', '20'), [
+  'S.gD(2) = 20;',
+]);
+add(
+  'global_v7_struct_field',
+  GLOBAL_V7,
+  'a field of a global struct: the struct written fresh, global, and nothing nested in it global',
+  (f) => f.set(['gS', 'a'], '5', 'double', '5'),
+  ['S.gS.a = 5;'],
+);
+add('global_v6_cell_member', GLOBAL_V6, 'a member of a global cell in a -v6 file: still global, still uncompressed', (f) => f.set(['gC', 'gC{1}'], '40', 'double', '40'), [
+  'S.gC{1} = 40;',
+]);
+add('global_v6_int16', GLOBAL_V6, 'a global int16 typed into, which keeps its class and stays global', (f) => f.set(['gI'], '-8', 'int16', '-8'), [
+  'S.gI = int16(-8);',
+]);
+add('fresh_global_v7', GLOBAL_V7, 'every plain variable written fresh: the globals stay global, the other stays not', (f) => f.freshAll(), [], 'unchanged');
+add(
+  'global_rename_delete_add',
+  GLOBAL_V7,
+  'a global renamed (its bytes, renamed), another deleted, a field of a third edited, a variable added (not global)',
+  (f) => {
+    f.rename('gD', 'gD2');
+    f.remove('gI');
+    f.set(['gS', 'a'], '6', 'double', '6');
+    f.add('var');
+  },
+  ["S = renameStructField(S, 'gD', 'gD2');", "S = rmfield(S, 'gI');", 'S.gS.a = 6;', 'S.var = 0;'],
+);
+
 // ---- function handles, enumerations, fi, categorical, table -------------------------
 add(
   'rename_fhandles',
@@ -797,6 +920,14 @@ control(
   (f) => f.rename('en_on', 'en_onR'),
   ["S = renameStructField(S, 'en_on', 'en_onR');", 'S.en_onR = matlab.lang.OnOffSwitchState.off;'],
   'en_onR: off vs on',
+);
+control(
+  'control_negative_zero',
+  EMPTIES_MORE,
+  "a complex zero's -0 parts made +0, which isequaln does not see and the bits do",
+  (f) => f.set(['nz', 'nz(2)'], '5', 'double', '5'),
+  ['S.nz(2) = 5;', 'S.nz(3) = complex(0, 0);'],
+  'nz: equal, but not bit for bit',
 );
 control(
   'control_categorical',

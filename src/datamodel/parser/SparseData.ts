@@ -17,7 +17,7 @@
 // Parser-layer, so it imports nothing from the display or the node layer: MatParser
 // produces one of these, MatWriter consumes one, and the node layer edits one.
 
-import { formatComplexNum, parseComplexNum, parseMatlabNum } from './XmlUtils.js';
+import { formatComplexNum, formatMatlabNum, parseComplexNum, parseMatlabNum } from './XmlUtils.js';
 
 /**
  * The non-zeros of a sparse array: entry k is at 0-based (row[k], col[k]) and holds re[k]
@@ -104,15 +104,25 @@ export function unbackedColumns(s: SparseData, dims: number[]): string | null {
 
 /**
  * One complex element as the node layer holds it, `1+2i`, `3-4i`, `1NaNi`, `1+Infi`:
- * XmlUtils.formatComplexNum's spelling. The one spelling of an element of a complex array
- * read out of MAT bytes, full or sparse (MatlabVariableNode._createFromMatNumeric), so the
- * two show a value the same way, and the same way a binary dictionary's text shows it.
+ * XmlUtils.formatComplexNum's spelling, a -0 part's sign kept. The one spelling of an element
+ * of a complex array read out of MAT bytes, full or sparse (MatlabVariableNode.
+ * _createFromMatNumeric), so the two show a value the same way, and the same way a binary
+ * dictionary's text shows it.
  * Through 1.40.0 each part was String()'d, so an infinite part read `Infinity`, which MATLAB
  * neither writes nor reads (`{1+Infinityi}` is "Unrecognized function or variable
  * 'Infinityi'", R2027a): a text dictionary's complex(1, Inf) showed `1+Infinityi` beside
  * its binary twin's `1+Infi`. parseComplexNum still reads that spelling back.
  */
 export function complexElement(re: number | string, im: number | string): string {
+  // A part of -0 keeps its sign, which formatComplexNum does not spell (String(-0) is `0`): the
+  // text is the value (MatlabVariableNode._buildVarObject writes the array from it), so a .mat's
+  // `-3i`, complex(-0, -3), written again was complex(0, -3). It reads `-0-3i`, as the same value
+  // out of a binary dictionary's `-0.0-3.0i` does, and an imaginary -0 shows with a `+`
+  // (XmlUtils.shownComplexText).
+  if (Object.is(re, -0) || Object.is(im, -0)) {
+    const part = (x: number | string) => (Object.is(x, -0) ? '-0' : formatMatlabNum(x));
+    return part(re) + (Number(im) >= 0 && !Object.is(im, -0) ? '+' : '') + part(im) + 'i';
+  }
   return formatComplexNum(re, im);
 }
 
