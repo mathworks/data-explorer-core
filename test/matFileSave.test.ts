@@ -685,12 +685,21 @@ describe('a save that cannot write a variable as what it is is refused, naming i
     );
   });
 
-  it('a value past the unbacked-bytes budget, restated naming the variable', () => {
-    // A cell declaring 1x600000 and holding one element: edited, the 599,999 it does not hold
-    // are each the empty double MatWriter writes for a hole, past the budget.
-    const { by, edit, save } = opened(matFile([cellVar('big', [scalar('', 1)], [1, 600000])]));
-    expect(edit(by('big').children[0], 'Value', '2')).toBe(true);
-    const thrown = thrownBy(save) as MatBudgetError;
+  it('a value read short, whose holes are a value the file did not hold, and past the budget no save', () => {
+    // A cell declaring 1x600000 and holding one element: written fresh, the 599,999 it does not
+    // hold would each be the empty double MatWriter writes for a hole, past the unbacked-bytes
+    // budget. So it is written only as it was read (freshRefusal, shortIn), whatever its size.
+    for (const declared of [600000, 3]) {
+      const { by, edit, save } = opened(matFile([cellVar('big', [scalar('', 1)], [1, declared])]));
+      expect(edit(by('big').children[0], 'Value', '2'), String(declared)).toMatchObject({ error: true });
+      by('big').children[0]._markModified();
+      expect(thrownBy(save).message, String(declared)).toBe(
+        `Cannot write "big": big is a 1x${declared} cell holding 1 of the ${declared} elements it declares, and a save would write the ones it does not hold as empty. Nothing was written.`,
+      );
+    }
+    // Unbacked, MatWriter refuses it for its budget, restated naming the variable, as a dictionary's save does.
+    const { by } = opened(matFile([cellVar('big', [scalar('', 1)], [1, 600000])]));
+    const thrown = thrownBy(() => by('big')._matStream()) as MatBudgetError;
     expect([thrown instanceof MatBudgetError, thrown.entry, thrown.reason]).toEqual([true, 'big', 'budget']);
     expect(thrown.message).toMatch(/^Cannot write "big": big is a 1x600000 cell holding 1 of its 600000 elements, /);
   });

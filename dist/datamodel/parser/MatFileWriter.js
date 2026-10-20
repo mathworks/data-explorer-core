@@ -310,7 +310,7 @@ function freshOf(node, record, compress) {
  * held to; a variable that was not a plain value, or whose node is a typed object's (freshOf); one
  * holding what this writer cannot write at any depth (unwritableIn); one with no form at all, a
  * container none of whose elements could be read (_heldNone) or a size that is no count
- * (_refuseNoSize).
+ * (_refuseNoSize); and one holding a container read short at any depth (shortIn).
  *
  * One rule for freshOf, which throws it, and for the editor, which takes no edit a save would
  * refuse so (MatNode._editRefusal): the two cannot come to disagree. What it does not judge is
@@ -344,7 +344,88 @@ export function freshRefusal(node, record) {
         }
         throw e;
     }
+    const short = shortIn(value);
+    if (short) {
+        return refusal(name, short.path + ' is ' + short.what + ', and a save would write the ones it does not hold as empty');
+    }
     return null;
+}
+/**
+ * The first container at or under `at` that holds fewer elements than it declares, read short
+ * out of a damaged record (MatParser's "declares 3 cell(s) and only 1 could be read"), with its
+ * path and what it holds; null for none. MatWriter writes each element it does not hold as an
+ * empty double, a hole (cellBody, structBody), which is a value the file did not hold, and past
+ * its budget refuses the save: a 1x600000 cell holding one element was 599,999 of them. So such a
+ * variable is written only as it was read, or renamed. A container the node ceiling built without
+ * its rows is asked of the variable it was read as, which is what it is written as.
+ */
+function shortIn(at) {
+    const node = valueNodeOf(at);
+    if (!node) {
+        return null;
+    }
+    if (node._cutByCeiling && node._matVar) {
+        return shortVariableIn(node._matVar, node.matlabPath);
+    }
+    const declared = (node._dims || []).reduce((a, b) => a * b, 1);
+    const isStruct = node._kind === 'scalar' && node._scalarType === 'struct';
+    if (node._kind !== 'cell' && !isStruct) {
+        return null;
+    }
+    // A struct array's rows are its elements, and one with no fields past the cap has none: it is
+    // written as the bytes it was read from (MatlabVariableNode._unexpandedStruct).
+    const holdsElements = node._kind === 'cell' || (declared !== 1 && !node._unexpandedStruct());
+    if (holdsElements && node.children.length < declared) {
+        return { path: node.matlabPath, what: heldPhrase(node._dims, node._kind === 'cell' ? 'cell' : 'struct array', node.children.length) };
+    }
+    for (const child of node.children) {
+        const below = shortIn(child);
+        if (below) {
+            return below;
+        }
+    }
+    return null;
+}
+// shortIn, of a variable as MatParser read it.
+function shortVariableIn(v, path) {
+    if (!v) {
+        return null;
+    }
+    const dims = dimsOf(v);
+    const declared = dims.reduce((a, b) => a * b, 1);
+    if (v.className === 'cell') {
+        const members = flatValues(v.value);
+        const held = members.slice(0, declared).filter(Boolean).length;
+        if (held < declared) {
+            return { path, what: heldPhrase(dims, 'cell', held) };
+        }
+        for (let i = 0; i < members.length; i++) {
+            const below = shortVariableIn(members[i], path + '{' + (i + 1) + '}');
+            if (below) {
+                return below;
+            }
+        }
+    }
+    if (v.className === 'struct' && v.fields) {
+        for (const name of Object.keys(v.fields)) {
+            const held = v.fields[name];
+            const elements = Array.isArray(held) ? held : [held];
+            const present = elements.slice(0, declared).filter(Boolean).length;
+            if (present < declared) {
+                return { path, what: heldPhrase(dims, 'struct array', present) + ' in its field ' + name };
+            }
+            for (let e = 0; e < elements.length; e++) {
+                const below = shortVariableIn(elements[e], path + (Array.isArray(held) ? '(' + (e + 1) + ')' : '') + '.' + name);
+                if (below) {
+                    return below;
+                }
+            }
+        }
+    }
+    return null;
+}
+function heldPhrase(dims, what, held) {
+    return 'a ' + dims.join('x') + ' ' + what + ' holding ' + held + ' of the ' + dims.reduce((a, b) => a * b, 1) + ' elements it declares';
 }
 // `node` as the node of a plain MATLAB value, or null for a node of another class: a typed
 // object's (a ParameterNode, a BusNode). Asked of what the node does rather than of its class,

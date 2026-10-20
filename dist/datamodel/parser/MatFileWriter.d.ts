@@ -44,7 +44,7 @@ export declare function renameWhy(record: MatRecord): string | null;
  * held to; a variable that was not a plain value, or whose node is a typed object's (freshOf); one
  * holding what this writer cannot write at any depth (unwritableIn); one with no form at all, a
  * container none of whose elements could be read (_heldNone) or a size that is no count
- * (_refuseNoSize).
+ * (_refuseNoSize); and one holding a container read short at any depth (shortIn).
  *
  * One rule for freshOf, which throws it, and for the editor, which takes no edit a save would
  * refuse so (MatNode._editRefusal): the two cannot come to disagree. What it does not judge is

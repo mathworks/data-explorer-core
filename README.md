@@ -134,8 +134,9 @@ These take a rename and a delete and nothing else:
 - an object, of any class (a `Simulink.Parameter`, a bus, a signal, a class of
   your own): none of its properties and none of the rows under it;
 - a string, a function handle, and a value the reader could not decode;
-- a plain variable holding any of these, at any depth: neither its value nor any
-  row under it;
+- a plain variable holding any of these, or a cell or struct array the reader
+  read short (holding fewer elements than it declares, which a save would write
+  as empty), at any depth: neither its value nor any row under it;
 - either of two variables of one name, until one is renamed: MATLAB loads only
   one of them.
 
@@ -147,8 +148,8 @@ no edit, addition or delete at all: one whose records do not tile it, one opened
 from a parse without its records (an older host's, through
 `addMatSourceParsed`), one whose bytes the host has since handed away.
 `addEntry` adds a variable named `var` (then `var1`, and so on) holding the
-double `0`. A save can still refuse what only a value's bytes say, one past the
-unbacked-bytes budget, say, in the same words.
+double `0`. What only a value's bytes can say is still checked by the save, and
+refused in the same words.
 
 ## Usage across a folder
 

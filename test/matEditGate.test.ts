@@ -26,7 +26,7 @@ import MatNode from '../src/datamodel/node/container/MatNode.js';
 import { toDTO } from '../src/core/dto.js';
 import { createSession } from '../src/index.js';
 import { zlibSync } from 'fflate';
-import { CLASS, matFile, numericVar, u32le } from './tools/matBytes.js';
+import { CLASS, cellVar, matFile, numericVar, structVar, u32le } from './tools/matBytes.js';
 
 const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
 const MAT_CHECK = join(TEST_ROOT, 'fixtures', 'mat-check');
@@ -473,6 +473,24 @@ describe('what each kind of variable of a .mat takes', () => {
     // A char is a value a save writes.
     expect(edit(by('kp'), 'Value', "'abc'")).toBe(true);
     expect(readBack(save(), root.children.indexOf(by('kp')))).toEqual(shownAs(by('kp')));
+  });
+
+  it('a variable holding a container read short, at any depth: renamed and deleted, nothing in it edited', () => {
+    // A save would write the elements the reader could not read as empty doubles, which the file
+    // did not hold (MatFileWriter.shortIn).
+    const short = cellVar('', [scalar('', 1)], [1, 3]);
+    const { root, by, edit, save } = opened(matFile([cellVar('c', [scalar('', 1)], [1, 3]), structVar('s', ['a', 'b'], [{ a: short, b: scalar('', 2) }]), scalar('ok', 3)]));
+    const why = {
+      c: 'Cannot edit "c": c is a 1x3 cell holding 1 of the 3 elements it declares, and a save would write the ones it does not hold as empty.',
+      s: 'Cannot edit "s": s.a is a 1x3 cell holding 1 of the 3 elements it declares, and a save would write the ones it does not hold as empty.',
+    };
+    expect(edit(by('c').children[0], 'Value', '5')).toMatchObject({ error: true, reason: why.c });
+    expect(edit(by('s').children[1], 'Value', '5')).toMatchObject({ error: true, reason: why.s });
+    expect([by('c').canAddChild(), by('s').canAddChild(), by('ok').valueEditable]).toEqual([false, false, true]);
+    expect(root.dirty).toBe(false);
+    expect(edit(by('c'), 'Name', 'c2')).toBe(true);
+    expect(edit(by('ok'), 'Value', '4')).toBe(true);
+    expect(parseMat(arrayBufferOf(save())).records.map((r) => r.name)).toEqual(['c2', 's', 'ok']);
   });
 
   it('a container the node ceiling built without its rows is judged by what it was read as', () => {
