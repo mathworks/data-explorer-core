@@ -25,13 +25,17 @@ import { CLASS, MI, charVar, element, matFile, numericVar, u32le } from './tools
 
 const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
 
-// Every `.mat` under test/, recursively, so a fixture added later is swept by default.
+// Every `.mat` under test/, recursively, so a fixture added later is swept by default. But not
+// test/fixtures/mat-check: copies of MATLAB-written files edited to break MATLAB's load rules on
+// purpose, each with MATLAB's verdict (test/matFileCheck.test.ts), many of them not framed.
 function matFilesUnder(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const abs = join(dir, entry.name);
     if (entry.isDirectory()) {
-      out.push(...matFilesUnder(abs));
+      if (entry.name !== 'mat-check') {
+        out.push(...matFilesUnder(abs));
+      }
     } else if (entry.isFile() && entry.name.endsWith('.mat')) {
       out.push(abs);
     }

@@ -41,13 +41,16 @@
 // reader did not decode, whose edit this writer cannot write; a variable stored after the
 // subsystem, where MATLAB does not read it; a file whose records do not tile it, or that was
 // opened without them. And before the bytes are handed back they are read again, and a record
-// that does not read back as planned refuses the save as well (selfCheck).
+// that does not read back as planned refuses the save as well (selfCheck), as does one that breaks
+// a rule MATLAB loads a file by that the file it was read from did not break (MatFileCheck).
 
 import { zlibSync } from 'fflate';
 import { inflateZlib } from './Inflate.js';
 import { parseMat, functionHandleOf } from './MatParser.js';
 import type { MatRecord, MatVariable, ParsedMat } from './MatParser.js';
 import { MatBudgetError, MatWriteError, classPhrase, elementNamed, encodeMatVariable } from './MatWriter.js';
+import { checkMatFile, violationsAdded } from './MatFileCheck.js';
+import type { MatViolation } from './MatFileCheck.js';
 import { integerConversion } from './XmlUtils.js';
 import { validateMatlabName } from '../matlabName.js';
 import type BaseNode from '../node/BaseNode.js';
@@ -102,6 +105,7 @@ export function serializeMatFile(matNode: MatNode): Uint8Array {
   refuseStructure(matNode, records, subsystem);
   const assembled = assemble(headerBytes, plan, subsystem);
   selfCheck(file, assembled.bytes, plan, assembled, headerBytes);
+  refuseWorse(file, assembled.bytes, plan, headerBytes, records);
   return assembled.bytes;
 }
 
@@ -234,7 +238,7 @@ function refuseDuplicates(plan: Planned[]): void {
   }
   for (const p of plan) {
     if (p.kind !== 'verbatim' && count.get(p.name)! > 1) {
-      throw refusal(p.name, 'the file would hold two variables named "' + p.name + '", and MATLAB loads only one of them');
+      throw refusal(p.name, 'the file holds another variable named "' + p.name + '", and MATLAB loads only one of them');
     }
   }
 }
@@ -463,7 +467,7 @@ function assemble(headerBytes: Uint8Array, plan: Planned[], subsystem: MatRecord
 // every element. Any difference refuses the save.
 //
 // This proves what was written is what was planned, and not that MATLAB loads it: this reader
-// reads files MATLAB refuses.
+// reads files MATLAB refuses. That is refuseWorse's to ask, of the other judge.
 
 function selfCheck(file: string, bytes: Uint8Array, plan: Planned[], assembled: Assembled, headerBytes: Uint8Array): void {
   const fail = (why: string): never => {
@@ -522,6 +526,41 @@ function selfCheck(file: string, bytes: Uint8Array, plan: Planned[], assembled: 
     }
   });
 }
+
+// The bytes about to be handed back, judged by the rules MATLAB loads a file by (MatFileCheck),
+// which this package's reader does not hold a file to: the save is refused when they break a rule
+// the file they were read from did not break. A file that was read breaking one (two variables of
+// one name, say) may still be saved, edited elsewhere, as long as the save adds nothing to it.
+// Compared by rule and variable, not by offset, which every edit before a record moves; a
+// variable renamed is compared under the name the file it was read from gave it.
+//
+// The file as read is checked once, and its violations kept with its records: they are the bytes
+// it was read from, and no edit changes them.
+function refuseWorse(file: string, bytes: Uint8Array, plan: Planned[], headerBytes: Uint8Array, records: MatRecord[]): void {
+  let before = originalViolations.get(records);
+  if (!before) {
+    before = checkMatFile(concat([headerBytes, ...records.map((r) => r.bytes)]));
+    originalViolations.set(records, before);
+  }
+  const renamed = new Map<string, string>();
+  for (const p of plan) {
+    if (p.kind !== 'verbatim' && p.record?.name && p.record.name !== p.name) {
+      renamed.set(p.name, p.record.name);
+    }
+  }
+  const added = violationsAdded(before, checkMatFile(bytes), renamed);
+  if (added.length > 0) {
+    const more = added.length - 1;
+    throw new MatWriteError(
+      'Cannot save "' + file + '": the file written for it breaks a rule MATLAB loads a file by, which the file it was read '
+        + 'from does not: ' + added[0].message + (more > 0 ? ' It breaks ' + more + ' more as well.' : '') + ' Nothing was written.',
+    );
+  }
+}
+
+// What MatFileCheck says of the file a MatNode was read from, by its records (MatNode.records),
+// which are that file's bytes for as long as the node is.
+const originalViolations = new WeakMap<MatRecord[], MatViolation[]>();
 
 // Where the value read back, `read`, is not the value `model` it was written from, in words, or
 // null where it is that value: the same class, complexity, storage and size, the same members of a

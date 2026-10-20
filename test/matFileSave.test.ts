@@ -19,18 +19,24 @@ import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import type { MatRecord, ParsedMat } from '../src/datamodel/parser/MatParser.js';
 import { encodeMatStream, MatBudgetError, MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import { serializeMatFile } from '../src/datamodel/parser/MatFileWriter.js';
+import { checkMatFile, violationsAdded } from '../src/datamodel/parser/MatFileCheck.js';
 import { createSession } from '../src/index.js';
 import { CLASS, MI, cellVar, matFile, numericVar, u32le } from './tools/matBytes.js';
 
 const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
 
-// Every `.mat` under test/, recursively, so a fixture added later is swept by default.
+// Every `.mat` under test/, recursively, so a fixture added later is swept by default. But not
+// test/fixtures/mat-check, MATLAB's verdict corpus, of files edited to break its load rules on
+// purpose (test/matFileCheck.test.ts), which has a sweep of its own below.
+const MAT_CHECK = join(TEST_ROOT, 'fixtures', 'mat-check');
 function matFilesUnder(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const abs = join(dir, entry.name);
     if (entry.isDirectory()) {
-      out.push(...matFilesUnder(abs));
+      if (abs !== MAT_CHECK) {
+        out.push(...matFilesUnder(abs));
+      }
     } else if (entry.isFile() && entry.name.endsWith('.mat')) {
       out.push(abs);
     }
@@ -78,11 +84,17 @@ function opened(bytes: ArrayBuffer, name = 'f.mat') {
     session.setActive(root, node);
     return session.deleteNodeById(node.id);
   };
-  // What session.serializeSource hands back for it, which for a MAT-file is always bytes.
+  // What session.serializeSource hands back for it, which for a MAT-file is always bytes, and
+  // which by the rules MATLAB loads a file by (MatFileCheck) is no worse than the file it was
+  // read from: as clean as every fixture here is, and adding nothing to one that is not.
   const save = (): Uint8Array => {
     const out = session.serializeSource(name)!;
     expect([out.kind, out.sourceFormat]).toEqual(['binary', 'mat']);
-    return (out as { bytes: Uint8Array }).bytes;
+    const saved = (out as { bytes: Uint8Array }).bytes;
+    const before = checkMatFile(new Uint8Array(bytes));
+    const after = checkMatFile(saved);
+    expect(before.length === 0 ? after : violationsAdded(before, after)).toEqual([]);
+    return saved;
   };
   return { session, root, by, edit, remove, save };
 }
@@ -664,7 +676,7 @@ describe('a save that cannot write a variable as what it is is refused, naming i
     for (const [name, why] of [
       ['1bad', 'it is not a name MATLAB can load (Invalid MATLAB name. Must start with a letter and contain only letters, digits, and underscores)'],
       ['end', "it is not a name MATLAB can load ('end' is a reserved MATLAB keyword)"],
-      ['kp', 'the file would hold two variables named "kp", and MATLAB loads only one of them'],
+      ['kp', 'the file holds another variable named "kp", and MATLAB loads only one of them'],
     ]) {
       const { root, save } = opened(fixture(CASES), 'cases.mat');
       root.execAddEntry(undefined, name);
@@ -688,6 +700,107 @@ describe('a save that cannot write a variable as what it is is refused, naming i
     by('kp')._matStream = () => encodeMatStream({ ...by('kp')._var, value: 10 });
     expect(thrownBy(save).message).toBe(
       'Cannot save "cases.mat": the file written for it did not read back as written: kp: its element 1 reads back as 10 where 9 was written. Nothing was written.',
+    );
+  });
+});
+
+describe("MATLAB's verdict corpus (test/fixtures/mat-check): a save adds nothing MATLAB refuses, or is refused", () => {
+  // Copies of MATLAB-written files, most edited one byte range at a time to break a rule MATLAB
+  // loads a file by, with MATLAB's verdict on each. Whatever a file breaks as read, a save of it
+  // either breaks no rule it did not break (MatFileCheck.violationsAdded, by rule and variable,
+  // a renamed variable by its old name), or throws, naming why, and hands back nothing.
+  const verdicts: { file: string; matlab: string }[] = JSON.parse(readFileSync(join(MAT_CHECK, 'verdicts.json'), 'utf8'));
+  const edits: [string, (o: ReturnType<typeof opened>) => Map<string, string>][] = [
+    ['no edit', () => new Map()],
+    [
+      'every variable renamed',
+      (o) => {
+        const renamed = new Map<string, string>();
+        o.root.children.forEach((node: any, i: number) => {
+          const was = node.name;
+          if (o.edit(node, 'Name', 'renamed' + i) === true) {
+            renamed.set('renamed' + i, was);
+          }
+        });
+        return renamed;
+      },
+    ],
+    [
+      'every plain variable written fresh',
+      (o) => {
+        for (const node of o.root.children.filter((n: any) => n._matWritable?.() === true && !o.root.recordOf(n)?.variable?.isOpaque)) {
+          node._markModified();
+        }
+        return new Map();
+      },
+    ],
+    [
+      'a variable added',
+      (o) => {
+        o.root.execAddEntry();
+        return new Map();
+      },
+    ],
+  ];
+
+  for (const [what, edit] of edits) {
+    it(what, () => {
+      let saved = 0;
+      for (const { file, matlab } of verdicts) {
+        const input = arrayBufferOf(new Uint8Array(readFileSync(join(MAT_CHECK, file))));
+        const before = checkMatFile(new Uint8Array(input));
+        const o = opened(input, file);
+        const renamed = edit(o);
+        let bytes: Uint8Array;
+        try {
+          bytes = serializeMatFile(o.root);
+        } catch (e) {
+          expect(e, file).toBeInstanceOf(MatWriteError);
+          expect((e as Error).message, file).toMatch(/^Cannot (save|write) "/);
+          continue;
+        }
+        expect(violationsAdded(before, checkMatFile(bytes), renamed), file).toEqual([]);
+        if (what === 'no edit') {
+          expect(sameBytes(bytes, new Uint8Array(input)), file).toBe(true);
+        }
+        if (matlab === 'loads') {
+          saved++;
+        }
+      }
+      // Not vacuous: of the 64 files MATLAB loads, all but a few are saved. The ones refused are
+      // refused for what they hold: 8 zero bytes after the subsystem, which this package does not
+      // frame; a name of 70 characters, longer than the 63 a rename is held to; two variables of
+      // one name, one of them edited.
+      expect(saved, what).toBeGreaterThanOrEqual(verdicts.filter((v) => v.matlab === 'loads').length - 4);
+    });
+  }
+});
+
+describe('the strict check, of the bytes about to be handed back (MatFileCheck)', () => {
+  it('refuses a save whose bytes break a rule the file read did not, though they read back as written', () => {
+    const { by, edit, save } = opened(fixture(CASES), 'cases.mat');
+    expect(edit(by('charStr'), 'Value', "'中文'")).toBe(true);
+    // The stream written for it, standing in for a writer that stored the text as miUINT16, which
+    // this package's reader reads back as written and MATLAB reads as the low byte of each unit.
+    const stream = (text: string) => {
+      const units = new Uint8Array(text.length * 2);
+      for (let i = 0; i < text.length; i++) {
+        new DataView(units.buffer).setUint16(2 * i, text.charCodeAt(i), true);
+      }
+      const tag = (type: number, n: number) => concat([u32le(type), u32le(n)]);
+      const body = concat([
+        tag(MI.UINT32, 8), u32le(CLASS.CHAR), u32le(0),
+        tag(MI.INT32, 8), u32le(1), u32le(text.length),
+        tag(MI.INT8, 0),
+        tag(MI.UINT16, units.length), units, new Uint8Array((8 - (units.length % 8)) % 8),
+      ]);
+      return concat([new Uint8Array([0, 1, 0x49, 0x4d, 0, 0, 0, 0]), tag(MI.MATRIX, body.length), body]);
+    };
+    by('charStr')._matStream = () => stream('中文');
+    const thrown = thrownBy(save);
+    expect(thrown).toBeInstanceOf(MatWriteError);
+    expect(thrown.message).toMatch(
+      /^Cannot save "cases\.mat": the file written for it breaks a rule MATLAB loads a file by, which the file it was read from does not: .*charStr.* Nothing was written\.$/,
     );
   });
 });
