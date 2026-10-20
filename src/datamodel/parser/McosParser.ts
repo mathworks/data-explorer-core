@@ -109,11 +109,11 @@ interface SubElement {
   totalSize: number;
 }
 
-interface ClassRow {
+export interface ClassRow {
   fullName: string;
 }
 
-interface ObjectRow {
+export interface ObjectRow {
   classId: number;
   // Property-block index (0 = the empty/default block). Addressed via word4 of the
   // 24-byte object row; the block set is NOT positional per object.
@@ -124,9 +124,9 @@ interface ObjectRow {
   type1Idx: number;
 }
 
-type Triple = [nameIdx: number, flag: number, value: number];
+export type Triple = [nameIdx: number, flag: number, value: number];
 
-interface MetaTable {
+export interface MetaTable {
   strings: string[];
   classes: ClassRow[];
   objects: ObjectRow[];
@@ -400,6 +400,15 @@ function parseMetaTable(cells: (MatVariable | null)[]): MetaTable | null {
     blocks: readBlocks(w[5], w[6]),
     type1Blocks: readBlocks(w[3], w[4]),
   };
+}
+
+// The metadata table decodeMcosVariables reads out of `anonRawBytes`, or null when it reads
+// none. Exported for one reader: McosSubsystemEdit reads the same table with a reader of its
+// own — a strict one, which keeps the byte positions an edit needs and refuses what this one
+// reads past — and its tests hold the two to agree on every fixture.
+export function mcosMetaTableOf(anonRawBytes: Uint8Array): MetaTable | null {
+  const cells = extractCells(anonRawBytes);
+  return cells ? parseMetaTable(cells) : null;
 }
 
 // ---- Value resolution ---------------------------------------------------------
