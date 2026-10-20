@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import DataNode, { newFieldName } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
+import { encodedHolderOf, sourceEditRefusal } from '../BaseNode.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { OBJECT_ICON } from '../icons.js';
@@ -395,7 +396,8 @@ export default class MatlabVariableNode extends DataNode {
     get nameEditable() {
         // Inside a value still in its encoded stream, the names are part of the stream; the
         // node holding the stream keeps its own (BaseNode.nameEditable says the same).
-        if (this._encodedReadOnly && !this._encoded) {
+        const holder = encodedHolderOf(this);
+        if (holder && holder !== this) {
             return false;
         }
         if (this.parent && this.parent instanceof MatlabVariableNode) {
@@ -405,7 +407,9 @@ export default class MatlabVariableNode extends DataNode {
         if (this.parent?.isObjectPropertyBag) {
             return false;
         }
-        return true;
+        // Nor a name its source would not write: a MAT-file's variable stored after its subsystem
+        // (BaseNode.sourceEditRefusal).
+        return !sourceEditRefusal(this, 'Name');
     }
     get valueEditable() {
         if (this._isOpaque) {
@@ -1031,6 +1035,12 @@ export default class MatlabVariableNode extends DataNode {
             if (holderRefusal) {
                 return holderRefusal;
             }
+            // And the file it is in may have no way to write what the text makes: a MAT-file holds no
+            // string this package writes (_refuseUnwritableValue).
+            const unwritableRefusal = this._refuseUnwritableValue(parsed, stringValue);
+            if (unwritableRefusal) {
+                return unwritableRefusal;
+            }
             this._applyParsed(parsed);
             this._markModified();
             // _applyParsed rebuilds this node's children from the text, so restating a
@@ -1116,6 +1126,34 @@ export default class MatlabVariableNode extends DataNode {
             invalidValue: stringValue,
             validValue: this.displayValue,
         };
+    }
+    /**
+     * The refusal of `parsed`, typed in as this node's value, by a source that could not write
+     * what it makes of it, or null. A MAT-file's save writes no string, and writes a variable
+     * holding one only as it was read (MatNode._valueRefusal, MatFileWriter.freshRefusal), so a
+     * `"abc"` typed in, or a `{1, "abc"}`, would make a variable no save could write: it is refused
+     * here, before the edit, which a source that writes it (a dictionary) never asks.
+     *
+     * Judged of a node made of the text alone (_applyParsed, as the edit applies it), so that a
+     * refused edit leaves this one, its entry and its file as they were.
+     */
+    _refuseUnwritableValue(parsed, stringValue) {
+        let entry = this;
+        let source = this.parent;
+        while (source && !source.isContainer) {
+            entry = source;
+            source = source.parent;
+        }
+        const refuse = source
+            ?._valueRefusal;
+        if (typeof refuse !== 'function') {
+            return null;
+        }
+        const value = new MatlabVariableNode(this.name, null, {});
+        value._scalarType = this._scalarType;
+        value._applyParsed(parsed);
+        const refused = refuse.call(source, entry, this, value);
+        return refused ? { error: true, reason: refused, invalidValue: stringValue, validValue: this.displayValue } : null;
     }
     /**
      * The refusal of a Value edit by the value this one is part of, or null. Asked of the nearest
@@ -1358,7 +1396,7 @@ export default class MatlabVariableNode extends DataNode {
     // every MatlabVariableNode above it, because the save path reads `_var` from the
     // TOP-LEVEL variable: a struct field's edit has to make the STRUCT's snapshot
     // stale, not just the field's own. See the _var getter for why.
-    _markModified() {
+    _markModified(edit = 'value') {
         let node = this;
         while (node instanceof MatlabVariableNode) {
             node._varStale = true;
@@ -1370,7 +1408,7 @@ export default class MatlabVariableNode extends DataNode {
             }
             node = node.parent;
         }
-        super._markModified();
+        super._markModified(edit);
     }
     // Push an edited element's new value into this container's _elements slot.
     // _elements and the child nodes are two copies of the same data: the children
@@ -1667,9 +1705,11 @@ export default class MatlabVariableNode extends DataNode {
             return false;
         }
         // Nor where what holds the value refuses the one Add would leave: in a Simulink.Parameter's
-        // Value, MATLAB's rules for it (DataNode._structuralRefusal, the ruling A2).
+        // Value, MATLAB's rules for it (DataNode._structuralRefusal, the ruling A2). Nor where the
+        // file it is in would not write the row as it shows: a MAT-file's struct array
+        // (BaseNode.sourceEditRefusal, MatNode._editRefusal).
         if (this._kind === 'scalar' && this._scalarType === 'struct') {
-            return !this._structuralRefusal('add');
+            return !this._structuralRefusal('add') && !sourceEditRefusal(this, 'Add');
         }
         if (this._kind === 'scalar') {
             return false;

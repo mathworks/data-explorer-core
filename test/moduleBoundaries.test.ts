@@ -161,8 +161,8 @@ describe('the seams that are already clean stay clean', () => {
     expect(describeEdges(outboundFrom('datamodel/display'))).toEqual([]);
   });
 
-  it('keeps datamodel/parser/ reaching for nothing but blockIdentity and fileKinds', () => {
-    // TWO allowed modules, and both are the same kind of thing: a table of rules about
+  it('keeps datamodel/parser/ reaching for nothing but blockIdentity, fileKinds and matlabName', () => {
+    // THREE allowed modules, and all are the same kind of thing: a table of rules about
     // names that the parsers share with code outside this folder.
     //
     // `datamodel/blockIdentity.ts` came first — `MdlParser` and `SlxParser` both have
@@ -174,19 +174,23 @@ describe('the seams that are already clean stay clean', () => {
     // `endsWith('.sldd')` that disagreed on case — is that a rule like that lives in one
     // place. Re-spelling `'matlab.toml'` inside the parser folder to keep this test at
     // one allowed module would be the exact defect that module was written to end.
+    // `datamodel/matlabName.ts` was added with the MAT-file writer (MatFileWriter), which
+    // writes variable names into a file: the rule for a name MATLAB can load is the one a
+    // rename and a new entry are held to, and a second spelling of it here could let a
+    // save write a name no edit could have made.
     //
-    // Both widen the seam by nothing measurable: neither imports anything at all, so
+    // All three widen the seam by nothing measurable: none imports anything at all, so
     // each travels alone. And this adds no folder-level edge — `datamodel/parser ->
     // datamodel` already exists, via `blockIdentity`.
-    const allowed = ['datamodel/blockIdentity.ts', 'datamodel/fileKinds.ts'];
+    const allowed = ['datamodel/blockIdentity.ts', 'datamodel/fileKinds.ts', 'datamodel/matlabName.ts'];
     const strays = outboundFrom('datamodel/parser').filter((e) => !allowed.includes(e.to));
     expect(describeEdges(strays)).toEqual([]);
     // Not a count of them — a check that each exemption is still USED, so the test
     // cannot start passing because the seam quietly stopped existing. Per module, not in
-    // total: one of the two going unreached is exactly how an allowance outlives the
+    // total: one of them going unreached is exactly how an allowance outlives the
     // reason for it.
     const reached = new Set(outboundFrom('datamodel/parser').map((e) => e.to));
-    expect([...reached].sort(), 'and both allowed modules are still reached').toEqual(allowed);
+    expect([...reached].sort(), 'and every allowed module is still reached').toEqual(allowed);
   });
 });
 

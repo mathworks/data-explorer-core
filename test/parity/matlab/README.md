@@ -127,6 +127,7 @@ directory, because `Simulink.data.dictionary.open` rejects a relative one with
 | `probe_non_data_params.m` | which FREE-TEXT block parameters never name data, however much their values look like variables? | `tempdir` (one child model, deleted) | — |
 | `probe_writeback.mjs` + `.m` | **the acceptance gate for the TEXT dictionary**: does MATLAB read back the JSON `_value` our writer emits? | `$PROBE_OUT` | — |
 | `probe_writeback_bin.mjs` + `.m` | **the acceptance gate for the BINARY dictionary**: does MATLAB read back the XML chunk our writer emits? (defects 27-30) | `$PROBE_OUT` | — |
+| `probe_mat_writeback.mjs` + `.m` | **the acceptance gate for the `.mat` save**: does MATLAB `load` what `session.serializeSource` writes for a MAT-file, as the edit the session made, with no warning? See [The MAT-file gate](#the-mat-file-gate) | `$PROBE_OUT` | — |
 | `probe_parameter_value.m` | which values does a `Simulink.Parameter` refuse as its `Value`, at the top level and as a field of a struct Value, and with which message? And which structural edits inside it (removing or adding a field or an array element) leave a Value it refuses? (C-160, C-042, A2: core mirrors the answers at edit time) | `$PARAM_VALUE_OUT` or `tempdir/paramvalue` | `parameter_value_truth.json` (written by `27.1.0.3400455 (R2027a) Prerelease`) |
 | `probe_parameter_shape.m` + `parameter_shape.mjs` | what are a `Simulink.Parameter`'s Dimensions and Complexity after each edit of its Value that core makes (an element removed or added, an element set, a Value typed in) on `../../fixtures/mcos/complex_binary.sldd`'s pRow, pCol, pInt16Row, pScalar and pStruct, and what does MATLAB read of core's saves of the same edits? They are the Value's size and complexity, except that a symbolic Dimensions is kept, an empty Value keeps both, and a struct Value keeps its Complexity; MATLAB refuses a numeric Dimensions or a Complexity set by hand. MAKE (`PARAM_SHAPE_MAKE=1`) saves a copy of the fixture with pRow's Dimensions `'[1,N]'` and records how its chunk spells that (`symbolicDimensionsTag`), which `parameter_shape.mjs` puts into its own copy of the fixture (MATLAB's save is not kept: it respells every entry and names the user who saved it); READ opens the `core_*.sldd` in `$PARAM_SHAPE_OUT`. Core's edit for each row is `parameter_shape.steps.json`. Graded by `../../parameterShape.test.ts` (B-25). Ends `PARAMETER_SHAPE OK` | `$PARAM_SHAPE_OUT` or `tempdir/paramshape` | `parameter_shape.truth.json` (here), written by `27.1.0.3409468 (R2027a) Prerelease` |
 | `probe_save_readbacks.m` + `save_readbacks.mjs` | does MATLAB reopen what core SAVES as what it was: a config set regenerated and pasted into text (M1, D15), enumeration values and empty ones (M2), an emptied and a new bus and the two spellings older saves gave one (M3)? The `.mjs` makes the saves through core's API; graded by `../readbacks.truth.test.ts`. M1 needs two corpus files (`DEX_READBACKS_CORPUS`). Ends `SAVE_READBACKS OK` | `$SAVE_READBACKS_OUT` | `save_readbacks.truth.json` (here), written by `27.1.0.3409468 (R2027a) Prerelease` |
@@ -265,6 +266,58 @@ a zip we build is proved readable independently of anything we put inside it.
 Both gates need every node in the subtree marked modified, not just the root:
 `_markModified` walks UP the chain and an unmodified node replays its `_rawInput`, so
 marking a container leaves the writer untested on every field and element beneath it.
+
+### The MAT-file gate
+
+`probe_mat_writeback.mjs` opens MATLAB's own `.mat` files through the session API, as a host
+does, makes each case's edits there (`editProperty`, `deleteNodeById`, `addChildTo`, an added
+variable, `undo`), saves with `session.serializeSource`, and writes into the manifest beside
+each saved file **the same edit as MATLAB statements** on a struct `S` loaded from the original
+(`S.kp = 7;`, `S.mat2x3(1,2) = 99;`, `S = renameStructField(S, 'kp', 'kpRenamed');`,
+`S = rmfield(S, 'infP');`, `S.var = 0;`). After each edit it checks that the node shows what
+the statements make of it, so the two halves describe one edit. `probe_mat_writeback.m` then
+loads the original, makes the edit in MATLAB, loads the save, and compares:
+
+- the same variables in the same order (load's, and `whos -file`'s class and size of each);
+- each variable to the leaf: class, size, sparsity, complexity, `isequaln` on every value,
+  field names in order, every element of a cell or a struct array, every readable property
+  of an object, a function handle's text and an anonymous one's workspace, and handle
+  sharing (one object held twice is still one object);
+- no warning and nothing printed by `load`, except a warning the original gives itself, word
+  for word (`dispcat_opaque.mat` holds an anonymous handle made in a file that no longer
+  exists);
+- a save with no edit is the original, byte for byte, and one of a `-v6` file holds no
+  compressed record (both also asserted by the JS half, with the strict checker);
+- MATLAB's own re-save of what it loaded loads the same, with no warning.
+
+```bash
+npm run build
+env PROBE_OUT=/tmp/matwb node test/parity/matlab/probe_mat_writeback.mjs
+env PROBE_OUT=/tmp/matwb mw -using Bmain matlab -nodesktop \
+    -batch "run('$PWD/test/parity/matlab/probe_mat_writeback.m')"
+```
+
+Its last line is `PROBE_MAT_WRITEBACK DONE pass=N fail=M`, with one
+`RESULT <id> PASS|FAIL <why>` per case before it. `fail=0` is the only acceptable result.
+The fixtures are `cases.mat`, `dispcat.mat`, `dispcat_opaque.mat` (function handles,
+enumerations, `fi`, `categorical`, `table`), `nested_objects.mat`, `strings.mat`,
+`strings_mixed.mat`, `sparse_values.mat`, `sparse_cases.mat`, `complex_inf.mat` (no subsystem),
+`dag4.mat` (a handle DAG), the two `-v6` files `nested_handles.mat` and `hexobj_values.mat`, and
+one file the JS half assembles from `dispcat.mat`'s own elements, an empty complex array and an
+empty struct array with a field held in a struct and a cell beside a value to edit. The MATLAB
+half puts the classes those need on the path (`../../fixtures/display`, `../../fixtures/sparse`,
+`../../fixtures/mcos/shared`, and `DispColor` by `Simulink.defineIntEnumType`).
+
+Twelve cases are **negative controls**: MATLAB's half makes one change more than the save does
+(a value, a class, complexity, a Parameter's `Value` and its `CoderInfo.StorageClass`, a
+string, the variables' order, a struct's field order, handle sharing, an anonymous handle's
+text, an enumeration member, a `categorical`), and each passes only when the comparison
+reports that difference. They are what makes a PASS mean the comparison looked.
+
+`matWriteback.live.test.ts` runs both halves (Tier 2, below). `matWritebackDefects.test.ts`
+holds, without MATLAB, the two defects the first run found: a complex empty written fresh loads
+real, and an empty struct array written fresh loads with no field, which an edit of a field or
+a cell member beside it is enough to cause.
 
 ## The catalog
 
@@ -858,7 +911,8 @@ catches a value written back in its truncated display form.
 
 **Tier 2 — live MATLAB, dev-only, never in CI.** `writeback.live.test.ts` (edit
 -> serialize -> MATLAB reopens -> assert value, `size()` and `class()`, for both
-`.sldd` formats), `drift.mjs`, and the older per-node assertions in
+`.sldd` formats), `matWriteback.live.test.ts` (the same for a `.mat`, through
+[the MAT-file gate](#the-mat-file-gate)), `drift.mjs`, and the older per-node assertions in
 `test/parity/fidelity/*` and `test/fidelitySmoke.test.ts`. A fixture cannot stand
 in for any of them: proving MATLAB reads what *we* wrote requires MATLAB.
 

@@ -199,6 +199,17 @@ export default class MatlabVariableNode extends DataNode {
     /** The refusal of a Value edit at or under a value read from a MAT stream, or null (_streamHolder). */
     _refuseStreamEdit(stringValue: string): SetPropertyResult | null;
     /**
+     * The refusal of `parsed`, typed in as this node's value, by a source that could not write
+     * what it makes of it, or null. A MAT-file's save writes no string, and writes a variable
+     * holding one only as it was read (MatNode._valueRefusal, MatFileWriter.freshRefusal), so a
+     * `"abc"` typed in, or a `{1, "abc"}`, would make a variable no save could write: it is refused
+     * here, before the edit, which a source that writes it (a dictionary) never asks.
+     *
+     * Judged of a node made of the text alone (_applyParsed, as the edit applies it), so that a
+     * refused edit leaves this one, its entry and its file as they were.
+     */
+    _refuseUnwritableValue(parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
+    /**
      * The refusal of a Value edit by the value this one is part of, or null. Asked of the nearest
      * node above this one that is not a struct, so that a field of a struct, at any depth and in
      * any element of a struct array, is answered by what holds the outermost struct: for a
@@ -240,7 +251,7 @@ export default class MatlabVariableNode extends DataNode {
     _shapeAfter(parsed: ParsedValue): ValueShape;
     _isConstrainedChild(): boolean;
     _setConstrainedValue(stringValue: string): true | SetPropertyResult;
-    _markModified(): void;
+    _markModified(edit?: 'value' | 'name'): void;
     _syncElementFromChild(child: BaseNode): void;
     _applyParsed(parsed: {
         type: string;

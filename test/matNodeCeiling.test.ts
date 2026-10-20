@@ -298,11 +298,15 @@ describe('a .mat file past its node ceiling', () => {
     // objects and shared object graphs this file builds no example of.
     const root = fileURLToPath(new URL('.', import.meta.url));
     const files: string[] = [];
+    // test/fixtures/mat-check holds files edited to break MATLAB's load rules (a name stored
+    // twice, a variable after the subsystem), each with MATLAB's verdict on it
+    // (test/matFileCheck.test.ts), and is not what this grades.
     const walk = (dir: string): void => {
       for (const e of readdirSync(dir, { withFileTypes: true })) {
         const abs = join(dir, e.name);
-        if (e.isDirectory()) walk(abs);
-        else if (e.name.endsWith('.mat') && e.name !== 'strings_v73.mat') files.push(abs);
+        if (e.isDirectory()) {
+          if (e.name !== 'mat-check') walk(abs);
+        } else if (e.name.endsWith('.mat') && e.name !== 'strings_v73.mat') files.push(abs);
       }
     };
     walk(join(root, 'fixtures'));

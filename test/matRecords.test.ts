@@ -25,13 +25,17 @@ import { CLASS, MI, charVar, element, matFile, numericVar, u32le } from './tools
 
 const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
 
-// Every `.mat` under test/, recursively, so a fixture added later is swept by default.
+// Every `.mat` under test/, recursively, so a fixture added later is swept by default. But not
+// test/fixtures/mat-check: copies of MATLAB-written files edited to break MATLAB's load rules on
+// purpose, each with MATLAB's verdict (test/matFileCheck.test.ts), many of them not framed.
 function matFilesUnder(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const abs = join(dir, entry.name);
     if (entry.isDirectory()) {
-      out.push(...matFilesUnder(abs));
+      if (entry.name !== 'mat-check') {
+        out.push(...matFilesUnder(abs));
+      }
     } else if (entry.isFile() && entry.name.endsWith('.mat')) {
       out.push(abs);
     }
@@ -491,9 +495,12 @@ describe('an edit and its record', () => {
     expect(struct.status).toBe('Modified');
   });
 
-  it("an object's property edit makes its typed node Modified", () => {
+  it("an object's property edit is refused, and leaves its typed node as it was; one made around the editor makes it Modified", () => {
+    // A MAT-file's save writes an object only as it was read, or renamed (MatNode._editRefusal).
     const { by, edit } = casesMat();
-    expect(edit(by('aParam'), 'Value', '[1 2 3]')).toBe(true);
+    expect(edit(by('aParam'), 'Value', '[1 2 3]')).toMatchObject({ error: true });
+    expect(by('aParam').status).toBe('');
+    by('aParam')._markModified();
     expect(by('aParam').status).toBe('Modified');
   });
 

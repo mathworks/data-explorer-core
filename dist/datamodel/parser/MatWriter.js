@@ -1007,11 +1007,40 @@ function ownElement(raw) {
     return concat([u32le(MI_MATRIX), u32le(body.length), body]);
 }
 /**
+ * The miMATRIX element `raw` holds as read, named `name`: the inverse of ownElement, for a
+ * variable of a MAT-file, which carries its name in its element as a stream's value does not.
+ * Every byte but the name subelement's is copied, and the element's size restated, so a
+ * variable renamed and saved is the value it was, byte for byte, whatever this writer would
+ * write for it. Null when the bytes are not a whole element whose name this can find.
+ *
+ * An MCOS object's element (class 17) is renamed as well: its name comes straight after its
+ * array flags, with no dimensions before it, and then the type system's name and the object's
+ * class, which are kept. Measured against MATLAB R2027a: the file's subsystem holds no
+ * variable's name, so an object variable renamed this way loads as the same object, a
+ * Simulink.Parameter and a string alike.
+ *
+ * The name is written as MATLAB writes one, miINT8 with its UTF-8 bytes, in the small form
+ * when it is 1 to 4 bytes long (element).
+ */
+export function elementNamed(raw, name) {
+    const at = ownElementName(raw, true);
+    if (!at) {
+        return null;
+    }
+    const named = element(MI_INT8, new TextEncoder().encode(name));
+    const body = concat([raw.slice(8, at.nameAt), named, raw.slice(at.nameAt + at.name, at.end)]);
+    return concat([u32le(MI_MATRIX), u32le(body.length), body]);
+}
+/**
  * Where the name subelement of the miMATRIX element `raw` holds is, and where the element
  * ends; null when the bytes are not a whole one ownElement can re-frame. Read, not built, so
  * it can be asked of every member before a write (refuseDimsBelow).
+ *
+ * An MCOS object's element has no stream of its own (matStreamOfElement), so it is found only
+ * when `opaque` is set, for a variable's rename (elementNamed): its name is the subelement
+ * after its flags, where any other class has its dimensions.
  */
-function ownElementName(raw) {
+function ownElementName(raw, opaque = false) {
     if (raw.length < 8) {
         return null;
     }
@@ -1033,12 +1062,13 @@ function ownElementName(raw) {
         return 8 + n + ((8 - (n % 8)) % 8);
     };
     const flags = subLength(8);
-    if (!flags || raw[16] === 17) {
+    const isOpaque = raw[16] === 17;
+    if (!flags || (isOpaque && !opaque)) {
         return null;
     }
-    const dims = subLength(8 + flags);
+    const dims = isOpaque ? 0 : subLength(8 + flags);
     const nameAt = 8 + flags + dims;
-    const name = dims ? subLength(nameAt) : 0;
+    const name = dims || isOpaque ? subLength(nameAt) : 0;
     if (!name || nameAt + name > end) {
         return null;
     }

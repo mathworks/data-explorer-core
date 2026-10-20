@@ -125,6 +125,9 @@ function slotsOpened(d: number[], first: number[], second = secondCellTag()): { 
   const holder = src.children.find((x: any) => x.name === 'holder');
   return { c: holder.children.find((x: any) => x.name === 'C'), warnings: src.warnings ?? [] };
 }
+// In a .mat every row under an object takes no edit, a slot read as well as one that was not: its
+// save writes the object only as it was read (MatNode._editRefusal). What tells the two apart is
+// their values, and the copy of the one not decoded, which is refused (copyRefused).
 const slotRows = (c: any) => c.children.map((e: any) => [e.displayName, e.displayValue, e.valueEditable]);
 // What a host meets copying the slot: the refusal of a value that was not decoded (F1-10), naming it.
 function copyRefused(node: any): unknown[] {
@@ -142,23 +145,24 @@ describe('a cell slot under a decoded object that could not be read', () => {
   // the node layer built as the double 0: holder.C showed `{0, [3+4i 5+6i]}`, editable, said nothing,
   // and a copy of the slot was the 0. At the top of a .mat the same cell says it holds one cell of
   // its two (MatParser.collectUndecoded). Under an object it now says so in those words, and the slot
-  // shows as not decoded (theme 1: show what was read), with no editor and a refused copy.
+  // shows as not decoded (theme 1: show what was read), with no editor and a refused copy. (No row
+  // under the object takes an edit in a .mat, whose save writes the object as it was read.)
   it('one that is not a matrix: shown as not decoded, in its own place, and counted as not read', () => {
     const { c, warnings } = slotsOpened([1, 2], firstCell(2));
     expect(warnings).toEqual([cellsSaid('holder.C', 2, 1)]);
-    expect(slotRows(c)).toEqual([['C{1}', '<unknown, not decoded>', false], ['C{2}', '[3+4i 5+6i]', true]]);
+    expect(slotRows(c)).toEqual([['C{1}', '<unknown, not decoded>', false], ['C{2}', '[3+4i 5+6i]', false]]);
     expect(c.displayValue).toBe('{<unknown, not decoded>, [3+4i 5+6i]}');
     expect(copyRefused(c.children[0])).toEqual(refusedAs('a 1x1 unknown'));
     // The second slot, the first read: nothing slides into the hole.
     const second = slotsOpened([1, 2], firstCell(), secondCellTag(2));
     expect(second.warnings).toEqual([cellsSaid('holder.C', 2, 1)]);
-    expect(slotRows(second.c)).toEqual([['C{1}', '1+2i', true], ['C{2}', '<unknown, not decoded>', false]]);
+    expect(slotRows(second.c)).toEqual([['C{1}', '1+2i', false], ['C{2}', '<unknown, not decoded>', false]]);
   });
 
   it('one of a class the reader does not model: the same, under the class the file names', () => {
     const { c, warnings } = slotsOpened([1, 2], firstCell(14, 99));
     expect(warnings).toEqual([cellsSaid('holder.C', 2, 1)]);
-    expect(slotRows(c)).toEqual([['C{1}', '<1x1 unknown, not decoded>', false], ['C{2}', '[3+4i 5+6i]', true]]);
+    expect(slotRows(c)).toEqual([['C{1}', '<1x1 unknown, not decoded>', false], ['C{2}', '[3+4i 5+6i]', false]]);
     expect(copyRefused(c.children[0])).toEqual(refusedAs('a 1x1 unknown', 'its MAT array class is not one this reader models'));
   });
 
@@ -166,20 +170,20 @@ describe('a cell slot under a decoded object that could not be read', () => {
     const { c, warnings } = slotsOpened([1, 2], firstCell(14, 6, [1, 100_000_000]));
     const why = 'declares 100000000 elements, more than the 32 bytes left in it can hold';
     expect(warnings).toEqual([{ code: 'part-unreadable', message: `"holder.C{1}" was not decoded: ${why}.`, part: 'holder.C{1}' }]);
-    expect(slotRows(c)).toEqual([['C{1}', '<1x100000000 double, not decoded>', false], ['C{2}', '[3+4i 5+6i]', true]]);
+    expect(slotRows(c)).toEqual([['C{1}', '<1x100000000 double, not decoded>', false], ['C{2}', '[3+4i 5+6i]', false]]);
     expect(copyRefused(c.children[0])).toEqual(refusedAs('a 1x100000000 double', why));
   });
 
   it('in a cell that also holds fewer cells than it declares: one warning, counting both', () => {
     const { c, warnings } = slotsOpened([1, 3], firstCell(2));
     expect(warnings).toEqual([cellsSaid('holder.C', 3, 1)]);
-    expect(slotRows(c)).toEqual([['C{1}', '<unknown, not decoded>', false], ['C{2}', '[3+4i 5+6i]', true]]);
+    expect(slotRows(c)).toEqual([['C{1}', '<unknown, not decoded>', false], ['C{2}', '[3+4i 5+6i]', false]]);
   });
 
   it('control: the respelling is the identity on the pristine bytes, and the slots read', () => {
     const { c, warnings } = slotsOpened([1, 2], firstCell());
     expect(warnings).toEqual([]);
-    expect(slotRows(c)).toEqual([['C{1}', '1+2i', true], ['C{2}', '[3+4i 5+6i]', true]]);
+    expect(slotRows(c)).toEqual([['C{1}', '1+2i', false], ['C{2}', '[3+4i 5+6i]', false]]);
   });
 });
 
