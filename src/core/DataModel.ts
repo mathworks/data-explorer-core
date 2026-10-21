@@ -390,11 +390,15 @@ function deindexSource(source: ISourceNode): void {
  * And the nodes outside `root` its source keeps in step with what is in it are brought back in
  * step after `mutate` (BaseNode.sourceMirrorTwins), with the index kept for them as for `root`:
  * in a MAT-file, two variables holding one handle are one object, and an edit of one is shown by
- * both (MatNode._mirrorTwins), whichever path made it. Which nodes those were is
- * mutateWithTwins's answer, for the session's own forms to announce.
+ * both (MatNode._mirrorTwins), whichever path made it. Those nodes ARE announced, each as
+ * 'node/children-changed' with the index already current, as the session's own forms announce
+ * them: they are the ones the host did not change and cannot know of, and a host that repaints
+ * only what it changed would go on showing the twin as it was.
  */
 function mutateSubtree<T>(root: INode, mutate: () => T): T {
-  return mutateWithTwins(root, mutate).result;
+  const { result, mirrored } = mutateWithTwins(root, mutate);
+  publishMirrored(mirrored);
+  return result;
 }
 
 /**
@@ -1753,7 +1757,9 @@ function propertyRestorer(node: INode, propertyName: string): (() => void) | nul
 // session has open (a host that detached it itself, leaving it selected), `edit` runs as it is and
 // the caller's publish rebuilds the index whole, as every edit's did before (F1-23: 68 ms an edit
 // for the 150,004 nodes of a 140,000-entry dictionary). mutateSubtree would index a detached
-// entry's nodes, which findNodeById must never hand out.
+// entry's nodes, which findNodeById must never hand out. The nodes its source keeps in step with
+// the entry are kept so all the same (BaseNode.sourceMirrorTwins), with no index to keep for them
+// either: the twins of a MAT-file the session never opened are as much one object.
 function editInEntry<T>(node: INode, edit: () => T): { result: T; indexed: boolean; mirrored: INode[] } {
   let entry: INode | null = node;
   while (entry && !entry.isEntry) {
@@ -1766,8 +1772,19 @@ function editInEntry<T>(node: INode, edit: () => T): { result: T; indexed: boole
       open = true;
     }
   });
-  if (!entry || !open) {
+  if (!entry) {
     return { result: edit(), indexed: false, mirrored: [] };
+  }
+  if (!open) {
+    const mirrored: INode[] = [];
+    const result = ((): T => {
+      try {
+        return edit();
+      } finally {
+        mirrored.push(...(sourceMirrorTwins(entry as unknown as BaseNode) as unknown as INode[]));
+      }
+    })();
+    return { result, indexed: false, mirrored };
   }
   return { ...mutateWithTwins(entry, edit), indexed: true };
 }

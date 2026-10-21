@@ -19,7 +19,8 @@ import { fileURLToPath } from 'node:url';
 import { createSession } from '../src/index.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { MatWriteError } from '../src/datamodel/parser/MatWriter.js';
-import { subsystemElementOf } from '../src/datamodel/parser/MatFileWriter.js';
+import { serializeMatFile, subsystemElementOf } from '../src/datamodel/parser/MatFileWriter.js';
+import MatNode from '../src/datamodel/node/container/MatNode.js';
 import { mcosPlaceOf } from '../src/datamodel/node/mcosPlace.js';
 import { sourceEditRefusal } from '../src/datamodel/node/BaseNode.js';
 
@@ -343,14 +344,30 @@ describe('two nodes of one object show one object', () => {
     expect([root._valueVerdicts.has(objs), root._valueVerdicts.has(objsCell)]).toEqual([false, false]);
   });
 
-  it('a host that edits nodes itself, inside mutateSubtree, has the other shown too', () => {
+  it('a host that edits nodes itself, inside mutateSubtree, has the other shown too, and is told of it', () => {
     const { session, object, save } = opened(read(join(CELLSWAP, 'pv_shared.mat')));
     const h = object('h');
+    const told: any[] = [];
+    session.bus.subscribe('node/children-changed', (p: any) => { told.push(p.parent); });
     expect(session.mutateSubtree(h, () => h.setProperty('Value', '[5 6]'))).toBe(true);
     expect(object('r').displayValue).toBe('[5 6]');
+    // The node the host did not change is the one it is told of; the one it changed, it knows.
+    expect(told).toEqual([object('r')]);
     const element = object('r')._valueNode.children[0];
     expect(session.findNodeById(element.id)).toBe(element);
     expect(opened(save()).object('r').displayValue).toBe('[5 6]');
+  });
+
+  it('a file the session never opened, its node edited through the session: the other is shown the edit too', () => {
+    const original = read(join(CELLSWAP, 'pv_shared.mat'));
+    const root: any = MatNode.fromParsed(parseMat(bufferOf(original)), 'f.mat');
+    const session = createSession();
+    const [h, r] = ['h', 'r'].map((name) => root.children.find((c: any) => c.name === name));
+    session.setActive(root, h);
+    expect(session.editProperty(h.id, 'Value', '7')).toBe(true);
+    expect([h.displayValue, r.displayValue, r.status]).toEqual(['7', '7', 'Modified']);
+    expect(shownOf(r)).toEqual(shownOf(h));
+    expect(sameBytes(subsystemOf(serializeMatFile(root)), subsystemOf(read(join(CELLSWAP, 'mut_shared_handle.mat'))))).toBe(true);
   });
 
   it('a twin in a variable one of two of its name takes no edit, and neither does the node it is one object with', () => {
