@@ -28,12 +28,19 @@ export declare function objectNodesUnder(node: BaseNode): BaseNode[];
  * of a row that is not a struct's field (the table offers an editor for none of these). The name of
  * the object's row, which is not the entry's, is where it stands in a struct or a cell, which a save
  * writes as it was read.
+ *
+ * `describe` false is for an editor drawn, which asks only whether there is one: the clause, which
+ * names the node and the object, each a walk to the root and a label a step, is then not made, and
+ * `why` is REFUSED. Made for every refused cell of a file of nested shared handles, it tripled the
+ * time the file took to show.
  */
-export declare function propertyAt(object: BaseNode, node: BaseNode, key: string): {
+export declare function propertyAt(object: BaseNode, node: BaseNode, key: string, describe?: boolean): {
     property: string;
 } | {
     why: string;
 };
+/** The `why` of a refusal not described (propertyAt's `describe` false): there is one, and no more. */
+export declare const REFUSED = "refused";
 /**
  * What the object at `node` holds in `subsystem`, read, and the node's fingerprint as it stands;
  * or why no edit of it can be written, as a clause naming it. For MatNode, which keeps one per

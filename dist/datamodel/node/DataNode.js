@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import BaseNode, { encodedHolderOf, propNamed, sourceEditRefusal, sourceValueRefusal } from './BaseNode.js';
+import BaseNode, { encodedHolderOf, propNamed, sourceEditRefusal, sourceEditRefused, sourceValueRefusal } from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
@@ -1175,7 +1175,7 @@ export default class DataNode extends BaseNode {
      * the reason _refuseEncodedEdit gives: a child added or removed there could not reach the file.
      */
     get _encodedReadOnly() {
-        return !!encodedHolderOf(this) || !!sourceEditRefusal(this, 'Value');
+        return !!encodedHolderOf(this) || sourceEditRefused(this, 'Value');
     }
     /**
      * The refusal of an edit of `propName` at or under a value still in the encoded stream it was

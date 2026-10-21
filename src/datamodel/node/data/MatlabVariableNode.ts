@@ -5,7 +5,7 @@ import type { SetPropertyResult, ValueShape } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
 import type { PropClass, MatlabVariableKind } from '../BaseNode.js';
 import type BaseNode from '../BaseNode.js';
-import { encodedHolderOf, inMcosStream, sourceEditRefusal, streamValueRefusal } from '../BaseNode.js';
+import { encodedHolderOf, inMcosStream, sourceEditRefusal, sourceEditRefused, streamValueRefusal } from '../BaseNode.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import type { ChildAddEdit, ChildUndoRedo } from '../childEdit.js';
 import * as NodeRegistry from '../NodeRegistry.js';
@@ -630,7 +630,7 @@ export default class MatlabVariableNode extends DataNode {
     }
     // Nor a name its source would not write: a MAT-file's variable stored after its subsystem
     // (BaseNode.sourceEditRefusal).
-    return !sourceEditRefusal(this, 'Name');
+    return !sourceEditRefused(this, 'Name');
   }
 
   get valueEditable(): boolean {
@@ -1990,7 +1990,7 @@ export default class MatlabVariableNode extends DataNode {
     // file it is in would not write the row as it shows: a MAT-file's struct array
     // (BaseNode.sourceEditRefusal, MatNode._editRefusal).
     if (this._kind === 'scalar' && this._scalarType === 'struct') {
-      return !this._structuralRefusal('add') && !sourceEditRefusal(this, 'Add');
+      return !this._structuralRefusal('add') && !sourceEditRefused(this, 'Add');
     }
     if (this._kind === 'scalar') {
       return false;

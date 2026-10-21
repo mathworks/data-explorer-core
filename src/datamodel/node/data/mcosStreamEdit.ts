@@ -155,7 +155,9 @@ class McosStream implements McosStreamGate {
     }
     const object = objectNodeAt(entry, node);
     const cls = object ? classOf(object) : '';
-    const at = object && hasEditRules(cls) ? propertyAt(object, node, key) : null;
+    // A part of the object refused is refused in the encoded value's words, so propertyAt's own
+    // clause, a walk to the root for the node and one for its object, is not asked for.
+    const at = object && hasEditRules(cls) ? propertyAt(object, node, key, false) : null;
     if (!object || !at || 'why' in at || savedNameOf(cls, at.property) === null) {
       return this._encodedWhy();
     }

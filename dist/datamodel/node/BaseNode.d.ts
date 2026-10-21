@@ -150,10 +150,19 @@ export declare function encodedHolderOf(node: BaseNode | null | undefined): Base
  * A dictionary value that is a MAT stream holding MCOS objects answers first, for every node in
  * it (mcosStream): its save writes an allow-listed property of one of its objects into the
  * stream's subsystem, and nothing else.
+ *
+ * `describe` false asks only whether the edit is refused (sourceEditRefused): a source may then
+ * answer a refusal it has not put in words.
  */
-export declare function sourceEditRefusal(node: BaseNode, key: string): string | null;
+export declare function sourceEditRefusal(node: BaseNode, key: string, describe?: boolean): string | null;
+/**
+ * Whether the source `node` is in refuses an edit of `key` at `node` (sourceEditRefusal), for an
+ * editor drawn or not, which needs no reason: every editability getter asks it of every cell a
+ * host shows, and a reason can name the node and more, each a walk to the root.
+ */
+export declare function sourceEditRefused(node: BaseNode, key: string): boolean;
 /** A source's answer to sourceEditRefusal, for `node`, which is `entry` or a node under it. */
-export type SourceEditRefusal = (entry: BaseNode, node: BaseNode, key: string) => string | null;
+export type SourceEditRefusal = (entry: BaseNode, node: BaseNode, key: string, describe?: boolean) => string | null;
 /**
  * Why the source `node` is in refuses `value` as what an edit of `key` at `node` makes it hold, in
  * words, or null where it writes it, or judges no value. The second half of sourceEditRefusal,
