@@ -5,6 +5,7 @@ import type DataNode from './DataNode.js';
 import type { MatVariable } from '../parser/MatParser.js';
 import type { McosDecoded } from './data/mcosTypedNode.js';
 import type { ParseWarning } from '../parser/ParseWarning.js';
+import type { McosStreamRead } from './data/mcosStreamEdit.js';
 
 export interface NodeClassMapAPI {
     parseValue(rawVal: unknown, name: string, parent: BaseNode | null): DataNode;
@@ -34,6 +35,11 @@ export interface NodeClassMapAPI {
         warnings?: ParseWarning[],
         rootPath?: string,
     ): void;
+    // Make the node a dictionary value's MAT stream holding MCOS objects decoded into the gate of
+    // every edit inside it and the writer of the stream (mcosStreamEdit.adoptMcosStream), for
+    // MatlabVariableNode.parseEncoded and _parseCdataObjects. Through the registry for the cycle
+    // modelMcosVariable records: the module reaches MatlabVariableNode through mcosObjectEdit.
+    adoptMcosStream(holder: DataNode, read: McosStreamRead): void;
 }
 
 // Anything that can turn a parsed value into a node. This is all the structural
@@ -99,4 +105,8 @@ export function attachMcosDecoded(
     classMap!.attachMcosDecoded(blobBytes, variables, warnings, rootPath);
 }
 
-export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded };
+export function adoptMcosStream(holder: DataNode, read: McosStreamRead): void {
+    classMap!.adoptMcosStream(holder, read);
+}
+
+export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded, adoptMcosStream };

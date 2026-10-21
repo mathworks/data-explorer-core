@@ -271,7 +271,11 @@ of any class (a `ParameterNode` for a `Simulink.Parameter`), and it:
   which a rename is not;
 - is read-only at and under it (`_refuseEncodedEdit`, `_encodedReadOnly`), since
   nothing here writes a new stream for everything one can hold (an MCOS object's
-  subsystem, a function handle);
+  subsystem, a function handle) — but for an allow-listed property of a
+  `Simulink.Parameter` or a `Simulink.Signal` in an entry's whole value, which the save
+  writes into the stream's subsystem cell that holds it (`data/mcosStreamEdit.ts`: the
+  stream is the gate of every edit inside it, through `node/mcosStream.ts`, and the writer
+  of the stream, its value element as read, `EncodedLength` the new byte count);
 - goes into a text dictionary as the equivalent cdata (`MatWriter.textDictionaryForm`);
 - shows `<CLASS, not decoded>` when the stream does not read, and a part-unreadable
   warning says why, never a number;
@@ -285,9 +289,11 @@ function handle goes into a binary dictionary as the hex MATLAB writes for it
 
 A text-dictionary stream that holds an MCOS object anywhere (a hex entry pasted from a
 binary dictionary is written that way) is decoded with its own subsystem too
-(`_parseCdataObjects`), into the node its hex twin is, and is read-only in the same way. A
-save writes the cdata it was read from, character for character, and a binary dictionary
-it is pasted into writes the hex. Pinned in `test/cdataObjectReopen.test.ts`.
+(`_parseCdataObjects`), into the node its hex twin is, and is read-only in the same way,
+its objects' allow-listed properties included. A save writes the cdata it was read from,
+character for character, or after such an edit the six-bit text of the stream rewritten,
+and a binary dictionary it is pasted into writes the hex. Pinned in
+`test/cdataObjectReopen.test.ts` and `test/slddStreamObjects.test.ts`.
 
 ### A sparse array is held as its non-zeros
 A sparse array is never held as a dense list: what it costs is what it holds, at any

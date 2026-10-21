@@ -318,6 +318,13 @@
       ],
       "entries": 40,
       "notSelfEqual": []
+    },
+    {
+      "file": "orig_sldd_stream_objects_stream_objects_binary.sldd",
+      "opened": true,
+      "warnings": [],
+      "entries": 11,
+      "notSelfEqual": []
     }
   ],
   "cases": [
@@ -7252,6 +7259,190 @@
       }
     },
     {
+      "fixture": "fixtures/sldd-stream-objects/stream_objects_binary.sldd",
+      "variant": "",
+      "original": "orig_sldd_stream_objects_stream_objects_binary.sldd",
+      "file": "m9_sldd_stream_objects_stream_objects_binary_1.sldd",
+      "section": "design",
+      "entry": "arr",
+      "kind": "struct",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "arrM9",
+      "refused": "",
+      "save": {
+        "chunk": "2667f54d93d72e1bdb0b589ef5f30477a5b6bf5bb75f1c31dbd70b7fa8d927a4",
+        "parts": "b6f17d56558499c11c03c740c714218e63ef961634844ddf50653bdce77055ee"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "struct",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/sldd-stream-objects/stream_objects_binary.sldd",
+      "variant": "",
+      "original": "orig_sldd_stream_objects_stream_objects_binary.sldd",
+      "file": "m9_sldd_stream_objects_stream_objects_binary_2.sldd",
+      "section": "design",
+      "entry": "cPh",
+      "kind": "cell",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "cPhM9",
+      "refused": "",
+      "save": {
+        "chunk": "e3ba6910911b9e34147eafcde86001ba54dc4ed42d77db8034013aad33514f7c",
+        "parts": "b6f17d56558499c11c03c740c714218e63ef961634844ddf50653bdce77055ee"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "cell",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/sldd-stream-objects/stream_objects_binary.sldd",
+      "variant": "",
+      "original": "orig_sldd_stream_objects_stream_objects_binary.sldd",
+      "file": "m9_sldd_stream_objects_stream_objects_binary_3.sldd",
+      "section": "design",
+      "entry": "pSp",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "rename",
+      "prop": "Name",
+      "value": "pSpM9",
+      "refused": "",
+      "save": {
+        "chunk": "c5e752535013ff5e5e1231ebd43b3cee99591791dc559c46c246f889cb3e531e",
+        "parts": "b6f17d56558499c11c03c740c714218e63ef961634844ddf50653bdce77055ee"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
+      "fixture": "fixtures/sldd-stream-objects/stream_objects_binary.sldd",
+      "variant": "",
+      "original": "orig_sldd_stream_objects_stream_objects_binary.sldd",
+      "file": "m9_sldd_stream_objects_stream_objects_binary_4.sldd",
+      "section": "design",
+      "entry": "pSp",
+      "kind": "Simulink.Parameter",
+      "path": "",
+      "edit": "description",
+      "prop": "Description",
+      "value": "M9: a Description set by core",
+      "refused": "",
+      "save": {
+        "chunk": "aaf03f13135e9c97f808477e54fa0bcc0734593fea0dc2d2d0ebf5b73f733126",
+        "parts": "b6f17d56558499c11c03c740c714218e63ef961634844ddf50653bdce77055ee"
+      },
+      "merged": false,
+      "untouched": [
+        10,
+        10
+      ],
+      "otherPartsKept": true,
+      "matlab": {
+        "opened": true,
+        "warnings": [],
+        "asExpected": true,
+        "asOriginal": true,
+        "edited": {
+          "class": "Simulink.Parameter",
+          "same": true,
+          "sameAsMatlabEdit": true,
+          "absentOld": true,
+          "bySignature": false,
+          "why": "",
+          "whyMatlab": ""
+        },
+        "unedited": {
+          "checked": 10,
+          "same": 10,
+          "bySignature": 0,
+          "differ": []
+        },
+        "error": ""
+      }
+    },
+    {
       "fixture": "fixtures/sparse/hexobj_binary.sldd",
       "variant": "",
       "original": "orig_sparse_hexobj_binary.sldd",
@@ -7539,7 +7730,7 @@
       "edit": "description",
       "prop": "Description",
       "value": "M9: a Description set by core",
-      "refused": "'pTall' is stored as an encoded MATLAB value that this editor can show but not write, so it is read-only.",
+      "refused": "Cannot edit \"pTall\": pTall.Description is at its class default: the file holds no value for it, and a save can replace only a value the file holds.",
       "matlab": {
         "asked": false
       }

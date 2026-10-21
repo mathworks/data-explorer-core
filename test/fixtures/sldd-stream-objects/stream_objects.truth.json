@@ -1,0 +1,480 @@
+{
+  "version": "27.1.0.3409468 (R2027a) Prerelease",
+  "release": "2027a",
+  "binary": {
+    "file": "stream_objects_binary.sldd",
+    "fileFormat": "compressed-binary",
+    "refused": [],
+    "valueTags": [
+      {
+        "name": "arr",
+        "tag": "<P Name=\"Value\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"4312\">",
+        "isHex": true
+      },
+      {
+        "name": "cPh",
+        "tag": "<P Name=\"Value\" Class=\"cell\" Encoding=\"hex\" EncodedLength=\"3512\">",
+        "isHex": true
+      },
+      {
+        "name": "nested",
+        "tag": "<P Name=\"Value\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"3672\">",
+        "isHex": true
+      },
+      {
+        "name": "pSp",
+        "tag": "<P Name=\"Value\" Class=\"Simulink.Parameter\" Encoding=\"hex\" EncodedLength=\"3536\">",
+        "isHex": true
+      },
+      {
+        "name": "pStruct",
+        "tag": "<P Name=\"Value\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"3672\">",
+        "isHex": true
+      },
+      {
+        "name": "plainP",
+        "tag": "<P Name=\"Value\">",
+        "isHex": false
+      },
+      {
+        "name": "plainS",
+        "tag": "<P Name=\"Value\" Class=\"struct\">",
+        "isHex": false
+      },
+      {
+        "name": "sPh",
+        "tag": "<P Name=\"Value\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"3816\">",
+        "isHex": true
+      },
+      {
+        "name": "sTh",
+        "tag": "<P Name=\"Value\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"3600\">",
+        "isHex": true
+      },
+      {
+        "name": "shared",
+        "tag": "<P Name=\"Value\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"3688\">",
+        "isHex": true
+      },
+      {
+        "name": "sigH",
+        "tag": "<P Name=\"Value\" Class=\"struct\" Encoding=\"hex\" EncodedLength=\"4960\">",
+        "isHex": true
+      }
+    ],
+    "entries": [
+      "arr",
+      "cPh",
+      "nested",
+      "pSp",
+      "pStruct",
+      "plainP",
+      "plainS",
+      "sPh",
+      "sTh",
+      "shared",
+      "sigH"
+    ],
+    "readBack": {
+      "arr": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "fields": {
+          "ps": {
+            "class": "Simulink.Parameter",
+            "size": [
+              1,
+              2
+            ],
+            "objects": [
+              {
+                "Description": "one",
+                "DocUnits": "",
+                "Min": [],
+                "Max": [],
+                "DataType": "auto",
+                "ValueClass": "double",
+                "ValueIssparse": false
+              },
+              {
+                "Description": "two",
+                "DocUnits": "",
+                "Min": [],
+                "Max": [],
+                "DataType": "auto",
+                "ValueClass": "double",
+                "ValueIssparse": false
+              }
+            ]
+          },
+          "sp": {
+            "class": "double",
+            "size": [
+              1,
+              2
+            ],
+            "issparse": true
+          }
+        }
+      },
+      "cPh": {
+        "class": "cell",
+        "size": [
+          1,
+          2
+        ],
+        "elements": [
+          {
+            "class": "Simulink.Parameter",
+            "size": [
+              1,
+              1
+            ],
+            "objects": {
+              "Description": "c",
+              "DocUnits": "",
+              "Min": [],
+              "Max": [],
+              "DataType": "auto",
+              "ValueClass": "double",
+              "ValueIssparse": false
+            }
+          },
+          {
+            "class": "double",
+            "size": [
+              1,
+              3
+            ],
+            "issparse": true
+          }
+        ]
+      },
+      "nested": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "fields": {
+          "inner": {
+            "class": "struct",
+            "size": [
+              1,
+              1
+            ],
+            "fields": {
+              "p": {
+                "class": "Simulink.Parameter",
+                "size": [
+                  1,
+                  1
+                ],
+                "objects": {
+                  "Description": "n",
+                  "DocUnits": "",
+                  "Min": [],
+                  "Max": [],
+                  "DataType": "int16",
+                  "ValueClass": "int16",
+                  "ValueIssparse": false
+                }
+              }
+            }
+          },
+          "sp": {
+            "class": "double",
+            "size": [
+              1,
+              2
+            ],
+            "issparse": true
+          }
+        }
+      },
+      "pSp": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ],
+        "objects": {
+          "Description": "d",
+          "DocUnits": "",
+          "Min": -1,
+          "Max": 10,
+          "DataType": "auto",
+          "ValueClass": "double",
+          "ValueIssparse": true
+        }
+      },
+      "pStruct": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "fields": {
+          "p": {
+            "class": "Simulink.Parameter",
+            "size": [
+              1,
+              1
+            ],
+            "objects": {
+              "Description": "",
+              "DocUnits": "",
+              "Min": [],
+              "Max": [],
+              "DataType": "struct",
+              "ValueClass": "struct",
+              "ValueIssparse": false
+            }
+          },
+          "sp": {
+            "class": "double",
+            "size": [
+              1,
+              2
+            ],
+            "issparse": true
+          }
+        }
+      },
+      "plainP": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ],
+        "objects": {
+          "Description": "plain",
+          "DocUnits": "",
+          "Min": [],
+          "Max": [],
+          "DataType": "auto",
+          "ValueClass": "double",
+          "ValueIssparse": false
+        }
+      },
+      "plainS": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "fields": {
+          "x": {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "issparse": false
+          }
+        }
+      },
+      "sPh": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "fields": {
+          "p": {
+            "class": "Simulink.Parameter",
+            "size": [
+              1,
+              1
+            ],
+            "objects": {
+              "Description": "d",
+              "DocUnits": "m",
+              "Min": 0,
+              "Max": 10,
+              "DataType": "auto",
+              "ValueClass": "double",
+              "ValueIssparse": false
+            }
+          },
+          "q": {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "issparse": false
+          },
+          "sp": {
+            "class": "double",
+            "size": [
+              1,
+              2
+            ],
+            "issparse": true
+          }
+        }
+      },
+      "sTh": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "fields": {
+          "t": {
+            "class": "Simulink.Parameter",
+            "size": [
+              1,
+              1
+            ],
+            "objects": {
+              "Description": "",
+              "DocUnits": "",
+              "Min": [],
+              "Max": 100,
+              "DataType": "single",
+              "ValueClass": "single",
+              "ValueIssparse": false
+            }
+          },
+          "sp": {
+            "class": "double",
+            "size": [
+              1,
+              2
+            ],
+            "issparse": true
+          }
+        }
+      },
+      "shared": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "fields": {
+          "a": {
+            "class": "Simulink.Parameter",
+            "size": [
+              1,
+              1
+            ],
+            "objects": {
+              "Description": "shared",
+              "DocUnits": "",
+              "Min": [],
+              "Max": [],
+              "DataType": "auto",
+              "ValueClass": "double",
+              "ValueIssparse": false
+            }
+          },
+          "b": {
+            "class": "Simulink.Parameter",
+            "size": [
+              1,
+              1
+            ],
+            "objects": {
+              "Description": "shared",
+              "DocUnits": "",
+              "Min": [],
+              "Max": [],
+              "DataType": "auto",
+              "ValueClass": "double",
+              "ValueIssparse": false
+            }
+          },
+          "sp": {
+            "class": "double",
+            "size": [
+              1,
+              2
+            ],
+            "issparse": true
+          }
+        }
+      },
+      "sigH": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "fields": {
+          "sig": {
+            "class": "Simulink.Signal",
+            "size": [
+              1,
+              1
+            ],
+            "objects": {
+              "Description": "s",
+              "DocUnits": "V",
+              "Min": -5,
+              "Max": 5,
+              "DataType": "double"
+            }
+          },
+          "sp": {
+            "class": "double",
+            "size": [
+              1,
+              2
+            ],
+            "issparse": true
+          }
+        }
+      }
+    }
+  },
+  "text": {
+    "file": "stream_objects_text.sldd",
+    "fileFormat": "uncompressed-text",
+    "refused": [],
+    "entries": [
+      "plainP",
+      "plainS"
+    ],
+    "readBack": {
+      "plainP": {
+        "class": "Simulink.Parameter",
+        "size": [
+          1,
+          1
+        ],
+        "objects": {
+          "Description": "plain",
+          "DocUnits": "",
+          "Min": [],
+          "Max": [],
+          "DataType": "auto",
+          "ValueClass": "double",
+          "ValueIssparse": false
+        }
+      },
+      "plainS": {
+        "class": "struct",
+        "size": [
+          1,
+          1
+        ],
+        "fields": {
+          "x": {
+            "class": "double",
+            "size": [
+              1,
+              1
+            ],
+            "issparse": false
+          }
+        }
+      }
+    }
+  }
+}

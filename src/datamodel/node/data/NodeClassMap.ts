@@ -9,6 +9,7 @@ import { objectValueClassOf } from '../DataNode.js';
 import type { MatVariable } from '../../parser/MatParser.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable, type McosDecoded } from './mcosTypedNode.js';
+import { adoptMcosStream } from './mcosStreamEdit.js';
 import { isEncodedValue } from '../../parser/EncodedValue.js';
 import { isEnumBag } from '../../parser/XmlUtils.js';
 import ConstantNode from './ConstantNode.js';
@@ -217,7 +218,7 @@ export function modelMcosVariable(
 // Installing into NodeRegistry is what makes this module's side-effect import
 // (from the barrel and from src/node) load-bearing: every node class reaches the
 // class map through the registry, so nothing else needs to import this file.
-const api = { getClass, parseValue, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded };
+const api = { getClass, parseValue, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded, adoptMcosStream };
 NodeRegistry.init(api);
 
 export default api;

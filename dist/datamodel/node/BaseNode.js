@@ -4,6 +4,7 @@ import { typeLinkCell } from './typeLinkCell.js';
 import { buildOtherRows } from './piOther.js';
 import { subscriptLabel, subscriptsLabel } from '../display/Subscript.js';
 import { classColumnText } from '../display/DisplayConvention.js';
+import { mcosStreamGateAbove, mcosStreamGateOf } from './mcosStream.js';
 // Columns the webview renders through a dedicated, format-specific branch (they
 // consume a plain string cell and manage their own editability). Generic
 // editable columns (the schema Code Generation columns) are NOT in this set, so
@@ -19,9 +20,18 @@ const DEDICATED_COLUMNS = new Set(['Name', 'Value', 'DataType', 'Class', 'Kind',
  * because the editability getters below are BaseNode's, and duck-typed for the same
  * reason owningEntryOf is: a source root and a section are ContainerNodes and carry no
  * `_encoded`, so the walk stops at the first container and answers null for them.
+ *
+ * Null too inside a stream that holds MCOS objects (mcosStream), edited or not: what may be
+ * edited there is the stream's own answer, which every getter and setter asking this asks next
+ * (sourceEditRefusal), and which refuses everything but an allow-listed property of one of its
+ * objects with the words this gives. The stream is the gate for as long as its node is, so an
+ * edit, which drops `_encoded` (DataNode._markModified), leaves the rest of it read-only.
  */
 export function encodedHolderOf(node) {
     for (let n = node; n && !n.isContainer; n = n.parent) {
+        if (mcosStreamGateOf(n)) {
+            return null;
+        }
         if (n._encoded) {
             return n;
         }
@@ -40,16 +50,22 @@ export function encodedHolderOf(node) {
  * (DataNode._refuseEncodedEdit, the rename) and by the session's editProperty, so that what the
  * table offers and what an edit is taken for are one answer. Duck-typed, as encodedHolderOf is:
  * this class imports no container.
+ *
+ * A dictionary value that is a MAT stream holding MCOS objects answers first, for every node in
+ * it (mcosStream): its save writes an allow-listed property of one of its objects into the
+ * stream's subsystem, and nothing else.
  */
 export function sourceEditRefusal(node, key) {
-    let entry = null;
-    let n = node;
-    while (n && !n.isContainer) {
-        entry = n;
-        n = n.parent;
+    const { entry, source } = sourceOf(node);
+    if (!entry) {
+        return null;
     }
-    const refuse = n?._editRefusal;
-    return entry && typeof refuse === 'function' ? refuse.call(n, entry, node, key) : null;
+    const stream = mcosStreamGateAbove(node)?._editRefusal(entry, node, key);
+    if (stream) {
+        return stream;
+    }
+    const refuse = source?._editRefusal;
+    return typeof refuse === 'function' ? refuse.call(source, entry, node, key) : null;
 }
 /**
  * Why the source `node` is in refuses `value` as what an edit of `key` at `node` makes it hold, in
@@ -61,26 +77,57 @@ export function sourceEditRefusal(node, key) {
  */
 export function sourceValueRefusal(node, key, value) {
     const { entry, source } = sourceOf(node);
+    if (!entry) {
+        return null;
+    }
+    // A stream's first, as sourceEditRefusal asks it.
+    const stream = mcosStreamGateAbove(node)?._editValueRefusal(entry, node, key, value);
+    if (stream) {
+        return stream;
+    }
     const refuse = source?._editValueRefusal;
-    return entry && typeof refuse === 'function' ? refuse.call(source, entry, node, key, value) : null;
+    return typeof refuse === 'function' ? refuse.call(source, entry, node, key, value) : null;
 }
 /** Whether the source `node` is in judges an edit's value at all (sourceValueRefusal), for a setter that must build it to ask. */
 export function sourceJudgesValues(node) {
     const { entry, source } = sourceOf(node);
-    return !!entry && typeof source?._editValueRefusal === 'function';
+    return (!!entry &&
+        (!!mcosStreamGateAbove(node) || typeof source?._editValueRefusal === 'function'));
+}
+/**
+ * Why a stream `node` is in (mcosStream) refuses `value`, a node built of the text an edit typed
+ * in for `node`, or null where it takes it, or `node` is in none: the stream's half of a source's
+ * answer to a value typed in (MatNode._valueRefusal), asked of it first by the setter that asks
+ * the source's (MatlabVariableNode._refuseUnwritableValue).
+ */
+export function streamValueRefusal(node, value) {
+    const { entry } = sourceOf(node);
+    const gate = entry ? mcosStreamGateAbove(node) : null;
+    return gate ? gate._valueRefusal(entry, node, value) : null;
+}
+/** Whether `node` is in a stream that judges a value typed in for it (streamValueRefusal). */
+export function inMcosStream(node) {
+    return !!mcosStreamGateAbove(node);
 }
 /**
  * What the source `node` is in says the property `key` of `node` is, as its file will hold it once
  * saved, where that follows from the node's other properties rather than from an edit of its own;
- * undefined where it says nothing, which every source but a MAT-file does. Asked by a setter after
- * an edit it follows: a Simulink.Parameter's DataType, which a MAT-file's save writes as MATLAB's
- * own `p.Value = v` re-derives it (MatNode._followedProperty), so that the node shows what MATLAB
- * will load.
+ * undefined where it says nothing, which every source but a MAT-file, and a dictionary value's MAT
+ * stream holding objects (mcosStream, asked first), does. Asked by a setter after an edit it
+ * follows: a Simulink.Parameter's DataType, which their save writes as MATLAB's own `p.Value = v`
+ * re-derives it (MatNode._followedProperty), so that the node shows what MATLAB will load.
  */
 export function sourceFollowedProperty(node, key) {
     const { entry, source } = sourceOf(node);
+    if (!entry) {
+        return undefined;
+    }
+    const stream = mcosStreamGateAbove(node)?._followedProperty(entry, node, key);
+    if (stream !== undefined) {
+        return stream;
+    }
     const follow = source?._followedProperty;
-    return entry && typeof follow === 'function' ? follow.call(source, entry, node, key) : undefined;
+    return typeof follow === 'function' ? follow.call(source, entry, node, key) : undefined;
 }
 /**
  * The nodes outside `node`'s subtree that the source `node` is in keeps in step with what is in it
