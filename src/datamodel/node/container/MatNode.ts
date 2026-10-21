@@ -158,10 +158,28 @@ export default class MatNode extends ContainerNode {
   // (freshRefusal). Which names two of them share is counted apart (_namespaceHolds). Forgetting
   // every variable's at every edit re-walked every variable a table showed after each, and each
   // of N renames counted N names again.
+  //
+  // But for an object other nodes of the file are too (_twinGroups: `r = h`), whose edit is one of
+  // every variable holding it, which MATLAB loads it in, whether or not it was copied into their
+  // nodes (_mirrorTwins, which marks each of them edited, and so comes here for each, where the
+  // session made the edit): what was found of each of those variables is forgotten as well. A
+  // variable holding an object is refused written fresh whatever the object's properties
+  // (freshRefusal), so nothing found of it changes; it is forgotten all the same, so that nothing
+  // kept of a variable is older than the last edit of what MATLAB loads of it.
   _nodeEdited(node: BaseNode): void {
     const entry = owningEntryOf(node);
     if (entry && entry.parent === this) {
       this._valueVerdicts.delete(entry);
+    }
+    for (const group of this._twins ?? []) {
+      if (group.members.some((m) => isAtOrUnder(m.node, node) || isAtOrUnder(node, m.node))) {
+        for (const m of group.members) {
+          const twin = this._entryOf(m.node);
+          if (twin) {
+            this._valueVerdicts.delete(twin);
+          }
+        }
+      }
     }
   }
 

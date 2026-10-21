@@ -8,9 +8,11 @@
 //
 //   * Over every .mat under test/, MATLAB's verdict corpus included, and a set of saves of each
 //     (every variable renamed, every plain one written fresh, every other one deleted, one
-//     added, all four at once, and one written as bytes MATLAB fails on), the splice's verdict
-//     is the whole-file one, rule by rule and variable by variable, for every save that reached
-//     the check.
+//     added, all four at once, and one written as bytes MATLAB fails on; and of the objects in
+//     it, every one's properties edited, which writes the subsystem anew, with the four others at
+//     once, and a property written into a cell as bytes MATLAB fails on), the splice's verdict is
+//     the whole-file one, rule by rule and variable by variable, for every save that reached the
+//     check.
 //   * Where it may not take the short way, it takes the long one, and says the same.
 //   * A file past the check's budget whole saves where it changed little, and the budget is
 //     spent on what changed.
@@ -25,6 +27,8 @@ import { serializeMatFile } from '../src/datamodel/parser/MatFileWriter.js';
 import { MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { createSession } from '../src/index.js';
+import { sourceEditRefusal } from '../src/datamodel/node/BaseNode.js';
+import { mcosPlaceOf } from '../src/datamodel/node/mcosPlace.js';
 import { CLASS, MI, charVar, matFile, numericVar, u32le } from './tools/matBytes.js';
 
 // Every call the writer makes of the splice's verdict, with what it answered.
@@ -38,6 +42,18 @@ vi.mock('../src/datamodel/parser/MatFileCheck.js', async (importOriginal) => {
       calls.push({ read, written, renamed, added });
       return added;
     },
+  };
+});
+
+// Whether a save writes an object's text property into its cell as miUINT16, which this package's
+// reader reads back as written and MATLAB reads one byte a character (`char-type`): a writer that
+// broke a rule inside the subsystem, standing in for one.
+const uint16Cells = vi.hoisted(() => ({ on: false }));
+vi.mock('../src/datamodel/parser/McosSubsystemEdit.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/datamodel/parser/McosSubsystemEdit.js')>();
+  return {
+    ...actual,
+    valueCellOf: (v: any) => (uint16Cells.on && v.className === 'char' ? uint16CharStream(String(v.value)).subarray(8) : actual.valueCellOf(v)),
   };
 });
 
@@ -99,6 +115,45 @@ function opened(bytes: ArrayBuffer, name: string) {
 
 const plainOf = (root: any) => root.children.filter((n: any) => n._matWritable?.() === true && !root.recordOf(n)?.variable?.isOpaque);
 
+/** Every node of an object under `root` (mcosPlace), at every depth. */
+function objectsOf(root: any): any[] {
+  const out: any[] = [];
+  const walk = (n: any) => {
+    if (mcosPlaceOf(n)) {
+      out.push(n);
+    }
+    n.children.forEach(walk);
+  };
+  walk(root);
+  return out;
+}
+
+// Every object's properties `edits` edited, where the gate takes them: a save that writes the
+// subsystem anew, with every other record kept.
+function editObjects(o: ReturnType<typeof opened>, edits: [string, string][]): void {
+  for (const node of objectsOf(o.root)) {
+    for (const [key, value] of edits) {
+      if (sourceEditRefusal(node, key) === null) {
+        o.edit(node, key, value);
+      }
+    }
+  }
+}
+
+// Whether a save, as the splice is given it, writes the subsystem anew: a record written in place
+// of the one header bytes 116-123 of the file read place it at.
+function writesSubsystem(read: MatFileOfRecords<MatReadRecord>, written: MatFileOfRecords<MatSplicedRecord>): boolean {
+  const field = read.header.subarray(116, 124);
+  const offset = field.every((b) => b === 0x20) ? 0 : Number(new DataView(field.buffer, field.byteOffset, 8).getBigUint64(0, true));
+  let at = 128;
+  const index = read.records.findIndex((r) => {
+    const here = at === offset;
+    at += r.bytes.byteLength;
+    return here;
+  });
+  return index >= 0 && written.records.some((r) => 'written' in r && r.replaces === index);
+}
+
 // The stream of a char array stored as miUINT16, which this package's reader reads back as
 // written and MATLAB reads as the low byte of each unit (`char-type`): what a writer that broke
 // a rule would write, standing in for one.
@@ -117,13 +172,19 @@ function uint16CharStream(text: string): Uint8Array {
   return joined(new Uint8Array([0, 1, 0x49, 0x4d, 0, 0, 0, 0]), [tag(MI.MATRIX, body.length), body]);
 }
 
+// What an object's save types into each object the gate takes it for: text, and a number.
+const OBJECT_EDITS: [string, string][] = [['Description', 'zz edited'], ['Value', '7']];
+
 // Each kind of save, and at least how many of the files reach the check with it (measured when
-// this was written: 120, 74, 121, 123, 115 and 123), and whether it is written to break a rule.
-const SAVES: [string, (o: ReturnType<typeof opened>) => void, number, boolean][] = [
-  ['every variable renamed', (o) => o.root.children.slice().forEach((n: any, i: number) => o.edit(n, 'Name', 'renamed' + i)), 110, false],
-  ['every plain variable written fresh', (o) => plainOf(o.root).forEach((n: any) => n._markModified()), 65, false],
-  ['every other variable deleted', (o) => o.root.children.filter((_: any, i: number) => i % 2 === 0).forEach((n: any) => o.remove(n)), 110, false],
-  ['a variable added', (o) => o.root.execAddEntry(), 110, false],
+// this was written: 120, 74, 121, 123, 115 and 123, before the objects' fixtures of phase 2 came,
+// with which they are 179, 90, 180, 182, 174 and 182; and of the objects' saves, 95, 174 and 27),
+// whether it is written to break a rule, and at least how many of its saves write the subsystem
+// anew (95, 95 and 27: every save of the file's objects that reached the check).
+const SAVES: [string, (o: ReturnType<typeof opened>) => void, number, boolean, number][] = [
+  ['every variable renamed', (o) => o.root.children.slice().forEach((n: any, i: number) => o.edit(n, 'Name', 'renamed' + i)), 110, false, 0],
+  ['every plain variable written fresh', (o) => plainOf(o.root).forEach((n: any) => n._markModified()), 65, false, 0],
+  ['every other variable deleted', (o) => o.root.children.filter((_: any, i: number) => i % 2 === 0).forEach((n: any) => o.remove(n)), 110, false, 0],
+  ['a variable added', (o) => o.root.execAddEntry(), 110, false, 0],
   [
     'renamed, written fresh, deleted and added at once',
     (o) => {
@@ -135,6 +196,7 @@ const SAVES: [string, (o: ReturnType<typeof opened>) => void, number, boolean][]
     },
     105,
     false,
+    0,
   ],
   [
     'a variable added as bytes that break a rule',
@@ -146,14 +208,41 @@ const SAVES: [string, (o: ReturnType<typeof opened>) => void, number, boolean][]
     },
     110,
     true,
+    0,
+  ],
+  ['every object edited', (o) => editObjects(o, OBJECT_EDITS), 85, false, 85],
+  [
+    'objects edited, and renamed, written fresh, deleted and added at once',
+    (o) => {
+      editObjects(o, OBJECT_EDITS);
+      const [first, second, third] = o.root.children;
+      first && o.edit(first, 'Name', 'renamedFirst');
+      second && plainOf(o.root).includes(second) && second._markModified();
+      third && o.remove(third);
+      o.root.execAddEntry();
+    },
+    160,
+    false,
+    85,
+  ],
+  [
+    'an object edited, its text written into its cell as bytes that break a rule',
+    (o) => {
+      editObjects(o, [['Description', '中文']]);
+      uint16Cells.on = true;
+    },
+    25,
+    true,
+    25,
   ],
 ];
 
 describe('the verdict of a save, judged where it changed the file, is the verdict of both files judged whole', () => {
-  for (const [what, edit, least, breaks] of SAVES) {
+  for (const [what, edit, least, breaks, subsystems] of SAVES) {
     it(what, () => {
       let compared = 0;
       let refusedByIt = 0;
+      let subsystemsWritten = 0;
       const notRefused: MatViolation[][] = [];
       for (const file of FILES) {
         const input = new Uint8Array(readFileSync(file));
@@ -164,8 +253,11 @@ describe('the verdict of a save, judged where it changed the file, is the verdic
           serializeMatFile(o.root);
         } catch (e) {
           expect(e, file).toBeInstanceOf(MatWriteError);
+        } finally {
+          uint16Cells.on = false;
         }
         for (const { read, written, renamed, added } of calls) {
+          subsystemsWritten += writesSubsystem(read, written) ? 1 : 0;
           // The read side is the file, byte for byte.
           const before = readFile(read);
           expect(before.byteLength === input.byteLength && before.every((b, i) => b === input[i]), file).toBe(true);
@@ -182,6 +274,7 @@ describe('the verdict of a save, judged where it changed the file, is the verdic
       // a plain variable to write fresh: the corpus holds many of objects alone), and none but
       // the one written to break a rule is refused by either.
       expect(compared, what).toBeGreaterThanOrEqual(least);
+      expect(subsystemsWritten, what).toBeGreaterThanOrEqual(subsystems);
       if (breaks) {
         // Refused by both wherever the check reads past the header, which it does not of a file
         // whose header is not a Level-5 one (version-0x0000.mat, version-0x0200.mat): MATLAB

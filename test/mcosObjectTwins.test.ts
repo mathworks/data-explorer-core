@@ -21,6 +21,7 @@ import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import { subsystemElementOf } from '../src/datamodel/parser/MatFileWriter.js';
 import { mcosPlaceOf } from '../src/datamodel/node/mcosPlace.js';
+import { sourceEditRefusal } from '../src/datamodel/node/BaseNode.js';
 
 const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
 const CELLSWAP = join(TEST_ROOT, 'fixtures', 'mat-cellswap');
@@ -264,6 +265,22 @@ describe('two nodes of one object show one object', () => {
     expect(parseMat(bufferOf(saved)).records.map((r) => r.compressed)).toEqual(parseMat(bufferOf(original)).records.map((r) => r.compressed));
     const again = opened(saved);
     expect([again.object('objs.prm').displayValue, again.object('objsCell{7}').displayValue]).toEqual(['42', '42']);
+  });
+
+  it('an edit of one, made around the session, forgets what the gate found of every variable holding the object', () => {
+    const { root, object } = opened(read(HEXOBJ));
+    const [objs, objsCell] = ['objs', 'objsCell'].map((name) => root.children.find((c: any) => c.name === name));
+    // Asked of a plain part of each variable, the gate keeps what it found of the variable; asked
+    // of an object, it finds which nodes are one object.
+    for (const entry of [objs, objsCell]) {
+      expect(sourceEditRefusal(entry.children[0].children[0], 'Value')).not.toBeNull();
+    }
+    expect(sourceEditRefusal(object('objsCell{7}'), 'Value')).toBeNull();
+    expect([root._valueVerdicts.has(objs), root._valueVerdicts.has(objsCell)]).toEqual([true, true]);
+    // The node's own setter, which copies nothing into objs.prm: MATLAB loads the edit in both.
+    expect(object('objsCell{7}').setProperty('Value', '42')).toBe(true);
+    expect(object('objs.prm').displayValue).not.toBe('42');
+    expect([root._valueVerdicts.has(objs), root._valueVerdicts.has(objsCell)]).toEqual([false, false]);
   });
 
   it('a host that edits nodes itself, inside mutateSubtree, has the other shown too', () => {

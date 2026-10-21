@@ -606,3 +606,59 @@ describe("where the object is: an edit writes the subsystem, and the record that
     });
   });
 });
+
+describe('the subsystem a save writes anew is read again, alone, and held to what was planned', () => {
+  // `t` of pv_typed.mat with its Value and Description edited, and the subsystem the save writes for
+  // them handed on as `tamper` leaves it: a writer that wrote what it did not plan, standing in for one.
+  function tampered(tamper: (written: { element: Uint8Array; cells: any[] }) => void) {
+    const o = opened(read(CELLSWAP, 'pv_typed.mat'));
+    expect([o.edit(o.object('t'), 'Value', '7'), o.edit(o.object('t'), 'Description', 'zz')]).toEqual([true, true]);
+    const plan = o.root._objectSubsystemEdit.bind(o.root);
+    o.root._objectSubsystemEdit = (entries: any) => {
+      const written = plan(entries);
+      tamper(written);
+      return written;
+    };
+    return thrownBy(o.save);
+  }
+
+  it('as written, it is saved', () => {
+    expect(tampered(() => {})).toBeNull();
+  });
+
+  it('a cell that reads back as another value than the one planned for it', () => {
+    const thrown = tampered(({ cells }) => {
+      const value = cells.find((c) => c.savedName === 'Value');
+      value.value = { ...value.value, value: 8 };
+    });
+    expect([thrown instanceof MatWriteError, thrown?.message]).toEqual([
+      true,
+      expect.stringMatching(/^Cannot save "f\.mat": the file written for it did not read back as written: object \d+'s Value.* Nothing was written\.$/),
+    ]);
+  });
+
+  it('a cell written that no edit planned', () => {
+    const thrown = tampered((written) => {
+      written.cells = written.cells.filter((c) => c.savedName !== 'Description');
+    });
+    expect([thrown instanceof MatWriteError, thrown?.message]).toEqual([
+      true,
+      expect.stringMatching(/^Cannot save "f\.mat": the file written for it did not read back as written: the file's objects read back with value cell \d+, which no edit wrote, changed\. Nothing was written\.$/),
+    ]);
+  });
+
+  it('a subsystem that does not read as one', () => {
+    const thrown = tampered((written) => {
+      // Its cell array's dims [N 1] said [N-1 1]: one cell more than it says it holds.
+      const read = readMcosSubsystem(written.element);
+      const dims = (read as { subsystem: McosSubsystem }).subsystem.cellArray.subs[1];
+      written.element = written.element.slice();
+      const view = new DataView(written.element.buffer);
+      view.setInt32(dims.data, view.getInt32(dims.data, true) - 1, true);
+    });
+    expect([thrown instanceof MatWriteError, thrown?.message]).toEqual([
+      true,
+      expect.stringMatching(/^Cannot save "f\.mat": the file written for it did not read back as written: the file's objects do not read back as a subsystem \(.+\)\. Nothing was written\.$/),
+    ]);
+  });
+});
