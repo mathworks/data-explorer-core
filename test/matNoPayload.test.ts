@@ -87,7 +87,10 @@ describe('a numeric MAT value with no data is shown as not decoded, with no edit
       notDecoded('b1', '1x1', 'logical'),
       notDecoded('i32', '3x2', 'int16'),
     ]);
-    expect(rows[7]).toEqual(['e0', '[ ]', 'double', true, []]);
+    // Shown as [], as before, and taking no edit: a matrix whose sub-elements end before its data
+    // is one MATLAB does not load, so a save writes it only as it was read, or renamed
+    // (MatFileWriter.freshRefusal).
+    expect(rows[7]).toEqual(['e0', '[ ]', 'double', false, []]);
     expect([rows[0], ...rows.slice(8)]).toEqual(control.children.map(row));
     // Before: no warning at all.
     expect(mat.warnings).toEqual([
@@ -122,8 +125,10 @@ describe('a numeric MAT value with no data is shown as not decoded, with no edit
     const c = cellVar('c', [noPayload('', CLASS.INT8, [1, 1]), one(5)]);
     const mat = opened('nested.mat', [ok(), s, c]);
     const [, sNode, cNode] = mat.children;
-    expect(sNode.children.map(row)).toEqual([notDecoded('a', '1x3', 'double'), ['b', '2', 'double', true, []]]);
-    expect(cNode.children.map(row)).toEqual([notDecoded('1', '1x1', 'int8'), ['2', '5', 'double', true, []]]);
+    // The value beside each takes no edit: a save writes s and c fresh or not at all, and has
+    // nothing to write the one with no data from (MatNode._editRefusal).
+    expect(sNode.children.map(row)).toEqual([notDecoded('a', '1x3', 'double'), ['b', '2', 'double', false, []]]);
+    expect(cNode.children.map(row)).toEqual([notDecoded('1', '1x1', 'int8'), ['2', '5', 'double', false, []]]);
     expect(mat.warnings).toEqual([holdsNoData('s.a', 3), holdsNoData('c{1}', 1)]);
     for (const n of [sNode, cNode]) {
       expect(() => n.toRow()).not.toThrow();
@@ -141,7 +146,9 @@ describe('a numeric MAT value with no data is shown as not decoded, with no edit
     const cutAt = 128 + ok().length + noPayload('x', CLASS.DOUBLE, [1, 3]).length;
     const whole = new Uint8Array(matFile([ok(), x]));
     const cut: any = createSession().addMatSource('cut.mat', arrayBufferOf(whole.slice(0, cutAt)));
-    expect(cut.children.map(row)).toEqual([['ok', '7', 'double', true, []], notDecoded('x', '1x3', 'double')]);
+    // `ok` as read, and taking no edit: its records do not tile the file, so no save of it can be
+    // written (MatNode._fileRefusal).
+    expect(cut.children.map(row)).toEqual([['ok', '7', 'double', false, []], notDecoded('x', '1x3', 'double')]);
     expect(cut.warnings).toEqual([
       {
         code: 'part-unreadable',

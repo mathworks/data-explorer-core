@@ -355,6 +355,9 @@ describe('a MAT struct array with no fields, past the row cap', () => {
     expect(opened(fieldless('s', [3, 4])).map(shown)).toEqual([['s', '<3x4 struct>', 12]]);
     expect(opened(fieldless('s', [1, MAX])).map(shown)).toEqual([['s', `<1x${MAX} struct>`, MAX]]);
     expect(opened(fieldless('s', [1, MAX + 1])).map(shown)).toEqual([['s', `<1x${MAX + 1} struct>`, 0]]);
+    // And the one rule every writer asks of it (MatlabVariableNode._unexpandedStruct: written as the
+    // bytes it was read from), on either side of the cap.
+    expect([opened(fieldless('s', [1, MAX]))[0]._unexpandedStruct(), opened(fieldless('s', [1, MAX + 1]))[0]._unexpandedStruct()]).toEqual([false, true]);
     // The size that ran the heap out, at top level, in a struct field and in a cell. Asked
     // last, so that a reader without the cap fails on the case above instead of here.
     const [s, t, c] = opened(fieldless('s', BIG), structVar('t', ['f'], [{ f: fieldless('', BIG) }]), cellVar('c', [fieldless('', BIG)]));
@@ -557,10 +560,11 @@ describe('a MAT struct array with no fields, past the row cap', () => {
   });
   // Add Child gives a struct one `field` row of its own, and past the cap that row held the
   // only copy of the edit: the save, which writes such an array from the bytes it was read
-  // from, dropped it. So it is refused, as a sparse array's is. Up to the cap it is offered as
-  // before.
+  // from, dropped it. So it is refused, as a sparse array's is. In a .mat it is refused up to the
+  // cap as well: the row Add makes is an element of no fields, which its save does not write
+  // (MatNode._editRefusal).
   it('takes no Add Child past the cap, where the save would drop the row it adds', () => {
-    expect(opened(fieldless('s', [1, MAX]))[0].canAddChild()).toBe(true);
+    expect(opened(fieldless('s', [1, MAX]))[0].canAddChild()).toBe(false);
     for (const d of [[1, MAX + 1], BIG]) {
       const [s] = opened(fieldless('s', d));
       expect([s.canAddChild(), s.execAddChild(), s.children.length], String(d)).toEqual([false, null, 0]);
@@ -761,9 +765,11 @@ describe('a MAT 1x1 struct with a field slot that is not a matrix', () => {
     const mat = opened('s.mat', before, damaged, after);
     const [b, s, a] = mat.children;
     expect([s.name, s.displayValue, s.children.length]).toEqual(['s', '<1x1 struct>', 2]);
+    // The field beside it takes no edit either: a save writes the struct fresh, or not at all, and
+    // has nothing to write the field it did not decode from (MatNode._editRefusal).
     expect(s.children.map(row)).toEqual([
       ['a', '<unknown, not decoded>', 'unknown', 0, false],
-      ['b', '2', 'double', 0, true],
+      ['b', '2', 'double', 0, false],
     ]);
     expect(mat.warnings).toEqual([{ code: 'part-unreadable', message: `"s.a" was not decoded: ${reason}.`, part: 's.a' }]);
     // Nothing to write it from: its copy, and the struct's, are refused at it, naming it. The field

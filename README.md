@@ -55,9 +55,12 @@ import { createSession, loadFromPath, loadDirectory } from 'data-explorer-core/n
 
 ## Saving a file
 
-`session.serializeSource(srcId)` answers a `.sldd` in the form it arrived in:
-`{ kind: 'binary', bytes }` for a compressed-binary package, `{ kind: 'text', text }`
-for a text dictionary. The other formats are read-only and answer `null`.
+`session.serializeSource(srcId)` answers a file in the form it arrived in: a
+`.sldd` as `{ kind: 'binary', bytes }` for a compressed-binary package and
+`{ kind: 'text', text }` for a text dictionary, a `.mat` as
+`{ kind: 'binary', sourceFormat: 'mat', bytes }`. Models and projects are
+read-only and answer `null`. A save does not reset the source's `dirty` flag:
+the host writes the bytes and registers the file again.
 
 A binary dictionary's save writes each entry nobody edited as the bytes it was
 read from, in its own place, and writes from the model only what was edited or
@@ -104,6 +107,58 @@ save gate has to check for itself. `readEntryFragment(fragment,
 { section, inheritPlaceFrom })` reads one `<Object>` into a section with the
 bytes it came from, so an entry rebuilt from text by an undo is still written as
 those bytes, and merged with them when it is edited again.
+
+### A MAT-file
+
+A MAT-file is saved as the file it was read from, with what was edited written
+fresh. That is a Level-5 file, as `-v6` and `-v7` write it; a `-v7.3` file (HDF5)
+and a big-endian one are not opened. Every variable nobody edited is written as
+the bytes it was read from, compressed or not as it was, in its own place, and so
+are the file's objects (the unnamed record MATLAB keeps them in, last) and every
+record the reader could not read; the header keeps its text. A variable only
+renamed is its own bytes with the new name in them. One whose value was edited,
+and one added, is written from the model, after the last variable and before the
+objects, and compressed only if the file already holds a compressed record, so a
+`-v6` file stays one. Written from the model, a variable is still the one it was
+read as in every part it holds: a struct array of no element keeps its field
+names, an empty its complexity, a zero its sign, and a variable saved as global
+stays global. Before the bytes are handed back, every record written anew is
+read again, and the file is held to the rules MATLAB loads a file by: a save that
+breaks one the file as read did not break is refused, with a `MatWriteError`
+naming the variable, and nothing is written. Both are asked where the save changed
+the file, so a save costs what it changed, however large the rest of the file is;
+a record written anew too large for the check to finish is refused as not
+verified.
+
+What such a save cannot write, the editor does not offer. A host that honours the
+editability core hands it (`getPropInfo(...).editable`, a row's `Name.editable`,
+`_valueEditable` and `_descriptionEditable`, `nameEditable`, `valueEditable`,
+`canAddChild`, `canRemoveChild`) offers no edit a save then refuses, and every
+setter and `editProperty` refuse the same edits, naming the variable and why.
+These take a rename and a delete and nothing else:
+
+- an object, of any class (a `Simulink.Parameter`, a bus, a signal, a class of
+  your own): none of its properties and none of the rows under it;
+- a string, a function handle, and a value the reader could not decode;
+- a plain variable holding any of these, or a cell or struct array the reader
+  read short (holding fewer elements than it declares, which a save would write
+  as empty), at any depth: neither its value nor any row under it;
+- a plain variable stored in a form MATLAB does not load as it is (char data in
+  `miUINT8` or `miUTF32`, a numeric class in another class's type, a matrix its
+  parts do not fill), whose value as read is this package's guess at it;
+- either of two variables of one name, until one is renamed: MATLAB loads only
+  one of them.
+
+A value typed in that would make a string (`"abc"`, `{1, "a"}`) is refused, and
+Add is not offered on a struct array or on an element of one. A variable stored
+after the objects, which MATLAB does not load, takes no edit, not even a rename,
+and can be deleted. A file no save of which can be written is `readOnly` and takes
+no edit, addition or delete at all: one whose records do not tile it, one opened
+from a parse without its records (an older host's, through
+`addMatSourceParsed`), one whose bytes the host has since handed away.
+`addEntry` adds a variable named `var` (then `var1`, and so on) holding the
+double `0`. What only a value's bytes can say is still checked by the save, and
+refused in the same words.
 
 ## Usage across a folder
 

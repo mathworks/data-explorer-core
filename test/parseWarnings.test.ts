@@ -67,6 +67,9 @@ import {
 const TEST_ROOT = fileURLToPath(new URL('./', import.meta.url));
 const ARTIFACTS = join(TEST_ROOT, 'parity', 'artifacts');
 const FIXTURES = join(TEST_ROOT, 'fixtures');
+// Copies of MATLAB-written files edited to break MATLAB's load rules on purpose, each with
+// MATLAB's verdict (test/matFileCheck.test.ts): no corpus of complete files, so not swept here.
+const MAT_CHECK = join(FIXTURES, 'mat-check');
 
 function bytesAt(abs: string): ArrayBuffer {
   const u8 = new Uint8Array(readFileSync(abs));
@@ -133,7 +136,7 @@ describe('the whole fixture corpus parses with no warnings at all', () => {
     // the whole channel worthless. It is asserted over the enumerated corpus rather
     // than a hand-listed sample so that a new fixture is covered by default.
     const files = [...filesUnder(ARTIFACTS), ...filesUnder(FIXTURES)]
-      .filter((f) => /\.(slx|mdl|mat)$/i.test(f))
+      .filter((f) => /\.(slx|mdl|mat)$/i.test(f) && !f.startsWith(MAT_CHECK))
       .sort();
 
     // An empty or mis-filtered list would pass the assertion below vacuously. These

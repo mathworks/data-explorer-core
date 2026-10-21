@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import BaseNode, { encodedHolderOf, propNamed } from './BaseNode.js';
+import BaseNode, { encodedHolderOf, propNamed, sourceEditRefusal } from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
@@ -397,10 +397,13 @@ export default class DataNode extends BaseNode {
             // something asks for it directly — renaming a Simulink.Parameter's `Value` row was
             // exactly that, accepted by the model and dropped by serialize, which writes the
             // key `Value` whatever the node is called.
+            // Said as the source says it, when it is the source that refuses (BaseNode.sourceEditRefusal:
+            // a MAT-file's variable stored after its subsystem), which _refuseEncodedEdit has asked
+            // already for every class whose setter comes here first.
             if (!this.nameEditable) {
                 return {
                     error: true,
-                    reason: `'${this.displayName}' is not a name this entry can carry, so it cannot be renamed.`,
+                    reason: sourceEditRefusal(this, 'Name') ?? `'${this.displayName}' is not a name this entry can carry, so it cannot be renamed.`,
                     invalidValue: stringValue,
                     validValue: this.displayName,
                 };
@@ -422,13 +425,23 @@ export default class DataNode extends BaseNode {
                 const duplicate = typeof nsHolds === 'function'
                     ? stringValue !== this.name && nsHolds.call(this.parent, stringValue) > 0
                     : this.parent.children.some((sibling) => sibling !== this && sibling.name === stringValue);
+                // Said of where the names are one namespace: a dictionary's Design and Architectural
+                // Data, or a MAT-file, which names itself (MatNode._namespaceLabel).
                 if (duplicate) {
+                    const where = this.parent._namespaceLabel ?? 'Design or Architectural Data';
                     return {
                         error: true,
-                        reason: "'" + stringValue + "' already exists in Design or Architectural Data",
+                        reason: "'" + stringValue + "' already exists in " + where,
                         invalidValue: stringValue,
                         validValue: this.name,
                     };
+                }
+                // And a name the parent could not write: a MAT-file's variable whose record is not one
+                // whole element, whose name its save has nowhere to put (MatNode._renameRefusal).
+                const renameRefusal = this.parent._renameRefusal;
+                const refused = typeof renameRefusal === 'function' ? renameRefusal.call(this.parent, this) : null;
+                if (refused) {
+                    return { error: true, reason: refused, invalidValue: stringValue, validValue: this.name };
                 }
             }
             const oldName = this.name;
@@ -468,7 +481,7 @@ export default class DataNode extends BaseNode {
             // Class="double" element, which made MATLAB refuse to open the whole file.
             const encoded = this._encoded;
             const raw = this._rawInput;
-            this._markModified();
+            this._markModified('name');
             this._encoded = encoded;
             this._rawInput = raw;
             return true;
@@ -657,7 +670,11 @@ export default class DataNode extends BaseNode {
     // edit below it on save. A value read from a stream is read-only (_refuseEncodedEdit and
     // BaseNode's editability), so nothing should reach here from inside one; this is the
     // second line, for whatever does. The rename that keeps it is DataNode.setProperty's.
-    _markModified() {
+    //
+    // `edit` is 'name' for that rename, and only for it. An entry's own rename leaves its value
+    // as it was, and every other edit marks the entry `_valueEdited`; so does the rename of
+    // anything under it, a struct's field, which changes the entry's value.
+    _markModified(edit = 'value') {
         const entry = this.owningEntry;
         for (let node = this; node && node !== entry; node = node.parent) {
             if (node._rawInput !== undefined) {
@@ -669,6 +686,9 @@ export default class DataNode extends BaseNode {
         }
         if (entry) {
             entry.status = 'Modified';
+            if (edit !== 'name' || entry !== this) {
+                entry._valueEdited = true;
+            }
             if (entry._rawInput !== undefined) {
                 entry._rawInput = undefined;
             }
@@ -1103,28 +1123,38 @@ export default class DataNode extends BaseNode {
         return null;
     }
     /**
-     * Is this node at or under one whose value is still an encoded stream? The structural
-     * gates (canAddChild, canRemoveChild) of every class that has them ask this, for the
-     * reason _refuseEncodedEdit gives: a child added or removed there could not reach the file.
+     * Is this node at or under one whose value is still an encoded stream, or one whose source
+     * would not write a change to it (BaseNode.sourceEditRefusal: a MAT-file's object, say)? The
+     * structural gates (canAddChild, canRemoveChild) of every class that has them ask this, for
+     * the reason _refuseEncodedEdit gives: a child added or removed there could not reach the file.
      */
     get _encodedReadOnly() {
-        return !!encodedHolderOf(this);
+        return !!encodedHolderOf(this) || !!sourceEditRefusal(this, 'Value');
     }
+    /**
+     * The refusal of an edit of `propName` at or under a value still in the encoded stream it was
+     * read from, but for the holder's own name, or of one this node's source would not write
+     * (BaseNode.sourceEditRefusal), in its words; null where the edit may go ahead. Asked first by
+     * the setter of every class that has one, so that no setter takes what the table offers no
+     * editor for.
+     */
     _refuseEncodedEdit(propName, stringValue) {
+        const isName = this._resolveProperty(propName) === 'name';
         const holder = encodedHolderOf(this);
-        if (!holder) {
-            return null;
+        if (holder && !(holder === this && isName)) {
+            return {
+                error: true,
+                reason: `'${holder.displayName}' is stored as an encoded MATLAB value that this editor can show but not write, ` +
+                    'so it is read-only.',
+                invalidValue: stringValue,
+                validValue: isName ? this.name : this.displayValue,
+            };
         }
-        if (holder === this && this._resolveProperty(propName) === 'name') {
-            return null;
+        const refused = sourceEditRefusal(this, isName ? 'Name' : this._propFor(propName)?.key ?? propName);
+        if (refused) {
+            return { error: true, reason: refused, invalidValue: stringValue, validValue: isName ? this.name : this.displayValue };
         }
-        return {
-            error: true,
-            reason: `'${holder.displayName}' is stored as an encoded MATLAB value that this editor can show but not write, ` +
-                'so it is read-only.',
-            invalidValue: stringValue,
-            validValue: this._resolveProperty(propName) === 'name' ? this.name : this.displayValue,
-        };
+        return null;
     }
     /**
      * Does this object's value hold its properties beside its class, with no element (SER-TE)?

@@ -25,11 +25,13 @@ const HEAVY_TIMEOUT = 60_000;
 
 describe('within the budget, a sparse array stays sparse wherever it goes', () => {
   it('a host\'s 1x2e6 with three entries, 8 MB of index no data backs', { timeout: HEAVY_TIMEOUT }, () => {
+    // Each row its non-zero. None takes an edit: a host's parse carries no records, and a file
+    // opened without them is one no save can write (MatNode._fileRefusal).
     const h = hostMat(sparseHost([1, 2e6], [0, 0, 0], [0, 1e6, 2e6 - 1], [1, 2, 3]));
     expect(h.children.map((c: any) => [c.displayName, c.valueEditable])).toEqual([
-      ['h(1,1)', true],
-      ['h(1,1000001)', true],
-      ['h(1,2000000)', true],
+      ['h(1,1)', false],
+      ['h(1,1000001)', false],
+      ['h(1,2000000)', false],
     ]);
     const [copied, ms] = timed(() => copyOf(h) as any);
     expect([copied._type, ms < 3000]).toEqual(['cdata', true]);

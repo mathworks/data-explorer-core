@@ -12,6 +12,7 @@ import { parseMat } from '../datamodel/parser/MatParser.js';
 import type { ParsedMat } from '../datamodel/parser/MatParser.js';
 import { parseProject } from '../datamodel/parser/ProjectParser.js';
 import { serializeBinarySldd } from '../datamodel/parser/BinarySlddSerializer.js';
+import { serializeMatFile } from '../datamodel/parser/MatFileWriter.js';
 import { catalogFunctionRenames, catalogRenames, scJsonTextWithRenames } from '../datamodel/parser/ScCatalog.js';
 // The name reductions and the expression reading, from the leaf modules that hold the
 // single copy of each. This file used to spell all three itself; the usage index needs
@@ -29,7 +30,7 @@ import type { ParseWarning } from '../datamodel/parser/ParseWarning.js';
 // a field of NodeUsage breaks the one line that installs the resolver — see UsageResolver.
 import type { RowData, UsageResolver, TypeLinkResolver } from '../datamodel/node/BaseNode.js';
 import RowCellPool from '../datamodel/node/RowCellPool.js';
-import { propNamed } from '../datamodel/node/BaseNode.js';
+import { propNamed, sourceEditRefusal } from '../datamodel/node/BaseNode.js';
 import type BaseNode from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
 
@@ -1749,6 +1750,21 @@ function editProperty(
   if (typeof newValue === 'string' && newValue === priorValue) {
     return true;
   }
+  // An edit the node's source would not write is refused before any setter is asked
+  // (BaseNode.sourceEditRefusal): a MAT-file's object, say, takes a rename and nothing else.
+  // Every setter asks the same rule (DataNode._refuseEncodedEdit); this is for one that does
+  // not, of a class a file can hold.
+  const prop = propNamed(node.getProperties(), propertyName);
+  const isName = propertyName === 'Name' || prop?.key === 'Name';
+  const refused = sourceEditRefusal(node as unknown as BaseNode, isName ? 'Name' : prop?.key ?? propertyName);
+  if (refused) {
+    return {
+      error: true,
+      reason: refused,
+      invalidValue: String(newValue),
+      validValue: isName ? node.name : typeof priorValue === 'string' ? priorValue : node.displayValue,
+    };
+  }
   // Unless the node can put the value back itself, which the undo then has it do: the text
   // it shows is not always its value (an empty's `[ ]` is a 0x0 double, whatever it was).
   const restore = propertyRestorer(node, propertyName);
@@ -1807,14 +1823,18 @@ function editProperty(
 // entry is named `entryName`, or the class's default name, with a counter appended if
 // that name is taken. Returns null, and adds nothing and records no undo step, when
 // there is no active dictionary, no section takes the class, or the name is not one
-// MATLAB can load (see SectionNode.addEntry): the same rule a rename applies.
+// MATLAB can load (see SectionNode.addEntry): the same rule a rename applies. A MAT-file
+// takes a plain variable, the double 0 named `var` (MatNode.execAddEntry), and nothing its
+// save could not write.
 function addEntry(sectionKey: string, className: string, entryName?: string): INode | null {
   const slddNode = getActiveSlddNode();
   if (!slddNode) {
     return null;
   }
 
-  let section: IContainerNode | null = slddNode.getSection(sectionKey);
+  // A MAT-file has no sections: its variables are its own children, so it takes the entry
+  // itself, whatever `sectionKey` says (MatNode.execAddEntry: a plain variable, `0`).
+  let section: IContainerNode | null = slddNode instanceof MatNode ? slddNode : slddNode.getSection(sectionKey);
   if (!section) {
     // When at root (sectionKey='sldd'), find the section that accepts this className
     for (const child of slddNode.children) {
@@ -2234,16 +2254,18 @@ function getActiveSlddNode(): ISourceNode | null {
  *
  * Null for two distinct absences, deliberately given the same answer: a srcId the
  * session does not hold (the same answer getDataSource gives the same question), and
- * a source whose format HAS no write path. `.slx`, `.mdl`, `.mat` and `.prj` are
- * read-only in this package — only `.sldd` has a writer, and only that writer has a
- * live MATLAB gate behind it. Null rather than a throw because a consumer enumerating
- * every open source to find the saveable ones should not need a try/catch per source,
- * and because there is nothing exceptional about a project file not being writable.
+ * a source whose format HAS no write path. `.slx`, `.mdl` and `.prj` are read-only in
+ * this package — `.sldd` and `.mat` have writers. Null rather than a throw because a
+ * consumer enumerating every open source to find the saveable ones should not need a
+ * try/catch per source, and because there is nothing exceptional about a project file
+ * not being writable.
  *
  * Throws for a value in it that no writer may write: one past the unbacked-bytes budget, as
  * a MatBudgetError naming the entry, the path in it and the budget (MatWriter.budgetFailure).
  * Nothing is returned then — no part of a file — and nothing in the session changes, so the
- * save after the value is fixed or removed is the save there would have been.
+ * save after the value is fixed or removed is the save there would have been. A `.mat` save
+ * throws a MatWriteError the same way, naming the variable or the file, for anything it
+ * cannot write as what it is (MatFileWriter.serializeMatFile).
  *
  * The flavour follows the FILE, not a default: a `.sldd` that arrived as a
  * compressed-binary package is answered with zip bytes and one that arrived as JSON
@@ -2255,6 +2277,13 @@ function serializeSource(srcId: string): SerializedSource | null {
   const source = dataSources.get(srcId);
   if (!source) {
     return null;
+  }
+  // A MAT-file is written as its own records, what was edited written fresh, and is
+  // binary whatever its records are, compressed (`-v7`) or not (`-v6`). An instanceof
+  // for the reason the dictionary's is below: serializeMatFile reaches for the records
+  // and the node bound to each, which only a MatNode built from a parse holds.
+  if (source instanceof MatNode) {
+    return { kind: 'binary', sourceFormat: source.sourceFormat, bytes: serializeMatFile(source) };
   }
   // An instanceof rather than a duck test on serializeJson: serializeBinarySldd
   // reaches for _zipMetadata and _dataSourceAttrs, so a lookalike that merely

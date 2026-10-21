@@ -129,6 +129,22 @@ export type ElementSubscript = {
  */
 export declare function encodedHolderOf(node: BaseNode | null | undefined): BaseNode | null;
 /**
+ * Why the source `node` is in refuses an edit of `key` at `node`, in words, or null where it
+ * takes it. `key` is 'Name' for the node's own name, and the property's key for anything else,
+ * 'Value' for a child added or removed.
+ *
+ * A source answers for itself, through the first container above the node, which an entry is a
+ * child of: a MAT-file, whose save writes only some edits (MatNode._editRefusal). A dictionary's
+ * section and a model's do not answer, and take every edit their nodes take. Asked by every
+ * editability getter below, by the structural gates (DataNode._encodedReadOnly), by the setters
+ * (DataNode._refuseEncodedEdit, the rename) and by the session's editProperty, so that what the
+ * table offers and what an edit is taken for are one answer. Duck-typed, as encodedHolderOf is:
+ * this class imports no container.
+ */
+export declare function sourceEditRefusal(node: BaseNode, key: string): string | null;
+/** A source's answer to sourceEditRefusal, for `node`, which is `entry` or a node under it. */
+export type SourceEditRefusal = (entry: BaseNode, node: BaseNode, key: string) => string | null;
+/**
  * The prop in `props` that an edit naming `name` is an edit of: the one whose key or column is
  * `name`, which is how an edit committed in the 'Value' column reaches the atom that owns it (a
  * Variant's Condition/Specification), or else the one whose node field (`nodeProperty`) is

@@ -29,9 +29,10 @@ describe('MatNode — presentation', () => {
     expect(mat.icon).toBe('matlabWorkspaceFile');
   });
 
-  it('is read-only', () => {
-    // A .mat carries no schema, so the UI never offers property edits on the root.
-    expect(matSource('Param.mat').readOnly).toBe(true);
+  it('is not read-only: a save writes it (MatFileWriter)', () => {
+    // Read-only only when no save of it can be written: opened without its records, its records
+    // not tiling it (test/matEditGate.test.ts).
+    expect(matSource('Param.mat').readOnly).toBe(false);
   });
 
   it('counts its variables as entries', () => {

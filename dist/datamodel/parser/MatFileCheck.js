@@ -1,0 +1,1316 @@
+// src/datamodel/parser/MatFileCheck.ts
+// Copyright 2026 The MathWorks, Inc.
+//
+// Whether MATLAB loads a Level-5 MAT-file, judged by the rules MATLAB loads one by, and not by
+// this package's own reader.
+//
+// WHY A SECOND READER. `parseMat` is built to open whatever it can, which is right for a
+// viewer and wrong for a judge. It clamps every declared length to the bytes present, takes a
+// zero tag for the end of the variables, reads char data stored as miUTF32 or miUINT8, and
+// lists a variable stored after the subsystem. MATLAB does none of that. Of the 36 files in the
+// MATLAB-verdict corpus (test/fixtures/mat-check) that MATLAB does not load as stored, because
+// the load fails or a variable comes back missing or changed, `parseMat` opens all 36, and 32
+// of them without a single warning (measured when this was written). So a `.mat` this package
+// writes and then reads back proves only that the package agrees with itself. This module is
+// the other judge: it reads no value, and it lists every place a file breaks a rule MATLAB
+// applies at `load`, as a MatViolation. It shares no reading code with MatParser, so none of
+// the reader's repairs can leak into a verdict.
+//
+// THE RULES. Each was measured against MATLAB R2027a (27.1 prerelease, maca64) with `S =
+// load(f)` on copies of MATLAB-written files edited one byte range at a time
+// (test/fixtures/mat-check/verdicts.json holds the files and MATLAB's verdict on each):
+//
+//   * the header: bytes 124-125 are the version 0x0100 and 126-127 the endian mark 'IM' (0x0000
+//     and 0x0200 fail, and 0x0200 makes MATLAB try HDF5); neither 16-bit half of bytes 0-3 is
+//     zero (a header of NULs fails: MATLAB takes the file for Level 4);
+//   * the records tile the file from byte 128 to its last byte. A plain record is its tag and
+//     its declared bytes, a multiple of 8 (one cut short, or missing its final pad, fails); a
+//     compressed one is its tag and exactly its zlib stream, with no padding after it (zero
+//     padding to 8 fails), and nothing follows the last record (3, 8 or 100 zero bytes fail);
+//   * a record is an miMATRIX, or an miCOMPRESSED whose RFC 1950 zlib stream inflates to one
+//     miMATRIX and nothing else (zlib levels 0, 1, 6 and 9 all load);
+//   * header bytes 116-123 are the offset of the subsystem's record (the objects' data), or 0
+//     when there is none. MATLAB trusts the offset and never looks for the record: a stale,
+//     zeroed or space-filled one fails the whole load;
+//   * the subsystem is the last record and the only unnamed one. MATLAB stops listing variables
+//     at the first unnamed record, so a variable after it is silently missing from the load
+//     (the load succeeds, and `whos -file` still lists it);
+//   * a variable's name is a MATLAB identifier in valid UTF-8: '1abc' and 'café' fail `S =
+//     load(f)`, 'end' loads as 'end_', and a name that is not UTF-8 crashed MATLAB;
+//   * char data is miUTF8 holding as many UTF-16 units as the array's elements, or miUTF16, or
+//     miUINT16 below U+0100: miUTF32, miUINT8 and miINT8 fail, a surrogate in miUINT16 fails,
+//     and CJK in miUINT16 loads keeping only the low byte of each unit, with no warning;
+//   * every element is readable: one bad variable fails the whole-file load.
+//
+// Some rules were not probed, deliberately: what MATLAB writes is plain, and a file that breaks
+// it is one no MATLAB was seen to write. Only a double is ever stored in a narrower type than
+// its class (every other numeric class is stored in its own), every sub-element fills its
+// matrix exactly, and every data sub-element holds as many elements as its dimensions say.
+// They are checked as MATLAB writes them (`int-storage`, `nbytes`, `data-size`, `element`).
+//
+// WHERE IT IS STRICTER THAN MATLAB, on purpose, so the save path never writes a file that
+// loads only by luck. Each is listed with its reason in test/matFileCheck.test.ts: a name
+// stored twice (it loads, but `load f` keeps the last copy and `load f x` the first); bytes
+// after the subsystem's record, which MATLAB's load never reads; a zlib stream whose Adler-32
+// trailer is not the record's last four bytes.
+//
+// WHAT IT IS FOR. The `.mat` save checks the file it writes, and refuses to return it if it has
+// a violation the original did not. A violation is therefore said with the variable it is in,
+// when that has a readable name, so two files can be compared by variable rather than by an
+// offset an edit moved (violationsAdded). And since what a record breaks is a function of its
+// own bytes, the save asks it only where it changed the file, with the same answer
+// (violationsAddedBySplice).
+//
+// BOUNDED. A file's bytes say how much work reading them is, and a hostile one can say a lot:
+// a few kilobytes of zlib inflate to gigabytes, and a cell can declare a billion elements. So
+// the check spends a budget of inflated bytes and of matrices walked (MatCheckOptions), and
+// stops when either runs out, with a `budget` note saying where. It never throws: whatever the
+// bytes, the answer is a list.
+import { InflateCeilingError, inflateZlib, MAT_RECORD_INFLATE_CEILING } from './Inflate.js';
+import { MAX_NESTING } from './MatParser.js';
+import { reasonOf } from './ParseWarning.js';
+/**
+ * How many matrices one check walks, at most: 2^24. A matrix costs the check a few tag reads,
+ * and 2^24 of them is a struct array of 1.6 million elements and ten fields each.
+ */
+export const MAT_CHECK_ELEMENT_BUDGET = 2 ** 24;
+/**
+ * How many bytes one check inflates, at most, over every compressed record of the file: 1 GiB.
+ * The check inflates one record at a time and drops it, so this bounds time more than memory;
+ * the largest record in the corpus `parseMat` is measured against inflates to 114 MB.
+ */
+export const MAT_CHECK_INFLATE_BUDGET = 2 ** 30;
+const MI_INT8 = 1;
+const MI_UINT8 = 2;
+const MI_INT16 = 3;
+const MI_UINT16 = 4;
+const MI_INT32 = 5;
+const MI_UINT32 = 6;
+const MI_SINGLE = 7;
+const MI_DOUBLE = 9;
+const MI_INT64 = 12;
+const MI_UINT64 = 13;
+const MI_MATRIX = 14;
+const MI_COMPRESSED = 15;
+const MI_UTF8 = 16;
+const MI_UTF16 = 17;
+const TYPE_NAMES = {
+    [MI_INT8]: 'miINT8', [MI_UINT8]: 'miUINT8', [MI_INT16]: 'miINT16', [MI_UINT16]: 'miUINT16',
+    [MI_INT32]: 'miINT32', [MI_UINT32]: 'miUINT32', [MI_SINGLE]: 'miSINGLE', [MI_DOUBLE]: 'miDOUBLE',
+    [MI_INT64]: 'miINT64', [MI_UINT64]: 'miUINT64', [MI_MATRIX]: 'miMATRIX', [MI_COMPRESSED]: 'miCOMPRESSED',
+    [MI_UTF8]: 'miUTF8', [MI_UTF16]: 'miUTF16', 18: 'miUTF32',
+};
+/** The bytes one element of each numeric data type takes. */
+const WIDTH = {
+    [MI_INT8]: 1, [MI_UINT8]: 1, [MI_INT16]: 2, [MI_UINT16]: 2, [MI_INT32]: 4, [MI_UINT32]: 4,
+    [MI_SINGLE]: 4, [MI_DOUBLE]: 8, [MI_INT64]: 8, [MI_UINT64]: 8,
+};
+const MX_CELL = 1;
+const MX_STRUCT = 2;
+const MX_OBJECT = 3;
+const MX_CHAR = 4;
+const MX_SPARSE = 5;
+const MX_DOUBLE = 6;
+const MX_SINGLE = 7;
+const MX_UINT8 = 9;
+const MX_FUNCTION = 16;
+const MX_OPAQUE = 17;
+const CLASS_NAMES = {
+    1: 'cell', 2: 'struct', 3: 'object', 4: 'char', 5: 'sparse', 6: 'double', 7: 'single',
+    8: 'int8', 9: 'uint8', 10: 'int16', 11: 'uint16', 12: 'int32', 13: 'uint32', 14: 'int64',
+    15: 'uint64', 16: 'function_handle', 17: 'opaque',
+};
+/** The one data type each numeric class but double is stored in. */
+const OWN_TYPE = {
+    7: MI_SINGLE, 8: MI_INT8, 9: MI_UINT8, 10: MI_INT16, 11: MI_UINT16, 12: MI_INT32,
+    13: MI_UINT32, 14: MI_INT64, 15: MI_UINT64,
+};
+// The array flags' bits above the class byte.
+const LOGICAL_BIT = 0x200;
+const COMPLEX_BIT = 0x800;
+const SPARSE_BIT = 0x1000;
+// MATLAB's keywords (iskeyword), which a variable name may not be: the same list
+// datamodel/matlabName.ts holds, restated because this folder imports nothing from there.
+const KEYWORDS = new Set([
+    'break', 'case', 'catch', 'classdef', 'continue', 'else', 'elseif', 'end', 'for', 'function',
+    'global', 'if', 'otherwise', 'parfor', 'persistent', 'return', 'spmd', 'switch', 'try', 'while',
+]);
+const IDENTIFIER = /^[A-Za-z][A-Za-z0-9_]*$/;
+// Fatal, so bytes that are not UTF-8 are said to be, and keeping a BOM, so a name or a text
+// that opens with one is not read as one without it.
+const strictUtf8 = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
+const looseUtf8 = new TextDecoder('utf-8', { ignoreBOM: true });
+// The MAT stream a subsystem's uint8 data opens with: the version 0x0100 and 'IM'.
+const STREAM_MAGIC = [0x00, 0x01, 0x49, 0x4d];
+/** Thrown inside a check when a budget runs out, and turned into its `budget` note. */
+class OutOfBudget extends Error {
+    constructor(at, message) {
+        super(message);
+        this.at = at;
+        this.name = 'OutOfBudget';
+    }
+}
+/** One top-level record's bytes, from its tag, as the record at byte `at` of its file. */
+function recordSpace(view, at) {
+    return { view, fileAt: (o) => at + o, where: (o) => `Byte ${at + o}` };
+}
+function payloadSpace(view, record) {
+    return {
+        view,
+        fileAt: () => record,
+        where: (o) => `Byte ${o} of the compressed record at byte ${record}, inflated,`,
+    };
+}
+class Check {
+    constructor(options) {
+        this.out = [];
+        /** The record being checked, for a `budget` note on a throw nobody expected. */
+        this.cursor = 128;
+        /** Whether the walk is inside the subsystem's stream, which belongs to no variable. */
+        this.inSubsystem = false;
+        /**
+         * Whether only what the placement rules need of a record is read (its name, and whether it
+         * holds the subsystem), and nothing past it: what a record kept as its own bytes is asked
+         * in a splice (violationsAddedBySplice), whose violations are the file's as read already.
+         */
+        this.headOnly = false;
+        this.maxElements = options.maxElements ?? MAT_CHECK_ELEMENT_BUDGET;
+        this.maxInflated = options.maxInflatedBytes ?? MAT_CHECK_INFLATE_BUDGET;
+        this.elementsLeft = this.maxElements;
+        this.inflateLeft = this.maxInflated;
+    }
+    /** A violation of the file as a whole, or of one record seen from outside it. */
+    file(code, at, message, variable) {
+        const v = { code, at, message };
+        if (variable)
+            v.variable = variable;
+        this.out.push(v);
+    }
+    /** A violation inside a matrix, said with where it is and whose it is. */
+    report(code, space, o, text) {
+        const whose = this.inSubsystem
+            ? ' (in the subsystem, the data of the objects in the file)'
+            : this.variable ? ` (in "${this.variable}")` : '';
+        const v = { code, at: space.fileAt(o), message: `${space.where(o)}${whose}: ${text}.` };
+        if (this.variable && !this.inSubsystem)
+            v.variable = this.variable;
+        this.out.push(v);
+    }
+    /** One more matrix walked, or the end of the check. */
+    spend(space, o) {
+        if (--this.elementsLeft < 0) {
+            throw new OutOfBudget(space.fileAt(o), `more than the ${this.maxElements} matrices one check walks`);
+        }
+    }
+}
+/**
+ * Check a Level-5 MAT-file against the rules MATLAB loads one by (see the top of this file),
+ * and list every place it breaks one, in file order. An empty list means MATLAB loads the
+ * file, every variable in it, as stored. Pure and synchronous, and it never throws: bytes that
+ * are not a MAT-file at all are a violation too.
+ */
+export function checkMatFile(bytes, options = {}) {
+    const check = new Check(options);
+    try {
+        checkFile(check, bytes);
+    }
+    catch (err) {
+        // A budget run out, or, if this module has a defect, any other throw: either way the
+        // check did not finish, and that is said rather than thrown, at the record it was in.
+        check.file('budget', ...stoppedAt(err, check.cursor));
+    }
+    // Stable, so the violations of one place keep the order they were found in.
+    return check.out.sort((a, b) => a.at - b.at);
+}
+/**
+ * What one variable's miMATRIX element (its tag and body, as a record holds it inflated) breaks
+ * of the rules MATLAB reads a matrix by, at any depth: its char data, its storage, how its
+ * sub-elements fill it, its name. Not the rules of a file (its header, framing, compression,
+ * placement), which only a whole file has: those are checkMatFile's. Every `at` is 0, the
+ * element's own start, and each message says where in the element. Asked of a variable as it was
+ * read, whose element is in memory already, so nothing is inflated; and like checkMatFile it never
+ * throws, and stops at its budget with a `budget` note.
+ */
+export function checkMatElement(element, options = {}) {
+    const check = new Check(options);
+    const view = new DataView(element.buffer, element.byteOffset, element.byteLength);
+    const space = { view, fileAt: () => 0, where: (o) => `Byte ${o} of its element` };
+    try {
+        if (element.byteLength < 8) {
+            check.file('element', 0, `The element holds ${element.byteLength} byte(s), fewer than one element's tag.`);
+        }
+        else if (view.getUint32(0, true) !== MI_MATRIX) {
+            check.file('element', 0, `The element is a data element of ${typeName(view.getUint32(0, true))}, not a matrix.`);
+        }
+        else {
+            topMatrix(check, space, 0, 8, Math.min(8 + view.getUint32(4, true), element.byteLength));
+        }
+    }
+    catch (err) {
+        const why = err instanceof OutOfBudget ? err.message : `an error in the check itself (${reasonOf(err)})`;
+        check.file('budget', 0, `The check of the element stopped at ${why}, so nothing from there on was checked.`, check.variable);
+    }
+    return check.out;
+}
+/**
+ * The violations of `after` that `before` does not have: what a rewrite of a file added to it.
+ *
+ * Matched by code and variable, never by offset or message, which an edit anywhere before a
+ * record moves; and counted, so a third violation of one kind in one variable is added where
+ * the original had two. `renamed` maps a variable's name in `after` to its name in `before`.
+ * A `budget` note in `after` is always added: a check that did not finish proves nothing about
+ * what it did not reach, whatever the original's check reached.
+ */
+export function violationsAdded(before, after, renamed = new Map()) {
+    const key = (code, variable) => `${code}\u0000${variable ?? ''}`;
+    const held = new Map();
+    for (const v of before) {
+        const k = key(v.code, v.variable);
+        held.set(k, (held.get(k) ?? 0) + 1);
+    }
+    const added = [];
+    for (const v of after) {
+        const k = key(v.code, v.variable === undefined ? undefined : renamed.get(v.variable) ?? v.variable);
+        const left = held.get(k) ?? 0;
+        if (v.code === 'budget' || left === 0) {
+            added.push(v);
+        }
+        else {
+            held.set(k, left - 1);
+        }
+    }
+    return added;
+}
+/**
+ * What `written` adds to `read` by the rules MATLAB loads a file by, as
+ * `violationsAdded(checkMatFile(read), checkMatFile(written), renamed)` says it, where `written`
+ * is `read` with some of its records kept as their own bytes, the others deleted or written anew,
+ * and records added: worked out from what changed, rather than by checking both files whole.
+ *
+ * WHY IT IS THE SAME ANSWER. What a record breaks depends on its bytes alone (checkRecord, which
+ * checkMatFile walks every record with: `at` only places what is said). So a record kept as its
+ * own bytes breaks in `written` what it broke in `read`, under the same variable, and the two
+ * cancel, by rule and variable, as violationsAdded counts them. What is left to compare is the
+ * records written, the records they replace, the header, and the rules of where records stand
+ * (checkPlacement), which are asked of both files whole, from each record's name and whether it
+ * holds the subsystem: of a kept record, read without walking the rest of it (Check.headOnly).
+ * That holds where three things do, and where one does not both files are checked whole:
+ *
+ *   - both files walk as their records are given: every record's tag declares exactly the bytes
+ *     it is given, and opens with a nonzero byte, which the tag of a type that is a multiple of
+ *     256 does not, and which the walk then takes for padding;
+ *   - no record of `read` is kept twice, or kept and replaced;
+ *   - no kept record holds a name `renamed` maps, which violationsAdded would compare its
+ *     violations under the other name of.
+ *
+ * A record deleted is one more in `read` than in `written`, which can only take from what is
+ * added: it is checked only when something is.
+ *
+ * THE BUDGET (MatCheckOptions) is spent on what is checked, the records written and the ones
+ * they replace, and not on the records kept, which are not walked: so a file past it is still
+ * checked where it changed, where checkMatFile of it would stop. A `budget` note on the written
+ * side is added, as violationsAdded adds every one; one on the read side only leaves less for a
+ * written record's violations to be matched with. A kept record whose name cannot be read within
+ * the budget is a `budget` note on the written side: where it stands cannot be judged.
+ */
+export function violationsAddedBySplice(read, written, renamed = new Map(), options = {}) {
+    const readBytes = read.records.map((r) => r.bytes);
+    const writtenBytes = written.records.map((r) => {
+        if ('kept' in r && !read.records[r.kept]) {
+            throw new RangeError(`A record kept as record ${r.kept} of a file of ${read.records.length}.`);
+        }
+        return 'kept' in r ? read.records[r.kept].bytes : r.written;
+    });
+    const whole = () => violationsAdded(checkMatFile(joined(read.header, readBytes), options), checkMatFile(joined(written.header, writtenBytes), options), renamed);
+    const taken = new Set();
+    for (const r of written.records) {
+        const from = 'kept' in r ? r.kept : r.replaces;
+        if (from !== null) {
+            if (taken.has(from)) {
+                return whole();
+            }
+            taken.add(from);
+        }
+    }
+    if (read.header.byteLength !== 128 || written.header.byteLength !== 128 || ![...readBytes, ...writtenBytes].every(walksAsGiven)) {
+        return whole();
+    }
+    const readHeader = headerOf(read.header);
+    const writtenHeader = headerOf(written.header);
+    if (readHeader.walked !== writtenHeader.walked) {
+        return whole();
+    }
+    if (!writtenHeader.walked) {
+        // checkMatFile reads neither file past its header.
+        return violationsAdded(readHeader.violations, writtenHeader.violations, renamed);
+    }
+    const readAt = offsetsOf(readBytes);
+    const writtenAt = offsetsOf(writtenBytes);
+    const heads = read.records.map((r, i) => headOf(r, readAt[i], options));
+    for (const r of written.records) {
+        const head = 'kept' in r ? heads[r.kept] : null;
+        if (head && !(head instanceof OutOfBudget) && head.name && renamed.has(head.name)) {
+            return whole();
+        }
+    }
+    // The written side: its header, every record written, and where every record stands.
+    const after = new Check(options);
+    const writtenInfos = [];
+    let walked = true;
+    try {
+        written.records.forEach((r, i) => {
+            if (!('kept' in r)) {
+                writtenInfos.push(checkRecord(after, r.written, writtenAt[i]));
+                return;
+            }
+            const head = heads[r.kept];
+            if (head instanceof OutOfBudget) {
+                throw new OutOfBudget(writtenAt[i], head.message);
+            }
+            writtenInfos.push(head && { ...head, at: writtenAt[i] });
+        });
+    }
+    catch (err) {
+        walked = false;
+        after.file('budget', ...stoppedAt(err, after.cursor));
+    }
+    if (walked) {
+        checkPlacement(after, writtenInfos.filter((x) => x !== null), writtenHeader.offset, endOf(writtenAt, writtenBytes));
+    }
+    const afterAll = [...writtenHeader.violations, ...after.out].sort((a, b) => a.at - b.at);
+    // The read side: its header, where every record stood, the records replaced, and the records
+    // deleted only when what is added so far could be matched with one of theirs.
+    const before = new Check(options);
+    const readInfos = heads.map((h, i) => (h instanceof OutOfBudget ? { at: readAt[i], name: null, subsystem: false } : h));
+    checkPlacement(before, readInfos.filter((x) => x !== null), readHeader.offset, endOf(readAt, readBytes));
+    const checkRead = (which) => {
+        try {
+            for (const i of which) {
+                checkRecord(before, read.records[i].bytes, readAt[i], read.records[i].inflated);
+            }
+            return true;
+        }
+        catch (err) {
+            before.file('budget', ...stoppedAt(err, before.cursor));
+            return false;
+        }
+    };
+    const replaced = written.records.flatMap((r) => ('kept' in r || r.replaces === null ? [] : [r.replaces]));
+    const readOn = checkRead(replaced);
+    let added = violationsAdded([...readHeader.violations, ...before.out], afterAll, renamed);
+    const deleted = read.records.map((_, i) => i).filter((i) => !taken.has(i));
+    if (added.some((v) => v.code !== 'budget') && deleted.length > 0 && readOn) {
+        checkRead(deleted);
+        added = violationsAdded([...readHeader.violations, ...before.out], afterAll, renamed);
+    }
+    return added;
+}
+// Whether the walk of a file (walkRecords) reads `record` as the record it is given as: its tag
+// declares exactly its bytes, and it does not open with a zero byte, which the walk reads as
+// padding or as the end of the records.
+function walksAsGiven(record) {
+    return record.byteLength >= 8 && record[0] !== 0
+        && 8 + new DataView(record.buffer, record.byteOffset, 8).getUint32(4, true) === record.byteLength;
+}
+// What checkMatFile says of a header, whether it reads on past it, and the subsystem's offset it gives.
+function headerOf(header) {
+    const check = new Check({});
+    const walked = checkHeader(check, header);
+    const offset = subsystemOffset(new DataView(header.buffer, header.byteOffset, header.byteLength), header);
+    return { violations: check.out, walked, offset };
+}
+// What the placement rules need of the record at byte `at`, read as checkRecord reads it but no
+// further (Check.headOnly), or the budget that stopped it. A compressed record whose inflate is
+// held is not inflated again, and spends none of the budget.
+function headOf(record, at, options) {
+    const check = new Check(options);
+    check.headOnly = true;
+    if (record.inflated) {
+        check.inflateLeft = MAT_RECORD_INFLATE_CEILING;
+    }
+    try {
+        return checkRecord(check, record.bytes, at, record.inflated);
+    }
+    catch (err) {
+        return err instanceof OutOfBudget ? err : new OutOfBudget(at, `an error in the check itself (${reasonOf(err)})`);
+    }
+}
+// The place and the words of the `budget` note of a check stopped by `err` in the record at
+// `cursor`: a budget run out (OutOfBudget, which says where), or a defect of the check's own.
+function stoppedAt(err, cursor) {
+    const at = err instanceof OutOfBudget ? err.at : cursor;
+    const why = err instanceof OutOfBudget ? err.message : `an error in the check itself (${reasonOf(err)})`;
+    return [at, `The check stopped at byte ${at}, at ${why}, so nothing from there on was checked.`];
+}
+// Where each of `records` starts, back to back after a 128-byte header.
+function offsetsOf(records) {
+    const out = [];
+    let at = 128;
+    for (const r of records) {
+        out.push(at);
+        at += r.byteLength;
+    }
+    return out;
+}
+function endOf(offsets, records) {
+    return offsets.length === 0 ? 128 : offsets[offsets.length - 1] + records[records.length - 1].byteLength;
+}
+function joined(header, records) {
+    const out = new Uint8Array(header.byteLength + endOf(offsetsOf(records), records) - 128);
+    out.set(header, 0);
+    let at = header.byteLength;
+    for (const r of records) {
+        out.set(r, at);
+        at += r.byteLength;
+    }
+    return out;
+}
+function checkFile(check, bytes) {
+    if (bytes.byteLength < 128) {
+        check.file('short-file', 0, `The file holds ${bytes.byteLength} bytes, fewer than the 128 of a MAT-file's header.`);
+        return;
+    }
+    if (!checkHeader(check, bytes)) {
+        return;
+    }
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const offset = subsystemOffset(view, bytes);
+    const records = walkRecords(check, view, bytes, offset);
+    checkPlacement(check, records, offset, bytes.byteLength);
+}
+/** Whether the rest of the file is a Level-5 one to check, having said what the header breaks. */
+function checkHeader(check, bytes) {
+    // MATLAB looks at the first four bytes before anything else, and a zero in either 16-bit
+    // half of them makes it read the file as Level 4: a header text that opens with NULs.
+    if ((bytes[0] | bytes[1]) === 0 || (bytes[2] | bytes[3]) === 0) {
+        check.file('level4-lookalike', 0, 'A 16-bit half of the header\'s first four bytes is zero, so MATLAB reads '
+            + 'the file as a Level 4 MAT-file and fails the load. The header text must not open with NUL bytes.');
+    }
+    const mark = String.fromCharCode(bytes[126], bytes[127]);
+    const version = `${hex2(bytes[124])} ${hex2(bytes[125])}`;
+    if (mark === 'MI' && bytes[124] === 0x01 && bytes[125] === 0x00) {
+        check.file('big-endian', 126, 'The file is big-endian (\'MI\'). MATLAB reads one, but this package does not, '
+            + 'so nothing after the header was checked.');
+        return false;
+    }
+    if (mark !== 'IM' && mark !== 'MI') {
+        check.file('not-level5', 126, `Header bytes 126-127 are ${hex2(bytes[126])} ${hex2(bytes[127])}, not the endian mark `
+            + '\'IM\' of a Level-5 MAT-file, so MATLAB does not read it as one.');
+        return false;
+    }
+    if (mark === 'IM' && !(bytes[124] === 0x00 && bytes[125] === 0x01)) {
+        check.file('not-level5', 124, bytes[124] === 0x00 && bytes[125] === 0x02
+            ? 'Header bytes 124-125 are 00 02, the version 0x0200 of a -v7.3 (HDF5) file, which is not a Level-5 MAT-file.'
+            : `Header bytes 124-125 are ${version}, where a Level-5 MAT-file holds the version 0x0100 (bytes 00 01), `
+                + 'so MATLAB fails the load.');
+        return false;
+    }
+    if (mark === 'MI') {
+        check.file('not-level5', 124, `Header bytes 124-125 are ${version}, and a big-endian ('MI') file holds the version `
+            + '0x0100 as bytes 01 00: the version and the endian mark disagree, so MATLAB fails the load.');
+        return false;
+    }
+    return true;
+}
+function hex2(b) {
+    return b.toString(16).padStart(2, '0');
+}
+/** Header bytes 116-123: the subsystem's offset, where eight spaces mean 0 as zeros do. */
+function subsystemOffset(view, bytes) {
+    if (bytes.subarray(116, 124).every((b) => b === 0x20)) {
+        return 0;
+    }
+    return view.getUint32(120, true) * 2 ** 32 + view.getUint32(116, true);
+}
+/**
+ * Every record from byte 128 to the end of the file, each checked, and what the placement
+ * rules need of each. The walk is MATLAB's: a record is its 8-byte tag and the bytes the tag
+ * declares, and the next one starts right after them, whatever the alignment.
+ */
+function walkRecords(check, view, bytes, offset) {
+    const records = [];
+    const length = bytes.byteLength;
+    let at = 128;
+    while (at < length) {
+        check.cursor = at;
+        check.variable = undefined;
+        if (bytes[at] === 0) {
+            // No record tag opens with a zero byte (a record's type is 14 or 15), so this is padding,
+            // or the bytes after the last record, or a tag of type 0. Said once, as what it is.
+            const zeros = zeroRun(bytes, at);
+            const last = records[records.length - 1];
+            if (at + zeros === length && last !== undefined && last.at === offset && last.subsystem) {
+                // Measured: MATLAB loads a file with 8 zero bytes after its subsystem, because its
+                // load stops reading at the subsystem. They are no record all the same, and what
+                // MATLAB's own `save -append`, which reads past the subsystem, makes of them is not
+                // known, so they are said as the bytes that do not frame they are.
+                check.file('framing', at, `The file ends with ${zeros} zero byte(s) after the subsystem's record, which are no `
+                    + 'record: MATLAB\'s load does not read past the subsystem, but MATLAB writes nothing after it.');
+                break;
+            }
+            if (at + zeros === length) {
+                const after = last === undefined ? 'its header' : 'its last record';
+                check.file('framing', at, zeros < 8
+                    ? `The file ends with ${zeros} zero byte(s) after ${after}, fewer than a record's tag: `
+                        + 'MATLAB fails the load. Nothing may follow the last record.'
+                    : `The file ends with ${zeros} zero bytes after ${after}, which MATLAB reads as a record of type 0, `
+                        + 'and fails the load. Nothing may follow the last record.');
+                break;
+            }
+            if (zeros < 8 && at + zeros + 8 <= length && isRecordType(view.getUint32(at + zeros, true))) {
+                check.file('framing', at, `${zeros} zero byte(s) at byte ${at} pad the record before them: MATLAB reads the `
+                    + 'next record right where the last one\'s declared bytes end, and a compressed record is never padded, so '
+                    + 'it fails the load.');
+                at += zeros;
+                continue;
+            }
+            const word = at + 4 <= length ? view.getUint32(at, true) : 0;
+            check.file('framing', at, `The bytes at ${at} are no record's tag (they read as ${typeName(word)}): MATLAB `
+                + 'fails the load, and nothing after them was checked.');
+            break;
+        }
+        if (length - at < 8) {
+            check.file('framing', at, `The file ends ${length - at} byte(s) into a record's tag: MATLAB fails the load.`);
+            break;
+        }
+        const n = view.getUint32(at + 4, true);
+        if (at + 8 + n > length) {
+            check.file('framing', at, `The record at byte ${at} declares ${n} bytes, and the file holds ${length - at - 8} `
+                + 'after its tag: it is cut short, and MATLAB fails the load.');
+            break;
+        }
+        const info = checkRecord(check, bytes.subarray(at, at + 8 + n), at);
+        if (info) {
+            records.push(info);
+        }
+        at += 8 + n;
+    }
+    return records;
+}
+/**
+ * One top-level record, its tag and the bytes it declares, as the record at byte `at` of its
+ * file: checked, and what the placement rules need of it, or null for a record they do not
+ * see, one that is no matrix. What it breaks depends on its bytes alone: `at` places what is
+ * said, and nothing else of the file is read. `inflated` is a compressed record's payload,
+ * inflated, when the caller holds that already (violationsAddedBySplice).
+ */
+function checkRecord(check, record, at, inflated) {
+    check.cursor = at;
+    check.variable = undefined;
+    const view = new DataView(record.buffer, record.byteOffset, record.byteLength);
+    const type = view.getUint32(0, true);
+    const n = view.getUint32(4, true);
+    if (type === MI_MATRIX) {
+        return plainRecord(check, recordSpace(view, at), at, n);
+    }
+    if (type === MI_COMPRESSED) {
+        return compressedRecord(check, record.subarray(8, 8 + n), at, inflated);
+    }
+    check.file('top-level-type', at, `The record at byte ${at} is a data element of ${typeName(type)}: a variable is `
+        + 'stored as an miMATRIX or an miCOMPRESSED, and MATLAB fails the load on anything else.');
+    return null;
+}
+function zeroRun(bytes, at) {
+    let end = at;
+    while (end < bytes.byteLength && bytes[end] === 0)
+        end++;
+    return end - at;
+}
+function isRecordType(word) {
+    return word === MI_MATRIX || word === MI_COMPRESSED;
+}
+function typeName(type) {
+    return TYPE_NAMES[type] ?? `type ${type}`;
+}
+// A plain record, in a space that holds it from its tag (recordSpace).
+function plainRecord(check, space, at, n) {
+    if (n === 0) {
+        check.file('empty-matrix', at, `The record at byte ${at} is an miMATRIX of 0 bytes: MATLAB fails the load. `
+            + 'Only a matrix inside another may be empty.');
+        return { at, name: null, subsystem: false };
+    }
+    const info = topMatrix(check, space, at, 8, 8 + n);
+    if (n % 8 !== 0) {
+        check.file('framing', at, `The record at byte ${at} declares ${n} bytes, not a whole number of 8-byte words: `
+            + 'a plain record ends padded to 8 bytes, so this one is missing its final pad, and MATLAB fails the load.', info.name || undefined);
+    }
+    return info;
+}
+/**
+ * A compressed record: one zlib stream (RFC 1950) that inflates to one miMATRIX and nothing
+ * else, and ends at the record's last byte. Its matrix is then checked in the inflated bytes.
+ *
+ * `given`, when there is one, is what `inflateZlib` made of `payload` for the caller already (MatParser
+ * keeps it, MatVariable._rawBytes), taken for the inflate rather than inflating the payload
+ * again: the same function of the same bytes, so the same bytes, spent from the budget as an
+ * inflate of them is. Nothing else of what the caller read is taken.
+ */
+function compressedRecord(check, payload, at, given) {
+    const unread = { at, name: null, subsystem: false };
+    // Said once the record's name is known, if it can be, and ahead of what its matrix breaks.
+    const faults = [];
+    const fault = (text) => {
+        faults.push(`The compressed record at byte ${at} ${text}.`);
+    };
+    const first = check.out.length;
+    const done = (info) => {
+        const said = faults.map((message) => {
+            const v = { code: 'compressed-wrapper', at, message };
+            if (info.name)
+                v.variable = info.name;
+            return v;
+        });
+        check.out.splice(first, 0, ...said);
+        return info;
+    };
+    const head = zlibHeaderFault(payload);
+    if (head) {
+        fault(`${head}: MATLAB inflates a record only as a zlib stream, and fails the load`);
+        return done(unread);
+    }
+    const ceiling = Math.min(check.inflateLeft, MAT_RECORD_INFLATE_CEILING);
+    let inflated;
+    try {
+        if (given && given.byteLength > ceiling) {
+            throw new InflateCeilingError(ceiling);
+        }
+        inflated = given ?? inflateZlib(payload, ceiling);
+    }
+    catch (err) {
+        if (err instanceof InflateCeilingError) {
+            if (ceiling < MAT_RECORD_INFLATE_CEILING) {
+                throw new OutOfBudget(at, `more than the ${check.maxInflated} bytes one check inflates`);
+            }
+            fault(`inflates to more than the ${MAT_RECORD_INFLATE_CEILING} bytes one record of a -v7 file can hold`);
+            return done(unread);
+        }
+        fault(`does not inflate (${reasonOf(err)}): MATLAB fails the load`);
+        return done(unread);
+    }
+    check.inflateLeft -= inflated.byteLength;
+    // The stream ends with the Adler-32 of what it inflates to, so a record whose last four
+    // bytes are that checksum ends where its stream does. Anything else is bytes after the
+    // stream, which MATLAB's record never has, or a checksum that is wrong. Not asked for a
+    // record's name alone (headOnly), which it does not change.
+    const trailer = new DataView(payload.buffer, payload.byteOffset + payload.byteLength - 4, 4).getUint32(0, false);
+    if (!check.headOnly && trailer !== adler32(inflated)) {
+        fault('does not end with its zlib stream\'s checksum: bytes follow the stream inside the record, or the '
+            + 'checksum is wrong. MATLAB writes a record as exactly its stream');
+    }
+    if (inflated.byteLength < 8) {
+        fault(`inflates to ${inflated.byteLength} byte(s), fewer than one element's tag: MATLAB fails the load`);
+        return done(unread);
+    }
+    const view = new DataView(inflated.buffer, inflated.byteOffset, inflated.byteLength);
+    const type = view.getUint32(0, true);
+    const n = view.getUint32(4, true);
+    if (type === MI_COMPRESSED) {
+        fault('inflates to another compressed record: MATLAB never nests one, and fails the load');
+        return done(unread);
+    }
+    if (type !== MI_MATRIX) {
+        fault(`inflates to a data element of ${typeName(type)}, where a record holds a matrix: MATLAB fails the load`);
+        return done(unread);
+    }
+    if (n === 0) {
+        check.file('empty-matrix', at, `The compressed record at byte ${at} holds an miMATRIX of 0 bytes: MATLAB fails `
+            + 'the load. Only a matrix inside another may be empty.');
+        return done(unread);
+    }
+    const held = inflated.byteLength - 8;
+    if (n > held) {
+        fault(`holds a matrix that declares ${n} bytes, and it inflates to ${held} after the matrix's tag: `
+            + 'the matrix is cut short, and MATLAB fails the load');
+    }
+    else if (n < held) {
+        fault(`inflates to ${held - n} byte(s) after its matrix: MATLAB's record holds one matrix and nothing after it`);
+    }
+    return done(topMatrix(check, payloadSpace(view, at), at, 8, 8 + Math.min(n, held)));
+}
+/**
+ * Why `payload` is not a zlib stream by its first two bytes, or null when it opens like one:
+ * compression method 8 (deflate) with a window of at most 32 KiB, a header check that holds,
+ * and no preset dictionary, which MATLAB does not supply.
+ */
+function zlibHeaderFault(payload) {
+    if (payload.byteLength < 6) {
+        return `holds ${payload.byteLength} byte(s), fewer than the smallest zlib stream`;
+    }
+    const cmf = payload[0];
+    const flg = payload[1];
+    if (cmf === 0x1f && flg === 0x8b) {
+        return 'is a gzip stream, not a zlib one';
+    }
+    if ((cmf & 0x0f) !== 8 || cmf >> 4 > 7 || ((cmf << 8) | flg) % 31 !== 0) {
+        return `does not open with a zlib header (it opens ${hex2(cmf)} ${hex2(flg)}; raw deflate has none)`;
+    }
+    if (flg & 0x20) {
+        return 'is a zlib stream that needs a preset dictionary';
+    }
+    return null;
+}
+/** RFC 1950's checksum of `bytes`. */
+function adler32(bytes) {
+    let a = 1;
+    let b = 0;
+    const n = bytes.byteLength;
+    for (let i = 0; i < n;) {
+        // 5552 bytes is the most the sums take before they must be reduced to stay exact in 32 bits,
+        // and so certainly within a double.
+        const stop = Math.min(n, i + 5552);
+        for (; i < stop; i++) {
+            a += bytes[i];
+            b += a;
+        }
+        a %= 65521;
+        b %= 65521;
+    }
+    return (b * 65536 + a) >>> 0;
+}
+/**
+ * The tag of the sub-element at `o`, which has to end by `end`, or null when it does not, or
+ * when its small form declares more than the 4 bytes it can hold. Both are said here, so a
+ * caller that gets null stops reading the matrix and adds nothing.
+ */
+function readTag(check, space, o, end, what) {
+    if (o + 8 > end) {
+        check.report('nbytes', space, o, `the matrix ends ${end - o} byte(s) into the tag of its ${what}, so its `
+            + 'sub-elements do not fill it: MATLAB fails the load');
+        return null;
+    }
+    const word = space.view.getUint32(o, true);
+    const small = word >>> 16;
+    if (small !== 0) {
+        // The small form: the count in the upper half of the first word, the data in the second.
+        if (small > 4) {
+            check.report('element', space, o, `the ${what} has a small tag declaring ${small} bytes, more than the 4 `
+                + 'it holds: MATLAB fails the load');
+            return null;
+        }
+        return { type: word & 0xffff, n: small, data: o + 4, next: o + 8 };
+    }
+    const n = space.view.getUint32(o + 4, true);
+    // A matrix inside another is its tag and its declared bytes; a primitive is padded to 8.
+    const next = o + 8 + (word === MI_MATRIX ? n : align8(n));
+    if (next > end) {
+        const size = word === MI_MATRIX || n % 8 === 0 ? `${n} bytes` : `${n} bytes, ${align8(n)} with its pad,`;
+        check.report('nbytes', space, o, `the ${what} declares ${size} and the matrix holding it has `
+            + `${Math.max(0, end - o - 8)} left after its tag: MATLAB fails the load`);
+        return null;
+    }
+    return { type: word, n, data: o + 8, next };
+}
+function align8(n) {
+    return n + ((8 - (n % 8)) % 8);
+}
+/** A top-level record's matrix: checked, and what the placement rules need of it. */
+function topMatrix(check, space, at, start, end) {
+    const info = { at, name: null, subsystem: false };
+    check.spend(space, start);
+    const head = readHeader(check, space, start, end);
+    if (!head) {
+        return info;
+    }
+    info.name = recordName(check, at, head.name);
+    const stream = info.name === '' ? subsystemStream(space, head, end) : null;
+    info.subsystem = stream !== null;
+    if (check.headOnly) {
+        return info;
+    }
+    const p = classBody(check, space, head, end, 0);
+    if (p !== null) {
+        fillsExactly(check, space, p, end);
+    }
+    if (stream !== null) {
+        checkSubsystem(check, space, stream.start, stream.end);
+    }
+    return info;
+}
+/**
+ * A variable's name, having said what is wrong with it: '' for none, and for bytes that are
+ * not UTF-8 the name as far as it reads, so the violation can still say whose it is.
+ */
+function recordName(check, at, bytes) {
+    if (bytes.byteLength === 0) {
+        return '';
+    }
+    let name;
+    try {
+        name = strictUtf8.decode(bytes);
+    }
+    catch {
+        name = looseUtf8.decode(bytes);
+        check.variable = name;
+        check.file('name', at, `The variable name at byte ${at} is not valid UTF-8 (bytes ${Array.from(bytes, hex2).join(' ')}): `
+            + 'MATLAB crashes reading it, in `load` and in `whos -file` alike.', name);
+        return name;
+    }
+    check.variable = name;
+    if (!IDENTIFIER.test(name)) {
+        check.file('name', at, `The variable name "${name}" at byte ${at} is not a MATLAB identifier (a letter, then `
+            + 'letters, digits and underscores): `S = load(f)` fails on it, and `load(f)` leaves it out.', name);
+    }
+    else if (KEYWORDS.has(name)) {
+        check.file('name', at, `The variable name "${name}" at byte ${at} is a MATLAB keyword: MATLAB loads it as `
+            + `"${name}_", with a warning.`, name);
+    }
+    return name;
+}
+/**
+ * Everything before a matrix's class's own sub-elements: the array flags, the dimensions
+ * (which an opaque has none of), the name. Null, having said why, when they are not there to
+ * read as MATLAB reads them.
+ */
+function readHeader(check, space, start, end) {
+    const view = space.view;
+    const flagsTag = readTag(check, space, start, end, 'array flags');
+    if (!flagsTag) {
+        return null;
+    }
+    if (flagsTag.type !== MI_UINT32 || flagsTag.n !== 8) {
+        check.report('element', space, start, `the matrix's array flags are ${flagsTag.n} byte(s) of ${typeName(flagsTag.type)}, `
+            + 'where MATLAB writes and reads two miUINT32 words: it fails the load');
+        return null;
+    }
+    const flags = view.getUint32(flagsTag.data, true);
+    const cls = flags & 0xff;
+    if (cls < MX_CELL || cls > MX_OPAQUE) {
+        check.report('element', space, start, `the matrix's array class is ${cls}, which is no class MATLAB reads: `
+            + 'it fails the load');
+        return null;
+    }
+    let p = flagsTag.next;
+    const dims = [];
+    let numel = 1;
+    if (cls !== MX_OPAQUE) {
+        const dimsTag = readTag(check, space, p, end, 'dimensions');
+        if (!dimsTag) {
+            return null;
+        }
+        if (dimsTag.type !== MI_INT32 || dimsTag.n % 4 !== 0 || dimsTag.n < 8) {
+            check.report('element', space, p, `the matrix's dimensions are ${dimsTag.n} byte(s) of ${typeName(dimsTag.type)}, `
+                + 'where MATLAB writes and reads two or more miINT32 extents: it fails the load');
+            return null;
+        }
+        for (let i = 0; i < dimsTag.n; i += 4) {
+            const extent = view.getInt32(dimsTag.data + i, true);
+            if (extent < 0) {
+                check.report('element', space, p, `the matrix's dimension ${i / 4 + 1} is ${extent}, which is no size: `
+                    + 'MATLAB fails the load');
+                return null;
+            }
+            dims.push(extent);
+            numel *= extent;
+        }
+        p = dimsTag.next;
+    }
+    const nameTag = readTag(check, space, p, end, 'name');
+    if (!nameTag) {
+        return null;
+    }
+    if (nameTag.type !== MI_INT8 && nameTag.type !== MI_UINT8) {
+        check.report('element', space, p, `the matrix's name is ${typeName(nameTag.type)}, where MATLAB writes an `
+            + 'miINT8 one: it fails the load');
+        return null;
+    }
+    const name = new Uint8Array(view.buffer, view.byteOffset + nameTag.data, nameTag.n);
+    return { cls, flags, dims, numel, name, p: nameTag.next };
+}
+/** A matrix inside another: a cell's member, a struct's field, an object's data. */
+function nestedMatrix(check, space, start, end, depth) {
+    check.spend(space, start);
+    if (depth > MAX_NESTING) {
+        throw new OutOfBudget(space.fileAt(start), `a matrix nested more than ${MAX_NESTING} levels deep`);
+    }
+    const head = readHeader(check, space, start, end);
+    if (!head) {
+        return;
+    }
+    const p = classBody(check, space, head, end, depth);
+    if (p !== null) {
+        fillsExactly(check, space, p, end);
+    }
+}
+/** A matrix whose class's sub-elements end at `p` holds nothing after them. */
+function fillsExactly(check, space, p, end) {
+    if (p !== end) {
+        check.report('nbytes', space, p, `${end - p} byte(s) follow the matrix's last sub-element inside it: MATLAB reads `
+            + 'a matrix as its sub-elements back to back, and they must fill it exactly');
+    }
+}
+/**
+ * The sub-elements a matrix of `head.cls` holds after its name, checked: where they end, or
+ * null when a fault already said means the rest cannot be read.
+ */
+function classBody(check, space, head, end, depth) {
+    const cls = head.cls;
+    switch (cls) {
+        case MX_CELL:
+            return members(check, space, head.p, end, head.numel, depth, 'cell member');
+        case MX_STRUCT:
+            return structBody(check, space, head, head.p, end, depth);
+        case MX_OBJECT: {
+            const p = className(check, space, head.p, end);
+            return p === null ? null : structBody(check, space, head, p, end, depth);
+        }
+        case MX_CHAR:
+            return charBody(check, space, head, end);
+        case MX_SPARSE:
+            return sparseBody(check, space, head, end);
+        case MX_FUNCTION:
+            return members(check, space, head.p, end, head.numel, depth, 'function handle member');
+        case MX_OPAQUE: {
+            const sub = className(check, space, head.p, end, 'subsystem name');
+            const p = sub === null ? null : className(check, space, sub, end);
+            return p === null ? null : members(check, space, p, end, 1, depth, 'object data');
+        }
+        default:
+            return head.flags & SPARSE_BIT ? sparseBody(check, space, head, end) : numericBody(check, space, head, end);
+    }
+}
+/**
+ * `count` matrices back to back from `p`, each checked: a cell's members, a struct's fields
+ * (element by element, field by field), a function handle's parts, an object's data.
+ */
+function members(check, space, p, end, count, depth, what) {
+    for (let i = 0; i < count; i++) {
+        if (p >= end) {
+            check.report('nbytes', space, p, `the matrix holds ${i} of the ${count} ${what}(s) it declares: MATLAB fails the load`);
+            return null;
+        }
+        const tag = readTag(check, space, p, end, `${what} ${i + 1}`);
+        if (!tag) {
+            return null;
+        }
+        if (tag.type !== MI_MATRIX) {
+            check.report('element', space, p, `${what} ${i + 1} is a data element of ${typeName(tag.type)}, where MATLAB `
+                + 'reads only a matrix: it fails the load');
+            return null;
+        }
+        // An empty matrix here is a member MATLAB reads as [], and has no sub-elements to check,
+        // but it is spent as one: a billion of them is still a billion reads.
+        if (tag.n > 0) {
+            nestedMatrix(check, space, tag.data, tag.next, depth + 1);
+        }
+        else {
+            check.spend(space, p);
+        }
+        p = tag.next;
+    }
+    return p;
+}
+/** An miINT8 name after a matrix's own: an object's class name, an opaque's subsystem name. */
+function className(check, space, p, end, what = 'class name') {
+    const tag = readTag(check, space, p, end, what);
+    if (!tag) {
+        return null;
+    }
+    if ((tag.type !== MI_INT8 && tag.type !== MI_UINT8) || tag.n === 0) {
+        check.report('element', space, p, `the object's ${what} is ${tag.n} byte(s) of ${typeName(tag.type)}, where MATLAB `
+            + 'writes a name in miINT8: it fails the load');
+        return null;
+    }
+    return tag.next;
+}
+/** A struct's (or an object's) field-name length, its field names, then every field's value. */
+function structBody(check, space, head, p, end, depth) {
+    const widthTag = readTag(check, space, p, end, 'field-name length');
+    if (!widthTag) {
+        return null;
+    }
+    if (widthTag.type !== MI_INT32 || widthTag.n !== 4) {
+        check.report('element', space, p, `the struct's field-name length is ${widthTag.n} byte(s) of ${typeName(widthTag.type)}, `
+            + 'where MATLAB writes one miINT32: it fails the load');
+        return null;
+    }
+    const width = space.view.getInt32(widthTag.data, true);
+    const namesTag = readTag(check, space, widthTag.next, end, 'field names');
+    if (!namesTag) {
+        return null;
+    }
+    if (namesTag.type !== MI_INT8 && namesTag.type !== MI_UINT8) {
+        check.report('element', space, widthTag.next, `the struct's field names are ${typeName(namesTag.type)}, where MATLAB `
+            + 'writes miINT8: it fails the load');
+        return null;
+    }
+    if (width <= 0 && namesTag.n > 0) {
+        check.report('element', space, p, `the struct's field-name length is ${width}, with ${namesTag.n} byte(s) of names: `
+            + 'MATLAB fails the load');
+        return null;
+    }
+    // MATLAB counts the fields as the names' bytes over the length, whole names only.
+    const fields = width > 0 ? Math.floor(namesTag.n / width) : 0;
+    return members(check, space, namesTag.next, end, head.numel * fields, depth, 'field value');
+}
+/**
+ * A char array's data: miUTF8 holding as many UTF-16 units as the array's elements, miUTF16
+ * of two bytes each, or miUINT16 below U+0100 (MATLAB keeps only the low byte of a unit above
+ * it, and fails on a surrogate). A complex char array MATLAB does not load at all.
+ */
+function charBody(check, space, head, end) {
+    const tag = readTag(check, space, head.p, end, 'char data');
+    if (!tag) {
+        return null;
+    }
+    const numel = head.numel;
+    const view = space.view;
+    switch (tag.type) {
+        case MI_UTF8: {
+            let text = null;
+            try {
+                text = strictUtf8.decode(new Uint8Array(view.buffer, view.byteOffset + tag.data, tag.n));
+            }
+            catch {
+                check.report('char-type', space, head.p, 'the char array\'s miUTF8 data is not valid UTF-8');
+            }
+            if (text !== null && text.length !== numel) {
+                check.report('utf8-count', space, head.p, `the char array's miUTF8 data is ${text.length} UTF-16 unit(s) of text, `
+                    + `and the array has ${numel} element(s): MATLAB fails the load`);
+            }
+            break;
+        }
+        case MI_UTF16:
+            if (tag.n !== 2 * numel) {
+                check.report('data-size', space, head.p, `the char array's miUTF16 data is ${tag.n} byte(s), and the array has `
+                    + `${numel} element(s) of 2 bytes each`);
+            }
+            break;
+        case MI_UINT16:
+            if (tag.n !== 2 * numel) {
+                check.report('data-size', space, head.p, `the char array's miUINT16 data is ${tag.n} byte(s), and the array has `
+                    + `${numel} element(s) of 2 bytes each`);
+            }
+            for (let o = tag.data; o + 2 <= tag.data + tag.n; o += 2) {
+                const unit = view.getUint16(o, true);
+                if (unit > 0xff) {
+                    check.report('char-type', space, head.p, `the char array's miUINT16 data holds U+${unit.toString(16).toUpperCase().padStart(4, '0')}: `
+                        + 'MATLAB reads miUINT16 text one byte a character, keeping only the low byte of a unit above U+00FF '
+                        + 'and failing on a surrogate. Text beyond U+00FF is stored as miUTF8 or miUTF16');
+                    break;
+                }
+            }
+            break;
+        default:
+            check.report('char-type', space, head.p, `the char array's data is ${typeName(tag.type)}: MATLAB reads char data `
+                + 'only as miUTF8, miUTF16 or miUINT16, and fails the load');
+    }
+    let p = tag.next;
+    if (head.flags & COMPLEX_BIT) {
+        check.report('char-type', space, head.p, 'the char array is marked complex, and MATLAB loads a complex char array '
+            + 'as nothing');
+        const imag = readTag(check, space, p, end, 'imaginary char data');
+        if (!imag) {
+            return null;
+        }
+        p = imag.next;
+    }
+    return p;
+}
+/**
+ * A full numeric array's real part, and its imaginary part when it is complex. A double may be
+ * stored in any numeric type (MATLAB narrows integral doubles to the smallest that holds them);
+ * every other class only in its own.
+ */
+function numericBody(check, space, head, end) {
+    let p = head.p;
+    for (const part of head.flags & COMPLEX_BIT ? ['real part', 'imaginary part'] : ['data']) {
+        const tag = readTag(check, space, p, end, part);
+        if (!tag) {
+            return null;
+        }
+        checkNumbers(check, space, p, head, tag, part, head.numel);
+        p = tag.next;
+    }
+    return p;
+}
+/** One numeric part's type and size, against its array's class and `count` elements. */
+function checkNumbers(check, space, o, head, tag, part, count) {
+    const logical = head.flags & LOGICAL_BIT && head.cls === MX_UINT8;
+    const what = logical ? 'logical' : head.cls === MX_SPARSE ? 'sparse' : CLASS_NAMES[head.cls];
+    const width = WIDTH[tag.type];
+    const own = OWN_TYPE[head.cls];
+    if (own !== undefined && tag.type !== own) {
+        check.report('int-storage', space, o, `the ${what} array's ${part} is stored as ${typeName(tag.type)}, and MATLAB `
+            + `stores a ${what} array only as ${typeName(own)}: only a double is ever stored in a narrower type`);
+        return;
+    }
+    if (width === undefined) {
+        check.report('element', space, o, `the ${what} array's ${part} is ${typeName(tag.type)}, which MATLAB does not `
+            + 'read as numbers: it fails the load');
+        return;
+    }
+    if (tag.n % width !== 0 || tag.n / width !== count) {
+        check.report('data-size', space, o, `the ${what} array's ${part} is ${tag.n} byte(s) of ${typeName(tag.type)}, and it `
+            + `has ${count} element(s) of ${width} byte(s) each`);
+    }
+}
+/**
+ * A sparse array: its row indices, its column starts (one per column and one more), its
+ * non-zeros, and their imaginary parts when it is complex. MATLAB has sparse arrays of double,
+ * single and logical class only.
+ */
+function sparseBody(check, space, head, end) {
+    const cls = head.cls;
+    const logical = (head.flags & LOGICAL_BIT) !== 0;
+    if (!(cls === MX_SPARSE || cls === MX_DOUBLE || cls === MX_SINGLE || (cls === MX_UINT8 && logical))) {
+        check.report('element', space, head.p, `the matrix is a sparse ${CLASS_NAMES[cls]} array, and MATLAB has sparse `
+            + 'arrays of double, single and logical class only');
+    }
+    if (head.dims.length !== 2) {
+        check.report('element', space, head.p, `the sparse array has ${head.dims.length} dimensions, and a sparse array has 2`);
+    }
+    const ir = readTag(check, space, head.p, end, 'row indices');
+    if (!ir) {
+        return null;
+    }
+    const jc = readTag(check, space, ir.next, end, 'column starts');
+    if (!jc) {
+        return null;
+    }
+    for (const [tag, o, part] of [[ir, head.p, 'row indices'], [jc, ir.next, 'column starts']]) {
+        if (tag.type !== MI_INT32) {
+            check.report('element', space, o, `the sparse array's ${part} are ${typeName(tag.type)}, where MATLAB writes `
+                + 'miINT32');
+        }
+    }
+    const nonZeros = ir.type === MI_INT32 ? ir.n / 4 : Math.floor(ir.n / (WIDTH[ir.type] ?? 1));
+    if (jc.type === MI_INT32 && head.dims.length === 2 && jc.n !== 4 * (head.dims[1] + 1)) {
+        check.report('data-size', space, ir.next, `the sparse array's column starts are ${jc.n / 4} miINT32, and it has `
+            + `${head.dims[1]} column(s), which take one more`);
+    }
+    let p = jc.next;
+    for (const part of head.flags & COMPLEX_BIT ? ['real non-zeros', 'imaginary non-zeros'] : ['non-zeros']) {
+        const tag = readTag(check, space, p, end, part);
+        if (!tag) {
+            return null;
+        }
+        checkNumbers(check, space, p, { ...head, cls: cls === MX_SPARSE && logical ? MX_UINT8 : cls }, tag, part, nonZeros);
+        p = tag.next;
+    }
+    return p;
+}
+/**
+ * Where the subsystem data an unnamed record holds is, or null when it holds none: the data of
+ * a real uint8 array, opening as a MAT stream does (00 01 49 4D). Read without a word said,
+ * since `classBody` checks the same sub-element as the array's data.
+ */
+function subsystemStream(space, head, end) {
+    const view = space.view;
+    if (head.cls !== MX_UINT8 || head.flags & (LOGICAL_BIT | COMPLEX_BIT | SPARSE_BIT) || head.p + 16 > end) {
+        return null;
+    }
+    const n = view.getUint32(head.p + 4, true);
+    const start = head.p + 8;
+    if (view.getUint32(head.p, true) !== MI_UINT8 || n < 8 || start + n > end) {
+        return null;
+    }
+    return STREAM_MAGIC.every((b, i) => view.getUint8(start + i) === b) ? { start, end: start + n } : null;
+}
+/**
+ * The subsystem's stream, checked as MATLAB reads it when it loads an object: its 8-byte
+ * preamble, then matrices back to back to its last byte. The second half of the preamble's
+ * reserved word says the stream's tags are 32-bit, as in every file MATLAB was seen writing;
+ * a stream that says otherwise is not walked.
+ */
+function checkSubsystem(check, space, start, end) {
+    if (space.view.getUint16(start + 4, true) !== 0) {
+        return;
+    }
+    check.inSubsystem = true;
+    try {
+        let o = start + 8;
+        while (o < end) {
+            const element = readTag(check, space, o, end, 'subsystem element');
+            if (!element) {
+                return;
+            }
+            if (element.type !== MI_MATRIX) {
+                check.report('element', space, o, `the subsystem's stream holds a data element of ${typeName(element.type)}, `
+                    + 'where it holds only matrices');
+                return;
+            }
+            if (element.n > 0) {
+                nestedMatrix(check, space, element.data, element.next, 1);
+            }
+            else {
+                check.spend(space, o);
+            }
+            o = element.next;
+        }
+    }
+    finally {
+        check.inSubsystem = false;
+    }
+}
+/**
+ * The rules about where records are: the header's offset points at the subsystem, the
+ * subsystem is last, no other record is unnamed, no name is stored twice.
+ */
+function checkPlacement(check, records, offset, length) {
+    let subsystem = -1;
+    if (offset !== 0) {
+        const i = records.findIndex((r) => r.at === offset);
+        const record = records[i];
+        const field = `Header bytes 116-123 give the subsystem's offset as ${offset}`;
+        const fails = 'MATLAB reads the objects in the file only from there, and fails the load';
+        if (!record) {
+            check.file('subsystem-offset', 116, offset < 128 || offset >= length
+                ? `${field}, outside the file's records: ${fails}.`
+                : `${field}, where no record starts: ${fails}.`);
+        }
+        else if (record.name === null) {
+            // The record there could not be read, which is said where it is.
+        }
+        else if (record.name !== '') {
+            check.file('subsystem-offset', 116, `${field}, which is variable "${record.name}", not the subsystem: ${fails}.`);
+        }
+        else if (!record.subsystem) {
+            check.file('subsystem-offset', 116, `${field}, an unnamed record that holds no subsystem data: ${fails}.`);
+        }
+        else {
+            subsystem = i;
+        }
+    }
+    else {
+        for (const r of records) {
+            if (r.subsystem) {
+                check.file('subsystem-offset', 116, `Header bytes 116-123 say the file has no subsystem, and the record at byte `
+                    + `${r.at} is one: MATLAB then reads none of the objects in the file, and fails the load.`);
+            }
+        }
+    }
+    if (subsystem >= 0) {
+        for (const r of records.slice(subsystem + 1)) {
+            const what = r.name ? `Variable "${r.name}"` : `The record at byte ${r.at}`;
+            check.file('subsystem-not-last', r.at, `${what} is stored after the subsystem (byte ${records[subsystem].at}): `
+                + 'MATLAB stops reading variables at the subsystem, so `load` silently leaves it out.', r.name || undefined);
+        }
+    }
+    records.forEach((r, i) => {
+        if (r.name !== '' || i === subsystem) {
+            return;
+        }
+        const after = records.length - i - 1;
+        const what = r.subsystem
+            ? `The record at byte ${r.at} holds subsystem data, and the header's offset does not point at it`
+            : `The record at byte ${r.at} has no name`;
+        check.file('anonymous-record', r.at, `${what}: MATLAB stops reading variables at the first unnamed record, which `
+            + 'is the subsystem\'s place'
+            + (after > 0 ? `, so \`load\` silently leaves out the ${after} record(s) after it.` : ', and leaves it out of `load`.'));
+    });
+    const first = new Map();
+    for (const r of records) {
+        if (!r.name) {
+            continue;
+        }
+        const seen = first.get(r.name);
+        if (seen === undefined) {
+            first.set(r.name, r.at);
+        }
+        else {
+            check.file('duplicate-name', r.at, `Variable "${r.name}" is stored again at byte ${r.at} (first at byte ${seen}): `
+                + 'MATLAB loads both, `load(f)` keeping the last and `load(f, name)` the first.', r.name);
+        }
+    }
+}
+//# sourceMappingURL=MatFileCheck.js.map
