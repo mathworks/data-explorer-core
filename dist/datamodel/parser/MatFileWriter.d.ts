@@ -97,11 +97,13 @@ export declare function compressedRecordOf(stream: Uint8Array, name: string): Ui
  * Where `element`, a subsystem a save wrote, is not `original`, the one it was read as, with `cells`
  * written into it, in words of `objects` (what the caller calls them: "the file's objects"), or
  * null where it is: it reads whole as a subsystem (its dims [1 N] its byte count among what that
- * asks); its metadata blob is the bytes it was, and so every object's class, property list and the
- * cell each property names; every cell not written is the bytes it was, and every cell written
- * reads as the value it was written from; and McosParser, which every object of the file is shown
- * through, reads the same table of objects out of it. The self-check of a MAT-file's subsystem
- * (selfCheck) and of a dictionary value's stream (mcosStreamEdit), which are one check.
+ * asks); every byte the rewrite copies around the cells is the byte it was (copiedDiffer); its
+ * metadata blob is the bytes it was, and so every object's class, property list and the cell each
+ * property names; every cell written is a value cell of it, written once, and reads as the value it
+ * was written from, and every cell not written is the bytes it was; and McosParser, which every
+ * object of the file is shown through, reads the same table of objects out of it. The self-check of
+ * a MAT-file's subsystem (selfCheck) and of a dictionary value's stream (mcosStreamEdit), which are
+ * one check.
  */
 export declare function subsystemCellsDiffer(original: Uint8Array | null, element: Uint8Array, cells: readonly McosWrittenCell[], objects: string): string | null;
 /**

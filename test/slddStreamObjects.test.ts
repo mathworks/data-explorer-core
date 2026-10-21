@@ -22,7 +22,8 @@ import { createSession } from '../src/index.js';
 import { ingest } from '../src/core/ingest.js';
 import { decodeMatStream } from '../src/datamodel/parser/MatParser.js';
 import { readMcosSubsystem } from '../src/datamodel/parser/McosSubsystemEdit.js';
-import { mcosStreamParts } from '../src/datamodel/parser/McosStreamEdit.js';
+import { mcosStreamParts, streamWithSubsystem } from '../src/datamodel/parser/McosStreamEdit.js';
+import { objectSubsystemEdit } from '../src/datamodel/node/data/mcosObjectEdit.js';
 import { uudecode, uuencode } from '../src/datamodel/parser/CdataCodec.js';
 import { matStreamPrefix } from '../src/datamodel/parser/EncodedValue.js';
 import { MatWriteError } from '../src/datamodel/parser/MatWriter.js';
@@ -709,6 +710,17 @@ describe('the save re-reads the stream it wrote, and refuses one that does not r
     const stale = new Uint8Array(good.length + 8);
     stale.set(good);
     expect(stream._selfCheck(stale, framed, element, cells, edited)).toMatch(/^it /);
+  });
+
+  it("refuses a stream whose subsystem holds a byte the rewrite copies as read changed, as a MAT-file's check does", () => {
+    const { stream, framed, edited } = setUp();
+    const written = objectSubsystemEdit(framed.subsystem, edited, (n) => stream._state(n), () => 'sPh')!;
+    const data = (readMcosSubsystem(written.element) as { subsystem: any }).subsystem.outer.subs[3];
+    const tampered = written.element.slice();
+    tampered[data.data + 4] = 0xab;
+    const bytes = streamWithSubsystem(stream.read.bytes, framed.valueEnd, tampered);
+    expect(stream._selfCheck(streamWithSubsystem(stream.read.bytes, framed.valueEnd, written.element), framed, written.element, written.cells, edited)).toBeNull();
+    expect(stream._selfCheck(bytes, framed, tampered, written.cells, edited)).toBe('its objects read back with the preamble of their payload, which no edit wrote, changed');
   });
 });
 

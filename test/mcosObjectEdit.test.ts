@@ -647,6 +647,28 @@ describe('the subsystem a save writes anew is read again, alone, and held to wha
     ]);
   });
 
+  it('a byte the rewrite copies as it read it, changed: the preamble of the payload', () => {
+    const thrown = tampered((written) => {
+      const data = (readMcosSubsystem(written.element) as { subsystem: McosSubsystem }).subsystem.outer.subs[3];
+      written.element = written.element.slice();
+      written.element[data.data + 4] = 0xab;
+    });
+    expect([thrown instanceof MatWriteError, thrown?.message]).toEqual([
+      true,
+      "Cannot save \"f.mat\": the file written for it did not read back as written: the file's objects read back with the preamble of their payload, which no edit wrote, changed. Nothing was written.",
+    ]);
+  });
+
+  it('a cell said written that is no value cell, which the cells compared would pass over', () => {
+    const thrown = tampered((written) => {
+      written.cells = [...written.cells, { ...written.cells[0], cellIndex: 0 }];
+    });
+    expect([thrown instanceof MatWriteError, thrown?.message]).toEqual([
+      true,
+      expect.stringMatching(/^Cannot save "f\.mat": the file written for it did not read back as written: the file's objects were written with cell 0, which is not one of their \d+ value cells\. Nothing was written\.$/),
+    ]);
+  });
+
   it('a subsystem that does not read as one', () => {
     const thrown = tampered((written) => {
       // Its cell array's dims [N 1] said [N-1 1]: one cell more than it says it holds.

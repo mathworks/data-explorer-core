@@ -829,11 +829,13 @@ function selfCheck(file, assembled, plan, headerBytes) {
  * Where `element`, a subsystem a save wrote, is not `original`, the one it was read as, with `cells`
  * written into it, in words of `objects` (what the caller calls them: "the file's objects"), or
  * null where it is: it reads whole as a subsystem (its dims [1 N] its byte count among what that
- * asks); its metadata blob is the bytes it was, and so every object's class, property list and the
- * cell each property names; every cell not written is the bytes it was, and every cell written
- * reads as the value it was written from; and McosParser, which every object of the file is shown
- * through, reads the same table of objects out of it. The self-check of a MAT-file's subsystem
- * (selfCheck) and of a dictionary value's stream (mcosStreamEdit), which are one check.
+ * asks); every byte the rewrite copies around the cells is the byte it was (copiedDiffer); its
+ * metadata blob is the bytes it was, and so every object's class, property list and the cell each
+ * property names; every cell written is a value cell of it, written once, and reads as the value it
+ * was written from, and every cell not written is the bytes it was; and McosParser, which every
+ * object of the file is shown through, reads the same table of objects out of it. The self-check of
+ * a MAT-file's subsystem (selfCheck) and of a dictionary value's stream (mcosStreamEdit), which are
+ * one check.
  */
 export function subsystemCellsDiffer(original, element, cells, objects) {
     const was = original ? readMcosSubsystem(original) : null;
@@ -843,10 +845,24 @@ export function subsystemCellsDiffer(original, element, cells, objects) {
     }
     const before = was.subsystem;
     const after = is.subsystem;
+    const copied = copiedDiffer(before, after);
+    if (copied) {
+        return objects + ' read back with ' + copied + ', which no edit wrote, changed';
+    }
     if (before.cells.length !== after.cells.length) {
         return objects + ' read back with ' + after.cells.length + ' cells where ' + before.cells.length + ' were written';
     }
+    // A cell said written is not compared with what it was, so each is held to be one a swap writes,
+    // and once: a value cell, and not the blob, the empty cell after it, or a per-class table.
     const written = new Map(cells.map((c) => [c.cellIndex, c]));
+    for (const c of cells) {
+        if (!Number.isInteger(c.cellIndex) || c.cellIndex < 2 || c.cellIndex >= 2 + before.valueCells) {
+            return objects + ' were written with cell ' + c.cellIndex + ', which is not one of their ' + before.valueCells + ' value cells';
+        }
+        if (written.get(c.cellIndex) !== c) {
+            return objects + ' were written with value cell ' + c.cellIndex + ' twice';
+        }
+    }
     for (let i = 0; i < before.cells.length; i++) {
         const cell = written.get(i);
         if (cell) {
@@ -862,6 +878,47 @@ export function subsystemCellsDiffer(original, element, cells, objects) {
     const tableOf = (bytes) => JSON.stringify(mcosMetaTableOf(bytes));
     if (tableOf(original) !== tableOf(element)) {
         return objects + ' read back, as this package shows them, as another table of objects';
+    }
+    return null;
+}
+// What of the bytes McosSubsystemEdit's rewrite copies as they were read is not, in `after`, the
+// bytes it was in `before`, as words, or null: the element's flags and name; the payload's 8-byte
+// preamble and whatever follows the struct in it, its length included; every sub-element of the
+// struct but the MCOS field's value, which stays where it was among them; the FileWrapper__ opaque's
+// flags, name, type and class; and the cell array's flags, dims and name. What the rewrite writes
+// anew around them is tags, each restating its byte count, and the element's dims, which reading
+// whole holds to the bytes they frame (readMcosSubsystem).
+const STRUCT_PARTS = ['flags', 'dims', 'name', 'field-name width', 'field names'];
+function copiedDiffer(before, after) {
+    const sub = (s, layer, i) => s.bytes.subarray(layer.subs[i].at, layer.subs[i].end);
+    const payload = (s) => s.outer.subs[3];
+    const preamble = (s) => s.bytes.subarray(payload(s).data, payload(s).data + 8);
+    const tail = (s) => s.bytes.subarray(s.struct.end, payload(s).data + payload(s).bytes);
+    if (before.struct.subs.length !== after.struct.subs.length || before.mcosField !== after.mcosField) {
+        return 'the fields of their struct';
+    }
+    const ranges = [
+        ['the flags of their element', sub(before, before.outer, 0), sub(after, after.outer, 0)],
+        ['the name of their element', sub(before, before.outer, 2), sub(after, after.outer, 2)],
+        ['the preamble of their payload', preamble(before), preamble(after)],
+    ];
+    before.struct.subs.forEach((_, i) => {
+        if (i !== before.mcosField) {
+            const what = i < 5 ? 'the ' + STRUCT_PARTS[i] + ' of their struct' : 'the value of field ' + (i - 4) + ' of their struct';
+            ranges.push([what, sub(before, before.struct, i), sub(after, after.struct, i)]);
+        }
+    });
+    ['flags', 'name', 'type', 'class'].forEach((what, i) => {
+        ranges.push(['the ' + what + ' of their FileWrapper__', sub(before, before.opaque, i), sub(after, after.opaque, i)]);
+    });
+    ['flags', 'dims', 'name'].forEach((what, i) => {
+        ranges.push(['the ' + what + ' of their cell array', sub(before, before.cellArray, i), sub(after, after.cellArray, i)]);
+    });
+    ranges.push(['the bytes after their struct', tail(before), tail(after)]);
+    for (const [what, was, is] of ranges) {
+        if (!sameBytes(was, is)) {
+            return what;
+        }
     }
     return null;
 }

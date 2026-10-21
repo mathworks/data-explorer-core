@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { unzipSync } from 'fflate';
 import { mcosStreamParts, rewrittenHex, streamWithSubsystem } from '../src/datamodel/parser/McosStreamEdit.js';
 import { subsystemCellsDiffer } from '../src/datamodel/parser/MatFileWriter.js';
-import { editMcosSubsystem, readMcosSubsystem, storedProperties, valueCellOf, objectIdOf } from '../src/datamodel/parser/McosSubsystemEdit.js';
+import { editMcosSubsystem, readMcosSubsystem, storedProperties, valueCellOf, objectIdOf, type McosSubsystem } from '../src/datamodel/parser/McosSubsystemEdit.js';
 import { decodeMatStream, type MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { encodedBytes, type EncodedValue } from '../src/datamodel/parser/EncodedValue.js';
 
@@ -113,5 +113,99 @@ describe('subsystemCellsDiffer', () => {
   it('finds a subsystem that does not read', () => {
     const { original } = sPhValueSeven();
     expect(subsystemCellsDiffer(original, original.slice(0, original.length - 8), [], 'its objects')).toMatch(/^its objects do not read back as a subsystem/);
+  });
+});
+
+// The subsystem a save writes for sPh.p.Value = 7 with one byte changed where the rewrite copies the
+// bytes it read (McosSubsystemEdit.rebuild): each still reads whole as a subsystem, so only the
+// comparison of what was copied can find it.
+describe('subsystemCellsDiffer, of every byte the rewrite copies around the cells', () => {
+  const layersOf = (bytes: Uint8Array): McosSubsystem => (readMcosSubsystem(bytes) as { ok: true; subsystem: McosSubsystem }).subsystem;
+  const planned = () => {
+    const { original, element, cellIndex, objectId } = sPhValueSeven();
+    return { original, element, cells: [{ objectId, cellIndex, savedName: 'Value', value: double(7) }] };
+  };
+  const changedAt = (bytes: Uint8Array, at: number, to: number): Uint8Array => {
+    const out = bytes.slice();
+    expect(out[at]).not.toBe(to);
+    out[at] = to;
+    return out;
+  };
+  // Where in the subsystem written each copied range is, and a byte of it to change: a word of a
+  // flags sub-element no reader asks (its second, the nonzero count), or the type of a name, a type
+  // or a class, which the reader compares by its bytes and not by its type.
+  const ranges: [string, (s: McosSubsystem) => number, number][] = [
+    ['the flags of their element', (s) => s.outer.subs[0].data + 4, 0xab],
+    ['the name of their element', (s) => s.outer.subs[2].at, 2],
+    ['the preamble of their payload', (s) => s.outer.subs[3].data + 4, 0xab],
+    ['the flags of their struct', (s) => s.struct.subs[0].data + 4, 0xab],
+    ['the name of their struct', (s) => s.struct.subs[2].at, 2],
+    ['the flags of their FileWrapper__', (s) => s.opaque.subs[0].data + 4, 0xab],
+    ['the name of their FileWrapper__', (s) => s.opaque.subs[1].at, 2],
+    ['the type of their FileWrapper__', (s) => s.opaque.subs[2].at, 2],
+    ['the class of their FileWrapper__', (s) => s.opaque.subs[3].at, 2],
+    ['the flags of their cell array', (s) => s.cellArray.subs[0].data + 4, 0xab],
+    ['the name of their cell array', (s) => s.cellArray.subs[2].at, 2],
+    ['the bytes after their struct', (s) => s.struct.end + 100, 0xab],
+  ];
+  for (const [what, at, to] of ranges) {
+    it(what, () => {
+      const { original, element, cells } = planned();
+      const tampered = changedAt(element, at(layersOf(element)), to);
+      expect(readMcosSubsystem(tampered).ok).toBe(true);
+      expect(subsystemCellsDiffer(original, tampered, cells, 'its objects')).toBe('its objects read back with ' + what + ', which no edit wrote, changed');
+    });
+  }
+
+  it("the dims of their cell array, [N 1] said as [1 N], which declares as many cells", () => {
+    const { original, element, cells } = planned();
+    const dims = layersOf(element).cellArray.subs[1];
+    const tampered = element.slice();
+    const view = new DataView(tampered.buffer);
+    const [rows, columns] = [view.getInt32(dims.data, true), view.getInt32(dims.data + 4, true)];
+    expect(columns).toBe(1);
+    view.setInt32(dims.data, columns, true);
+    view.setInt32(dims.data + 4, rows, true);
+    expect(readMcosSubsystem(tampered).ok).toBe(true);
+    expect(subsystemCellsDiffer(original, tampered, cells, 'its objects')).toBe('its objects read back with the dims of their cell array, which no edit wrote, changed');
+  });
+
+  it('the bytes after their struct, eight fewer of them', () => {
+    const { original, element, cells } = planned();
+    const s = layersOf(element);
+    const data = s.outer.subs[3];
+    const payload = element.subarray(data.data, data.data + data.bytes - 8);
+    // The element framed again around the shorter payload: its dims [1 N], its tag, its padding.
+    const n = payload.length;
+    const body = new Uint8Array(16 + 16 + 8 + 8 + n + ((8 - (n % 8)) % 8));
+    const view = new DataView(body.buffer);
+    body.set(element.subarray(s.outer.subs[0].at, s.outer.subs[0].end), 0);
+    view.setUint32(16, 5, true);
+    view.setUint32(20, 8, true);
+    view.setInt32(24, 1, true);
+    view.setInt32(28, n, true);
+    body.set(element.subarray(s.outer.subs[2].at, s.outer.subs[2].end), 32);
+    view.setUint32(40, 2, true);
+    view.setUint32(44, n, true);
+    body.set(payload, 48);
+    const tampered = new Uint8Array(8 + body.length);
+    new DataView(tampered.buffer).setUint32(0, 14, true);
+    new DataView(tampered.buffer).setUint32(4, body.length, true);
+    tampered.set(body, 8);
+    expect(readMcosSubsystem(tampered).ok).toBe(true);
+    expect(subsystemCellsDiffer(original, tampered, cells, 'its objects')).toBe('its objects read back with the bytes after their struct, which no edit wrote, changed');
+  });
+
+  it('a cell said written that is no value cell, or one said written twice', () => {
+    const { original, element, cells } = planned();
+    const valueCells = layersOf(original).valueCells;
+    for (const cellIndex of [0, 1, 2 + valueCells, 2 + valueCells + 2, 1.5]) {
+      expect(subsystemCellsDiffer(original, element, [...cells, { ...cells[0], cellIndex }], 'its objects')).toBe(
+        'its objects were written with cell ' + cellIndex + ', which is not one of their ' + valueCells + ' value cells',
+      );
+    }
+    expect(subsystemCellsDiffer(original, element, [cells[0], { ...cells[0] }], 'its objects')).toBe(
+      'its objects were written with value cell ' + cells[0].cellIndex + ' twice',
+    );
   });
 });
