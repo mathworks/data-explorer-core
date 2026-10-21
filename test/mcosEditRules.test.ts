@@ -341,6 +341,22 @@ describe('text a save writes is text MATLAB loads as written', () => {
     }
   });
 
+  it('judges a long run of white space with text after it in time linear in its length', () => {
+    // A pattern ending in `[ \t…]+$` reads such a run once per place in it, quadratic in its
+    // length. Trimmed at both ends, the run inside is kept.
+    const run = '\t'.repeat(200_000);
+    const of = signal({ InitialValue: chr('3') });
+    const started = performance.now();
+    expect(cellsOf(of, [{ property: 'InitialValue', value: chr(run + 'x') }])).toEqual(
+      refused('InitialValue', 'p.InitialValue would be ' + quoted(run + 'x') + ", which MATLAB would load as 'x': it trims the white space at either end"),
+    );
+    expect(cellsOf(of, [{ property: 'InitialValue', value: chr(' a' + run + 'b ') }])).toEqual(
+      refused('InitialValue', 'p.InitialValue would be ' + quoted(' a' + run + 'b ') + ', which MATLAB would load as ' + quoted('a' + run + 'b') + ': it trims the white space at either end'),
+    );
+    expect(cellsOf(of, [{ property: 'InitialValue', value: chr('a' + run + 'b') }])).toEqual(['InitialValue=char[1 200002]:' + JSON.stringify('a' + run + 'b')]);
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
   it("a Signal's DataType: trimmed at either end, which the refusal says", () => {
     for (const [text, loads] of [['int16\t', 'int16'], [' int16', 'int16'], ['int16\r', 'int16'], ['\nint16', 'int16']]) {
       expect(cellsOf(signal({ DataType: chr('single') }), [{ property: 'DataType', value: chr(text) }]), JSON.stringify(text)).toEqual(

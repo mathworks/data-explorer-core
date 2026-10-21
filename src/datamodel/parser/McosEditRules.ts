@@ -130,8 +130,28 @@ const TEXT_PROPERTIES = new Set(['Description', 'DocUnits', 'InitialValue']);
 //
 // A Parameter's Value of text loads as written, white space alone included. An edit of text that
 // would load as other text than was typed is refused, saying what MATLAB would load.
-const ASCII_SPACE_AT_ENDS = /^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/g;
 const TRIMMED_AT_ENDS = new Set(['InitialValue', 'DataType']);
+
+// `text` without the white space MATLAB trims at either end of it (TRIMMED_AT_ENDS): a scan in
+// from each end, not a pattern. `/[ \t…]+$/` tries every place a run of white space starts and
+// reads the run to its end each time, which is quadratic in a long run with other text after it,
+// and the text is whatever the user typed.
+function trimmedOfAsciiSpace(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && isAsciiSpace(text.charCodeAt(start))) {
+    start++;
+  }
+  while (end > start && isAsciiSpace(text.charCodeAt(end - 1))) {
+    end--;
+  }
+  return text.slice(start, end);
+}
+
+// Space, tab, newline, vertical tab, form feed, carriage return: the white space MATLAB trims.
+function isAsciiSpace(code: number): boolean {
+  return code === 0x20 || (code >= 0x09 && code <= 0x0d);
+}
 
 // The classes a Value may be, as MATLAB holds them and this package writes them.
 const NUMERIC = new Set(['double', 'single', 'int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64']);
@@ -613,14 +633,14 @@ function textCell(saved: string, value: MatVariable, named: string): MatVariable
 
 // Why `text`, written into the property saved as `saved`, is not what MATLAB loads, as a clause
 // naming it (`named`) and saying what it would load, or null where it loads as written: see
-// ASCII_SPACE_AT_ENDS above.
+// TRIMMED_AT_ENDS above.
 function loadedTextRefusal(saved: string, text: string, named: string): string | null {
   const would = named + ' would be ' + quoted(text) + ', which MATLAB would load as ';
   if (saved === 'InitialValue' && /[^\x00-\x7f]/.test(text)) {
     return would + "'': its InitialValue takes only ASCII text";
   }
   if (TRIMMED_AT_ENDS.has(saved)) {
-    const trimmed = text.replace(ASCII_SPACE_AT_ENDS, '');
+    const trimmed = trimmedOfAsciiSpace(text);
     return trimmed === text ? null : would + quoted(trimmed) + ': it trims the white space at either end';
   }
   return text !== '' && /^\s+$/.test(text) ? would + "'': it loads text of white space alone as empty" : null;
