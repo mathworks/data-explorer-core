@@ -27,11 +27,11 @@ import {
 } from './mcosObjectEdit.js';
 import { hasEditRules, objectEditCells, savedNameOf, type McosPropertyEdit } from '../../parser/McosEditRules.js';
 import { objectIdOf, readMcosSubsystem, type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
-import { mcosStreamParts, rewrittenHex, sameBytes, streamWithSubsystem, subsystemCellsDiffer } from '../../parser/McosStreamEdit.js';
+import { mcosStreamParts, rewrittenHex, sameBytes, streamWithSubsystem } from '../../parser/McosStreamEdit.js';
 import { encodedStream, encodedXml, hexValue, matStreamPrefix, type EncodedValue } from '../../parser/EncodedValue.js';
 import { uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { decodeMatStream, type MatVariable } from '../../parser/MatParser.js';
-import { variableDifference } from '../../parser/MatFileWriter.js';
+import { subsystemCellsDiffer, variableDifference, type McosWrittenCell } from '../../parser/MatFileWriter.js';
 import { MatWriteError } from '../../parser/MatWriter.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 
@@ -423,7 +423,7 @@ class McosStream implements McosStreamGate {
     bytes: Uint8Array,
     framed: { valueEnd: number; subsystem: McosSubsystem },
     element: Uint8Array,
-    cells: Parameters<typeof subsystemCellsDiffer>[2],
+    cells: readonly McosWrittenCell[],
     edited: readonly BaseNode[],
   ): string | null {
     const parts = mcosStreamParts(bytes);
@@ -440,7 +440,7 @@ class McosStream implements McosStreamGate {
     if (!decoded.ok || decoded.trailingElements.length !== 1) {
       return 'it does not decode' + (decoded.ok ? ' as one value and its objects' : ' (' + decoded.reason + ')');
     }
-    const cellsWrong = subsystemCellsDiffer(framed.subsystem.bytes, element, cells);
+    const cellsWrong = subsystemCellsDiffer(framed.subsystem.bytes, element, cells, 'its objects');
     if (cellsWrong) {
       return cellsWrong;
     }

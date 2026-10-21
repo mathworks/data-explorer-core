@@ -1,8 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
 import { matStreamFailure } from './MatParser.js';
-import { cellValueAt, readMcosSubsystem } from './McosSubsystemEdit.js';
-import { mcosMetaTableOf } from './McosParser.js';
-import { variableDifference } from './MatFileWriter.js';
 import { ENCODED_TYPE, hexText } from './EncodedValue.js';
 const MI_MATRIX = 14;
 /**
@@ -48,44 +45,6 @@ export function rewrittenHex(read, bytes, indent) {
     const attrs = { ...read._attrs };
     attrs.EncodedLength = String(bytes.length);
     return { _type: ENCODED_TYPE, _attrs: attrs, _value: hexText(bytes, indent) };
-}
-/**
- * Where `element`, a subsystem a save wrote, is not `original` with `cells` written into it, in
- * words, or null where it is: it reads whole as a subsystem (its dims [1 N] its byte count among
- * what that asks); its metadata blob is the bytes it was, and so every object's class, property
- * list and the cell each property names; every cell not written is the bytes it was, and every
- * cell written reads as the value it was written from; and McosParser, which every object is
- * shown through, reads the same table of objects out of it. A MAT-file's save holds its subsystem
- * to the same (MatFileWriter's self-check).
- */
-export function subsystemCellsDiffer(original, element, cells) {
-    const was = readMcosSubsystem(original);
-    const is = readMcosSubsystem(element);
-    if (!was.ok || !is.ok) {
-        return 'its objects do not read back as a subsystem' + (is.ok ? '' : ' (' + is.message + ')');
-    }
-    const before = was.subsystem;
-    const after = is.subsystem;
-    if (before.cells.length !== after.cells.length) {
-        return 'its objects read back with ' + after.cells.length + ' cells where ' + before.cells.length + ' were written';
-    }
-    const written = new Map(cells.map((c) => [c.cellIndex, c]));
-    for (let i = 0; i < before.cells.length; i++) {
-        const cell = written.get(i);
-        if (cell) {
-            const difference = variableDifference(cell.value, cellValueAt(after, i), 'object ' + cell.objectId + "'s " + cell.savedName);
-            if (difference) {
-                return difference;
-            }
-        }
-        else if (!sameBytes(before.bytes.subarray(before.cells[i].at, before.cells[i].end), after.bytes.subarray(after.cells[i].at, after.cells[i].end))) {
-            return i === 0 ? 'its objects read back with another table of them' : 'its objects read back with value cell ' + i + ', which no edit wrote, changed';
-        }
-    }
-    if (JSON.stringify(mcosMetaTableOf(original)) !== JSON.stringify(mcosMetaTableOf(element))) {
-        return 'its objects read back, as this package shows them, as another table of objects';
-    }
-    return null;
 }
 export function sameBytes(a, b) {
     if (a.length !== b.length) {

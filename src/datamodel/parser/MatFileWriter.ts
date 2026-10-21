@@ -176,10 +176,14 @@ type Planned =
   // added since the read, with no record.
   | { kind: 'fresh'; record: MatRecord | null; node: MatlabVariableNode; name: string; bytes: Uint8Array }
   // The subsystem, `record`, whose element is `element` now, with `cells` written into it.
-  | { kind: 'objects'; record: MatRecord; element: Uint8Array; cells: ObjectCell[]; bytes: Uint8Array };
+  | { kind: 'objects'; record: MatRecord; element: Uint8Array; cells: McosWrittenCell[]; bytes: Uint8Array };
 
-/** One value cell an edit of an object's property writes (MatNode._objectSubsystemEdit). */
-interface ObjectCell {
+/**
+ * One value cell a save wrote into a subsystem, and the value it was written from: of an edit of
+ * an object's property, in a MAT-file (MatNode._objectSubsystemEdit) or in a dictionary value's
+ * stream (mcosStreamEdit).
+ */
+export interface McosWrittenCell {
   objectId: number;
   cellIndex: number;
   savedName: string;
@@ -881,13 +885,13 @@ function selfCheck(file: string, assembled: Assembled, plan: Planned[], headerBy
     const at = offsets[i];
     const got = readAlone(file, head, bytes.subarray(at, at + p.bytes.byteLength));
     // The subsystem with cells swapped in it: its element the one written, and that element the
-    // subsystem it was read as, but for the cells written (objectCellsDiffer).
+    // subsystem it was read as, but for the cells written (subsystemCellsDiffer).
     if (p.kind === 'objects') {
       const element = got && got.anonymous && got.compressed === p.record.compressed ? elementOfRecord(got) : null;
       if (!element || !sameBytes(element, p.element)) {
         fail("the file's objects, at byte " + at + ', are not the element written for them');
       }
-      const wrong = objectCellsDiffer(p);
+      const wrong = subsystemCellsDiffer(elementOfRecord(p.record), p.element, p.cells, "the file's objects");
       if (wrong) {
         fail(wrong);
       }
@@ -917,24 +921,33 @@ function selfCheck(file: string, assembled: Assembled, plan: Planned[], headerBy
   });
 }
 
-// Where the subsystem written, `p.element`, is not the one it was read as with `p.cells` written into
-// it, in words, or null: it reads whole as a subsystem; its metadata blob is the bytes it was, and
-// so every object's class, property list and the cell each property names; every cell not written
-// is the bytes it was, and every cell written reads as the value it was written from. And McosParser,
-// the reader every object of the file is shown through, reads the same table of objects out of it.
-function objectCellsDiffer(p: Extract<Planned, { kind: 'objects' }>): string | null {
-  const original = elementOfRecord(p.record);
+/**
+ * Where `element`, a subsystem a save wrote, is not `original`, the one it was read as, with `cells`
+ * written into it, in words of `objects` (what the caller calls them: "the file's objects"), or
+ * null where it is: it reads whole as a subsystem (its dims [1 N] its byte count among what that
+ * asks); its metadata blob is the bytes it was, and so every object's class, property list and the
+ * cell each property names; every cell not written is the bytes it was, and every cell written
+ * reads as the value it was written from; and McosParser, which every object of the file is shown
+ * through, reads the same table of objects out of it. The self-check of a MAT-file's subsystem
+ * (selfCheck) and of a dictionary value's stream (mcosStreamEdit), which are one check.
+ */
+export function subsystemCellsDiffer(
+  original: Uint8Array | null,
+  element: Uint8Array,
+  cells: readonly McosWrittenCell[],
+  objects: string,
+): string | null {
   const was = original ? readMcosSubsystem(original) : null;
-  const is = readMcosSubsystem(p.element);
+  const is = readMcosSubsystem(element);
   if (!was?.ok || !is.ok) {
-    return "the file's objects do not read back as a subsystem" + (is.ok ? '' : ' (' + is.message + ')');
+    return objects + ' do not read back as a subsystem' + (is.ok ? '' : ' (' + is.message + ')');
   }
   const before = was.subsystem;
   const after = is.subsystem;
   if (before.cells.length !== after.cells.length) {
-    return "the file's objects read back with " + after.cells.length + ' cells where ' + before.cells.length + ' were written';
+    return objects + ' read back with ' + after.cells.length + ' cells where ' + before.cells.length + ' were written';
   }
-  const written = new Map(p.cells.map((c) => [c.cellIndex, c]));
+  const written = new Map(cells.map((c) => [c.cellIndex, c]));
   for (let i = 0; i < before.cells.length; i++) {
     const cell = written.get(i);
     if (cell) {
@@ -943,12 +956,12 @@ function objectCellsDiffer(p: Extract<Planned, { kind: 'objects' }>): string | n
         return difference;
       }
     } else if (!sameBytes(before.bytes.subarray(before.cells[i].at, before.cells[i].end), after.bytes.subarray(after.cells[i].at, after.cells[i].end))) {
-      return i === 0 ? "the file's objects read back with another table of them" : "the file's objects read back with value cell " + i + ', which no edit wrote, changed';
+      return i === 0 ? objects + ' read back with another table of them' : objects + ' read back with value cell ' + i + ', which no edit wrote, changed';
     }
   }
   const tableOf = (bytes: Uint8Array) => JSON.stringify(mcosMetaTableOf(bytes));
-  if (tableOf(original!) !== tableOf(p.element)) {
-    return "the file's objects read back, as this package shows them, as another table of objects";
+  if (tableOf(original!) !== tableOf(element)) {
+    return objects + ' read back, as this package shows them, as another table of objects';
   }
   return null;
 }

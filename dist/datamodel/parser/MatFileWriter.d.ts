@@ -20,6 +20,17 @@ export declare function serializeMatFile(matNode: MatNode, check?: MatCheckOptio
  * takes no edit of a file no save can write (MatNode._editRefusal).
  */
 export declare function unsavableRefusal(matNode: MatNode): MatWriteError | null;
+/**
+ * One value cell a save wrote into a subsystem, and the value it was written from: of an edit of
+ * an object's property, in a MAT-file (MatNode._objectSubsystemEdit) or in a dictionary value's
+ * stream (mcosStreamEdit).
+ */
+export interface McosWrittenCell {
+    objectId: number;
+    cellIndex: number;
+    savedName: string;
+    value: MatVariable;
+}
 export declare function subsystemOf(matNode: MatNode, records: MatRecord[]): MatRecord | null;
 /** Why the edit of a variable stored after the subsystem is refused (planOf, and the editor's gate). */
 export declare const PAST_SUBSYSTEM: string;
@@ -82,6 +93,17 @@ export declare function subsystemElementOf(record: MatRecord): Uint8Array | null
  * goes on. Exported for test/matFileSave.test.ts, which holds it to that without a stream so big.
  */
 export declare function compressedRecordOf(stream: Uint8Array, name: string): Uint8Array;
+/**
+ * Where `element`, a subsystem a save wrote, is not `original`, the one it was read as, with `cells`
+ * written into it, in words of `objects` (what the caller calls them: "the file's objects"), or
+ * null where it is: it reads whole as a subsystem (its dims [1 N] its byte count among what that
+ * asks); its metadata blob is the bytes it was, and so every object's class, property list and the
+ * cell each property names; every cell not written is the bytes it was, and every cell written
+ * reads as the value it was written from; and McosParser, which every object of the file is shown
+ * through, reads the same table of objects out of it. The self-check of a MAT-file's subsystem
+ * (selfCheck) and of a dictionary value's stream (mcosStreamEdit), which are one check.
+ */
+export declare function subsystemCellsDiffer(original: Uint8Array | null, element: Uint8Array, cells: readonly McosWrittenCell[], objects: string): string | null;
 /**
  * Where the value read back, `read`, is not the value `model` it was written from, in words naming
  * it under `at`, or null where it is that value: the same class, complexity, storage and size, the

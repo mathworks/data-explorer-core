@@ -1,4 +1,3 @@
-import type { MatVariable } from './MatParser.js';
 import { type EncodedValue } from './EncodedValue.js';
 /** A stream split where a save splits it: the value's element ends at `valueEnd`, and `subsystem` is the element after it. */
 export type McosStreamParts = {
@@ -25,22 +24,5 @@ export declare function streamWithSubsystem(bytes: Uint8Array, valueEnd: number,
  * (measured), but they are what MATLAB itself writes for the same stream, byte for byte.
  */
 export declare function rewrittenHex(read: EncodedValue, bytes: Uint8Array, indent: number): EncodedValue;
-/** One value cell a save wrote into a subsystem, and the value it was written from. */
-export interface McosWrittenCell {
-    objectId: number;
-    cellIndex: number;
-    savedName: string;
-    value: MatVariable;
-}
-/**
- * Where `element`, a subsystem a save wrote, is not `original` with `cells` written into it, in
- * words, or null where it is: it reads whole as a subsystem (its dims [1 N] its byte count among
- * what that asks); its metadata blob is the bytes it was, and so every object's class, property
- * list and the cell each property names; every cell not written is the bytes it was, and every
- * cell written reads as the value it was written from; and McosParser, which every object is
- * shown through, reads the same table of objects out of it. A MAT-file's save holds its subsystem
- * to the same (MatFileWriter's self-check).
- */
-export declare function subsystemCellsDiffer(original: Uint8Array, element: Uint8Array, cells: readonly McosWrittenCell[]): string | null;
 export declare function sameBytes(a: Uint8Array, b: Uint8Array): boolean;
 //# sourceMappingURL=McosStreamEdit.d.ts.map

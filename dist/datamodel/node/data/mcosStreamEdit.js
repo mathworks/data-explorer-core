@@ -7,11 +7,11 @@ import { mcosPlaceOf } from '../mcosPlace.js';
 import { classRefusal, memberRefusal, mirrorTwins, nodePropertyValue, objectEditsOf, objectNodeAt, objectNodesUnder, objectStateOf, objectSubsystemEdit, propertyAt, propertyRefusal, shownDataType, twinGroupsOf, twinMasterRefusal, twinsTouching, } from './mcosObjectEdit.js';
 import { hasEditRules, objectEditCells, savedNameOf } from '../../parser/McosEditRules.js';
 import { objectIdOf, readMcosSubsystem } from '../../parser/McosSubsystemEdit.js';
-import { mcosStreamParts, rewrittenHex, sameBytes, streamWithSubsystem, subsystemCellsDiffer } from '../../parser/McosStreamEdit.js';
+import { mcosStreamParts, rewrittenHex, sameBytes, streamWithSubsystem } from '../../parser/McosStreamEdit.js';
 import { encodedStream, encodedXml, hexValue, matStreamPrefix } from '../../parser/EncodedValue.js';
 import { uudecode, uuencode } from '../../parser/CdataCodec.js';
 import { decodeMatStream } from '../../parser/MatParser.js';
-import { variableDifference } from '../../parser/MatFileWriter.js';
+import { subsystemCellsDiffer, variableDifference } from '../../parser/MatFileWriter.js';
 import { MatWriteError } from '../../parser/MatWriter.js';
 /**
  * Makes `holder`, the node a dictionary value's MAT stream decoded into, the gate of every edit
@@ -344,7 +344,7 @@ class McosStream {
         if (!decoded.ok || decoded.trailingElements.length !== 1) {
             return 'it does not decode' + (decoded.ok ? ' as one value and its objects' : ' (' + decoded.reason + ')');
         }
-        const cellsWrong = subsystemCellsDiffer(framed.subsystem.bytes, element, cells);
+        const cellsWrong = subsystemCellsDiffer(framed.subsystem.bytes, element, cells, 'its objects');
         if (cellsWrong) {
             return cellsWrong;
         }

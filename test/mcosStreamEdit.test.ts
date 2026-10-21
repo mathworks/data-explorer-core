@@ -9,7 +9,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { unzipSync } from 'fflate';
-import { mcosStreamParts, rewrittenHex, streamWithSubsystem, subsystemCellsDiffer } from '../src/datamodel/parser/McosStreamEdit.js';
+import { mcosStreamParts, rewrittenHex, streamWithSubsystem } from '../src/datamodel/parser/McosStreamEdit.js';
+import { subsystemCellsDiffer } from '../src/datamodel/parser/MatFileWriter.js';
 import { editMcosSubsystem, readMcosSubsystem, storedProperties, valueCellOf, objectIdOf } from '../src/datamodel/parser/McosSubsystemEdit.js';
 import { decodeMatStream, type MatVariable } from '../src/datamodel/parser/MatParser.js';
 import { encodedBytes, type EncodedValue } from '../src/datamodel/parser/EncodedValue.js';
@@ -95,22 +96,22 @@ describe('a stream put back together, and its hex', () => {
 describe('subsystemCellsDiffer', () => {
   it('finds nothing in a subsystem with the planned cell written', () => {
     const { original, element, cellIndex, objectId } = sPhValueSeven();
-    expect(subsystemCellsDiffer(original, element, [{ objectId, cellIndex, savedName: 'Value', value: double(7) }])).toBeNull();
-    expect(subsystemCellsDiffer(original, original, [])).toBeNull();
+    expect(subsystemCellsDiffer(original, element, [{ objectId, cellIndex, savedName: 'Value', value: double(7) }], 'its objects')).toBeNull();
+    expect(subsystemCellsDiffer(original, original, [], 'its objects')).toBeNull();
   });
 
   it('finds a cell written that reads as another value than planned', () => {
     const { original, element, cellIndex, objectId } = sPhValueSeven();
-    expect(subsystemCellsDiffer(original, element, [{ objectId, cellIndex, savedName: 'Value', value: double(8) }])).toMatch(/Value/);
+    expect(subsystemCellsDiffer(original, element, [{ objectId, cellIndex, savedName: 'Value', value: double(8) }], 'its objects')).toMatch(/Value/);
   });
 
   it('finds a cell changed that no edit planned', () => {
     const { original, element } = sPhValueSeven();
-    expect(subsystemCellsDiffer(original, element, [])).toMatch(/^its objects read back with value cell \d+, which no edit wrote, changed$/);
+    expect(subsystemCellsDiffer(original, element, [], 'its objects')).toMatch(/^its objects read back with value cell \d+, which no edit wrote, changed$/);
   });
 
   it('finds a subsystem that does not read', () => {
     const { original } = sPhValueSeven();
-    expect(subsystemCellsDiffer(original, original.slice(0, original.length - 8), [])).toMatch(/^its objects do not read back as a subsystem/);
+    expect(subsystemCellsDiffer(original, original.slice(0, original.length - 8), [], 'its objects')).toMatch(/^its objects do not read back as a subsystem/);
   });
 });

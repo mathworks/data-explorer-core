@@ -1,5 +1,6 @@
 import type BaseNode from '../BaseNode.js';
 import type { MatVariable } from '../../parser/MatParser.js';
+import { type McosWrittenCell } from '../../parser/MatFileWriter.js';
 import { type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
 import { type McosObjectHeld, type McosPropertyEdit } from '../../parser/McosEditRules.js';
 /** What a node's object holds, read once, and what the editor judged of the node before any edit. */
@@ -161,13 +162,8 @@ export declare function mirrorTwins(group: McosTwinGroup, members: readonly Mcos
  * not read back as the value it copies.
  */
 export declare function copyObjectProperty(from: BaseNode, to: BaseNode, property: string): string | null;
-/** One cell an edit of objects writes, for the save's self-check. */
-export interface McosPlannedCell {
-    objectId: number;
-    cellIndex: number;
-    savedName: string;
-    value: MatVariable;
-}
+/** One cell an edit of objects writes, for the save's self-check (MatFileWriter.subsystemCellsDiffer). */
+export type McosPlannedCell = McosWrittenCell;
 /**
  * The subsystem element with every edit of the objects at `nodes` written into its cells, and the
  * cells written; or null where none of them holds an edit (each as it was read, or edited back).

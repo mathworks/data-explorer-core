@@ -11,7 +11,7 @@ import { elementCount } from '../../display/DisplayConvention.js';
 import { setOwn } from '../../parser/ownKeys.js';
 import { isExactToken, parseComplexNum } from '../../parser/XmlUtils.js';
 import { MatWriteError, classPhrase } from '../../parser/MatWriter.js';
-import { variableDifference } from '../../parser/MatFileWriter.js';
+import { variableDifference, type McosWrittenCell } from '../../parser/MatFileWriter.js';
 import {
   cellValueAt,
   editMcosObjects,
@@ -706,13 +706,8 @@ export function copyObjectProperty(from: BaseNode, to: BaseNode, property: strin
   return null;
 }
 
-/** One cell an edit of objects writes, for the save's self-check. */
-export interface McosPlannedCell {
-  objectId: number;
-  cellIndex: number;
-  savedName: string;
-  value: MatVariable;
-}
+/** One cell an edit of objects writes, for the save's self-check (MatFileWriter.subsystemCellsDiffer). */
+export type McosPlannedCell = McosWrittenCell;
 
 /**
  * The subsystem element with every edit of the objects at `nodes` written into its cells, and the
