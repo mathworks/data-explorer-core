@@ -576,6 +576,135 @@ describe('parseMdl — the warnings channel', () => {
   });
 });
 
+// The Simulink text package `.mdl` (`__MWSL_PART_BEGIN__`), whose workspace part is JSON.
+// Before it was read at all, every one of these opened as an empty model with NO warning:
+// the framing went unrecognised and the grammar reader read the legacy stub.
+const MDL_TEXT = join(ARTIFACTS, 'mdltext', 'mdltext.mdl');
+const WS_PART = 'simulink/modelWorkspace.mxarray';
+
+/** The body of one part of the text package fixture: where it starts, and where it stops. */
+function mdlTextPartSpan(text: string, part: string): { start: number; stop: number } {
+  const header = `\n__MWSL_PART_BEGIN__ /${part}\n`;
+  const at = text.indexOf(header);
+  expect(at).toBeGreaterThan(0); // the fixture really holds this part
+  const start = at + header.length;
+  const nextPart = text.indexOf('\n__MWSL_PART_BEGIN__', start);
+  const packageEnd = text.indexOf('\n__MWSL_PACKAGE_END__', start);
+  const stop = nextPart < 0 ? packageEnd : packageEnd < 0 ? nextPart : Math.min(nextPart, packageEnd);
+  expect(stop).toBeGreaterThan(start);
+  return { start, stop };
+}
+
+/** One part of the text package fixture, replaced in place. */
+function mdlTextWithPart(part: string, body: string): ArrayBuffer {
+  const text = latin1Text(MDL_TEXT);
+  const { start, stop } = mdlTextPartSpan(text, part);
+  return latin1Bytes(text.slice(0, start) + body + text.slice(stop));
+}
+
+/** The text package fixture, cut `into` bytes into one part's body: a file that just stops. */
+function mdlTextCutInside(part: string, into: number): ArrayBuffer {
+  const text = latin1Text(MDL_TEXT);
+  const { start, stop } = mdlTextPartSpan(text, part);
+  expect(start + into).toBeLessThan(stop);
+  return latin1Bytes(text.slice(0, start + into));
+}
+
+describe('parseMdl — the warnings channel, for a Simulink text package', () => {
+  it('reports nothing for the package read completely', () => {
+    for (const name of ['mdltext.mdl', 'mdltext_empty.mdl', 'mdltext_mat.mdl']) {
+      expect(parseMdl(bytesAt(join(ARTIFACTS, 'mdltext', name)), name).warnings, name).toEqual([]);
+    }
+  });
+
+  it('names a workspace part whose JSON does not parse, and reads the rest of the model', () => {
+    const parsed = parseMdl(mdlTextWithPart(WS_PART, '{"_array_type":"Struct","_elements":[{"a":'), 'mdltext.mdl');
+    expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', WS_PART]]);
+    expect(parsed.warnings[0].message).toContain('workspace variables were not read');
+    expect(parsed.workspace.length).toBe(0);
+    expect(parsed.blockParamUsages.length).toBeGreaterThan(0);
+    expect(parsed.configSets.length).toBe(2);
+  });
+
+  it('names a workspace part that parses to something other than one struct of variables', () => {
+    for (const body of ['[1, 2]', '{"_array_type":"Cell","_dimensions":[1, 1],"_elements":[1]}', '{"_array_type":"Struct","_elements":[]}']) {
+      const parsed = parseMdl(mdlTextWithPart(WS_PART, body), 'mdltext.mdl');
+      expect(codesAndParts(parsed.warnings), body).toEqual([['part-unreadable', WS_PART]]);
+      expect(parsed.warnings[0].message).toContain('does not hold a decodable workspace');
+      expect(parsed.workspace.length).toBe(0);
+    }
+  });
+
+  it('stays silent for a workspace struct with no fields, which is an empty workspace', () => {
+    const parsed = parseMdl(mdlTextWithPart(WS_PART, '{"_array_type":"Struct","_dimensions":[1, 1],"_elements":[{}]}'), 'mdltext.mdl');
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.workspace.length).toBe(0);
+  });
+
+  it('names the release part when it does not parse, and reads the rest', () => {
+    const parsed = parseMdl(mdlTextWithPart('slcoreProperties.json', '{"MATLABRelease":'), 'mdltext.mdl');
+    expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', 'slcoreProperties.json']]);
+    expect(parsed.release).toBe('');
+    expect(parsed.workspace.length).toBe(8);
+  });
+
+  it('carries a part warning out of the shared reader', () => {
+    const parsed = parseMdl(mdlTextWithPart('simulink/configSet1.json', '{ "unclosed": '), 'mdltext.mdl');
+    expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', 'simulink/configSet1.json']]);
+    expect(parsed.configSets.map((c) => c.name)).toEqual(['Configuration']);
+  });
+
+  it('names the part a file stops inside, which its XML reader would read short in silence', () => {
+    // The last part is the root system, and a cut XML document still parses — as a system
+    // with fewer blocks. Only the missing end marker says the file is short.
+    const text = latin1Text(MDL_TEXT);
+    const { start, stop } = mdlTextPartSpan(text, 'simulink/systems/system_root.xml');
+    const parsed = parseMdl(mdlTextCutInside('simulink/systems/system_root.xml', Math.floor((stop - start) / 2)), 'mdltext.mdl');
+    expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', 'simulink/systems/system_root.xml']]);
+    expect(parsed.warnings[0].message).toContain("before the package's end marker");
+  });
+
+  it('reports a part a file stops inside once, not again as a part that does not parse', () => {
+    // A cut JSON part fails its reader too. Same loss, so one warning: the framing's, which
+    // says what happened. Every part after the cut is gone with no warning of its own, as
+    // the message says.
+    const parsed = parseMdl(mdlTextCutInside(WS_PART, 40), 'mdltext.mdl');
+    expect(codesAndParts(parsed.warnings)).toEqual([['part-unreadable', WS_PART]]);
+    expect(parsed.warnings[0].message).toContain('any part after it is missing');
+    expect(parsed.workspace.length).toBe(0);
+    expect(parsed.configSets.length).toBe(2);
+  });
+
+  it('reports a package that holds no readable part, rather than opening as its stub', () => {
+    const text = latin1Text(MDL_TEXT);
+    const at = text.indexOf('__MWSL_PART_BEGIN__');
+    for (const cut of [at, at + '__MWSL_PART_BEGIN__ /slcore'.length]) {
+      const parsed = parseMdl(latin1Bytes(text.slice(0, cut)), 'mdltext.mdl');
+      expect(codesAndParts(parsed.warnings)).toEqual([['source-unreadable', undefined]]);
+      expect(parsed.warnings[0].message).toContain('a Simulink text package');
+      expect(parsed.zipEntries).toBeNull();
+    }
+  });
+
+  it('reports a file whose banner says it is a package and whose package marker is gone', () => {
+    // Cut after the legacy stub: all the grammar reader finds is `Model { Version 27.1 }`.
+    const text = latin1Text(MDL_TEXT);
+    const parsed = parseMdl(latin1Bytes(text.slice(0, text.indexOf('__MWSL_PACKAGE_BEGIN__'))), 'mdltext.mdl');
+    expect(codesAndParts(parsed.warnings)).toEqual([['source-unreadable', undefined]]);
+    expect(parsed.blockParamUsages).toEqual([]);
+  });
+
+  it('reports a package none of whose parts is one a model is read from', () => {
+    // Every part arrives, under a name this reader does not read: what a later release
+    // renaming its parts would look like. The framing is whole, so nothing else says so.
+    const text = latin1Text(MDL_TEXT).replace(/\n__MWSL_PART_BEGIN__ \//g, '\n__MWSL_PART_BEGIN__ /renamed/');
+    const parsed = parseMdl(latin1Bytes(text), 'mdltext.mdl');
+    expect(codesAndParts(parsed.warnings)).toEqual([['source-empty', undefined]]);
+    expect(parsed.warnings[0].message).toContain('mdltext.mdl');
+    expect(Object.keys(parsed.zipEntries!).length).toBeGreaterThan(5);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // A model whose part is missing: that part's section, present and empty
 // ---------------------------------------------------------------------------

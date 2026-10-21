@@ -21,6 +21,7 @@ export interface MatVariable {
         ids: number[];
     } | null;
     undecoded?: string;
+    json?: unknown;
 }
 export interface ParsedMat {
     header: string;

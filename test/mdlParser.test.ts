@@ -54,18 +54,23 @@ const BANNER = '# MathWorks OPC Text Package\n';
 // grammar sees something it can read before the package proper starts.
 const STUB = 'Model {\n  Version                 "27.1.0"\n}\n';
 
+// The Simulink text package spelling of the same framing: its own banner and markers.
+const SL_BANNER = '# Simulink Text Package\n';
+
 function textPackage(
   parts: Part[],
-  opts: { eol?: string; end?: boolean; wrapAt?: number; stub?: string } = {},
+  opts: { eol?: string; end?: boolean; wrapAt?: number; stub?: string; marker?: 'MWOPC' | 'MWSL' } = {},
 ): ArrayBuffer {
   const eol = opts.eol ?? '\n';
-  let out = BANNER + (opts.stub ?? STUB) + '__MWOPC_PACKAGE_BEGIN__ R2027a' + eol;
+  const marker = opts.marker ?? 'MWOPC';
+  const banner = marker === 'MWSL' ? SL_BANNER : BANNER;
+  let out = banner + (opts.stub ?? STUB) + '__' + marker + '_PACKAGE_BEGIN__ R2027a' + eol;
   for (const part of parts) {
     const binary = typeof part.body !== 'string';
-    out += '__MWOPC_PART_BEGIN__ /' + part.path + (binary ? ' BASE64' : '') + eol;
+    out += '__' + marker + '_PART_BEGIN__ /' + part.path + (binary ? ' BASE64' : '') + eol;
     out += (binary ? toBase64(part.body as Uint8Array, opts.wrapAt) : (part.body as string)) + eol;
   }
-  if (opts.end !== false) { out += '__MWOPC_PACKAGE_END__' + eol; }
+  if (opts.end !== false) { out += '__' + marker + '_PACKAGE_END__' + eol; }
   return bytes(out);
 }
 
@@ -204,6 +209,102 @@ describe('parseMdl — modern .mdl (OPC text package)', () => {
     const parsed = parseMdl(padded, 'm.mdl');
     expect(parsed.zipEntries).toBeNull();
     expect(parsed.rawContents).toBeNull();
+  });
+});
+
+describe('parseMdl — Simulink text package (the `__MWSL_` spelling)', () => {
+  // The framing R2027a writes from build 27.1.0.3409468 on. The same scan reads it; what
+  // is asserted here is that it is found, split and handed on exactly as the OPC spelling
+  // is. The MATLAB-written files are test/parity/mdlText.parity.test.ts.
+  const SL = { marker: 'MWSL' as const };
+
+  it('gives the SAME model as a .slx zipping the same parts', () => {
+    const fromMdl = parseMdl(textPackage(MODEL_PARTS, SL), 'm.mdl');
+    expect(fromMdl).toEqual(parseSlx(zipOf(MODEL_PARTS), 'm.mdl'));
+    expect(fromMdl.release).toBe('R2027a');
+    expect(fromMdl.warnings).toEqual([]);
+  });
+
+  it('reads the release out of slcoreProperties.json, which it writes in place of the OPC metadata', () => {
+    const parts = MODEL_PARTS.filter((p) => !p.path.startsWith('metadata/'));
+    const release = { path: 'slcoreProperties.json', body: '{\n  "MATLABRelease":"R2027a",\n  "SimulinkBuildNumber":"27.1.0.3409468"\n}' };
+    const parsed = parseMdl(textPackage([release, ...parts], SL), 'm.mdl');
+    expect(parsed.release).toBe('R2027a');
+    // Neither is recorded anywhere in this framing, so neither is reported.
+    expect(parsed.creator).toBe('');
+    expect(parsed.lastModified).toBe('');
+    expect(parsed.warnings).toEqual([]);
+  });
+
+  it('reads a workspace part that is JSON, keeping each value as the JSON that spells it', () => {
+    const ws = {
+      _array_type: 'Struct',
+      _dimensions: [1, 1],
+      _elements: [{
+        M: { _type: 'double', _value: 'Matrix(2,3)\n[[1.0, 2.0, 3.0]; [4.0, 5.0, 6.0]]' },
+        a: 5,
+        c: { _array_type: 'Cell', _dimensions: [1, 2], _elements: [1, 'two'] },
+        k: { _type: 'int16', _value: '-3' },
+        on: true,
+        p: { _array_class: 'Simulink.Parameter', _dimensions: [1, 1], _elements: [{ _id: '1', _properties: { Value: 5 } }] },
+        str: 'hello',
+      }],
+      _mw_element_name: 'MxData',
+      _mw_element_type: 'MATLABArray',
+    };
+    const parts = [...MODEL_PARTS, { path: 'simulink/modelWorkspace.mxarray', body: JSON.stringify(ws, null, 2) }];
+    const parsed = parseMdl(textPackage(parts, SL), 'm.mdl');
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.workspace.map((v) => [v.name, v.className, v.dimensions])).toEqual([
+      ['M', 'double', [2, 3]],
+      ['a', 'double', [1, 1]],
+      ['c', 'cell', [1, 2]],
+      ['k', 'int16', [1, 1]],
+      ['on', 'logical', [1, 1]],
+      ['p', 'Simulink.Parameter', [1, 1]],
+      ['str', 'char', [1, 5]],
+    ]);
+    expect(parsed.workspace.map((v) => v.json)).toEqual(Object.values(ws._elements[0]));
+    // Nothing of it is MAT data, and there is no subsystem to carry.
+    expect(parsed.workspace.every((v) => v.value === null && v.fields === null && !v.isOpaque)).toBe(true);
+    expect(parsed.workspace._trailingElements).toEqual([]);
+  });
+
+  it('still reads a workspace part that is an mxarray, under the same name', () => {
+    // Told apart by the bytes, not by the framing: an OPC package's base64'd mxarray and
+    // a JSON one share the name, and a byte part here is the binary reader's.
+    const mxarray = { path: 'simulink/modelWorkspace.mxarray', body: new Uint8Array([0, 1, 0x49, 0x4d]) };
+    const parsed = parseMdl(textPackage([...MODEL_PARTS, mxarray], SL), 'm.mdl');
+    expect(parsed.workspace.length).toBe(0);
+    expect(parsed.warnings.map((w) => w.part)).toEqual(['simulink/modelWorkspace.mxarray']);
+  });
+
+  it('does not split on the other spelling’s marker', () => {
+    const xml = '<?xml version="1.0"?><System>\n__MWOPC_PART_BEGIN__ /fake.xml\n</System>\n';
+    const parsed = parseMdl(textPackage([...MODEL_PARTS, { path: 'x.xml', body: xml }], SL), 'm.mdl');
+    expect(parsed.zipEntries!['x.xml']).toEqual(strToU8(xml));
+    expect(Object.keys(parsed.zipEntries!)).not.toContain('fake.xml');
+  });
+
+  it('names the part a package stops inside, and reads what survived of it', () => {
+    const json = '{"a":1}';
+    const parsed = parseMdl(textPackage([...MODEL_PARTS, { path: 'x.json', body: json }], { ...SL, end: false }), 'm.mdl');
+    expect(parsed.zipEntries!['x.json']).toEqual(strToU8(json));
+    expect(parsed.warnings.map((w) => [w.code, w.part])).toEqual([['part-unreadable', 'x.json']]);
+  });
+
+  it('says only its stub was read when the package marker is past the sniff window', () => {
+    // Read as classic, as the OPC spelling is; but the banner said it was a package.
+    const padded = textPackage(MODEL_PARTS, { ...SL, stub: 'Model {\n  Description             "' + 'x'.repeat(5000) + '"\n}\n' });
+    const parsed = parseMdl(padded, 'm.mdl');
+    expect(parsed.zipEntries).toBeNull();
+    expect(parsed.warnings.map((w) => w.code)).toEqual(['source-unreadable']);
+  });
+
+  it('routes through parseModel on the bytes', () => {
+    const parsed = parseModel(textPackage(MODEL_PARTS, SL), 'm.slx');
+    expect(parsed.release).toBe('R2027a');
+    expect(parsed.zipEntries).not.toBeNull();
   });
 });
 

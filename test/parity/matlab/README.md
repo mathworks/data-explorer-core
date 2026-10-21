@@ -14,11 +14,12 @@ a stale corpus is identifiable without rerunning anything.
 Everything under `../artifacts/` is **generated**. Do not hand-edit it, and never
 write an expected value by hand when MATLAB can be asked for it.
 
-There are three more corpora alongside this one, each with its own generator and
+There are four more corpora alongside this one, each with its own generator and
 its own question. [The `.mdl` corpus](#the-mdl-corpus) is about containers rather
-than values; [the `.slx` layout corpus](#the-slx-layout-corpus) about part layouts
-rather than containers; [the project corpus](#the-project-corpus) about a file that
-holds no values at all.
+than values, and [the text package `.mdl` corpus](#the-text-package-mdl-corpus)
+about the one container it predates; [the `.slx` layout corpus](#the-slx-layout-corpus)
+about part layouts rather than containers; [the project corpus](#the-project-corpus)
+about a file that holds no values at all.
 
 MATLAB is a fixture generator, not a test dependency. It cannot run in GitHub CI,
 so a fully MATLAB-gated suite would never actually run for this repo: MATLAB
@@ -59,13 +60,14 @@ and writes to `../artifacts/mdl/` and nowhere else. Nothing writes to
 |---|---|
 | `gen_truth.m` | the only entry point for the corpus: one case catalog, every format emitted from it |
 | `gen_mdl.m` | the entry point for the SECOND, separate corpus: the `.mdl` flavours and their `.slx` twins — see [The `.mdl` corpus](#the-mdl-corpus) |
+| `gen_mdl_text.m` | the text package `.mdl` this build writes, three models each with its `.slx` twin — see [The text package `.mdl` corpus](#the-text-package-mdl-corpus). Writes to `../artifacts/mdltext/` only |
 | `gen_mask.m` | the masked-subsystem fixture — see [The mask fixture](#the-mask-fixture). Writes outside `../artifacts/`: its truth pair goes to `test/fixtures/` |
 | `gen_block_params.m` | the option-list parameter table — see [The block-parameter gate](#the-block-parameter-gate). The only generator that writes into **`src/`**, because the parser imports its output at parse time |
 | `gen_project.m` | one project in all four definition-file formats — see [The project corpus](#the-project-corpus). The only generator whose output is a tree of openable projects rather than files |
 | `probe_*.m`, `probe_writeback*.mjs` | one-question probes — see the table below. None of them writes to `artifacts/` |
 | `wbcompare.m` | the comparison both write-back gates share: `fullsig`, which walks a value to every leaf spelling class, size, complexity and exact value |
 | `DESIGN.md` | the display convention, the coverage matrix, and the numbered defects this suite exists to pin |
-| `drift.mjs` | regenerate ALL FIVE into a temp directory and diff `truth.json`, `mdl_truth.json`, `mask_truth.json`, `enumBlockParams.ts` and `project_truth.json` against what is committed — the check for MATLAB-release drift |
+| `drift.mjs` | regenerate ALL SIX into a temp directory and diff `truth.json`, `mdl_truth.json`, `mdltext_truth.json`, `mask_truth.json`, `enumBlockParams.ts` and `project_truth.json` against what is committed — the check for MATLAB-release drift |
 | `STRING_MCOS.md` | how MATLAB stores a `string` in a `.mat`: the metadata segment the parser skipped, the packed `uint64` payload, and what could not be determined |
 | `../artifacts/truth.json` | the expectations, for every format at once |
 | `../artifacts/meta.json` | `version` and `release` of the MATLAB that wrote the corpus |
@@ -74,6 +76,7 @@ and writes to `../artifacts/mdl/` and nowhere else. Nothing writes to
 | `../artifacts/text/cases.sldd` | 73 entries in Design Data, `FileFormat = 'uncompressed-text'` |
 | `../artifacts/binary/cases.sldd` | the same 73, `FileFormat = 'compressed-binary'` |
 | `../artifacts/mdl/` | the `.mdl` corpus — six model files and `mdl_truth.json`, all written by `gen_mdl.m` |
+| `../artifacts/mdltext/` | the text package `.mdl` corpus — three `.mdl`/`.slx` pairs and `mdltext_truth.json`, all written by `gen_mdl_text.m` |
 | `../artifacts/project/` | the project corpus — four whole project trees and `project_truth.json`, all written by `gen_project.m` |
 
 **`text/params.sldd` and `binary/params.sldd` are not part of this corpus.** They
@@ -508,6 +511,73 @@ MATLAB's own `Fri Sep 04 10:15:29 2026` spelling rather than ISO 8601,
 `rawContents` and `zipEntries` are `null` (there is no zip), and **R2011b drops the
 linked data dictionary** — so the block row that links into it is a plain string
 there and a link target in every other flavour. R2017b keeps it.
+
+## The text package `.mdl` corpus
+
+A small corpus of its own, written by `gen_mdl_text.m` into `../artifacts/mdltext/`,
+for the `.mdl` that `save_system(mdl, 'x.mdl')` writes from build `27.1.0.3409468`
+on. It is neither flavour above. It opens like the OPC text package, a banner, the
+legacy `Model { Version 27.1 }` stub, then the parts as text between delimiters, but
+in its own spelling: `# Simulink Text Package`, `__MWSL_PACKAGE_BEGIN__`,
+`__MWSL_PART_BEGIN__ /<part>`, `__MWSL_PACKAGE_END__`. Its parts differ from a
+`.slx`'s in three ways, measured on these files:
+
+- **no OPC bookkeeping**: no `[Content_Types].xml`, no `_rels/`, no `metadata/`.
+  `/slcoreProperties.json` (`"MATLABRelease":"R2027a"`, the build number, the
+  platform) names the release instead. Nothing records a creator or a date: a
+  model whose `Creator` was set reopens from the `.mdl` with an empty one.
+- **the model workspace is JSON**, under the `.slx`'s own part name
+  `simulink/modelWorkspace.mxarray`: a 1x1 struct whose fields are the variables,
+  in the MATLAB-array JSON a text dictionary's values are spelled in. A
+  `Simulink.Parameter` is plain JSON with its properties, and there is no subsystem.
+- `blockDiagram.json` holds only what differs from the defaults (the UUID, the
+  dictionary, the workspace source, the root system).
+
+Every other part is byte-identical to the `.slx` twin's.
+
+| file | what |
+|---|---|
+| `mdltext.mdl` / `.slx` | blocks naming workspace variables (the `mdlcases` catalog: `Const`, `Gain`, `TF`, `Sat`, `Sum`, a two-line name, `Sub/InnerGain`), a masked subsystem `Masked` with an `edit` and a `popup` parameter, a `ModelReference` to `mdltext_child`, a linked `mdltextparams.sldd`, two config sets with the second active, and a Model File workspace of double, 2x3 matrix, struct, cell, char, int16, logical and a `Simulink.Parameter` |
+| `mdltext_empty.mdl` / `.slx` | a workspace holding nothing: neither file has a workspace part |
+| `mdltext_mat.mdl` / `.slx` | a workspace kept in a MAT-file: both name it in `blockDiagram.json` and hold no workspace |
+| `mdltext_truth.json` | what MATLAB reports about each model, opened from the `.mdl` and from the `.slx` |
+
+The generator opens each model from BOTH files and refuses to write a pair MATLAB
+reads two ways, so the truth is one record that holds for both. It goes a level
+below `gen_mdl.m`'s `modelTruth`: a struct's fields in MATLAB's order, a cell's
+elements, a Parameter's `Value` and `Description`, each mask's names, values and
+types, the workspace's source file and the `Creator`. Every model's `Creator` and
+`ModifiedByFormat` are set to `fixture` before it is saved, so no account name
+reaches these files.
+
+### Regenerate
+
+```bash
+mw -using Bmain matlab -nodesktop -batch "run('$PWD/test/parity/matlab/gen_mdl_text.m')"
+```
+
+Prints `GEN_MDL_TEXT OK` and rewrites the seven files. It honours `outdir` as
+`gen_mdl.m` does, and saves into a scratch directory under `tempdir` before
+copying in. **Only `mdltext_truth.json` is byte-reproducible**: every model file
+carries a per-save `ModelUUID`, and every `.slx` a per-save date.
+
+### What `mdlText.parity.test.ts` asserts
+
+- **the parts**: the `.mdl`'s are the `.slx`'s less the OPC bookkeeping, plus
+  `slcoreProperties.json`, and byte-identical but for `blockDiagram.json` and the
+  workspace, which is JSON text in one and an mxarray in the other;
+- **across flavours**: everything `parseModel` reports but the per-save UUID and
+  date, and every row and property-sheet value of every node under the model;
+- **against MATLAB**: the release, the parameter usages (block parameters and the
+  mask's), the masks, the config sets, the references, the dictionary, the
+  workspace source, and every workspace value down to a struct's fields.
+
+Three divergences are expected and asserted rather than assumed: the `.mdl` has no
+creator and no date (and the `.slx` saved from it no creator), a reference is named
+with the parent's own extension, and a struct's field NAMES are renamable in the
+`.mdl`'s tree and not in the `.slx`'s, because a JSON struct is the text
+dictionary's node and an mxarray one the MAT file's. The model is read-only either
+way.
 
 ## The mask fixture
 

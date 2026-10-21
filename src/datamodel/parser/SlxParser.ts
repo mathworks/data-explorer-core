@@ -978,6 +978,116 @@ function extractModelReferences(
   return out;
 }
 
+const WORKSPACE_PART = 'simulink/modelWorkspace.mxarray';
+const WORKSPACE_LOST = "this model's workspace variables were not read";
+
+type Workspace = MatVariable[] & { _trailingElements: Uint8Array[] };
+
+// Whether a part's bytes are JSON text: the first byte that is not white space opens an
+// object. Nothing else is checked, since the JSON reader that follows reports the rest.
+function isJsonText(buf: Uint8Array): boolean {
+  for (let i = 0; i < buf.length; i++) {
+    const b = buf[i];
+    if (b === 0x20 || b === 0x09 || b === 0x0a || b === 0x0d) continue;
+    return b === 0x7b;
+  }
+  return false;
+}
+
+/**
+ * The model workspace of a Simulink text package `.mdl`: the `.slx`'s 1x1 struct whose
+ * fields are the variables, spelled as MATLAB-array JSON instead of as an mxarray.
+ * Measured against R2027a (test/parity/matlab/gen_mdl_text.m):
+ *
+ *   {"_array_type":"Struct","_dimensions":[1, 1],"_elements":[{
+ *       "a":5,
+ *       "k":{"_type":"int16","_value":"-3"},
+ *       "p":{"_array_class":"Simulink.Parameter",...,"_elements":[{"_id":"1","_properties":{...}}]}
+ *     }],"_mw_element_name":"MxData","_mw_element_type":"MATLABArray"}
+ *
+ * Each field is one variable, its value spelled as a text dictionary spells an entry's: an
+ * object is plain JSON holding its properties, with no subsystem to decode it out of. So
+ * no value is read here. Each goes on as `json`, for the node layer to read with the reader
+ * a text dictionary's values go through, and the variables are the struct's fields in the
+ * part's order, which is the `.slx`'s (both are sorted).
+ *
+ * Every way of not arriving at the variables is reported as the binary part's are, under
+ * the same part name: JSON that does not parse, and JSON that is not one struct. A struct
+ * with no fields is an empty workspace and is not reported, though MATLAB writes no part
+ * at all for an empty one.
+ */
+function jsonWorkspace(part: Uint8Array, warnings: ParseWarning[]): Workspace {
+  const workspace = [] as unknown as Workspace;
+  workspace._trailingElements = [];
+  let doc: unknown;
+  try {
+    doc = parseJSON(part);
+  } catch (err) {
+    warnings.push({
+      code: 'part-unreadable',
+      message: `The model part "${WORKSPACE_PART}" could not be read (${reasonOf(err)}), so ${WORKSPACE_LOST}.`,
+      part: WORKSPACE_PART,
+    });
+    return workspace;
+  }
+  const elements = isEntryObject(doc) && doc._array_type === 'Struct' ? doc._elements : null;
+  const fields = Array.isArray(elements) && elements.length === 1 ? elements[0] : null;
+  if (!isEntryObject(fields)) {
+    warnings.push({
+      code: 'part-unreadable',
+      message: `The model part "${WORKSPACE_PART}" does not hold a decodable workspace, so ${WORKSPACE_LOST}.`,
+      part: WORKSPACE_PART,
+    });
+    return workspace;
+  }
+  for (const name of Object.keys(fields)) {
+    const json = fields[name];
+    const { className, dimensions } = jsonClassAndSize(json);
+    workspace.push({
+      name,
+      className,
+      dimensions,
+      isComplex: false,
+      isLogical: className === 'logical',
+      value: null,
+      fields: null,
+      json,
+    });
+  }
+  return workspace;
+}
+
+// The class and size a MATLAB-array JSON value names, which is all a MatVariable built
+// for one says about it (MatVariable.json). A bare number is a double, a boolean a logical
+// and a string a char row. A typed or classed value names its class in `_array_class`,
+// `_array_type` or `_type`, and its size in `_dimensions` or its `Matrix(r,c)` header; one
+// that states no size is taken as the scalar such a spelling is.
+function jsonClassAndSize(json: unknown): { className: string; dimensions: number[] } {
+  if (typeof json === 'string') return { className: 'char', dimensions: [1, json.length] };
+  if (typeof json === 'boolean') return { className: 'logical', dimensions: [1, 1] };
+  if (!isEntryObject(json)) {
+    return { className: 'double', dimensions: Array.isArray(json) ? [1, json.length] : [1, 1] };
+  }
+  const arrayType = json._array_type;
+  const className =
+    typeof json._array_class === 'string'
+      ? json._array_class
+      : arrayType === 'Struct' || arrayType === 'Cell' || arrayType === 'String'
+        ? arrayType.toLowerCase()
+        : typeof json._type === 'string'
+          ? json._type
+          : 'unknown';
+  const stated = json._dimensions;
+  const header = typeof json._value === 'string' ? /^Matrix\((\d+(?:,\d+)*)\)/.exec(json._value) : null;
+  const dimensions =
+    Array.isArray(stated) && stated.length >= 2 && stated.every((d) => typeof d === 'number')
+      ? (stated as number[]).slice()
+      : header
+        ? header[1].split(',').map(Number)
+        : [1, 1];
+  return { className, dimensions };
+}
+
 export function parseSlx(buffer: ArrayBuffer, filename: string): ParsedSlx {
   const unreadable: UnreadableMember[] = [];
   const parsed = parseModelParts(unzipEntries(new Uint8Array(buffer), undefined, unreadable), filename);
@@ -999,11 +1109,13 @@ export function parseSlx(buffer: ArrayBuffer, filename: string): ParsedSlx {
 /**
  * The model behind an OPC part map — everything `parseSlx` does except unzipping.
  *
- * A `.slx` is a ZIP OPC package; the modern `.mdl` is the SAME part set written as
- * a TEXT OPC package (`__MWOPC_PART_BEGIN__` delimiters, binary parts base64'd).
- * The two formats differ only in how the bytes of each part are framed, so the
- * reading of those parts belongs in one place — see MdlParser, which decodes the
- * text framing and calls straight in here.
+ * A `.slx` is a ZIP OPC package; the text package `.mdl` is the same parts written as
+ * TEXT, between `__MWSL_PART_BEGIN__` (or, from an earlier R2027a build,
+ * `__MWOPC_PART_BEGIN__`) delimiters. The formats differ in how the bytes of each part
+ * are framed, and in the `__MWSL_` spelling in two parts more: it writes no OPC
+ * metadata, naming its release in `slcoreProperties.json`, and its model workspace part
+ * is JSON (jsonWorkspace). So the reading of those parts belongs in one place — see
+ * MdlParser, which decodes the text framing and calls straight in here.
  */
 export function parseModelParts(entries: Record<string, Uint8Array>, filename: string): ParsedSlx {
   // Everything this package claimed and could not hand over. Built here and returned
@@ -1025,6 +1137,16 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
     release = findText(core, 'cp:version') || findText(core, 'version') || '';
     creator = findText(core, 'dc:creator') || findText(core, 'creator') || '';
     lastModified = findText(core, 'dcterms:modified') || findText(core, 'modified') || '';
+  } else if (entries['slcoreProperties.json']) {
+    // The Simulink text package `.mdl` writes no OPC metadata. Its release is in a part
+    // of its own, `{"MATLABRelease":"R2027a", ...}`, and it records no creator and no
+    // date anywhere — measured against R2027a: a model whose Creator was set reopens
+    // from one with an empty Creator — so those two stay empty, as the file has neither.
+    const sl = readPart(entries, 'slcoreProperties.json', "this model's release is missing", warnings) as Record<
+      string,
+      unknown
+    > | null;
+    release = sl && typeof sl.MATLABRelease === 'string' ? sl.MATLABRelease : '';
   }
 
   // The legacy block diagram part, read once: several branches below need it, and
@@ -1135,8 +1257,14 @@ export function parseModelParts(entries: Record<string, Uint8Array>, filename: s
     _trailingElements: Uint8Array[];
   };
   (workspace as unknown as { _trailingElements: Uint8Array[] })._trailingElements = [];
-  if (entries['simulink/modelWorkspace.mxarray']) {
-    const part = entries['simulink/modelWorkspace.mxarray'];
+  if (entries[WORKSPACE_PART] && isJsonText(entries[WORKSPACE_PART])) {
+    // The Simulink text package `.mdl` keeps the workspace under the same part name as
+    // TEXT: JSON, where the zip holds an mxarray. Told apart by the bytes rather than by
+    // the container, because the name is the same either way and an mxarray's first
+    // byte (0x00, or 0x01 big-endian) can never be the `{` a JSON object opens with.
+    workspace = jsonWorkspace(entries[WORKSPACE_PART], warnings);
+  } else if (entries[WORKSPACE_PART]) {
+    const part = entries[WORKSPACE_PART];
     workspace = parseMxArray(part.buffer);
     if (workspace.length === 0) {
       // An mxarray that decodes to no variables is the ordinary shape of an EMPTY model

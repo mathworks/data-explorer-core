@@ -107,6 +107,16 @@ export interface MatVariable {
     // so a host that renders values without knowing about this field still says
     // something true.
     undecoded?: string;
+    // A model workspace variable that was never a MAT array: one a Simulink text package
+    // `.mdl` holds, whose workspace part is JSON rather than an mxarray (SlxParser's
+    // jsonWorkspace). This is its value as that part spells it, in the MATLAB-array JSON
+    // a text dictionary's entry values are spelled in, and the node layer reads it with
+    // the reader those go through (NodeRegistry.parseValue) rather than with a second
+    // one. `className` and `dimensions` say what the JSON names; `value` and `fields`
+    // are empty, since nothing was read as MAT data, so it is not one for a MAT writer
+    // (a model's workspace is read-only, and none is handed one). Absent on every
+    // variable a MAT reader made.
+    json?: unknown;
 }
 
 export interface ParsedMat {
