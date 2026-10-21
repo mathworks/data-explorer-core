@@ -120,7 +120,14 @@ describe('under a hex value, every node is read-only, whatever its class, but an
             const result = fresh.setProperty(prop, text);
             const what = `${label} ${prop}=${text}`;
             if ((TAKEN[node.matlabPath] ?? []).includes(prop)) {
-              expect(result === true || !ENCODED_REASON.test(result.reason), what).toBe(true);
+              // Taken: a number and an empty, each shown as made; text that is no value, refused by
+              // the property's own setter, as anywhere else.
+              if (text === 'single') {
+                expect(result, what).toMatchObject({ error: true, reason: prop === 'Value' ? 'Invalid MATLAB expression' : 'Minimum must be a finite real double scalar value' });
+              } else {
+                expect(result, what).toBe(true);
+                expect(prop === 'Value' ? fresh.displayValue : String(fresh.Min ?? '[]'), what).toBe(text === '1' ? '1' : prop === 'Value' ? '[ ]' : '[]');
+              }
             } else if (ruled(node)) {
               expect(result, what).toMatchObject({ error: true });
             } else {

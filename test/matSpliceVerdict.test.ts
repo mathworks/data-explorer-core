@@ -175,16 +175,16 @@ function uint16CharStream(text: string): Uint8Array {
 // What an object's save types into each object the gate takes it for: text, and a number.
 const OBJECT_EDITS: [string, string][] = [['Description', 'zz edited'], ['Value', '7']];
 
-// Each kind of save, and at least how many of the files reach the check with it (measured when
-// this was written: 120, 74, 121, 123, 115 and 123, before the objects' fixtures of phase 2 came,
-// with which they are 179, 90, 180, 182, 174 and 182; and of the objects' saves, 95, 174 and 27),
-// whether it is written to break a rule, and at least how many of its saves write the subsystem
-// anew (95, 95 and 27: every save of the file's objects that reached the check).
+// Each kind of save, and at least how many of the files reach the check with it (measured: 179,
+// 90, 180, 182, 174 and 182, and of the objects' saves, 95, 174 and 27; each held here to within
+// a few of that, so that a kind of save that stopped reaching the check in a handful of files is
+// seen), whether it is written to break a rule, and at least how many of its saves write the
+// subsystem anew (95, 95 and 27: every save of the file's objects that reached the check).
 const SAVES: [string, (o: ReturnType<typeof opened>) => void, number, boolean, number][] = [
-  ['every variable renamed', (o) => o.root.children.slice().forEach((n: any, i: number) => o.edit(n, 'Name', 'renamed' + i)), 110, false, 0],
-  ['every plain variable written fresh', (o) => plainOf(o.root).forEach((n: any) => n._markModified()), 65, false, 0],
-  ['every other variable deleted', (o) => o.root.children.filter((_: any, i: number) => i % 2 === 0).forEach((n: any) => o.remove(n)), 110, false, 0],
-  ['a variable added', (o) => o.root.execAddEntry(), 110, false, 0],
+  ['every variable renamed', (o) => o.root.children.slice().forEach((n: any, i: number) => o.edit(n, 'Name', 'renamed' + i)), 176, false, 0],
+  ['every plain variable written fresh', (o) => plainOf(o.root).forEach((n: any) => n._markModified()), 88, false, 0],
+  ['every other variable deleted', (o) => o.root.children.filter((_: any, i: number) => i % 2 === 0).forEach((n: any) => o.remove(n)), 176, false, 0],
+  ['a variable added', (o) => o.root.execAddEntry(), 178, false, 0],
   [
     'renamed, written fresh, deleted and added at once',
     (o) => {
@@ -194,7 +194,7 @@ const SAVES: [string, (o: ReturnType<typeof opened>) => void, number, boolean, n
       third && o.remove(third);
       o.root.execAddEntry();
     },
-    105,
+    170,
     false,
     0,
   ],
@@ -206,11 +206,11 @@ const SAVES: [string, (o: ReturnType<typeof opened>) => void, number, boolean, n
         added._matStream = () => uint16CharStream('中文');
       }
     },
-    110,
+    178,
     true,
     0,
   ],
-  ['every object edited', (o) => editObjects(o, OBJECT_EDITS), 85, false, 85],
+  ['every object edited', (o) => editObjects(o, OBJECT_EDITS), 93, false, 93],
   [
     'objects edited, and renamed, written fresh, deleted and added at once',
     (o) => {
@@ -221,9 +221,9 @@ const SAVES: [string, (o: ReturnType<typeof opened>) => void, number, boolean, n
       third && o.remove(third);
       o.root.execAddEntry();
     },
-    160,
+    170,
     false,
-    85,
+    93,
   ],
   [
     'an object edited, its text written into its cell as bytes that break a rule',
@@ -231,9 +231,9 @@ const SAVES: [string, (o: ReturnType<typeof opened>) => void, number, boolean, n
       editObjects(o, [['Description', '中文']]);
       uint16Cells.on = true;
     },
-    25,
+    26,
     true,
-    25,
+    26,
   ],
 ];
 

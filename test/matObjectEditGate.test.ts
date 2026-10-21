@@ -169,6 +169,8 @@ const FIXTURES = matFilesUnder(TEST_ROOT).filter((abs) => {
 
 describe('the gate is the writer, for every object of every fixture', () => {
   const totals = { taken: 0, refusedByValue: 0, refused: 0, structural: 0, objects: 0 };
+  // The Adds and removals of an element of a Simulink.Parameter's array Value, by file and Value.
+  const valueRows: { add: string[]; remove: string[] } = { add: [], remove: [] };
 
   for (const file of FIXTURES) {
     it(shown(file), { timeout: 120_000 }, () => {
@@ -301,6 +303,9 @@ describe('the gate is the writer, for every object of every fixture', () => {
             const derived = derivedOf(root, object);
             expect(objectShown(at(opened(save(), 'saved.mat').root, objectPath), derived), label).toEqual(objectShown(object, derived));
             totals.structural++;
+            if ((object as any)._valueNode === node && (node as any)._kind === 'array') {
+              valueRows[op].push(shown(file) + ': ' + node.matlabPath);
+            }
           }
         }
       }
@@ -317,5 +322,13 @@ describe('the gate is the writer, for every object of every fixture', () => {
     expect(totals.refusedByValue).toBeGreaterThanOrEqual(30);
     expect(totals.refused).toBeGreaterThanOrEqual(10000);
     expect(totals.structural).toBeGreaterThanOrEqual(70);
+    // Among them, an element added to and one removed from a Parameter's array Value, each saved
+    // and read back as shown, in more than one file.
+    for (const op of ['add', 'remove'] as const) {
+      expect(valueRows[op].length, op).toBeGreaterThanOrEqual(5);
+      expect(new Set(valueRows[op].map((v) => v.split(':')[0])).size, op).toBeGreaterThanOrEqual(2);
+    }
+    expect(valueRows.add).toContain('fixtures/mat-allowlist/al_shape.mat: spI.Value');
+    expect(valueRows.remove).toContain('fixtures/mat-allowlist/al_shape.mat: spI.Value');
   });
 });
