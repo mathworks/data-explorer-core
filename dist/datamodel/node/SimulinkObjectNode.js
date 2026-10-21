@@ -190,9 +190,9 @@ export default class SimulinkObjectNode extends DataNode {
      * its whole state goes in a saveobj struct, and it has no ordinary properties at all.
      *
      * This exists because a default built the ordinary way **crashed MATLAB**. Given an element
-     * with a property bag and no envelope, `SlVariantVariable::loadObj` asks `mxGetField` for
-     * the fields its struct is supposed to declare, gets NULL, and dereferences it — a
-     * segmentation fault in MATLAB, from a dictionary the Add gallery wrote. So for this family
+     * with a property bag and no envelope, the class's load reads the fields its struct is
+     * supposed to declare, finds none, and MATLAB stops with a segmentation fault, from a
+     * dictionary the Add gallery wrote. So for this family
      * the envelope is not an optimisation or a fidelity detail; it is the only shape that loads.
      *
      * `fields` is MATLAB's own DECLARATION order, which is not the alphabetical order its text

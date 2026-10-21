@@ -133,7 +133,7 @@ function make_variantbank_r2027a(outDir)
     'V==2147483647', 'V==2147483648', 'V==-2147483648', 'V==-2147483649', 'V==4294967295', '~(~V)', ...
     '~(V==1)&&W', 'V==1&&~W', '~V||W', '~(V||W)&&X', 'V==1;W==2', 'V==1 ', ' V'};
   % NOT in the list: 'V==1i'. Setting it crashed R2027a (27.1.0.3409468) outright, a segmentation
-  % violation in SL::SymbolicExprVisitor::execute under SlVariantBank::setVariantConditions.
+  % violation while MATLAB set the bank's variant conditions.
   for k = 1:numel(conds)
     tryset(V(), 'VariantConditions', conds(k));
   end

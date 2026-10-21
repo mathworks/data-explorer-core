@@ -5,7 +5,7 @@
 // half the job: a writer that still thinks in dims[0] and dims[1] emits XML that
 // contradicts its own Dimension attribute, and MATLAB does not merely misread
 // such a file — `<P Class="struct" Dimension="2*3">` with twelve <Element>s
-// SEGFAULTS the SLDD XML reader (ElementPart.cpp), and a 1x1x3 struct whose
+// SEGFAULTS MATLAB's dictionary XML reader, and a 1x1x3 struct whose
 // Dimension attribute is dropped altogether comes back as nested
 // <Element><Element>.
 //

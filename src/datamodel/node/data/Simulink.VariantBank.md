@@ -76,7 +76,7 @@ it: names (dotted for an enumeration), whole numbers in int32, one comparison at
 and refusing one costs an edit, where writing one MATLAB refuses costs the bank (below). MATLAB
 rewrites `0x1F` as `31`, `1e3` as `1000`, `3.14159265358979` as `3.14159` and `V==(W<1)` as
 `V == W < 1`, a different condition, which is why decimals and chained comparisons are not taken.
-`V==1i` crashed MATLAB outright (a segmentation violation in `SlVariantBank::setVariantConditions`).
+`V==1i` crashed MATLAB outright (a segmentation violation while it set the bank's variant conditions).
 
 ## A hand-edited file
 
