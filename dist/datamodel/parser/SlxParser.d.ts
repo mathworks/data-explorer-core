@@ -134,11 +134,13 @@ export declare function parseSlx(buffer: ArrayBuffer, filename: string): ParsedS
 /**
  * The model behind an OPC part map — everything `parseSlx` does except unzipping.
  *
- * A `.slx` is a ZIP OPC package; the modern `.mdl` is the SAME part set written as
- * a TEXT OPC package (`__MWOPC_PART_BEGIN__` delimiters, binary parts base64'd).
- * The two formats differ only in how the bytes of each part are framed, so the
- * reading of those parts belongs in one place — see MdlParser, which decodes the
- * text framing and calls straight in here.
+ * A `.slx` is a ZIP OPC package; the text package `.mdl` is the same parts written as
+ * TEXT, between `__MWSL_PART_BEGIN__` (or, from an earlier R2027a build,
+ * `__MWOPC_PART_BEGIN__`) delimiters. The formats differ in how the bytes of each part
+ * are framed, and in the `__MWSL_` spelling in two parts more: it writes no OPC
+ * metadata, naming its release in `slcoreProperties.json`, and its model workspace part
+ * is JSON (jsonWorkspace). So the reading of those parts belongs in one place — see
+ * MdlParser, which decodes the text framing and calls straight in here.
  */
 export declare function parseModelParts(entries: Record<string, Uint8Array>, filename: string): ParsedSlx;
 //# sourceMappingURL=SlxParser.d.ts.map

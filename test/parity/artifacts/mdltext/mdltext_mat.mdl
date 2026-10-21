@@ -1,0 +1,227 @@
+# Simulink Text Package
+Model {
+  Version  27.1
+  Description "Simulink model saved in R2027a"
+}
+__MWSL_PACKAGE_BEGIN__ R2027a
+__MWSL_PART_BEGIN__ /slcoreProperties.json
+{
+  "MATLABRelease":"R2027a",
+  "SimulinkBlockDiagramType":"model",
+  "SimulinkBuildNumber":"27.1.0.3409468",
+  "SimulinkPlatform":"maca64"
+}
+__MWSL_PART_BEGIN__ /simulink/blockDiagram.json
+{
+  "BlockDiagram":{
+    "ModelUUID":"d0814f8d-aeb0-475e-aea8-4610b7f58519",
+    "ModelWorkspace":{
+      "WSDataSource":"MAT-File",
+      "WSSourceFileName":"mdltext_mat_data.mat"
+    },
+    "System":{
+      "Ref":"system_root"
+    }
+  }
+}
+__MWSL_PART_BEGIN__ /simulink/configSet0.json
+{
+  "_id":"1",
+  "_mw_element_name":"ConfigSet",
+  "_mw_element_type":"COSObject",
+  "_object_class":"Simulink.ConfigSet",
+  "_properties":{
+    "Components":{
+      "_array_class":"Simulink.ConfigComponent",
+      "_dimensions":[10,  1],
+      "_elements":[
+        {
+          "_id":"2",
+          "_object_class":"Simulink.SolverCC",
+          "_properties":{
+            "SolverName":"VariableStepAuto",
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"3",
+          "_object_class":"Simulink.DataIOCC",
+          "_properties":{
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"4",
+          "_object_class":"Simulink.OptimizationCC",
+          "_properties":{
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"5",
+          "_object_class":"Simulink.DebuggingCC",
+          "_properties":{
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"6",
+          "_object_class":"Simulink.HardwareCC",
+          "_properties":{
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"7",
+          "_object_class":"Simulink.ModelReferenceCC",
+          "_properties":{
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"8",
+          "_object_class":"Simulink.SFSimCC",
+          "_properties":{
+            "CustomCodeFunctionArrayLayout":[],
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"9",
+          "_object_class":"Simulink.RTWCC",
+          "_properties":{
+            "BuildConfiguration":"Faster Builds",
+            "Components":{
+              "_array_class":"Simulink.ConfigComponent",
+              "_dimensions":[2,  1],
+              "_elements":[
+                {
+                  "_id":"10",
+                  "_object_class":"Simulink.CodeAppCC",
+                  "_properties":{
+                    "Version":"27.0.0"
+                  }
+                },
+                {
+                  "_id":"11",
+                  "_object_class":"Simulink.GRTTargetCC",
+                  "_properties":{
+                    "CPPClassGenCompliant":"on",
+                    "CombineOutputUpdateFcns":"on",
+                    "CompOptLevelCompliant":"on",
+                    "ConcurrentExecutionCompliant":"on",
+                    "ERTCustomFileBanners":"off",
+                    "GRTInterface":"off",
+                    "GenerateAllocFcn":"off",
+                    "GenerateSampleERTMain":"off",
+                    "MATLABClassNameForMDSCustomization":"Simulink.SoftwareTarget.GRTCustomization",
+                    "MatFileLogging":"on",
+                    "ModelReferenceCompliant":"on",
+                    "ModelStepFunctionPrototypeControlCompliant":"off",
+                    "MultiwordLength":2048,
+                    "ParMdlRefBuildCompliant":"on",
+                    "SupportContinuousTime":"on",
+                    "SupportNonFinite":"on",
+                    "SupportNonInlinedSFcns":"on",
+                    "UseToolchainInfoCompliant":"on",
+                    "Version":"27.0.0"
+                  }
+                }
+              ]
+            },
+            "Description":"Generic Real-Time Target",
+            "SystemTargetFile":"grt.tlc",
+            "Toolchain":"Automatically locate an installed toolchain",
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"12",
+          "_object_class":"SlCovCC.ConfigComp",
+          "_properties":{
+            "CovEnable":"off",
+            "CovIncludeTopModel":"on",
+            "CovModelRefEnable":"off",
+            "CovScope":"EntireSystem",
+            "Description":"Simulink Coverage Configuration Component",
+            "Version":"27.0.0"
+          }
+        },
+        {
+          "_id":"13",
+          "_object_class":"hdlcoderui.hdlcc",
+          "_properties":{
+            "Description":"HDL Coder custom configuration component",
+            "Version":"27.0.0"
+          }
+        }
+      ]
+    },
+    "ConfigPrmDlgPosition":[0,  0,  0,  0],
+    "CurrentDlgPage":"",
+    "ExtraOptions":"",
+    "Name":"Configuration",
+    "Version":"27.0.0"
+  }
+}
+__MWSL_PART_BEGIN__ /simulink/configSetInfo.json
+{
+  "ConfigSetInfo":[{
+      "Active":true,
+      "ConfigSetName":"Configuration",
+      "PartName":"\/simulink\/configSet0.json"
+    }]
+}
+__MWSL_PART_BEGIN__ /simulink/graphicalInterface.json
+{
+  "PreCompExecutionDomainType":"Unset",
+  "SimulinkSubDomainType":"Simulink",
+  "SolverName":"VariableStepAuto",
+  "_mw_element_name":"GraphicalInterface"
+}
+__MWSL_PART_BEGIN__ /simulink/hdlParams.xml
+<?xml version="1.0" encoding="utf-8"?>
+<HDLParams>
+  <Object PropName="HDLParams" ObjectID="1" ClassName="slprops.hdlmdlprops">
+    <Array PropName="mdlProps" Type="Cell" Dimension="1*2">
+      <Cell Class="char">HDLSubsystem</Cell>
+      <Cell Class="char">$bdroot</Cell>
+    </Array>
+  </Object>
+</HDLParams>
+
+__MWSL_PART_BEGIN__ /simulink/modelDictionary.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<MF0 version="1.1" defaultPackage="slid" packageUris="http://schema.mathworks.com/mf0/slid/R2025a_20251111">
+  <System type="System" uuid="cd76f3a7-81e8-46e7-a88a-cd5a8d4a8aab">
+    <Parameter type="Parameter" uuid="722c0f45-4110-4bc1-a174-46a4caa8c5fa">
+      <Identifier>M</Identifier>
+      <Name>M</Name>
+    </Parameter>
+    <Parameter type="Parameter" uuid="e0d0ed8c-6285-4a91-8ade-ce977caf39c9">
+      <Identifier>a</Identifier>
+      <Name>a</Name>
+    </Parameter>
+    <Interface type="Interface" uuid="b026ab1a-8512-4583-83aa-8901792541e8"/>
+  </System>
+</MF0>
+__MWSL_PART_BEGIN__ /simulink/systems/system_root.xml
+<?xml version="1.0" encoding="utf-8"?>
+<System>
+  <P Name="ReportName">simulink-default.rpt</P>
+  <P Name="SIDHighWatermark">2</P>
+  <Block BlockType="Constant" Name="Const" SID="1" SLUID="mwP7LYCVTMUTLZEPRNITNOQABASLid">
+    <P Name="Position">[35, 180, 65, 210]</P>
+    <P Name="Value">a</P>
+  </Block>
+  <Block BlockType="Gain" Name="Gain" SID="2" SLUID="mwP7LYCVTMUTLZDPRNITNOQABASLid">
+    <P Name="Position">[25, 125, 55, 155]</P>
+    <P Name="Gain">M(2,2)</P>
+  </Block>
+  <Line>
+    <P Name="Src">1#out:1</P>
+    <P Name="Dst">2#in:1</P>
+  </Line>
+</System>
+
+__MWSL_PACKAGE_END__

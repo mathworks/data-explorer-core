@@ -4,27 +4,37 @@
 // the SAME data model a `.slx` does — same sections, same nodes — because it holds
 // the same information in different framing.
 //
-// There are two framings in the wild, both legitimately named `.mdl`, and this file
-// reads both:
+// There are three framings in the wild, all legitimately named `.mdl`, and this file
+// reads all three:
 //
-//   1. The MODERN `.mdl` — what `save_system(mdl, 'x.mdl')` writes today. It is an
-//      OPC package like a `.slx`, but written as TEXT rather than zipped: a banner
-//      line, a small legacy `Model { Version ... }` stub for tools that would
-//      otherwise choke, then the parts one after another between
-//      `__MWOPC_PART_BEGIN__` delimiters, with binary parts base64'd. The part set
-//      is byte-for-byte the one a `.slx` carries, so once the framing is off, this
-//      hands straight to SlxParser's parseModelParts and NOTHING else is duplicated.
+//   1. The TEXT PACKAGE `.mdl` — what `save_system(mdl, 'x.mdl')` writes today, in two
+//      spellings of one idea: a banner line, a small legacy `Model { Version ... }` stub
+//      for tools that would otherwise choke, then a `.slx`'s parts written one after
+//      another as TEXT between part delimiters, rather than zipped.
+//
+//        - `# Simulink Text Package`, `__MWSL_PART_BEGIN__` delimiters: R2027a from
+//          build 27.1.0.3409468 on. Every part is text, the model workspace included,
+//          which is MATLAB-array JSON under its `.slx` name; the OPC bookkeeping parts
+//          (`[Content_Types].xml`, `_rels/`, `metadata/`) are not written, and
+//          `/slcoreProperties.json` names the release instead.
+//        - `# MathWorks OPC Text Package`, `__MWOPC_PART_BEGIN__` delimiters: an
+//          earlier R2027a build. The part set is byte-for-byte the one a `.slx`
+//          carries, with the binary parts base64'd.
+//
+//      Once the framing is off, either hands straight to SlxParser's parseModelParts,
+//      which knows both part sets, and NOTHING else is duplicated.
 //
 //   2. The CLASSIC `.mdl` — the pre-R2012 nested-brace text format, and the reason
 //      `.mdl` support matters at all: a model that was never migrated still looks
 //      like this, and MATLAB still writes one on `save_system(..., 'ExportToVersion',
 //      'R2011b')`. Nothing about it resembles OPC. It carries the same facts in a
 //      brace grammar (`Model { Name "x" ... }`), and the model workspace as a
-//      UUENCODED mxarray in a top-level MatData section. Everything below the OPC
-//      decoder is about reading that.
+//      UUENCODED mxarray in a top-level MatData section. Everything below the
+//      package decoder is about reading that.
 //
-// Both flavours are held to the .slx of the same diagram by the parity suite —
-// see test/parity/mdl.parity.test.ts and test/parity/matlab/gen_mdl.m.
+// Every flavour is held to the .slx of the same diagram by the parity suites —
+// see test/parity/mdl.parity.test.ts and test/parity/matlab/gen_mdl.m, and
+// test/parity/mdlText.parity.test.ts and test/parity/matlab/gen_mdl_text.m.
 
 import { blockLabel, joinBlockPath } from '../blockIdentity.js';
 import {
@@ -53,49 +63,70 @@ type WorkspaceVars = MatVariable[] & { _trailingElements: Uint8Array[] };
 
 export function parseMdl(buffer: ArrayBuffer, filename: string): ParsedMdl {
   const bytes = new Uint8Array(buffer);
-  // What the OPC text framing itself claimed and could not deliver, which is a
-  // different kind of loss from an unreadable part: here the part is not even
-  // recoverable from the file, so the part readers below never see it and cannot
-  // report it. Only the framing scan can.
+  // What the text framing itself claimed and could not deliver, which is a different
+  // kind of loss from an unreadable part: here the part is not even recoverable from
+  // the file, so the part readers below never see it and cannot report it. Only the
+  // framing scan can.
   const framing: ParseWarning[] = [];
   // Sniffing is folded into the decode: one scan decides, so there is no way for a
   // separate "is it a package?" test to disagree with the reader that follows.
-  const parts = decodeOpcTextPackage(bytes, framing);
+  const { kind, parts } = decodeTextPackage(bytes, framing);
   // A package marker with no readable part after it is a truncated file, not a
   // package, so it falls through to the grammar reader rather than opening as a model
   // with nothing in it. That reader finds the legacy `Model { Version ... }` stub a
-  // modern `.mdl` always opens with — and if the file was cut before even that, it
-  // rejects it, which is the whole point of the guard down there.
-  if (parts && Object.keys(parts).length > 0) {
+  // text package `.mdl` always opens with — and if the file was cut before even that,
+  // it rejects it, which is the whole point of the guard down there.
+  if (kind && parts && Object.keys(parts).length > 0) {
     const parsed = parseModelParts(parts, filename);
     // Framing losses first: a part that never made it out of the text stream is a
     // larger loss than anything the part readers went on to report about the parts
     // that did, and a host that shows only the first line should show that one.
-    parsed.warnings = [...framing, ...parsed.warnings];
+    //
+    // A part the framing reports as cut short is reported ONCE, by the framing. Its part
+    // reader usually fails on it too — a JSON part cut anywhere does not parse — and that
+    // second warning is the same loss described less well: it says the part is
+    // malformed, where the file says it stopped.
+    const cut = new Set(framing.map((w) => w.part));
+    parsed.warnings = [...framing, ...parsed.warnings.filter((w) => w.part === undefined || !cut.has(w.part))];
+    if (parsed.warnings.length === 0 && readNothing(parsed)) {
+      // Every part arrived and none of them is one a model is read from: a package
+      // whose part names were mangled, or that a later release lays out differently.
+      // Only Simulink writes this framing, and only for a model, so a model that reads
+      // to no release, no UUID, no configuration set and no block is the file saying
+      // more than this reader found. The one case in this reader where the result is
+      // empty with no other warning to say so, and therefore the one place for
+      // `source-empty`.
+      parsed.warnings.push({
+        code: 'source-empty',
+        message:
+          `"${filename}" is ${kind.aName} of ${Object.keys(parts).length} parts, none of which `
+          + 'is a part this reader reads a model from, so the model read from it is empty.',
+      });
+    }
     return parsed;
   }
 
   const parsed = parseClassicMdl(bytes, filename);
-  if (parts !== null) {
-    // A package marker WAS found, and not one part survived the scan. What
-    // `parseClassicMdl` just read is the compatibility stub at the top of a modern
-    // `.mdl` — a Version number and a few properties, deliberately there so old tools
-    // do not choke — and not the model. So this is the one place in these readers
-    // where the whole SOURCE is the thing that could not be read, and the only place
-    // `source-unreadable` is right for a `.mdl`.
+  if (kind !== null) {
+    // A package marker WAS found, or the banner that only a text package opens with, and
+    // not one part survived the scan. What `parseClassicMdl` just read is the
+    // compatibility stub at the top of a text package `.mdl` — a Version number and a few
+    // properties, deliberately there so old tools do not choke — and not the model. So
+    // this is the one place in these readers where the whole SOURCE is the thing that
+    // could not be read, and the only place `source-unreadable` is right for a `.mdl`.
     //
     // The framing warnings collected above are DISCARDED rather than added to, on
     // purpose: they describe the same single loss in more detail, and two or three
     // warnings for one unreadable file teaches a host's user that the count is
     // noise. Whatever the classic reader itself reported goes too — those are facts
     // about the stub, and the stub is not this model. A genuine classic `.mdl`
-    // (`parts === null`) never reaches here, so nothing legitimate is being
+    // (`kind === null`) never reaches here, so nothing legitimate is being
     // silenced: its own warnings are returned untouched below.
     parsed.warnings = [
       {
         code: 'source-unreadable',
         message:
-          `"${filename}" begins an OPC text package that holds no readable part, `
+          `"${filename}" begins ${kind.aName} that holds no readable part, `
           + 'so none of this model was read.',
       },
     ];
@@ -103,17 +134,62 @@ export function parseMdl(buffer: ArrayBuffer, filename: string): ParsedMdl {
   return parsed;
 }
 
+// Whether a package's parts gave nothing a model is made of. Every model Simulink saves
+// has a release, a UUID and a configuration set, so this is never true of a whole one.
+function readNothing(parsed: ParsedMdl): boolean {
+  return (
+    parsed.release === ''
+    && parsed.uuid === ''
+    && parsed.dataDictionary === null
+    && parsed.configSets.length === 0
+    && parsed.modelReferences.length === 0
+    && parsed.externalDataSources.length === 0
+    && parsed.blockParamUsages.length === 0
+    && parsed.masks.length === 0
+    && parsed.workspace.length === 0
+  );
+}
+
 // ---------------------------------------------------------------------------
-// The modern `.mdl`: an OPC package in text framing
+// The text package `.mdl`: a `.slx`'s parts in text framing
 // ---------------------------------------------------------------------------
 
-const PACKAGE_BEGIN = '__MWOPC_PACKAGE_BEGIN__';
-// Each marker is matched WITH its leading newline, so only a marker at the start of
-// a line counts. A part's own bytes may contain the literal text (an XML attribute
-// value, a base64 run) and must not be mistaken for a boundary.
-const NL_PART_BEGIN = '\n__MWOPC_PART_BEGIN__';
-const NL_PACKAGE_END = '\n__MWOPC_PACKAGE_END__';
-const PART_BEGIN_LEN = NL_PART_BEGIN.length - 1;
+/** One spelling of the text package framing: its banner, its markers, its name. */
+interface TextPackageKind {
+  /** What a warning calls the package, after `this`. */
+  name: string;
+  /** And with its article, for a sentence that introduces it. */
+  aName: string;
+  /** The first line of the file, which nothing but a package of this kind begins with. */
+  banner: string;
+  packageBegin: string;
+  // Each marker is matched WITH its leading newline, so only a marker at the start of
+  // a line counts. A part's own bytes may contain the literal text (an XML attribute
+  // value, a base64 run) and must not be mistaken for a boundary.
+  nlPartBegin: string;
+  nlPackageEnd: string;
+}
+
+const SIMULINK_TEXT_PACKAGE: TextPackageKind = {
+  name: 'Simulink text package',
+  aName: 'a Simulink text package',
+  banner: '# Simulink Text Package',
+  packageBegin: '__MWSL_PACKAGE_BEGIN__',
+  nlPartBegin: '\n__MWSL_PART_BEGIN__',
+  nlPackageEnd: '\n__MWSL_PACKAGE_END__',
+};
+
+const OPC_TEXT_PACKAGE: TextPackageKind = {
+  name: 'OPC text package',
+  aName: 'an OPC text package',
+  banner: '# MathWorks OPC Text Package',
+  packageBegin: '__MWOPC_PACKAGE_BEGIN__',
+  nlPartBegin: '\n__MWOPC_PART_BEGIN__',
+  nlPackageEnd: '\n__MWOPC_PACKAGE_END__',
+};
+
+const TEXT_PACKAGE_KINDS = [SIMULINK_TEXT_PACKAGE, OPC_TEXT_PACKAGE];
+
 // How far in to look for the package marker before concluding this is a classic
 // `.mdl`. It follows a banner line and a Model stub of a few properties, so it sits
 // within the first few hundred bytes; 4 KB is slack for a long Description.
@@ -134,28 +210,46 @@ function indexOfAscii(bytes: Uint8Array, text: string, from: number, limit?: num
 }
 
 /**
- * Split a modern `.mdl` into the OPC part map a `.slx` unzips to, or return null if
- * this is not a text package (i.e. it is a classic `.mdl`).
+ * Split a text package `.mdl` into the part map a `.slx` unzips to.
  *
- * Reports, in `warnings`, the part markers this scan could not turn into a part.
- * Those are the only losses the caller cannot see for itself: a part that makes it
- * into the map is handed to the same readers a `.slx` uses and reported by them,
- * whereas a header the scan gave up on leaves nothing behind at all.
+ * `kind` is null, and so are the parts, when this is not a text package (i.e. it is a
+ * classic `.mdl`). `kind` without parts is a file that says it is a package — its marker
+ * or its banner — and from which no part could be recovered.
+ *
+ * Reports, in `warnings`, the part markers this scan could not turn into a part, and a
+ * package that stops before its end marker. Those are the only losses the caller cannot
+ * see for itself: a part that makes it into the map is handed to the same readers a
+ * `.slx` uses and reported by them, whereas a header the scan gave up on leaves nothing
+ * behind at all, and a part the file cuts short may still read as something.
  */
-function decodeOpcTextPackage(
+function decodeTextPackage(
   bytes: Uint8Array,
   warnings: ParseWarning[],
-): Record<string, Uint8Array> | null {
-  const begin = indexOfAscii(bytes, PACKAGE_BEGIN, 0, SNIFF_BYTES);
-  if (begin < 0) {
-    // Not a text package, so there is nothing here to be missing: a classic `.mdl`
-    // has no part markers and is a complete file. Silent, and the caller's fall-back
-    // to the grammar reader is a routing decision, not a failure.
-    return null;
+): { kind: TextPackageKind | null; parts: Record<string, Uint8Array> | null } {
+  let kind: TextPackageKind | null = null;
+  let begin = -1;
+  for (const candidate of TEXT_PACKAGE_KINDS) {
+    const at = indexOfAscii(bytes, candidate.packageBegin, 0, SNIFF_BYTES);
+    if (at >= 0 && (begin < 0 || at < begin)) {
+      kind = candidate;
+      begin = at;
+    }
+  }
+  if (!kind) {
+    // No package marker. Either not a text package, so there is nothing here to be
+    // missing: a classic `.mdl` has no part markers and is a complete file, and the
+    // caller's fall-back to the grammar reader is a routing decision, not a failure.
+    // Or the banner says it IS one and the marker is gone — a file cut short after its
+    // stub — which the caller reports, since what it then reads is only the stub.
+    const announced = TEXT_PACKAGE_KINDS.find(
+      (candidate) => indexOfAscii(bytes, candidate.banner, 0, candidate.banner.length) === 0,
+    );
+    return { kind: announced ?? null, parts: null };
   }
 
+  const partBeginLength = kind.nlPartBegin.length - 1;
   const parts: Record<string, Uint8Array> = {};
-  let at = indexOfAscii(bytes, NL_PART_BEGIN, begin);
+  let at = indexOfAscii(bytes, kind.nlPartBegin, begin);
   while (at >= 0) {
     const headerEnd = indexOfByte(bytes, LF, at + 1);
     if (headerEnd < 0) {
@@ -166,14 +260,15 @@ function decodeOpcTextPackage(
       warnings.push({
         code: 'part-unreadable',
         message:
-          `A part header at byte ${at + 1} of this OPC text package is cut off before its `
+          `A part header at byte ${at + 1} of this ${kind.name} is cut off before its `
           + 'path, so that part and anything after it were not read.',
       });
       break;
     }
-    // `__MWOPC_PART_BEGIN__ /simulink/blockDiagram.json` — plus a trailing
-    // ` BASE64` when the part is binary and was encoded to survive a text file.
-    const header = decodeText(bytes.subarray(at + 1 + PART_BEGIN_LEN, headerEnd)).trim();
+    // `__MWSL_PART_BEGIN__ /simulink/blockDiagram.json` — plus a trailing ` BASE64`
+    // when the part is binary and was encoded to survive a text file, which the OPC
+    // spelling does for the model workspace.
+    const header = decodeText(bytes.subarray(at + 1 + partBeginLength, headerEnd)).trim();
     const base64 = / BASE64$/.test(header);
     const path = (base64 ? header.slice(0, -' BASE64'.length) : header).trim().replace(/^\//, '');
 
@@ -183,7 +278,7 @@ function decodeOpcTextPackage(
     // a blank line before the next header) while the JSON and mxarray parts do not,
     // and taking the framing newline as content corrupts both.
     const contentStart = headerEnd + 1;
-    const next = nextBoundary(bytes, contentStart);
+    const next = nextBoundary(bytes, contentStart, kind);
     let contentEnd = next < 0 ? bytes.length : next;
     if (next < 0 && contentEnd > contentStart && bytes[contentEnd - 1] === LF) contentEnd--;
     if (contentEnd > contentStart && bytes[contentEnd - 1] === CR) contentEnd--;
@@ -197,6 +292,20 @@ function decodeOpcTextPackage(
       // bag's prototype; left out, as Inflate leaves out a zip member of that name.
     } else if (path) {
       parts[path] = base64 ? decodeBase64(raw) : raw.slice();
+      if (next < 0) {
+        // The file ends inside this part: no further header and no end marker, which
+        // every package MATLAB writes closes with. The part is still handed on, since
+        // what survived of it may be all of it, but it is reported here because its
+        // reader may not notice: the XML reader takes a cut document for a shorter one,
+        // and a system part cut short is a subsystem silently missing blocks.
+        warnings.push({
+          code: 'part-unreadable',
+          message:
+            `This ${kind.name} stops inside its part "${path}", before the package's end `
+            + 'marker, so that part may be cut short and any part after it is missing.',
+          part: path,
+        });
+      }
     } else {
       // A header line that names no path. The bytes after it are a part of this
       // package — the marker says so — and there is no way to say which, so they are
@@ -205,15 +314,15 @@ function decodeOpcTextPackage(
       warnings.push({
         code: 'part-unreadable',
         message:
-          `A part header at byte ${at + 1} of this OPC text package names no path, `
+          `A part header at byte ${at + 1} of this ${kind.name} names no path, `
           + 'so the part that follows it was not read.',
       });
     }
 
-    at = next < 0 ? -1 : indexOfAscii(bytes, NL_PART_BEGIN, next);
+    at = next < 0 ? -1 : indexOfAscii(bytes, kind.nlPartBegin, next);
   }
 
-  return parts;
+  return { kind, parts };
 }
 
 function indexOfByte(bytes: Uint8Array, byte: number, from: number): number {
@@ -226,9 +335,9 @@ function indexOfByte(bytes: Uint8Array, byte: number, from: number): number {
 // Where the current part stops: whichever comes first, the next part header or the
 // end-of-package line. Returns the index of the introducing newline, or -1 if the
 // file just stops (truncated — the part is then whatever is left).
-function nextBoundary(bytes: Uint8Array, from: number): number {
-  const part = indexOfAscii(bytes, NL_PART_BEGIN, from);
-  const end = indexOfAscii(bytes, NL_PACKAGE_END, from);
+function nextBoundary(bytes: Uint8Array, from: number, kind: TextPackageKind): number {
+  const part = indexOfAscii(bytes, kind.nlPartBegin, from);
+  const end = indexOfAscii(bytes, kind.nlPackageEnd, from);
   if (part < 0) return end;
   if (end < 0) return part;
   return Math.min(part, end);
@@ -375,9 +484,10 @@ function skipSpace(c: Cursor): void {
     if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
       c.i++;
     } else if (ch === '#') {
-      // Not part of the classic grammar; this is the `# MathWorks OPC Text Package`
-      // banner, reachable only if a modern `.mdl` lost its package marker and fell
-      // through to here. Skipping the line beats reading it as a stray value.
+      // Not part of the classic grammar; this is the `# Simulink Text Package` or
+      // `# MathWorks OPC Text Package` banner, reachable only if a text package `.mdl`
+      // lost its package marker and fell through to here. Skipping the line beats
+      // reading it as a stray value.
       while (c.i < c.src.length && c.src[c.i] !== '\n') c.i++;
     } else {
       break;
@@ -545,8 +655,8 @@ function flatProps(node: MdlNode): Record<string, string> {
 // decode bytes were each examined rather than changed on the strength of the same
 // headline:
 //
-//   - the modern `.mdl` above, the `.slx`, the binary `.sldd` and the `.prj` are OPC
-//     packages of XML and JSON parts (the `.prj` reaches its XML through fflate's
+//   - the text package `.mdl` above, the `.slx`, the binary `.sldd` and the `.prj` are
+//     OPC packages of XML and JSON parts (the `.prj` reaches its XML through fflate's
 //     strFromU8 rather than a TextDecoder, but that is UTF-8 too). An XML part
 //     declares its own encoding in its declaration and JSON is UTF-8 by definition
 //     (RFC 8259 s8.1); every part in this repo's corpus is UTF-8, so a re-decode path
@@ -653,7 +763,7 @@ function parseClassicMdl(bytes: Uint8Array, filename: string): ParsedMdl {
   // where it should report a file it could not read.
   if (!model) {
     throw new Error(
-      `Not a Simulink model: "${filename}" is not a zip package, not an OPC text ` +
+      `Not a Simulink model: "${filename}" is not a zip package, not a text ` +
         'package, and has no Model or Library block',
     );
   }

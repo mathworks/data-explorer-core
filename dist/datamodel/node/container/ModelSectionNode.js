@@ -6,6 +6,7 @@ import ConfigSetNode from '../data/ConfigSetNode.js';
 import ConfigSetRefNode from '../data/ConfigSetRefNode.js';
 import ModelReferenceNode from '../data/ModelReferenceNode.js';
 import DataSourceNode from '../data/DataSourceNode.js';
+import * as NodeRegistry from '../NodeRegistry.js';
 import { basenameOf, isModelFile } from '../../fileKinds.js';
 export default class ModelSectionNode extends ContainerNode {
     constructor(name, parent, label, iconId) {
@@ -39,10 +40,19 @@ export default class ModelSectionNode extends ContainerNode {
     // not decoded (MatlabVariableNode.createNotDecoded), as a binary dictionary shows the same
     // bytes. It does not warn: a model workspace does not report a value it did not decode
     // (the C-232 ruling).
+    //
+    // A variable a Simulink text package `.mdl` holds is not a MAT array but the MATLAB-array
+    // JSON a text dictionary's entry values are spelled in (MatVariable.json), and it is read
+    // by the reader those are: the node it builds is the node a text dictionary shows for the
+    // same value, and for a Simulink.Parameter the typed node the `.slx` path builds out of
+    // the subsystem's decode. Caught the same way.
     addWorkspaceEntry(entry) {
         let node;
         try {
-            node = MatlabVariableNode.parseMatVariable(entry, entry.name, this);
+            node =
+                entry.json !== undefined
+                    ? NodeRegistry.parseValue(entry.json, entry.name, this)
+                    : MatlabVariableNode.parseMatVariable(entry, entry.name, this);
         }
         catch {
             node = MatlabVariableNode.createNotDecoded(entry, entry.name, this);

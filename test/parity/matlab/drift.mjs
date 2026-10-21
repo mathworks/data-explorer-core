@@ -17,11 +17,12 @@
 // each project entity — with a fresh uuid and timestamp. Comparing containers would report
 // drift every single time and train the reader to ignore it.
 //
-// All five corpora are regenerated, because each can go stale independently: gen_truth.m
-// for the value corpus, gen_mdl.m for the `.mdl` container corpus, gen_mask.m for the mask
-// fixture, gen_block_params.m for the option-list table, and gen_project.m for the project
-// corpus. That is five MATLAB launches, three of which load Simulink — and one of those
-// copies every block in two libraries — so expect this to take many minutes.
+// All six corpora are regenerated, because each can go stale independently: gen_truth.m
+// for the value corpus, gen_mdl.m for the `.mdl` container corpus, gen_mdl_text.m for the
+// text package `.mdl`, gen_mask.m for the mask fixture, gen_block_params.m for the
+// option-list table, and gen_project.m for the project corpus. That is six MATLAB launches,
+// four of which load Simulink — and one of those copies every block in two libraries — so
+// expect this to take many minutes.
 //
 // The mask corpus is the one most worth this check. Its expectations are entirely
 // `Simulink.findVars`' behaviour — which mask parameter types hold an expression, which
@@ -45,6 +46,7 @@ const HERE = fileURLToPath(new URL('.', import.meta.url));
 const ARTIFACTS = join(HERE, '..', 'artifacts');
 const COMMITTED = join(ARTIFACTS, 'truth.json');
 const COMMITTED_MDL = join(ARTIFACTS, 'mdl', 'mdl_truth.json');
+const COMMITTED_MDL_TEXT = join(ARTIFACTS, 'mdltext', 'mdltext_truth.json');
 // The one fixture a generator writes outside artifacts/, because it belongs with the
 // fixtures its own suite reads rather than with a parity corpus.
 const COMMITTED_MASK = join(HERE, '..', '..', 'fixtures', 'mask_truth.json');
@@ -95,6 +97,7 @@ function regenerateFn(call) {
 
 regenerate('gen_truth.m');
 regenerate('gen_mdl.m');
+regenerate('gen_mdl_text.m');
 regenerateFn(`gen_mask('${out}')`);
 regenerate('gen_block_params.m');
 // gen_project.m is a function too, and writes a whole directory rather than one file, so
@@ -148,14 +151,17 @@ for (const key of ['slddRejected', 'slxRejected']) {
   }
 }
 
-// The `.mdl` corpus. Its truth is recorded from the MODEL rather than from any one file,
-// so drift here means MATLAB now describes the diagram itself differently — which is a
-// finding about every flavour at once, not about one container.
-if (!existsSync(COMMITTED_MDL)) {
-  console.log('\n(no committed mdl_truth.json; skipping the .mdl corpus)');
-} else {
-  const freshMdl = readJson(join(out, 'mdl', 'mdl_truth.json'));
-  const oldMdl = readJson(COMMITTED_MDL);
+// The two `.mdl` corpora. Their truth is recorded from the MODEL rather than from any one
+// file, so drift here means MATLAB now describes the diagram itself differently — which is
+// a finding about every flavour at once, not about one container. Both record the same
+// per-model shape, so one comparison serves both.
+function compareModelTruth(label, committed, regenerated) {
+  if (!existsSync(committed)) {
+    console.log('\n(no committed ' + committed.split('/').pop() + '; skipping the ' + label + ' corpus)');
+    return;
+  }
+  const freshMdl = readJson(regenerated);
+  const oldMdl = readJson(committed);
   // `matlab` and each model's `release` record which MATLAB wrote the corpus. Reported
   // above, never counted: a release change is the reason for the run, not a finding.
   const models = new Set([...Object.keys(oldMdl), ...Object.keys(freshMdl)].filter((k) => k !== 'matlab'));
@@ -170,12 +176,12 @@ if (!existsSync(COMMITTED_MDL)) {
         ? [...new Set([...Object.keys(a.workspace ?? {}), ...Object.keys(b.workspace ?? {})])]
             .map((n) => ['workspace.' + n, a.workspace?.[n], b.workspace?.[n]])
         : [[section, a[section], b[section]]];
-      for (const [label, va, vb] of parts) {
+      for (const [part, va, vb] of parts) {
         const sa = JSON.stringify(va ?? null);
         const sb = JSON.stringify(vb ?? null);
         if (sa !== sb) {
           drift++;
-          console.log('\nDRIFT mdl.' + model + '.' + label);
+          console.log('\nDRIFT ' + label + '.' + model + '.' + part);
           console.log('  committed:   ' + sa);
           console.log('  regenerated: ' + sb);
         }
@@ -183,6 +189,8 @@ if (!existsSync(COMMITTED_MDL)) {
     }
   }
 }
+compareModelTruth('mdl', COMMITTED_MDL, join(out, 'mdl', 'mdl_truth.json'));
+compareModelTruth('mdltext', COMMITTED_MDL_TEXT, join(out, 'mdltext', 'mdltext_truth.json'));
 
 // The mask fixture. Compared per variable AND per mask, keyed by name plus source, because
 // the whole point of the model is that one name (`o1`) is defined in two scopes at once —

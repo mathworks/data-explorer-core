@@ -122,8 +122,8 @@ export default class ModelNode extends ContainerNode {
   //
   // Read off the CONTENT first and the name only to separate the two package cases.
   // `_zipEntries` is non-null exactly when the file yielded OPC PARTS — a real zip's
-  // entries for a `.slx`, or the parts decodeOpcTextPackage recovered from a modern
-  // `.mdl`'s text framing, which MdlParser hands to the same parseModelParts — and null
+  // entries for a `.slx`, or the parts decodeTextPackage recovered from a text package
+  // `.mdl`'s framing, which MdlParser hands to the same parseModelParts — and null
   // only for the classic single flat text file. It is NOT "which parser ran": both
   // flavours of `.mdl` go through parseMdl. This is the same test `serialize()` below
   // already makes to decide whether it has an archive to summarize. A srcId with no
