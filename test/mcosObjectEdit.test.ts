@@ -156,7 +156,7 @@ describe('the cell-swap probe: an edit through the session is the subsystem MATL
 
   it('the edits it does not take: a Signal InitialValue (no editor), a Value at its default, a DataType', () => {
     const signal = opened(read(CELLSWAP, 'pv_signal.mat'));
-    expect(signal.edit(signal.object('sig'), 'InitialValue', '4')).toMatchObject({ error: true, reason: 'Cannot edit "sig": sig.InitialValue is not one this package edits in a Simulink.Signal.' });
+    expect(signal.edit(signal.object('sig'), 'InitialValue', '4')).toMatchObject({ error: true, reason: 'Cannot edit "sig": sig.InitialValue is not one this editor edits in a Simulink.Signal.' });
     const atDefault = opened(read(CELLSWAP, 'pv_default.mat'));
     expect(atDefault.edit(atDefault.object('d'), 'Value', '5')).toMatchObject({
       error: true,
@@ -481,7 +481,7 @@ describe('what the session refuses of an object in a MAT-file, before the edit i
     expect(edit(sg, 'DataType', 'Bus: MyBus')).toMatchObject(
       refusal('sg', "sg.Min would be set while its DataType is 'Bus: MyBus', and MATLAB ignores a minimum and a maximum for a bus" + WARNS),
     );
-    expect(edit(sg, 'DataType', 'auto')).toMatchObject(refusal('sg', "sg.DataType would be 'auto', which is not a data type this package writes into a Simulink.Signal"));
+    expect(edit(sg, 'DataType', 'auto')).toMatchObject(refusal('sg', "sg.DataType would be 'auto', which is not a data type this editor writes into a Simulink.Signal"));
     expect(edit(sg, 'DataType', 'single')).toBe(true);
     expect(opened(save()).object('sg').DataType).toBe('single');
   });
@@ -489,7 +489,7 @@ describe('what the session refuses of an object in a MAT-file, before the edit i
   it('a part of an object no property of which it is: a bus element, an object in a struct by its name', () => {
     const cases = opened(read(TEST_ROOT, 'parity/artifacts/mat/cases.mat'));
     const element = cases.by('aBus').children[0];
-    expect(cases.edit(element, 'Name', 'renamed')).toMatchObject(refusal('aBus', 'aBus is a Simulink.Bus, whose properties this package does not write into a MAT-file'));
+    expect(cases.edit(element, 'Name', 'renamed')).toMatchObject(refusal('aBus', 'aBus is a Simulink.Bus, whose properties this editor does not write into a MAT-file'));
     const nested = opened(read(ALLOWLIST, 'al_nested.mat'));
     expect(nested.object('s.p').nameEditable).toBe(false);
     expect(nested.object('s.p').setProperty('Name', 'q')).toMatchObject({ error: true });
@@ -552,7 +552,7 @@ describe("where the object is: an edit writes the subsystem, and the record that
     for (const [typed, what] of [["'x'", 'a char'], ['"x"', 'a string']]) {
       expect(edit(field, 'Value', typed), typed).toMatchObject({
         error: true,
-        reason: 'Cannot edit "spB": spB.Value.a would be ' + what + ", which this package does not write into a Simulink.Parameter's Value.",
+        reason: 'Cannot edit "spB": spB.Value.a would be ' + what + ", which this editor does not write into a Simulink.Parameter's Value.",
       });
     }
     expect(edit(field, 'Value', '5')).toBe(true);
@@ -668,6 +668,16 @@ describe('the subsystem a save writes anew is read again, alone, and held to wha
     expect([thrown instanceof MatWriteError, thrown?.message]).toEqual([
       true,
       expect.stringMatching(/^Cannot save "f\.mat": the file written for it did not read back as written: the file's objects were written with cell 0, which is not one of their \d+ value cells\. Nothing was written\.$/),
+    ]);
+  });
+
+  it('a subsystem planned that is not the record the file holds its objects in', () => {
+    const thrown = tampered((written: any) => {
+      written.record = { ...written.record };
+    });
+    expect([thrown instanceof MatWriteError, thrown?.message]).toEqual([
+      true,
+      'Cannot save "f.mat": the file\'s objects are not among the records it writes, so an edit of one could not be written. Nothing was written.',
     ]);
   });
 

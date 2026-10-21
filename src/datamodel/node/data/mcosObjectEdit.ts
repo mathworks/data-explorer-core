@@ -211,7 +211,7 @@ export function objectStateOf(subsystem: McosSubsystem, node: BaseNode): McosObj
   const place = mcosPlaceOf(node);
   const objectId = place ? objectIdOf(place.variable.mcosHandle, place.index) : null;
   if (objectId === null) {
-    return path + " is not one of the file's objects this package can find";
+    return path + " is not one of the file's objects this editor can find";
   }
   const stored = storedProperties(subsystem, objectId);
   if (!stored.ok) {
@@ -241,7 +241,7 @@ export function objectStateOf(subsystem: McosSubsystem, node: BaseNode): McosObj
       continue;
     }
     const difference = reference ? variableDifference(v, reference, named) : named + ' is held in a value that does not read';
-    exact.set(property, difference && named + ' is not, as this package reads it, the value the file holds (' + difference + '), so a save could not write it as it is');
+    exact.set(property, difference && named + ' is not, as this editor reads it, the value the file holds (' + difference + '), so a save could not write it as it is');
     if (difference) {
       asRead.set(property, v);
     }
@@ -278,7 +278,7 @@ export function propertyRefusal(state: McosObjectState, node: BaseNode, property
   const path = node.matlabPath;
   const cls = state.held.className;
   if (hasEditRules(cls) && savedNameOf(cls, property) !== null && !NODE_PROPERTIES[cls]?.includes(property)) {
-    return path + '.' + property + ' is not one this package edits in ' + classPhrase(cls);
+    return path + '.' + property + ' is not one this editor edits in ' + classPhrase(cls);
   }
   const refused = propertyEditRefusal(state.held, property, path) ?? state.exact.get(property) ?? null;
   if (refused) {
@@ -348,7 +348,7 @@ export function nodePropertyValue(node: BaseNode, property: string, field?: { va
     case 'DataType':
       return typeof held === 'string' ? charOf(held) : 'is not held as text';
     default:
-      return 'is not one this package edits in a MAT-file object';
+      return 'is not one this editor edits in an object';
   }
 }
 
@@ -361,7 +361,7 @@ export function nodePropertyValue(node: BaseNode, property: string, field?: { va
 export function memberRefusal(object: BaseNode, node: BaseNode, value: BaseNode): string | null {
   const v = valueVariable(value);
   const what = typeof v === 'string' ? v.replace(/^holds /, '') : valueMemberRefusal(v);
-  return what ? node.matlabPath + ' would be ' + what + ', which this package does not write into ' + classPhrase(classOf(object)) + "'s Value" : null;
+  return what ? node.matlabPath + ' would be ' + what + ', which this editor does not write into ' + classPhrase(classOf(object)) + "'s Value" : null;
 }
 
 /**
@@ -422,7 +422,7 @@ function valueVariable(node: BaseNode): MatVariable | string {
   if (node instanceof StructNode) {
     return structVariable(node);
   }
-  return 'holds ' + classPhrase(classOf(node) || 'value') + ', which this package does not write into an object';
+  return 'holds ' + classPhrase(classOf(node) || 'value') + ', which this editor does not write into an object';
 }
 
 // A struct Value's variable: a scalar's fields, each its child's variable, and an array's, each the

@@ -21,7 +21,10 @@ const COMPLEX_FLAG = 0x08;
 const FLAG_CELL = 1;
 const FLAG_WORDS = { 0: 'a string-table index', 2: 'an integer', 3: 'an object id' };
 // The cells after the value cells in a version-4 subsystem's cell array, three per-class
-// tables: saved class information, class aliases, and the class defaults McosParser reads.
+// tables: saved class information, class aliases, and the class defaults McosParser reads. Other
+// versions hold another number of them, and none is read: readLayers counts the value cells by
+// this before it reads the blob, and readBlob then refuses a blob of any version but 4.0
+// ('unsupported'), so no subsystem read with this count of another version's is ever handed on.
 const TRAILING_CELLS = 3;
 const INT32_MAX = 0x7fffffff;
 const WIDTH = { 1: 1, 2: 1, 3: 2, 4: 2, 5: 4, 6: 4, 7: 4, 9: 8, 12: 8, 13: 8 };
@@ -182,8 +185,7 @@ function holdsObjectReference(view, at, limit, strict) {
             if (!widthSub || !namesSub || widthSub.type !== MI_INT32 || widthSub.bytes !== 4 || namesSub.type !== MI_INT8) {
                 return null;
             }
-            const width = view.getInt32(widthSub.data, true);
-            const fields = width > 0 ? namesSub.bytes / width : namesSub.bytes === 0 ? 0 : NaN;
+            const fields = fieldCountOf(view, widthSub, namesSub);
             members = m.subs.slice(5);
             if (!Number.isInteger(fields) || (strict && members.length !== fields * numel)) {
                 return null;
@@ -212,6 +214,16 @@ function holdsObjectReference(view, at, limit, strict) {
         }
     }
     return false;
+}
+/**
+ * How many fields a struct's field-name table names: its bytes over the width each name takes, none
+ * for an empty table, and NaN for one that is not whole names (a width of 0 or less over names, or
+ * names that do not fill a whole number of widths). For every struct this reads, the subsystem's
+ * own (readLayers) and one in a value cell (holdsObjectReference).
+ */
+function fieldCountOf(view, widthSub, namesSub) {
+    const width = view.getInt32(widthSub.data, true);
+    return width > 0 ? namesSub.bytes / width : namesSub.bytes === 0 ? 0 : NaN;
 }
 /** Whether a numeric element's real part, and imaginary part when complex, hold numel values each. */
 function payloadsFit(m, numel, complex) {
@@ -272,7 +284,7 @@ function readLayers(bytes) {
         fail('malformed', "the subsystem's struct is not one struct with a field-name table");
     }
     const width = view.getInt32(widthSub.data, true);
-    const fieldCount = width > 0 ? namesSub.bytes / width : NaN;
+    const fieldCount = fieldCountOf(view, widthSub, namesSub);
     if (!Number.isInteger(fieldCount) || struct.subs.length !== 5 + fieldCount) {
         fail('malformed', "the subsystem's struct does not hold one value per field it names");
     }

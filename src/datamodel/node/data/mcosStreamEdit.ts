@@ -62,7 +62,9 @@ import type { ParseWarning } from '../../parser/ParseWarning.js';
 export interface McosStreamRead {
   // A binary dictionary's hex value, or a text dictionary's cdata.
   format: 'hex' | 'cdata';
-  // The stream, to its last byte and no further.
+  // The stream, to its last byte and no further; of cdata, its six-bit text decoded, which can
+  // hold a byte of padding past the stream, cut off where the stream ends once an edit asks
+  // (McosStream.bytes), and not at the open of every entry holding objects.
   bytes: Uint8Array;
   // MATLAB's class(value), which a hex element's Class names.
   className: string;
@@ -129,6 +131,7 @@ class McosStream implements McosStreamGate {
   // group of each of them.
   _twins: McosTwinGroup[] | undefined;
   _twinOf: Map<BaseNode, McosTwinGroup> | undefined;
+  _stream: Uint8Array | undefined;
 
   constructor(
     readonly holder: DataNode,
@@ -337,13 +340,22 @@ class McosStream implements McosStreamGate {
     if (this._written && sameBytes(this._written.element, written.element)) {
       return this._written.bytes;
     }
-    const bytes = streamWithSubsystem(this.read.bytes, framed.valueEnd, written.element);
+    const bytes = streamWithSubsystem(this.bytes(), framed.valueEnd, written.element);
     const wrong = this._selfCheck(bytes, framed, written.element, written.cells, edited);
     if (wrong) {
       refuse('the stream written for it did not read back as written: ' + wrong);
     }
     this._written = { element: written.element, bytes };
     return bytes;
+  }
+
+  /** The stream as read, to its last byte (McosStreamRead.bytes), cut out once. */
+  bytes(): Uint8Array {
+    if (this._stream === undefined) {
+      const read = this.read;
+      this._stream = read.format === 'cdata' ? matStreamPrefix(read.bytes) ?? read.bytes : read.bytes;
+    }
+    return this._stream;
   }
 
   /** The value a text dictionary and a copy are handed: the stream as read, or `bytes`, each in its own form. */
@@ -360,7 +372,7 @@ class McosStream implements McosStreamGate {
     if (read.format === 'hex') {
       return bytes ? rewrittenHex(read.encoded!, bytes, indent) : read.encoded!;
     }
-    return hexValue(bytes ?? read.bytes, read.className, indent);
+    return hexValue(bytes ?? this.bytes(), read.className, indent);
   }
 
   // The words a value still in its encoded stream refuses an edit with (DataNode._refuseEncodedEdit).
@@ -374,7 +386,7 @@ class McosStream implements McosStreamGate {
   // value and the subsystem and nothing after them.
   _framing(): Framed {
     if (this._framed === undefined) {
-      this._framed = framingOf(this.read);
+      this._framed = framingOf(this.read, this.bytes());
     }
     return this._framed;
   }
@@ -441,7 +453,7 @@ class McosStream implements McosStreamGate {
     if (!parts.ok) {
       return 'it ' + parts.message;
     }
-    if (parts.valueEnd !== framed.valueEnd || !sameBytes(bytes.subarray(0, parts.valueEnd), this.read.bytes.subarray(0, framed.valueEnd))) {
+    if (parts.valueEnd !== framed.valueEnd || !sameBytes(bytes.subarray(0, parts.valueEnd), this.bytes().subarray(0, framed.valueEnd))) {
       return 'its value is not the bytes it was read as';
     }
     if (!sameBytes(parts.subsystem, element)) {
@@ -512,8 +524,7 @@ class McosStream implements McosStreamGate {
   }
 }
 
-function framingOf(read: McosStreamRead): Framed {
-  const bytes = read.bytes;
+function framingOf(read: McosStreamRead, bytes: Uint8Array): Framed {
   if (read.format === 'hex') {
     const encoded = read.encoded!;
     const digits = encoded._value.replace(/\s+/g, '').length;

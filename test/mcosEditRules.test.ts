@@ -134,6 +134,13 @@ const rows: Row[] = [
   { name: '40000 under int16', of: param({ DataType: chr('int16') }), edits: [['Value', dbl(40000)]], expect: refused('Value', "p.Value would hold 40000, outside the range [-32768, 32767] of its DataType 'int16'" + WARNS) },
   { name: '3.25 under int16 (a fraction in range)', of: param({ DataType: chr('int16') }), edits: [['Value', dbl(3.25)]], expect: ['Value=double[1 1]:3.25'] },
   { name: '-Inf under int16', of: param({ DataType: chr('int16') }), edits: [['Value', dbl(-Infinity)]], expect: refused('Value', /^p\.Value would hold -Inf, outside/) },
+  // The top of int64 and of uint64 is no double: the nearest, 2^63 and 2^64, is past it.
+  { name: '2^63 under int64', of: param({ DataType: chr('int64') }), edits: [['Value', dbl(2 ** 63)]], expect: refused('Value', 'p.Value would hold ' + String(2 ** 63) + ", outside the range [-9223372036854775808, 9223372036854775807] of its DataType 'int64'" + WARNS) },
+  { name: 'the double below 2^63 under int64', of: param({ DataType: chr('int64') }), edits: [['Value', dbl(2 ** 63 - 1024)]], expect: ['Value=double[1 1]:' + String(2 ** 63 - 1024)] },
+  { name: '-2^63 under int64', of: param({ DataType: chr('int64') }), edits: [['Value', dbl(-(2 ** 63))]], expect: ['Value=double[1 1]:' + String(-(2 ** 63))] },
+  { name: '2^64 under uint64', of: param({ DataType: chr('uint64') }), edits: [['Value', dbl(2 ** 64)]], expect: refused('Value', 'p.Value would hold ' + String(2 ** 64) + ", outside the range [0, 18446744073709551615] of its DataType 'uint64'" + WARNS) },
+  { name: 'the double below 2^64 under uint64', of: param({ DataType: chr('uint64') }), edits: [['Value', dbl(2 ** 64 - 2048)]], expect: ['Value=double[1 1]:' + String(2 ** 64 - 2048)] },
+  { name: 'a Max of 2^63 under int64', of: param({ DataType: chr('int64'), Max: dbl(10) }), edits: [['Max', dbl(2 ** 63)]], expect: refused('Max', 'p.Max (' + String(2 ** 63) + ") would be outside the range [-9223372036854775808, 9223372036854775807] of its DataType 'int64'" + WARNS) },
   { name: '255.4 under uint8', of: param({ DataType: chr('uint8') }), edits: [['Value', dbl(255.4)]], expect: refused('Value', /^p\.Value would hold 255\.4, outside the range \[0, 255\]/) },
   { name: '255 under uint8', of: param({ DataType: chr('uint8') }), edits: [['Value', dbl(255)]], expect: ['Value=double[1 1]:255'] },
   { name: '-1 under uint8', of: param({ DataType: chr('uint8') }), edits: [['Value', dbl(-1)]], expect: refused('Value', /^p\.Value would hold -1, outside/) },
@@ -150,7 +157,7 @@ const rows: Row[] = [
   { name: '5000 under fixdt (not checked)', of: param({ DataType: chr('fixdt(1,16,4)') }), edits: [['Value', dbl(5000)]], expect: ['Value=double[1 1]:5000'] },
   { name: '5000 under an alias (not checked)', of: param({ DataType: chr('MyNT') }), edits: [['Value', dbl(5000)]], expect: ['Value=double[1 1]:5000'] },
   { name: 'int16 under an alias: int16', of: param({ DataType: chr('MyNT') }), edits: [['Value', num('int16', 3)]], expect: ['DataType=char[1 5]:"int16"', 'Value=int16[1 1]:3'] },
-  { name: 'double under half (range not known here)', of: param({ DataType: chr('half') }), edits: [['Value', dbl(1)]], expect: refused('Value', "p.Value would be double under a DataType of 'half', whose range this package does not check") },
+  { name: 'double under half (range not known here)', of: param({ DataType: chr('half') }), edits: [['Value', dbl(1)]], expect: refused('Value', "p.Value would be double under a DataType of 'half', whose range this editor does not check") },
   { name: 'logical over double under double: boolean', of: param({ DataType: chr('double') }), edits: [['Value', lgc(1)]], expect: ['DataType=char[1 7]:"boolean"', 'Value=logical[1 1]:1'] },
   { name: 'text over int16-typed double: string, size 1x1', of: param({ DataType: chr('int16') }), edits: [['Value', chr('abc')]], expect: ['DataType=char[1 6]:"string"', 'Value=char[1 3]:"abc"'] },
   { name: 'a struct over a double: struct', of: param({ DataType: chr('int16') }), edits: [['Value', strct({ a: dbl(1) })]], expect: ['DataType=char[1 6]:"struct"', 'Value=struct[1 1]:null'] },
@@ -158,7 +165,7 @@ const rows: Row[] = [
   { name: 'a double over a struct: auto', of: param({ Value: strct({ a: dbl(1) }), DataType: chr('Bus: MyBus') }), edits: [['Value', dbl(7)]], expect: ['DataType=char[1 4]:"auto"', 'Value=double[1 1]:7'] },
   { name: 'a DataType that has to follow, held where it cannot be rewritten', of: param({ Value: num('single', 2.5), DataType: ['shared-cell', chr('single')] }), edits: [['Value', dbl(7)]], expect: refused('Value', /^p\.DataType would have to follow the Value, and p\.DataType is held in a value the file names for another property/) },
   { name: 'a DataType that stays, held where it cannot be rewritten', of: param({ Value: num('single', 2.5), DataType: ['shared-cell', chr('single')] }), edits: [['Value', num('single', 1)]], expect: ['Value=single[1 1]:1'] },
-  { name: 'a cell Value', of: param({}), edits: [['Value', v('cell', [dbl(1)], [1, 1])]], expect: refused('Value', 'p.Value would be a cell, which this package does not write into a Simulink.Parameter') },
+  { name: 'a cell Value', of: param({}), edits: [['Value', v('cell', [dbl(1)], [1, 1])]], expect: refused('Value', 'p.Value would be a cell, which this editor does not write into a Simulink.Parameter') },
   { name: 'a sparse Value', of: param({}), edits: [['Value', v('double', [], [2, 2], { isSparse: true })]], expect: refused('Value', /^p\.Value would be a sparse double/) },
   { name: 'a char matrix', of: param({}), edits: [['Value', chr('abcd', [2, 2])]], expect: refused('Value', /^p\.Value would be a char that is not one row of text/) },
   { name: "the empty char ''", of: param({}), edits: [['Value', chr('')]], expect: refused('Value', /^p\.Value would be a char that is not one row of text/) },
@@ -182,7 +189,7 @@ const rows: Row[] = [
   { name: 'Description', of: param({ Description: chr('desc') }), edits: [['Description', chr('new description')]], expect: ['Description=char[1 15]:"new description"'] },
   { name: "Description ''", of: param({ Description: chr('desc') }), edits: [['Description', chr('')]], expect: ['Description=char[0 0]:""'] },
   { name: 'Description non-ASCII', of: param({ Description: chr('desc') }), edits: [['Description', chr('Température — 温度 😀')]], expect: ['Description=char[1 19]:"Température — 温度 😀"'] },
-  { name: 'Description with a lone surrogate', of: param({ Description: chr('desc') }), edits: [['Description', chr('a\uD800b')]], expect: refused('Description', 'p.Description holds a lone UTF-16 surrogate, which a MAT-file holds as another character') },
+  { name: 'Description with a lone surrogate', of: param({ Description: chr('desc') }), edits: [['Description', chr('a\uD800b')]], expect: refused('Description', 'p.Description holds a lone UTF-16 surrogate, which the file would hold as another character') },
   { name: 'Description numeric', of: param({ Description: chr('desc') }), edits: [['Description', dbl(5)]], expect: refused('Description', 'p.Description must be text: MATLAB refuses anything else, and loads it as empty') },
   { name: 'Description a char matrix', of: param({ Description: chr('desc') }), edits: [['Description', chr('abcd', [2, 2])]], expect: refused('Description', /^p\.Description must be text/) },
   { name: 'Unit, saved as DocUnits', of: param({ DocUnits: chr('m') }), edits: [['Unit', chr('km')]], expect: ['DocUnits=char[1 2]:"km"'] },
@@ -195,12 +202,12 @@ const rows: Row[] = [
   { name: 'Complexity', of: param({}), edits: [['Complexity', chr('complex')]], expect: refused('Complexity', /^p\.Complexity is held as an index into the file's text/) },
   { name: 'StorageClass', of: param({}), edits: [['StorageClass', chr('ExportedGlobal')]], expect: refused('StorageClass', 'p.StorageClass belongs to its CoderInfo, an object of its own, which a save does not rewrite') },
   { name: 'CoderInfo', of: param({}), edits: [['CoderInfo', dbl(1)]], expect: refused('CoderInfo', /^p\.CoderInfo belongs to its CoderInfo/) },
-  { name: 'a property no rule names', of: param({}), edits: [['SomethingElse', dbl(1)]], expect: refused('SomethingElse', 'p.SomethingElse is not one this package writes into a MAT-file object') },
+  { name: 'a property no rule names', of: param({}), edits: [['SomethingElse', dbl(1)]], expect: refused('SomethingElse', 'p.SomethingElse is not one this editor writes into a MAT-file object') },
   { name: 'a Description held as an index', of: param({ Description: 'not-a-cell' }), edits: [['Description', chr('x')]], expect: refused('Description', "p.Description is held as an index into the file's text, not as a value, which a save does not rewrite") },
   { name: 'a Description holding an object', of: param({ Description: 'object-reference' }), edits: [['Description', chr('x')]], expect: refused('Description', 'p.Description holds an object, which a save does not rewrite') },
   { name: "a Value in a property list another object holds", of: param({ Value: ['shared-list', dbl(5)] }), edits: [['Value', dbl(7)]], expect: refused('Value', "p.Value is held in a list of properties another of the file's objects holds as well, which a save would change too") },
   { name: 'a Description that does not read', of: param({ Description: 'malformed' }), edits: [['Description', chr('x')]], expect: refused('Description', 'p.Description is held in a value that does not read as one a save can replace') },
-  { name: 'an mpt.Parameter', of: held('mpt.Parameter', { Value: dbl(5) }), edits: [['Value', dbl(7)]], expect: refused('Value', 'p is a mpt.Parameter, whose properties this package does not write into a MAT-file') },
+  { name: 'an mpt.Parameter', of: held('mpt.Parameter', { Value: dbl(5) }), edits: [['Value', dbl(7)]], expect: refused('Value', 'p is a mpt.Parameter, whose properties this editor does not write into a MAT-file') },
   { name: 'one property twice', of: param({ Description: chr('d') }), edits: [['Description', chr('a')], ['Description', chr('b')]], expect: refused('Description', 'p.Description is edited twice in one save') },
 
   // ---- Simulink.Signal ----
@@ -215,7 +222,7 @@ const rows: Row[] = [
   { name: 'Signal DataType boolean, its Max 10', of: signal({ DataType: chr('int16'), Min: dbl(0), Max: dbl(10) }), edits: [['DataType', chr('boolean')]], expect: refused('DataType', "p.Max (10) would be outside the range [0, 1] of its DataType 'boolean'" + WARNS) },
   { name: 'Signal DataType a bus, its Min and Max held', of: signal({ DataType: chr('int16'), Min: dbl(0), Max: dbl(10) }), edits: [['DataType', chr('Bus: MyBus')]], expect: refused('DataType', "p.Min would be set while its DataType is 'Bus: MyBus', and MATLAB ignores a minimum and a maximum for a bus" + WARNS) },
   { name: 'Signal DataType a bus, no bounds', of: signal({ DataType: chr('int16') }), edits: [['DataType', chr('Bus: MyBus')]], expect: ['DataType=char[1 10]:"Bus: MyBus"'] },
-  { name: "Signal DataType 'auto' (not measured)", of: signal({ DataType: chr('int16') }), edits: [['DataType', chr('auto')]], expect: refused('DataType', "p.DataType would be 'auto', which is not a data type this package writes into a Simulink.Signal") },
+  { name: "Signal DataType 'auto' (not measured)", of: signal({ DataType: chr('int16') }), edits: [['DataType', chr('auto')]], expect: refused('DataType', "p.DataType would be 'auto', which is not a data type this editor writes into a Simulink.Signal") },
   { name: "Signal DataType 'Inherit: auto'", of: signal({ DataType: chr('int16') }), edits: [['DataType', chr('Inherit: auto')]], expect: refused('DataType', /^p\.DataType would be 'Inherit: auto'/) },
   { name: 'Signal DataType a number', of: signal({ DataType: chr('int16') }), edits: [['DataType', dbl(5)]], expect: refused('DataType', /^p\.DataType would be no text/) },
   { name: 'Signal Dimensions [2 3]', of: signal({ Dimensions: dbl(3) }), edits: [['Dimensions', dbl([2, 3])]], expect: ['Dimensions=double[1 2]:[2,3]'] },
@@ -229,7 +236,7 @@ const rows: Row[] = [
   { name: "Signal InitialValue ''", of: signal({ InitialValue: chr('3') }), edits: [['InitialValue', chr('')]], expect: ['InitialValue=char[0 0]:""'] },
   { name: 'Signal InitialValue a number', of: signal({ InitialValue: chr('3') }), edits: [['InitialValue', dbl(5)]], expect: refused('InitialValue', /^p\.InitialValue must be text/) },
   { name: 'Signal Complexity', of: signal({}), edits: [['Complexity', chr('real')]], expect: refused('Complexity', /^p\.Complexity is held as an index/) },
-  { name: 'Signal Value, which it has none of', of: signal({}), edits: [['Value', dbl(1)]], expect: refused('Value', 'p.Value is not one this package writes into a MAT-file object') },
+  { name: 'Signal Value, which it has none of', of: signal({}), edits: [['Value', dbl(1)]], expect: refused('Value', 'p.Value is not one this editor writes into a MAT-file object') },
 ];
 
 describe('the cells an edit of a MAT-file object writes, or why none', () => {
@@ -271,7 +278,7 @@ describe("a Signal's DataType, held to the forms that name a type", () => {
   for (const text of refusedTexts) {
     it('refuses ' + JSON.stringify(text), () => {
       expect(cellsOf(signal({ DataType: chr('int16') }), [{ property: 'DataType', value: chr(text) }])).toEqual(
-        refused('DataType', "p.DataType would be '" + text + "', which is not a data type this package writes into a Simulink.Signal"),
+        refused('DataType', "p.DataType would be '" + text + "', which is not a data type this editor writes into a Simulink.Signal"),
       );
     });
   }
@@ -284,11 +291,11 @@ describe('what an edit is refused for whatever its value, asked before it is mad
     expect(propertyEditRefusal(p, 'Max', 'p')).toMatch(/^p\.Max is at its class default/);
     expect(propertyEditRefusal(p, 'Description', 'p')).toMatch(/^p\.Description is held as an index/);
     expect(propertyEditRefusal(p, 'DataType', 'p')).toMatch(/^p\.DataType follows its Value/);
-    expect(propertyEditRefusal(held('Simulink.Bus', {}), 'Description', 'b')).toBe('b is a Simulink.Bus, whose properties this package does not write into a MAT-file');
+    expect(propertyEditRefusal(held('Simulink.Bus', {}), 'Description', 'b')).toBe('b is a Simulink.Bus, whose properties this editor does not write into a MAT-file');
   });
 
   it('a Value of a class a cell is not written of, which an edit of an element of it keeps', () => {
-    expect(propertyValueRefusal(P, 'Value', v('double', [], [3, 3], { isSparse: true }), 'p')).toBe('p.Value is a sparse double, which this package does not write into a Simulink.Parameter');
+    expect(propertyValueRefusal(P, 'Value', v('double', [], [3, 3], { isSparse: true }), 'p')).toBe('p.Value is a sparse double, which this editor does not write into a Simulink.Parameter');
     expect(propertyValueRefusal(P, 'Value', dbl([1, 2]), 'p')).toBeNull();
     expect(propertyValueRefusal(P, 'Min', dbl([1, 2]), 'p')).toMatch(/^p\.Min must be a finite real double scalar/);
   });

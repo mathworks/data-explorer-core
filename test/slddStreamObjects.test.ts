@@ -570,9 +570,9 @@ describe('what the rules refuse is refused before it is made, and the dictionary
   const REFUSED: [string, string, string, RegExp][] = [
     ['sPh.p', 'Min', '20', /^Cannot edit "sPh": sPh\.p\.Min \(20\) would be greater than its Max \(10\)/],
     ['sPh.p', 'Max', '-1', /^Cannot edit "sPh": sPh\.p\.Min \(0\) would be greater than its Max \(-1\)/],
-    ['pSp', 'Value', '[1 2]', /^Cannot edit "pSp": pSp\.Value is a sparse double, which this package does not write into a Simulink\.Parameter\.$/],
+    ['pSp', 'Value', '[1 2]', /^Cannot edit "pSp": pSp\.Value is a sparse double, which this editor does not write into a Simulink\.Parameter\.$/],
     ['pSp.Value(1,2)', 'Value', '8', /^Cannot edit "pSp": pSp\.Value is a sparse double/],
-    ['pStruct.p.Value.a', 'Value', "'x'", /^Cannot edit "pStruct": pStruct\.p\.Value\.a would be a char, which this package does not write into a Simulink\.Parameter's Value\.$/],
+    ['pStruct.p.Value.a', 'Value', "'x'", /^Cannot edit "pStruct": pStruct\.p\.Value\.a would be a char, which this editor does not write into a Simulink\.Parameter's Value\.$/],
     ['sigH.sig', 'DataType', 'Inherit: auto', /^Cannot edit "sigH": sigH\.sig\.DataType would be 'Inherit: auto'/],
     ['sTh.t', 'Description', 'x', /^Cannot edit "sTh": sTh\.t\.Description is at its class default/],
     ['cPh{1}', 'Min', '0', /^Cannot edit "cPh": cPh\{1\}\.Min is at its class default/],
@@ -753,8 +753,8 @@ describe('the save re-reads the stream it wrote, and refuses one that does not r
     const data = (readMcosSubsystem(written.element) as { subsystem: any }).subsystem.outer.subs[3];
     const tampered = written.element.slice();
     tampered[data.data + 4] = 0xab;
-    const bytes = streamWithSubsystem(stream.read.bytes, framed.valueEnd, tampered);
-    expect(stream._selfCheck(streamWithSubsystem(stream.read.bytes, framed.valueEnd, written.element), framed, written.element, written.cells, edited)).toBeNull();
+    const bytes = streamWithSubsystem(stream.bytes(), framed.valueEnd, tampered);
+    expect(stream._selfCheck(streamWithSubsystem(stream.bytes(), framed.valueEnd, written.element), framed, written.element, written.cells, edited)).toBeNull();
     expect(stream._selfCheck(bytes, framed, tampered, written.cells, edited)).toBe('its objects read back with the preamble of their payload, which no edit wrote, changed');
   });
 });

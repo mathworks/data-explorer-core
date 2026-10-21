@@ -670,8 +670,9 @@ export default class MatlabVariableNode extends DataNode {
      * six-bit text and written back as it was read, by replaying `_rawInput`.
      *
      * It is still a MAT stream, so it is display-only, as every value read from one is
-     * (_readFromStream, the C-012 ruling): an edit would have saved what was typed in place of
-     * the stream. And it says so, for the dictionary's warnings, as a binary dictionary's hex of
+     * (_readFromStream, the C-012 ruling) but an allow-listed property of an object a stream that
+     * decodes holds (mcosStreamEdit), of which this has none: an edit would have saved what was
+     * typed in place of the stream. And it says so, for the dictionary's warnings, as a binary dictionary's hex of
      * the same bytes does (EncodedValue.recordDecodeFailure, which SlddNode.parse collects for
      * the entry). It used to be shown with no warning, and it took edits.
      */

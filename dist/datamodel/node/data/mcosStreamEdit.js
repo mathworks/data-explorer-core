@@ -250,13 +250,21 @@ class McosStream {
         if (this._written && sameBytes(this._written.element, written.element)) {
             return this._written.bytes;
         }
-        const bytes = streamWithSubsystem(this.read.bytes, framed.valueEnd, written.element);
+        const bytes = streamWithSubsystem(this.bytes(), framed.valueEnd, written.element);
         const wrong = this._selfCheck(bytes, framed, written.element, written.cells, edited);
         if (wrong) {
             refuse('the stream written for it did not read back as written: ' + wrong);
         }
         this._written = { element: written.element, bytes };
         return bytes;
+    }
+    /** The stream as read, to its last byte (McosStreamRead.bytes), cut out once. */
+    bytes() {
+        if (this._stream === undefined) {
+            const read = this.read;
+            this._stream = read.format === 'cdata' ? matStreamPrefix(read.bytes) ?? read.bytes : read.bytes;
+        }
+        return this._stream;
     }
     /** The value a text dictionary and a copy are handed: the stream as read, or `bytes`, each in its own form. */
     valueOf(bytes) {
@@ -271,7 +279,7 @@ class McosStream {
         if (read.format === 'hex') {
             return bytes ? rewrittenHex(read.encoded, bytes, indent) : read.encoded;
         }
-        return hexValue(bytes ?? read.bytes, read.className, indent);
+        return hexValue(bytes ?? this.bytes(), read.className, indent);
     }
     // The words a value still in its encoded stream refuses an edit with (DataNode._refuseEncodedEdit).
     _encodedWhy() {
@@ -283,7 +291,7 @@ class McosStream {
     // value and the subsystem and nothing after them.
     _framing() {
         if (this._framed === undefined) {
-            this._framed = framingOf(this.read);
+            this._framed = framingOf(this.read, this.bytes());
         }
         return this._framed;
     }
@@ -341,7 +349,7 @@ class McosStream {
         if (!parts.ok) {
             return 'it ' + parts.message;
         }
-        if (parts.valueEnd !== framed.valueEnd || !sameBytes(bytes.subarray(0, parts.valueEnd), this.read.bytes.subarray(0, framed.valueEnd))) {
+        if (parts.valueEnd !== framed.valueEnd || !sameBytes(bytes.subarray(0, parts.valueEnd), this.bytes().subarray(0, framed.valueEnd))) {
             return 'its value is not the bytes it was read as';
         }
         if (!sameBytes(parts.subsystem, element)) {
@@ -412,8 +420,7 @@ class McosStream {
         return null;
     }
 }
-function framingOf(read) {
-    const bytes = read.bytes;
+function framingOf(read, bytes) {
     if (read.format === 'hex') {
         const encoded = read.encoded;
         const digits = encoded._value.replace(/\s+/g, '').length;

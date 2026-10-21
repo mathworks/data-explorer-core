@@ -514,7 +514,7 @@ describe('the marker that tells a rename from a value edit (DataNode._valueEdite
     expect([by('aBus').status, by('aBus')._valueEdited, by('aBus')._objectEdited]).toEqual(['Modified', true, true]);
     // And a bus is an object no edit of whose properties this writer can write.
     expect(thrownBy(save).message).toBe(
-      'Cannot write "aBus": aBus is a Simulink.Bus, whose properties this package does not write into a MAT-file. Nothing was written.',
+      'Cannot write "aBus": aBus is a Simulink.Bus, whose properties this editor does not write into a MAT-file. Nothing was written.',
     );
   });
 });

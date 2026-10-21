@@ -171,7 +171,9 @@ export function getRegisteredClasses() {
 // one pasted back into design reparses as a plain variable.
 export function wrapDerivedVariable(node) {
     // A value still in its encoded stream is not a Constant's scalar, whatever it decodes
-    // to; it stays the read-only node that writes the stream back.
+    // to; it stays the node that writes the stream back: read-only, or, where the stream is an
+    // entry's whole value holding objects, edited only at what its save rewrites the stream with
+    // (mcosStreamEdit).
     if (node.constructor === MatlabVariableNode && !node._isOpaque && !node._encoded) {
         return ConstantNode.fromVariable(node);
     }

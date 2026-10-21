@@ -259,6 +259,11 @@ function planOf(matNode: MatNode, records: MatRecord[], subsystem: MatRecord | n
   const objects = ofObjects.length > 0 ? matNode._objectSubsystemEdit(ofObjects) : null;
   if (objects) {
     const at = plan.findIndex((p) => p.kind === 'verbatim' && p.record === objects.record);
+    // The subsystem is planned as its own bytes, always (above): one not found is a plan this
+    // writer did not make, and the edit is refused rather than dropped.
+    if (at < 0) {
+      throw new MatWriteError('Cannot save "' + matNode.name + "\": the file's objects are not among the records it writes, so an edit of one could not be written. Nothing was written.");
+    }
     // Named, where a refusal names it, for the first variable whose object's edit it writes.
     plan[at] = { kind: 'objects', ...objects, bytes: recordBytes(objects.element, objects.record.compressed, ofObjects[0].name) };
   }

@@ -37,8 +37,9 @@ const TEXT_PROPERTIES = new Set(['Description', 'DocUnits', 'InitialValue']);
 // The classes a Value may be, as MATLAB holds them and this package writes them.
 const NUMERIC = new Set(['double', 'single', 'int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64']);
 // The range of each builtin data type a double is checked against, as MATLAB's set method checks
-// it: a Value out of it, or a Min or a Max, warns on every load. int64 and uint64 are checked as
-// the doubles nearest their limits, which is the comparison a double allows.
+// it: a Value out of it, or a Min or a Max, warns on every load. The top of int64 and of uint64,
+// 2^63 - 1 and 2^64 - 1, is no double: the nearest is 2^63 or 2^64, which is out of the range, so
+// a double is held below that (TOP_PAST), and the range is said as the integers it is (RANGE_TEXT).
 const INTEGER_RANGE = {
     int8: [-128, 127],
     uint8: [0, 255],
@@ -46,9 +47,11 @@ const INTEGER_RANGE = {
     uint16: [0, 65535],
     int32: [-2147483648, 2147483647],
     uint32: [0, 4294967295],
-    int64: [-9223372036854775808, 9223372036854775807],
-    uint64: [0, 18446744073709551615],
+    int64: [-(2 ** 63), 2 ** 63],
+    uint64: [0, 2 ** 64],
 };
+const TOP_PAST = new Set(['int64', 'uint64']);
+const RANGE_TEXT = { int64: '[-9223372036854775808, 9223372036854775807]', uint64: '[0, 18446744073709551615]' };
 const REALMAX_SINGLE = 3.4028234663852886e38;
 // A builtin name a DataType may hold whose range this package does not know MATLAB's check of,
 // and so refuses a double under, rather than not check it.
@@ -92,11 +95,11 @@ export function propertyEditRefusal(held, property, path) {
     const named = path + '.' + property;
     const saved = savedNameOf(held.className, property);
     if (!hasEditRules(held.className)) {
-        return path + ' is ' + classPhrase(held.className) + ', whose properties this package does not write into a MAT-file';
+        return path + ' is ' + classPhrase(held.className) + ', whose properties this editor does not write into a MAT-file';
     }
     if (saved === null) {
         const why = EXCLUDED[held.className]?.[property]
-            ?? (CODER_INFO_PROPERTIES.test(property) ? CODER_INFO : 'is not one this package writes into a MAT-file object');
+            ?? (CODER_INFO_PROPERTIES.test(property) ? CODER_INFO : 'is not one this editor writes into a MAT-file object');
         return named + ' ' + why;
     }
     const one = held.stored.get(saved);
@@ -120,7 +123,7 @@ export function propertyValueRefusal(className, property, value, path) {
     }
     if (saved === 'Value') {
         const what = valueClassRefusal(value, false);
-        return what ? path + '.Value is ' + what + ', which this package does not write into ' + classPhrase(className) : null;
+        return what ? path + '.Value is ' + what + ', which this editor does not write into ' + classPhrase(className) : null;
     }
     const written = cellValueFor(className, saved, value, path + '.' + property);
     return typeof written === 'string' ? written : null;
@@ -214,7 +217,7 @@ export function objectEditCells(held, edits, path) {
 function cellValueFor(className, saved, value, named) {
     if (saved === 'Value') {
         const what = valueClassRefusal(value, false);
-        return what ? named + ' would be ' + what + ', which this package does not write into ' + classPhrase(className) : nameless(value);
+        return what ? named + ' would be ' + what + ', which this editor does not write into ' + classPhrase(className) : nameless(value);
     }
     if (saved === 'Min' || saved === 'Max') {
         const n = count(value);
@@ -231,7 +234,7 @@ function cellValueFor(className, saved, value, named) {
     if (saved === 'DataType') {
         const text = textOf(value);
         if (text === null || !(SIGNAL_BUILTIN.has(text) || SIGNAL_DATA_TYPE.test(text)) || SIGNAL_NOT_MEASURED.has(text)) {
-            return named + ' would be ' + (text === null ? 'no text' : "'" + text + "'") + ', which is not a data type this package writes into ' + classPhrase(className);
+            return named + ' would be ' + (text === null ? 'no text' : "'" + text + "'") + ', which is not a data type this editor writes into ' + classPhrase(className);
         }
         return charCell(text);
     }
@@ -247,7 +250,7 @@ function cellValueFor(className, saved, value, named) {
         }
         return rowDouble(dims);
     }
-    return named + ' is not one this package writes into a MAT-file object';
+    return named + ' is not one this editor writes into a MAT-file object';
 }
 /**
  * Why a Value of `v` is not one a cell swap writes into a Simulink.Parameter, as what it would be
@@ -374,7 +377,7 @@ function valueRangeRefusal(held, v, changed, path) {
     const named = path + '.Value would hold ';
     const warns = ', which MATLAB loads with a warning on every load';
     if (UNCHECKED_BUILTIN.has(dt)) {
-        return path + ".Value would be double under a DataType of '" + dt + "', whose range this package does not check";
+        return path + ".Value would be double under a DataType of '" + dt + "', whose range this editor does not check";
     }
     const parts = partsOf(v);
     if (dt === 'boolean') {
@@ -388,7 +391,7 @@ function valueRangeRefusal(held, v, changed, path) {
     if (!range) {
         return null;
     }
-    const bad = parts.find((x) => !Number.isFinite(x) || x < range[0] || x > range[1]);
+    const bad = parts.find((x) => !Number.isFinite(x) || outside(dt, range, x));
     return bad === undefined ? null : named + numberText(bad) + ', outside the range ' + rangeText(dt, range) + " of its DataType '" + dt + "'" + warns;
 }
 /**
@@ -421,10 +424,10 @@ function consistencyRefusal(className, at, path) {
             continue;
         }
         if (UNCHECKED_BUILTIN.has(dt)) {
-            return { message: path + '.' + saved + " would be set under a DataType of '" + dt + "', whose range this package does not check", readsDataType: true };
+            return { message: path + '.' + saved + " would be set under a DataType of '" + dt + "', whose range this editor does not check", readsDataType: true };
         }
         const range = dt === 'boolean' ? [0, 1] : rangeOf(dt);
-        if (range && (x < range[0] || x > range[1])) {
+        if (range && outside(dt, range, x)) {
             return {
                 message: path + '.' + saved + ' (' + numberText(x) + ') would be outside the range ' + rangeText(dt, range) + " of its DataType '" + dt + "'" + warns,
                 readsDataType: true,
@@ -453,8 +456,13 @@ function rangeOf(dt) {
     }
     return INTEGER_RANGE[dt] ?? null;
 }
+// Whether the double `x` is outside `range`, the range of the DataType `dt`: below its bottom, or
+// above its top, or at it where the top is the first double past the range (TOP_PAST).
+function outside(dt, range, x) {
+    return x < range[0] || (TOP_PAST.has(dt) ? x >= range[1] : x > range[1]);
+}
 function rangeText(dt, range) {
-    return dt === 'single' ? "[-realmax('single'), realmax('single')]" : '[' + numberText(range[0]) + ', ' + numberText(range[1]) + ']';
+    return dt === 'single' ? "[-realmax('single'), realmax('single')]" : RANGE_TEXT[dt] ?? '[' + numberText(range[0]) + ', ' + numberText(range[1]) + ']';
 }
 // A text cell's value: a char row, `''` as a 0x0 char, as MATLAB holds an empty Description; or
 // why not, as a clause naming the property. Not text holding a lone UTF-16 surrogate, which UTF-8
@@ -467,7 +475,7 @@ function textCell(value, named) {
         return named + ' must be text: MATLAB refuses anything else, and loads it as empty';
     }
     if (loneSurrogate(text)) {
-        return named + ' holds a lone UTF-16 surrogate, which a MAT-file holds as another character';
+        return named + ' holds a lone UTF-16 surrogate, which the file would hold as another character';
     }
     return charCell(text);
 }
