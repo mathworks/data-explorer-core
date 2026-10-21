@@ -9,6 +9,7 @@ import { mcosPlaceOf } from '../mcosPlace.js';
 import {
   classRefusal,
   memberRefusal,
+  mirrorTwins,
   nodePropertyValue,
   objectEditsOf,
   objectNodeAt,
@@ -18,7 +19,11 @@ import {
   propertyAt,
   propertyRefusal,
   shownDataType,
+  twinGroupsOf,
+  twinMasterRefusal,
+  twinsTouching,
   type McosObjectState,
+  type McosTwinGroup,
 } from './mcosObjectEdit.js';
 import { hasEditRules, objectEditCells, savedNameOf, type McosPropertyEdit } from '../../parser/McosEditRules.js';
 import { objectIdOf, readMcosSubsystem, type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
@@ -116,6 +121,8 @@ class McosStream implements McosStreamGate {
   // What the editor found of each object's node the first time it asked (mcosObjectEdit.objectStateOf),
   // kept for as long as the node is, as a MAT-file keeps it (MatNode._objectState).
   readonly _states = new WeakMap<BaseNode, McosObjectState | string>();
+  // The nodes of each object two or more nodes of the stream are (_twinGroups), found once.
+  _twins: McosTwinGroup[] | undefined;
 
   constructor(
     readonly holder: DataNode,
@@ -151,8 +158,80 @@ class McosStream implements McosStreamGate {
     if (typeof state === 'string') {
       return cannotEdit(entry.name, state);
     }
-    const refused = classRefusal(state, object) ?? propertyRefusal(state, object, at.property);
+    const refused = classRefusal(state, object) ?? propertyRefusal(state, object, at.property) ?? this._twinRefusal(object);
     return refused ? cannotEdit(entry.name, refused) : null;
+  }
+
+  // ---- A handle two fields share ---------------------------------------------------------------
+  //
+  // Two nodes of the stream's value holding one handle (`s.a = p; s.b = p`) are one object, as
+  // MATLAB loads them, and are shown as one, as a MAT-file shows two variables holding one
+  // (MatNode._twinGroups and the four after it): the first of them an edit is made at or under is
+  // the one every later edit of the object is made through, and after each edit the session makes
+  // or wraps (DataModel.mutateSubtree, addChildTo, deleteNodeById, and their undo and redo) the
+  // others are copied into from it (mcosObjectEdit.mirrorTwins) and edited so, and take no edit of
+  // their own; the save writes the edit once. The stream is the entry's whole value, so every node
+  // of an object is in the entry, and none is outside the subtree an edit of it is made in.
+
+  // Why no edit of the object at `object` is taken for another node of it, its master, having
+  // been edited first (mcosObjectEdit.twinMasterRefusal), as a clause, or null.
+  _twinRefusal(object: BaseNode): string | null {
+    const group = this._twinGroupOf(object);
+    return group ? twinMasterRefusal(group, object, (n) => this._inStream(n)) : null;
+  }
+
+  // The nodes of each object two or more nodes of the stream are, found the first time an editor
+  // asks about one of its objects, which is before any edit of one (mcosObjectEdit.twinGroupsOf).
+  _twinGroups(): McosTwinGroup[] {
+    if (this._twins === undefined) {
+      this._twins = this.holder.isEntry && typeof this._framing() !== 'string' ? twinGroupsOf(objectNodesUnder(this.holder), (n) => this._state(n)) : [];
+    }
+    return this._twins;
+  }
+
+  _twinGroupOf(object: BaseNode): McosTwinGroup | null {
+    return this._twinGroups().find((g) => g.members.some((m) => m.node === object)) ?? null;
+  }
+
+  // The nodes an edit at or under `root` is copied into that are not at or under it
+  // (BaseNode.sourceTwinsOutside): the other nodes of every object it reaches.
+  _twinsOutside(root: BaseNode): BaseNode[] {
+    const out: BaseNode[] = [];
+    for (const group of this._twinsTouching(root)) {
+      for (const { node } of group.members) {
+        if (this._inStream(node) && !isAtOrUnder(node, root)) {
+          out.push(node);
+        }
+      }
+    }
+    return out;
+  }
+
+  // After an edit at or under `root`: every other node of an object it reached shows the object as
+  // the edit left it, and is edited so (BaseNode.sourceMirrorTwins). Answers the nodes copied into.
+  _mirrorTwins(root: BaseNode): BaseNode[] {
+    const copied: BaseNode[] = [];
+    for (const group of this._twinsTouching(root)) {
+      const members = group.members.filter((m) => this._inStream(m.node));
+      if (members.length > 1) {
+        copied.push(...mirrorTwins(group, members));
+      }
+    }
+    return copied;
+  }
+
+  // The groups an edit at or under `root` can reach; none before an editor asked about any object
+  // of the stream, which every edit of one does first, as a MAT-file's (MatNode._twinsTouching).
+  _twinsTouching(root: BaseNode): McosTwinGroup[] {
+    if (this._twins === undefined && !objectNodeAt(this.holder, root) && objectNodesUnder(root).length === 0) {
+      return [];
+    }
+    return twinsTouching(this._twinGroups(), root);
+  }
+
+  // Whether `node` is in the stream's value still.
+  _inStream(node: BaseNode): boolean {
+    return isAtOrUnder(node, this.holder);
   }
 
   /**
@@ -308,6 +387,11 @@ class McosStream implements McosStreamGate {
     if ('why' in own) {
       return own.why;
     }
+    // Once an edit of the object was made through `object`, its master, the others hold copies of
+    // the master's edits made before this one (_mirrorTwins), and are copied into again after it.
+    if (this._twinGroupOf(object)?.master === object) {
+      return own.edits;
+    }
     const merged = new Map(own.edits.map((e) => [e.property, { value: e.value, node: object }]));
     for (const other of objectNodesUnder(this.holder)) {
       const s = other === object ? null : this._state(other);
@@ -437,6 +521,15 @@ function framingOf(read: McosStreamRead): Framed {
     return "its stream's objects could not be read as a save rewrites them (" + subsystem.message + ')';
   }
   return { valueEnd: parts.valueEnd, subsystem: subsystem.subsystem };
+}
+
+function isAtOrUnder(node: BaseNode, root: BaseNode): boolean {
+  for (let n: BaseNode | null = node; n; n = n.parent) {
+    if (n === root) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function classOf(node: BaseNode): string {

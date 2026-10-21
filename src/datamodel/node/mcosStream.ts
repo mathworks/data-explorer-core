@@ -28,6 +28,11 @@ export interface McosStreamGate {
   _editValueRefusal(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null;
   _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null;
   _followedProperty(entry: BaseNode, node: BaseNode, key: string): unknown;
+  // And, as a MAT-file keeps two nodes of one object in step (MatNode._twinsOutside, _mirrorTwins),
+  // the nodes outside `root` an edit at or under it is copied into, and, after the edit, the copy,
+  // answering the nodes copied into.
+  _twinsOutside(root: BaseNode): BaseNode[];
+  _mirrorTwins(root: BaseNode): BaseNode[];
 }
 
 export function setMcosStreamGate(holder: object, gate: McosStreamGate): void {

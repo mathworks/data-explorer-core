@@ -31,8 +31,10 @@
 
 /**
  * One edit: at the node with MATLAB path `path`, the property `prop` set to `text`, or (`op`) a
- * row added to it or its child `child` removed, or the edit before undone. `matlab` is the same
- * edit in MATLAB, of `v`, the entry's value.
+ * row added to it or its child `child` removed, or the edit before undone or redone. `matlab` is the
+ * same edit in MATLAB, of `v`, the entry's value. And (`op: 'same'`) no edit, but a check of the
+ * session: the node at `path` shows what the node at `as` does, row for row, as two nodes of one
+ * handle must, which MATLAB loads as one object.
  */
 export const CASES = [
   { name: 'sPh_value', format: 'bin', edits: [{ path: 'sPh.p', prop: 'Value', text: '7', matlab: 'v.p.Value = 7;' }], cells: 1 },
@@ -70,7 +72,34 @@ export const CASES = [
     ],
     cells: 5,
   },
-  { name: 'shared_value', format: 'bin', edits: [{ path: 'shared.a', prop: 'Value', text: '40', matlab: 'v.a.Value = 40;' }], cells: 1 },
+  { name: 'shared_value', format: 'bin', edits: [{ path: 'shared.a', prop: 'Value', text: '40', matlab: 'v.a.Value = 40;' }, { op: 'same', path: 'shared.b', as: 'shared.a' }], cells: 1 },
+  // A handle two fields share, edited through one of them, in every way an edit of a Value is made:
+  // each shown by the other at once, and written once.
+  {
+    name: 'shared_steps',
+    format: 'bin',
+    edits: [
+      { path: 'shared.b', prop: 'Value', text: '[1 2 3]', matlab: 'v.b.Value = [1 2 3];' },
+      { path: 'shared.b.Value(2)', prop: 'Value', text: '9', matlab: 'v.b.Value(2) = 9;' },
+      { path: 'shared.b.Value', op: 'add', matlab: 'v.b.Value = [1 9 3 0];' },
+      { path: 'shared.b', prop: 'Description', text: 'twice held', matlab: "v.b.Description = 'twice held';" },
+      { op: 'same', path: 'shared.a', as: 'shared.b' },
+    ],
+    cells: 3,
+  },
+  {
+    name: 'shared_undo_redo',
+    format: 'bin',
+    edits: [
+      { path: 'shared.a', prop: 'Value', text: '41', matlab: 'v.a.Value = 41;' },
+      { path: 'shared.a', prop: 'Description', text: 'gone again', matlab: '' },
+      { op: 'undo' },
+      { op: 'undo' },
+      { op: 'redo' },
+      { op: 'same', path: 'shared.b', as: 'shared.a' },
+    ],
+    cells: 1,
+  },
   {
     name: 'arr_two',
     format: 'bin',
@@ -118,7 +147,19 @@ export const CASES = [
     cells: 2,
   },
   { name: 'txt_cPh_element', format: 'txt', edits: [{ path: 'cPh{1}.Value(2)', prop: 'Value', text: '20', matlab: 'v{1}.Value(2) = 20;' }], cells: 1 },
-  { name: 'txt_shared_value', format: 'txt', edits: [{ path: 'shared.a', prop: 'Value', text: '40', matlab: 'v.a.Value = 40;' }], cells: 1 },
+  { name: 'txt_shared_value', format: 'txt', edits: [{ path: 'shared.a', prop: 'Value', text: '40', matlab: 'v.a.Value = 40;' }, { op: 'same', path: 'shared.b', as: 'shared.a' }], cells: 1 },
+  {
+    name: 'txt_shared_steps',
+    format: 'txt',
+    edits: [
+      { path: 'shared.b', prop: 'Value', text: '[1 2 3]', matlab: 'v.b.Value = [1 2 3];' },
+      { path: 'shared.b.Value(2)', prop: 'Value', text: '9', matlab: 'v.b.Value(2) = 9;' },
+      { path: 'shared.b.Value', op: 'add', matlab: 'v.b.Value = [1 9 3 0];' },
+      { path: 'shared.b', prop: 'Description', text: 'twice held', matlab: "v.b.Description = 'twice held';" },
+      { op: 'same', path: 'shared.a', as: 'shared.b' },
+    ],
+    cells: 3,
+  },
   { name: 'txt_pStruct_field', format: 'txt', edits: [{ path: 'pStruct.p.Value.a', prop: 'Value', text: '11', matlab: 'v.p.Value.a = 11;' }], cells: 1 },
   { name: 'txt_nested_value', format: 'txt', edits: [{ path: 'nested.inner.p', prop: 'Value', text: '9', matlab: 'v.inner.p.Value = 9;' }], cells: 2 },
   { name: 'txt_control_identity', format: 'txt', edits: [], cells: 0, control: true },
@@ -143,11 +184,25 @@ function nodeAt(root, path) {
   throw new Error('no node ' + path);
 }
 
-/** Every edit of `edits` made on `root` through `session`, as a host makes it; throws on a refusal. */
+// What a node of an object shows, and every row under it, each by its path below the node: what
+// two nodes of one handle must show alike.
+function shownRows(node) {
+  const at = node.matlabPath.length;
+  return subtree(node).map((n) => [n.matlabPath.slice(at), n.displayValue, n.Description, n.Min, n.Max, n.Unit, n.DataType].join(' | '));
+}
+
+/** Every edit of `edits` made on `root` through `session`, as a host makes it; throws on a refusal or a check that fails. */
 export function applyEdits(session, root, edits) {
   for (const e of edits) {
-    if (e.op === 'undo') {
-      session.undo();
+    if (e.op === 'undo' || e.op === 'redo') {
+      session[e.op]();
+      continue;
+    }
+    if (e.op === 'same') {
+      const [mine, theirs] = [shownRows(nodeAt(root, e.path)), shownRows(nodeAt(root, e.as))];
+      if (JSON.stringify(mine) !== JSON.stringify(theirs)) {
+        throw new Error(e.path + ' does not show what ' + e.as + ' does: ' + JSON.stringify(mine) + ' vs ' + JSON.stringify(theirs));
+      }
       continue;
     }
     const node = nodeAt(root, e.path);

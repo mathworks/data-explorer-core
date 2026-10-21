@@ -114,10 +114,13 @@ entry whose value holds a sparse array, and the cdata of the same stream a text
 dictionary holds once such an entry is pasted into it. Nothing in one takes an
 edit but its entry's rename and, where the stream is the entry's whole value,
 the properties of its `Simulink.Parameter` and `Simulink.Signal` objects that a
-MAT-file's take (below), by the same rules. The save writes the stream again
-with only the cells of those properties replaced, every other byte as it was
-read: the hex's `EncodedLength` is the new byte count, and the cdata's text is
-the new stream's own. An edit undone writes the stream as it was read.
+MAT-file's take (below), by the same rules, and shown as a MAT-file shows them:
+the DataType a Value of another class co-writes at once, and two fields holding
+one handle as one object, every edit of it made through the first of them
+edited. The save writes the stream again with only the cells of those
+properties replaced, every other byte as it was read: the hex's `EncodedLength`
+is the new byte count, and the cdata's text is the new stream's own. An edit
+undone writes the stream as it was read.
 
 ### A MAT-file
 

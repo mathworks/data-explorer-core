@@ -332,9 +332,7 @@ describe('an edit in a binary dictionary\'s hex stream is saved as that stream w
       });
     }
 
-    // Not a handle two fields share: the session shows the edit on the field it was made at, and
-    // MATLAB, and a reopen, on both (the test of shared_value below).
-    if (edited.length > 0 && !c.control && c.name !== 'shared_value') {
+    if (edited.length > 0 && !c.control) {
       it(`${c.name}: opened again, the edited entries read as the session showed them`, () => {
         const { session, root } = made(c);
         const back = reopened(session, root);
@@ -378,15 +376,94 @@ describe('an edit in a binary dictionary\'s hex stream is saved as that stream w
     expect([nodeAt(edited.root, 'sTh.t').displayValue, nodeAt(edited.root, 'sTh.t').DataType]).toEqual([nodeAt(open().root, 'sTh.t').displayValue, 'single']);
   });
 
-  it('a handle two fields share is one object: an edit of one is what both read, and two values of it are refused', () => {
+});
+
+describe('a handle two fields of a stream share is one object, shown as one, as a MAT-file shows one', () => {
+  // `shared` is struct('a', h, 'b', h, 'sp', sparse(…)): MATLAB loads its a and b as one handle.
+  const shows = (root: any, path: string): string[] => {
+    const node = nodeAt(root, path);
+    return subtree(node).map((n: any) => `${n.matlabPath.slice(node.matlabPath.length)} ${n.displayValue} ${n.Description ?? ''} ${n.DataType ?? ''}`);
+  };
+  const inStep = (root: any) => expect(shows(root, 'shared.b')).toEqual(shows(root, 'shared.a'));
+
+  it('an edit of one is shown by the other at once, read back by both, and written once', () => {
     const { session, root } = made(CASES.find((x) => x.name === 'shared_value')!);
+    expect([nodeAt(root, 'shared.a').displayValue, nodeAt(root, 'shared.b').displayValue]).toEqual(['40', '40']);
+    inStep(root);
     const back = reopened(session, root);
-    expect([nodeAt(back, 'shared.a').displayValue, nodeAt(back, 'shared.b').displayValue]).toEqual(['40', '40']);
-    expect(edit(session, root, 'shared.b', 'Value', '41')).toMatchObject({
+    expect(rows(nodeAt(back, 'shared'))).toEqual(rows(nodeAt(root, 'shared')));
+    // The save is the one the edit made through a alone writes (one cell, the case's own).
+    expect(valueTag(savedChunk(session, root), 'shared')).toBe(valueTag(chunkOf(SAVES.files['shared_value.sldd']), 'shared'));
+  });
+
+  it('the other takes no edit of its own, and the one first edited takes every later one', () => {
+    const { session, root } = made(CASES.find((x) => x.name === 'shared_value')!);
+    const refusal = 'Cannot edit "shared": shared.b is one object with shared.a (one handle), whose edits it shows, and an edit of it is made through shared.a, which holds one.';
+    expect(edit(session, root, 'shared.b', 'Value', '41')).toMatchObject({ error: true, reason: refusal });
+    expect(edit(session, root, 'shared.b', 'Description', 'mine')).toMatchObject({ error: true, reason: refusal });
+    expect(nodeAt(root, 'shared.b').valueEditable).toBe(false);
+    expect(edit(session, root, 'shared.a', 'Value', '42')).toBe(true);
+    expect(nodeAt(root, 'shared.b').displayValue).toBe('42');
+    inStep(root);
+  });
+
+  it('every kind of Value edit, each undone and redone, shown by both, and all undone the stream MATLAB wrote', () => {
+    const { session, root } = open();
+    const a = () => nodeAt(root, 'shared.a');
+    expect(edit(session, root, 'shared.a', 'Value', '[1 2 3]')).toBe(true);
+    inStep(root);
+    expect(edit(session, root, 'shared.a.Value(2)', 'Value', '9')).toBe(true);
+    inStep(root);
+    session.setActive(root, a()._valueNode);
+    expect(session.addChildTo(a()._valueNode.id)).not.toBeNull();
+    inStep(root);
+    const last = a()._valueNode.children[3];
+    session.setActive(root, last);
+    expect(session.deleteNodeById(last.id)).toBe(true);
+    inStep(root);
+    // The rows copied into b are the session's, found by their ids.
+    const element = nodeAt(root, 'shared.b.Value(2)');
+    expect(session.findNodeById(element.id)).toBe(element);
+    expect(edit(session, root, 'shared.a', 'Description', 'held twice')).toBe(true);
+    inStep(root);
+    expect(nodeAt(root, 'shared.b').Description).toBe('held twice');
+    const steps: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      session.undo();
+      inStep(root);
+      steps.push(nodeAt(root, 'shared.b').displayValue + ' ' + nodeAt(root, 'shared.b').Description);
+    }
+    expect(steps).toEqual(['[1 9 3] shared', '[1 9 3 0] shared', '[1 9 3] shared', '[1 2 3] shared', '4 shared']);
+    expect(valueTag(savedChunk(session, root), 'shared')).toBe(valueTag(MATLAB_CHUNK, 'shared'));
+    for (let i = 0; i < 5; i++) {
+      session.redo();
+      inStep(root);
+    }
+    const back = reopened(session, root);
+    expect(rows(nodeAt(back, 'shared'))).toEqual(rows(nodeAt(root, 'shared')));
+  });
+
+  it('a host that edits the node itself, inside mutateSubtree, has the other shown too', () => {
+    const { session, root } = open();
+    const a = nodeAt(root, 'shared.a');
+    expect(session.mutateSubtree(a, () => a.setProperty('Value', '[5 6]'))).toBe(true);
+    expect(nodeAt(root, 'shared.b').displayValue).toBe('[5 6]');
+    const element = nodeAt(root, 'shared.b.Value(1)');
+    expect(session.findNodeById(element.id)).toBe(element);
+    expect(nodeAt(reopened(session, root), 'shared.b').displayValue).toBe('[5 6]');
+  });
+
+  it('edits made around the session, two values of one property, are refused by the value, and the save never writes either over the other', () => {
+    const { session, root } = open();
+    expect(nodeAt(root, 'shared.a').setProperty('Value', '40')).toBe(true);
+    // No session around it: nothing copied into b, which holds the value read.
+    expect(nodeAt(root, 'shared.b').displayValue).toBe('4');
+    expect(nodeAt(root, 'shared.b').setProperty('Value', '41')).toMatchObject({
       error: true,
       reason: 'Cannot edit "shared": shared.b and shared.a are one object, whose Value shared.a holds another value of.',
     });
-    expect(edit(session, root, 'shared.b', 'Value', '40')).toBe(true);
+    expect(nodeAt(root, 'shared.b').setProperty('Value', '40')).toBe(true);
+    expect([nodeAt(reopened(session, root), 'shared.a').displayValue, nodeAt(reopened(session, root), 'shared.b').displayValue]).toEqual(['40', '40']);
   });
 });
 
@@ -445,9 +522,7 @@ describe('an edit in a text dictionary\'s pasted cdata is saved as that cdata wi
         const { session, root } = made(c);
         const back = reopened(session, root);
         for (const name of edited) {
-          if (c.name !== 'txt_shared_value') {
-            expect(rows(nodeAt(back, name))).toEqual(rows(nodeAt(root, name)));
-          }
+          expect(rows(nodeAt(back, name))).toEqual(rows(nodeAt(root, name)));
         }
       });
     }

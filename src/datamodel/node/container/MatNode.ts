@@ -26,8 +26,8 @@ import {
   unwritableIn,
 } from '../../parser/MatFileWriter.js';
 import { MatWriteError } from '../../parser/MatWriter.js';
-import { objectIdOf, readMcosSubsystem, type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
-import { hasEditRules, objectEditCells } from '../../parser/McosEditRules.js';
+import { readMcosSubsystem, type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
+import { objectEditCells } from '../../parser/McosEditRules.js';
 import {
   classRefusal,
   memberRefusal,
@@ -40,8 +40,10 @@ import {
   propertyAt,
   propertyRefusal,
   shownDataType,
-  twinOf,
   mirrorTwins,
+  twinGroupsOf,
+  twinMasterRefusal,
+  twinsTouching,
   type McosObjectState,
   type McosPlannedCell,
   type McosTwin,
@@ -171,13 +173,11 @@ export default class MatNode extends ContainerNode {
     if (entry && entry.parent === this) {
       this._valueVerdicts.delete(entry);
     }
-    for (const group of this._twins ?? []) {
-      if (group.members.some((m) => isAtOrUnder(m.node, node) || isAtOrUnder(node, m.node))) {
-        for (const m of group.members) {
-          const twin = this._entryOf(m.node);
-          if (twin) {
-            this._valueVerdicts.delete(twin);
-          }
+    for (const group of twinsTouching(this._twins ?? [], node)) {
+      for (const m of group.members) {
+        const twin = this._entryOf(m.node);
+        if (twin) {
+          this._valueVerdicts.delete(twin);
         }
       }
     }
@@ -340,13 +340,9 @@ export default class MatNode extends ContainerNode {
     if (!group) {
       return null;
     }
-    const master = group.master;
-    if (master && master !== object) {
-      const shared = object.matlabPath + ' is one object with ' + master.matlabPath + ' (one handle), whose edits it shows';
-      const why = this._entryOf(master)
-        ? shared + ', and an edit of it is made through ' + master.matlabPath + ', which holds one'
-        : shared + ', and ' + master.matlabPath + ', which an edit of it was made through, is deleted: it takes none of its own until the file is read again';
-      return group.diverged ? why + ' (' + group.diverged + ')' : why;
+    const mastered = twinMasterRefusal(group, object, (n) => this._entryOf(n) !== null);
+    if (mastered) {
+      return mastered;
     }
     const subsystem = this._subsystemRecord();
     for (const { node } of group.members) {
@@ -377,30 +373,7 @@ export default class MatNode extends ContainerNode {
    */
   _twinGroups(): McosTwinGroup[] {
     if (this._twins === undefined) {
-      const byId = new Map<number, BaseNode[]>();
-      for (const node of objectNodesUnder(this)) {
-        const place = mcosPlaceOf(node)!;
-        const id = objectIdOf(place.variable.mcosHandle, place.index);
-        if (id !== null) {
-          byId.set(id, [...(byId.get(id) ?? []), node]);
-        }
-      }
-      this._twins = [];
-      for (const nodes of byId.values()) {
-        if (nodes.length < 2) {
-          continue;
-        }
-        const members: McosTwin[] = [];
-        for (const node of nodes) {
-          const state = this._objectState(node);
-          if (typeof state !== 'string' && hasEditRules(state.held.className)) {
-            members.push(twinOf(node, state));
-          }
-        }
-        if (members.length > 1) {
-          this._twins.push({ members, master: null, diverged: null });
-        }
-      }
+      this._twins = twinGroupsOf(objectNodesUnder(this), (n) => this._objectState(n));
     }
     return this._twins;
   }
@@ -460,7 +433,7 @@ export default class MatNode extends ContainerNode {
     if (this._twins === undefined && !objectNodeAt(this._entryOf(root) ?? root, root) && objectNodesUnder(root).length === 0) {
       return [];
     }
-    return this._twinGroups().filter((g) => g.members.some((m) => isAtOrUnder(m.node, root) || isAtOrUnder(root, m.node)));
+    return twinsTouching(this._twinGroups(), root);
   }
 
   // The variable `node` is in, `node` itself for one, or null for a node not in this file's tree.

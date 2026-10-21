@@ -190,14 +190,17 @@ export type SourceFollowedProperty = (entry: BaseNode, node: BaseNode, key: stri
 /**
  * The nodes outside `node`'s subtree that the source `node` is in keeps in step with what is in it
  * (sourceMirrorTwins): in a MAT-file, the other nodes of each object at, above or under `node`, two
- * variables holding one handle, say (MatNode._twinsOutside). None for every other source. Asked by
- * the session before an edit there, to keep its index of them as it keeps the edited subtree's.
+ * variables holding one handle, say (MatNode._twinsOutside); in a dictionary value's MAT stream
+ * holding objects, asked first, those of a handle two fields of the value share (mcosStream). None
+ * for every other source. Asked by the session before an edit there, to keep its index of them as
+ * it keeps the edited subtree's.
  */
 export declare function sourceTwinsOutside(node: BaseNode): BaseNode[];
 /**
  * After an edit at or under `node`, has the source bring every node it keeps in step with one
- * there back in step (MatNode._mirrorTwins: the other nodes of one object show the edit), and
- * answers the nodes it changed so. Asked by the session after every edit it makes or wraps.
+ * there back in step (MatNode._mirrorTwins: the other nodes of one object show the edit; a stream's
+ * first, as sourceTwinsOutside asks it), and answers the nodes it changed so. Asked by the session
+ * after every edit it makes or wraps.
  */
 export declare function sourceMirrorTwins(node: BaseNode): BaseNode[];
 /**

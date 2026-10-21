@@ -119,11 +119,28 @@ export interface McosTwin {
     state: McosObjectState;
     shown: ReadonlyMap<string, MatVariable | string>;
 }
+/**
+ * The nodes of each object two or more of `nodes` are, of a class whose properties a save writes,
+ * each a twin showing what the file holds of the object (twinOf): the groups of a MAT-file
+ * (MatNode._twinGroups) and of a dictionary value's stream (mcosStreamEdit), found before any edit
+ * of one. `stateOf` is what the editor judged of a node (MatNode._objectState), made now for one
+ * it has not judged yet.
+ */
+export declare function twinGroupsOf(nodes: readonly BaseNode[], stateOf: (node: BaseNode) => McosObjectState | string): McosTwinGroup[];
+/** The groups of `groups` with a node at or under `root`, or one `root` is at or under: the objects an edit there can reach. */
+export declare function twinsTouching(groups: readonly McosTwinGroup[], root: BaseNode): McosTwinGroup[];
+/**
+ * Why `object`, a node of `group`, takes no edit of its own, as a clause, or null: an edit of the
+ * object was made through another node of it, its master, through which every later one is made
+ * (mirrorTwins). `inTree` says whether a node is in its file's tree still, which a master is not
+ * once its variable is deleted.
+ */
+export declare function twinMasterRefusal(group: McosTwinGroup, object: BaseNode, inTree: (node: BaseNode) => boolean): string | null;
 /** A node of the object `state` describes, as one of its twins, showing what the file holds of it. */
 export declare function twinOf(node: BaseNode, state: McosObjectState): McosTwin;
 /**
  * Brings the nodes `members` of one object back in step after an edit at or under one of them
- * (MatNode._mirrorTwins). The first edit of the object makes the node it reached the group's master
+ * (MatNode._mirrorTwins, and a dictionary value's stream's, mcosStreamEdit). The first edit of the object makes the node it reached the group's master
  * (the first in the tree, of two an edit made around the session reached at once); then each
  * property another node holds a value of the master does not is copied from the master into it
  * (copyObjectProperty), and it is marked edited (DataNode._markModified), as it is: what MATLAB
