@@ -328,7 +328,8 @@ and MATLAB's saves of objects of every class and shape (`Param.mat`, `Sig.mat`, 
 `int16` or `single` Value (DataType co-written `auto`, and shown so), a logical or text over
 another (`boolean`, `string`), an element of a typed, N-D, logical or complex Value, an element
 added and removed, a field of a struct Value edited, added and renamed, Min, Max, `[]`,
-Description and Unit (non-ASCII text, a character past U+FFFF, `''`), every property of a
+Description and Unit (non-ASCII text, a character past U+FFFF, `''`, a tab, two spaces and a
+newline, a space before the text), every property of a
 Signal, a Parameter in a struct field, a cell, a struct array's element, an object array of any
 rank, a handle two variables share (edited through either, the one edited through deleted, and
 an edit through one undone and the next made through the other) or that a struct field and a

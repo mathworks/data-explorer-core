@@ -687,6 +687,18 @@ describe('a stream that is not an entry\'s whole value stays read-only, as it wa
   });
 });
 
+describe('text MATLAB would load as other text is refused in a stream too', () => {
+  it("a Description of white space alone, with the words a MAT-file's refusal has", () => {
+    const { session, root } = open();
+    expect(edit(session, root, 'sPh.p', 'Description', '\t')).toMatchObject({
+      error: true,
+      reason: "Cannot edit \"sPh\": sPh.p.Description would be '\\t', which MATLAB would load as '': it loads text of white space alone as empty.",
+    });
+    expect(edit(session, root, 'sPh.p', 'Description', ' kept ')).toBe(true);
+    expect(nodeAt(reopened(session, root), 'sPh.p').Description).toBe(' kept ');
+  });
+});
+
 describe('what the gate finds of an object in a stream is kept until an edit of it', () => {
   it('found once, and forgotten by an edit of the object, its undo and a copy into its twin', () => {
     const { session, root } = open();

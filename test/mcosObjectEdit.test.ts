@@ -731,3 +731,18 @@ describe('what the gate finds of an object is kept until an edit of it', () => {
     expect(sourceEditRefusal(pm, 'Max')).toBe('Cannot edit "pm": pm.Max is not held as a number.');
   });
 });
+
+describe('text MATLAB would load as other text is refused at the edit, saying what it would load', () => {
+  it('a Description of white space alone, in a MAT-file; one ending in a space, taken and loaded so', () => {
+    const o = opened(read(ALLOWLIST, 'al_text.mat'));
+    const xa = o.object('xa');
+    expect(o.edit(xa, 'Description', '   ')).toMatchObject({
+      error: true,
+      reason: "Cannot edit \"xa\": xa.Description would be '   ', which MATLAB would load as '': it loads text of white space alone as empty.",
+    });
+    expect([xa.Description, o.root.dirty]).toEqual(['short', false]);
+    expect([o.edit(xa, 'Description', 'two  spaces, and one '), o.edit(xa, 'Unit', ' m')]).toEqual([true, true]);
+    const again = opened(o.save()).object('xa');
+    expect([again.Description, again.Unit]).toEqual(['two  spaces, and one ', ' m']);
+  });
+});

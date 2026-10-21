@@ -1399,10 +1399,21 @@ add(
   AL_SIGNAL,
   "a Signal's DataType made a fixdt of a slope and a bias, and one with white space at its end refused",
   (f) => {
-    f.refused(['sg'], 'DataType', 'Enum: MyEnum ', 'which is not a data type this editor writes into');
+    f.refused(['sg'], 'DataType', 'Enum: MyEnum ', "which MATLAB would load as 'Enum: MyEnum'");
     f.prop(['sg'], 'DataType', 'fixdt(1,16,0.0625,0)');
   },
   ["S.sg.DataType = 'fixdt(1,16,0.0625,0)';"],
+);
+add(
+  'obj_text_whitespace',
+  AL_TEXT,
+  'a Description of a tab, two spaces and a newline, and a Unit with a space before it, which load as written; white space alone refused',
+  (f) => {
+    f.refused(['xa'], 'Description', '   ', "which MATLAB would load as ''");
+    f.prop(['xa'], 'Description', '\ta  b\n');
+    f.prop(['xa'], 'Unit', ' m');
+  },
+  ["S.xa.Description = [char(9) 'a  b' char(10)];", "S.xa.Unit = ' m';"],
 );
 add(
   'obj_signal_dtype_quoted',

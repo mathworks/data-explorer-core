@@ -277,12 +277,86 @@ describe("a Signal's DataType, held to the forms that name a type", () => {
   }
   for (const text of refusedTexts) {
     it('refuses ' + JSON.stringify(text), () => {
-      expect(cellsOf(signal({ DataType: chr('int16') }), [{ property: 'DataType', value: chr(text) }])).toEqual(
-        refused('DataType', "p.DataType would be '" + text + "', which is not a data type this editor writes into a Simulink.Signal"),
-      );
+      // One with white space at an end is refused for what MATLAB would load of it, the trimmed text.
+      const trimmed = text.replace(/^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/g, '');
+      const message = trimmed !== text
+        ? 'p.DataType would be ' + quoted(text) + ', which MATLAB would load as ' + quoted(trimmed) + ': it trims the white space at either end'
+        : 'p.DataType would be ' + quoted(text) + ', which is not a data type this editor writes into a Simulink.Signal';
+      expect(cellsOf(signal({ DataType: chr('int16') }), [{ property: 'DataType', value: chr(text) }])).toEqual(refused('DataType', message));
     });
   }
 });
+
+// A message's spelling of text: in single quotes, a control character as an escape.
+function quoted(text: string): string {
+  const spelled: Record<string, string> = { '\n': '\\n', '\t': '\\t', '\r': '\\r' };
+  return "'" + text.replace(/[\x00-\x1f\x7f]/g, (c) => spelled[c] ?? '\\x' + c.charCodeAt(0).toString(16).padStart(2, '0')) + "'";
+}
+
+// Measured against MATLAB R2027a: each text below, written into a Simulink.Parameter's (al_text.mat
+// xa) or a Simulink.Signal's (al_signal.mat sg) cell, loads as written, or as the text the refusal
+// names.
+describe('text a save writes is text MATLAB loads as written', () => {
+  const asWritten = ['abc ', ' abc', 'a\tbc', 'abc\t', '\tabc', 'a  b', 'a\nb', 'abc\n', '\nabc', 'a\r\nb', 'Température — µm ', 'abc\u00a0', ''];
+  const whiteSpaceAlone = ['   ', ' ', '\t', '\n', '\t \n', '\u00a0', '\u2003', '\v', '\r'];
+  const cases: [string, McosObjectHeld, string, string][] = [
+    ["a Parameter's Description", param({ Description: chr('d') }), 'Description', 'Description'],
+    ["a Parameter's Unit", param({ DocUnits: chr('m') }), 'Unit', 'DocUnits'],
+    ["a Signal's Description", signal({ Description: chr('d') }), 'Description', 'Description'],
+    ["a Signal's Unit", signal({ DocUnits: chr('m') }), 'Unit', 'DocUnits'],
+  ];
+  for (const [what, of, property, saved] of cases) {
+    it(what + ': as written, but for white space alone, which loads as empty', () => {
+      for (const text of asWritten) {
+        const dims = text === '' ? '[0 0]' : '[1 ' + text.length + ']';
+        expect(cellsOf(of, [{ property, value: chr(text) }]), JSON.stringify(text)).toEqual([saved + '=char' + dims + ':' + JSON.stringify(text)]);
+      }
+      for (const text of whiteSpaceAlone) {
+        expect(cellsOf(of, [{ property, value: chr(text) }]), JSON.stringify(text)).toEqual(
+          refused(property, 'p.' + property + ' would be ' + quoted(text) + ", which MATLAB would load as '': it loads text of white space alone as empty"),
+        );
+      }
+    });
+  }
+
+  it("a Signal's InitialValue: trimmed at either end, and '' where it is not ASCII", () => {
+    const of = signal({ InitialValue: chr('3') });
+    for (const text of ['a\tbc', 'a  b', 'a\nb', 'a\r\nb', 'a\n\nb', '[1 2 3]', '']) {
+      const dims = text === '' ? '[0 0]' : '[1 ' + text.length + ']';
+      expect(cellsOf(of, [{ property: 'InitialValue', value: chr(text) }]), JSON.stringify(text)).toEqual(['InitialValue=char' + dims + ':' + JSON.stringify(text)]);
+    }
+    const trimmed: [string, string][] = [
+      ['abc ', 'abc'], [' abc', 'abc'], ['abc\t', 'abc'], ['\tabc', 'abc'], ['abc\n', 'abc'], ['\nabc', 'abc'],
+      ['abc\v', 'abc'], ['abc\f', 'abc'], ['abc\r', 'abc'], ['   ', ''], [' ', ''], ['\t', ''],
+    ];
+    for (const [text, loads] of trimmed) {
+      expect(cellsOf(of, [{ property: 'InitialValue', value: chr(text) }]), JSON.stringify(text)).toEqual(
+        refused('InitialValue', 'p.InitialValue would be ' + quoted(text) + ', which MATLAB would load as ' + quoted(loads) + ': it trims the white space at either end'),
+      );
+    }
+    for (const text of ['Température — µm', 'Température — µm ', 'abc\u00a0']) {
+      expect(cellsOf(of, [{ property: 'InitialValue', value: chr(text) }]), JSON.stringify(text)).toEqual(
+        refused('InitialValue', 'p.InitialValue would be ' + quoted(text) + ", which MATLAB would load as '': its InitialValue takes only ASCII text"),
+      );
+    }
+  });
+
+  it("a Signal's DataType: trimmed at either end, which the refusal says", () => {
+    for (const [text, loads] of [['int16\t', 'int16'], [' int16', 'int16'], ['int16\r', 'int16'], ['\nint16', 'int16']]) {
+      expect(cellsOf(signal({ DataType: chr('single') }), [{ property: 'DataType', value: chr(text) }]), JSON.stringify(text)).toEqual(
+        refused('DataType', 'p.DataType would be ' + quoted(text) + ', which MATLAB would load as ' + quoted(loads) + ': it trims the white space at either end'),
+      );
+    }
+  });
+
+  it("a Parameter's Value of text: as written, white space alone included", () => {
+    for (const text of ['abc ', ' abc', '   ']) {
+      const cells = cellsOf(param({ Value: dbl(5) }), [{ property: 'Value', value: chr(text) }]);
+      expect(Array.isArray(cells) && cells.includes('Value=char[1 ' + text.length + ']:' + JSON.stringify(text)), JSON.stringify(text)).toBe(true);
+    }
+  });
+});
+
 
 describe('what an edit is refused for whatever its value, asked before it is made', () => {
   it('a property held, at its default, excluded, or of a class with no rules', () => {

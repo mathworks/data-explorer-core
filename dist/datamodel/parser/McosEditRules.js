@@ -34,6 +34,23 @@ const CODER_INFO = 'belongs to its CoderInfo, an object of its own, which a save
 // schema's Code Generation and Custom Attributes columns).
 const CODER_INFO_PROPERTIES = /^(?:CoderInfo|StorageClass|Alignment|Identifier|HeaderFile|DefinitionFile|Owner|PreserveDimensions|StructName|GetFunction|SetFunction|DataScope)$/;
 const TEXT_PROPERTIES = new Set(['Description', 'DocUnits', 'InitialValue']);
+// What MATLAB's set methods make of text as it loads, measured against MATLAB R2027a over 125
+// swapped cells of a Simulink.Parameter's and a Simulink.Signal's Description, Unit (DocUnits),
+// InitialValue and DataType, each against the text written:
+//
+//   - a Description or a Unit loads as written, white space at either end, a tab, a newline, two
+//     spaces and text that is not ASCII included, but for text that is white space alone (' ',
+//     a tab, a newline, U+00A0, U+2003), which loads as ''. (MATLAB's own Unit set method refuses
+//     some of that text, `a  b` and text that is not ASCII, as no unit it parses; its load does
+//     not, and holds what was written);
+//   - a Signal's InitialValue and DataType load with the white space at either end trimmed
+//     (space, tab, newline, carriage return, vertical tab, form feed), and an InitialValue that is
+//     not ASCII loads as '': its set method refuses it, and the load says nothing.
+//
+// A Parameter's Value of text loads as written, white space alone included. An edit of text that
+// would load as other text than was typed is refused, saying what MATLAB would load.
+const ASCII_SPACE_AT_ENDS = /^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/g;
+const TRIMMED_AT_ENDS = new Set(['InitialValue', 'DataType']);
 // The classes a Value may be, as MATLAB holds them and this package writes them.
 const NUMERIC = new Set(['double', 'single', 'int8', 'uint8', 'int16', 'uint16', 'int32', 'uint32', 'int64', 'uint64']);
 // The range of each builtin data type a double is checked against, as MATLAB's set method checks
@@ -229,12 +246,16 @@ function cellValueFor(className, saved, value, named) {
         return n === 0 ? emptyDouble() : scalarDouble(x);
     }
     if (TEXT_PROPERTIES.has(saved)) {
-        return textCell(value, named);
+        return textCell(saved, value, named);
     }
     if (saved === 'DataType') {
         const text = textOf(value);
+        const loaded = text === null ? null : loadedTextRefusal(saved, text, named);
+        if (loaded) {
+            return loaded;
+        }
         if (text === null || !(SIGNAL_BUILTIN.has(text) || SIGNAL_DATA_TYPE.test(text)) || SIGNAL_NOT_MEASURED.has(text)) {
-            return named + ' would be ' + (text === null ? 'no text' : "'" + text + "'") + ', which is not a data type this editor writes into ' + classPhrase(className);
+            return named + ' would be ' + (text === null ? 'no text' : quoted(text)) + ', which is not a data type this editor writes into ' + classPhrase(className);
         }
         return charCell(text);
     }
@@ -466,8 +487,9 @@ function rangeText(dt, range) {
 }
 // A text cell's value: a char row, `''` as a 0x0 char, as MATLAB holds an empty Description; or
 // why not, as a clause naming the property. Not text holding a lone UTF-16 surrogate, which UTF-8
-// cannot say: written, it would be another character.
-function textCell(value, named) {
+// cannot say: written, it would be another character; nor text MATLAB loads as other text
+// (loadedTextRefusal).
+function textCell(saved, value, named) {
     const text = textOf(value);
     const d = value.dimensions ?? [];
     const row = d.length === 2 && (d[0] === 1 || count(value) === 0);
@@ -477,7 +499,26 @@ function textCell(value, named) {
     if (loneSurrogate(text)) {
         return named + ' holds a lone UTF-16 surrogate, which the file would hold as another character';
     }
-    return charCell(text);
+    return loadedTextRefusal(saved, text, named) ?? charCell(text);
+}
+// Why `text`, written into the property saved as `saved`, is not what MATLAB loads, as a clause
+// naming it (`named`) and saying what it would load, or null where it loads as written: see
+// ASCII_SPACE_AT_ENDS above.
+function loadedTextRefusal(saved, text, named) {
+    const would = named + ' would be ' + quoted(text) + ', which MATLAB would load as ';
+    if (saved === 'InitialValue' && /[^\x00-\x7f]/.test(text)) {
+        return would + "'': its InitialValue takes only ASCII text";
+    }
+    if (TRIMMED_AT_ENDS.has(saved)) {
+        const trimmed = text.replace(ASCII_SPACE_AT_ENDS, '');
+        return trimmed === text ? null : would + quoted(trimmed) + ': it trims the white space at either end';
+    }
+    return text !== '' && /^\s+$/.test(text) ? would + "'': it loads text of white space alone as empty" : null;
+}
+// `text` in single quotes, for a message, a control character in it spelled as an escape.
+function quoted(text) {
+    const spelled = { '\n': '\\n', '\t': '\\t', '\r': '\\r' };
+    return "'" + text.replace(/[\x00-\x1f\x7f]/g, (c) => spelled[c] ?? '\\x' + c.charCodeAt(0).toString(16).padStart(2, '0')) + "'";
 }
 /** The text a char variable holds, or null for one that is not text. */
 function textOf(v) {
