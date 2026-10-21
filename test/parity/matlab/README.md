@@ -330,8 +330,10 @@ another (`boolean`, `string`), an element of a typed, N-D, logical or complex Va
 added and removed, a field of a struct Value edited, added and renamed, Min, Max, `[]`,
 Description and Unit (non-ASCII text, a character past U+FFFF, `''`), every property of a
 Signal, a Parameter in a struct field, a cell, a struct array's element, an object array of any
-rank, a handle two variables share (edited through either, and the one edited through deleted)
-or that a struct field and a cell element share in a `-v6` file, several objects in one save,
+rank, a handle two variables share (edited through either, the one edited through deleted, and
+an edit through one undone and the next made through the other) or that a struct field and a
+cell element share in a `-v6` file, a Signal's DataType of every form a save writes (fixdt of a
+slope and bias, of a quoted name), several objects in one save,
 an edit beside a rename, a delete and an addition, an edit undone (the file, byte for byte) and
 redone. The MATLAB half compares every readable property of every object, the DataType,
 Dimensions and Complexity MATLAB derives included, and the handles shared.

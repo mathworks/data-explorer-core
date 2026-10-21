@@ -1351,7 +1351,7 @@ add(
     if (f.at('h').displayValue !== '[1 9 3 0]') {
       throw new Error('h shows ' + f.at('h').displayValue);
     }
-    f.refused(['h'], 'Value', '4', 'an edit of it is made through r');
+    f.refused(['h'], 'Value', '4', 'the object is edited through r');
   },
   ['S.r.Value = [1 2 3];', 'S.r.Value(2) = 9;', 'S.r.Value(4) = 0;'],
 );
@@ -1377,6 +1377,39 @@ add(
     f.remove('h');
   },
   ['S.h.Value = 11;', "S = rmfield(S, 'h');"],
+);
+add(
+  'obj_shared_undo_other',
+  PV_SHARED,
+  'h edited and the edit undone: r, the same object, takes the next edits, and h shows them',
+  (f) => {
+    f.set(['h'], '7', 'Simulink.Parameter', '7');
+    f.undo();
+    f.set(['r'], '[4 5]', 'Simulink.Parameter', '[4 5]');
+    f.set(['r', 'Value', 'Value(2)'], '9', 'double', '9');
+    if (f.at('h').displayValue !== '[4 9]') {
+      throw new Error('h shows ' + f.at('h').displayValue);
+    }
+    f.refused(['h'], 'Value', '4', 'the object is edited through r');
+  },
+  ['S.r.Value = [4 5];', 'S.r.Value(2) = 9;'],
+);
+add(
+  'obj_signal_dtype_forms',
+  AL_SIGNAL,
+  "a Signal's DataType made a fixdt of a slope and a bias, and one with white space at its end refused",
+  (f) => {
+    f.refused(['sg'], 'DataType', 'Enum: MyEnum ', 'which is not a data type this editor writes into');
+    f.prop(['sg'], 'DataType', 'fixdt(1,16,0.0625,0)');
+  },
+  ["S.sg.DataType = 'fixdt(1,16,0.0625,0)';"],
+);
+add(
+  'obj_signal_dtype_quoted',
+  CASES_MAT,
+  "MATLAB's own Signal's DataType made a fixdt of one quoted name",
+  (f) => f.prop(['aSignal'], 'DataType', "fixdt('sfix16_En4')"),
+  ["S.aSignal.DataType = 'fixdt(''sfix16_En4'')';"],
 );
 add(
   'obj_edit_rename',
