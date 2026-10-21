@@ -103,10 +103,13 @@ export function objectNodesUnder(node) {
 /**
  * The property of the object at `object` an edit of `key` at `node` changes, or why it changes
  * none a save writes, as a clause. A key of the object's own row names the property (the Property
- * Inspector's lowerCamel keys, `dimensions`, as MATLAB's `Dimensions`). Anything at or under a
- * Simulink.Parameter's Value node, an element, a struct field, a row added or removed, is its Value.
- * The name of the object's row, which is not the entry's, is where it stands in a struct or a cell,
- * which a save writes as it was read.
+ * Inspector's lowerCamel keys, `dimensions`, as MATLAB's `Dimensions`). An edit of a value at or
+ * under a Simulink.Parameter's Value node, an element, a struct field, a row added or removed, a
+ * struct's field renamed, is of its Value; another column of such a row (its Data Type, which would
+ * cast the Value; a Description, which no value has) is of nothing a save writes, nor is the name
+ * of a row that is not a struct's field (the table offers an editor for none of these). The name of
+ * the object's row, which is not the entry's, is where it stands in a struct or a cell, which a save
+ * writes as it was read.
  */
 export function propertyAt(object, node, key) {
     const path = object.matlabPath;
@@ -122,6 +125,12 @@ export function propertyAt(object, node, key) {
     const valueNode = object._valueNode;
     for (let n = node; n && n !== object; n = n.parent) {
         if (n === valueNode && classOf(object) === PARAMETER) {
+            if (key !== 'Value' && key !== 'Add' && key !== 'Name' && key !== 'name') {
+                return { why: node.matlabPath + "'s " + key + ' is not part of the value of ' + path + '.Value, which is all of it a save writes' };
+            }
+            if ((key === 'Name' || key === 'name') && !(node.parent instanceof StructNode)) {
+                return { why: node.matlabPath + ' is named by where it stands in ' + path + '.Value' };
+            }
             return { property: 'Value' };
         }
     }

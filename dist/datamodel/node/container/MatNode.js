@@ -318,6 +318,11 @@ export default class MatNode extends ContainerNode {
         }
         const state = this._objectState(object);
         const at = propertyAt(object, node, key);
+        // A struct row of a Value takes a row added or removed, and an edit of each of its fields: a
+        // value typed over it whole is text no setter makes a value of.
+        if (at.property === 'Value' && typeof value === 'string' && node !== object && node.className === 'struct') {
+            return cannotEdit(entry.name, node.matlabPath + ' is a struct, which takes an edit of each of its fields, and not a value typed over it whole');
+        }
         const pending = nodePropertyValue(object, at.property, { value });
         if (typeof pending === 'string') {
             return cannotEdit(entry.name, object.matlabPath + '.' + at.property + ' ' + pending);
