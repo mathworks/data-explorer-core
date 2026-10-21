@@ -48,7 +48,12 @@ import {
 // the object is made through (McosTwinGroup.master), and after each, by whatever path, the session
 // copies what it holds of each property into the others, which are then edited as well and carry
 // the edit to the save, which writes it once. The others take no edit of their own: a copy replaces
-// the rows of a Value, and an undo of an edit made at one of those rows would undo nothing.
+// the rows of a Value, and an undo of an edit made at one of those rows would undo nothing. Once
+// every node of the object holds what the file holds of it again (its edits undone, say), none is
+// its master, and the next edit may be made through any of them. An edit made through a node and
+// left on the undo stack under a later edit that brought the object back (7, then 5 typed over it)
+// is then one a later copy into that node may have replaced the rows of: undone, it changes nothing,
+// and what the node shows is what the save writes.
 //
 // WHAT CHANGED. Each property a node holds an editor's value of is read off the node as the
 // variable a save writes (nodePropertyValue), the converter this package already has for each: a
@@ -560,7 +565,8 @@ export function fingerprintOf(node: BaseNode): string {
 export interface McosTwinGroup {
   members: McosTwin[];
   // The node the first edit of the object was made at or under, through which every later one is
-  // made, or null before any; kept until the file is read again (see the file header).
+  // made, or null before any; kept until every node of the object holds what the file holds of it
+  // again (mirrorTwins, and see the file header).
   master: BaseNode | null;
   // Why a node of them does not show what the master holds, as a clause, or null: a copy into it
   // would not have read back as the value copied (mirrorTwins), and was not made.
@@ -636,10 +642,10 @@ export function twinMasterRefusal(group: McosTwinGroup, object: BaseNode, inTree
   if (!master || master === object) {
     return null;
   }
-  const shared = object.matlabPath + ' is one object with ' + master.matlabPath + ' (one handle), whose edits it shows';
+  const one = object.matlabPath + ' is one object with ' + master.matlabPath + ' (one handle), and ' + master.matlabPath;
   const why = inTree(master)
-    ? shared + ', and an edit of it is made through ' + master.matlabPath + ', which holds one'
-    : shared + ', and ' + master.matlabPath + ', which an edit of it was made through, is deleted: it takes none of its own until the file is read again';
+    ? one + ' holds an edit of it: the object is edited through ' + master.matlabPath + ', and ' + object.matlabPath + ' shows each edit'
+    : one + ', which holds an edit of it, is deleted: ' + object.matlabPath + ' takes no edit of its own until that delete is undone, or the file is read again';
   return group.diverged ? why + ' (' + group.diverged + ')' : why;
 }
 
@@ -670,7 +676,9 @@ export function twinOf(node: BaseNode, state: McosObjectState): McosTwin {
  * does not is copied from the master into it (copyObjectProperty), and it is marked edited
  * (DataNode._markModified), as it is: what MATLAB loads of it changed, and if the master is deleted,
  * it still carries the edit to the save. Answers the nodes copied into. With the master out of the
- * tree (its variable deleted), nothing is copied.
+ * tree (its variable deleted), nothing is copied. And once every node of the group, in the tree or
+ * not, holds what the file holds of the object again, the group has no master: the next edit makes
+ * one of whichever node it is made through.
  *
  * A copy is made only where it reads back as the value copied, as the save reads both
  * (nodePropertyValue); one that would not is not made, said in `group.diverged`, and tried again
@@ -715,6 +723,11 @@ export function mirrorTwins(group: McosTwinGroup, members: readonly McosTwin[]):
         }
         copied.add(m.node);
       }
+    }
+    // Each node in the tree holds the master's now; one out of it, what it held as it left.
+    const atFile = (m: McosTwin) => properties.every((p) => sameHeld(members.includes(m) ? valueOf(master, p) : nodePropertyValue(m.node, p), m.shown.get(p), p));
+    if (!group.diverged && atFile(master) && group.members.every(atFile)) {
+      group.master = null;
     }
   }
   for (const node of copied) {

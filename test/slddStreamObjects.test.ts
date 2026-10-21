@@ -399,13 +399,31 @@ describe('a handle two fields of a stream share is one object, shown as one, as 
 
   it('the other takes no edit of its own, and the one first edited takes every later one', () => {
     const { session, root } = made(CASES.find((x) => x.name === 'shared_value')!);
-    const refusal = 'Cannot edit "shared": shared.b is one object with shared.a (one handle), whose edits it shows, and an edit of it is made through shared.a, which holds one.';
+    const refusal = 'Cannot edit "shared": shared.b is one object with shared.a (one handle), and shared.a holds an edit of it: the object is edited through shared.a, and shared.b shows each edit.';
     expect(edit(session, root, 'shared.b', 'Value', '41')).toMatchObject({ error: true, reason: refusal });
     expect(edit(session, root, 'shared.b', 'Description', 'mine')).toMatchObject({ error: true, reason: refusal });
     expect(nodeAt(root, 'shared.b').valueEditable).toBe(false);
     expect(edit(session, root, 'shared.a', 'Value', '42')).toBe(true);
     expect(nodeAt(root, 'shared.b').displayValue).toBe('42');
     inStep(root);
+  });
+
+  it('an edit undone leaves the object no master: the other field takes the next edit, and the first shows it', () => {
+    const { session, root } = open();
+    expect(edit(session, root, 'shared.a', 'Value', '7')).toBe(true);
+    session.undo();
+    inStep(root);
+    expect(valueTag(savedChunk(session, root), 'shared')).toBe(valueTag(MATLAB_CHUNK, 'shared'));
+    expect(nodeAt(root, 'shared.b').valueEditable).toBe(true);
+    expect(edit(session, root, 'shared.b', 'Value', '8')).toBe(true);
+    expect(nodeAt(root, 'shared.a').displayValue).toBe('8');
+    inStep(root);
+    expect(edit(session, root, 'shared.a', 'Value', '9')).toMatchObject({
+      error: true,
+      reason: 'Cannot edit "shared": shared.a is one object with shared.b (one handle), and shared.b holds an edit of it: the object is edited through shared.b, and shared.a shows each edit.',
+    });
+    const back = reopened(session, root);
+    expect([nodeAt(back, 'shared.a').displayValue, nodeAt(back, 'shared.b').displayValue]).toEqual(['8', '8']);
   });
 
   it('every kind of Value edit, each undone and redone, shown by both, and all undone the stream MATLAB wrote', () => {
@@ -682,6 +700,7 @@ describe('what the gate finds of an object in a stream is kept until an edit of 
     expect(kept('shared.b')).toBe(true);
     session.undo();
     expect([kept('shared.a'), kept('shared.b')]).toEqual([false, false]);
+    expect(nodeAt(root, 'shared.b').valueEditable).toBe(true);
   });
 });
 

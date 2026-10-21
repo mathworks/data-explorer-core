@@ -363,12 +363,12 @@ export default class MatNode extends ContainerNode {
       }
       const record = this.recordOf(entry);
       const why = record && subsystem && record.offset > subsystem.offset
-        ? 'the variable ' + entry.name + ' holds it too, and ' + PAST_SUBSYSTEM
+        ? "is stored after the file's objects, where MATLAB does not read it, so a save writes no edit of it"
         : this._namespaceHolds(entry.name) > 1
-          ? 'the variable ' + entry.name + ' holds it too, and ' + duplicateWhy(entry.name)
+          ? 'shares its name with another variable of the file, and MATLAB loads only one of them'
           : null;
       if (why) {
-        return object.matlabPath + ' is one object with ' + node.matlabPath + ' (one handle), and ' + why;
+        return object.matlabPath + ' is one object with ' + node.matlabPath + ' (one handle), so an edit of it is an edit of the variable ' + entry.name + ' too, which ' + why;
       }
     }
     return null;

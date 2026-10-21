@@ -164,7 +164,9 @@ export declare function twinOf(node: BaseNode, state: McosObjectState): McosTwin
  * does not is copied from the master into it (copyObjectProperty), and it is marked edited
  * (DataNode._markModified), as it is: what MATLAB loads of it changed, and if the master is deleted,
  * it still carries the edit to the save. Answers the nodes copied into. With the master out of the
- * tree (its variable deleted), nothing is copied.
+ * tree (its variable deleted), nothing is copied. And once every node of the group, in the tree or
+ * not, holds what the file holds of the object again, the group has no master: the next edit makes
+ * one of whichever node it is made through.
  *
  * A copy is made only where it reads back as the value copied, as the save reads both
  * (nodePropertyValue); one that would not is not made, said in `group.diverged`, and tried again

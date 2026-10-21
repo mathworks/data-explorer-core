@@ -207,7 +207,7 @@ describe('two nodes of one object show one object', () => {
     // The rows copied into h are the session's, found by their ids; and h takes no edit of its own.
     const element = object('h')._valueNode.children[2];
     expect(session.findNodeById(element.id)).toBe(element);
-    const refusal = 'Cannot edit "h": h is one object with r (one handle), whose edits it shows, and an edit of it is made through r, which holds one.';
+    const refusal = 'Cannot edit "h": h is one object with r (one handle), and r holds an edit of it: the object is edited through r, and h shows each edit.';
     expect(edit(element, 'Value', '4')).toMatchObject({ error: true, reason: refusal });
     expect(edit(object('h'), 'Value', '4')).toMatchObject({ error: true, reason: refusal });
     expect([object('h').valueEditable, element.valueEditable, object('h').canAddChild?.() ?? false, object('h')._valueNode.canAddChild()]).toEqual([false, false, false, false]);
@@ -237,6 +237,66 @@ describe('two nodes of one object show one object', () => {
     expect([redone.object('h').displayValue, redone.object('r').displayValue]).toEqual([object('h').displayValue, object('r').displayValue]);
   });
 
+  it('an edit undone leaves the object no master: the other node takes the next edit, and the first shows it', () => {
+    const original = read(join(CELLSWAP, 'pv_shared.mat'));
+    const { session, object, edit, undo, redo, save } = opened(original);
+    const inStep = () => expect(shownOf(object('h'))).toEqual(shownOf(object('r')));
+    expect(edit(object('h'), 'Value', '7')).toBe(true);
+    expect(object('r').valueEditable).toBe(false);
+    undo();
+    inStep();
+    expect([object('h').displayValue, object('r').valueEditable, object('h').valueEditable]).toEqual(['5', true, true]);
+    expect(sameBytes(save(), original)).toBe(true);
+    // r takes the next edit, its rows' too, and h shows each and takes none of its own.
+    expect(edit(object('r'), 'Value', '[1 2 3]')).toBe(true);
+    expect(edit(object('r')._valueNode.children[1], 'Value', '9')).toBe(true);
+    inStep();
+    expect(edit(object('h'), 'Value', '4')).toMatchObject({
+      error: true,
+      reason: 'Cannot edit "h": h is one object with r (one handle), and r holds an edit of it: the object is edited through r, and h shows each edit.',
+    });
+    const again = opened(save());
+    expect([again.object('h').displayValue, again.object('r').displayValue]).toEqual(['[1 9 3]', '[1 9 3]']);
+    // Both undone, h takes one again; its Add, undone and redone, is shown by r.
+    undo();
+    undo();
+    inStep();
+    expect(sameBytes(save(), original)).toBe(true);
+    expect(edit(object('h'), 'Value', '[4 5]')).toBe(true);
+    expect(session.addChildTo(object('h')._valueNode.id)).not.toBeNull();
+    inStep();
+    expect(object('r').displayValue).toBe('[4 5 0]');
+    undo();
+    inStep();
+    redo();
+    inStep();
+    expect(opened(save()).object('r').displayValue).toBe('[4 5 0]');
+    undo();
+    undo();
+    inStep();
+    expect(sameBytes(save(), original)).toBe(true);
+  });
+
+  it('an edit typed back to what the file holds leaves no master either, and what each node shows is what the save writes', () => {
+    const original = read(join(CELLSWAP, 'pv_shared.mat'));
+    const { object, edit, undo, save } = opened(original);
+    const inStep = () => expect(shownOf(object('h'))).toEqual(shownOf(object('r')));
+    expect([edit(object('h'), 'Value', '7'), edit(object('h'), 'Value', '5')]).toEqual([true, true]);
+    expect(edit(object('r'), 'Value', '8')).toBe(true);
+    inStep();
+    expect(opened(save()).object('h').displayValue).toBe('8');
+    // Undone, step by step: r's edit, then h's two, each shown by both and saved as shown.
+    const steps: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      undo();
+      inStep();
+      steps.push(object('h').displayValue);
+      expect(opened(save()).object('r').displayValue).toBe(object('r').displayValue);
+    }
+    expect(steps).toEqual(['5', '7', '5']);
+    expect(sameBytes(save(), original)).toBe(true);
+  });
+
   it('the node an edit was made through, deleted: the other still carries it to the save', () => {
     const { session, root, object, edit, save } = opened(read(join(CELLSWAP, 'pv_shared.mat')));
     expect(edit(object('h'), 'Value', '11')).toBe(true);
@@ -244,7 +304,7 @@ describe('two nodes of one object show one object', () => {
     expect(session.deleteNodeById(object('h').id)).toBe(true);
     expect(edit(object('r'), 'Value', '12')).toMatchObject({
       error: true,
-      reason: 'Cannot edit "r": r is one object with h (one handle), whose edits it shows, and h, which an edit of it was made through, is deleted: it takes none of its own until the file is read again.',
+      reason: 'Cannot edit "r": r is one object with h (one handle), and h, which holds an edit of it, is deleted: r takes no edit of its own until that delete is undone, or the file is read again.',
     });
     const again = opened(save());
     expect(again.root.children.map((c: any) => c.name)).toEqual(['r']);
@@ -259,7 +319,7 @@ describe('two nodes of one object show one object', () => {
     expect(shownOf(object('objs.prm'))).toEqual(shownOf(object('objsCell{7}')));
     expect(edit(object('objs.prm'), 'Value', '43')).toMatchObject({
       error: true,
-      reason: 'Cannot edit "objs": objs.prm is one object with objsCell{7} (one handle), whose edits it shows, and an edit of it is made through objsCell{7}, which holds one.',
+      reason: 'Cannot edit "objs": objs.prm is one object with objsCell{7} (one handle), and objsCell{7} holds an edit of it: the object is edited through objsCell{7}, and objs.prm shows each edit.',
     });
     const saved = save();
     expect(parseMat(bufferOf(saved)).records.map((r) => r.compressed)).toEqual(parseMat(bufferOf(original)).records.map((r) => r.compressed));
@@ -307,7 +367,7 @@ describe('two nodes of one object show one object', () => {
     const answer: any = edit(object('h'), 'Value', '7');
     expect(answer).toMatchObject({ error: true });
     expect(answer.reason).toBe(
-      'Cannot edit "h": h is one object with r (one handle), and the variable r holds it too, and the file holds another variable named "r", and MATLAB loads only one of them.',
+      'Cannot edit "h": h is one object with r (one handle), so an edit of it is an edit of the variable r too, which shares its name with another variable of the file, and MATLAB loads only one of them.',
     );
     expect(object('h').displayValue).toBe('5');
   });
