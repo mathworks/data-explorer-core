@@ -14,7 +14,7 @@
 //   - then each refusal in its words, and every placement: a struct field, a cell, an object
 //     array's element, a handle two variables share, the variable's own record as it was read.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
@@ -29,6 +29,8 @@ import type { McosSubsystem } from '../src/datamodel/parser/McosSubsystemEdit.js
 import { objectEditCells, type McosHeld } from '../src/datamodel/parser/McosEditRules.js';
 import { checkMatFile } from '../src/datamodel/parser/MatFileCheck.js';
 import { mcosPlaceOf } from '../src/datamodel/node/mcosPlace.js';
+import { sourceEditRefusal } from '../src/datamodel/node/BaseNode.js';
+import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 
 const TEST_ROOT = fileURLToPath(new URL('.', import.meta.url));
 const CELLSWAP = join(TEST_ROOT, 'fixtures', 'mat-cellswap');
@@ -682,5 +684,40 @@ describe('the subsystem a save writes anew is read again, alone, and held to wha
       true,
       expect.stringMatching(/^Cannot save "f\.mat": the file written for it did not read back as written: the file's objects do not read back as a subsystem \(.+\)\. Nothing was written\.$/),
     ]);
+  });
+});
+
+describe('what the gate finds of an object is kept until an edit of it', () => {
+  it("an edited Value of 400 elements is read as the variable a save writes once, and not once a row, by the rows' editability", () => {
+    const o = opened(read(CELLSWAP, 'pv_typed.mat'));
+    const t = o.object('t');
+    expect(o.edit(t, 'Value', '[' + Array.from({ length: 400 }, (_, i) => i + 1).join(' ') + ']')).toBe(true);
+    // An element edited: the Value's variable is built from its rows now, at every ask.
+    expect(o.edit(t._valueNode.children[7], 'Value', '-1')).toBe(true);
+    const build = vi.spyOn(MatlabVariableNode.prototype, '_buildVarObject');
+    try {
+      const editable = t._valueNode.children.map((row: any) => row.valueEditable);
+      expect(editable.every((e: boolean) => e)).toBe(true);
+      expect(build.mock.calls.length).toBeLessThanOrEqual(2);
+      // Asked again after another edit, once again.
+      expect(o.edit(t._valueNode.children[9], 'Value', '-2')).toBe(true);
+      build.mockClear();
+      t._valueNode.children.forEach((row: any) => row.valueEditable);
+      expect(build.mock.calls.length).toBeLessThanOrEqual(2);
+    } finally {
+      build.mockRestore();
+    }
+    expect(opened(o.save()).object('t').displayValue).toBe(t.displayValue);
+  });
+
+  it('an edit of the node forgets what was found of it: a Max made what no save writes is refused once the node says it changed', () => {
+    const o = opened(read(ALLOWLIST, 'al_minmax.mat'));
+    const pm = o.object('pm');
+    expect(sourceEditRefusal(pm, 'Max')).toBeNull();
+    // Around every setter, as no editor does; the node told of it as every setter tells it.
+    pm.Max = 'ten';
+    expect(sourceEditRefusal(pm, 'Max')).toBeNull();
+    pm._markModified();
+    expect(sourceEditRefusal(pm, 'Max')).toBe('Cannot edit "pm": pm.Max is not held as a number.');
   });
 });

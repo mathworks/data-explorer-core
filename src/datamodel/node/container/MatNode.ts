@@ -38,12 +38,13 @@ import {
   objectStateOf,
   objectSubsystemEdit,
   propertyAt,
-  propertyRefusal,
   shownDataType,
   mirrorTwins,
+  twinGroupByNode,
   twinGroupsOf,
   twinMasterRefusal,
   twinsTouching,
+  McosPropertyVerdicts,
   type McosObjectState,
   type McosPlannedCell,
   type McosTwin,
@@ -104,8 +105,13 @@ export default class MatNode extends ContainerNode {
   // node held then is what an edit is told from.
   _objects: { record: MatRecord; subsystem: McosSubsystem } | string | undefined;
   _objectStates: WeakMap<BaseNode, McosObjectState | string>;
-  // The nodes of each object two or more nodes of the file are (_twinGroups), found once.
+  // What the gate found of each object's property whatever its value (_objectKeyRefusal), kept
+  // until an edit at or under the object's node (_nodeEdited).
+  _propertyVerdicts: McosPropertyVerdicts;
+  // The nodes of each object two or more nodes of the file are (_twinGroups), found once, and the
+  // group of each of them.
   _twins: McosTwinGroup[] | undefined;
+  _twinOf: Map<BaseNode, McosTwinGroup> | undefined;
 
   constructor(name: string) {
     super(name, null);
@@ -116,6 +122,7 @@ export default class MatNode extends ContainerNode {
     this._countedAt = -1;
     this._entriesVersion = 0;
     this._objectStates = new WeakMap();
+    this._propertyVerdicts = new McosPropertyVerdicts();
     this._anonymousElements = [];
     this.headerBytes = null;
     this.records = null;
@@ -168,11 +175,15 @@ export default class MatNode extends ContainerNode {
   // variable holding an object is refused written fresh whatever the object's properties
   // (freshRefusal), so nothing found of it changes; it is forgotten all the same, so that nothing
   // kept of a variable is older than the last edit of what MATLAB loads of it.
+  //
+  // And what was found of the properties of every object at or above `node` is forgotten
+  // (McosPropertyVerdicts): an object's twins are each told of the copy into them.
   _nodeEdited(node: BaseNode): void {
     const entry = owningEntryOf(node);
     if (entry && entry.parent === this) {
       this._valueVerdicts.delete(entry);
     }
+    this._propertyVerdicts.forget(node);
     for (const group of twinsTouching(this._twins ?? [], node)) {
       for (const m of group.members) {
         const twin = this._entryOf(m.node);
@@ -324,7 +335,7 @@ export default class MatNode extends ContainerNode {
       return cannotEdit(entry.name, state);
     }
     const at = propertyAt(object, node, key);
-    const refused = classRefusal(state, object) ?? ('why' in at ? at.why : propertyRefusal(state, object, at.property)) ?? this._twinRefusal(object);
+    const refused = classRefusal(state, object) ?? ('why' in at ? at.why : this._propertyVerdicts.of(state, object, at.property)) ?? this._twinRefusal(object);
     return refused ? cannotEdit(entry.name, refused) : null;
   }
 
@@ -374,6 +385,7 @@ export default class MatNode extends ContainerNode {
   _twinGroups(): McosTwinGroup[] {
     if (this._twins === undefined) {
       this._twins = twinGroupsOf(objectNodesUnder(this), (n) => this._objectState(n));
+      this._twinOf = twinGroupByNode(this._twins);
     }
     return this._twins;
   }
@@ -383,7 +395,8 @@ export default class MatNode extends ContainerNode {
     if (!mcosPlaceOf(object)) {
       return null;
     }
-    return this._twinGroups().find((g) => g.members.some((m) => m.node === object)) ?? null;
+    this._twinGroups();
+    return this._twinOf!.get(object) ?? null;
   }
 
   /** The members of `group` in the tree now, or none where fewer than two are. */
@@ -427,22 +440,25 @@ export default class MatNode extends ContainerNode {
   }
 
   // The groups with a node at or under `root`, or one `root` is at or under: the objects an edit
-  // there can reach. None before an editor asked about any object of the file (_twinGroups), which
-  // every edit of one does first: no group is made for an edit that reached none.
+  // there can reach, asked twice an edit (DataModel.mutateSubtree). None in a file with no
+  // subsystem, which holds no object; the groups are found the first time this is asked, before
+  // the first edit's mutation (sourceTwinsOutside), and most files have none.
   _twinsTouching(root: BaseNode): McosTwinGroup[] {
-    if (this._twins === undefined && !objectNodeAt(this._entryOf(root) ?? root, root) && objectNodesUnder(root).length === 0) {
+    if (!this._subsystemRecord()) {
       return [];
     }
-    return twinsTouching(this._twinGroups(), root);
+    const groups = this._twinGroups();
+    return groups.length === 0 ? [] : twinsTouching(groups, root);
   }
 
-  // The variable `node` is in, `node` itself for one, or null for a node not in this file's tree.
+  // The variable `node` is in, `node` itself for one, or null for a node not in this file's tree:
+  // a variable is in it while its parent is this file, which a delete clears (removeChild).
   _entryOf(node: BaseNode): BaseNode | null {
     let n: BaseNode = node;
     while (n.parent && n.parent !== this) {
       n = n.parent;
     }
-    return n.parent === this && this.children.includes(n) ? n : null;
+    return n.parent === this ? n : null;
   }
 
   /**

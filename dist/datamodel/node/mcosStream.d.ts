@@ -14,6 +14,7 @@ export interface McosStreamGate {
     _followedProperty(entry: BaseNode, node: BaseNode, key: string): unknown;
     _twinsOutside(root: BaseNode): BaseNode[];
     _mirrorTwins(root: BaseNode): BaseNode[];
+    _nodeEdited(node: BaseNode): void;
 }
 export declare function setMcosStreamGate(holder: object, gate: McosStreamGate): void;
 /** The gate of the stream `holder` holds, or undefined for a node that holds none. */

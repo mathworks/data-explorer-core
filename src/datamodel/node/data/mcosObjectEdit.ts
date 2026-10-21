@@ -284,6 +284,40 @@ export function propertyRefusal(state: McosObjectState, node: BaseNode, property
 }
 
 /**
+ * propertyRefusal of each object's node and property, found once and kept until an edit at or under
+ * the node (forget): what the editor asks of the object at every row under it, and what a Value of N
+ * elements costs N to answer once an edit made its rows the value (it is read as the variable a save
+ * writes, MatlabVariableNode._var). What else the answer reads, the object's state, never changes.
+ * Kept by a MAT-file (MatNode._nodeEdited) and by a dictionary value's stream (mcosStreamEdit), each
+ * told of every edit of a node of it (BaseNode._markSourceDirty), which every setter, undo and copy
+ * into a twin makes once it has changed the node.
+ */
+export class McosPropertyVerdicts {
+  readonly _byNode = new WeakMap<BaseNode, Map<string, string | null>>();
+
+  of(state: McosObjectState, node: BaseNode, property: string): string | null {
+    let held = this._byNode.get(node);
+    if (!held) {
+      held = new Map();
+      this._byNode.set(node, held);
+    }
+    let verdict = held.get(property);
+    if (verdict === undefined) {
+      verdict = propertyRefusal(state, node, property);
+      held.set(property, verdict);
+    }
+    return verdict;
+  }
+
+  /** An edit at `edited`: what was found of every node at or above it is forgotten. */
+  forget(edited: BaseNode): void {
+    for (let n: BaseNode | null = edited; n; n = n.parent) {
+      this._byNode.delete(n);
+    }
+  }
+}
+
+/**
  * The value of `property` the node of an object holds now, as the variable a save writes, nameless;
  * or why it holds none, as the rest of a clause about the property. `field`, when given, is what the
  * node would hold instead, as the node holds it: a bound as a number or undefined, text as a string,
@@ -575,6 +609,17 @@ export function twinGroupsOf(nodes: readonly BaseNode[], stateOf: (node: BaseNod
   return groups;
 }
 
+/** Each node of `groups`, and the group it is in: what the editor looks a node's twins up by. */
+export function twinGroupByNode(groups: readonly McosTwinGroup[]): Map<BaseNode, McosTwinGroup> {
+  const byNode = new Map<BaseNode, McosTwinGroup>();
+  for (const group of groups) {
+    for (const { node } of group.members) {
+      byNode.set(node, group);
+    }
+  }
+  return byNode;
+}
+
 /** The groups of `groups` with a node at or under `root`, or one `root` is at or under: the objects an edit there can reach. */
 export function twinsTouching(groups: readonly McosTwinGroup[], root: BaseNode): McosTwinGroup[] {
   return groups.filter((g) => g.members.some((m) => isAtOrUnder(m.node, root) || isAtOrUnder(root, m.node)));
@@ -619,22 +664,38 @@ export function twinOf(node: BaseNode, state: McosObjectState): McosTwin {
 
 /**
  * Brings the nodes `members` of one object back in step after an edit at or under one of them
- * (MatNode._mirrorTwins, and a dictionary value's stream's, mcosStreamEdit). The first edit of the object makes the node it reached the group's master
- * (the first in the tree, of two an edit made around the session reached at once); then each
- * property another node holds a value of the master does not is copied from the master into it
- * (copyObjectProperty), and it is marked edited (DataNode._markModified), as it is: what MATLAB
- * loads of it changed, and if the master is deleted, it still carries the edit to the save. Answers
- * the nodes copied into. With the master out of the tree (its variable deleted), nothing is copied.
+ * (MatNode._mirrorTwins, and a dictionary value's stream's, mcosStreamEdit). The first edit of the
+ * object makes the node it reached the group's master (the first in the tree, of two an edit made
+ * around the session reached at once); then each property another node holds a value of the master
+ * does not is copied from the master into it (copyObjectProperty), and it is marked edited
+ * (DataNode._markModified), as it is: what MATLAB loads of it changed, and if the master is deleted,
+ * it still carries the edit to the save. Answers the nodes copied into. With the master out of the
+ * tree (its variable deleted), nothing is copied.
  *
  * A copy is made only where it reads back as the value copied, as the save reads both
  * (nodePropertyValue); one that would not is not made, said in `group.diverged`, and tried again
- * after the next edit.
+ * after the next edit. Each node's property is read once a call: a Value is read as the variable a
+ * save writes, which costs each of its elements.
  */
 export function mirrorTwins(group: McosTwinGroup, members: readonly McosTwin[]): BaseNode[] {
   const cls = members[0].state.held.className;
   const properties = NODE_PROPERTIES[cls] ?? [];
+  const read = new Map<McosTwin, Map<string, MatVariable | string>>();
+  const valueOf = (m: McosTwin, property: string): MatVariable | string => {
+    let of = read.get(m);
+    if (!of) {
+      of = new Map();
+      read.set(m, of);
+    }
+    let v = of.get(property);
+    if (v === undefined) {
+      v = nodePropertyValue(m.node, property);
+      of.set(property, v);
+    }
+    return v;
+  };
   if (!group.master) {
-    const changed = members.find((m) => properties.some((p) => !sameHeld(nodePropertyValue(m.node, p), m.shown.get(p), p)));
+    const changed = members.find((m) => properties.some((p) => !sameHeld(valueOf(m, p), m.shown.get(p), p)));
     group.master = changed ? changed.node : null;
   }
   const master = members.find((m) => m.node === group.master);
@@ -642,12 +703,12 @@ export function mirrorTwins(group: McosTwinGroup, members: readonly McosTwin[]):
   if (master) {
     group.diverged = null;
     for (const property of properties) {
-      const want = nodePropertyValue(master.node, property);
+      const want = valueOf(master, property);
       for (const m of members) {
-        if (m === master || sameHeld(nodePropertyValue(m.node, property), want, property)) {
+        if (m === master || sameHeld(valueOf(m, property), want, property)) {
           continue;
         }
-        const why = copyObjectProperty(master.node, m.node, property);
+        const why = copyObjectProperty(master.node, m.node, property, want);
         if (why) {
           group.diverged ??= m.node.matlabPath + ' could not be shown as ' + master.node.matlabPath + "'s edit leaves their object (" + why + '), and shows it as it was before';
           continue;
@@ -676,16 +737,15 @@ function sameHeld(a: MatVariable | string | undefined, b: MatVariable | string |
  * field; a Simulink.Parameter's Value as the node its Value is (built from what that node writes,
  * NodeRegistry.parseValue, the form both nodes were built of when read), with the Dimensions,
  * Complexity and DataType that follow it (ParameterNode._followValueShape). Not where the copy would
- * not read back as the value it copies.
+ * not read back as the value it copies. `want` is `from`'s, as nodePropertyValue reads it.
  */
-export function copyObjectProperty(from: BaseNode, to: BaseNode, property: string): string | null {
+export function copyObjectProperty(from: BaseNode, to: BaseNode, property: string, want: MatVariable | string = nodePropertyValue(from, property)): string | null {
   const source = from as unknown as Record<string, unknown>;
   const target = to as unknown as Record<string, unknown>;
   if (property !== 'Value') {
     target[property] = source[property];
     return null;
   }
-  const want = nodePropertyValue(from, 'Value');
   const fromValue = (from as unknown as { _valueNode?: DataNode | null })._valueNode ?? null;
   const raw = fromValue ? fromValue.serializeValue() : undefined;
   const made = fromValue ? NodeRegistry.parseValue(raw, 'Value', null) : null;

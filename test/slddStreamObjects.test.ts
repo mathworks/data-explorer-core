@@ -669,6 +669,22 @@ describe('a stream that is not an entry\'s whole value stays read-only, as it wa
   });
 });
 
+describe('what the gate finds of an object in a stream is kept until an edit of it', () => {
+  it('found once, and forgotten by an edit of the object, its undo and a copy into its twin', () => {
+    const { session, root } = open();
+    const stream: any = mcosStreamGateOf(nodeAt(root, 'shared'));
+    const kept = (path: string) => stream._propertyVerdicts._byNode.has(nodeAt(root, path));
+    expect([nodeAt(root, 'shared.a').valueEditable, nodeAt(root, 'shared.b').valueEditable]).toEqual([true, true]);
+    expect([kept('shared.a'), kept('shared.b')]).toEqual([true, true]);
+    expect(edit(session, root, 'shared.a', 'Value', '7')).toBe(true);
+    expect([kept('shared.a'), kept('shared.b')]).toEqual([false, false]);
+    expect(nodeAt(root, 'shared.b').valueEditable).toBe(false);
+    expect(kept('shared.b')).toBe(true);
+    session.undo();
+    expect([kept('shared.a'), kept('shared.b')]).toEqual([false, false]);
+  });
+});
+
 describe('the save re-reads the stream it wrote, and refuses one that does not read as planned', () => {
   // The writer's own check (mcosStreamEdit._selfCheck), asked of streams it did not write: what the
   // save hands back always passed it.

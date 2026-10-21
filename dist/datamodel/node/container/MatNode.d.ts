@@ -5,7 +5,7 @@ import type { MatVariable } from '../data/MatlabVariableNode.js';
 import type { ParseWarning } from '../../parser/ParseWarning.js';
 import type { MatRecord, ParsedMat } from '../../parser/MatParser.js';
 import { type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
-import { type McosObjectState, type McosPlannedCell, type McosTwin, type McosTwinGroup } from '../data/mcosObjectEdit.js';
+import { McosPropertyVerdicts, type McosObjectState, type McosPlannedCell, type McosTwin, type McosTwinGroup } from '../data/mcosObjectEdit.js';
 export type MatParse = Pick<ParsedMat, 'header' | 'variables'> & Partial<Pick<ParsedMat, 'warnings' | 'headerBytes' | 'subsystemOffset' | 'records' | 'framed' | 'unframed'>>;
 export default class MatNode extends ContainerNode {
     header: string;
@@ -32,7 +32,9 @@ export default class MatNode extends ContainerNode {
         subsystem: McosSubsystem;
     } | string | undefined;
     _objectStates: WeakMap<BaseNode, McosObjectState | string>;
+    _propertyVerdicts: McosPropertyVerdicts;
     _twins: McosTwinGroup[] | undefined;
+    _twinOf: Map<BaseNode, McosTwinGroup> | undefined;
     constructor(name: string);
     /**
      * The record `node` was read from, or null for a node no record became: a variable added

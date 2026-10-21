@@ -33,6 +33,8 @@ export interface McosStreamGate {
   // answering the nodes copied into.
   _twinsOutside(root: BaseNode): BaseNode[];
   _mirrorTwins(root: BaseNode): BaseNode[];
+  // And, as a MAT-file is told (MatNode._nodeEdited), an edit at `node`, once made.
+  _nodeEdited(node: BaseNode): void;
 }
 
 export function setMcosStreamGate(holder: object, gate: McosStreamGate): void {

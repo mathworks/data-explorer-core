@@ -17,11 +17,12 @@ import {
   objectStateOf,
   objectSubsystemEdit,
   propertyAt,
-  propertyRefusal,
   shownDataType,
+  twinGroupByNode,
   twinGroupsOf,
   twinMasterRefusal,
   twinsTouching,
+  McosPropertyVerdicts,
   type McosObjectState,
   type McosTwinGroup,
 } from './mcosObjectEdit.js';
@@ -121,8 +122,13 @@ class McosStream implements McosStreamGate {
   // What the editor found of each object's node the first time it asked (mcosObjectEdit.objectStateOf),
   // kept for as long as the node is, as a MAT-file keeps it (MatNode._objectState).
   readonly _states = new WeakMap<BaseNode, McosObjectState | string>();
-  // The nodes of each object two or more nodes of the stream are (_twinGroups), found once.
+  // What the gate found of each object's property whatever its value (_editRefusal), kept until an
+  // edit at or under the object's node (_nodeEdited), as a MAT-file keeps it.
+  readonly _propertyVerdicts = new McosPropertyVerdicts();
+  // The nodes of each object two or more nodes of the stream are (_twinGroups), found once, and the
+  // group of each of them.
   _twins: McosTwinGroup[] | undefined;
+  _twinOf: Map<BaseNode, McosTwinGroup> | undefined;
 
   constructor(
     readonly holder: DataNode,
@@ -158,8 +164,13 @@ class McosStream implements McosStreamGate {
     if (typeof state === 'string') {
       return cannotEdit(entry.name, state);
     }
-    const refused = classRefusal(state, object) ?? propertyRefusal(state, object, at.property) ?? this._twinRefusal(object);
+    const refused = classRefusal(state, object) ?? this._propertyVerdicts.of(state, object, at.property) ?? this._twinRefusal(object);
     return refused ? cannotEdit(entry.name, refused) : null;
+  }
+
+  /** An edit at `node`, a node of the stream (BaseNode._markSourceDirty): what was found of each object at or above it is forgotten. */
+  _nodeEdited(node: BaseNode): void {
+    this._propertyVerdicts.forget(node);
   }
 
   // ---- A handle two fields share ---------------------------------------------------------------
@@ -185,12 +196,14 @@ class McosStream implements McosStreamGate {
   _twinGroups(): McosTwinGroup[] {
     if (this._twins === undefined) {
       this._twins = this.holder.isEntry && typeof this._framing() !== 'string' ? twinGroupsOf(objectNodesUnder(this.holder), (n) => this._state(n)) : [];
+      this._twinOf = twinGroupByNode(this._twins);
     }
     return this._twins;
   }
 
   _twinGroupOf(object: BaseNode): McosTwinGroup | null {
-    return this._twinGroups().find((g) => g.members.some((m) => m.node === object)) ?? null;
+    this._twinGroups();
+    return this._twinOf!.get(object) ?? null;
   }
 
   // The nodes an edit at or under `root` is copied into that are not at or under it
@@ -220,13 +233,11 @@ class McosStream implements McosStreamGate {
     return copied;
   }
 
-  // The groups an edit at or under `root` can reach; none before an editor asked about any object
-  // of the stream, which every edit of one does first, as a MAT-file's (MatNode._twinsTouching).
+  // The groups an edit at or under `root` can reach, found the first time this is asked, as a
+  // MAT-file's (MatNode._twinsTouching); most streams have none.
   _twinsTouching(root: BaseNode): McosTwinGroup[] {
-    if (this._twins === undefined && !objectNodeAt(this.holder, root) && objectNodesUnder(root).length === 0) {
-      return [];
-    }
-    return twinsTouching(this._twinGroups(), root);
+    const groups = this._twinGroups();
+    return groups.length === 0 ? [] : twinsTouching(groups, root);
   }
 
   // Whether `node` is in the stream's value still.
