@@ -23,6 +23,8 @@ import { MatWriteError } from '../src/datamodel/parser/MatWriter.js';
 import { parseMat } from '../src/datamodel/parser/MatParser.js';
 import { checkMatFile, violationsAdded } from '../src/datamodel/parser/MatFileCheck.js';
 import { sourceEditRefusal } from '../src/datamodel/node/BaseNode.js';
+import { mcosPlaceOf } from '../src/datamodel/node/mcosPlace.js';
+import { objectNodeAt } from '../src/datamodel/node/data/mcosObjectEdit.js';
 import MatNode from '../src/datamodel/node/container/MatNode.js';
 import MatlabVariableNode from '../src/datamodel/node/data/MatlabVariableNode.js';
 import { toDTO } from '../src/core/dto.js';
@@ -148,6 +150,30 @@ function thrownBy(fn: () => unknown): Error | null {
   return null;
 }
 
+/**
+ * An edit `node` takes for its property `key`, by what it is, and whether it took it: a Value's by
+ * what the value is (valueEdit), a bound's a number on the side of the other bound that holds, and
+ * a text's a word.
+ */
+function propertyEdit(edit: (prop: string, value: string) => unknown, node: any, key: string): string | null {
+  if (key === 'Value') {
+    return valueEdit(edit, node);
+  }
+  const bound = (b: unknown) => (typeof b === 'number' ? b : null);
+  const candidates =
+    key === 'Min'
+      ? [String((bound(node.Max) ?? 1) - 1), '0', '-1']
+      : key === 'Max'
+        ? [String((bound(node.Min) ?? 0) + 1), '9', '1']
+        : ['zz edited', 'zz'];
+  for (const value of candidates) {
+    if (edit(key, value) === true) {
+      return value;
+    }
+  }
+  return null;
+}
+
 /** An edit `node` takes for its Value, by what it is, and whether it took it. */
 function valueEdit(edit: (prop: string, value: string) => unknown, node: any): string | null {
   const parent = node.parent;
@@ -179,6 +205,11 @@ function valueEdit(edit: (prop: string, value: string) => unknown, node: any): s
  * Every top-level variable of `bytes`, each with an edit of its value and of its name forced
  * around the gate: the save refuses the first exactly where the gate refuses a value edit, and
  * the second exactly where it refuses a rename. Answers how many of each were written.
+ *
+ * Of an MCOS object's node (mcosPlaceOf), a value edit forced so is an edit of its properties
+ * that changes none of them: the save writes the object's cells, of which none changed, and so
+ * writes the file as it was, or refuses where the gate refuses what holds the object, the file
+ * or its place in it. The gate's word on each property is test/mcosObjectEdit.test.ts's.
  */
 function gateIsWriter(bytes: ArrayBuffer, file: string): { values: number; names: number } {
   let values = 0;
@@ -199,7 +230,14 @@ function gateIsWriter(bytes: ArrayBuffer, file: string): { values: number; names
         node._markModified();
       }
       const thrown = thrownBy(save);
-      if (refused) {
+      if (what === 'value' && mcosPlaceOf(node)) {
+        if (thrown) {
+          expect([thrown instanceof MatWriteError, !!refused], label + ': ' + thrown.message).toEqual([true, true]);
+        } else {
+          expect(sameBytes(save(), new Uint8Array(bytes)), label + ': nothing changed, and nothing written').toBe(true);
+          values++;
+        }
+      } else if (refused) {
         expect(thrown, label + ': the gate refuses it, ' + refused).toBeInstanceOf(MatWriteError);
       } else {
         expect(thrown?.message, label).toBeUndefined();
@@ -261,12 +299,17 @@ describe('every cell the editor offers takes an edit, and its save reads back as
             made = 'cellRenamed' + edits;
             expect(edit(node, 'Name', made), label).toBe(true);
           } else {
-            made = valueEdit((prop, value) => edit(node, prop, value), node);
+            made = propertyEdit((prop, value) => edit(node, prop, value), node, key);
             expect(made, label + ': no edit taken').not.toBeNull();
           }
           const saved = thrownBy(save);
           expect(saved?.message, label + ' = ' + made).toBeUndefined();
           expect(readBack(save(), path[0]), label + ' = ' + made).toEqual(shownAs(root.children[path[0]]));
+          // An object's property, which no row shows, reads back as the editor shows it.
+          if (mcosPlaceOf(node) && key !== 'Name') {
+            const prop = node.getProperties().find((p: any) => p.key === key);
+            expect(at(opened(arrayBufferOf(save()), 'saved.mat').root, path).getPropInfo(prop).displayValue, label).toBe(node.getPropInfo(prop).displayValue);
+          }
           edits++;
         }
         for (const op of ['add', 'remove'] as const) {
@@ -319,7 +362,20 @@ describe('every cell the save would refuse has no editor anywhere a host looks, 
         expect(row._valueEditable, label).toBe(node.getProperties().some((p: any) => p.key === 'Value') ? node.getPropInfo(node.getProperties().find((p: any) => p.key === 'Value')).editable : node.valueEditable);
         expect(row._descriptionEditable, label).toBe(node.descriptionEditable);
         dto.props.forEach((p: any, k: number) => expect(p.editable, label + ' ' + p.key).toBe(node.getPropInfo(node.getProperties()[k]).editable));
-        const frozenValue = sourceEditRefusal(node, 'Value');
+        // At or under an MCOS object's node a refusal is the property's: one property may take an
+        // edit where the next does not, and each that does not has no editor and refuses its edit.
+        if (objectNodeAt(node.owningEntry ?? node, node)) {
+          for (const p of node.getProperties()) {
+            const why = p.key === 'Name' ? null : sourceEditRefusal(node, p.key);
+            if (why) {
+              const typed = node.getPropInfo(p).displayValue === '7' ? '8' : '7';
+              expect(node.getPropInfo(p).editable, label + ' ' + p.key).toBe(false);
+              expect(edit(node, p.key, typed), label + ' ' + p.key).toMatchObject({ error: true });
+              refused++;
+            }
+          }
+        }
+        const frozenValue = objectNodeAt(node.owningEntry ?? node, node) ? null : sourceEditRefusal(node, 'Value');
         const frozenName = sourceEditRefusal(node, 'Name');
         if (frozenName) {
           expect([node.nameEditable, row.Name.editable], label).toEqual([false, false]);
@@ -368,31 +424,37 @@ describe('what each kind of variable of a .mat takes', () => {
   const editRefused = (name: string, what: string) =>
     `Cannot edit "${name}": it is ${what}, which a MAT-file save writes only as it was read, or renamed, so its edit cannot be saved.`;
 
-  it("an object's typed node: renamed and deleted, and nothing else, at any depth", () => {
-    // ParamMat.mat's Simulink.Parameter holds a 2x3 matrix: a Value row, and a row per element.
+  it("an object's typed node: each property its save writes into the object's cell, its name, a delete, at any depth", () => {
+    // ParamMat.mat's Simulink.Parameter holds a 2x3 matrix (a Value row, and a row per element) and
+    // a Description; it is at its default for every other property but those MATLAB derives.
     const deep = opened(fixture('fixtures/mcos/ParamMat.mat')).root.children[0];
     expect(deep.flatten().length).toBe(8);
     for (const node of deep.flatten()) {
       const offered = node.getProperties().filter((p: any) => node.getPropInfo(p).editable).map((p: any) => p.key);
-      expect([offered, node.canAddChild(), node.canRemoveChild?.() ?? false], node.matlabPath).toEqual([node === deep ? ['Name'] : [], false, false]);
+      expect(offered, node.matlabPath).toEqual(node === deep ? ['Name', 'Value', 'Description'] : ['Value']);
     }
     const { session, root, by, edit, save } = opened(fileBytes(CASES), 'cases.mat');
     const param = by('aParam');
     expect(param.constructor.name).toBe('ParameterNode');
-    const under = param.flatten();
-    expect(param.nameEditable).toBe(true);
-    for (const node of under) {
-      expect(node.getProperties().filter((p: any) => node.getPropInfo(p).editable).map((p: any) => p.key), node.matlabPath).toEqual(
-        node === param ? ['Name'] : [],
-      );
-    }
-    // Every property, refused in the save's own words, by the session and by the node.
-    for (const prop of ['Value', 'Description', 'DataType', 'Min', 'Unit']) {
-      expect(edit(param, prop, '3'), prop).toEqual({ error: true, reason: editRefused('aParam', 'a Simulink.Parameter'), invalidValue: '3', validValue: expect.any(String) });
-      expect(param.setProperty(prop, '3'), prop).toMatchObject({ error: true, reason: editRefused('aParam', 'a Simulink.Parameter') });
+    expect(param.getProperties().filter((p: any) => param.getPropInfo(p).editable).map((p: any) => p.key)).toEqual(['Name', 'Value', 'Min', 'Max', 'Description']);
+    // What it does not take, refused in the save's own words, by the session and by the node.
+    for (const [prop, why] of [
+      ['DataType', 'aParam.DataType follows its Value, and is written only with it: set on its own, MATLAB converts a Value that is not double to double on every load'],
+      ['complexity', "aParam.Complexity is held as an index into the file's text, not as a value, and MATLAB derives it from the Value as it loads"],
+      ['storageClass', 'aParam.StorageClass belongs to its CoderInfo, an object of its own, which a save does not rewrite'],
+    ]) {
+      const reason = 'Cannot edit "aParam": ' + why + '.';
+      expect(edit(param, prop, 'int8'), prop).toEqual({ error: true, reason, invalidValue: 'int8', validValue: expect.any(String) });
+      expect(param.setProperty(prop, 'int8'), prop).toMatchObject({ error: true, reason });
     }
     expect([param.status, root.dirty]).toEqual(['', false]);
+    // What it takes is written into the object's cells, and the variable's record is as it was. Its
+    // Unit, which the file holds, takes an edit too, by a host that asks for one: the table offers
+    // no editor for it (PropUnit is a label).
+    expect([edit(param, 'Value', '3'), edit(param, 'Description', 'edited'), edit(param, 'Unit', 'km')]).toEqual([true, true, true]);
     expect(edit(param, 'Name', 'renamedParam')).toBe(true);
+    const saved = opened(arrayBufferOf(save()));
+    expect([saved.by('renamedParam').displayValue, saved.by('renamedParam').Description, saved.by('renamedParam').Unit]).toEqual(['3', 'edited', 'km']);
     expect(readBack(save(), root.children.indexOf(param))).toEqual(shownAs(param));
     session.setActive(root, param);
     expect(session.deleteNodeById(param.id)).toBe(true);

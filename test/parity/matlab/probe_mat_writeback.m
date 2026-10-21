@@ -48,10 +48,12 @@ cd(outdir);
 warning('off', 'backtrace');
 
 % The classes the fixtures hold that MATLAB does not ship: the display enumerations, the
-% dexsparse classes of hexobj_values.mat, and the DagNode of dag4.mat.
+% dexsparse classes of hexobj_values.mat, the DagNode of dag4.mat, and the ComplexHolder of
+% complex_objects.mat.
 addpath(fullfile(fixtures, 'display'));
 addpath(fullfile(fixtures, 'sparse'));
 addpath(fullfile(fixtures, 'mcos', 'shared'));
+addpath(fullfile(fixtures, 'mcos'));
 try
     % As probe_display.m defines it for dispcat_opaque.mat.
     Simulink.defineIntEnumType('DispColor', {'Red', 'Green', 'Blue'}, [1 2 3]);

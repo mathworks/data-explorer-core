@@ -1,6 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import DataNode, { objectValueClassOf } from '../DataNode.js';
 import SimulinkObjectNode from '../SimulinkObjectNode.js';
+import { sourceFollowedProperty, sourceJudgesValues, sourceValueRefusal } from '../BaseNode.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { formatMatlabNum, formatMatrixSerial, isEnumBag, textEnumValueOf } from '../../parser/XmlUtils.js';
 import PropName from '../../prop/PropName.js';
@@ -343,7 +344,10 @@ export default class ParameterNode extends DataNode {
     // held: a Value typed in (_restorerFor), and an Add, a removal or an edit of the Value row or
     // of an element (childStructureRestorer). Set from the restored Value, a hand-edited file's
     // came back as the Value's shape.
+    //
+    // And the DataType, where the source says what it follows to (_followSourceDataType).
     _followValueShape() {
+        this._followSourceDataType();
         const sp = this.serial._properties;
         const shape = sp ? this._shapeFromValue() : null;
         if (!sp || !shape) {
@@ -357,6 +361,19 @@ export default class ParameterNode extends DataNode {
         }
         if (has('Complexity') && shape.complexity !== null && sp.Complexity !== shape.complexity) {
             sp.Complexity = shape.complexity;
+        }
+    }
+    // MATLAB's `p.Value = v` re-derives the DataType from v's class (an int16 v makes it 'int16',
+    // a double v over an int16 Value 'auto'; measured against MATLAB R2027a), and a MAT-file's save
+    // writes the DataType so where the object holds one (McosEditRules). Shown as read, the
+    // DataType column said 'int16' of a Parameter MATLAB loads as 'auto' until the file was
+    // reopened. So it is set to what the source says the save leaves it (BaseNode.sourceFollowedProperty),
+    // after every edit of the Value and its undo; a dictionary says nothing, and its Parameters keep
+    // the DataType they hold, which the dictionary writes as it is.
+    _followSourceDataType() {
+        const dataType = sourceFollowedProperty(this, 'DataType');
+        if (typeof dataType === 'string' && dataType !== this.DataType) {
+            this.DataType = dataType;
         }
     }
     // The Value's size, and its complexity by the rule its save follows
@@ -414,6 +431,10 @@ export default class ParameterNode extends DataNode {
             const streamRefusal = this._refuseStreamValue(stringValue);
             if (streamRefusal) {
                 return streamRefusal;
+            }
+            const sourceRefusal = this._refuseValueForSource(stringValue);
+            if (sourceRefusal) {
+                return sourceRefusal;
             }
             // An enumeration value refuses a value set on it, as it does on a row of its own
             // (ObjectNode.setProperty), and as it takes no editor here (valueEditable). Taken, what
@@ -563,6 +584,28 @@ export default class ParameterNode extends DataNode {
             return this._setMinMax(propName, stringValue);
         }
         return DataNode.prototype.setProperty.call(this, propName, stringValue);
+    }
+    // The refusal of the Value `stringValue` makes by this Parameter's source, which may write some
+    // Values and not others (BaseNode.sourceValueRefusal: a MAT-file, whose save writes a Value into
+    // the object's cell, refuses one MATLAB loads with a warning, 300 under a DataType of 'uint8').
+    // Asked of the Value node the edit makes, made by this very setter on a twin of this Parameter
+    // that holds none of its Value and stands nowhere, so that what is judged is what the edit
+    // would hold, and nothing of this one changes for an edit refused. Null where the source judges
+    // no value, and where the twin refuses the text, as this setter then does.
+    _refuseValueForSource(stringValue) {
+        if (!sourceJudgesValues(this)) {
+            return null;
+        }
+        const raw = this.serial._rawVal;
+        const element = raw?._elements?.[0];
+        const props = { ...(element?._properties ?? {}), Value: undefined };
+        const twin = ParameterNode.parse({ ...raw, _elements: [{ ...element, _properties: props }] }, this.name, null);
+        if (twin.setProperty('Value', stringValue) !== true || (twin.Value === undefined && !twin._valueNode)) {
+            return null;
+        }
+        const valueNode = twin._valueNode ?? NodeRegistry.parseValue(twin.Value === undefined ? [] : twin.Value, 'Value', null);
+        const refused = sourceValueRefusal(this, 'Value', valueNode);
+        return refused ? { error: true, reason: refused, invalidValue: stringValue, validValue: this.displayValue } : null;
     }
     // For DataModel.editProperty: what puts the Value back exactly as it is now, for the undo of
     // a Value edit about to be made, or null for any other property, which the text it shows

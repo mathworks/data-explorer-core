@@ -316,14 +316,37 @@ fields in a cell, `complex(zeros(0,3,'single'))` alone and in a struct, empty st
 in each element of a struct array, a variable saved as global, and a complex row whose zero parts
 are -0, each beside a value to edit. The MATLAB
 half puts the classes those need on the path (`../../fixtures/display`, `../../fixtures/sparse`,
-`../../fixtures/mcos/shared`, and `DispColor` by `Simulink.defineIntEnumType`).
+`../../fixtures/mcos/shared`, `../../fixtures/mcos` for `complex_objects.mat`'s `ComplexHolder`,
+and `DispColor` by `Simulink.defineIntEnumType`).
 
-Thirteen cases are **negative controls**: MATLAB's half makes one change more than the save does
+The **object cases** (`obj_*`) edit the properties of a `Simulink.Parameter` or a
+`Simulink.Signal` that a save writes into the subsystem's cells, in the cell-swap and allow-list
+probes' originals (`../../fixtures/mat-cellswap/pv_*.mat`, `../../fixtures/mat-allowlist/al_*.mat`)
+and MATLAB's saves of objects of every class and shape (`Param.mat`, `Sig.mat`, `ParamMat.mat`,
+`typed_objects.mat`, `complex_objects.mat`, `nested_objects.mat`, `cases.mat`,
+`hexobj_values.mat`): a Value of its own class, resized (Dimensions co-written), a double over an
+`int16` or `single` Value (DataType co-written `auto`, and shown so), a logical or text over
+another (`boolean`, `string`), an element of a typed, N-D, logical or complex Value, an element
+added and removed, a field of a struct Value edited, added and renamed, Min, Max, `[]`,
+Description and Unit (non-ASCII text, a character past U+FFFF, `''`, a tab, two spaces and a
+newline, a space before the text), every property of a
+Signal, a Parameter in a struct field, a cell, a struct array's element, an object array of any
+rank, a handle two variables share (edited through either, the one edited through deleted, and
+an edit through one undone and the next made through the other) or that a struct field and a
+cell element share in a `-v6` file, a Signal's DataType of every form a save writes (fixdt of a
+slope and bias, of a quoted name), several objects in one save,
+an edit beside a rename, a delete and an addition, an edit undone (the file, byte for byte) and
+redone. The MATLAB half compares every readable property of every object, the DataType,
+Dimensions and Complexity MATLAB derives included, and the handles shared.
+
+Twenty-one cases are **negative controls**: MATLAB's half makes one change more than the save does
 (a value, a class, complexity, a Parameter's `Value` and its `CoderInfo.StorageClass`, a
 string, the variables' order, a struct's field order, handle sharing, an anonymous handle's
-text, an enumeration member, a `categorical`, a complex zero's -0 parts made +0), and each
-passes only when the comparison reports that difference. They are what makes a PASS mean the
-comparison looked.
+text, an enumeration member, a `categorical`, a complex zero's -0 parts made +0; of the objects,
+a Value, the DataType a save co-writes, the Dimensions, a copy where one handle was shared, the
+Value of the variable the handle is shared with, non-ASCII text, another element of an object
+array, a Signal's DataType), and each passes only when the comparison reports that difference.
+They are what makes a PASS mean the comparison looked.
 
 `matWriteback.live.test.ts` runs both halves (Tier 2, below). `matWritebackDefects.test.ts`
 holds, without MATLAB, the two losses the first run found, fixed: a complex empty written fresh

@@ -23,8 +23,13 @@
 //   its value edited, a plain value        written fresh (MatlabVariableNode._matStream),
 //                                          named, compressed when the file holds any
 //                                          compressed record
-//   no node: the subsystem, a record the   its own bytes
-//   reader dropped
+//   only properties of the MCOS objects    its own bytes, or renamed as above: the edits are
+//   it holds edited                        written into the subsystem
+//   no node: a record the reader dropped   its own bytes
+//   the subsystem                          its own bytes, or, where an object's property was
+//                                          edited, its element with the value cells that hold
+//                                          them replaced (McosSubsystemEdit), every other byte
+//                                          of it as it was, compressed again if it was
 //
 // and a variable added since the read is written fresh, after the last variable and before the
 // subsystem. The header keeps its 116 bytes of text and its version and byte-order mark, and
@@ -34,24 +39,39 @@
 // "Unedited" is decided by the node's status, which every edit sets (DataNode._markModified),
 // and never by whether a value still has the bytes it was read from: those stay on a variable
 // after an edit. "Only renamed" is the status, a name that is not the record's, and no edit of
-// the value (DataNode._valueEdited).
+// the value (DataNode._valueEdited). "Only properties of its objects" is an edited value no edit
+// of which reached anything but an object's node or what is under it (DataNode._plainEdited).
+//
+// AN OBJECT'S PROPERTY. An object is not in the record of the variable that holds it: the record
+// holds a handle, the object's id, and the object's properties are value cells of the subsystem
+// (McosSubsystemEdit). So a variable whose edits were all of its objects' properties is written as it
+// was read, a struct or a cell holding one included, and every such edit is written into the cell
+// that holds the property, with the cells MATLAB's own edit changes with it (McosEditRules), by
+// MatNode._objectSubsystemEdit. It refuses the save for an edit it cannot write, naming it. Two
+// variables that hold one handle hold one object, and an edit of it is MATLAB's handle semantics:
+// both load the edited object.
 //
 // EVERY DOUBT REFUSES THE SAVE. A save that cannot write a variable as what it is throws a
-// MatWriteError naming it, and nothing is written: an object, a function handle or a value the
-// reader did not decode, whose edit this writer cannot write; a variable stored in a form MATLAB
-// does not load as it is, whose value as read is this reader's guess at it; a variable stored
-// after the subsystem, where MATLAB does not read it; a file whose records do not tile it, or that was
-// opened without them. And before the bytes are handed back, every record written anew is read
-// again, and one that does not read back as planned refuses the save as well (selfCheck), as does
-// a file that breaks a rule MATLAB loads a file by that the file it was read from did not break
-// (MatFileCheck). Both are asked of what the save changed, and of where every record stands: a
-// record written as its own bytes is the record it was read as, and breaks what that one broke.
+// MatWriteError naming it, and nothing is written: a function handle, a value the reader did not
+// decode, or a variable holding an object, edited anywhere but at an object's property, which this
+// writer has no encoder for; an object's property edited to what MATLAB would load otherwise, or
+// warn of; a variable stored in a form MATLAB does not load as it is, whose value as read is this
+// reader's guess at it; a variable stored after the subsystem, where MATLAB does not read it; a
+// file whose records do not tile it, or that was opened without them. And before the bytes are
+// handed back, every record written anew is read again, and one that does not read back as planned
+// refuses the save as well (selfCheck: of a subsystem whose cells were swapped, every cell the bytes
+// it was but those written, and those the values written), as does a file that breaks a rule MATLAB
+// loads a file by that the file it was read from did not break (MatFileCheck). Both are asked of
+// what the save changed, and of where every record stands: a record written as its own bytes is the
+// record it was read as, and breaks what that one broke.
 //
 // The editor takes none of the edits refused for what a variable is or where it stands: its gate
 // (MatNode._editRefusal) is built of the refusals exported here (unsavableRefusal,
-// structureRefusal, freshRefusal, renameWhy, PAST_SUBSYSTEM, duplicateWhy), so that an edit it takes
-// is one a save writes, and the two cannot come to disagree. What is left to refuse at the save is
-// what only a value's bytes say: MatWriter's budget, and the two checks of what was written.
+// structureRefusal, freshRefusal, renameWhy, PAST_SUBSYSTEM, duplicateWhy), and of an object's
+// property, of the rules MatNode._objectSubsystemEdit holds a save to (McosEditRules, with the
+// node's values read as mcosObjectEdit reads them), so that an edit it takes is one a save writes,
+// and the two cannot come to disagree. What is left to refuse at the save is what only a value's
+// bytes say: MatWriter's budget, and the two checks of what was written.
 
 import { zlibSync } from 'fflate';
 import { inflateZlib } from './Inflate.js';
@@ -61,6 +81,9 @@ import { MatBudgetError, MatWriteError, classPhrase, elementNamed, encodeMatVari
 import { checkMatElement, violationsAddedBySplice } from './MatFileCheck.js';
 import type { MatCheckOptions, MatSplicedRecord, MatViolationCode } from './MatFileCheck.js';
 import { integerConversion } from './XmlUtils.js';
+import { cellValueAt, readMcosSubsystem } from './McosSubsystemEdit.js';
+import type { McosLayer, McosSubsystem } from './McosSubsystemEdit.js';
+import { mcosMetaTableOf } from './McosParser.js';
 import { validateMatlabName } from '../matlabName.js';
 import type BaseNode from '../node/BaseNode.js';
 import type DataNode from '../node/DataNode.js';
@@ -152,10 +175,24 @@ type Planned =
   | { kind: 'renamed'; record: MatRecord; name: string; bytes: Uint8Array; element: Uint8Array }
   // A value written fresh, named `name`: an edited variable's, read from `record`, or one
   // added since the read, with no record.
-  | { kind: 'fresh'; record: MatRecord | null; node: MatlabVariableNode; name: string; bytes: Uint8Array };
+  | { kind: 'fresh'; record: MatRecord | null; node: MatlabVariableNode; name: string; bytes: Uint8Array }
+  // The subsystem, `record`, whose element is `element` now, with `cells` written into it.
+  | { kind: 'objects'; record: MatRecord; element: Uint8Array; cells: McosWrittenCell[]; bytes: Uint8Array };
+
+/**
+ * One value cell a save wrote into a subsystem, and the value it was written from: of an edit of
+ * an object's property, in a MAT-file (MatNode._objectSubsystemEdit) or in a dictionary value's
+ * stream (mcosStreamEdit).
+ */
+export interface McosWrittenCell {
+  objectId: number;
+  cellIndex: number;
+  savedName: string;
+  value: MatVariable;
+}
 
 /** What has happened to the variable a record became, as a save writes it. */
-type Edit = 'none' | 'name' | 'value';
+type Edit = 'none' | 'name' | 'value' | 'objects';
 
 // The record `matNode`'s header says its subsystem starts at, or null when it says there is none,
 // or names a byte where no unnamed record starts (structureRefusal). By offset, and not by which
@@ -185,6 +222,7 @@ function planOf(matNode: MatNode, records: MatRecord[], subsystem: MatRecord | n
     }
   };
   let pastSubsystem = false;
+  const ofObjects: BaseNode[] = [];
   for (const record of records) {
     if (record === subsystem) {
       addAdded();
@@ -205,6 +243,9 @@ function planOf(matNode: MatNode, records: MatRecord[], subsystem: MatRecord | n
       plan.push({ kind: 'verbatim', record });
     } else if (pastSubsystem) {
       throw refusal(node.name, PAST_SUBSYSTEM);
+    } else if (edit === 'objects') {
+      ofObjects.push(node);
+      plan.push(node.name !== record.name ? renamedOf(node, record) : { kind: 'verbatim', record });
     } else if (edit === 'name') {
       plan.push(renamedOf(node, record));
     } else {
@@ -215,18 +256,33 @@ function planOf(matNode: MatNode, records: MatRecord[], subsystem: MatRecord | n
     addAdded();
   }
   refuseDuplicates(plan);
+  const objects = ofObjects.length > 0 ? matNode._objectSubsystemEdit(ofObjects) : null;
+  if (objects) {
+    const at = plan.findIndex((p) => p.kind === 'verbatim' && p.record === objects.record);
+    // The subsystem is planned as its own bytes, always (above): one not found is a plan this
+    // writer did not make, and the edit is refused rather than dropped.
+    if (at < 0) {
+      throw new MatWriteError('Cannot save "' + matNode.name + "\": the file's objects are not among the records it writes, so an edit of one could not be written. Nothing was written.");
+    }
+    // Named, where a refusal names it, for the first variable whose object's edit it writes.
+    plan[at] = { kind: 'objects', ...objects, bytes: recordBytes(objects.element, objects.record.compressed, ofObjects[0].name) };
+  }
   return plan;
 }
 
 // What has happened to the variable `record` became, `node`: decided by its status, which every
 // edit sets (DataNode._markModified), and by whether anything but its own rename set it
-// (DataNode._valueEdited). A rename undone leaves the status set and the name the file's: it is
+// (DataNode._valueEdited), and anything but an edit of its objects' properties
+// (DataNode._plainEdited). A rename undone leaves the status set and the name the file's: it is
 // unedited. Its name is asked whatever the status, so that a rename made around the API, which
 // sets none, is still written as one.
 function editOf(node: BaseNode, record: MatRecord): Edit {
-  const { status, _valueEdited } = node as DataNode;
-  if (status === 'New' || (status === 'Modified' && _valueEdited)) {
+  const { status, _valueEdited, _plainEdited } = node as DataNode;
+  if (status === 'New') {
     return 'value';
+  }
+  if (status === 'Modified' && _valueEdited) {
+    return _plainEdited ? 'value' : 'objects';
   }
   return node.name !== record.name ? 'name' : 'none';
 }
@@ -271,12 +327,12 @@ export function structureRefusal(matNode: MatNode, records: MatRecord[], subsyst
 // could not read a name out of is held to none (MatNode._namespaceHolds says why).
 function refuseDuplicates(plan: Planned[]): void {
   const count = new Map<string | null, number>();
-  const nameOf = (p: Planned) => (p.kind === 'verbatim' ? p.record.name : p.name);
+  const nameOf = (p: Planned) => (p.kind === 'verbatim' || p.kind === 'objects' ? p.record.name : p.name);
   for (const p of plan) {
     count.set(nameOf(p), (count.get(nameOf(p)) ?? 0) + 1);
   }
   for (const p of plan) {
-    if (p.kind !== 'verbatim' && count.get(p.name)! > 1) {
+    if ((p.kind === 'renamed' || p.kind === 'fresh') && count.get(p.name)! > 1) {
       throw refusal(p.name, duplicateWhy(p.name));
     }
   }
@@ -679,6 +735,14 @@ function notPlainIn(v: MatVariable | null | undefined, path: string): { path: st
   return null;
 }
 
+/**
+ * The miMATRIX element `record` holds, inflated, or null where it holds no whole one
+ * (elementOfRecord): what the subsystem's cells are swapped in (MatNode._mcosSubsystem).
+ */
+export function subsystemElementOf(record: MatRecord): Uint8Array | null {
+  return elementOfRecord(record);
+}
+
 // The miMATRIX element a record holds: its own bytes for a plain one, its payload inflated for a
 // compressed one. Null when there is no whole element, or bytes after it: a record that is not
 // one MATLAB writes is not one to rename.
@@ -747,7 +811,7 @@ function assemble(file: string, headerBytes: Uint8Array, plan: Planned[], subsys
   for (const p of plan) {
     const bytes = bytesOf(p);
     offsets.push(at);
-    if (p.kind === 'verbatim' && p.record === subsystem) {
+    if ((p.kind === 'verbatim' || p.kind === 'objects') && p.record === subsystem) {
       subsystemAt = at;
     }
     parts.push(bytes);
@@ -826,6 +890,19 @@ function selfCheck(file: string, assembled: Assembled, plan: Planned[], headerBy
     }
     const at = offsets[i];
     const got = readAlone(file, head, bytes.subarray(at, at + p.bytes.byteLength));
+    // The subsystem with cells swapped in it: its element the one written, and that element the
+    // subsystem it was read as, but for the cells written (subsystemCellsDiffer).
+    if (p.kind === 'objects') {
+      const element = got && got.anonymous && got.compressed === p.record.compressed ? elementOfRecord(got) : null;
+      if (!element || !sameBytes(element, p.element)) {
+        fail("the file's objects, at byte " + at + ', are not the element written for them');
+      }
+      const wrong = subsystemCellsDiffer(elementOfRecord(p.record), p.element, p.cells, "the file's objects");
+      if (wrong) {
+        fail(wrong);
+      }
+      return;
+    }
     if (!got || got.status !== 'read' || got.anonymous || got.name !== p.name || got.variable?.name !== p.name) {
       fail('the record at byte ' + at + ', written as "' + p.name + '", reads as ' + (got?.status === 'read' ? '"' + got.name + '"' : 'no variable'));
     }
@@ -848,6 +925,110 @@ function selfCheck(file: string, assembled: Assembled, plan: Planned[], headerBy
       fail('"' + p.name + '" reads back ' + is);
     }
   });
+}
+
+/**
+ * Where `element`, a subsystem a save wrote, is not `original`, the one it was read as, with `cells`
+ * written into it, in words of `objects` (what the caller calls them: "the file's objects"), or
+ * null where it is: it reads whole as a subsystem (its dims [1 N] its byte count among what that
+ * asks); every byte the rewrite copies around the cells is the byte it was (copiedDiffer); its
+ * metadata blob is the bytes it was, and so every object's class, property list and the cell each
+ * property names; every cell written is a value cell of it, written once, and reads as the value it
+ * was written from, and every cell not written is the bytes it was; and McosParser, which every
+ * object of the file is shown through, reads the same table of objects out of it. The self-check of
+ * a MAT-file's subsystem (selfCheck) and of a dictionary value's stream (mcosStreamEdit), which are
+ * one check.
+ */
+export function subsystemCellsDiffer(
+  original: Uint8Array | null,
+  element: Uint8Array,
+  cells: readonly McosWrittenCell[],
+  objects: string,
+): string | null {
+  const was = original ? readMcosSubsystem(original) : null;
+  const is = readMcosSubsystem(element);
+  if (!was?.ok || !is.ok) {
+    return objects + ' do not read back as a subsystem' + (is.ok ? '' : ' (' + is.message + ')');
+  }
+  const before = was.subsystem;
+  const after = is.subsystem;
+  const copied = copiedDiffer(before, after);
+  if (copied) {
+    return objects + ' read back with ' + copied + ', which no edit wrote, changed';
+  }
+  if (before.cells.length !== after.cells.length) {
+    return objects + ' read back with ' + after.cells.length + ' cells where ' + before.cells.length + ' were written';
+  }
+  // A cell said written is not compared with what it was, so each is held to be one a swap writes,
+  // and once: a value cell, and not the blob, the empty cell after it, or a per-class table.
+  const written = new Map(cells.map((c) => [c.cellIndex, c]));
+  for (const c of cells) {
+    if (!Number.isInteger(c.cellIndex) || c.cellIndex < 2 || c.cellIndex >= 2 + before.valueCells) {
+      return objects + ' were written with cell ' + c.cellIndex + ', which is not one of their ' + before.valueCells + ' value cells';
+    }
+    if (written.get(c.cellIndex) !== c) {
+      return objects + ' were written with value cell ' + c.cellIndex + ' twice';
+    }
+  }
+  for (let i = 0; i < before.cells.length; i++) {
+    const cell = written.get(i);
+    if (cell) {
+      const difference = differs(cell.value, cellValueAt(after, i), 'object ' + cell.objectId + "'s " + cell.savedName);
+      if (difference) {
+        return difference;
+      }
+    } else if (!sameBytes(before.bytes.subarray(before.cells[i].at, before.cells[i].end), after.bytes.subarray(after.cells[i].at, after.cells[i].end))) {
+      return i === 0 ? objects + ' read back with another table of them' : objects + ' read back with value cell ' + i + ', which no edit wrote, changed';
+    }
+  }
+  const tableOf = (bytes: Uint8Array) => JSON.stringify(mcosMetaTableOf(bytes));
+  if (tableOf(original!) !== tableOf(element)) {
+    return objects + ' read back, as this package shows them, as another table of objects';
+  }
+  return null;
+}
+
+// What of the bytes McosSubsystemEdit's rewrite copies as they were read is not, in `after`, the
+// bytes it was in `before`, as words, or null: the element's flags and name; the payload's 8-byte
+// preamble and whatever follows the struct in it, its length included; every sub-element of the
+// struct but the MCOS field's value, which stays where it was among them; the FileWrapper__ opaque's
+// flags, name, type and class; and the cell array's flags, dims and name. What the rewrite writes
+// anew around them is tags, each restating its byte count, and the element's dims, which reading
+// whole holds to the bytes they frame (readMcosSubsystem).
+const STRUCT_PARTS = ['flags', 'dims', 'name', 'field-name width', 'field names'];
+
+function copiedDiffer(before: McosSubsystem, after: McosSubsystem): string | null {
+  const sub = (s: McosSubsystem, layer: McosLayer, i: number) => s.bytes.subarray(layer.subs[i].at, layer.subs[i].end);
+  const payload = (s: McosSubsystem) => s.outer.subs[3];
+  const preamble = (s: McosSubsystem) => s.bytes.subarray(payload(s).data, payload(s).data + 8);
+  const tail = (s: McosSubsystem) => s.bytes.subarray(s.struct.end, payload(s).data + payload(s).bytes);
+  if (before.struct.subs.length !== after.struct.subs.length || before.mcosField !== after.mcosField) {
+    return 'the fields of their struct';
+  }
+  const ranges: [string, Uint8Array, Uint8Array][] = [
+    ['the flags of their element', sub(before, before.outer, 0), sub(after, after.outer, 0)],
+    ['the name of their element', sub(before, before.outer, 2), sub(after, after.outer, 2)],
+    ['the preamble of their payload', preamble(before), preamble(after)],
+  ];
+  before.struct.subs.forEach((_, i) => {
+    if (i !== before.mcosField) {
+      const what = i < 5 ? 'the ' + STRUCT_PARTS[i] + ' of their struct' : 'the value of field ' + (i - 4) + ' of their struct';
+      ranges.push([what, sub(before, before.struct, i), sub(after, after.struct, i)]);
+    }
+  });
+  ['flags', 'name', 'type', 'class'].forEach((what, i) => {
+    ranges.push(['the ' + what + ' of their FileWrapper__', sub(before, before.opaque, i), sub(after, after.opaque, i)]);
+  });
+  ['flags', 'dims', 'name'].forEach((what, i) => {
+    ranges.push(['the ' + what + ' of their cell array', sub(before, before.cellArray, i), sub(after, after.cellArray, i)]);
+  });
+  ranges.push(['the bytes after their struct', tail(before), tail(after)]);
+  for (const [what, was, is] of ranges) {
+    if (!sameBytes(was, is)) {
+      return what;
+    }
+  }
+  return null;
 }
 
 // Whether `record` is framed as MatParser frames a record of a file it calls framed: its tag's 8
@@ -904,7 +1085,7 @@ function refuseWorse(file: string, assembled: Assembled, plan: Planned[], header
     if (p.kind === 'verbatim') {
       return { kept: index.get(p.record)! };
     }
-    if (p.record?.name && p.record.name !== p.name) {
+    if ((p.kind === 'renamed' || p.kind === 'fresh') && p.record?.name && p.record.name !== p.name) {
       renamed.set(p.name, p.record.name);
     }
     const at = assembled.offsets[i];
@@ -936,12 +1117,20 @@ function refuseWorse(file: string, assembled: Assembled, plan: Planned[], header
   }
 }
 
-// Where the value read back, `read`, is not the value `model` it was written from, in words, or
-// null where it is that value: the same class, complexity, storage and size, the same members of a
-// cell, the same fields of a struct in the same order, and each element the same number as its
-// class holds it. MatWriter's own rules are taken as the model's meaning, not its result: an
-// integer element as MATLAB converts it to the class, a single's as a float32, a member a cell or
-// a struct does not hold as the empty double written for it.
+/**
+ * Where the value read back, `read`, is not the value `model` it was written from, in words naming
+ * it under `at`, or null where it is that value: the same class, complexity, storage and size, the
+ * same members of a cell, the same fields of a struct in the same order, and each element the same
+ * number as its class holds it. MatWriter's own rules are taken as the model's meaning, not its
+ * result: an integer element as MATLAB converts it to the class, a single's as a float32, a member
+ * a cell or a struct does not hold as the empty double written for it. The self-check's (selfCheck)
+ * judge of a value written fresh, and the editor's of an object's property against the cell the
+ * file holds it in (mcosObjectEdit).
+ */
+export function variableDifference(model: MatVariable | null | undefined, read: MatVariable | null | undefined, at: string): string | null {
+  return differs(model, read, at);
+}
+
 function differs(model: MatVariable | null | undefined, read: MatVariable | null | undefined, at: string): string | null {
   const m = model ?? EMPTY_DOUBLE;
   const r = read ?? EMPTY_DOUBLE;

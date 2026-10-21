@@ -9,6 +9,7 @@ import { objectValueClassOf } from '../DataNode.js';
 import type { MatVariable } from '../../parser/MatParser.js';
 import MatlabVariableNode from './MatlabVariableNode.js';
 import { attachMcosDecoded, modelOpaqueMcosVariable, type McosDecoded } from './mcosTypedNode.js';
+import { adoptMcosStream } from './mcosStreamEdit.js';
 import { isEncodedValue } from '../../parser/EncodedValue.js';
 import { isEnumBag } from '../../parser/XmlUtils.js';
 import ConstantNode from './ConstantNode.js';
@@ -190,7 +191,9 @@ export function getRegisteredClasses(): string[] {
 // one pasted back into design reparses as a plain variable.
 export function wrapDerivedVariable(node: DataNode): DataNode {
     // A value still in its encoded stream is not a Constant's scalar, whatever it decodes
-    // to; it stays the read-only node that writes the stream back.
+    // to; it stays the node that writes the stream back: read-only, or, where the stream is an
+    // entry's whole value holding objects, edited only at what its save rewrites the stream with
+    // (mcosStreamEdit).
     if (node.constructor === MatlabVariableNode && !(node as MatlabVariableNode)._isOpaque && !(node as DataNode)._encoded) {
         return ConstantNode.fromVariable(node as MatlabVariableNode);
     }
@@ -217,7 +220,7 @@ export function modelMcosVariable(
 // Installing into NodeRegistry is what makes this module's side-effect import
 // (from the barrel and from src/node) load-bearing: every node class reaches the
 // class map through the registry, so nothing else needs to import this file.
-const api = { getClass, parseValue, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded };
+const api = { getClass, parseValue, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded, adoptMcosStream };
 NodeRegistry.init(api);
 
 export default api;

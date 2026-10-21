@@ -416,9 +416,11 @@ const editableIn = (p: unknown): unknown[] => {
   return seen;
 };
 const withoutEditable = (p: unknown): unknown => JSON.parse(JSON.stringify(p, (k, v) => (EDITABLE_KEYS.has(k) ? undefined : v)));
-// And the way the .mat's own may: its save writes an object only as it was read, so every row of
-// an object there, and of a variable holding one, is shown and not edited (MatNode._editRefusal),
-// where a model workspace and a binary dictionary edit it. So at such a path, and only there, the
+// And the way the .mat's own may: its save writes an object's properties only where the rules for
+// the object take the edit (McosEditRules), and a variable holding one only as it was read, so a row
+// of an object there, or of a variable holding one, takes an editor only where a save writes its
+// edit (MatNode._editRefusal), where a model workspace and a binary dictionary edit it all. So at
+// such a path, and only there, the
 // .mat's side alone is taken as the file would present it without that rule (its gate answering
 // nothing, `ungated`), which the other venue is held to, editors and all, as it was before the
 // gate; and what the .mat presents is held to that with every editor taken out of both: the
@@ -484,7 +486,16 @@ describe('every value presents the same in the .mat as in each other venue that 
         if (holdsObject(path)) {
           mine = nodeAt(ungated, path);
           expect(withoutEditability(shown(a)), `${path}: the .mat, but for its editors`).toEqual(withoutEditability(shown(mine)));
-          expect(editableIn(presentation(a, a.displayName)), `${path}: the .mat's value of an object, display-only`).not.toContain(true);
+          // And the editors it offers are its save's, exactly: of a Simulink.Parameter, whose every
+          // property these fixtures hold is one the save writes, every editor the file would offer
+          // without the rule; of anything else, none at all: a class with no rules for its edits (an
+          // mpt.Parameter, a LookupTable), and a plain value of a variable holding an object, which the
+          // save writes as it was read. That each edit offered is taken, saved and read back as made,
+          // and each other refused on every path, is test/matObjectEditGate.test.ts's sweep.
+          const offered = editableIn(presentation(a, a.displayName));
+          const expected = a.className === 'Simulink.Parameter' ? editableIn(presentation(mine, mine.displayName)) : offered.map(() => false);
+          expect(offered.length, path).toBeGreaterThan(0);
+          expect(offered, `${path}: the .mat offers its save's editors, and no other`).toEqual(expected);
         }
         if (pins.some(Boolean)) {
           // A pinned venue is held to its pin, and an unpinned one has been graded against

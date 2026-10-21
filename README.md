@@ -108,6 +108,20 @@ save gate has to check for itself. `readEntryFragment(fragment,
 bytes it came from, so an entry rebuilt from text by an undo is still written as
 those bytes, and merged with them when it is edited again.
 
+A value a dictionary holds as a MAT stream is shown, and written back as the
+stream: a binary dictionary's `Encoding="hex"` value, which MATLAB writes for an
+entry whose value holds a sparse array, and the cdata of the same stream a text
+dictionary holds once such an entry is pasted into it. Nothing in one takes an
+edit but its entry's rename and, where the stream is the entry's whole value,
+the properties of its `Simulink.Parameter` and `Simulink.Signal` objects that a
+MAT-file's take (below), by the same rules, and shown as a MAT-file shows them:
+the DataType a Value of another class co-writes at once, and two fields holding
+one handle as one object, every edit of it made through the first of them
+edited. The save writes the stream again with only the cells of those
+properties replaced, every other byte as it was read: the hex's `EncodedLength`
+is the new byte count, and the cdata's text is the new stream's own. An edit
+undone writes the stream as it was read.
+
 ### A MAT-file
 
 A MAT-file is saved as the file it was read from, with what was edited written
@@ -137,8 +151,9 @@ editability core hands it (`getPropInfo(...).editable`, a row's `Name.editable`,
 setter and `editProperty` refuse the same edits, naming the variable and why.
 These take a rename and a delete and nothing else:
 
-- an object, of any class (a `Simulink.Parameter`, a bus, a signal, a class of
-  your own): none of its properties and none of the rows under it;
+- an object of any class but `Simulink.Parameter` and `Simulink.Signal` (a bus,
+  an `mpt.Parameter`, a class of your own): none of its properties and none of
+  the rows under it;
 - a string, a function handle, and a value the reader could not decode;
 - a plain variable holding any of these, or a cell or struct array the reader
   read short (holding fewer elements than it declares, which a save would write
@@ -148,6 +163,26 @@ These take a rename and a delete and nothing else:
   parts do not fill), whose value as read is this package's guess at it;
 - either of two variables of one name, until one is renamed: MATLAB loads only
   one of them.
+
+A `Simulink.Parameter` or a `Simulink.Signal`, at the top of the file, in a
+struct field or a cell, or an element of an object array, takes an edit of each
+property the file holds a value for: a Parameter's Value (and a row of it, and a
+field of a struct Value), Min, Max, Description and Unit, a Signal's Min, Max,
+Description, Unit and DataType. The save writes it into the value cell of the
+file's objects that holds it, and every other byte of them and of the variable
+that holds the object as it was read. The cells MATLAB's own edit of the property
+changes go with it: a resized Value's Dimensions, and the DataType MATLAB derives
+from a Value of another class (a double typed over a `single` Parameter makes its
+DataType `auto`, as `p.Value = 7` does, and the Data Type column shows it at once).
+It refuses what MATLAB would load as something else, or warn of on every load: a
+Min above its Max, a bound or a double Value outside the range of a builtin
+DataType, a property at its class default (the file holds no value for it), a
+sparse Value, a Parameter's DataType on its own, a Complexity, a storage class.
+Two variables holding one handle (`r = h`), or a struct field and a cell element
+holding it, hold one object, as MATLAB loads them: an edit of it is shown by every
+node of it, its undo and redo too, and the save writes it once. The first of them
+an edit is made through is the one every later edit of the object is made through
+until the file is read again; the others show it and take none of their own.
 
 A value typed in that would make a string (`"abc"`, `{1, "a"}`) is refused, and
 Add is not offered on a struct array or on an element of one. A variable stored

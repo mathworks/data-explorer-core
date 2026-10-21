@@ -1,0 +1,669 @@
+{
+ "about": [
+  "The originals pv_*.mat are MATLAB R2027a saves (make_cellswap_fixtures.m). Each mut_*.mat is its original with the",
+  "edit applied by an independent cell swap (one value cell replaced, every other record and every other subsystem",
+  "byte kept), and each exp_*.mat is MATLAB's own save of the same edit applied to a fresh load of the original.",
+  "matlab: MATLAB R2027a loaded the mutant and compared every property of every variable with its own edit",
+  "(PASS also needs no load warning, the edit to have taken effect, a shared handle kept, and a re-save to reload",
+  "identically). sameAsMatlabSave: the mutant's inflated subsystem is byte for byte the one in exp_*.mat.",
+  "A value is a MatVariable as core holds it: numeric data row-major."
+ ],
+ "matlabVersion": "27.1.0.3409468 (R2027a) Prerelease",
+ "cases": [
+  {
+   "name": "basic_same_class",
+   "note": "scalar double -> scalar double",
+   "original": "pv_basic.mat",
+   "mutant": "mut_basic_same_class.mat",
+   "matlabSave": "exp_basic_same_class.mat",
+   "path": "p",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 7
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "p.Value = 7"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "basic_v6",
+   "note": "uncompressed (-v6) file",
+   "original": "pv_basic_v6.mat",
+   "mutant": "mut_basic_v6.mat",
+   "matlabSave": "exp_basic_v6.mat",
+   "path": "p",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 7
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "p.Value = 7"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": false
+  },
+  {
+   "name": "resize_value_only",
+   "note": "Value resized; Dimensions cell left at [1 1]",
+   "original": "pv_basic.mat",
+   "mutant": "mut_resize_value_only.mat",
+   "matlabSave": "exp_resize_value_only.mat",
+   "path": "p",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       2,
+       3
+      ],
+      "value": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ]
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "p.Value = [1 2 3; 4 5 6]"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": false
+  },
+  {
+   "name": "resize_value_and_dims",
+   "note": "Value resized and Dimensions swapped to match",
+   "original": "pv_basic.mat",
+   "mutant": "mut_resize_value_and_dims.mat",
+   "matlabSave": "exp_resize_value_and_dims.mat",
+   "path": "p",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       2,
+       3
+      ],
+      "value": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6
+      ]
+     },
+     "cell": 2
+    },
+    {
+     "savedName": "Dimensions",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       2
+      ],
+      "value": [
+       2,
+       3
+      ]
+     },
+     "cell": 3
+    }
+   ],
+   "matlabEdit": [
+    "p.Value = [1 2 3; 4 5 6]"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "class_int16",
+   "note": "double -> int16",
+   "original": "pv_basic.mat",
+   "mutant": "mut_class_int16.mat",
+   "matlabSave": "exp_class_int16.mat",
+   "path": "p",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "int16",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": -4
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "p.Value = int16(-4)"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": false
+  },
+  {
+   "name": "class_logical",
+   "note": "double -> logical",
+   "original": "pv_basic.mat",
+   "mutant": "mut_class_logical.mat",
+   "matlabSave": "exp_class_logical.mat",
+   "path": "p",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "logical",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 1,
+      "isLogical": true
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "p.Value = true"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": false
+  },
+  {
+   "name": "complex_value_only",
+   "note": "complex Value; Complexity (a string index) left at real",
+   "original": "pv_basic.mat",
+   "mutant": "mut_complex_value_only.mat",
+   "matlabSave": "exp_complex_value_only.mat",
+   "path": "p",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": {
+       "re": 1,
+       "im": 2
+      },
+      "isComplex": true
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "p.Value = 1+2i"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": false
+  },
+  {
+   "name": "typed_value",
+   "note": "single Value, DataType single",
+   "original": "pv_typed.mat",
+   "mutant": "mut_typed_value.mat",
+   "matlabSave": "exp_typed_value.mat",
+   "path": "t",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "single",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 3.5
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "t.Value = single(3.5)"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "typed_description",
+   "note": "char property",
+   "original": "pv_typed.mat",
+   "mutant": "mut_typed_description.mat",
+   "matlabSave": "exp_typed_description.mat",
+   "path": "t",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Description",
+     "value": {
+      "className": "char",
+      "dimensions": [
+       1,
+       15
+      ],
+      "value": "new description"
+     },
+     "cell": 9
+    }
+   ],
+   "matlabEdit": [
+    "t.Description = 'new description'"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "typed_max",
+   "note": "Max 10 -> 100",
+   "original": "pv_typed.mat",
+   "mutant": "mut_typed_max.mat",
+   "matlabSave": "exp_typed_max.mat",
+   "path": "t",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Max",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 100
+     },
+     "cell": 12
+    }
+   ],
+   "matlabEdit": [
+    "t.Max = 100"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "typed_value_over_max",
+   "note": "Value 20 > Max 10",
+   "original": "pv_typed.mat",
+   "mutant": "mut_typed_value_over_max.mat",
+   "matlabSave": "exp_typed_value_over_max.mat",
+   "path": "t",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "single",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 20
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "t.Value = single(20)"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "typed_datatype",
+   "note": "DataType 'single' -> 'double'",
+   "original": "pv_typed.mat",
+   "mutant": "mut_typed_datatype.mat",
+   "matlabSave": "exp_typed_datatype.mat",
+   "path": "t",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "DataType",
+     "value": {
+      "className": "char",
+      "dimensions": [
+       1,
+       6
+      ],
+      "value": "double"
+     },
+     "cell": 10
+    }
+   ],
+   "matlabEdit": [
+    "t.DataType = 'double'"
+   ],
+   "matlab": "FAIL",
+   "matlabNote": "vs MATLAB's own edit: warning: Parameter object's DataType property has been set while its Value is not double precision. Converting Value to real-world value (double precision).",
+   "sameAsMatlabSave": false
+  },
+  {
+   "name": "typed_datatype_with_value",
+   "note": "DataType -> 'double' with Value written as the setter leaves it (double 2.5)",
+   "original": "pv_typed.mat",
+   "mutant": "mut_typed_datatype_with_value.mat",
+   "matlabSave": "exp_typed_datatype_with_value.mat",
+   "path": "t",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "DataType",
+     "value": {
+      "className": "char",
+      "dimensions": [
+       1,
+       6
+      ],
+      "value": "double"
+     },
+     "cell": 10
+    },
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 2.5
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "t.DataType = 'double'"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "typed_unit",
+   "note": "Unit 'm' -> 'km' (saved as DocUnits)",
+   "original": "pv_typed.mat",
+   "mutant": "mut_typed_unit.mat",
+   "matlabSave": "exp_typed_unit.mat",
+   "path": "t",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "DocUnits",
+     "value": {
+      "className": "char",
+      "dimensions": [
+       1,
+       2
+      ],
+      "value": "km"
+     },
+     "cell": 13
+    }
+   ],
+   "matlabEdit": [
+    "t.Unit = 'km'"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "nested_struct",
+   "note": "Parameter in a struct field",
+   "original": "pv_nested.mat",
+   "mutant": "mut_nested_struct.mat",
+   "matlabSave": "exp_nested_struct.mat",
+   "path": "s.p",
+   "objectId": 10,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 9
+     },
+     "cell": 23
+    }
+   ],
+   "matlabEdit": [
+    "s.p.Value = 9"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "nested_cell",
+   "note": "Parameter in a cell",
+   "original": "pv_nested.mat",
+   "mutant": "mut_nested_cell.mat",
+   "matlabSave": "exp_nested_cell.mat",
+   "path": "c{1}",
+   "objectId": 7,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 9
+     },
+     "cell": 16
+    }
+   ],
+   "matlabEdit": [
+    "c{1}.Value = 9"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "nested_array",
+   "note": "element 2 of a 1x2 Parameter array",
+   "original": "pv_nested.mat",
+   "mutant": "mut_nested_array.mat",
+   "matlabSave": "exp_nested_array.mat",
+   "path": "arr(2)",
+   "objectId": 4,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 22
+     },
+     "cell": 9
+    }
+   ],
+   "matlabEdit": [
+    "arr(2).Value = 22"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "shared_handle",
+   "note": "h and r are one handle",
+   "original": "pv_shared.mat",
+   "mutant": "mut_shared_handle.mat",
+   "matlabSave": "exp_shared_handle.mat",
+   "path": "h",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 7
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "h.Value = 7"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "signal_initial",
+   "note": "Signal InitialValue (char)",
+   "original": "pv_signal.mat",
+   "mutant": "mut_signal_initial.mat",
+   "matlabSave": "exp_signal_initial.mat",
+   "path": "sig",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "InitialValue",
+     "value": {
+      "className": "char",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": "4"
+     },
+     "cell": 2
+    }
+   ],
+   "matlabEdit": [
+    "sig.InitialValue = '4'"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "zero_value",
+   "note": "Value 0 is stored, so it is swappable",
+   "original": "pv_default.mat",
+   "mutant": "mut_zero_value.mat",
+   "matlabSave": "exp_zero_value.mat",
+   "path": "e",
+   "objectId": 4,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 5
+     },
+     "cell": 8
+    }
+   ],
+   "matlabEdit": [
+    "e.Value = 5"
+   ],
+   "matlab": "PASS",
+   "matlabNote": null,
+   "sameAsMatlabSave": true
+  },
+  {
+   "name": "default_value",
+   "note": "Value at its default is absent: expect no swap",
+   "original": "pv_default.mat",
+   "mutant": null,
+   "matlabSave": null,
+   "path": "d",
+   "objectId": 1,
+   "edits": [
+    {
+     "savedName": "Value",
+     "value": {
+      "className": "double",
+      "dimensions": [
+       1,
+       1
+      ],
+      "value": 5
+     },
+     "cell": null
+    }
+   ],
+   "matlabEdit": [
+    "d.Value = 5"
+   ],
+   "matlab": null,
+   "matlabNote": null,
+   "sameAsMatlabSave": null
+  }
+ ]
+}

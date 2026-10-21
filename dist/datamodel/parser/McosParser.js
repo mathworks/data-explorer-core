@@ -213,6 +213,14 @@ function parseMetaTable(cells) {
         type1Blocks: readBlocks(w[3], w[4]),
     };
 }
+// The metadata table decodeMcosVariables reads out of `anonRawBytes`, or null when it reads
+// none. Exported for one reader: McosSubsystemEdit reads the same table with a reader of its
+// own — a strict one, which keeps the byte positions an edit needs and refuses what this one
+// reads past — and its tests hold the two to agree on every fixture.
+export function mcosMetaTableOf(anonRawBytes) {
+    const cells = extractCells(anonRawBytes);
+    return cells ? parseMetaTable(cells) : null;
+}
 // ---- Value resolution ---------------------------------------------------------
 // isObjectHandle and objectHandleFromValue, which the resolver below reads a nested
 // object property's handle with, live in McosHandle.ts: MatParser reads every

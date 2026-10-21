@@ -30,6 +30,7 @@ export default class ParameterNode extends DataNode {
     childStructureRestorer(child: BaseNode): (() => void) | null;
     _shapeRestorer(): () => void;
     _followValueShape(): void;
+    _followSourceDataType(): void;
     _shapeFromValue(): {
         dims: number[];
         complexity: string | null;
@@ -37,6 +38,7 @@ export default class ParameterNode extends DataNode {
     get isObjectPropertyBag(): boolean;
     getProperties(): PropClass[];
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    _refuseValueForSource(stringValue: string): SetPropertyResult | null;
     _restorerFor(propName: string): (() => void) | null;
     _getSerializedProperties(): Record<string, unknown>;
     serializeValue(): unknown;

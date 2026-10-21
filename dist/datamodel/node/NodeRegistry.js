@@ -21,5 +21,8 @@ export function modelMcosVariable(variable, decoded, name, parent) {
 export function attachMcosDecoded(blobBytes, variables, warnings, rootPath) {
     classMap.attachMcosDecoded(blobBytes, variables, warnings, rootPath);
 }
-export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded };
+export function adoptMcosStream(holder, read) {
+    classMap.adoptMcosStream(holder, read);
+}
+export default { init, parseValue, getClass, getRegisteredClasses, wrapDerivedVariable, modelMcosVariable, attachMcosDecoded, adoptMcosStream };
 //# sourceMappingURL=NodeRegistry.js.map

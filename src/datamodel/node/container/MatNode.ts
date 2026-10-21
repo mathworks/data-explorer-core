@@ -20,11 +20,37 @@ import {
   freshRefusal,
   renameWhy,
   structureRefusal,
+  subsystemElementOf,
   subsystemOf,
   unsavableRefusal,
   unwritableIn,
 } from '../../parser/MatFileWriter.js';
-import type { MatWriteError } from '../../parser/MatWriter.js';
+import { MatWriteError } from '../../parser/MatWriter.js';
+import { readMcosSubsystem, type McosSubsystem } from '../../parser/McosSubsystemEdit.js';
+import { objectEditCells } from '../../parser/McosEditRules.js';
+import {
+  classRefusal,
+  memberRefusal,
+  nodePropertyValue,
+  objectEditsOf,
+  objectNodeAt,
+  objectNodesUnder,
+  objectStateOf,
+  objectSubsystemEdit,
+  propertyAt,
+  shownDataType,
+  mirrorTwins,
+  twinGroupByNode,
+  twinGroupsOf,
+  twinMasterRefusal,
+  twinsTouching,
+  McosPropertyVerdicts,
+  type McosObjectState,
+  type McosPlannedCell,
+  type McosTwin,
+  type McosTwinGroup,
+} from '../data/mcosObjectEdit.js';
+import { mcosPlaceOf } from '../mcosPlace.js';
 import { validateMatlabName } from '../../matlabName.js';
 import { owningEntryOf } from '../DataNode.js';
 import { basenameOf } from '../../fileKinds.js';
@@ -73,6 +99,19 @@ export default class MatNode extends ContainerNode {
   // dictionary's section's is (SectionNode._entriesVersion): BaseNode._replaceWith moves it too,
   // so that a slot that changes hands has its names counted again.
   _entriesVersion: number;
+  // The subsystem as a save swaps cells in it (_mcosSubsystem), read once, or why it cannot be;
+  // and what the editor found of each object's node the first time it asked (_objectState), kept
+  // for as long as the node is: what the file holds of the object never changes, and what the
+  // node held then is what an edit is told from.
+  _objects: { record: MatRecord; subsystem: McosSubsystem } | string | undefined;
+  _objectStates: WeakMap<BaseNode, McosObjectState | string>;
+  // What the gate found of each object's property whatever its value (_objectKeyRefusal), kept
+  // until an edit at or under the object's node (_nodeEdited).
+  _propertyVerdicts: McosPropertyVerdicts;
+  // The nodes of each object two or more nodes of the file are (_twinGroups), found once, and the
+  // group of each of them.
+  _twins: McosTwinGroup[] | undefined;
+  _twinOf: Map<BaseNode, McosTwinGroup> | undefined;
 
   constructor(name: string) {
     super(name, null);
@@ -82,6 +121,8 @@ export default class MatNode extends ContainerNode {
     this._nameCounts = null;
     this._countedAt = -1;
     this._entriesVersion = 0;
+    this._objectStates = new WeakMap();
+    this._propertyVerdicts = new McosPropertyVerdicts();
     this._anonymousElements = [];
     this.headerBytes = null;
     this.records = null;
@@ -126,10 +167,30 @@ export default class MatNode extends ContainerNode {
   // (freshRefusal). Which names two of them share is counted apart (_namespaceHolds). Forgetting
   // every variable's at every edit re-walked every variable a table showed after each, and each
   // of N renames counted N names again.
+  //
+  // But for an object other nodes of the file are too (_twinGroups: `r = h`), whose edit is one of
+  // every variable holding it, which MATLAB loads it in, whether or not it was copied into their
+  // nodes (_mirrorTwins, which marks each of them edited, and so comes here for each, where the
+  // session made the edit): what was found of each of those variables is forgotten as well. A
+  // variable holding an object is refused written fresh whatever the object's properties
+  // (freshRefusal), so nothing found of it changes; it is forgotten all the same, so that nothing
+  // kept of a variable is older than the last edit of what MATLAB loads of it.
+  //
+  // And what was found of the properties of every object at or above `node` is forgotten
+  // (McosPropertyVerdicts): an object's twins are each told of the copy into them.
   _nodeEdited(node: BaseNode): void {
     const entry = owningEntryOf(node);
     if (entry && entry.parent === this) {
       this._valueVerdicts.delete(entry);
+    }
+    this._propertyVerdicts.forget(node);
+    for (const group of twinsTouching(this._twins ?? [], node)) {
+      for (const m of group.members) {
+        const twin = this._entryOf(m.node);
+        if (twin) {
+          this._valueVerdicts.delete(twin);
+        }
+      }
     }
   }
 
@@ -201,6 +262,11 @@ export default class MatNode extends ContainerNode {
    *   - every edit of a variable stored after the subsystem, its name included: MATLAB does
    *     not read it there, and moved, what MATLAB loads would change. It can be deleted;
    *   - a variable's own name: taken, and written as its record with the name replaced;
+   *   - a property of an MCOS object, at the top of the file, in a struct field or a cell, or an
+   *     element of an object array (anything at or under its node, mcosObjectEdit.objectNodeAt),
+   *     which a save writes into the subsystem cell that holds it and leaves the variable's
+   *     record as it was: taken where the rules for the object take it whatever its value
+   *     (_objectKeyRefusal; _editValueRefusal judges the value);
    *   - anything else, which writes the variable fresh: refused where the writer refuses that
    *     (freshRefusal: an object's typed node, a string, a function handle, a value not
    *     decoded, and a variable holding one at any depth), or where another variable of the
@@ -212,9 +278,6 @@ export default class MatNode extends ContainerNode {
    *     element to hold it, which reads back as no field; and a field added to one element of
    *     a struct array is written into every element, as MATLAB adds one, `[]` in the others,
    *     which the tree did not show.
-   *
-   * Phase 2 of the MAT-file save widens the last of these, for the properties of an object it
-   * writes into the subsystem.
    */
   _editRefusal(entry: BaseNode, node: BaseNode, key: string): string | null {
     const file = this._fileRefusal();
@@ -228,6 +291,10 @@ export default class MatNode extends ContainerNode {
     }
     if (node === entry && (key === 'Name' || key === 'name')) {
       return null;
+    }
+    const object = objectNodeAt(entry, node);
+    if (object) {
+      return this._objectKeyRefusal(entry, object, node, key);
     }
     let verdict = this._valueVerdicts.get(entry);
     if (verdict === undefined) {
@@ -252,12 +319,283 @@ export default class MatNode extends ContainerNode {
   }
 
   /**
+   * Why an edit of `key` at `node`, at or under `object`, the node of an MCOS object in `entry`, is
+   * refused whatever its value, or null where the value decides (_editValueRefusal): the edit of a
+   * variable one of two of one name (duplicateWhy), of a part of the object that is no property a
+   * save writes (mcosObjectEdit.propertyAt), of a file whose objects a save cannot read, of an
+   * object it cannot find in them, and of a property the rules refuse (propertyRefusal). The
+   * object's state is what this asks first, and is made then (_objectState).
+   */
+  _objectKeyRefusal(entry: BaseNode, object: BaseNode, node: BaseNode, key: string): string | null {
+    if (this._namespaceHolds(entry.name) > 1) {
+      return cannotEdit(entry.name, duplicateWhy(entry.name));
+    }
+    const state = this._objectState(object);
+    if (typeof state === 'string') {
+      return cannotEdit(entry.name, state);
+    }
+    const at = propertyAt(object, node, key);
+    const refused = classRefusal(state, object) ?? ('why' in at ? at.why : this._propertyVerdicts.of(state, object, at.property)) ?? this._twinRefusal(object);
+    return refused ? cannotEdit(entry.name, refused) : null;
+  }
+
+  /**
+   * Why no edit of the object at `object` is taken for the other nodes that are the same object
+   * (_twinGroups), each of which an edit is copied into (_mirrorTwins), as a clause, or null: an
+   * edit of the object was made through another of them, its master, through which every later one
+   * is made; or one of them is in a variable no edit of which a save writes, stored after the
+   * subsystem, or one of two of one name.
+   */
+  _twinRefusal(object: BaseNode): string | null {
+    const group = this._twinGroupOf(object);
+    if (!group) {
+      return null;
+    }
+    const mastered = twinMasterRefusal(group, object, (n) => this._entryOf(n) !== null);
+    if (mastered) {
+      return mastered;
+    }
+    const subsystem = this._subsystemRecord();
+    for (const { node } of group.members) {
+      const entry = this._entryOf(node);
+      if (node === object || !entry) {
+        continue;
+      }
+      const record = this.recordOf(entry);
+      const why = record && subsystem && record.offset > subsystem.offset
+        ? "is stored after the file's objects, where MATLAB does not read it, so a save writes no edit of it"
+        : this._namespaceHolds(entry.name) > 1
+          ? 'shares its name with another variable of the file, and MATLAB loads only one of them'
+          : null;
+      if (why) {
+        return object.matlabPath + ' is one object with ' + node.matlabPath + ' (one handle), so an edit of it is an edit of the variable ' + entry.name + ' too, which ' + why;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * The nodes of each object two or more nodes of this file are, two variables holding one handle
+   * (`r = h`) or a struct holding it in two fields, of a class whose properties a save writes; found
+   * once, the first time an editor asks, which is before any edit of one: each node's state is made
+   * then (_objectState), and what it shows of the object (mcosObjectEdit.twinOf). A node a variable's
+   * delete takes out of the tree is still in its group, and is passed over while it is out
+   * (_attachedTwins).
+   */
+  _twinGroups(): McosTwinGroup[] {
+    if (this._twins === undefined) {
+      this._twins = twinGroupsOf(objectNodesUnder(this), (n) => this._objectState(n));
+      this._twinOf = twinGroupByNode(this._twins);
+    }
+    return this._twins;
+  }
+
+  /** The group of the nodes that are the object `object` is, or null where no other node is it. */
+  _twinGroupOf(object: BaseNode): McosTwinGroup | null {
+    if (!mcosPlaceOf(object)) {
+      return null;
+    }
+    this._twinGroups();
+    return this._twinOf!.get(object) ?? null;
+  }
+
+  /** The members of `group` in the tree now, or none where fewer than two are. */
+  _attachedTwins(group: McosTwinGroup): McosTwin[] {
+    const attached = group.members.filter((m) => this._entryOf(m.node) !== null);
+    return attached.length > 1 ? attached : [];
+  }
+
+  /**
+   * The nodes an edit at or under `root` is copied into (_mirrorTwins) that are not at or under it:
+   * the other nodes of every object at or above or under `root`, for the session to keep its index of
+   * them as it keeps the index of `root` (DataModel.mutateSubtree).
+   */
+  _twinsOutside(root: BaseNode): BaseNode[] {
+    const out: BaseNode[] = [];
+    for (const group of this._twinsTouching(root)) {
+      for (const { node } of this._attachedTwins(group)) {
+        if (!isAtOrUnder(node, root)) {
+          out.push(node);
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * After an edit at or under `root`, made by any path: every other node of an object it reached
+   * shows the object as the edit left it (mcosObjectEdit.mirrorTwins), and is edited so. Answers the
+   * nodes copied into. Asked by the session after every edit it makes or wraps (DataModel.mutateSubtree,
+   * addChildTo, deleteNodeById, and the undo and redo of each).
+   */
+  _mirrorTwins(root: BaseNode): BaseNode[] {
+    const copied: BaseNode[] = [];
+    for (const group of this._twinsTouching(root)) {
+      const members = this._attachedTwins(group);
+      if (members.length > 1) {
+        copied.push(...mirrorTwins(group, members));
+      }
+    }
+    return copied;
+  }
+
+  // The groups with a node at or under `root`, or one `root` is at or under: the objects an edit
+  // there can reach, asked twice an edit (DataModel.mutateSubtree). None in a file with no
+  // subsystem, which holds no object; the groups are found the first time this is asked, before
+  // the first edit's mutation (sourceTwinsOutside), and most files have none.
+  _twinsTouching(root: BaseNode): McosTwinGroup[] {
+    if (!this._subsystemRecord()) {
+      return [];
+    }
+    const groups = this._twinGroups();
+    return groups.length === 0 ? [] : twinsTouching(groups, root);
+  }
+
+  // The variable `node` is in, `node` itself for one, or null for a node not in this file's tree:
+  // a variable is in it while its parent is this file, which a delete clears (removeChild).
+  _entryOf(node: BaseNode): BaseNode | null {
+    let n: BaseNode = node;
+    while (n.parent && n.parent !== this) {
+      n = n.parent;
+    }
+    return n.parent === this ? n : null;
+  }
+
+  /**
+   * Why `value`, what an edit of `key` at `node` (of `entry`) is about to make the property hold,
+   * as the node would hold it (a bound as a number or undefined, text as a string, a Value as the
+   * value node the edit makes), cannot be written into this file, or null where it can, or where
+   * `node` is no object's. Judged with the object's other edits as the save will judge them
+   * (McosEditRules.objectEditCells): a Min above its Max, a Value out of its DataType's range.
+   * Asked by the setters before they set it (BaseNode.sourceValueRefusal), so that the edit is not
+   * taken, rather than taken and then refused by the save.
+   */
+  _editValueRefusal(entry: BaseNode, node: BaseNode, key: string, value: unknown): string | null {
+    const object = objectNodeAt(entry, node);
+    if (!object) {
+      return null;
+    }
+    const keyRefused = this._objectKeyRefusal(entry, object, node, key);
+    if (keyRefused) {
+      return keyRefused;
+    }
+    const state = this._objectState(object) as McosObjectState;
+    const at = propertyAt(object, node, key) as { property: string };
+    // A struct row of a Value takes a row added or removed, and an edit of each of its fields: a
+    // value typed over it whole is text no setter makes a value of.
+    if (at.property === 'Value' && typeof value === 'string' && node !== object && (node as unknown as { className?: string }).className === 'struct') {
+      return cannotEdit(entry.name, node.matlabPath + ' is a struct, which takes an edit of each of its fields, and not a value typed over it whole');
+    }
+    const pending = nodePropertyValue(object, at.property, { value });
+    if (typeof pending === 'string') {
+      return cannotEdit(entry.name, object.matlabPath + '.' + at.property + ' ' + pending);
+    }
+    const found = objectEditsOf(state, object, { property: at.property, value: pending });
+    if ('why' in found) {
+      return cannotEdit(entry.name, found.why);
+    }
+    const ruled = objectEditCells(state.held, found.edits, object.matlabPath);
+    return ruled.ok ? null : cannotEdit(entry.name, ruled.message);
+  }
+
+  /**
+   * What `key` of `node`, of `entry`, follows to once its edits are saved, for the node to show
+   * (BaseNode.sourceFollowedProperty), or undefined: the DataType of a Simulink.Parameter's node, as
+   * the save writes it with an edit of the Value (mcosObjectEdit.shownDataType). Nothing else, and
+   * nothing for a node that is no object's, or one whose object a save cannot find.
+   */
+  _followedProperty(entry: BaseNode, node: BaseNode, key: string): unknown {
+    if (key !== 'DataType' || objectNodeAt(entry, node) !== node) {
+      return undefined;
+    }
+    const state = this._objectState(node);
+    return typeof state === 'string' ? undefined : shownDataType(state, node) ?? undefined;
+  }
+
+  /**
+   * The subsystem of this file as a save swaps cells in it: its record, and its element read whole
+   * (McosSubsystemEdit.readMcosSubsystem); or why no object's edit can be written, read once.
+   */
+  _mcosSubsystem(): { record: MatRecord; subsystem: McosSubsystem } | string {
+    if (this._objects === undefined) {
+      const record = this._subsystemRecord();
+      const element = record ? subsystemElementOf(record) : null;
+      const read = element ? readMcosSubsystem(element) : null;
+      this._objects = !record
+        ? 'the file holds no objects for a save to write an edit into'
+        : !read
+          ? "the file's objects are not held in one whole element a save can rewrite"
+          : read.ok
+            ? { record, subsystem: read.subsystem }
+            : "the file's objects could not be read as a save rewrites them (" + read.message + ')';
+    }
+    return this._objects;
+  }
+
+  /**
+   * What the file holds of the object at `object`, and what its node held the first time this was
+   * asked (mcosObjectEdit.objectStateOf), or why no edit of it can be written; made once a node,
+   * the first time the editor asks about the object, which every edit of it does before it is
+   * made, and kept.
+   */
+  _objectState(object: BaseNode): McosObjectState | string {
+    let state = this._objectStates.get(object);
+    if (state === undefined) {
+      const objects = this._mcosSubsystem();
+      state = typeof objects === 'string' ? objects : objectStateOf(objects.subsystem, object);
+      this._objectStates.set(object, state);
+    }
+    return state;
+  }
+
+  /**
+   * For the save (MatFileWriter): the subsystem's record and its element with every edit of an
+   * object under `entries` written into its cells, and the cells written; or null where none of
+   * them holds one. `entries` are the variables whose edits reached objects only, whose records are
+   * written as they were. Throws MatWriteError for an edit it cannot write
+   * (mcosObjectEdit.objectSubsystemEdit).
+   */
+  _objectSubsystemEdit(entries: readonly BaseNode[]): { record: MatRecord; element: Uint8Array; cells: McosPlannedCell[] } | null {
+    const entryOf = new Map<BaseNode, string>();
+    for (const entry of entries) {
+      for (const object of objectNodesUnder(entry)) {
+        if ((object as unknown as { _objectEdited?: boolean })._objectEdited) {
+          entryOf.set(object, entry.name);
+        }
+      }
+    }
+    if (entryOf.size === 0) {
+      return null;
+    }
+    const objects = this._mcosSubsystem();
+    if (typeof objects === 'string') {
+      const [name] = entryOf.values();
+      throw new MatWriteError('Cannot write "' + name + '": ' + objects + '. Nothing was written.');
+    }
+    const written = objectSubsystemEdit(objects.subsystem, [...entryOf.keys()], (n) => this._objectState(n), (n) => entryOf.get(n)!);
+    return written && { record: objects.record, ...written };
+  }
+
+  /**
    * Why `value`, a node built of the text an edit typed in for `node`, of `entry`, cannot be
    * written into this file, or null where it can: a string, which MatWriter has no MAT class
    * for. Asked of the edit before it is made (MatlabVariableNode.setProperty), so that a value
-   * that would leave the variable one a save refuses (freshRefusal) is never taken.
+   * that would leave the variable one a save refuses (freshRefusal) is never taken. A value typed
+   * as a Simulink.Parameter's whole Value, on its Value row, is the object's, and judged as one
+   * (_editValueRefusal); one typed into a field of its struct Value, as what such a field may hold
+   * (mcosObjectEdit.memberRefusal).
    */
   _valueRefusal(entry: BaseNode, node: BaseNode, value: BaseNode): string | null {
+    const object = objectNodeAt(entry, node);
+    if (object && (object as unknown as { _valueNode?: BaseNode | null })._valueNode === node) {
+      return this._editValueRefusal(entry, node, 'Value', value);
+    }
+    if (object) {
+      const refused = memberRefusal(object, node, value);
+      if (refused) {
+        return cannotEdit(entry.name, refused);
+      }
+    }
     const unwritable = unwritableIn(value);
     if (!unwritable) {
       return null;
@@ -565,6 +903,16 @@ function editRefusalOf(e: MatWriteError): string {
 
 function isStruct(node: BaseNode | null): node is MatlabVariableNode {
   return node instanceof MatlabVariableNode && node._kind === 'scalar' && node._scalarType === 'struct';
+}
+
+// Whether `node` is `root` or under it.
+function isAtOrUnder(node: BaseNode, root: BaseNode): boolean {
+  for (let n: BaseNode | null = node; n; n = n.parent) {
+    if (n === root) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function cannotEdit(name: string, why: string): string {

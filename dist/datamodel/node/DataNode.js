@@ -1,5 +1,5 @@
 // Copyright 2026 The MathWorks, Inc.
-import BaseNode, { encodedHolderOf, propNamed, sourceEditRefusal } from './BaseNode.js';
+import BaseNode, { encodedHolderOf, propNamed, sourceEditRefusal, sourceValueRefusal } from './BaseNode.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
 import NodeRegistry from './NodeRegistry.js';
 import { isMatCdata } from '../parser/CdataCodec.js';
@@ -10,6 +10,7 @@ import { setOwn } from '../parser/ownKeys.js';
 import { elementOriginAt, originAttr, recordElementOrigins, taggingOrigins, withOrigin } from '../parser/EntrySource.js';
 import { KIND_BY_CLASS, DERIVED_KIND_BY_CLASS, KIND_BY_CLASSIFICATION, kindIn } from '../kindMap.js';
 import { validateMatlabName } from '../matlabName.js';
+import { mcosPlaceOf } from './mcosPlace.js';
 import { effectiveDims, elementCount } from '../display/DisplayConvention.js';
 import { charRowDimension, charTextFromCodes, decimalCharXml, emptyHeaderDims, escapeXml, formatFloatXml, formatNumericXml, formatComplexBodyXml, complexClassTag, parseMatlabNum, parseExactNum, needsExactInt, transposeToColumnMajorND, matlabTimestampNow, pad as xmlPad, SAVEOBJ_KEY, CUSTOM_SAVE_KEY, ENUM_KEY, enumeralOf, isEnumBag, propertySourcesOf, } from '../parser/XmlUtils.js';
 // Format a raw MATLAB timestamp ('YYYYMMDDThhmmss[.ffffff]') as an ISO-like
@@ -524,10 +525,25 @@ export default class DataNode extends BaseNode {
             // edit wrapped them again — 'a == 1' → ''a == 1'' → … — so the .sldd ended
             // up holding a condition MATLAB can no longer evaluate.
             const unformat = this._propFor(propName)?.unformat;
-            self[resolved] = unformat ? unformat(stringValue) : stringValue;
+            const next = unformat ? unformat(stringValue) : stringValue;
+            const sourceRefusal = this._refuseSourceValue(propName, next, stringValue, String(current ?? ''));
+            if (sourceRefusal) {
+                return sourceRefusal;
+            }
+            self[resolved] = next;
         }
         this._markModified();
         return true;
+    }
+    /**
+     * The refusal of `value`, what an edit of `propName` is about to make the property hold as this
+     * node holds it, by this node's source (BaseNode.sourceValueRefusal: a MAT-file's object, whose
+     * save writes some values of a property and not others), in its words; null where it may go
+     * ahead. Asked by a setter once it knows the value and before it sets it.
+     */
+    _refuseSourceValue(propName, value, stringValue, validValue = this.displayValue) {
+        const refused = sourceValueRefusal(this, this._propFor(propName)?.key ?? propName, value);
+        return refused ? { error: true, reason: refused, invalidValue: stringValue, validValue } : null;
     }
     // Apply an edit to the node-owned Min/Max value property, mirroring the exact
     // constraint Simulink.DataObject/setPropValue enforces (verified against MATLAB
@@ -536,11 +552,20 @@ export default class DataNode extends BaseNode {
     // and reject arrays, Inf/-Inf, NaN, complex, and non-numeric text. An empty
     // string or '[]' clears the bound (MATLAB stores []). NOTE: MATLAB does NOT
     // enforce Min <= Max (it accepts Min=5, Max=1), so we deliberately impose no
-    // cross-check — matching the object exactly rather than being stricter.
+    // cross-check — matching the object exactly rather than being stricter. A source
+    // may (_refuseSourceValue): MATLAB accepts Min=5, Max=1 with a warning, and a
+    // MAT-file holding it warns on every load (measured against MATLAB R2027a), so a
+    // MAT-file's object refuses it.
     _setMinMax(propName, stringValue) {
         const self = this;
         const trimmed = stringValue.trim();
+        const was = self[propName];
+        const shown = was !== undefined && !(Array.isArray(was) && was.length === 0) ? String(was) : '[]';
         if (trimmed === '' || trimmed === '[]') {
+            const clearRefusal = this._refuseSourceValue(propName, undefined, stringValue, shown);
+            if (clearRefusal) {
+                return clearRefusal;
+            }
             self[propName] = undefined;
             this._markModified();
             return true;
@@ -559,6 +584,10 @@ export default class DataNode extends BaseNode {
                 invalidValue: stringValue,
                 validValue: cur !== undefined ? String(cur) : '[]',
             };
+        }
+        const sourceRefusal = this._refuseSourceValue(propName, num, stringValue, shown);
+        if (sourceRefusal) {
+            return sourceRefusal;
         }
         self[propName] = num;
         this._markModified();
@@ -674,8 +703,15 @@ export default class DataNode extends BaseNode {
     // `edit` is 'name' for that rename, and only for it. An entry's own rename leaves its value
     // as it was, and every other edit marks the entry `_valueEdited`; so does the rename of
     // anything under it, a struct's field, which changes the entry's value.
+    //
+    // An edit at or under the node of an MCOS object (one mcosPlaceOf places) is an edit of that
+    // object's properties, and marks it `_objectEdited`: a MAT-file's save writes it into the
+    // subsystem, and leaves the variable holding the object as it was. Any other marks the entry
+    // `_plainEdited`. The rename of an object's own node is not of the object: it renames a field
+    // or is the entry's own rename.
     _markModified(edit = 'value') {
         const entry = this.owningEntry;
+        let ofObject = false;
         for (let node = this; node && node !== entry; node = node.parent) {
             if (node._rawInput !== undefined) {
                 node._rawInput = undefined;
@@ -683,11 +719,21 @@ export default class DataNode extends BaseNode {
             if (node._encoded !== undefined) {
                 node._encoded = undefined;
             }
+            if ((edit !== 'name' || node !== this) && mcosPlaceOf(node)) {
+                node._objectEdited = true;
+                ofObject = true;
+            }
         }
         if (entry) {
             entry.status = 'Modified';
             if (edit !== 'name' || entry !== this) {
                 entry._valueEdited = true;
+                if (mcosPlaceOf(entry)) {
+                    entry._objectEdited = true;
+                }
+                else if (!ofObject) {
+                    entry._plainEdited = true;
+                }
             }
             if (entry._rawInput !== undefined) {
                 entry._rawInput = undefined;

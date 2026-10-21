@@ -126,6 +126,8 @@ export default class DataNode extends BaseNode {
     _rawInput?: unknown;
     _encoded?: EncodedValue;
     _valueEdited?: boolean;
+    _objectEdited?: boolean;
+    _plainEdited?: boolean;
     rawXml?: string;
     classification?: string;
     constructor(name: string, parent: BaseNode | null, serial?: Record<string, unknown>);
@@ -160,6 +162,13 @@ export default class DataNode extends BaseNode {
      */
     _isUnchangedCommit(propName: string, stringValue: string): boolean;
     setProperty(propName: string, stringValue: string): true | SetPropertyResult;
+    /**
+     * The refusal of `value`, what an edit of `propName` is about to make the property hold as this
+     * node holds it, by this node's source (BaseNode.sourceValueRefusal: a MAT-file's object, whose
+     * save writes some values of a property and not others), in its words; null where it may go
+     * ahead. Asked by a setter once it knows the value and before it sets it.
+     */
+    _refuseSourceValue(propName: string, value: unknown, stringValue: string, validValue?: string): SetPropertyResult | null;
     _setMinMax(propName: 'Min' | 'Max', stringValue: string): true | SetPropertyResult;
     static _normalizeMinMax(val: unknown): number | undefined;
     _rejectUnknownEnumeral(propName: string, stringValue: string): SetPropertyResult | null;

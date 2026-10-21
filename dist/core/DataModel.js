@@ -20,7 +20,7 @@ import { blockKey, blockLabel, joinBlockPath } from '../datamodel/blockIdentity.
 import { maskDefining } from '../datamodel/maskScope.js';
 import { normalizeRefNames } from '../datamodel/parser/SlddContent.js';
 import RowCellPool from '../datamodel/node/RowCellPool.js';
-import { propNamed, sourceEditRefusal } from '../datamodel/node/BaseNode.js';
+import { propNamed, sourceEditRefusal, sourceMirrorTwins, sourceTwinsOutside } from '../datamodel/node/BaseNode.js';
 import { holdersRestorer } from '../datamodel/node/childEdit.js';
 // The session's own vocabulary — what a caller passes in and what these functions hand
 // back — and the compiler that turns one of those types, FindNodesQuery, into the tests
@@ -333,9 +333,84 @@ export function createSession(opts = {}) {
      * is the host that knows what it changed and repaints accordingly; guessing an event for
      * it ('node/added'? 'children-changed'?) would announce a shape this function cannot
      * know.
+     *
+     * And the nodes outside `root` its source keeps in step with what is in it are brought back in
+     * step after `mutate` (BaseNode.sourceMirrorTwins), with the index kept for them as for `root`:
+     * in a MAT-file, two variables holding one handle are one object, and an edit of one is shown by
+     * both (MatNode._mirrorTwins), whichever path made it. Those nodes ARE announced, each as
+     * 'node/children-changed' with the index already current, as the session's own forms announce
+     * them: they are the ones the host did not change and cannot know of, and a host that repaints
+     * only what it changed would go on showing the twin as it was.
      */
     function mutateSubtree(root, mutate) {
-        const before = root.flatten();
+        const { result, mirrored } = mutateWithTwins(root, mutate);
+        publishMirrored(mirrored);
+        return result;
+    }
+    /**
+     * mutateSubtree, answering the nodes outside `root` its source changed to keep them in step with
+     * it, the other nodes of one object, too (BaseNode.sourceMirrorTwins).
+     */
+    function mutateWithTwins(root, mutate) {
+        const twins = sourceTwinsOutside(root);
+        const mirrored = [];
+        const result = reindexAround([root, ...twins], () => {
+            try {
+                return mutate();
+            }
+            finally {
+                mirrored.push(...sourceMirrorTwins(root));
+            }
+        });
+        return { result, mirrored };
+    }
+    /**
+     * Run `mutate`, an edit at or under `node` whose own index the caller keeps (an Add, a removal, the
+     * undo or redo of one), and bring the nodes outside `node` its source keeps in step with it back in
+     * step (BaseNode.sourceMirrorTwins), keeping the index of those as mutateSubtree keeps it. Answers
+     * `mutate`'s result and the nodes changed so.
+     */
+    function withTwins(node, mutate) {
+        const twins = sourceTwinsOutside(node);
+        if (twins.length === 0) {
+            return { result: mutate(), mirrored: [] };
+        }
+        const mirrored = [];
+        const result = reindexAround(twins, () => {
+            try {
+                return mutate();
+            }
+            finally {
+                mirrored.push(...sourceMirrorTwins(node));
+            }
+        });
+        return { result, mirrored };
+    }
+    // Announce the nodes an edit was copied into (withTwins, mutateWithTwins), as the edit itself is
+    // announced: the index is already up to date for each.
+    function publishMirrored(mirrored) {
+        for (const node of mirrored) {
+            publishEdited(node, true);
+        }
+    }
+    // mutateSubtree's bookkeeping over the subtrees of `roots`: the index and the selection kept for
+    // whatever `mutate` did to them.
+    function reindexAround(roots, mutate) {
+        const seen = new Set();
+        const flattenAll = () => {
+            seen.clear();
+            const out = [];
+            for (const r of roots) {
+                for (const n of r.flatten()) {
+                    if (!seen.has(n)) {
+                        seen.add(n);
+                        out.push(n);
+                    }
+                }
+            }
+            return out;
+        };
+        const before = roots.length === 1 ? roots[0].flatten() : flattenAll();
         const staleIds = [];
         for (let i = 0; i < before.length; i++) {
             staleIds.push(before[i].id);
@@ -347,7 +422,7 @@ export function createSession(opts = {}) {
             for (let i = 0; i < staleIds.length; i++) {
                 nodeIndex.delete(staleIds[i]);
             }
-            const after = root.flatten();
+            const after = roots.length === 1 ? roots[0].flatten() : flattenAll();
             for (let i = 0; i < after.length; i++) {
                 indexNode(after[i]);
             }
@@ -1552,7 +1627,9 @@ export function createSession(opts = {}) {
     // session has open (a host that detached it itself, leaving it selected), `edit` runs as it is and
     // the caller's publish rebuilds the index whole, as every edit's did before (F1-23: 68 ms an edit
     // for the 150,004 nodes of a 140,000-entry dictionary). mutateSubtree would index a detached
-    // entry's nodes, which findNodeById must never hand out.
+    // entry's nodes, which findNodeById must never hand out. The nodes its source keeps in step with
+    // the entry are kept so all the same (BaseNode.sourceMirrorTwins), with no index to keep for them
+    // either: the twins of a MAT-file the session never opened are as much one object.
     function editInEntry(node, edit) {
         let entry = node;
         while (entry && !entry.isEntry) {
@@ -1565,10 +1642,22 @@ export function createSession(opts = {}) {
                 open = true;
             }
         });
-        if (!entry || !open) {
-            return { result: edit(), indexed: false };
+        if (!entry) {
+            return { result: edit(), indexed: false, mirrored: [] };
         }
-        return { result: mutateSubtree(entry, edit), indexed: true };
+        if (!open) {
+            const mirrored = [];
+            const result = (() => {
+                try {
+                    return edit();
+                }
+                finally {
+                    mirrored.push(...sourceMirrorTwins(entry));
+                }
+            })();
+            return { result, indexed: false, mirrored };
+        }
+        return { ...mutateWithTwins(entry, edit), indexed: true };
     }
     // Announce an edit of `node`, as 'node/children-changed', without the rebuild of the whole index
     // that topic otherwise asks for, when editInEntry has already brought it up to date (`indexed`).
@@ -1638,7 +1727,7 @@ export function createSession(opts = {}) {
         // which an edit of its Value row or of an element sets from the Value, and which a hand-edited
         // file holds otherwise.
         const holders = holdersRestorer(node);
-        const { result, indexed } = editInEntry(node, () => node.setProperty(propertyName, newValue));
+        const { result, indexed, mirrored } = editInEntry(node, () => node.setProperty(propertyName, newValue));
         if (result !== true) {
             return result || false;
         }
@@ -1653,6 +1742,7 @@ export function createSession(opts = {}) {
                         publishActiveChanged();
                     }
                     publishEdited(node, redone.indexed);
+                    publishMirrored(redone.mirrored);
                 },
                 undo() {
                     const undone = editInEntry(node, () => {
@@ -1669,6 +1759,7 @@ export function createSession(opts = {}) {
                         publishActiveChanged();
                     }
                     publishEdited(node, undone.indexed);
+                    publishMirrored(undone.mirrored);
                 },
             };
             UndoManager.pushExecuted(slddNode.name, cmd);
@@ -1678,6 +1769,7 @@ export function createSession(opts = {}) {
             publishActiveChanged();
         }
         publishEdited(node, indexed);
+        publishMirrored(mirrored);
         return true;
     }
     // Adds an entry of `className` to the active dictionary's section `sectionKey`, or to
@@ -1756,7 +1848,9 @@ export function createSession(opts = {}) {
         if (!node.execAddChild) {
             return null;
         }
-        const rawResult = node.execAddChild();
+        // And copied into every node its source keeps in step with `node` (withTwins).
+        const added = withTwins(node, () => node.execAddChild());
+        const rawResult = added.result;
         if (!rawResult) {
             return null;
         }
@@ -1765,26 +1859,29 @@ export function createSession(opts = {}) {
         if (scope) {
             UndoManager.pushExecuted(scope.name, {
                 execute() {
-                    result.redo();
+                    const redone = withTwins(node, () => result.redo());
                     indexNode(child);
                     if (policy === 'follow') {
                         setActiveEntry(child);
                     }
                     publish('node/children-changed', { parent: node });
+                    publishMirrored(redone.mirrored);
                 },
                 undo() {
                     // Undoing an add is a removal, so the subtree has to be read while it is
                     // still attached — hence before result.undo() rather than after.
                     const removed = policy === 'follow' ? [] : child.flatten();
-                    result.undo();
+                    const undone = withTwins(node, () => result.undo());
                     nodeIndex.delete(child.id);
                     selectAfterRemoval(policy, removed, node);
                     publish('node/children-changed', { parent: node });
+                    publishMirrored(undone.mirrored);
                 },
             });
         }
         indexNode(child);
         publish('node/children-changed', { parent: node });
+        publishMirrored(added.mirrored);
         return child;
     }
     // One node's removal, shared by deleteNode() and deleteNodeById(). Every refusal the
@@ -1835,7 +1932,9 @@ export function createSession(opts = {}) {
         }
         const nodeId = node.id;
         const removed = policy === 'follow' ? [] : node.flatten();
-        const rawResult = parent.execRemoveChild(node);
+        // And made in every node its source keeps in step with `parent` (withTwins).
+        const removal = withTwins(parent, () => parent.execRemoveChild(node));
+        const rawResult = removal.result;
         if (!rawResult) {
             return false;
         }
@@ -1844,23 +1943,26 @@ export function createSession(opts = {}) {
             execute() {
                 const currentId = node.id;
                 const redoRemoved = policy === 'follow' ? [] : node.flatten();
-                result.redo();
+                const redone = withTwins(parent, () => result.redo());
                 nodeIndex.delete(currentId);
                 selectAfterRemoval(policy, redoRemoved, parent);
                 publish('node/children-changed', { parent });
+                publishMirrored(redone.mirrored);
             },
             undo() {
-                result.undo();
+                const undone = withTwins(parent, () => result.undo());
                 indexNode(node);
                 if (policy === 'follow') {
                     setActiveEntry(node);
                 }
                 publish('node/children-changed', { parent });
+                publishMirrored(undone.mirrored);
             },
         });
         nodeIndex.delete(nodeId);
         selectAfterRemoval(policy, removed, parent);
         publish('node/children-changed', { parent });
+        publishMirrored(removal.mirrored);
         return true;
     }
     // A multi-entry removal as ONE undoable step, shared by deleteNode() and

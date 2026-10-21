@@ -1,4 +1,4 @@
-import type { MatRecord } from './MatParser.js';
+import type { MatRecord, MatVariable } from './MatParser.js';
 import { MatWriteError } from './MatWriter.js';
 import type { MatCheckOptions } from './MatFileCheck.js';
 import type BaseNode from '../node/BaseNode.js';
@@ -20,6 +20,17 @@ export declare function serializeMatFile(matNode: MatNode, check?: MatCheckOptio
  * takes no edit of a file no save can write (MatNode._editRefusal).
  */
 export declare function unsavableRefusal(matNode: MatNode): MatWriteError | null;
+/**
+ * One value cell a save wrote into a subsystem, and the value it was written from: of an edit of
+ * an object's property, in a MAT-file (MatNode._objectSubsystemEdit) or in a dictionary value's
+ * stream (mcosStreamEdit).
+ */
+export interface McosWrittenCell {
+    objectId: number;
+    cellIndex: number;
+    savedName: string;
+    value: MatVariable;
+}
 export declare function subsystemOf(matNode: MatNode, records: MatRecord[]): MatRecord | null;
 /** Why the edit of a variable stored after the subsystem is refused (planOf, and the editor's gate). */
 export declare const PAST_SUBSYSTEM: string;
@@ -71,10 +82,39 @@ export declare function unwritableIn(at: BaseNode): {
     what: string;
 } | null;
 /**
+ * The miMATRIX element `record` holds, inflated, or null where it holds no whole one
+ * (elementOfRecord): what the subsystem's cells are swapped in (MatNode._mcosSubsystem).
+ */
+export declare function subsystemElementOf(record: MatRecord): Uint8Array | null;
+/**
  * The miCOMPRESSED record of `stream`, the zlib stream of the variable `name`'s element: its tag
  * and the stream. Refused for a stream of 4 GiB or more, whose length the tag's 32 bits cannot
  * say: written, its length would wrap, and the record would declare a few bytes of a stream that
  * goes on. Exported for test/matFileSave.test.ts, which holds it to that without a stream so big.
  */
 export declare function compressedRecordOf(stream: Uint8Array, name: string): Uint8Array;
+/**
+ * Where `element`, a subsystem a save wrote, is not `original`, the one it was read as, with `cells`
+ * written into it, in words of `objects` (what the caller calls them: "the file's objects"), or
+ * null where it is: it reads whole as a subsystem (its dims [1 N] its byte count among what that
+ * asks); every byte the rewrite copies around the cells is the byte it was (copiedDiffer); its
+ * metadata blob is the bytes it was, and so every object's class, property list and the cell each
+ * property names; every cell written is a value cell of it, written once, and reads as the value it
+ * was written from, and every cell not written is the bytes it was; and McosParser, which every
+ * object of the file is shown through, reads the same table of objects out of it. The self-check of
+ * a MAT-file's subsystem (selfCheck) and of a dictionary value's stream (mcosStreamEdit), which are
+ * one check.
+ */
+export declare function subsystemCellsDiffer(original: Uint8Array | null, element: Uint8Array, cells: readonly McosWrittenCell[], objects: string): string | null;
+/**
+ * Where the value read back, `read`, is not the value `model` it was written from, in words naming
+ * it under `at`, or null where it is that value: the same class, complexity, storage and size, the
+ * same members of a cell, the same fields of a struct in the same order, and each element the same
+ * number as its class holds it. MatWriter's own rules are taken as the model's meaning, not its
+ * result: an integer element as MATLAB converts it to the class, a single's as a float32, a member
+ * a cell or a struct does not hold as the empty double written for it. The self-check's (selfCheck)
+ * judge of a value written fresh, and the editor's of an object's property against the cell the
+ * file holds it in (mcosObjectEdit).
+ */
+export declare function variableDifference(model: MatVariable | null | undefined, read: MatVariable | null | undefined, at: string): string | null;
 //# sourceMappingURL=MatFileWriter.d.ts.map

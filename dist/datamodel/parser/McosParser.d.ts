@@ -11,6 +11,22 @@ export interface McosObjectData {
     stringElements?: (string | null)[] | null;
     enumeration?: Record<string, unknown>;
 }
+export interface ClassRow {
+    fullName: string;
+}
+export interface ObjectRow {
+    classId: number;
+    blockIdx: number;
+    type1Idx: number;
+}
+export type Triple = [nameIdx: number, flag: number, value: number];
+export interface MetaTable {
+    strings: string[];
+    classes: ClassRow[];
+    objects: ObjectRow[];
+    blocks: Triple[][];
+    type1Blocks: Triple[][];
+}
 /**
  * What the decoder could not read of one variable it was asked for, for the caller's
  * warnings (decodeMcosVariables' `issues`). ParseWarning.ts's rule, at this layer: the bytes
@@ -30,6 +46,7 @@ export interface McosDecodeIssue {
 }
 export declare const NOT_AVAILABLE = "<not available>";
 export declare const STRING_CLASS_NAME = "string";
+export declare function mcosMetaTableOf(anonRawBytes: Uint8Array): MetaTable | null;
 /**
  * A complex numeric property in the form a compressed-binary dictionary gives the same
  * property: `{ _type: 'cdata', _value: '<elements>' }`, the elements column-major and

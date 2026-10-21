@@ -4,6 +4,7 @@ import { typeLinkCell } from './typeLinkCell.js';
 import { buildOtherRows } from './piOther.js';
 import { subscriptLabel, subscriptsLabel } from '../display/Subscript.js';
 import { classColumnText } from '../display/DisplayConvention.js';
+import { mcosStreamGateAbove, mcosStreamGateOf } from './mcosStream.js';
 // Columns the webview renders through a dedicated, format-specific branch (they
 // consume a plain string cell and manage their own editability). Generic
 // editable columns (the schema Code Generation columns) are NOT in this set, so
@@ -19,9 +20,18 @@ const DEDICATED_COLUMNS = new Set(['Name', 'Value', 'DataType', 'Class', 'Kind',
  * because the editability getters below are BaseNode's, and duck-typed for the same
  * reason owningEntryOf is: a source root and a section are ContainerNodes and carry no
  * `_encoded`, so the walk stops at the first container and answers null for them.
+ *
+ * Null too inside a stream that holds MCOS objects (mcosStream), edited or not: what may be
+ * edited there is the stream's own answer, which every getter and setter asking this asks next
+ * (sourceEditRefusal), and which refuses everything but an allow-listed property of one of its
+ * objects with the words this gives. The stream is the gate for as long as its node is, so an
+ * edit, which drops `_encoded` (DataNode._markModified), leaves the rest of it read-only.
  */
 export function encodedHolderOf(node) {
     for (let n = node; n && !n.isContainer; n = n.parent) {
+        if (mcosStreamGateOf(n)) {
+            return null;
+        }
         if (n._encoded) {
             return n;
         }
@@ -40,16 +50,132 @@ export function encodedHolderOf(node) {
  * (DataNode._refuseEncodedEdit, the rename) and by the session's editProperty, so that what the
  * table offers and what an edit is taken for are one answer. Duck-typed, as encodedHolderOf is:
  * this class imports no container.
+ *
+ * A dictionary value that is a MAT stream holding MCOS objects answers first, for every node in
+ * it (mcosStream): its save writes an allow-listed property of one of its objects into the
+ * stream's subsystem, and nothing else.
  */
 export function sourceEditRefusal(node, key) {
+    const { entry, source } = sourceOf(node);
+    if (!entry) {
+        return null;
+    }
+    const stream = mcosStreamGateAbove(node)?._editRefusal(entry, node, key);
+    if (stream) {
+        return stream;
+    }
+    const refuse = source?._editRefusal;
+    return typeof refuse === 'function' ? refuse.call(source, entry, node, key) : null;
+}
+/**
+ * Why the source `node` is in refuses `value` as what an edit of `key` at `node` makes it hold, in
+ * words, or null where it writes it, or judges no value. The second half of sourceEditRefusal,
+ * asked by a setter once it knows what the edit makes, before it makes it: a MAT-file writes some
+ * values of an object's property and not others (MatNode._editValueRefusal), a Min above its Max,
+ * say. `value` is the property as the node would hold it. A dictionary's section and a model's do
+ * not answer.
+ */
+export function sourceValueRefusal(node, key, value) {
+    const { entry, source } = sourceOf(node);
+    if (!entry) {
+        return null;
+    }
+    // A stream's first, as sourceEditRefusal asks it.
+    const stream = mcosStreamGateAbove(node)?._editValueRefusal(entry, node, key, value);
+    if (stream) {
+        return stream;
+    }
+    const refuse = source?._editValueRefusal;
+    return typeof refuse === 'function' ? refuse.call(source, entry, node, key, value) : null;
+}
+/** Whether the source `node` is in judges an edit's value at all (sourceValueRefusal), for a setter that must build it to ask. */
+export function sourceJudgesValues(node) {
+    const { entry, source } = sourceOf(node);
+    return (!!entry &&
+        (!!mcosStreamGateAbove(node) || typeof source?._editValueRefusal === 'function'));
+}
+/**
+ * Why a stream `node` is in (mcosStream) refuses `value`, a node built of the text an edit typed
+ * in for `node`, or null where it takes it, or `node` is in none: the stream's half of a source's
+ * answer to a value typed in (MatNode._valueRefusal), asked of it first by the setter that asks
+ * the source's (MatlabVariableNode._refuseUnwritableValue).
+ */
+export function streamValueRefusal(node, value) {
+    const { entry } = sourceOf(node);
+    const gate = entry ? mcosStreamGateAbove(node) : null;
+    return gate ? gate._valueRefusal(entry, node, value) : null;
+}
+/** Whether `node` is in a stream that judges a value typed in for it (streamValueRefusal). */
+export function inMcosStream(node) {
+    return !!mcosStreamGateAbove(node);
+}
+/**
+ * What the source `node` is in says the property `key` of `node` is, as its file will hold it once
+ * saved, where that follows from the node's other properties rather than from an edit of its own;
+ * undefined where it says nothing, which every source but a MAT-file, and a dictionary value's MAT
+ * stream holding objects (mcosStream, asked first), does. Asked by a setter after an edit it
+ * follows: a Simulink.Parameter's DataType, which their save writes as MATLAB's own `p.Value = v`
+ * re-derives it (MatNode._followedProperty), so that the node shows what MATLAB will load.
+ */
+export function sourceFollowedProperty(node, key) {
+    const { entry, source } = sourceOf(node);
+    if (!entry) {
+        return undefined;
+    }
+    const stream = mcosStreamGateAbove(node)?._followedProperty(entry, node, key);
+    if (stream !== undefined) {
+        return stream;
+    }
+    const follow = source?._followedProperty;
+    return typeof follow === 'function' ? follow.call(source, entry, node, key) : undefined;
+}
+/**
+ * The nodes outside `node`'s subtree that the source `node` is in keeps in step with what is in it
+ * (sourceMirrorTwins): in a MAT-file, the other nodes of each object at, above or under `node`, two
+ * variables holding one handle, say (MatNode._twinsOutside); in a dictionary value's MAT stream
+ * holding objects, asked first, those of a handle two fields of the value share (mcosStream). None
+ * for every other source. Asked by the session before an edit there, to keep its index of them as
+ * it keeps the edited subtree's.
+ */
+export function sourceTwinsOutside(node) {
+    const { entry, source } = sourceOf(node);
+    if (!entry) {
+        return [];
+    }
+    const stream = mcosStreamGateAbove(node);
+    if (stream) {
+        return stream._twinsOutside(node);
+    }
+    const twins = source?._twinsOutside;
+    return typeof twins === 'function' ? twins.call(source, node) : [];
+}
+/**
+ * After an edit at or under `node`, has the source bring every node it keeps in step with one
+ * there back in step (MatNode._mirrorTwins: the other nodes of one object show the edit; a stream's
+ * first, as sourceTwinsOutside asks it), and answers the nodes it changed so. Asked by the session
+ * after every edit it makes or wraps.
+ */
+export function sourceMirrorTwins(node) {
+    const { entry, source } = sourceOf(node);
+    if (!entry) {
+        return [];
+    }
+    const stream = mcosStreamGateAbove(node);
+    if (stream) {
+        return stream._mirrorTwins(node);
+    }
+    const mirror = source?._mirrorTwins;
+    return typeof mirror === 'function' ? mirror.call(source, node) : [];
+}
+// The entry `node` is in, and the container above it, as sourceEditRefusal walks to them.
+function sourceOf(node) {
     let entry = null;
     let n = node;
     while (n && !n.isContainer) {
         entry = n;
         n = n.parent;
     }
-    const refuse = n?._editRefusal;
-    return entry && typeof refuse === 'function' ? refuse.call(n, entry, node, key) : null;
+    return { entry, source: n };
 }
 /**
  * The prop in `props` that an edit naming `name` is an edit of: the one whose key or column is
@@ -257,10 +383,12 @@ export default class BaseNode {
             source.dirty = true;
         }
         // And a source that keeps what it found of each of its entries is told which node changed,
-        // so that it forgets what it found of that node's entry, and of no other (MatNode._nodeEdited).
+        // so that it forgets what it found of that node's entry, and of no other (MatNode._nodeEdited);
+        // and so is a dictionary value's stream of objects the node is in (mcosStream).
         if (typeof source._nodeEdited === 'function') {
             source._nodeEdited(this);
         }
+        mcosStreamGateAbove(this)?._nodeEdited(this);
         // Every mutation reaches here, so this is where a rename — the edit that actually moves
         // a link — is caught. A value edit drops the index too, needlessly; the rebuild rides
         // the row build that edit was already going to cause.

@@ -126,6 +126,12 @@ export type ElementSubscript = {
  * because the editability getters below are BaseNode's, and duck-typed for the same
  * reason owningEntryOf is: a source root and a section are ContainerNodes and carry no
  * `_encoded`, so the walk stops at the first container and answers null for them.
+ *
+ * Null too inside a stream that holds MCOS objects (mcosStream), edited or not: what may be
+ * edited there is the stream's own answer, which every getter and setter asking this asks next
+ * (sourceEditRefusal), and which refuses everything but an allow-listed property of one of its
+ * objects with the words this gives. The stream is the gate for as long as its node is, so an
+ * edit, which drops `_encoded` (DataNode._markModified), leaves the rest of it read-only.
  */
 export declare function encodedHolderOf(node: BaseNode | null | undefined): BaseNode | null;
 /**
@@ -140,10 +146,63 @@ export declare function encodedHolderOf(node: BaseNode | null | undefined): Base
  * (DataNode._refuseEncodedEdit, the rename) and by the session's editProperty, so that what the
  * table offers and what an edit is taken for are one answer. Duck-typed, as encodedHolderOf is:
  * this class imports no container.
+ *
+ * A dictionary value that is a MAT stream holding MCOS objects answers first, for every node in
+ * it (mcosStream): its save writes an allow-listed property of one of its objects into the
+ * stream's subsystem, and nothing else.
  */
 export declare function sourceEditRefusal(node: BaseNode, key: string): string | null;
 /** A source's answer to sourceEditRefusal, for `node`, which is `entry` or a node under it. */
 export type SourceEditRefusal = (entry: BaseNode, node: BaseNode, key: string) => string | null;
+/**
+ * Why the source `node` is in refuses `value` as what an edit of `key` at `node` makes it hold, in
+ * words, or null where it writes it, or judges no value. The second half of sourceEditRefusal,
+ * asked by a setter once it knows what the edit makes, before it makes it: a MAT-file writes some
+ * values of an object's property and not others (MatNode._editValueRefusal), a Min above its Max,
+ * say. `value` is the property as the node would hold it. A dictionary's section and a model's do
+ * not answer.
+ */
+export declare function sourceValueRefusal(node: BaseNode, key: string, value: unknown): string | null;
+/** Whether the source `node` is in judges an edit's value at all (sourceValueRefusal), for a setter that must build it to ask. */
+export declare function sourceJudgesValues(node: BaseNode): boolean;
+/**
+ * Why a stream `node` is in (mcosStream) refuses `value`, a node built of the text an edit typed
+ * in for `node`, or null where it takes it, or `node` is in none: the stream's half of a source's
+ * answer to a value typed in (MatNode._valueRefusal), asked of it first by the setter that asks
+ * the source's (MatlabVariableNode._refuseUnwritableValue).
+ */
+export declare function streamValueRefusal(node: BaseNode, value: BaseNode): string | null;
+/** Whether `node` is in a stream that judges a value typed in for it (streamValueRefusal). */
+export declare function inMcosStream(node: BaseNode): boolean;
+/** A source's answer to sourceValueRefusal. */
+export type SourceValueRefusal = (entry: BaseNode, node: BaseNode, key: string, value: unknown) => string | null;
+/**
+ * What the source `node` is in says the property `key` of `node` is, as its file will hold it once
+ * saved, where that follows from the node's other properties rather than from an edit of its own;
+ * undefined where it says nothing, which every source but a MAT-file, and a dictionary value's MAT
+ * stream holding objects (mcosStream, asked first), does. Asked by a setter after an edit it
+ * follows: a Simulink.Parameter's DataType, which their save writes as MATLAB's own `p.Value = v`
+ * re-derives it (MatNode._followedProperty), so that the node shows what MATLAB will load.
+ */
+export declare function sourceFollowedProperty(node: BaseNode, key: string): unknown;
+/** A source's answer to sourceFollowedProperty. */
+export type SourceFollowedProperty = (entry: BaseNode, node: BaseNode, key: string) => unknown;
+/**
+ * The nodes outside `node`'s subtree that the source `node` is in keeps in step with what is in it
+ * (sourceMirrorTwins): in a MAT-file, the other nodes of each object at, above or under `node`, two
+ * variables holding one handle, say (MatNode._twinsOutside); in a dictionary value's MAT stream
+ * holding objects, asked first, those of a handle two fields of the value share (mcosStream). None
+ * for every other source. Asked by the session before an edit there, to keep its index of them as
+ * it keeps the edited subtree's.
+ */
+export declare function sourceTwinsOutside(node: BaseNode): BaseNode[];
+/**
+ * After an edit at or under `node`, has the source bring every node it keeps in step with one
+ * there back in step (MatNode._mirrorTwins: the other nodes of one object show the edit; a stream's
+ * first, as sourceTwinsOutside asks it), and answers the nodes it changed so. Asked by the session
+ * after every edit it makes or wraps.
+ */
+export declare function sourceMirrorTwins(node: BaseNode): BaseNode[];
 /**
  * The prop in `props` that an edit naming `name` is an edit of: the one whose key or column is
  * `name`, which is how an edit committed in the 'Value' column reaches the atom that owns it (a

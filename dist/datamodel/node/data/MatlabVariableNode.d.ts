@@ -208,6 +208,10 @@ export default class MatlabVariableNode extends DataNode {
      *
      * Judged of a node made of the text alone (_applyParsed, as the edit applies it), so that a
      * refused edit leaves this one, its entry and its file as they were.
+     *
+     * A dictionary value that is a MAT stream holding objects is asked first (BaseNode
+     * streamValueRefusal): its save writes a Simulink.Parameter's Value into the object's cell, and
+     * judges a Value typed in as a MAT-file does.
      */
     _refuseUnwritableValue(parsed: ParsedValue, stringValue: string): SetPropertyResult | null;
     /**
@@ -577,7 +581,10 @@ export default class MatlabVariableNode extends DataNode {
      * Whatever node comes back writes the stream back as it was read, for as long as nothing
      * changes the value (DataNode._adoptEncoded), and everything at or under it is read-only
      * (DataNode._refuseEncodedEdit): nothing in this package writes a new one for every value
-     * a stream can hold.
+     * a stream can hold. But for an allow-listed property of a Simulink.Parameter or a
+     * Simulink.Signal in it, where the stream is an entry's whole value, which is where MATLAB
+     * writes one: the stream is the gate of every edit inside it, and the save writes it again
+     * with only that property's cell of its subsystem swapped (mcosStreamEdit).
      *
      * A stream that does not read — not hex, not a MAT stream, shorter than it says, or an
      * array class MatParser does not model — is the placeholder below, never a number. An
@@ -663,8 +670,9 @@ export default class MatlabVariableNode extends DataNode {
      * six-bit text and written back as it was read, by replaying `_rawInput`.
      *
      * It is still a MAT stream, so it is display-only, as every value read from one is
-     * (_readFromStream, the C-012 ruling): an edit would have saved what was typed in place of
-     * the stream. And it says so, for the dictionary's warnings, as a binary dictionary's hex of
+     * (_readFromStream, the C-012 ruling) but an allow-listed property of an object a stream that
+     * decodes holds (mcosStreamEdit), of which this has none: an edit would have saved what was
+     * typed in place of the stream. And it says so, for the dictionary's warnings, as a binary dictionary's hex of
      * the same bytes does (EncodedValue.recordDecodeFailure, which SlddNode.parse collects for
      * the entry). It used to be shown with no warning, and it took edits.
      */
@@ -682,12 +690,12 @@ export default class MatlabVariableNode extends DataNode {
      * stream's object was the opaque `<1x1 Simulink.Parameter>`: no Value, no properties, and
      * as a plain variable it took a Value edit that wrote a number over the whole object.
      *
-     * Like the hex, it is read-only and written back as it was read, for as long as nothing
-     * changes it (DataNode._adoptEncoded): nothing in this package writes the stream of an
-     * MCOS object. A text dictionary and a copy are handed the cdata itself, character for
-     * character; the envelope the adoption keeps is the hex a binary dictionary holds for the
-     * same bytes, under MATLAB's Class, which is what one this is pasted into writes, as it
-     * wrote it for the opaque node before.
+     * Like the hex, it is read-only but for its objects' allow-listed properties, and written
+     * back as it was read for as long as nothing changes it (DataNode._adoptEncoded), and with
+     * only their cells of its subsystem swapped after (mcosStreamEdit). A text dictionary and a
+     * copy are handed the cdata itself, character for character; the envelope the adoption keeps
+     * is the hex a binary dictionary holds for the same bytes, under MATLAB's Class, which is
+     * what one this is pasted into writes, as it wrote it for the opaque node before.
      */
     static _parseCdataObjects(rawVal: Record<string, unknown>, bytes: Uint8Array, variable: MatVariable, trailingElements: Uint8Array[], name: string, parent: BaseNode | null): DataNode | null;
     /**
