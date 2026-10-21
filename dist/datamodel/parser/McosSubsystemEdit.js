@@ -322,7 +322,13 @@ function readLayers(bytes) {
             references.set(t.value, (references.get(t.value) ?? 0) + 1);
         }
     }
-    return { bytes, outer, struct, mcosField, opaque, cellArray, cells, blobAt: blob.data, ...table, valueCells, references };
+    const listUsers = new Map();
+    for (const row of table.objects) {
+        if (row.pvList !== 0) {
+            listUsers.set(row.pvList, (listUsers.get(row.pvList) ?? 0) + 1);
+        }
+    }
+    return { bytes, outer, struct, mcosField, opaque, cellArray, cells, blobAt: blob.data, ...table, valueCells, references, listUsers };
 }
 /**
  * The metadata blob of `length` bytes at `at`.
@@ -443,7 +449,10 @@ function readBlob(view, at, length) {
 function subsystemOf(subsystem) {
     return subsystem instanceof Uint8Array ? readLayers(subsystem) : subsystem;
 }
-/** The object row `objectId` names, and its property list. */
+/**
+ * The object row `objectId` names, its property list, and why no cell of the list takes a swap
+ * whatever the property, or null: another object's row names the list too (`shared-list`).
+ */
 function objectAt(s, objectId) {
     if (!Number.isInteger(objectId) || objectId < 1 || objectId >= s.objects.length) {
         fail('bad-object', `object ${objectId} is not one of the ${Math.max(0, s.objects.length - 1)} objects the subsystem holds`);
@@ -456,7 +465,7 @@ function objectAt(s, objectId) {
     // List 0 is no list: an object that names it saved itself as one payload, through its
     // class's own save (a `string`'s text, a saveobj result), and has no property triples.
     if (row.pvList === 0) {
-        return { className, list: [], ownSave: true };
+        return { className, list: [], ownSave: true, shared: null };
     }
     const list = s.pvLists[row.pvList];
     if (!list) {
@@ -465,7 +474,11 @@ function objectAt(s, objectId) {
     if (list.some((t) => t.name < 1 || t.name >= s.strings.length)) {
         fail('malformed', `object ${objectId}'s property list names a string the table does not hold`);
     }
-    return { className, list, ownSave: false };
+    const others = (s.listUsers.get(row.pvList) ?? 0) - 1;
+    const shared = others > 0
+        ? { ok: false, reason: 'shared-list', message: `object ${objectId}'s property list is named by ${others} other object${others === 1 ? '' : 's'} as well` }
+        : null;
+    return { className, list, ownSave: false, shared };
 }
 /** Why the cell of `t` cannot be swapped, or null when it can. */
 function swapRefusal(s, t) {
@@ -519,12 +532,12 @@ function newCellRefusal(cell, savedName) {
 export function storedProperties(subsystem, objectId) {
     try {
         const s = subsystemOf(subsystem);
-        const { className, list } = objectAt(s, objectId);
+        const { className, list, shared } = objectAt(s, objectId);
         const properties = list.map((t) => ({
             savedName: s.strings[t.name],
             flag: t.flag,
             cellIndex: t.flag === FLAG_CELL ? t.value + 2 : null,
-            refusal: swapRefusal(s, t)?.reason ?? null,
+            refusal: shared?.reason ?? swapRefusal(s, t)?.reason ?? null,
         }));
         return { ok: true, className, properties };
     }
@@ -558,7 +571,10 @@ export function editMcosObjects(subsystem, objects) {
                 fail('duplicate-edit', `object ${objectId} is edited twice`);
             }
             seen.add(objectId);
-            const { list, ownSave } = objectAt(s, objectId);
+            const { list, ownSave, shared } = objectAt(s, objectId);
+            if (shared && edits.length > 0) {
+                throw new Refused({ ...shared, savedName: edits[0].savedName });
+            }
             const named = new Set();
             for (const { savedName, cell } of edits) {
                 if (named.has(savedName)) {

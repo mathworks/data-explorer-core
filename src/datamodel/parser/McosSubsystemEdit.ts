@@ -69,6 +69,8 @@ import { MCOS_HANDLE_MAGIC, objectHandleFromValue } from './McosHandle.js';
  * - `shared-cell`: another triple — of any object, a constructor argument, or a per-array
  *   property — names the same cell, which a swap would change too. MATLAB writes one cell
  *   per value, and no MATLAB-written file was seen sharing one.
+ * - `shared-list`: another object's row names the same property list, whose every cell a swap
+ *   would change for both. MATLAB writes a list per object, and no file was seen sharing one.
  * - `object-reference`: the cell, the old one or the new, holds an object reference: a
  *   uint32 whose first word is the handle magic, at any depth, or an object of any kind.
  *   MATLAB turns such a word into an object on load, so the swap would re-point the
@@ -84,6 +86,7 @@ export type McosEditRefusal =
   | 'not-stored'
   | 'not-a-cell'
   | 'shared-cell'
+  | 'shared-list'
   | 'object-reference'
   | 'bad-cell'
   | 'duplicate-edit';
@@ -181,8 +184,9 @@ export interface McosSubsystem {
   readonly perArray: McosTriple[];
   // How many value cells there are: cells [2, 2 + valueCells).
   readonly valueCells: number;
-  // How many triples name each value cell.
+  // How many triples name each value cell, and how many object rows each property list.
   readonly references: ReadonlyMap<number, number>;
+  readonly listUsers: ReadonlyMap<number, number>;
 }
 
 export type McosSubsystemRead = { ok: true; subsystem: McosSubsystem } | McosRefusal;
@@ -527,7 +531,13 @@ function readLayers(bytes: Uint8Array): McosSubsystem {
       references.set(t.value, (references.get(t.value) ?? 0) + 1);
     }
   }
-  return { bytes, outer, struct, mcosField, opaque, cellArray, cells, blobAt: blob.data, ...table, valueCells, references };
+  const listUsers = new Map<number, number>();
+  for (const row of table.objects) {
+    if (row.pvList !== 0) {
+      listUsers.set(row.pvList, (listUsers.get(row.pvList) ?? 0) + 1);
+    }
+  }
+  return { bytes, outer, struct, mcosField, opaque, cellArray, cells, blobAt: blob.data, ...table, valueCells, references, listUsers };
 }
 
 type BlobTable = Pick<McosSubsystem, 'strings' | 'classes' | 'objects' | 'ctorLists' | 'pvLists' | 'perArray'>;
@@ -655,8 +665,11 @@ function subsystemOf(subsystem: Uint8Array | McosSubsystem): McosSubsystem {
   return subsystem instanceof Uint8Array ? readLayers(subsystem) : subsystem;
 }
 
-/** The object row `objectId` names, and its property list. */
-function objectAt(s: McosSubsystem, objectId: number): { className: string; list: McosTriple[]; ownSave: boolean } {
+/**
+ * The object row `objectId` names, its property list, and why no cell of the list takes a swap
+ * whatever the property, or null: another object's row names the list too (`shared-list`).
+ */
+function objectAt(s: McosSubsystem, objectId: number): { className: string; list: McosTriple[]; ownSave: boolean; shared: McosRefusal | null } {
   if (!Number.isInteger(objectId) || objectId < 1 || objectId >= s.objects.length) {
     fail('bad-object', `object ${objectId} is not one of the ${Math.max(0, s.objects.length - 1)} objects the subsystem holds`);
   }
@@ -668,7 +681,7 @@ function objectAt(s: McosSubsystem, objectId: number): { className: string; list
   // List 0 is no list: an object that names it saved itself as one payload, through its
   // class's own save (a `string`'s text, a saveobj result), and has no property triples.
   if (row.pvList === 0) {
-    return { className, list: [], ownSave: true };
+    return { className, list: [], ownSave: true, shared: null };
   }
   const list = s.pvLists[row.pvList];
   if (!list) {
@@ -677,7 +690,11 @@ function objectAt(s: McosSubsystem, objectId: number): { className: string; list
   if (list.some((t) => t.name < 1 || t.name >= s.strings.length)) {
     fail('malformed', `object ${objectId}'s property list names a string the table does not hold`);
   }
-  return { className, list, ownSave: false };
+  const others = (s.listUsers.get(row.pvList) ?? 0) - 1;
+  const shared: McosRefusal | null = others > 0
+    ? { ok: false, reason: 'shared-list', message: `object ${objectId}'s property list is named by ${others} other object${others === 1 ? '' : 's'} as well` }
+    : null;
+  return { className, list, ownSave: false, shared };
 }
 
 /** Why the cell of `t` cannot be swapped, or null when it can. */
@@ -734,12 +751,12 @@ function newCellRefusal(cell: Uint8Array, savedName: string): McosRefusal | null
 export function storedProperties(subsystem: Uint8Array | McosSubsystem, objectId: number): McosStoredResult {
   try {
     const s = subsystemOf(subsystem);
-    const { className, list } = objectAt(s, objectId);
+    const { className, list, shared } = objectAt(s, objectId);
     const properties = list.map((t): McosStoredProperty => ({
       savedName: s.strings[t.name],
       flag: t.flag,
       cellIndex: t.flag === FLAG_CELL ? t.value + 2 : null,
-      refusal: swapRefusal(s, t)?.reason ?? null,
+      refusal: shared?.reason ?? swapRefusal(s, t)?.reason ?? null,
     }));
     return { ok: true, className, properties };
   } catch (e) {
@@ -784,7 +801,10 @@ export function editMcosObjects(subsystem: Uint8Array | McosSubsystem, objects: 
         fail('duplicate-edit', `object ${objectId} is edited twice`);
       }
       seen.add(objectId);
-      const { list, ownSave } = objectAt(s, objectId);
+      const { list, ownSave, shared } = objectAt(s, objectId);
+      if (shared && edits.length > 0) {
+        throw new Refused({ ...shared, savedName: edits[0].savedName });
+      }
       const named = new Set<string>();
       for (const { savedName, cell } of edits) {
         if (named.has(savedName)) {

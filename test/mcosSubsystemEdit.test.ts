@@ -22,6 +22,7 @@ import { parseMdl } from '../src/datamodel/parser/MdlParser.js';
 import { uudecode } from '../src/datamodel/parser/CdataCodec.js';
 import { decodeMcosVariables, mcosMetaTableOf } from '../src/datamodel/parser/McosParser.js';
 import {
+  editMcosObjects,
   editMcosSubsystem,
   objectIdOf,
   readMcosSubsystem,
@@ -482,6 +483,29 @@ describe('what the editor refuses, writing nothing', () => {
     expect(refusalOf(patched(BASIC.subsystem, ctor.at + 8, k), P)).toBe('shared-cell');
     // And p's other cells still swap.
     expect(refusalOf(fromQ, P, 'Dimensions', valueCellOf(variableOf({ className: 'double', dimensions: [1, 2], value: [1, 1] })))).toBe('ok');
+  });
+
+  it("a property list another object's row names too, every cell of which a swap would change for both", () => {
+    const view = new DataView(BASIC.subsystem.buffer, BASIC.subsystem.byteOffset, BASIC.subsystem.byteLength);
+    const objectsAt = BASIC_SUB.blobAt + view.getUint32(BASIC_SUB.blobAt + 16, true);
+    // q's row made to name p's property list.
+    const fromQ = patched(BASIC.subsystem, objectsAt + 24 * Q + 16, BASIC_SUB.objects[P].pvList);
+    expect(read(fromQ).listUsers.get(BASIC_SUB.objects[P].pvList)).toBe(2);
+    for (const id of [P, Q]) {
+      expect(refusalOf(fromQ, id)).toBe('shared-list');
+      expect(editMcosSubsystem(fromQ, id, [{ savedName: 'Value', cell: seven() }])).toEqual({
+        ok: false,
+        reason: 'shared-list',
+        savedName: 'Value',
+        message: 'object ' + id + "'s property list is named by 1 other object as well",
+      });
+      const stored = storedProperties(fromQ, id);
+      expect(stored.ok && stored.properties.every((p) => p.refusal === 'shared-list')).toBe(true);
+    }
+    // No edit of either is no refusal: the subsystem as it was.
+    expect(editMcosObjects(fromQ, [{ objectId: P, edits: [] }])).toMatchObject({ ok: true });
+    // As read, each takes the swap.
+    expect([refusalOf(BASIC.subsystem, P), refusalOf(BASIC.subsystem, Q)]).toEqual(['ok', 'ok']);
   });
 
   it('two edits of one property', () => {

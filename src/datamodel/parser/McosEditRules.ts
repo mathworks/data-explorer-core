@@ -230,6 +230,8 @@ function heldWhy(refusal: McosEditRefusal | null): string {
       return "is held as an index into the file's text, not as a value, which a save does not rewrite";
     case 'shared-cell':
       return 'is held in a value the file names for another property as well, which a save would change too';
+    case 'shared-list':
+      return "is held in a list of properties another of the file's objects holds as well, which a save would change too";
     case 'object-reference':
       return 'holds an object, which a save does not rewrite';
     default:

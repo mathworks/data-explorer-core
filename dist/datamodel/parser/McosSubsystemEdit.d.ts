@@ -20,6 +20,8 @@ import type { MatVariable } from './MatParser.js';
  * - `shared-cell`: another triple — of any object, a constructor argument, or a per-array
  *   property — names the same cell, which a swap would change too. MATLAB writes one cell
  *   per value, and no MATLAB-written file was seen sharing one.
+ * - `shared-list`: another object's row names the same property list, whose every cell a swap
+ *   would change for both. MATLAB writes a list per object, and no file was seen sharing one.
  * - `object-reference`: the cell, the old one or the new, holds an object reference: a
  *   uint32 whose first word is the handle magic, at any depth, or an object of any kind.
  *   MATLAB turns such a word into an object on load, so the swap would re-point the
@@ -28,7 +30,7 @@ import type { MatVariable } from './MatParser.js';
  *   its dims declare, or the subsystem it makes is past what its int32 dims can say.
  * - `duplicate-edit`: two edits name one property.
  */
-export type McosEditRefusal = 'malformed' | 'unsupported' | 'bad-object' | 'not-stored' | 'not-a-cell' | 'shared-cell' | 'object-reference' | 'bad-cell' | 'duplicate-edit';
+export type McosEditRefusal = 'malformed' | 'unsupported' | 'bad-object' | 'not-stored' | 'not-a-cell' | 'shared-cell' | 'shared-list' | 'object-reference' | 'bad-cell' | 'duplicate-edit';
 export interface McosRefusal {
     ok: false;
     reason: McosEditRefusal;
@@ -104,6 +106,7 @@ export interface McosSubsystem {
     readonly perArray: McosTriple[];
     readonly valueCells: number;
     readonly references: ReadonlyMap<number, number>;
+    readonly listUsers: ReadonlyMap<number, number>;
 }
 export type McosSubsystemRead = {
     ok: true;
