@@ -174,7 +174,7 @@ export default class MatNode extends ContainerNode {
      *     a struct array is written into every element, as MATLAB adds one, `[]` in the others,
      *     which the tree did not show.
      */
-    _editRefusal(entry, node, key) {
+    _editRefusal(entry, node, key, describe = true) {
         const file = this._fileRefusal();
         if (file) {
             return file;
@@ -189,7 +189,7 @@ export default class MatNode extends ContainerNode {
         }
         const object = objectNodeAt(entry, node);
         if (object) {
-            return this._objectKeyRefusal(entry, object, node, key);
+            return this._objectKeyRefusal(entry, object, node, key, describe);
         }
         let verdict = this._valueVerdicts.get(entry);
         if (verdict === undefined) {
@@ -215,9 +215,11 @@ export default class MatNode extends ContainerNode {
      * variable one of two of one name (duplicateWhy), of a part of the object that is no property a
      * save writes (mcosObjectEdit.propertyAt), of a file whose objects a save cannot read, of an
      * object it cannot find in them, and of a property the rules refuse (propertyRefusal). The
-     * object's state is what this asks first, and is made then (_objectState).
+     * object's state is what this asks first, and is made then (_objectState). With `describe` false
+     * (an editor drawn, BaseNode.sourceEditRefused) a part of the object refused is not described
+     * (propertyAt): every other refusal is said as it is.
      */
-    _objectKeyRefusal(entry, object, node, key) {
+    _objectKeyRefusal(entry, object, node, key, describe = true) {
         if (this._namespaceHolds(entry.name) > 1) {
             return cannotEdit(entry.name, duplicateWhy(entry.name));
         }
@@ -225,7 +227,7 @@ export default class MatNode extends ContainerNode {
         if (typeof state === 'string') {
             return cannotEdit(entry.name, state);
         }
-        const at = propertyAt(object, node, key);
+        const at = propertyAt(object, node, key, describe);
         const refused = classRefusal(state, object) ?? ('why' in at ? at.why : this._propertyVerdicts.of(state, object, at.property)) ?? this._twinRefusal(object);
         return refused ? cannotEdit(entry.name, refused) : null;
     }

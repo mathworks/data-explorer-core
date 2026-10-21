@@ -115,15 +115,20 @@ export function objectNodesUnder(node) {
  * of a row that is not a struct's field (the table offers an editor for none of these). The name of
  * the object's row, which is not the entry's, is where it stands in a struct or a cell, which a save
  * writes as it was read.
+ *
+ * `describe` false is for an editor drawn, which asks only whether there is one: the clause, which
+ * names the node and the object, each a walk to the root and a label a step, is then not made, and
+ * `why` is REFUSED. Made for every refused cell of a file of nested shared handles, it tripled the
+ * time the file took to show.
  */
-export function propertyAt(object, node, key) {
-    const path = object.matlabPath;
+export function propertyAt(object, node, key, describe = true) {
+    const refused = (why) => ({ why: describe ? why() : REFUSED });
     if (node === object) {
         if (key === 'Name' || key === 'name') {
-            return { why: path + ' is named by where it stands in ' + rootOf(object).name + ', which a save writes as it was read' };
+            return refused(() => object.matlabPath + ' is named by where it stands in ' + rootOf(object).name + ', which a save writes as it was read');
         }
         if (key === 'Add') {
-            return { why: path + ' takes no row added: a save writes its properties, and none of them is one' };
+            return refused(() => object.matlabPath + ' takes no row added: a save writes its properties, and none of them is one');
         }
         return { property: key.charAt(0).toUpperCase() + key.slice(1) };
     }
@@ -131,16 +136,18 @@ export function propertyAt(object, node, key) {
     for (let n = node; n && n !== object; n = n.parent) {
         if (n === valueNode && classOf(object) === PARAMETER) {
             if (key !== 'Value' && key !== 'Add' && key !== 'Name' && key !== 'name') {
-                return { why: node.matlabPath + "'s " + key + ' is not part of the value of ' + path + '.Value, which is all of it a save writes' };
+                return refused(() => node.matlabPath + "'s " + key + ' is not part of the value of ' + object.matlabPath + '.Value, which is all of it a save writes');
             }
             if ((key === 'Name' || key === 'name') && !(node.parent instanceof StructNode)) {
-                return { why: node.matlabPath + ' is named by where it stands in ' + path + '.Value' };
+                return refused(() => node.matlabPath + ' is named by where it stands in ' + object.matlabPath + '.Value');
             }
             return { property: 'Value' };
         }
     }
-    return { why: node.matlabPath + ' is part of ' + path + ', of which a save writes only the properties it takes' };
+    return refused(() => node.matlabPath + ' is part of ' + object.matlabPath + ', of which a save writes only the properties it takes');
 }
+/** The `why` of a refusal not described (propertyAt's `describe` false): there is one, and no more. */
+export const REFUSED = 'refused';
 function rootOf(node) {
     let n = node;
     while (n.parent && !n.parent.isContainer) {

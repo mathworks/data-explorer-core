@@ -1,7 +1,7 @@
 // Copyright 2026 The MathWorks, Inc.
 import DataNode, { newFieldName } from '../DataNode.js';
 import { matlabVariableKind } from '../../kindMap.js';
-import { encodedHolderOf, inMcosStream, sourceEditRefusal, streamValueRefusal } from '../BaseNode.js';
+import { encodedHolderOf, inMcosStream, sourceEditRefused, streamValueRefusal } from '../BaseNode.js';
 import { addChildUndoable, removeChildUndoable } from '../childEdit.js';
 import * as NodeRegistry from '../NodeRegistry.js';
 import { OBJECT_ICON } from '../icons.js';
@@ -408,7 +408,7 @@ export default class MatlabVariableNode extends DataNode {
         }
         // Nor a name its source would not write: a MAT-file's variable stored after its subsystem
         // (BaseNode.sourceEditRefusal).
-        return !sourceEditRefusal(this, 'Name');
+        return !sourceEditRefused(this, 'Name');
     }
     get valueEditable() {
         if (this._isOpaque) {
@@ -1730,7 +1730,7 @@ export default class MatlabVariableNode extends DataNode {
         // file it is in would not write the row as it shows: a MAT-file's struct array
         // (BaseNode.sourceEditRefusal, MatNode._editRefusal).
         if (this._kind === 'scalar' && this._scalarType === 'struct') {
-            return !this._structuralRefusal('add') && !sourceEditRefusal(this, 'Add');
+            return !this._structuralRefusal('add') && !sourceEditRefused(this, 'Add');
         }
         if (this._kind === 'scalar') {
             return false;

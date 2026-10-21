@@ -50,6 +50,8 @@ function bytesAt(abs: string): ArrayBuffer {
 // so a fixture that stops opening is not silently a fixture nobody looks inside.
 const REFUSED = new Map<string, string>([['strings_v73.mat', 'MAT-file version 7.3 (HDF5) is not supported']]);
 
+const SWEEP_TIMEOUT = 30_000;
+
 /** Every text a host can show for one node, each with the channel it came from. */
 function textsOf(node: any): [channel: string, text: string][] {
   const out: [string, string][] = [];
@@ -95,8 +97,10 @@ describe(`no node in any file in the repo shows ${NEEDLE}`, () => {
     }
   });
 
+  // The nested shared-handle fixtures (mcos/shared/dag24.mat: 30,000 nodes, every one asked every
+  // channel) take over a second here, and a CI runner took one past vitest's 5 s.
   for (const file of files) {
-    it(shown(file), () => {
+    it(shown(file), { timeout: SWEEP_TIMEOUT }, () => {
       const refusal = REFUSED.get(basename(file));
       if (refusal) {
         expect(() => loadBytes(bytesAt(file), basename(file))).toThrow(refusal);

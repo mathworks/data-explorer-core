@@ -1,6 +1,6 @@
 // Copyright 2026 The MathWorks, Inc.
 
-import BaseNode, { encodedHolderOf, propNamed, sourceEditRefusal, sourceValueRefusal } from './BaseNode.js';
+import BaseNode, { encodedHolderOf, propNamed, sourceEditRefusal, sourceEditRefused, sourceValueRefusal } from './BaseNode.js';
 import type { PropClass } from './BaseNode.js';
 import type { ChildAddEdit, ChildUndoRedo } from './childEdit.js';
 import { trySetSchemaProperty } from './schemaBridge.js';
@@ -1309,7 +1309,7 @@ export default class DataNode extends BaseNode {
    * the reason _refuseEncodedEdit gives: a child added or removed there could not reach the file.
    */
   get _encodedReadOnly(): boolean {
-    return !!encodedHolderOf(this) || !!sourceEditRefusal(this, 'Value');
+    return !!encodedHolderOf(this) || sourceEditRefused(this, 'Value');
   }
 
   /**

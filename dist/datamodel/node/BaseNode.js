@@ -54,8 +54,11 @@ export function encodedHolderOf(node) {
  * A dictionary value that is a MAT stream holding MCOS objects answers first, for every node in
  * it (mcosStream): its save writes an allow-listed property of one of its objects into the
  * stream's subsystem, and nothing else.
+ *
+ * `describe` false asks only whether the edit is refused (sourceEditRefused): a source may then
+ * answer a refusal it has not put in words.
  */
-export function sourceEditRefusal(node, key) {
+export function sourceEditRefusal(node, key, describe = true) {
     const { entry, source } = sourceOf(node);
     if (!entry) {
         return null;
@@ -65,7 +68,15 @@ export function sourceEditRefusal(node, key) {
         return stream;
     }
     const refuse = source?._editRefusal;
-    return typeof refuse === 'function' ? refuse.call(source, entry, node, key) : null;
+    return typeof refuse === 'function' ? refuse.call(source, entry, node, key, describe) : null;
+}
+/**
+ * Whether the source `node` is in refuses an edit of `key` at `node` (sourceEditRefusal), for an
+ * editor drawn or not, which needs no reason: every editability getter asks it of every cell a
+ * host shows, and a reason can name the node and more, each a walk to the root.
+ */
+export function sourceEditRefused(node, key) {
+    return sourceEditRefusal(node, key, false) !== null;
 }
 /**
  * Why the source `node` is in refuses `value` as what an edit of `key` at `node` makes it hold, in
@@ -283,7 +294,7 @@ export default class BaseNode {
             return false;
         }
         // Nor a name its source would not write (sourceEditRefusal).
-        return !sourceEditRefusal(this, 'Name');
+        return !sourceEditRefused(this, 'Name');
     }
     // Called on a node after a structural edit added or removed a child of `child`
     // — i.e. one of ITS children changed shape, not this node's own list. Every node
@@ -574,7 +585,7 @@ export default class BaseNode {
             return false;
         }
         // Nor a value its source would not write (sourceEditRefusal).
-        return !sourceEditRefusal(this, 'Value');
+        return !sourceEditRefused(this, 'Value');
     }
     // Whether a Description typed onto this row could be SAVED — the third member of the
     // nameEditable/valueEditable family, and one for the same reason: the Description
@@ -591,7 +602,7 @@ export default class BaseNode {
     // Parameter whose value displays as a `<1x12 double>` summary takes no value editor
     // and can still be described.
     get descriptionEditable() {
-        return !encodedHolderOf(this) && !sourceEditRefusal(this, 'Description');
+        return !encodedHolderOf(this) && !sourceEditRefused(this, 'Description');
     }
     getPropInfo(PropClassRef) {
         const key = PropClassRef.key;
@@ -627,7 +638,7 @@ export default class BaseNode {
         // And any its source would not write (sourceEditRefusal), the Name included: asked last,
         // and only of a property every rule above leaves editable, as it is the one that walks to
         // the source.
-        if (editable && sourceEditRefusal(this, key)) {
+        if (editable && sourceEditRefused(this, key)) {
             editable = false;
         }
         return {
